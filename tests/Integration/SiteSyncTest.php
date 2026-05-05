@@ -114,6 +114,73 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame('remote-link-word', (string) get_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), true));
     }
 
+    public function test_pull_creates_missing_local_recording_for_existing_word_with_remote_audio_url(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Create Recording Wordset', 'create-recording-wordset');
+        $category_id = $this->ensure_term('word-category', 'Create Recording Category', 'create-recording-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Create Recording Word', 'Create Recording Translation');
+        wp_update_post([
+            'ID' => $word_id,
+            'post_name' => '',
+        ]);
+
+        $local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($local);
+        $this->assertSame(0, count((array) ($local['records'] ?? [])));
+
+        $audio_url = 'https://zazacaogren.com/wp-content/uploads/2026/05/create-recording.mp3';
+        $remote_record = $this->record('create-remote-recording', 999, 'Create Recording Word', 'Remote Create Recording', [
+            'recording_text' => 'remote text',
+            'recording_ipa' => 'remote.ipa',
+        ], [
+            'audio' => [
+                'url' => $audio_url,
+                'mime_type' => 'audio/mpeg',
+                'has_local_file' => true,
+            ],
+        ]);
+        $remote_record['word']['sync_id'] = 'create-remote-word';
+        $remote_record['word']['slug'] = 'remote-only-create-recording-word';
+        $remote_record['recording']['slug'] = 'remote-create-recording';
+        $remote = $this->snapshot([$remote_record]);
+
+        $plan = ll_tools_site_sync_build_pull_plan($local, $remote, []);
+
+        $this->assertSame(1, (int) ($plan['stats']['records_to_create'] ?? 0));
+        $this->assertSame(0, (int) ($plan['stats']['skipped'] ?? 0));
+        $this->assertSame('create_local_recording', (string) ($plan['actions'][0]['type'] ?? ''));
+        $this->assertContains('audio_file_path', (array) ($plan['actions'][0]['fields'] ?? []));
+
+        $summary = ll_tools_site_sync_apply_pull_plan($plan, $wordset_id);
+
+        $this->assertSame(1, (int) ($summary['records_created'] ?? 0));
+        $this->assertSame(0, (int) ($summary['records_updated'] ?? 0));
+        $this->assertSame(1, (int) ($summary['media_refs_updated'] ?? 0));
+        $this->assertSame('create-remote-word', (string) get_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), true));
+
+        $recordings = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'post_parent' => $word_id,
+            'posts_per_page' => -1,
+        ]);
+        $this->assertCount(1, $recordings);
+
+        $recording_id = (int) $recordings[0]->ID;
+        $this->assertSame('create-remote-recording', (string) get_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), true));
+        $this->assertSame('remote text', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('remote.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        $this->assertSame($audio_url, (string) get_post_meta($recording_id, 'audio_file_path', true));
+
+        $recording_types = wp_get_post_terms($recording_id, 'recording_type', ['fields' => 'slugs']);
+        $this->assertSame(['isolation'], array_values((array) $recording_types));
+
+        $after_local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($after_local);
+        $after_plan = ll_tools_site_sync_build_pull_plan($after_local, $remote, $remote);
+        $this->assertSame(0, count((array) ($after_plan['actions'] ?? [])));
+    }
+
     public function test_pull_uses_remote_media_urls_when_local_media_is_missing(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Media Sync Wordset', 'media-sync-wordset');

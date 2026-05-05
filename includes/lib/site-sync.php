@@ -719,6 +719,7 @@ function ll_tools_site_sync_plan_empty(string $direction, array $local_snapshot,
             'fields_checked' => 0,
             'fields_to_apply' => 0,
             'media_refs_to_apply' => 0,
+            'records_to_create' => 0,
             'conflicts' => 0,
             'skipped' => 0,
         ],
@@ -885,6 +886,113 @@ function ll_tools_site_sync_build_media_pull_fields(array $local_record, array $
     }
 
     return array_values(array_unique($fields));
+}
+
+function ll_tools_site_sync_find_local_word_for_remote_record(array $remote_record, int $local_wordset_id): int {
+    if ($local_wordset_id <= 0) {
+        return 0;
+    }
+
+    $remote_word = (array) ($remote_record['word'] ?? []);
+    $remote_word_sync_id = trim((string) ($remote_word['sync_id'] ?? ''));
+    if ($remote_word_sync_id !== '') {
+        $matches = get_posts([
+            'post_type' => 'words',
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'suppress_filters' => true,
+            'tax_query' => [
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$local_wordset_id],
+                ],
+            ],
+            'meta_query' => [
+                [
+                    'key' => ll_tools_site_sync_uuid_meta_key(),
+                    'value' => $remote_word_sync_id,
+                ],
+            ],
+        ]);
+        if (!empty($matches)) {
+            return (int) $matches[0];
+        }
+    }
+
+    $remote_word_slug = sanitize_title((string) ($remote_word['slug'] ?? ''));
+    if ($remote_word_slug !== '') {
+        $matches = get_posts([
+            'post_type' => 'words',
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'name' => $remote_word_slug,
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'suppress_filters' => true,
+            'tax_query' => [
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$local_wordset_id],
+                ],
+            ],
+        ]);
+        if (!empty($matches)) {
+            return (int) $matches[0];
+        }
+    }
+
+    $remote_word_title = trim((string) ($remote_word['title'] ?? ''));
+    if ($remote_word_title === '') {
+        return 0;
+    }
+
+    $matches = get_posts([
+        'post_type' => 'words',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'title' => $remote_word_title,
+        'posts_per_page' => 2,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+        'tax_query' => [
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$local_wordset_id],
+            ],
+        ],
+    ]);
+
+    return count((array) $matches) === 1 ? (int) $matches[0] : 0;
+}
+
+function ll_tools_site_sync_local_record_stub_for_remote(array $remote_record, int $local_word_id): array {
+    $word_post = $local_word_id > 0 ? get_post($local_word_id) : null;
+
+    return [
+        'record_type' => 'word_audio_transcription',
+        'sync_id' => '',
+        'natural_key' => '',
+        'word' => [
+            'id' => $local_word_id,
+            'sync_id' => $local_word_id > 0 ? ll_tools_site_sync_get_or_create_post_uuid($local_word_id, false) : '',
+            'slug' => $word_post instanceof WP_Post ? (string) $word_post->post_name : '',
+            'title' => $local_word_id > 0 ? (string) get_the_title($local_word_id) : '',
+        ],
+        'recording' => [
+            'id' => 0,
+            'slug' => '',
+            'title' => '',
+            'types' => (array) ($remote_record['recording']['types'] ?? []),
+        ],
+        'values' => ll_tools_site_sync_normalize_record_values([]),
+        'value_hash' => ll_tools_site_sync_value_hash([]),
+        'media' => ll_tools_site_sync_normalize_record_media([]),
+    ];
 }
 
 function ll_tools_site_sync_find_external_attachment_id(string $source_url): int {
@@ -1230,6 +1338,7 @@ function ll_tools_site_sync_build_pull_plan(array $local_snapshot, array $remote
     $plan = ll_tools_site_sync_plan_empty('pull', $local_snapshot, $remote_snapshot, $base_snapshot);
     $local_index = ll_tools_site_sync_index_snapshot($local_snapshot);
     $base_index = ll_tools_site_sync_index_snapshot($base_snapshot);
+    $local_wordset_id = (int) ($local_snapshot['wordset']['id'] ?? 0);
 
     foreach ((array) ($remote_snapshot['records'] ?? []) as $remote_record) {
         if (!is_array($remote_record)) {
@@ -1239,11 +1348,32 @@ function ll_tools_site_sync_build_pull_plan(array $local_snapshot, array $remote
         $plan['stats']['records_checked']++;
         $local_record = ll_tools_site_sync_find_matching_record($remote_record, $local_index);
         if ($local_record === null) {
-            $plan['skipped'][] = [
-                'reason' => 'missing_local_record',
-                'remote_record' => $remote_record,
-            ];
-            $plan['stats']['skipped']++;
+            $local_word_id = ll_tools_site_sync_find_local_word_for_remote_record($remote_record, $local_wordset_id);
+            if ($local_word_id > 0) {
+                $remote_values = ll_tools_site_sync_normalize_record_values((array) ($remote_record['values'] ?? []));
+                $media_fields = ll_tools_site_sync_build_media_pull_fields(
+                    ll_tools_site_sync_local_record_stub_for_remote($remote_record, $local_word_id),
+                    $remote_record
+                );
+                $plan['actions'][] = [
+                    'type' => 'create_local_recording',
+                    'fields' => array_merge(ll_tools_site_sync_transcription_value_keys(), $media_fields),
+                    'value_fields' => ll_tools_site_sync_transcription_value_keys(),
+                    'media_fields' => $media_fields,
+                    'local_record' => ll_tools_site_sync_local_record_stub_for_remote($remote_record, $local_word_id),
+                    'remote_record' => $remote_record,
+                    'values' => $remote_values,
+                ];
+                $plan['stats']['records_to_create']++;
+                $plan['stats']['fields_to_apply'] += count(ll_tools_site_sync_transcription_value_keys());
+                $plan['stats']['media_refs_to_apply'] += count($media_fields);
+            } else {
+                $plan['skipped'][] = [
+                    'reason' => 'missing_local_word',
+                    'remote_record' => $remote_record,
+                ];
+                $plan['stats']['skipped']++;
+            }
             continue;
         }
 
@@ -1413,8 +1543,101 @@ function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_
     return ll_tools_site_sync_record_values($recording_id, $wordset_id);
 }
 
+function ll_tools_site_sync_ensure_recording_type_term(string $slug): int {
+    $slug = sanitize_title($slug);
+    if ($slug === '') {
+        return 0;
+    }
+
+    $existing = get_term_by('slug', $slug, 'recording_type');
+    if ($existing instanceof WP_Term) {
+        return (int) $existing->term_id;
+    }
+
+    $label = ucwords(str_replace(['-', '_'], ' ', $slug));
+    $inserted = wp_insert_term($label, 'recording_type', ['slug' => $slug]);
+    if (is_wp_error($inserted) || !is_array($inserted)) {
+        return 0;
+    }
+
+    return (int) ($inserted['term_id'] ?? 0);
+}
+
+function ll_tools_site_sync_apply_recording_types(int $recording_id, array $recording_types): void {
+    if ($recording_id <= 0) {
+        return;
+    }
+
+    $term_ids = [];
+    foreach ($recording_types as $recording_type) {
+        $term_id = ll_tools_site_sync_ensure_recording_type_term((string) $recording_type);
+        if ($term_id > 0) {
+            $term_ids[] = $term_id;
+        }
+    }
+
+    wp_set_object_terms($recording_id, array_values(array_unique($term_ids)), 'recording_type', false);
+}
+
+function ll_tools_site_sync_create_local_recording_from_remote(int $word_id, int $wordset_id, array $remote_record) {
+    if ($word_id <= 0) {
+        return new WP_Error('ll_tools_site_sync_missing_local_word', __('Could not create the synced recording because the local word is missing.', 'll-tools-text-domain'));
+    }
+
+    $remote_recording = (array) ($remote_record['recording'] ?? []);
+    $title = trim((string) ($remote_recording['title'] ?? ''));
+    if ($title === '') {
+        $title = trim((string) get_the_title($word_id));
+    }
+    if ($title === '') {
+        $title = __('Synced recording', 'll-tools-text-domain');
+    }
+
+    $status = sanitize_key((string) ($remote_recording['status'] ?? 'publish'));
+    if (!in_array($status, ['publish', 'draft', 'pending', 'private', 'future'], true)) {
+        $status = 'publish';
+    }
+
+    $insert_args = [
+        'post_type' => 'word_audio',
+        'post_status' => $status,
+        'post_parent' => $word_id,
+        'post_title' => sanitize_text_field($title),
+    ];
+
+    $slug = sanitize_title((string) ($remote_recording['slug'] ?? ''));
+    if ($slug !== '') {
+        $insert_args['post_name'] = $slug;
+    }
+
+    $recording_id = wp_insert_post($insert_args, true);
+    if (is_wp_error($recording_id)) {
+        return $recording_id;
+    }
+    $recording_id = (int) $recording_id;
+    if ($recording_id <= 0) {
+        return new WP_Error('ll_tools_site_sync_recording_create_failed', __('Could not create the synced recording.', 'll-tools-text-domain'));
+    }
+
+    $remote_recording_sync_id = trim((string) ($remote_record['sync_id'] ?? ''));
+    if ($remote_recording_sync_id !== '') {
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), $remote_recording_sync_id);
+    }
+
+    $remote_word_sync_id = trim((string) ($remote_record['word']['sync_id'] ?? ''));
+    if ($remote_word_sync_id !== '') {
+        update_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), $remote_word_sync_id);
+    }
+
+    ll_tools_site_sync_apply_recording_types($recording_id, (array) ($remote_recording['types'] ?? []));
+    ll_tools_site_sync_apply_record_values($recording_id, $wordset_id, (array) ($remote_record['values'] ?? []));
+
+    return $recording_id;
+}
+
 function ll_tools_site_sync_apply_pull_plan(array $plan, int $local_wordset_id): array {
     $summary = [
+        'records_created' => 0,
         'records_updated' => 0,
         'fields_updated' => 0,
         'media_refs_updated' => 0,
@@ -1423,12 +1646,32 @@ function ll_tools_site_sync_apply_pull_plan(array $plan, int $local_wordset_id):
     ];
 
     foreach ((array) ($plan['actions'] ?? []) as $action) {
-        if (!is_array($action) || !in_array((string) ($action['type'] ?? ''), ['pull', 'link_sync_id'], true)) {
+        if (!is_array($action) || !in_array((string) ($action['type'] ?? ''), ['pull', 'link_sync_id', 'create_local_recording'], true)) {
             continue;
         }
 
         $local_record = (array) ($action['local_record'] ?? []);
         $remote_record = (array) ($action['remote_record'] ?? []);
+        if ((string) ($action['type'] ?? '') === 'create_local_recording') {
+            $local_word_id = (int) ($local_record['word']['id'] ?? 0);
+            $created_recording_id = ll_tools_site_sync_create_local_recording_from_remote($local_word_id, $local_wordset_id, $remote_record);
+            if (is_wp_error($created_recording_id)) {
+                $summary['errors'][] = $created_recording_id->get_error_message();
+                continue;
+            }
+
+            $summary['records_created']++;
+            $summary['fields_updated'] += count((array) ($action['value_fields'] ?? []));
+            if (!empty($action['media_fields'])) {
+                $media_result = ll_tools_site_sync_apply_record_media_refs((int) $created_recording_id, $local_word_id, $local_wordset_id, $remote_record);
+                $summary['media_refs_updated'] += (int) ($media_result['updated'] ?? 0);
+                foreach ((array) ($media_result['errors'] ?? []) as $error) {
+                    $summary['errors'][] = (string) $error;
+                }
+            }
+            continue;
+        }
+
         $recording_id = (int) ($local_record['recording']['id'] ?? 0);
         if ($recording_id <= 0) {
             $summary['errors'][] = __('Skipped a pull row because the local recording ID was missing.', 'll-tools-text-domain');
