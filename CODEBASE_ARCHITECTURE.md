@@ -9,6 +9,7 @@ read_first:
   - includes/template-loader.php
   - includes/assets.php
   - includes/lib/word-option-rules.php
+  - includes/lib/site-sync.php
   - includes/pages/quiz-pages.php
   - includes/pages/embed-page.php
   - includes/pages/default-shortcode-page-helper.php
@@ -26,6 +27,7 @@ read_first:
   - includes/post-types/word-audio-post-type.php
   - includes/admin/settings.php
   - includes/admin/audio-processor-admin.php
+  - includes/admin/site-sync-admin.php
   - js/flashcard-widget/main.js
   - js/flashcard-widget/selection.js
   - js/flashcard-widget/modes/listening.js
@@ -38,7 +40,7 @@ read_first:
 - Flashcard quizzes with multiple modes (practice, learning, listening, gender, self-check) and per-category prompt/option config.
 - Auto quiz pages under `/quiz/<category>`, embeddable pages under `/embed/<category>`, wordset hub routes, vocab lesson routes, content lessons, games, and teacher class views.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
-- Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
+- Admin tools for bulk translation, bulk word import, export/import, site sync, and legacy cleanups.
 - Dictionary tooling: TSV import into `ll_dictionary_entry`, grouped sense metadata, snapshot import/export, and a public `[ll_dictionary]` browse/search page.
 - Template override system and GitHub update checker (`main` stable via release asset zip, `dev` via branch for testing).
 
@@ -101,6 +103,7 @@ includes/
     audio-originals.php       # Optional preserved-original audio helpers
     custom-stt-endpoint.php   # Wordset-scoped custom STT endpoint validation/storage
     internal-review-notes.php # Staff-only notes for words and prompt cards
+    site-sync.php             # Wordset-scoped live/staging sync snapshots and merge planning
     dictionary-sources.php    # Dictionary source metadata/import attribution
     dictionary-static-cache.php # Public dictionary cache helpers
     public-static-cache.php   # Anonymous public-page cache helpers
@@ -170,6 +173,7 @@ includes/
     dictionary-import-admin.php
     dictionary-sources-admin.php
     export-import.php
+    site-sync-admin.php       # LL Site Sync admin workflow for pull/preview/push
     offline-app-export.php
     teacher-classes-page.php
     example-sentence-migration.php

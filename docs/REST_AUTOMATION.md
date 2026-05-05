@@ -116,6 +116,7 @@ Routes:
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
 - `POST /wordsets/{wordset}/bulk-update`
+- `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
 - `GET /wordsets/{wordset}/report`
 - `GET /wordsets/{wordset}/report-summary`
@@ -369,6 +370,26 @@ Typical uses:
 - backfilling `grammatical_gender`
 - attaching `dictionary_entry_title`
 - updating `word_note` without resending the entire word row
+
+### `GET /wordsets/{wordset}/site-sync/snapshot`
+
+Returns a wordset-scoped sync snapshot for site-to-site workflows. The first
+supported surface is `transcriptions`, which includes `word_audio` recording
+text, recording transcription, transcription review flags, and review notes.
+
+Query params:
+
+- `surface` optional, currently `transcriptions`
+- `ensure_sync_ids` optional boolean, default true
+
+The response includes stable LL Tools sync IDs where available. When
+`ensure_sync_ids` is true, missing sync IDs are generated and stored on the
+remote records so staging and live can keep matching the same recordings after a
+pull.
+
+Use this route from the LL Site Sync admin page or external automation before a
+three-way merge. It is not a database clone endpoint; it intentionally returns a
+domain-specific content snapshot for safe diffing.
 
 ### `GET /wordsets/{wordset}/report`
 

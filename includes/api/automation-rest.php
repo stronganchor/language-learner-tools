@@ -799,6 +799,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
             'bulk_update' => '/ll-tools/v1/wordsets/{wordset}/bulk-update',
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
+            'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',

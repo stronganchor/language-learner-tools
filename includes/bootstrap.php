@@ -11,6 +11,7 @@ require_once __DIR__ . '/lib/audio-originals.php';
 require_once __DIR__ . '/lib/custom-stt-endpoint.php';
 require_once __DIR__ . '/lib/internal-review-notes.php';
 require_once __DIR__ . '/lib/interlinear.php';
+require_once __DIR__ . '/lib/site-sync.php';
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
@@ -112,6 +113,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/orphan-media-admin.php');
     require_once(__DIR__ . '/admin/split-word-admin.php');
     require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
+    require_once(__DIR__ . '/admin/site-sync-admin.php');
 }
 
 if (defined('WP_CLI') && WP_CLI) {

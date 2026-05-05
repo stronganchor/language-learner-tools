@@ -160,6 +160,7 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
             'll-bulk-translations' => __('Bulk Translations', 'll-tools-text-domain'),
             'll-export' => __('Export', 'll-tools-text-domain'),
             'll-import' => __('Import', 'll-tools-text-domain'),
+            'll-site-sync' => __('Site Sync', 'll-tools-text-domain'),
             'll-offline-app-export' => __('Offline App Export', 'll-tools-text-domain'),
             'll-ipa-keyboard' => __('Transcription Manager', 'll-tools-text-domain'),
             'll-word-option-rules' => __('Word Option Rules', 'll-tools-text-domain'),
@@ -434,6 +435,9 @@ function ll_tools_get_tools_hub_card_sections(): array {
     $offline_app_export_capability = function_exists('ll_tools_get_offline_app_export_capability')
         ? ll_tools_get_offline_app_export_capability()
         : 'manage_options';
+    $site_sync_capability = function_exists('ll_tools_site_sync_capability')
+        ? ll_tools_site_sync_capability()
+        : 'manage_options';
     $user_progress_capability = function_exists('ll_tools_get_user_progress_report_capability')
         ? ll_tools_get_user_progress_report_capability()
         : 'manage_options';
@@ -535,6 +539,15 @@ function ll_tools_get_tools_hub_card_sections(): array {
                 'page_slug' => sanitize_key((string) $import_page_slug),
                 'cap' => $export_import_capability,
                 'icon' => 'dashicons-upload',
+            ],
+            [
+                'label' => __('Site Sync', 'll-tools-text-domain'),
+                'description' => __('Pull a live word set into staging, preview local transcription changes, and push clean updates back to live.', 'll-tools-text-domain'),
+                'menu_slug' => 'tools.php?page=ll-site-sync',
+                'url' => ll_tools_get_tools_page_url('ll-site-sync'),
+                'page_slug' => 'll-site-sync',
+                'cap' => $site_sync_capability,
+                'icon' => 'dashicons-update',
             ],
             [
                 'label' => __('Offline App Export', 'll-tools-text-domain'),
@@ -688,6 +701,7 @@ function ll_tools_get_tools_hub_direct_submenu_page_slugs(): array {
         'll-dictionary-import',
         $export_page_slug,
         $import_page_slug,
+        'll-site-sync',
         'll-offline-app-export',
     ];
 }

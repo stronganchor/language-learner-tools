@@ -1,0 +1,111 @@
+.ll-site-sync {
+  --ll-site-sync-border: #d0d7de;
+  --ll-site-sync-muted: #50575e;
+  --ll-site-sync-surface: #ffffff;
+  --ll-site-sync-accent: #185ca8;
+}
+
+.ll-site-sync .ll-site-sync-intro {
+  max-width: 900px;
+  color: var(--ll-site-sync-muted);
+  line-height: 1.5;
+}
+
+.ll-site-sync .ll-site-sync-panel {
+  max-width: 1120px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--ll-site-sync-border);
+  border-radius: 8px;
+  background: var(--ll-site-sync-surface);
+}
+
+.ll-site-sync .ll-site-sync-panel h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.ll-site-sync .ll-site-sync-panel h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.ll-site-sync .ll-site-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.ll-site-sync .ll-site-sync-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ll-site-sync .ll-site-sync-field span,
+.ll-site-sync .ll-site-sync-checkbox span {
+  font-weight: 600;
+}
+
+.ll-site-sync .ll-site-sync-field input,
+.ll-site-sync .ll-site-sync-field select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.ll-site-sync .ll-site-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.ll-site-sync .ll-site-sync-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.ll-site-sync .ll-site-sync-stat-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid #c3c4c7;
+  border-radius: 999px;
+  background: #f6f7f7;
+  color: #1d2327;
+}
+
+.ll-site-sync .ll-site-sync-table td {
+  vertical-align: top;
+}
+
+.ll-site-sync .ll-site-sync-table td:nth-child(4),
+.ll-site-sync .ll-site-sync-table td:nth-child(5) {
+  max-width: 280px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ll-site-sync .ll-site-sync-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 14px;
+}
+
+@media (max-width: 782px) {
+  .ll-site-sync .ll-site-sync-panel {
+    padding: 12px;
+  }
+
+  .ll-site-sync .ll-site-sync-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
