@@ -314,6 +314,47 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame('base.ipa', (string) (($merged['records'][0]['values'] ?? [])['recording_ipa'] ?? ''));
     }
 
+    public function test_compact_base_snapshot_keeps_merge_data_without_media_payload(): void
+    {
+        $base_record = $this->record('compact-shared', 101, 'Compact Word', 'Compact Recording', [
+            'recording_ipa' => 'base.ipa',
+        ], [
+            'audio' => [
+                'url' => 'https://example.com/audio.mp3',
+                'mime_type' => 'audio/mpeg',
+                'has_local_file' => true,
+            ],
+            'word_image' => [
+                'attachment' => [
+                    'url' => 'https://example.com/image.webp',
+                    'source_url' => 'https://example.com/image.webp',
+                    'mime_type' => 'image/webp',
+                    'width' => 1024,
+                    'height' => 1024,
+                    'has_local_file' => true,
+                ],
+            ],
+        ]);
+        $base = $this->snapshot([$base_record]);
+
+        $compacted = ll_tools_site_sync_compact_base_snapshot($base);
+        $local = $this->snapshot([
+            $this->record('compact-shared', 201, 'Compact Word', 'Compact Recording', ['recording_ipa' => 'local.ipa']),
+        ]);
+        $remote = $this->snapshot([
+            $this->record('compact-shared', 301, 'Compact Word', 'Compact Recording', ['recording_ipa' => 'remote.ipa']),
+        ]);
+
+        $this->assertArrayNotHasKey('media', (array) ($compacted['records'][0] ?? []));
+        $this->assertSame('base.ipa', (string) (($compacted['records'][0]['values'] ?? [])['recording_ipa'] ?? ''));
+        $this->assertLessThan(strlen(serialize($base)), strlen(serialize($compacted)));
+
+        $plan = ll_tools_site_sync_build_pull_plan($local, $remote, $compacted);
+
+        $this->assertSame(1, count((array) $plan['conflicts']));
+        $this->assertSame('base.ipa', (string) ($plan['conflicts'][0]['base_value'] ?? ''));
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

@@ -1496,6 +1496,46 @@ function ll_tools_site_sync_merge_base_snapshot_after_pull(array $base_snapshot,
     return $merged;
 }
 
+function ll_tools_site_sync_compact_base_snapshot(array $snapshot): array {
+    $compacted = $snapshot;
+    $records = [];
+
+    foreach ((array) ($snapshot['records'] ?? []) as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+
+        $values = ll_tools_site_sync_normalize_record_values((array) ($record['values'] ?? []));
+        $word = (array) ($record['word'] ?? []);
+        $recording = (array) ($record['recording'] ?? []);
+        $recording_types = array_values(array_unique(array_filter(array_map(
+            'sanitize_title',
+            (array) ($recording['types'] ?? [])
+        ))));
+        sort($recording_types);
+
+        $records[] = [
+            'record_type' => (string) ($record['record_type'] ?? 'word_audio_transcription'),
+            'sync_id' => trim((string) ($record['sync_id'] ?? '')),
+            'natural_key' => trim((string) ($record['natural_key'] ?? '')),
+            'word' => [
+                'sync_id' => trim((string) ($word['sync_id'] ?? '')),
+                'slug' => sanitize_title((string) ($word['slug'] ?? '')),
+            ],
+            'recording' => [
+                'slug' => sanitize_title((string) ($recording['slug'] ?? '')),
+                'types' => $recording_types,
+            ],
+            'values' => $values,
+            'value_hash' => ll_tools_site_sync_value_hash($values),
+        ];
+    }
+
+    $compacted['records'] = $records;
+    $compacted['record_count'] = count($records);
+    return $compacted;
+}
+
 function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_id, array $values): array {
     $values = ll_tools_site_sync_normalize_record_values($values);
     $field_updates = [];

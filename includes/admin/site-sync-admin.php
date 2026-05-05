@@ -83,6 +83,7 @@ function ll_tools_site_sync_get_base_snapshot(array $connection): array {
 function ll_tools_site_sync_save_base_snapshot(array $connection, array $snapshot): void {
     $state = ll_tools_site_sync_get_state();
     $key = ll_tools_site_sync_connection_key($connection);
+    $snapshot = ll_tools_site_sync_compact_base_snapshot($snapshot);
     $state[$key] = [
         'updated_at_gmt' => gmdate('c'),
         'connection' => ll_tools_site_sync_sanitize_connection($connection),
