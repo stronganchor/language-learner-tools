@@ -4931,40 +4931,18 @@
                 const newImages = Array.isArray(data.data?.images) ? data.data.images : [];
                 newImages.forEach(normalizeImageRecordingTypeState);
                 if (newImages.length === 0) {
-                    // Mark this category as exhausted
                     exhaustedCategories.add(newCategory);
-
-                    // This category has no images - try the next one
-                    const nextCategory = getNextCategoryAfter(newCategory);
-                    if (nextCategory && nextCategory.slug !== newCategory) {
-                        el.categorySelect.value = nextCategory.slug;
-                        syncCategorySelectorUi();
-                        el.categorySelect.disabled = false;
-                        if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
-                        renderRecordingTypeChoices();
-                        el.recordBtn.disabled = false;
-                        el.skipBtn.disabled = false;
-                        if (el.hideBtn) el.hideBtn.disabled = false;
-                        // Recursively try the next category
-                        return switchCategory();
-                    } else {
-                        // No more categories to try
-                        showStatus(i18n.no_images_in_category || 'No images need audio in any remaining category.', 'error');
-                        if (previousCategory) {
-                            el.categorySelect.value = previousCategory;
-                            syncCategorySelectorUi();
-                        }
-                        if (images[previousIndex]) {
-                            loadImage(previousIndex);
-                        } else {
-                            endDisplayLoading();
-                        }
-                        el.categorySelect.disabled = false;
-                        if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
-                        renderRecordingTypeChoices();
-                        if (el.hideBtn) el.hideBtn.disabled = false;
-                        return;
-                    }
+                    window.ll_recorder_data.images = [];
+                    images.length = 0;
+                    currentImageIndex = 0;
+                    updateRecordingTypeOptions([]);
+                    if (el.currentNum) el.currentNum.textContent = '0';
+                    if (el.totalNum) el.totalNum.textContent = '0';
+                    if (el.mainScreen) el.mainScreen.style.display = 'none';
+                    showComplete();
+                    endDisplayLoading();
+                    showStatus(i18n.no_images_in_category || 'No images need audio in this category.', 'error');
+                    return;
                 }
 
                 // Update global images and reset indexer
@@ -5018,27 +4996,6 @@
         }
     }
 
-    // Add this new helper function after getNextCategory()
-    function getNextCategoryAfter(currentSlug) {
-        const el = window.llRecorder;
-        if (!el.categorySelect) return null;
-
-        const availableCategories = window.ll_recorder_data?.available_categories || {};
-        const categoryEntries = Object.entries(availableCategories);
-
-        if (categoryEntries.length <= 1) return null;
-
-        const currentIndex = categoryEntries.findIndex(([slug]) => slug === currentSlug);
-
-        if (currentIndex === -1) return null;
-
-        // Get next category, or wrap to first if at end
-        const nextIndex = (currentIndex + 1) % categoryEntries.length;
-        const [slug, name] = categoryEntries[nextIndex];
-
-        return { slug, name };
-    }
-
     function showComplete() {
         const el = window.llRecorder;
         if (newWordMode && newWordStage === 'recording') {
@@ -5077,13 +5034,6 @@
                 </svg>
             `;
                     el.completeScreen.querySelector('p').insertAdjacentElement('afterend', nextCategoryBtn);
-
-                    nextCategoryBtn.addEventListener('click', () => {
-                        if (el.categorySelect) {
-                            el.categorySelect.value = nextCategory.slug;
-                            el.categorySelect.dispatchEvent(new Event('change'));
-                        }
-                    });
                 } else {
                     // Update existing button with new category
                     nextCategoryBtn.innerHTML = `
@@ -5093,6 +5043,15 @@
                 </svg>
             `;
                 }
+                nextCategoryBtn.setAttribute('data-category-slug', nextCategory.slug);
+                nextCategoryBtn.onclick = () => {
+                    const targetSlug = String(nextCategoryBtn.getAttribute('data-category-slug') || '');
+                    if (el.categorySelect && targetSlug) {
+                        el.categorySelect.value = targetSlug;
+                        syncCategorySelectorUi();
+                        el.categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                };
             } else if (nextCategoryBtn) {
                 // Remove button if no next category
                 nextCategoryBtn.remove();

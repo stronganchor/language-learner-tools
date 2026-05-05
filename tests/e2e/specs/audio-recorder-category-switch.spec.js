@@ -1,0 +1,233 @@
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const recorderJsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/audio-recorder.js'),
+  'utf8'
+);
+
+function buildRecorderMarkup() {
+  return `
+    <div class="ll-recording-interface">
+      <div class="ll-recording-header">
+        <span class="ll-current-num">1</span>
+        <span class="ll-total-num">1</span>
+        <div class="ll-category-selector">
+          <select id="ll-category-select">
+            <option value="ağaç-çeşitleri">Ağaç çeşitleri (1)</option>
+            <option value="baby-animals" selected>Baby animals (1)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="ll-recording-main" style="display:flex;">
+        <div class="ll-recording-image-container">
+          <div class="flashcard-container">
+            <img id="ll-current-image" alt="" />
+          </div>
+          <p id="ll-image-title"></p>
+          <p id="ll-image-category"></p>
+        </div>
+
+        <div class="ll-recording-controls-column">
+          <div class="ll-recording-type-selector">
+            <select id="ll-recording-type"></select>
+          </div>
+          <div class="ll-recording-buttons">
+            <button type="button" id="ll-record-btn" class="ll-btn ll-btn-record"></button>
+            <button type="button" id="ll-skip-btn" class="ll-btn ll-btn-skip"></button>
+            <button type="button" id="ll-hide-btn" class="ll-btn ll-btn-hide"></button>
+          </div>
+          <div id="ll-recording-indicator" style="display:none;">
+            <span id="ll-recording-meter"></span>
+            <span id="ll-recording-timer">0:00</span>
+          </div>
+          <div id="ll-playback-controls" style="display:none;">
+            <audio id="ll-playback-audio" controls></audio>
+            <button type="button" id="ll-redo-btn"></button>
+            <button type="button" id="ll-submit-btn"></button>
+          </div>
+          <div id="ll-upload-status" class="ll-upload-status"></div>
+        </div>
+      </div>
+
+      <div class="ll-recording-complete" style="display:none;">
+        <h2>Done</h2>
+        <p><span class="ll-completed-count"></span> recordings completed</p>
+      </div>
+
+      <div id="ll-upload-feedback" hidden>
+        <span id="ll-upload-feedback-label"></span>
+        <span id="ll-upload-feedback-value" hidden></span>
+        <span id="ll-upload-progress-fill"></span>
+      </div>
+    </div>
+  `;
+}
+
+function buildQueueItem(categorySlug, categoryName, title) {
+  return {
+    id: 0,
+    title,
+    image_url: '',
+    category_name: categoryName,
+    category_slug: categorySlug,
+    word_id: 101,
+    word_title: title,
+    word_translation: '',
+    use_word_display: true,
+    missing_types: ['isolation'],
+    existing_types: [],
+    prompt_types: ['isolation'],
+    my_existing_types: [],
+    is_text_only: true
+  };
+}
+
+async function mountRecorder(page) {
+  await page.goto('about:blank');
+  await page.setContent(buildRecorderMarkup());
+
+  await page.evaluate(() => {
+    window.__requestedCategories = [];
+
+    const makeJsonResponse = (payload) => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        get(name) {
+          return String(name || '').toLowerCase() === 'content-type' ? 'application/json' : null;
+        }
+      },
+      async json() {
+        return payload;
+      }
+    });
+
+    window.fetch = (url, options = {}) => {
+      const body = options.body;
+      const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
+      if (action === 'll_get_images_for_recording') {
+        const category = String(body.get('category') || '');
+        window.__requestedCategories.push(category);
+        if (category === 'ağaç-çeşitleri') {
+          return Promise.resolve(makeJsonResponse({
+            success: true,
+            data: {
+              images: [],
+              recording_types: []
+            }
+          }));
+        }
+        return Promise.resolve(makeJsonResponse({
+          success: true,
+          data: {
+            images: [{
+              id: 0,
+              title: 'calf',
+              image_url: '',
+              category_name: 'Baby animals',
+              category_slug: 'baby-animals',
+              word_id: 102,
+              word_title: 'calf',
+              word_translation: '',
+              use_word_display: true,
+              missing_types: ['isolation'],
+              existing_types: [],
+              prompt_types: ['isolation'],
+              my_existing_types: [],
+              is_text_only: true
+            }],
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }]
+          }
+        }));
+      }
+      return Promise.resolve(makeJsonResponse({ success: true, data: {} }));
+    };
+
+    try {
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: {
+          async getUserMedia() {
+            return { getTracks: () => [{ stop() {} }] };
+          },
+          async enumerateDevices() {
+            return [{ kind: 'audioinput', deviceId: 'fake-mic', label: 'Fake Mic' }];
+          }
+        },
+        configurable: true
+      });
+    } catch (_) {
+      navigator.mediaDevices = {
+        async getUserMedia() {
+          return { getTracks: () => [{ stop() {} }] };
+        },
+        async enumerateDevices() {
+          return [{ kind: 'audioinput', deviceId: 'fake-mic', label: 'Fake Mic' }];
+        }
+      };
+    }
+  });
+
+  await page.evaluate((initialImage) => {
+    window.ll_recorder_data = {
+      ajax_url: '/wp-admin/admin-ajax.php',
+      nonce: 'test-nonce',
+      images: [initialImage],
+      available_categories: {
+        'ağaç-çeşitleri': 'Ağaç çeşitleri',
+        'baby-animals': 'Baby animals'
+      },
+      language: '',
+      wordset: '',
+      wordset_ids: [11],
+      sort_locale: 'tr_TR',
+      hide_name: false,
+      recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+      recording_type_order: ['isolation'],
+      recording_type_icons: { default: '' },
+      allow_new_words: false,
+      assembly_enabled: false,
+      deepl_enabled: false,
+      user_display_name: 'Recorder Tester',
+      require_all_types: true,
+      initial_category: 'baby-animals',
+      include_types: '',
+      exclude_types: '',
+      auto_process_recordings: false,
+      stop_delay_ms: 0,
+      current_user_id: 10,
+      hidden_words: [],
+      hidden_count: 0,
+      i18n: {
+        category: 'Category:',
+        uncategorized: 'Uncategorized',
+        switching_category: 'Switching category...',
+        no_images_in_category: 'No images need audio in this category.',
+        category_switched: 'Category switched. Ready to record.',
+        invalid_response: 'Server returned invalid response format'
+      }
+    };
+  }, buildQueueItem('baby-animals', 'Baby animals', 'calf'));
+
+  await page.addScriptTag({ content: recorderJsSource });
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+  });
+}
+
+test('manual category switch stays on an empty Turkish category instead of advancing', async ({ page }) => {
+  await mountRecorder(page);
+
+  await page.selectOption('#ll-category-select', 'ağaç-çeşitleri');
+
+  await expect(page.locator('#ll-category-select')).toHaveValue('ağaç-çeşitleri');
+  await expect(page.locator('.ll-recording-complete')).toBeVisible();
+  await expect(page.locator('.ll-current-num')).toHaveText('0');
+  await expect(page.locator('.ll-total-num')).toHaveText('0');
+  await expect(page.locator('#ll-upload-status')).toContainText('No images need audio in this category.');
+
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategories.join('|'))).toBe('ağaç-çeşitleri');
+});
