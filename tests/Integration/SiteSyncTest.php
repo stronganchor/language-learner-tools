@@ -71,7 +71,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
         $this->assertIsArray($local);
         $remote_record = $this->record('pull-shared-recording', 999, 'Pull Sync Word', 'Pull Sync Recording', [
-            'recording_text' => 'remote text',
+            'recording_text' => 'remote text?',
             'recording_ipa' => 'remote.ipa',
         ]);
         $remote_record['natural_key'] = (string) (($local['records'][0] ?? [])['natural_key'] ?? '');
@@ -81,7 +81,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $summary = ll_tools_site_sync_apply_pull_plan($plan, $wordset_id);
 
         $this->assertSame(1, (int) $summary['records_updated']);
-        $this->assertSame('remote text', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('remote text?', (string) get_post_meta($recording_id, 'recording_text', true));
         $this->assertSame('remote.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
     }
 
@@ -112,6 +112,38 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) $summary['sync_ids_linked']);
         $this->assertSame('remote-link-recording', (string) get_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), true));
         $this->assertSame('remote-link-word', (string) get_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), true));
+    }
+
+    public function test_pull_replaces_existing_review_note_with_empty_remote_note(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Review Sync Wordset', 'review-sync-wordset');
+        $category_id = $this->ensure_term('word-category', 'Review Sync Category', 'review-sync-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Review Sync Word', 'Review Sync Translation');
+        $recording_id = $this->create_recording($word_id, 'Review Sync Recording', [
+            'recording_text' => 'same text',
+            'recording_ipa' => 'same.ipa',
+        ]);
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'review-shared-recording');
+        ll_tools_ipa_keyboard_set_recording_review_state($recording_id, true, 'recording_ipa', 'old local note');
+
+        $local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($local);
+        $remote_record = $this->record('review-shared-recording', 999, 'Review Sync Word', 'Review Sync Recording', [
+            'recording_text' => 'same text',
+            'recording_ipa' => 'same.ipa',
+            'needs_review' => true,
+            'review_fields' => [],
+            'review_note' => '',
+        ]);
+        $remote_record['natural_key'] = (string) (($local['records'][0] ?? [])['natural_key'] ?? '');
+        $remote = $this->snapshot([$remote_record]);
+
+        $plan = ll_tools_site_sync_build_pull_plan($local, $remote, []);
+        $summary = ll_tools_site_sync_apply_pull_plan($plan, $wordset_id);
+
+        $this->assertSame(1, (int) $summary['records_updated']);
+        $this->assertSame('', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
+        $this->assertSame(['recording_ipa'], ll_tools_ipa_keyboard_get_recording_review_field_list($recording_id));
     }
 
     public function test_pull_base_merge_preserves_old_base_for_conflicted_fields(): void
