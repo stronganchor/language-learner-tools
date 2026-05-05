@@ -11703,7 +11703,38 @@ function ll_tools_wordset_page_render_recorder_queue_item(array $item, array $ar
     return (string) ob_get_clean();
 }
 
-function ll_tools_wordset_page_render_recorder_queue_category_group(array $category_group, array $args): string {
+function ll_tools_wordset_page_render_recorder_queue_category_preview_tiles(array $preview_items, int $preview_limit = 2): string {
+    $preview_limit = max(1, $preview_limit);
+    $displayed_count = min(count($preview_items), $preview_limit);
+
+    ob_start();
+    ?>
+    <?php if (!empty($preview_items)) : ?>
+        <?php foreach (array_slice($preview_items, 0, $preview_limit) as $preview_item) : ?>
+            <?php if (($preview_item['type'] ?? '') === 'image') : ?>
+                <span class="ll-wordset-preview-item ll-wordset-preview-item--image">
+                    <img src="<?php echo esc_url((string) ($preview_item['url'] ?? '')); ?>" alt="<?php echo esc_attr((string) ($preview_item['alt'] ?? '')); ?>" loading="lazy" decoding="async" fetchpriority="low" />
+                </span>
+            <?php else : ?>
+                <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                    <span class="ll-wordset-preview-text" dir="auto"><?php echo esc_html((string) ($preview_item['label'] ?? '')); ?></span>
+                </span>
+            <?php endif; ?>
+        <?php endforeach; ?>
+        <?php for ($i = $displayed_count; $i < $preview_limit; $i++) : ?>
+            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+        <?php endfor; ?>
+    <?php else : ?>
+        <?php for ($i = 0; $i < $preview_limit; $i++) : ?>
+            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+        <?php endfor; ?>
+    <?php endif; ?>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_recorder_queue_category_card(array $category_group, string $category_url): string {
     $items = array_values(array_filter((array) ($category_group['items'] ?? []), 'is_array'));
     if (empty($items)) {
         return '';
@@ -11715,8 +11746,6 @@ function ll_tools_wordset_page_render_recorder_queue_category_group(array $categ
     }
 
     $category_slug = sanitize_title((string) ($category_group['slug'] ?? $category_name));
-    $category_open = !empty($args['category_open']);
-    $list_id = 'll-recorder-queue-category-' . md5($category_slug . '|' . (string) ($args['recorder_user_id'] ?? 0) . '|' . (string) ($args['action'] ?? ''));
     $preview_limit = 2;
     $preview_items = ll_tools_wordset_page_get_recorder_queue_category_preview_items($items, $preview_limit);
     $has_image_preview = false;
@@ -11729,48 +11758,55 @@ function ll_tools_wordset_page_render_recorder_queue_category_group(array $categ
 
     ob_start();
     ?>
-    <details class="ll-wordset-recorder-queue-category"<?php echo $category_open ? ' open' : ''; ?>>
-        <summary class="ll-wordset-recorder-queue-category__summary" aria-controls="<?php echo esc_attr($list_id); ?>">
-            <span class="ll-wordset-recorder-queue-category__card">
-                <span class="ll-wordset-card__top ll-wordset-recorder-queue-category__top">
-                    <span class="ll-wordset-recorder-queue-category__heading">
-                        <span class="ll-wordset-recorder-queue-category__toggle" aria-hidden="true"></span>
-                        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name"><?php echo esc_html($category_name); ?></span>
-                    </span>
-                    <span class="ll-wordset-settings-card__pill">
-                        <?php
-                        echo esc_html(sprintf(
-                            _n('%d word', '%d words', count($items), 'll-tools-text-domain'),
-                            count($items)
-                        ));
-                        ?>
-                    </span>
-                </span>
-                <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview <?php echo $has_image_preview ? 'has-images' : 'has-text'; ?>">
-                    <?php if (!empty($preview_items)) : ?>
-                        <?php $displayed_count = min(count($preview_items), $preview_limit); ?>
-                        <?php foreach (array_slice($preview_items, 0, $preview_limit) as $preview_item) : ?>
-                            <?php if (($preview_item['type'] ?? '') === 'image') : ?>
-                                <span class="ll-wordset-preview-item ll-wordset-preview-item--image">
-                                    <img src="<?php echo esc_url((string) ($preview_item['url'] ?? '')); ?>" alt="<?php echo esc_attr((string) ($preview_item['alt'] ?? '')); ?>" loading="lazy" decoding="async" fetchpriority="low" />
-                                </span>
-                            <?php else : ?>
-                                <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
-                                    <span class="ll-wordset-preview-text" dir="auto"><?php echo esc_html((string) ($preview_item['label'] ?? '')); ?></span>
-                                </span>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                        <?php for ($i = $displayed_count; $i < $preview_limit; $i++) : ?>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
-                        <?php endfor; ?>
-                    <?php else : ?>
-                        <?php for ($i = 0; $i < $preview_limit; $i++) : ?>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
-                        <?php endfor; ?>
-                    <?php endif; ?>
-                </span>
+    <a class="ll-wordset-card ll-wordset-recorder-queue-category-card" href="<?php echo esc_url($category_url); ?>" data-recorder-queue-category="<?php echo esc_attr($category_slug); ?>">
+        <span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top">
+            <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name"><?php echo esc_html($category_name); ?></span>
+            <span class="ll-wordset-settings-card__pill">
+                <?php
+                echo esc_html(sprintf(
+                    _n('%d word', '%d words', count($items), 'll-tools-text-domain'),
+                    count($items)
+                ));
+                ?>
             </span>
-        </summary>
+        </span>
+        <span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true">
+            <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview <?php echo $has_image_preview ? 'has-images' : 'has-text'; ?>">
+                <?php echo ll_tools_wordset_page_render_recorder_queue_category_preview_tiles($preview_items, $preview_limit); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </span>
+        </span>
+    </a>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_recorder_queue_category_group(array $category_group, array $args): string {
+    $items = array_values(array_filter((array) ($category_group['items'] ?? []), 'is_array'));
+    if (empty($items)) {
+        return '';
+    }
+
+    $category_name = trim((string) ($category_group['name'] ?? ''));
+    if ($category_name === '') {
+        $category_name = __('Uncategorized', 'll-tools-text-domain');
+    }
+    $list_id = 'll-recorder-queue-category-' . md5((string) ($category_group['slug'] ?? $category_name) . '|' . (string) ($args['recorder_user_id'] ?? 0) . '|' . (string) ($args['action'] ?? ''));
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-recorder-queue-category-view" aria-labelledby="<?php echo esc_attr($list_id . '-title'); ?>">
+        <div class="ll-wordset-recorder-queue-category-view__head">
+            <h5 class="ll-wordset-recorder-queue-category-view__title" id="<?php echo esc_attr($list_id . '-title'); ?>"><?php echo esc_html($category_name); ?></h5>
+            <span class="ll-wordset-settings-card__pill">
+                <?php
+                echo esc_html(sprintf(
+                    _n('%d word', '%d words', count($items), 'll-tools-text-domain'),
+                    count($items)
+                ));
+                ?>
+            </span>
+        </div>
         <ul id="<?php echo esc_attr($list_id); ?>" class="ll-wordset-recorder-queue-list">
             <?php foreach ($items as $item) : ?>
                 <?php
@@ -11781,7 +11817,7 @@ function ll_tools_wordset_page_render_recorder_queue_category_group(array $categ
                 ?>
             <?php endforeach; ?>
         </ul>
-    </details>
+    </section>
     <?php
 
     return (string) ob_get_clean();
@@ -11888,6 +11924,14 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
         && sanitize_key(wp_unslash((string) $_GET['ll_recorder_queue_view'])) === 'hidden';
     $hidden_url = add_query_arg('ll_recorder_queue_view', 'hidden', $action_url);
     $queue_url = remove_query_arg('ll_recorder_queue_view', $action_url);
+    $focused_queue_user_id = (!$hidden_view && isset($_GET['ll_recorder_queue_focus']))
+        ? absint(wp_unslash((string) $_GET['ll_recorder_queue_focus']))
+        : 0;
+    $focused_category_slug = (!$hidden_view && isset($_GET['ll_recorder_queue_category']))
+        ? sanitize_title(wp_unslash((string) $_GET['ll_recorder_queue_category']))
+        : '';
+    $focused_category_view = ($focused_queue_user_id > 0 && $focused_category_slug !== '');
+    $focused_back_url = remove_query_arg(['ll_recorder_queue_focus', 'll_recorder_queue_category'], $action_url);
     $recording_type_options = ll_tools_wordset_page_get_recorder_queue_recording_type_options();
     $recorder_count = count($recorder_queue_rows);
     $visible_total = 0;
@@ -11960,6 +12004,9 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                     continue;
                 }
                 $queue_user_id = isset($queue_row['user_id']) ? (int) $queue_row['user_id'] : 0;
+                if ($focused_category_view && $queue_user_id !== $focused_queue_user_id) {
+                    continue;
+                }
                 $queue_display_name = (string) ($queue_row['display_name'] ?? '');
                 $queue_login = (string) ($queue_row['user_login'] ?? '');
                 $queue_email = (string) ($queue_row['user_email'] ?? '');
@@ -11969,6 +12016,15 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                 $visible_groups = ll_tools_wordset_page_group_recorder_queue_items_by_category($visible_items);
                 $hidden_groups = ll_tools_wordset_page_group_recorder_queue_items_by_category($hidden_items);
                 $row_hidden_url = add_query_arg('ll_recorder_queue_focus', (string) $queue_user_id, $hidden_url) . '#ll-recorder-queue-' . $queue_user_id;
+                $focused_group = null;
+                if ($focused_category_view) {
+                    foreach ($visible_groups as $visible_group) {
+                        if (sanitize_title((string) ($visible_group['slug'] ?? '')) === $focused_category_slug) {
+                            $focused_group = $visible_group;
+                            break;
+                        }
+                    }
+                }
                 ?>
                 <article class="ll-wordset-settings-card ll-wordset-recorder-queue-card" id="<?php echo esc_attr('ll-recorder-queue-' . $queue_user_id); ?>">
                     <div class="ll-wordset-recorder-queue-card__head">
@@ -12015,41 +12071,62 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                     <?php endif; ?>
 
                     <?php if (!$hidden_view) : ?>
-                        <?php
-                        echo ll_tools_wordset_page_render_recorder_queue_settings_form($queue_row, [
-                            'action_url' => $action_url,
-                            'wordset_id' => $wordset_id,
-                            'recorder_user_id' => $queue_user_id,
-                            'back_url' => $back_url,
-                            'wordset_slug' => (string) $wordset_term->slug,
-                            'recording_type_options' => $recording_type_options,
-                        ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                        ?>
-
-                        <section class="ll-wordset-recorder-queue-column">
-                            <h4 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Queue by Category', 'll-tools-text-domain'); ?></h4>
-                            <?php if (empty($visible_groups)) : ?>
-                                <p class="ll-wordset-settings-empty"><?php echo esc_html__('No words currently need recordings for this recorder.', 'll-tools-text-domain'); ?></p>
-                            <?php else : ?>
-                                <div class="ll-wordset-recorder-queue-categories">
-                                    <?php foreach ($visible_groups as $visible_group) : ?>
-                                        <?php
-                                        echo ll_tools_wordset_page_render_recorder_queue_category_group($visible_group, [
-                                            'action' => 'hide',
-                                            'action_url' => $action_url,
-                                            'wordset_id' => $wordset_id,
-                                            'recorder_user_id' => $queue_user_id,
-                                            'back_url' => $back_url,
-                                            'wordset_slug' => (string) $wordset_term->slug,
-                                            'tool' => 'recorder-queues',
-                                            'editor_base_url' => $editor_base_url,
-                                            'category_open' => count($visible_groups) === 1,
-                                        ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                                        ?>
-                                    <?php endforeach; ?>
+                        <?php if ($focused_category_view) : ?>
+                            <section class="ll-wordset-recorder-queue-column ll-wordset-recorder-queue-column--category-view">
+                                <div class="ll-wordset-recorder-queue-category-view__toolbar">
+                                    <a class="ll-wordset-settings-action ll-wordset-settings-action--secondary ll-wordset-recorder-queue-back" href="<?php echo esc_url($focused_back_url . '#ll-recorder-queue-' . $queue_user_id); ?>">
+                                        <?php echo esc_html__('Back to categories', 'll-tools-text-domain'); ?>
+                                    </a>
                                 </div>
-                            <?php endif; ?>
-                        </section>
+                                <?php if (is_array($focused_group)) : ?>
+                                    <?php
+                                    echo ll_tools_wordset_page_render_recorder_queue_category_group($focused_group, [
+                                        'action' => 'hide',
+                                        'action_url' => $action_url,
+                                        'wordset_id' => $wordset_id,
+                                        'recorder_user_id' => $queue_user_id,
+                                        'back_url' => $back_url,
+                                        'wordset_slug' => (string) $wordset_term->slug,
+                                        'tool' => 'recorder-queues',
+                                        'editor_base_url' => $editor_base_url,
+                                    ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                    ?>
+                                <?php else : ?>
+                                    <p class="ll-wordset-settings-empty"><?php echo esc_html__('That category is no longer in this recorder queue.', 'll-tools-text-domain'); ?></p>
+                                <?php endif; ?>
+                            </section>
+                        <?php else : ?>
+                            <?php
+                            echo ll_tools_wordset_page_render_recorder_queue_settings_form($queue_row, [
+                                'action_url' => $action_url,
+                                'wordset_id' => $wordset_id,
+                                'recorder_user_id' => $queue_user_id,
+                                'back_url' => $back_url,
+                                'wordset_slug' => (string) $wordset_term->slug,
+                                'recording_type_options' => $recording_type_options,
+                            ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                            ?>
+
+                            <section class="ll-wordset-recorder-queue-column">
+                                <h4 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Queue by Category', 'll-tools-text-domain'); ?></h4>
+                                <?php if (empty($visible_groups)) : ?>
+                                    <p class="ll-wordset-settings-empty"><?php echo esc_html__('No words currently need recordings for this recorder.', 'll-tools-text-domain'); ?></p>
+                                <?php else : ?>
+                                    <div class="ll-wordset-recorder-queue-category-grid" role="list">
+                                        <?php foreach ($visible_groups as $visible_group) : ?>
+                                            <?php
+                                            $group_slug = sanitize_title((string) ($visible_group['slug'] ?? ''));
+                                            $category_url = add_query_arg([
+                                                'll_recorder_queue_focus' => (string) $queue_user_id,
+                                                'll_recorder_queue_category' => $group_slug,
+                                            ], $action_url) . '#ll-recorder-queue-' . $queue_user_id;
+                                            echo ll_tools_wordset_page_render_recorder_queue_category_card($visible_group, $category_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                            ?>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </section>
+                        <?php endif; ?>
                     <?php else : ?>
                         <section class="ll-wordset-recorder-queue-column ll-wordset-recorder-queue-column--hidden-view">
                             <h4 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Hidden by Category', 'll-tools-text-domain'); ?></h4>

@@ -184,27 +184,74 @@ function buildRecorderQueueToolMarkup() {
 
           <section class="ll-wordset-recorder-queue-column">
             <h4 class="ll-wordset-settings-card__subtitle">Queue by Category</h4>
-            <div class="ll-wordset-recorder-queue-categories">
-              <details class="ll-wordset-recorder-queue-category">
-                <summary class="ll-wordset-recorder-queue-category__summary">
-                  <span class="ll-wordset-recorder-queue-category__card">
-                    <span class="ll-wordset-card__top ll-wordset-recorder-queue-category__top">
-                      <span class="ll-wordset-recorder-queue-category__heading">
-                        <span class="ll-wordset-recorder-queue-category__toggle" aria-hidden="true"></span>
-                        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Fruit and market questions</span>
-                      </span>
-                      <span class="ll-wordset-settings-card__pill">2 words</span>
+            <div class="ll-wordset-recorder-queue-category-grid" role="list">
+              <a class="ll-wordset-card ll-wordset-recorder-queue-category-card" href="#category-view" data-recorder-queue-category="fruit">
+                <span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top">
+                  <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Fruit and market questions</span>
+                  <span class="ll-wordset-settings-card__pill">2 words</span>
+                </span>
+                <span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true">
+                  <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images">
+                    <span class="ll-wordset-preview-item ll-wordset-preview-item--image">
+                      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=" alt="loquat" loading="lazy" decoding="async" fetchpriority="low" />
                     </span>
-                    <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images">
-                      <span class="ll-wordset-preview-item ll-wordset-preview-item--image">
-                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=" alt="loquat" loading="lazy" decoding="async" fetchpriority="low" />
-                      </span>
-                      <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
-                        <span class="ll-wordset-preview-text" dir="auto">loquat</span>
-                      </span>
+                    <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                      <span class="ll-wordset-preview-text" dir="auto">loquat</span>
                     </span>
                   </span>
-                </summary>
+                </span>
+              </a>
+              <a class="ll-wordset-card ll-wordset-recorder-queue-category-card" href="#category-view-2" data-recorder-queue-category="market">
+                <span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top">
+                  <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Market requests</span>
+                  <span class="ll-wordset-settings-card__pill">3 words</span>
+                </span>
+                <span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true">
+                  <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-text">
+                    <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                      <span class="ll-wordset-preview-text" dir="auto">How much is this?</span>
+                    </span>
+                    <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                      <span class="ll-wordset-preview-text" dir="auto">Which one?</span>
+                    </span>
+                  </span>
+                </span>
+              </a>
+            </div>
+          </section>
+        </article>
+      </section>
+    </main>
+  `;
+}
+
+function buildRecorderQueueCategoryViewMarkup() {
+  return `
+    <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
+      <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <article class="ll-wordset-settings-card ll-wordset-recorder-queue-card" id="ll-recorder-queue-44">
+          <div class="ll-wordset-recorder-queue-card__head">
+            <div class="ll-wordset-recorder-queue-card__identity">
+              <h3 class="ll-wordset-recorder-queue-card__title">Queue Recorder</h3>
+              <p class="ll-wordset-recorder-queue-card__identity-meta">
+                <span>@queue-recorder</span>
+                <span>queue-recorder@example.com</span>
+              </p>
+            </div>
+            <div class="ll-wordset-settings-card__meta ll-wordset-recorder-queue-card__summary">
+              <span class="ll-wordset-settings-card__pill">2 queued words</span>
+            </div>
+          </div>
+
+          <section class="ll-wordset-recorder-queue-column ll-wordset-recorder-queue-column--category-view" id="category-view">
+            <div class="ll-wordset-recorder-queue-category-view__toolbar">
+              <a class="ll-wordset-settings-action ll-wordset-settings-action--secondary ll-wordset-recorder-queue-back" href="#categories">Back to categories</a>
+            </div>
+            <section class="ll-wordset-recorder-queue-category-view">
+              <div class="ll-wordset-recorder-queue-category-view__head">
+                <h5 class="ll-wordset-recorder-queue-category-view__title">Fruit and market questions</h5>
+                <span class="ll-wordset-settings-card__pill">2 words</span>
+              </div>
                 <ul class="ll-wordset-recorder-queue-list">
                   <li class="ll-wordset-recorder-queue-item">
                     <div class="ll-wordset-recorder-queue-item__media">
@@ -234,8 +281,7 @@ function buildRecorderQueueToolMarkup() {
                     <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-recorder-queue-item__action">Hide</button>
                   </li>
                 </ul>
-              </details>
-            </div>
+            </section>
           </section>
         </article>
       </section>
@@ -699,8 +745,8 @@ test('manager recorder access tool stays usable on mobile', async ({ page }) => 
   await assertPageFitsViewport(page);
 });
 
-test('manager recorder queue groups words and keeps prompt editing usable on mobile', async ({ page }) => {
-  await mountSettingsTool(page, buildRecorderQueueToolMarkup(), { width: 390, height: 844 });
+test('manager recorder queue uses compact category cards and focused prompt editing', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueToolMarkup(), { width: 900, height: 844 });
 
   await expect(page.getByRole('link', { name: 'Hidden (1)' }).first()).toBeVisible();
   await expect(page.getByText('Change queue settings')).toBeVisible();
@@ -711,8 +757,30 @@ test('manager recorder queue groups words and keeps prompt editing usable on mob
 
   await expect(page.getByText('Fruit and market questions')).toBeVisible();
   await expect(page.locator('.ll-wordset-recorder-queue-category__preview img[alt="loquat"]')).toBeVisible();
-  await expect(page.locator('.ll-wordset-recorder-queue-category .ll-wordset-card__quiz-btn')).toHaveCount(0);
-  await page.getByText('Fruit and market questions').click();
+  await expect(page.locator('.ll-wordset-recorder-queue-category-card .ll-wordset-card__quiz-btn')).toHaveCount(0);
+  await expect(page.locator('.ll-wordset-recorder-queue-item__title', { hasText: 'loquat' })).toHaveCount(0);
+
+  const cardMetrics = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('.ll-wordset-recorder-queue-category-card')).map((card) => {
+      const rect = card.getBoundingClientRect();
+      return {
+        top: Math.round(rect.top),
+        width: Math.round(rect.width)
+      };
+    });
+  });
+  expect(cardMetrics.length).toBeGreaterThanOrEqual(2);
+  expect(cardMetrics[0].top).toBe(cardMetrics[1].top);
+  cardMetrics.forEach((metric) => {
+    expect(metric.width).toBeLessThanOrEqual(332);
+  });
+
+  await assertPageFitsViewport(page);
+
+  await mountSettingsTool(page, buildRecorderQueueCategoryViewMarkup(), { width: 390, height: 844 });
+
+  await expect(page.getByRole('link', { name: 'Back to categories' })).toBeVisible();
+  await expect(page.getByText('Fruit and market questions')).toBeVisible();
   await expect(page.locator('.ll-wordset-recorder-queue-item__title', { hasText: 'loquat' })).toBeVisible();
   await expect(page.getByText('Recording prompts')).toBeVisible();
   await expect(page.locator('.ll-wordset-recorder-queue-prompts textarea')).toHaveValue('Where are the loquats?');

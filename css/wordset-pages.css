@@ -4825,113 +4825,60 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-recorder-queue-categories {
     display: grid;
-    gap: 10px;
+    gap: 12px;
 }
 
-.ll-wordset-recorder-queue-category {
+.ll-wordset-recorder-queue-category-grid {
     display: grid;
-    gap: 8px;
-    border: 0;
-    background: transparent;
-    overflow: visible;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 330px));
+    gap: clamp(16px, 2vw, 22px);
+    align-items: stretch;
+    justify-content: start;
 }
 
-.ll-wordset-recorder-queue-category__summary {
-    display: block;
-    min-height: 0;
-    padding: 0;
-    cursor: pointer;
-    color: var(--ll-wp-text);
-    list-style: none;
+.ll-wordset-page .ll-wordset-recorder-queue-category-card {
+    width: 100%;
+    min-height: 100%;
+    color: inherit !important;
+    text-decoration: none !important;
 }
 
-.ll-wordset-recorder-queue-category__summary::-webkit-details-marker {
-    display: none;
-}
-
-.ll-wordset-recorder-queue-category__summary::marker {
-    content: "";
-}
-
-.ll-wordset-recorder-queue-category__card {
-    position: relative;
-    display: grid;
-    grid-template-rows: auto 1fr;
-    gap: 10px;
-    padding: 14px;
-    border-radius: 18px;
-    border: 1px solid var(--ll-wp-border);
-    background: var(--ll-wp-card);
-    box-shadow: 0 8px 18px rgba(46, 42, 36, 0.08);
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.ll-wordset-recorder-queue-category__summary:hover .ll-wordset-recorder-queue-category__card,
-.ll-wordset-recorder-queue-category__summary:focus-visible .ll-wordset-recorder-queue-category__card {
+.ll-wordset-page .ll-wordset-recorder-queue-category-card:hover,
+.ll-wordset-page .ll-wordset-recorder-queue-category-card:focus-visible {
+    color: inherit !important;
+    text-decoration: none !important;
     border-color: #c8d2df;
     box-shadow: 0 12px 24px rgba(46, 42, 36, 0.12);
+    outline: none;
 }
 
-.ll-wordset-recorder-queue-category[open] > .ll-wordset-recorder-queue-category__summary .ll-wordset-recorder-queue-category__card {
-    border-color: #b8c7d8;
-}
-
-.ll-wordset-recorder-queue-category__top {
+.ll-wordset-recorder-queue-category-card__top {
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    min-width: 0;
-}
-
-.ll-wordset-recorder-queue-category__heading {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.ll-wordset-recorder-queue-category__toggle {
-    width: 18px;
-    height: 18px;
-    border-radius: 999px;
-    border: 1px solid #d5dce6;
-    background: #f8fafc;
-    color: #475569;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-}
-
-.ll-wordset-recorder-queue-category__toggle::before {
-    content: "";
-    width: 6px;
-    height: 6px;
-    border-right: 2px solid currentColor;
-    border-bottom: 2px solid currentColor;
-    transform: rotate(-45deg);
-    transition: transform 0.16s ease;
-}
-
-.ll-wordset-recorder-queue-category[open] > .ll-wordset-recorder-queue-category__summary .ll-wordset-recorder-queue-category__toggle::before {
-    transform: rotate(45deg);
 }
 
 .ll-wordset-recorder-queue-category__name {
     min-width: 0;
     overflow-wrap: anywhere;
-    white-space: normal;
+    white-space: normal !important;
+}
+
+.ll-wordset-recorder-queue-category-card__preview-link {
+    cursor: inherit;
+    color: inherit !important;
+    text-decoration: none !important;
 }
 
 .ll-wordset-recorder-queue-category__preview {
-    min-height: 92px;
     pointer-events: none;
 }
 
 .ll-wordset-recorder-queue-category__preview .ll-wordset-preview-item {
     aspect-ratio: 1 / 1;
-    min-height: 86px;
+    min-height: 0;
 }
 
 .ll-wordset-recorder-queue-category__preview .ll-wordset-preview-item--image img {
@@ -4940,8 +4887,31 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     object-fit: cover;
 }
 
-.ll-wordset-recorder-queue-category .ll-wordset-recorder-queue-list {
-    padding: 0;
+.ll-wordset-recorder-queue-category-view {
+    display: grid;
+    gap: 10px;
+}
+
+.ll-wordset-recorder-queue-category-view__head,
+.ll-wordset-recorder-queue-category-view__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ll-wordset-recorder-queue-category-view__title {
+    margin: 0 !important;
+    color: var(--ll-wp-text);
+    font-size: 1rem !important;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.ll-wordset-page .ll-wordset-recorder-queue-back {
+    min-height: 34px !important;
+    padding: 7px 11px !important;
 }
 
 .ll-wordset-recorder-queue-settings {

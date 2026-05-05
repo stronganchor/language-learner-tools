@@ -126,7 +126,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Visible Queue Word', $html);
         $this->assertStringNotContainsString('Hidden Queue Word', $html);
         $this->assertStringContainsString('Queue by Category', $html);
-        $this->assertStringContainsString('ll-wordset-recorder-queue-category__card', $html);
+        $this->assertStringContainsString('ll-wordset-recorder-queue-category-grid', $html);
+        $this->assertStringContainsString('ll-wordset-recorder-queue-category-card', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview has-images', $html);
         $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--image', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
@@ -134,12 +135,33 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Skipped types', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_allow_new_words"', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_auto_process_recordings"', $html);
-        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="hide"', $html);
-        $this->assertStringContainsString('Recording prompts', $html);
-        $this->assertStringContainsString('<details class="ll-wordset-recorder-queue-prompts" open>', $html);
-        $this->assertStringContainsString('Where is the visible queue word?', $html);
-        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_prompts[question]"', $html);
-        $this->assertStringContainsString('Edit word', $html);
+        $this->assertStringContainsString('ll_recorder_queue_category=' . rawurlencode((string) $fixture['category_slug']), $html);
+        $this->assertStringNotContainsString('<details class="ll-wordset-recorder-queue-prompts" open>', $html);
+
+        $_GET = [
+            'll_wordset_tool' => 'recorder-queues',
+            'll_recorder_queue_focus' => (string) $recorder_id,
+            'll_recorder_queue_category' => (string) $fixture['category_slug'],
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg(
+            [
+                'll_recorder_queue_focus' => (string) $recorder_id,
+                'll_recorder_queue_category' => (string) $fixture['category_slug'],
+            ],
+            ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues')
+        ));
+
+        $focused_html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('Back to categories', $focused_html);
+        $this->assertStringContainsString('Visible Queue Word', $focused_html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="hide"', $focused_html);
+        $this->assertStringContainsString('Recording prompts', $focused_html);
+        $this->assertStringContainsString('<details class="ll-wordset-recorder-queue-prompts" open>', $focused_html);
+        $this->assertStringContainsString('Where is the visible queue word?', $focused_html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_prompts[question]"', $focused_html);
+        $this->assertStringContainsString('Edit word', $focused_html);
+        $this->assertStringNotContainsString('Change queue settings', $focused_html);
 
         $_GET = [
             'll_wordset_tool' => 'recorder-queues',
