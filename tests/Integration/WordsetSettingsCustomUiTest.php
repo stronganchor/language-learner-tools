@@ -71,6 +71,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $wordset_id = (int) $fixture['wordset_id'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->ensureRecordingType('Question', 'question');
+        update_term_meta((int) $fixture['category_id'], 'll_desired_recording_types', ['isolation', 'question']);
 
         $recorder_id = self::factory()->user->create([
             'role' => 'audio_recorder',
@@ -98,6 +100,9 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         wp_set_post_terms($visible_word_id, [(int) $fixture['category_id']], 'word-category', false);
         wp_set_post_terms($visible_word_id, [$wordset_id], 'wordset', false);
         update_post_meta($visible_word_id, 'word_translation', 'Visible queue translation');
+        update_post_meta($visible_word_id, ll_tools_recording_prompt_hints_meta_key(), [
+            'question' => 'Where is the visible queue word?',
+        ]);
 
         ll_tools_add_hidden_recording_word($recorder_id, [
             'word_id' => $hidden_word_id,
@@ -121,6 +126,10 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Hidden Queue Word', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="hide"', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="unhide"', $html);
+        $this->assertStringContainsString('Recording prompts', $html);
+        $this->assertStringContainsString('Where is the visible queue word?', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_prompts[question]"', $html);
+        $this->assertStringContainsString('Edit word', $html);
     }
 
     public function test_recorder_queue_action_hides_and_unhides_words_for_assigned_recorders(): void
@@ -196,6 +205,78 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('ok', (string) ($unhide_query['ll_wordset_manager_recorder_queue'] ?? ''));
         $this->assertSame('unhidden', (string) ($unhide_query['ll_wordset_manager_recorder_queue_result'] ?? ''));
         $this->assertSame([], ll_tools_get_hidden_recording_words_list($recorder_id));
+    }
+
+    public function test_recorder_queue_action_saves_recording_prompts_for_queue_items(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->ensureRecordingType('Question', 'question');
+        update_term_meta((int) $fixture['category_id'], 'll_desired_recording_types', ['isolation', 'question']);
+
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => $wordset_slug,
+        ]);
+
+        $word_id = (int) $fixture['word_id'];
+        $word_title = get_the_title($word_id);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_recorder_queue_action' => 'save_prompts',
+            'll_wordset_manager_recorder_queue_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_recorder_queue_user_id' => (string) $recorder_id,
+            'll_wordset_manager_recorder_queue_nonce' => wp_create_nonce('ll_wordset_manager_recorder_queue_' . $wordset_id),
+            'll_wordset_manager_recorder_queue_word_id' => (string) $word_id,
+            'll_wordset_manager_recorder_queue_title' => (string) $word_title,
+            'll_wordset_manager_recorder_queue_category_name' => (string) $fixture['category_name'],
+            'll_wordset_manager_recorder_queue_category_slug' => (string) $fixture['category_slug'],
+            'll_wordset_manager_recorder_queue_prompts' => [
+                'question' => 'Where is the custom settings word?',
+                'isolation' => '',
+            ],
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'recorder-queues',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_recorder_queue_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect);
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_recorder_queue'] ?? ''));
+        $this->assertSame('prompts', (string) ($query['ll_wordset_manager_recorder_queue_result'] ?? ''));
+
+        $stored = get_post_meta($word_id, ll_tools_recording_prompt_hints_meta_key(), true);
+        $this->assertIsArray($stored);
+        $this->assertSame('Where is the custom settings word?', (string) ($stored['question'] ?? ''));
+        $this->assertArrayNotHasKey('isolation', $stored);
+
+        $queue_items = ll_get_images_needing_audio('', [$wordset_id], '', '', true, $recorder_id);
+        $this->assertNotEmpty($queue_items);
+        $matched = null;
+        foreach ($queue_items as $queue_item) {
+            if ((int) ($queue_item['word_id'] ?? 0) === $word_id) {
+                $matched = $queue_item;
+                break;
+            }
+        }
+
+        $this->assertIsArray($matched);
+        $this->assertSame('Where is the custom settings word?', (string) ($matched['recording_prompts']['question'] ?? ''));
     }
 
     public function test_template_tool_renders_create_wordset_form_for_managers(): void

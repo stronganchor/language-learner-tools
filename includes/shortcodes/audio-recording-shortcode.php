@@ -880,6 +880,153 @@ function ll_tools_filter_hidden_recording_items(array $items, int $user_id = 0):
 }
 
 /**
+ * Post meta key for staff-entered recorder prompt hints.
+ */
+function ll_tools_recording_prompt_hints_meta_key(): string {
+    return '_ll_recording_prompt_hints';
+}
+
+/**
+ * Normalize a recording-type keyed prompt map.
+ *
+ * @param mixed $raw
+ * @return array<string,string>
+ */
+function ll_tools_normalize_recording_prompt_hints($raw): array {
+    if (!is_array($raw) || empty($raw)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($raw as $slug => $value) {
+        $slug = sanitize_title((string) $slug);
+        if ($slug === '' || (!is_scalar($value) && $value !== null)) {
+            continue;
+        }
+
+        $text = trim(sanitize_textarea_field((string) $value));
+        if ($text === '') {
+            continue;
+        }
+
+        $normalized[$slug] = $text;
+    }
+
+    if (count($normalized) > 1) {
+        uksort($normalized, 'll_compare_recording_type_slugs');
+    }
+
+    return $normalized;
+}
+
+/**
+ * Determine whether a post type can carry recorder prompt hints.
+ */
+function ll_tools_recording_prompt_hints_supports_post_type(string $post_type): bool {
+    $supported = ['words', 'word_images'];
+    if (defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')) {
+        $supported[] = LL_TOOLS_PROMPT_CARD_POST_TYPE;
+    }
+
+    return in_array($post_type, array_values(array_unique(array_filter($supported))), true);
+}
+
+/**
+ * Resolve the post that should own prompt hints for a recorder item.
+ */
+function ll_tools_get_recording_prompt_target_post_id(int $word_id = 0, int $image_id = 0, int $prompt_card_id = 0): int {
+    $candidates = [$prompt_card_id, $word_id, $image_id];
+    foreach ($candidates as $candidate_id) {
+        $candidate_id = (int) $candidate_id;
+        if ($candidate_id <= 0) {
+            continue;
+        }
+
+        $post = get_post($candidate_id);
+        if ($post instanceof WP_Post && ll_tools_recording_prompt_hints_supports_post_type((string) $post->post_type)) {
+            return $candidate_id;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * Resolve the post that should own prompt hints for a recorder item payload.
+ */
+function ll_tools_get_recording_prompt_target_post_id_for_item(array $item): int {
+    return ll_tools_get_recording_prompt_target_post_id(
+        absint($item['word_id'] ?? 0),
+        absint($item['image_id'] ?? ($item['id'] ?? 0)),
+        absint($item['prompt_card_id'] ?? 0)
+    );
+}
+
+/**
+ * Fetch prompt hints from a supported post.
+ *
+ * @return array<string,string>
+ */
+function ll_tools_get_recording_prompt_hints_for_post(int $post_id): array {
+    $post = $post_id > 0 ? get_post($post_id) : null;
+    if (!($post instanceof WP_Post) || !ll_tools_recording_prompt_hints_supports_post_type((string) $post->post_type)) {
+        return [];
+    }
+
+    return ll_tools_normalize_recording_prompt_hints(get_post_meta($post_id, ll_tools_recording_prompt_hints_meta_key(), true));
+}
+
+/**
+ * Store prompt hints on a supported post.
+ *
+ * @return array<string,string>
+ */
+function ll_tools_save_recording_prompt_hints_for_post(int $post_id, array $raw_hints): array {
+    $post = $post_id > 0 ? get_post($post_id) : null;
+    if (!($post instanceof WP_Post) || !ll_tools_recording_prompt_hints_supports_post_type((string) $post->post_type)) {
+        return [];
+    }
+
+    $hints = ll_tools_normalize_recording_prompt_hints($raw_hints);
+    if (empty($hints)) {
+        delete_post_meta($post_id, ll_tools_recording_prompt_hints_meta_key());
+        return [];
+    }
+
+    update_post_meta($post_id, ll_tools_recording_prompt_hints_meta_key(), $hints);
+    return $hints;
+}
+
+/**
+ * Fetch prompt hints for a recorder item payload.
+ *
+ * @return array<string,string>
+ */
+function ll_tools_get_recording_prompt_hints_for_item(array $item): array {
+    $post_id = ll_tools_get_recording_prompt_target_post_id_for_item($item);
+    return $post_id > 0 ? ll_tools_get_recording_prompt_hints_for_post($post_id) : [];
+}
+
+/**
+ * Attach prompt hints to recorder item payloads.
+ *
+ * @param array<int, array<string,mixed>> $items
+ * @return array<int, array<string,mixed>>
+ */
+function ll_tools_apply_recording_prompt_hints_to_items(array $items): array {
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $item['recording_prompts'] = ll_tools_get_recording_prompt_hints_for_item($item);
+    }
+    unset($item);
+
+    return $items;
+}
+
+/**
  * Add (or replace) one hidden-word entry for a user.
  *
  * @param array<string, mixed> $entry
@@ -1259,6 +1406,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             'type_state_needed'  => __('Needs recording', 'll-tools-text-domain'),
             'type_state_optional'=> __('Available', 'll-tools-text-domain'),
             'type_chip_aria_template' => __('%1$s (%2$s)', 'll-tools-text-domain'),
+            'recording_prompt_label' => __('Say:', 'll-tools-text-domain'),
         ],
     ]);
     // Get wordset name for display
@@ -1544,6 +1692,8 @@ function ll_audio_recording_interface_shortcode($atts) {
                         ?>
                     </select>
                 </div>
+
+                <div id="ll-recording-prompt" class="ll-recording-prompt" hidden></div>
 
                 <div class="ll-recording-buttons">
                     <button id="ll-record-btn" class="ll-btn ll-btn-record"
@@ -3838,6 +3988,8 @@ function ll_tools_get_prompt_cards_needing_audio($category_slug = '', $wordset_t
         unset($item);
     }
 
+    $items = ll_tools_apply_recording_prompt_hints_to_items($items);
+
     return array_values($items);
 }
 
@@ -3881,6 +4033,7 @@ function ll_tools_get_recording_queue_items($category_slug = '', $wordset_term_i
  *     'prompt_types'  => string[],       // recording_type slugs selectable for this word in UI order
  *     'my_existing_types' => string[],   // recording_type slugs current recorder has already uploaded
  *     'hide_key'      => string,         // stable key used for per-user hide/unhide
+ *     'recording_prompts' => array<string,string>, // optional staff-entered prompt text by recording_type slug
  *   ],
  *   ...
  * ]
@@ -4599,6 +4752,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
         unset($item);
     }
+
+    $result = ll_tools_apply_recording_prompt_hints_to_items($result);
 
     return $result;
 }

@@ -1131,6 +1131,26 @@
     border-color: #2271b1;
 }
 
+.ll-recording-prompt {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0.45rem 0 0;
+    padding: 0.58rem 0.72rem;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1d4d99;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+.ll-recording-prompt[hidden] {
+    display: none !important;
+}
+
 .ll-recording-type-selector--enhanced select {
     display: none !important;
 }

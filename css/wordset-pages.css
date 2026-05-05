@@ -4888,6 +4888,74 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 6px;
 }
 
+.ll-wordset-recorder-queue-prompts {
+    border: 1px solid #d8dde6;
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 8px 10px;
+}
+
+.ll-wordset-recorder-queue-prompts summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.ll-wordset-recorder-queue-prompts__form {
+    margin: 8px 0 0;
+    display: grid;
+    gap: 8px;
+}
+
+.ll-wordset-recorder-queue-prompts__grid {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-wordset-recorder-queue-prompts__field {
+    display: grid;
+    gap: 4px;
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.ll-wordset-recorder-queue-prompts__field textarea {
+    width: 100%;
+    min-height: 58px;
+    resize: vertical;
+    box-sizing: border-box;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 7px 8px;
+    background: #ffffff;
+    color: #1f2937;
+    font: inherit;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.ll-wordset-page .ll-wordset-recorder-queue-prompts__save {
+    justify-self: start;
+    min-height: 34px !important;
+    padding: 7px 11px !important;
+}
+
+.ll-wordset-recorder-queue-item__edit-link {
+    justify-self: start;
+    color: #1d4d99;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.ll-wordset-recorder-queue-item__edit-link:hover,
+.ll-wordset-recorder-queue-item__edit-link:focus-visible {
+    color: #15366d;
+    text-decoration: underline;
+}
+
 .ll-wordset-recorder-queue-item__category,
 .ll-wordset-recorder-queue-item__type {
     min-height: 24px;

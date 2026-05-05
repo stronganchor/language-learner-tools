@@ -122,6 +122,17 @@
         const myExistingTypes = Array.isArray(item.my_existing_types)
             ? sortRecordingTypes(item.my_existing_types)
             : [];
+        const recordingPrompts = (item.recording_prompts && typeof item.recording_prompts === 'object' && !Array.isArray(item.recording_prompts))
+            ? item.recording_prompts
+            : {};
+        const normalizedPrompts = {};
+        Object.keys(recordingPrompts).forEach(slug => {
+            const key = String(slug || '').trim();
+            const text = String(recordingPrompts[slug] || '').trim();
+            if (key && text) {
+                normalizedPrompts[key] = text;
+            }
+        });
 
         item.missing_types = missingTypes;
         item.existing_types = existingTypes;
@@ -129,6 +140,7 @@
         item.my_existing_types = promptTypes.length
             ? sortRecordingTypes(myExistingTypes.filter(slug => promptTypes.includes(slug)))
             : myExistingTypes;
+        item.recording_prompts = normalizedPrompts;
         return item;
     }
 
@@ -229,6 +241,7 @@
             recordingTypeSelector: document.querySelector('.ll-recording-type-selector'),
             recordingTypeSelect: document.getElementById('ll-recording-type'),
             recordingTypeChoices: null,
+            recordingPrompt: document.getElementById('ll-recording-prompt'),
             newWordToggle: document.getElementById('ll-new-word-toggle'),
             newWordOverlay: document.getElementById('ll-new-word-overlay'),
             newWordBackdrop: document.querySelector('.ll-new-word-overlay-backdrop'),
@@ -1137,6 +1150,9 @@
             existing_types: Array.isArray(item.existing_types) ? item.existing_types.slice() : [],
             prompt_types: Array.isArray(item.prompt_types) ? item.prompt_types.slice() : [],
             my_existing_types: Array.isArray(item.my_existing_types) ? item.my_existing_types.slice() : [],
+            recording_prompts: (item.recording_prompts && typeof item.recording_prompts === 'object' && !Array.isArray(item.recording_prompts))
+                ? { ...item.recording_prompts }
+                : {},
         }));
     }
 
@@ -1213,6 +1229,32 @@
             select.value = nextValue;
         }
         return nextValue;
+    }
+
+    function getRecordingPromptForType(img, typeSlug) {
+        if (!img || !typeSlug || typeof img.recording_prompts !== 'object' || Array.isArray(img.recording_prompts)) {
+            return '';
+        }
+
+        return String(img.recording_prompts[typeSlug] || '').trim();
+    }
+
+    function updateRecordingPrompt() {
+        const el = window.llRecorder;
+        if (!el?.recordingPrompt) return;
+
+        const img = images[currentImageIndex];
+        const typeSlug = String(el.recordingTypeSelect?.value || '').trim();
+        const prompt = getRecordingPromptForType(img, typeSlug);
+
+        if (!prompt) {
+            el.recordingPrompt.textContent = '';
+            el.recordingPrompt.setAttribute('hidden', 'hidden');
+            return;
+        }
+
+        el.recordingPrompt.textContent = `${i18n.recording_prompt_label || 'Say:'} ${prompt}`;
+        el.recordingPrompt.removeAttribute('hidden');
     }
 
     function getRecordingTypeChoiceStateLabel(isActive, isRecordedByMe, isNeeded) {
@@ -1339,6 +1381,7 @@
             button.appendChild(check);
             el.recordingTypeChoices.appendChild(button);
         });
+        updateRecordingPrompt();
     }
 
     function setupRecordingTypeChoices() {
