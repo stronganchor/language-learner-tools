@@ -6,6 +6,8 @@
     let optionMiniViz = null;
     let textCardResizeBound = false;
     let textCardResizeTimer = null;
+    let imageFitResizeBound = false;
+    let imageFitResizeTimer = null;
 
     function sanitizeFontFamily(value) {
         let fontFamily = String(value || '').trim();
@@ -350,11 +352,262 @@
         return String((word && word.translation) || '').trim();
     }
 
+    function parseCssPixels(value, fallback) {
+        const parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : (Number.isFinite(fallback) ? fallback : 0);
+    }
+
+    function getViewportSize() {
+        const docEl = document && document.documentElement ? document.documentElement : null;
+        const visual = root.visualViewport || null;
+        return {
+            width: Math.max(1, Math.floor(
+                (visual && visual.width) ||
+                root.innerWidth ||
+                (docEl && docEl.clientWidth) ||
+                1
+            )),
+            height: Math.max(1, Math.floor(
+                (visual && visual.height) ||
+                root.innerHeight ||
+                (docEl && docEl.clientHeight) ||
+                1
+            ))
+        };
+    }
+
+    function isEmbeddedQuizRuntime() {
+        const data = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+        if (data.isEmbed || data.is_embed) {
+            return true;
+        }
+        try {
+            return root.self !== root.top;
+        } catch (_) {
+            return true;
+        }
+    }
+
+    function getImageCardBaseSize(card) {
+        if (!card || !card.classList) {
+            return 150;
+        }
+        if (card.classList.contains('flashcard-size-large')) {
+            return 250;
+        }
+        if (card.classList.contains('flashcard-size-medium')) {
+            return 200;
+        }
+        return 150;
+    }
+
+    function getOuterHeightWithMargins($el) {
+        if (!$el || !$el.length || !$el[0]) {
+            return 0;
+        }
+        const rect = $el[0].getBoundingClientRect();
+        if (!rect || rect.height <= 0) {
+            return 0;
+        }
+        const styles = root.getComputedStyle ? root.getComputedStyle($el[0]) : null;
+        return rect.height
+            + (styles ? parseCssPixels(styles.marginTop, 0) + parseCssPixels(styles.marginBottom, 0) : 0);
+    }
+
+    function getGridGapPx($grid) {
+        if (!$grid || !$grid.length || !$grid[0] || !root.getComputedStyle) {
+            return 0;
+        }
+        const styles = root.getComputedStyle($grid[0]);
+        return Math.max(0, parseCssPixels(styles.gap || styles.rowGap, 0));
+    }
+
+    function resetImageAnswerOptionViewportFit($root) {
+        if (!$root || !$root.length || !$root[0] || !$root[0].style) {
+            return;
+        }
+        $root
+            .removeClass('ll-compact-quiz-layout ll-micro-quiz-layout ll-image-options-scaled')
+            .removeAttr('data-ll-image-fit-size');
+        $root[0].style.removeProperty('--ll-answer-option-fit-size');
+    }
+
+    function getMaxCaptionExtra($cards) {
+        let maxExtra = 0;
+        $cards.each(function () {
+            const media = this.querySelector ? this.querySelector('.ll-answer-option-image-caption-media') : null;
+            if (!media) {
+                return;
+            }
+            const cardRect = this.getBoundingClientRect();
+            const mediaRect = media.getBoundingClientRect();
+            if (cardRect.height > 0 && mediaRect.height > 0) {
+                maxExtra = Math.max(maxExtra, Math.ceil(cardRect.height - mediaRect.height));
+            }
+        });
+        return Math.max(0, maxExtra);
+    }
+
+    function getAvailableOptionHeight($content, viewport) {
+        if (!$content || !$content.length || !$content[0]) {
+            return viewport.height;
+        }
+        const contentEl = $content[0];
+        const styles = root.getComputedStyle ? root.getComputedStyle(contentEl) : null;
+        const paddingTop = styles ? parseCssPixels(styles.paddingTop, 0) : 0;
+        const paddingBottom = styles ? parseCssPixels(styles.paddingBottom, 0) : 0;
+        let height = Math.max(1, Math.floor(contentEl.clientHeight || contentEl.getBoundingClientRect().height || viewport.height));
+        height -= paddingTop + paddingBottom;
+
+        const $prompt = $('#ll-tools-prompt');
+        if ($prompt.length && $prompt[0].getClientRects().length) {
+            height -= getOuterHeightWithMargins($prompt);
+        }
+
+        return Math.max(1, Math.floor(height));
+    }
+
+    function imageOptionGridOverflows($grid, $content, viewport) {
+        if (!$grid || !$grid.length || !$grid[0] || !$grid[0].getClientRects().length) {
+            return false;
+        }
+        const gridRect = $grid[0].getBoundingClientRect();
+        const contentRect = ($content && $content.length && $content[0])
+            ? $content[0].getBoundingClientRect()
+            : { bottom: viewport.height, top: 0, left: 0, right: viewport.width };
+        const maxBottom = Math.min(viewport.height, contentRect.bottom) - 1;
+        const minTop = Math.max(0, contentRect.top) - 1;
+        return gridRect.bottom > maxBottom
+            || gridRect.top < minTop
+            || gridRect.left < -1
+            || gridRect.right > viewport.width + 1;
+    }
+
+    function applyImageAnswerOptionFitPass() {
+        const $root = $('#ll-tools-flashcard-container');
+        const $grid = $('#ll-tools-flashcard');
+        const $content = $('#ll-tools-flashcard-content');
+        const $cards = $grid.find('.flashcard-container.ll-answer-option-image-card');
+        if (!$root.length || !$grid.length || !$cards.length) {
+            resetImageAnswerOptionViewportFit($root);
+            return { fitSize: 0, compact: false };
+        }
+
+        const renderedCards = $cards.filter(function () {
+            return !!this.getClientRects().length;
+        });
+        if (!renderedCards.length) {
+            return { fitSize: 0, compact: false };
+        }
+
+        resetImageAnswerOptionViewportFit($root);
+
+        const viewport = getViewportSize();
+        const baseSize = renderedCards.toArray().reduce(function (max, card) {
+            return Math.max(max, getImageCardBaseSize(card));
+        }, 150);
+        const embeddedRuntime = isEmbeddedQuizRuntime();
+        const constrainedViewport = viewport.width <= 520 || viewport.height <= 640;
+        const constrainedEmbed = embeddedRuntime && (viewport.width <= 640 || viewport.height <= 700);
+        const overflowsAtBase = imageOptionGridOverflows($grid, $content, viewport);
+        const shouldCompact = overflowsAtBase || constrainedViewport || constrainedEmbed;
+
+        if (!shouldCompact) {
+            return { fitSize: baseSize, compact: false };
+        }
+
+        $root.addClass('ll-compact-quiz-layout');
+        if (viewport.width <= 340 || viewport.height <= 560 || overflowsAtBase) {
+            $root.addClass('ll-micro-quiz-layout');
+        }
+
+        const count = Math.max(1, renderedCards.length);
+        const gap = getGridGapPx($grid);
+        const containerWidth = Math.max(
+            1,
+            Math.floor($grid.innerWidth() || ($content.length ? $content.innerWidth() : 0) || viewport.width)
+        );
+        const availableHeight = getAvailableOptionHeight($content, viewport);
+        const captionExtra = getMaxCaptionExtra(renderedCards);
+        const oneRowWidthCap = Math.floor((containerWidth - gap * (count - 1)) / count);
+        const targetRows = (count <= 2 && oneRowWidthCap >= 56)
+            ? 1
+            : (count <= 4 ? 2 : Math.min(3, Math.ceil(count / 3)));
+        const cols = Math.max(1, Math.ceil(count / targetRows));
+        const widthCap = Math.floor((containerWidth - gap * (cols - 1)) / cols);
+        const heightCap = Math.floor(((availableHeight - gap * (targetRows - 1)) / targetRows) - captionExtra);
+        const hardMin = 52;
+        let fitSize = Math.floor(Math.min(
+            baseSize,
+            widthCap > 0 ? widthCap : baseSize,
+            heightCap > 0 ? heightCap : baseSize
+        ));
+        fitSize = Math.max(hardMin, fitSize);
+
+        if (fitSize < baseSize) {
+            $root
+                .addClass('ll-image-options-scaled')
+                .attr('data-ll-image-fit-size', String(fitSize));
+            $root[0].style.setProperty('--ll-answer-option-fit-size', fitSize + 'px');
+        }
+
+        if (imageOptionGridOverflows($grid, $content, viewport) && fitSize > hardMin) {
+            const gridRect = $grid[0].getBoundingClientRect();
+            const contentRect = $content.length && $content[0]
+                ? $content[0].getBoundingClientRect()
+                : { bottom: viewport.height };
+            const allowedBottom = Math.min(viewport.height, contentRect.bottom) - 1;
+            const overflowRatio = gridRect.height > 0
+                ? Math.max(0.35, Math.min(1, (allowedBottom - gridRect.top) / gridRect.height))
+                : 1;
+            const refinedSize = Math.max(hardMin, Math.floor(fitSize * overflowRatio));
+            if (refinedSize < fitSize) {
+                fitSize = refinedSize;
+                $root
+                    .addClass('ll-image-options-scaled')
+                    .attr('data-ll-image-fit-size', String(fitSize));
+                $root[0].style.setProperty('--ll-answer-option-fit-size', fitSize + 'px');
+            }
+        }
+
+        return { fitSize: fitSize, compact: true };
+    }
+
+    function fitImageAnswerOptionCardsForViewport() {
+        const result = applyImageAnswerOptionFitPass();
+        if (typeof root.requestAnimationFrame === 'function') {
+            root.requestAnimationFrame(function () {
+                applyImageAnswerOptionFitPass();
+            });
+        }
+        return result;
+    }
+
+    function ensureImageFitResizeBinding() {
+        if (imageFitResizeBound || !root || typeof root.addEventListener !== 'function') {
+            return;
+        }
+        root.addEventListener('resize', function () {
+            if (imageFitResizeTimer) {
+                clearTimeout(imageFitResizeTimer);
+            }
+            imageFitResizeTimer = setTimeout(function () {
+                imageFitResizeTimer = null;
+                if ($('#ll-tools-flashcard .flashcard-container.ll-answer-option-image-card').length) {
+                    fitImageAnswerOptionCardsForViewport();
+                }
+            }, 120);
+        });
+        imageFitResizeBound = true;
+    }
+
     function createImageCard(word, optionType) {
         const hasCaptionMode = String(optionType || '').trim().toLowerCase() === 'image_text_translation';
         const captionText = hasCaptionMode ? getImageCardCaptionText(word, optionType) : '';
         const $c = $('<div>', {
-            class: 'flashcard-container flashcard-size-' + root.llToolsFlashcardsData.imageSize + (hasCaptionMode ? ' ll-answer-option-image-caption-card' : ''),
+            class: 'flashcard-container ll-answer-option-image-card flashcard-size-' + root.llToolsFlashcardsData.imageSize + (hasCaptionMode ? ' ll-answer-option-image-caption-card' : ''),
             'data-word': word.title,
             'data-word-id': word.id,
             css: { display: 'none' }
@@ -579,6 +832,7 @@
     }
 
     ensureTextCardResizeBinding();
+    ensureImageFitResizeBinding();
 
     function addClickEventToCard($card, index, targetWord, optionType, promptType) {
         const gateOnAudio = Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio');
@@ -675,6 +929,7 @@
         playPromptAudio,
         refitTextAnswerOptionCards,
         prepareTextAnswerOptionCardsForReveal,
+        fitImageAnswerOptionCardsForViewport,
         applyAnswerOptionContainerCssVars,
         applyAnswerOptionTextStyle
     };

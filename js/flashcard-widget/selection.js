@@ -2114,6 +2114,7 @@
             refitTextOptionCards();
             return Promise.resolve();
         };
+
         const finalizeGenderOptionReveal = function ($cards) {
             resetGenderOptionTextSizing($cards);
             normalizeGenderOptionSvgSymbols($cards);
@@ -2551,17 +2552,26 @@
             });
         };
 
+        const fitImageOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.fitImageAnswerOptionCardsForViewport === 'function') {
+                root.LLFlashcards.Cards.fitImageAnswerOptionCardsForViewport();
+            }
+        };
+
         const revealOptions = function () {
             const isAudioLineTextAudio = (promptTypeHasImage(State.currentPromptType) && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
                 $all.css({ display: '', visibility: 'visible' });
+                fitImageOptionCards();
                 prepareTextOptionCards().then(function () {
+                    fitImageOptionCards();
                     syncPromptTextFontSize(promptType, mode);
                     if (finishOptionGridReveal()) {
                         publishOptionsReady();
                     }
                 }).catch(function () {
+                    fitImageOptionCards();
                     if (finishOptionGridReveal()) {
                         publishOptionsReady();
                     }

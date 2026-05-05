@@ -960,6 +960,9 @@
             if ($jq) {
                 const $introCards = $jq('.flashcard-container');
                 const showIntroCards = function () {
+                    if (Cards && typeof Cards.fitImageAnswerOptionCardsForViewport === 'function') {
+                        Cards.fitImageAnswerOptionCardsForViewport();
+                    }
                     $introCards.hide().css('visibility', 'visible');
                     $introCards.addClass('introducing');
                     $introCards.fadeIn(600);
