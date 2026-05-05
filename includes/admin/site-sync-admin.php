@@ -291,10 +291,12 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
         $result['plan'] = $plan;
         $result['pull_result'] = $pull_result;
         $result['notices'][] = sprintf(
-            /* translators: 1: updated record count, 2: created record count, 3: field count, 4: media reference count */
-            __('Pull finished. Updated %1$d local recordings, created %2$d recordings, and applied %3$d fields plus %4$d media references.', 'll-tools-text-domain'),
+            /* translators: 1: updated record count, 2: created word count, 3: created record count, 4: reparented recording count, 5: field count, 6: media reference count */
+            __('Pull finished. Updated %1$d local recordings, created %2$d words and %3$d recordings, moved %4$d recordings, and applied %5$d fields plus %6$d media references.', 'll-tools-text-domain'),
             (int) ($pull_result['records_updated'] ?? 0),
+            (int) ($pull_result['words_created'] ?? 0),
             (int) ($pull_result['records_created'] ?? 0),
+            (int) ($pull_result['recordings_reparented'] ?? 0),
             (int) ($pull_result['fields_updated'] ?? 0),
             (int) ($pull_result['media_refs_updated'] ?? 0)
         );
@@ -425,6 +427,7 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
         <h2><?php esc_html_e('Sync Preview', 'll-tools-text-domain'); ?></h2>
         <div class="ll-site-sync-stat-row">
             <span><?php echo esc_html(sprintf(__('Records checked: %d', 'll-tools-text-domain'), (int) ($stats['records_checked'] ?? 0))); ?></span>
+            <span><?php echo esc_html(sprintf(__('Words to create: %d', 'll-tools-text-domain'), (int) ($stats['words_to_create'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Records to create: %d', 'll-tools-text-domain'), (int) ($stats['records_to_create'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Fields to apply: %d', 'll-tools-text-domain'), (int) ($stats['fields_to_apply'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Media refs to apply: %d', 'll-tools-text-domain'), (int) ($stats['media_refs_to_apply'] ?? 0))); ?></span>

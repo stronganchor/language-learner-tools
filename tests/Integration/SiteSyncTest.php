@@ -181,6 +181,163 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame(0, count((array) ($after_plan['actions'] ?? [])));
     }
 
+    public function test_pull_creates_missing_local_word_once_for_multiple_remote_recordings(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Create Word Wordset', 'create-word-wordset');
+
+        $local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($local);
+        $this->assertSame(0, count((array) ($local['records'] ?? [])));
+
+        $remote_word = [
+            'sync_id' => 'remote-created-word',
+            'slug' => 'remote-created-word',
+            'title' => 'Remote Created Word',
+            'status' => 'publish',
+            'word_translation' => 'Remote translation',
+            'word_english_meaning' => 'Remote English meaning',
+            'categories' => [
+                [
+                    'sync_id' => 'remote-created-category',
+                    'slug' => 'remote-created-category',
+                    'name' => 'Remote Created Category',
+                ],
+            ],
+        ];
+        $first_audio_url = 'https://zazacaogren.com/wp-content/uploads/2026/05/remote-created-isolation.mp3';
+        $second_audio_url = 'https://zazacaogren.com/wp-content/uploads/2026/05/remote-created-question.mp3';
+        $first_remote_record = $this->record('remote-created-recording-isolation', 999, 'Remote Created Word', 'Remote Created Isolation', [
+            'recording_text' => 'remote isolation',
+            'recording_ipa' => 'remote.iso',
+        ], [
+            'audio' => [
+                'url' => $first_audio_url,
+                'mime_type' => 'audio/mpeg',
+                'has_local_file' => true,
+            ],
+        ]);
+        $first_remote_record['word'] = $remote_word;
+        $first_remote_record['recording']['slug'] = 'remote-created-isolation';
+
+        $second_remote_record = $this->record('remote-created-recording-question', 1000, 'Remote Created Word', 'Remote Created Question', [
+            'recording_text' => 'remote question',
+            'recording_ipa' => 'remote.question',
+        ], [
+            'audio' => [
+                'url' => $second_audio_url,
+                'mime_type' => 'audio/mpeg',
+                'has_local_file' => true,
+            ],
+        ]);
+        $second_remote_record['word'] = $remote_word;
+        $second_remote_record['recording']['slug'] = 'remote-created-question';
+        $second_remote_record['recording']['types'] = ['question'];
+
+        $remote = $this->snapshot([$first_remote_record, $second_remote_record]);
+
+        $plan = ll_tools_site_sync_build_pull_plan($local, $remote, []);
+
+        $this->assertSame(1, (int) ($plan['stats']['words_to_create'] ?? 0));
+        $this->assertSame(2, (int) ($plan['stats']['records_to_create'] ?? 0));
+        $this->assertSame(0, (int) ($plan['stats']['skipped'] ?? 0));
+
+        $summary = ll_tools_site_sync_apply_pull_plan($plan, $wordset_id);
+
+        $this->assertSame(1, (int) ($summary['words_created'] ?? 0));
+        $this->assertSame(2, (int) ($summary['records_created'] ?? 0));
+        $this->assertSame(2, (int) ($summary['media_refs_updated'] ?? 0));
+
+        $words = get_posts([
+            'post_type' => 'words',
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'title' => 'Remote Created Word',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'tax_query' => [
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$wordset_id],
+                ],
+            ],
+        ]);
+        $this->assertCount(1, $words);
+
+        $word_id = (int) $words[0];
+        $this->assertSame('remote-created-word', (string) get_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), true));
+        $this->assertSame('Remote translation', (string) get_post_meta($word_id, 'word_translation', true));
+        $this->assertSame('Remote English meaning', (string) get_post_meta($word_id, 'word_english_meaning', true));
+
+        $category_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+        $this->assertCount(1, (array) $category_ids);
+        $this->assertSame('remote-created-category', (string) get_term_meta((int) $category_ids[0], ll_tools_site_sync_uuid_meta_key(), true));
+
+        $recordings = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'post_parent' => $word_id,
+            'posts_per_page' => -1,
+            'orderby' => 'post_name',
+            'order' => 'ASC',
+        ]);
+        $this->assertCount(2, $recordings);
+        $this->assertSame($first_audio_url, (string) get_post_meta((int) $recordings[0]->ID, 'audio_file_path', true));
+        $this->assertSame($second_audio_url, (string) get_post_meta((int) $recordings[1]->ID, 'audio_file_path', true));
+
+        $after_local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($after_local);
+        $after_plan = ll_tools_site_sync_build_pull_plan($after_local, $remote, $remote);
+        $this->assertSame(0, count((array) ($after_plan['actions'] ?? [])));
+    }
+
+    public function test_pull_reparents_recording_when_remote_word_sync_is_different(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Reparent Wordset', 'reparent-wordset');
+        $category_id = $this->ensure_term('word-category', 'Reparent Category', 'reparent-category');
+        $old_word_id = $this->create_word($wordset_id, [$category_id], 'Shared Title Word', 'Old Translation');
+        update_post_meta($old_word_id, ll_tools_site_sync_uuid_meta_key(), 'old-remote-word');
+        $recording_id = $this->create_recording($old_word_id, 'Shared Title Recording', [
+            'recording_text' => 'same text',
+            'recording_ipa' => 'same.ipa',
+        ]);
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'shared-title-recording');
+
+        $local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($local);
+
+        $remote_record = $this->record('shared-title-recording', 999, 'Shared Title Word', 'Shared Title Recording', [
+            'recording_text' => 'same text',
+            'recording_ipa' => 'same.ipa',
+        ]);
+        $remote_record['natural_key'] = (string) (($local['records'][0] ?? [])['natural_key'] ?? '');
+        $remote_record['word']['sync_id'] = 'new-remote-word';
+        $remote_record['word']['slug'] = 'shared-title-word-live-copy';
+        $remote = $this->snapshot([$remote_record]);
+
+        $plan = ll_tools_site_sync_build_pull_plan($local, $remote, $remote);
+        $summary = ll_tools_site_sync_apply_pull_plan($plan, $wordset_id);
+
+        $this->assertSame(1, (int) ($summary['words_created'] ?? 0));
+        $this->assertSame(1, (int) ($summary['recordings_reparented'] ?? 0));
+        $this->assertSame('old-remote-word', (string) get_post_meta($old_word_id, ll_tools_site_sync_uuid_meta_key(), true));
+
+        $new_words = get_posts([
+            'post_type' => 'words',
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'meta_key' => ll_tools_site_sync_uuid_meta_key(),
+            'meta_value' => 'new-remote-word',
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+        ]);
+        $this->assertCount(1, $new_words);
+        $this->assertSame((int) $new_words[0], (int) get_post($recording_id)->post_parent);
+
+        $after_local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($after_local);
+        $after_plan = ll_tools_site_sync_build_pull_plan($after_local, $remote, $remote);
+        $this->assertSame(0, count((array) ($after_plan['actions'] ?? [])));
+    }
+
     public function test_pull_uses_remote_media_urls_when_local_media_is_missing(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Media Sync Wordset', 'media-sync-wordset');
