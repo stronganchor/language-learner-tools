@@ -2991,10 +2991,14 @@ function ll_tools_word_grid_get_draft_word_note(int $word_id): string {
     return __('Word has not been published yet.', 'll-tools-text-domain');
 }
 
-function ll_tools_word_grid_get_presentation_hidden_word_note(int $word_id): string {
+function ll_tools_word_grid_get_presentation_hidden_word_note(int $word_id, string $reason = ''): string {
     $word = get_post((int) $word_id);
     if (!($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'publish') {
         return '';
+    }
+
+    if ($reason === 'missing_audio') {
+        return __('Published but hidden. Reason: missing audio.', 'll-tools-text-domain');
     }
 
     return __('Published but hidden. Reason: missing image.', 'll-tools-text-domain');
@@ -3068,6 +3072,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
     $has_text_only_answer_options = false;
     $hide_lesson_grid_text = false;
     $category_quiz_uses_images = true;
+    $category_quiz_requires_audio = false;
     if ($sanitized_category !== '') {
         if (function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
             $category_term = ll_tools_resolve_word_category_term_for_wordsets(
@@ -3094,6 +3099,9 @@ function ll_tools_word_grid_resolve_context($atts): array {
         $requires_images = function_exists('ll_tools_quiz_requires_image')
             ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : (($prompt_type === 'image') || ($option_type === 'image'));
+        $category_quiz_requires_audio = function_exists('ll_tools_quiz_requires_audio')
+            ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
         $category_quiz_uses_images = $requires_images;
         $is_text_based = !$requires_images && (strpos($option_type, 'text') === 0);
         $has_text_only_answer_options = in_array($option_type, ['text', 'text_translation', 'text_title'], true);
@@ -3166,6 +3174,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'is_text_based'                => $is_text_based,
         'has_text_only_answer_options' => $has_text_only_answer_options,
         'hide_lesson_grid_text'        => $hide_lesson_grid_text,
+        'category_quiz_requires_audio' => $category_quiz_requires_audio,
         'show_staff_inactive_images'   => $show_staff_inactive_images,
         'editor_context'                => $editor_context,
         'wordset_has_gender'           => $wordset_has_gender,
@@ -4422,6 +4431,7 @@ function ll_tools_word_grid_shortcode($atts) {
     $show_editor_statuses = !empty($context['editor_context']) && $can_edit_words;
     $show_staff_hidden_words = ll_tools_word_grid_should_show_staff_hidden_words($context);
     $presentation_hidden_word_lookup = [];
+    $presentation_hidden_word_reasons = [];
 
     ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
 
@@ -4531,12 +4541,59 @@ function ll_tools_word_grid_shortcode($atts) {
                 foreach ($image_filter_word_ids as $post_id) {
                     if (!isset($visible_lookup[$post_id]) && get_post_status($post_id) === 'publish') {
                         $presentation_hidden_word_lookup[$post_id] = true;
+                        $presentation_hidden_word_reasons[$post_id] = 'missing_image';
                     }
                 }
             } else {
                 $visible_posts = array_values(array_filter((array) $query->posts, static function ($post_obj) use ($visible_lookup): bool {
                     $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
                     return $post_id > 0 && isset($visible_lookup[$post_id]);
+                }));
+                $query->posts = $visible_posts;
+                $query->post_count = count($visible_posts);
+                $query->current_post = -1;
+            }
+        }
+    }
+    if (
+        empty($context['editor_context'])
+        && !empty($context['category_quiz_requires_audio'])
+        && ll_tools_word_grid_is_lesson_context($context)
+        && !empty($query->posts)
+    ) {
+        $audio_filter_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, (array) $query->posts), static function (int $post_id): bool {
+            return $post_id > 0;
+        }));
+        $audio_visible_lookup = [];
+        foreach ($audio_filter_word_ids as $post_id) {
+            $has_published_audio = function_exists('ll_tools_word_has_published_audio')
+                ? ll_tools_word_has_published_audio($post_id)
+                : !empty(ll_tools_word_grid_collect_audio_files([$post_id], false));
+            if ($has_published_audio) {
+                $audio_visible_lookup[$post_id] = true;
+            }
+        }
+        if (count($audio_visible_lookup) !== count($audio_filter_word_ids)) {
+            if ($show_staff_hidden_words && empty($specific_word_ids)) {
+                foreach ($audio_filter_word_ids as $post_id) {
+                    if (!isset($audio_visible_lookup[$post_id]) && get_post_status($post_id) === 'publish') {
+                        $presentation_hidden_word_lookup[$post_id] = true;
+                        $presentation_hidden_word_reasons[$post_id] = 'missing_audio';
+                    }
+                }
+            } else {
+                $visible_posts = array_values(array_filter((array) $query->posts, static function ($post_obj) use ($audio_visible_lookup, $show_staff_hidden_words): bool {
+                    $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                    if ($post_id <= 0) {
+                        return false;
+                    }
+                    if (isset($audio_visible_lookup[$post_id])) {
+                        return true;
+                    }
+
+                    return $show_staff_hidden_words && get_post_status($post_id) !== 'publish';
                 }));
                 $query->posts = $visible_posts;
                 $query->post_count = count($visible_posts);
@@ -4808,9 +4865,12 @@ function ll_tools_word_grid_shortcode($atts) {
             $word_status = (string) get_post_status($word_id);
             $is_draft_word = ($word_status === 'draft');
             $is_presentation_hidden_word = isset($presentation_hidden_word_lookup[(int) $word_id]);
+            $presentation_hidden_reason = $is_presentation_hidden_word
+                ? (string) ($presentation_hidden_word_reasons[(int) $word_id] ?? '')
+                : '';
             $draft_note = $is_draft_word ? ll_tools_word_grid_get_draft_word_note((int) $word_id) : '';
             $presentation_hidden_note = (!$is_draft_word && $is_presentation_hidden_word)
-                ? ll_tools_word_grid_get_presentation_hidden_word_note((int) $word_id)
+                ? ll_tools_word_grid_get_presentation_hidden_word_note((int) $word_id, $presentation_hidden_reason)
                 : '';
             $hide_text_for_word = $hide_lesson_grid_text && !$is_presentation_hidden_word;
             $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text($word_id);
@@ -4938,6 +4998,9 @@ function ll_tools_word_grid_shortcode($atts) {
                 $word_item_classes .= ' ll-word-item--no-image';
             }
             $presentation_hidden_attr = $is_presentation_hidden_word ? ' data-ll-word-presentation-hidden="1"' : '';
+            if ($presentation_hidden_attr !== '' && $presentation_hidden_reason !== '') {
+                $presentation_hidden_attr .= ' data-ll-word-presentation-hidden-reason="' . esc_attr($presentation_hidden_reason) . '"';
+            }
             echo '<div class="' . esc_attr($word_item_classes) . '" data-word-id="' . esc_attr($word_id) . '" data-ll-word-status="' . esc_attr($word_status) . '"' . $presentation_hidden_attr . '>';
             // Featured image with container
             if ($should_render_word_image) {

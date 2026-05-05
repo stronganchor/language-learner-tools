@@ -1929,6 +1929,42 @@ function ll_tools_get_wordset_button_image_preview_data($wordset, string $size =
     ];
 }
 
+function ll_tools_wordset_page_word_is_public_for_lesson_preview(int $word_id, bool $requires_audio): bool {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0 || get_post_status($word_id) !== 'publish') {
+        return false;
+    }
+
+    if (!$requires_audio) {
+        return true;
+    }
+
+    if (function_exists('ll_tools_word_has_published_audio')) {
+        return ll_tools_word_has_published_audio($word_id);
+    }
+
+    $audio_posts = get_posts([
+        'post_type'              => 'word_audio',
+        'post_status'            => 'publish',
+        'post_parent'            => $word_id,
+        'posts_per_page'         => 1,
+        'fields'                 => 'ids',
+        'no_found_rows'          => true,
+        'suppress_filters'       => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_query'             => [
+            [
+                'key'     => 'audio_file_path',
+                'value'   => '',
+                'compare' => '!=',
+            ],
+        ],
+    ]);
+
+    return !empty($audio_posts);
+}
+
 function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2, ?bool $requires_images = null): array {
     static $request_cache = [];
 
@@ -1944,12 +1980,20 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
     $query_limit = max($limit * 3, $limit);
     $deepest_only = function_exists('ll_get_deepest_categories');
     $use_images = ($requires_images !== null) ? (bool) $requires_images : true;
+    $quiz_config = function_exists('ll_tools_get_category_quiz_config')
+        ? ll_tools_get_category_quiz_config($category_id)
+        : [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+        ];
+    $prompt_type = isset($quiz_config['prompt_type']) ? (string) $quiz_config['prompt_type'] : 'audio';
+    $option_type = isset($quiz_config['option_type']) ? (string) $quiz_config['option_type'] : 'image';
+    $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+        ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+        : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
     if ($requires_images === null && function_exists('ll_tools_vocab_lesson_category_requires_images')) {
         $use_images = ll_tools_vocab_lesson_category_requires_images($category_id);
-    } elseif ($requires_images === null && function_exists('ll_tools_get_category_quiz_config')) {
-        $config = ll_tools_get_category_quiz_config($category_id);
-        $prompt_type = (string) ($config['prompt_type'] ?? 'audio');
-        $option_type = (string) ($config['option_type'] ?? '');
+    } elseif ($requires_images === null) {
         $use_images = function_exists('ll_tools_quiz_requires_image')
             ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : (($prompt_type === 'image') || ($option_type === 'image'));
@@ -1987,7 +2031,8 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         'category_version' => $category_version,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
-        'prompt_card_preview_schema' => 1,
+        'requires_audio' => $requires_audio ? 1 : 0,
+        'prompt_card_preview_schema' => 2,
     ]);
     $cached_preview = ll_tools_wordset_page_get_cached_payload($preview_cache_key, $request_cache);
     if (is_array($cached_preview)) {
@@ -2032,6 +2077,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                     if (!in_array((int) $category_id, $deepest_ids, true)) {
                         continue;
                     }
+                }
+                if (!ll_tools_wordset_page_word_is_public_for_lesson_preview((int) $word_id, $requires_audio)) {
+                    continue;
                 }
                 $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
                     ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
@@ -2163,6 +2211,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
             if ($word_id <= 0 || isset($seen_preview_word_ids[$word_id])) {
                 continue;
             }
+            if (!ll_tools_wordset_page_word_is_public_for_lesson_preview($word_id, $requires_audio)) {
+                continue;
+            }
 
             $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
                 ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
@@ -2252,6 +2303,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 }
             }
             if (isset($seen_preview_word_ids[(int) $word_id])) {
+                continue;
+            }
+            if (!ll_tools_wordset_page_word_is_public_for_lesson_preview((int) $word_id, $requires_audio)) {
                 continue;
             }
             $label = get_the_title($word_id);

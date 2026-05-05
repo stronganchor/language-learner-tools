@@ -185,7 +185,23 @@ final class VocabLessonWordOrderTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
         update_post_meta($word_id, 'word_translation', $title . ' translation');
+        if ($status === 'publish') {
+            $this->createAudioRecording($word_id, sanitize_title($title) . '.mp3');
+        }
         return $word_id;
+    }
+
+    private function createAudioRecording(int $word_id, string $audio_file_name): int
+    {
+        $audio_post_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio ' . $word_id,
+        ]);
+        update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
+
+        return (int) $audio_post_id;
     }
 
     private function createLesson(int $wordset_id, int $category_id, string $title): int

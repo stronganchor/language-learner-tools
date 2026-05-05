@@ -18,6 +18,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+        $this->createRecordingType('isolation', 'Isolation');
 
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -27,6 +28,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
         update_post_meta($word_id, 'word_translation', 'River');
+        $this->createAudioRecording($word_id, 'isolation', 'deferred-grid-nehir.mp3');
 
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',
@@ -77,6 +79,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+        $this->createRecordingType('isolation', 'Isolation');
 
         $published_word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -86,6 +89,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         wp_set_post_terms($published_word_id, [$category_id], 'word-category', false);
         wp_set_post_terms($published_word_id, [$wordset_id], 'wordset', false);
         update_post_meta($published_word_id, 'word_translation', 'Ready');
+        $this->createAudioRecording($published_word_id, 'isolation', 'published-visible.mp3');
 
         $draft_no_audio_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -273,6 +277,100 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $position_alpha = strpos($staff_html, 'Alpha Visible');
         $position_zebra = strpos($staff_html, 'Zebra Visible');
         $position_hidden = strpos($staff_html, 'Middle Hidden');
+        $this->assertIsInt($position_alpha);
+        $this->assertIsInt($position_zebra);
+        $this->assertIsInt($position_hidden);
+        $this->assertGreaterThan($position_alpha, $position_hidden);
+        $this->assertGreaterThan($position_zebra, $position_hidden);
+    }
+
+    public function test_lesson_grid_ajax_shows_published_audio_mismatches_to_staff_at_bottom(): void
+    {
+        $wordset = wp_insert_term('Deferred Audio Hidden Wordset', 'wordset', ['slug' => 'deferred-audio-hidden-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Audio Hidden Category', 'word-category', ['slug' => 'deferred-audio-hidden-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        $alpha_id = $this->createWordWithThumbnail('Audio Alpha Visible', $category_id, $wordset_id, 'audio-alpha-visible.png');
+        $this->createAudioRecording($alpha_id, 'isolation', 'audio-alpha-visible.mp3');
+
+        $hidden_id = $this->createWordWithThumbnail('Audio Middle Hidden', $category_id, $wordset_id, 'audio-middle-hidden.png');
+        $this->assertGreaterThan(0, $hidden_id);
+
+        $zebra_id = $this->createWordWithThumbnail('Audio Zebra Visible', $category_id, $wordset_id, 'audio-zebra-visible.png');
+        $this->createAudioRecording($zebra_id, 'isolation', 'audio-zebra-visible.mp3');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Audio Hidden Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        wp_set_current_user(0);
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $public_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($public_response['success']);
+        $public_html = (string) (($public_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Audio Alpha Visible', $public_html);
+        $this->assertStringContainsString('Audio Zebra Visible', $public_html);
+        $this->assertStringNotContainsString('Audio Middle Hidden', $public_html);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        wp_set_current_user($admin_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $staff_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($staff_response['success']);
+        $staff_html = (string) (($staff_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Audio Alpha Visible', $staff_html);
+        $this->assertStringContainsString('Audio Zebra Visible', $staff_html);
+        $this->assertStringContainsString('Audio Middle Hidden', $staff_html);
+        $this->assertStringContainsString('ll-word-item--presentation-hidden', $staff_html);
+        $this->assertStringContainsString('data-ll-word-presentation-hidden-reason="missing_audio"', $staff_html);
+        $this->assertStringContainsString('ll-word-draft-notice__badge">Hidden', $staff_html);
+        $this->assertStringContainsString('Published but hidden. Reason: missing audio.', $staff_html);
+
+        $position_alpha = strpos($staff_html, 'Audio Alpha Visible');
+        $position_zebra = strpos($staff_html, 'Audio Zebra Visible');
+        $position_hidden = strpos($staff_html, 'Audio Middle Hidden');
         $this->assertIsInt($position_alpha);
         $this->assertIsInt($position_zebra);
         $this->assertIsInt($position_hidden);
@@ -524,9 +622,11 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        $this->createRecordingType('isolation', 'Isolation');
 
         $word_id = $this->createWordWithThumbnail('Kedi', $category_id, $wordset_id, 'deferred-text-image-kedi.png');
         update_post_meta($word_id, 'word_translation', 'Cat');
+        $this->createAudioRecording($word_id, 'isolation', 'deferred-text-image-kedi.mp3');
 
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',
@@ -622,9 +722,11 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+        $this->createRecordingType('isolation', 'Isolation');
 
         $image_word_id = $this->createWordWithThumbnail('Image Backed Staff Word', $category_id, $wordset_id, 'deferred-staff-inactive-image.png');
         update_post_meta($image_word_id, 'word_translation', 'Image backed');
+        $this->createAudioRecording($image_word_id, 'isolation', 'deferred-staff-inactive-image.mp3');
 
         $text_only_word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -634,6 +736,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         wp_set_post_terms($text_only_word_id, [$category_id], 'word-category', false);
         wp_set_post_terms($text_only_word_id, [$wordset_id], 'wordset', false);
         update_post_meta($text_only_word_id, 'word_translation', 'Plain');
+        $this->createAudioRecording($text_only_word_id, 'isolation', 'deferred-staff-plain.mp3');
 
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',
@@ -713,6 +816,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        $this->createRecordingType('isolation', 'Isolation');
 
         $titles = ['Lesson 10', 'Lesson 2', 'Lesson 9'];
         foreach ($titles as $title) {
@@ -723,6 +827,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
             ]);
             wp_set_post_terms($word_id, [$category_id], 'word-category', false);
             wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            $this->createAudioRecording($word_id, 'isolation', sanitize_title($title) . '.mp3');
         }
 
         $lesson_id = self::factory()->post->create([

@@ -87,6 +87,48 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($second_preview['has_images'] ?? false));
     }
 
+    public function test_image_category_preview_skips_words_missing_required_audio(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Wordset Audio Preview ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Wordset Audio Preview Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+
+        $ready_one_id = $this->createWordWithImage('Audio Preview Ready One', $category_id, $wordset_id, 'audio-preview-ready-one.png');
+        $this->createAudioRecording($ready_one_id, 'audio-preview-ready-one.mp3');
+        $ready_two_id = $this->createWordWithImage('Audio Preview Ready Two', $category_id, $wordset_id, 'audio-preview-ready-two.png');
+        $this->createAudioRecording($ready_two_id, 'audio-preview-ready-two.mp3');
+        $hidden_id = $this->createWordWithImage('Audio Preview Hidden Missing Audio', $category_id, $wordset_id, 'audio-preview-hidden.png');
+        $hidden_attachment_id = (int) get_post_thumbnail_id($hidden_id);
+        $this->assertGreaterThan(0, $hidden_attachment_id);
+
+        $preview = ll_tools_get_wordset_category_preview($wordset_id, $category_id, 2, true);
+        $items = array_values((array) ($preview['items'] ?? []));
+
+        $this->assertCount(2, $items);
+        $this->assertTrue((bool) ($preview['has_images'] ?? false));
+        $attachment_ids = array_map(static function ($item): int {
+            return is_array($item) ? (int) ($item['attachment_id'] ?? 0) : 0;
+        }, $items);
+        $alts = implode(' ', array_map(static function ($item): string {
+            return is_array($item) ? (string) ($item['alt'] ?? '') : '';
+        }, $items));
+
+        $this->assertNotContains($hidden_attachment_id, $attachment_ids);
+        $this->assertStringNotContainsString('Audio Preview Hidden Missing Audio', $alts);
+    }
+
     /**
      * @return array{wordset_id:int,category_id:int}
      */
@@ -207,6 +249,19 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         update_post_meta($word_id, '_thumbnail_id', $attachment_id);
 
         return (int) $word_id;
+    }
+
+    private function createAudioRecording(int $word_id, string $audio_file_name): int
+    {
+        $audio_post_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio ' . $word_id,
+        ]);
+        update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
+
+        return (int) $audio_post_id;
     }
 
     private function createImageAttachment(string $filename): int
