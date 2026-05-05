@@ -56,6 +56,9 @@
     const WORD_GRID_IMAGE_SELECTOR = '.word-image-container img.word-image';
     const WORD_GRID_IMAGE_WRAPPER_SELECTOR = '.word-image-container';
     const LESSON_ORDER_HANDLE_SELECTOR = '[data-ll-word-grid-order-handle]';
+    const LESSON_ORDER_VIEWPORT_SCROLL_EDGE_PX = 96;
+    const LESSON_ORDER_VIEWPORT_SCROLL_MIN_STEP_PX = 3;
+    const LESSON_ORDER_VIEWPORT_SCROLL_MAX_STEP_PX = 11;
     const EDITABLE_INPUT_SELECTOR = 'input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-word-category-input], input[data-ll-recording-input], select[data-ll-recording-input]';
     const wordGridImageObservers = [];
 
@@ -187,6 +190,189 @@
             grid.removeEventListener('touchcancel', finish);
             active = null;
         };
+    }
+
+    function readLessonOrderPointerClientY(event) {
+        const source = event && event.originalEvent ? event.originalEvent : event;
+        if (!source) { return null; }
+
+        if (typeof source.clientY === 'number') {
+            return source.clientY;
+        }
+
+        const touch = getLessonOrderPrimaryTouch(source, null);
+        if (touch && typeof touch.clientY === 'number') {
+            return touch.clientY;
+        }
+
+        return null;
+    }
+
+    function getLessonOrderViewportHeight() {
+        return window.innerHeight || document.documentElement.clientHeight || 0;
+    }
+
+    function getLessonOrderScrollTop() {
+        return window.pageYOffset
+            || document.documentElement.scrollTop
+            || (document.body ? document.body.scrollTop : 0)
+            || 0;
+    }
+
+    function getLessonOrderMaxScrollTop() {
+        const viewportHeight = getLessonOrderViewportHeight();
+        const doc = document.documentElement;
+        const body = document.body;
+        const scrollHeight = Math.max(
+            doc ? doc.scrollHeight : 0,
+            body ? body.scrollHeight : 0
+        );
+        return Math.max(0, scrollHeight - viewportHeight);
+    }
+
+    function getLessonOrderViewportScrollStep(pointerClientY) {
+        const viewportHeight = getLessonOrderViewportHeight();
+        if (typeof pointerClientY !== 'number' || !viewportHeight) {
+            return 0;
+        }
+
+        const edgeSize = Math.min(
+            LESSON_ORDER_VIEWPORT_SCROLL_EDGE_PX,
+            Math.max(48, Math.round(viewportHeight * 0.2))
+        );
+        let direction = 0;
+        let pressure = 0;
+
+        if (pointerClientY < edgeSize) {
+            direction = -1;
+            pressure = (edgeSize - pointerClientY) / edgeSize;
+        } else if (pointerClientY > viewportHeight - edgeSize) {
+            direction = 1;
+            pressure = (pointerClientY - (viewportHeight - edgeSize)) / edgeSize;
+        }
+
+        if (!direction) {
+            return 0;
+        }
+
+        const scrollTop = getLessonOrderScrollTop();
+        if ((direction < 0 && scrollTop <= 0) || (direction > 0 && scrollTop >= getLessonOrderMaxScrollTop())) {
+            return 0;
+        }
+
+        const boundedPressure = Math.max(0, Math.min(1, pressure));
+        const step = LESSON_ORDER_VIEWPORT_SCROLL_MIN_STEP_PX
+            + ((LESSON_ORDER_VIEWPORT_SCROLL_MAX_STEP_PX - LESSON_ORDER_VIEWPORT_SCROLL_MIN_STEP_PX) * boundedPressure);
+        return direction * Math.round(step);
+    }
+
+    function getLessonOrderViewportAutoScrollState($grid) {
+        const grid = $grid && $grid.length ? $grid.get(0) : null;
+        if (!grid) { return null; }
+
+        if (!grid.__llLessonOrderViewportAutoScrollState) {
+            grid.__llLessonOrderViewportAutoScrollState = {
+                active: false,
+                pointerClientY: null,
+                frameId: 0,
+                frameIsTimeout: false
+            };
+        }
+
+        return grid.__llLessonOrderViewportAutoScrollState;
+    }
+
+    function cancelLessonOrderViewportAutoScrollFrame(state) {
+        if (!state || !state.frameId) { return; }
+
+        if (state.frameIsTimeout) {
+            window.clearTimeout(state.frameId);
+        } else if (typeof window.cancelAnimationFrame === 'function') {
+            window.cancelAnimationFrame(state.frameId);
+        }
+
+        state.frameId = 0;
+        state.frameIsTimeout = false;
+    }
+
+    function queueLessonOrderViewportAutoScrollFrame(state, callback) {
+        if (!state || state.frameId) { return; }
+
+        if (typeof window.requestAnimationFrame === 'function') {
+            state.frameIsTimeout = false;
+            state.frameId = window.requestAnimationFrame(callback);
+            return;
+        }
+
+        state.frameIsTimeout = true;
+        state.frameId = window.setTimeout(callback, 16);
+    }
+
+    function refreshLessonOrderSortablePositions($grid) {
+        if (!$grid || !$grid.length || typeof $grid.sortable !== 'function') {
+            return;
+        }
+
+        try {
+            $grid.sortable('refreshPositions');
+        } catch (_error) {}
+    }
+
+    function scheduleLessonOrderViewportAutoScroll($grid) {
+        const state = getLessonOrderViewportAutoScrollState($grid);
+        if (!state || !state.active) { return; }
+
+        queueLessonOrderViewportAutoScrollFrame(state, function () {
+            state.frameId = 0;
+            state.frameIsTimeout = false;
+
+            if (!state.active) { return; }
+
+            const step = getLessonOrderViewportScrollStep(state.pointerClientY);
+            if (step) {
+                const before = getLessonOrderScrollTop();
+                window.scrollBy(0, step);
+                if (Math.abs(getLessonOrderScrollTop() - before) > 0.5) {
+                    refreshLessonOrderSortablePositions($grid);
+                }
+            }
+
+            scheduleLessonOrderViewportAutoScroll($grid);
+        });
+    }
+
+    function startLessonOrderViewportAutoScroll($grid, event) {
+        const state = getLessonOrderViewportAutoScrollState($grid);
+        if (!state) { return; }
+
+        const pointerClientY = readLessonOrderPointerClientY(event);
+        if (typeof pointerClientY === 'number') {
+            state.pointerClientY = pointerClientY;
+        }
+
+        state.active = true;
+        scheduleLessonOrderViewportAutoScroll($grid);
+    }
+
+    function updateLessonOrderViewportAutoScroll($grid, event) {
+        const state = getLessonOrderViewportAutoScrollState($grid);
+        if (!state || !state.active) { return; }
+
+        const pointerClientY = readLessonOrderPointerClientY(event);
+        if (typeof pointerClientY === 'number') {
+            state.pointerClientY = pointerClientY;
+        }
+
+        scheduleLessonOrderViewportAutoScroll($grid);
+    }
+
+    function stopLessonOrderViewportAutoScroll($grid) {
+        const state = getLessonOrderViewportAutoScrollState($grid);
+        if (!state) { return; }
+
+        state.active = false;
+        state.pointerClientY = null;
+        cancelLessonOrderViewportAutoScrollFrame(state);
     }
 
     function setWordGridImagePending(img) {
@@ -6084,6 +6270,7 @@
 
                 setLessonOrderStatus($grid, '', '');
                 clearLessonOrderTouchBridge($grid);
+                stopLessonOrderViewportAutoScroll($grid);
                 $grid.removeClass('ll-word-grid--ordering ll-word-grid--order-handle-required');
                 if (typeof $grid.sortable === 'function' && $grid.data('ui-sortable')) {
                     try {
@@ -6101,6 +6288,7 @@
                     distance: 6,
                     tolerance: 'pointer',
                     placeholder: 'll-word-grid-order-placeholder',
+                    scroll: false,
                     cancel: [
                         'a',
                         'button',
@@ -6118,8 +6306,9 @@
                         '[data-ll-word-edit-toggle]',
                         '[data-ll-recording-edit-trigger]'
                     ].join(','),
-                    start: function (_event, ui) {
+                    start: function (event, ui) {
                         clearLessonOrderStatusTimer($grid);
+                        startLessonOrderViewportAutoScroll($grid, event);
                         $grid.addClass('ll-word-grid--ordering');
                         if (ui && ui.item) {
                             ui.item.addClass('is-dragging');
@@ -6128,7 +6317,11 @@
                             ui.placeholder.height(ui.item.outerHeight());
                         }
                     },
+                    sort: function (event) {
+                        updateLessonOrderViewportAutoScroll($grid, event);
+                    },
                     stop: function (_event, ui) {
+                        stopLessonOrderViewportAutoScroll($grid);
                         $grid.removeClass('ll-word-grid--ordering');
                         if (ui && ui.item) {
                             ui.item.removeClass('is-dragging');

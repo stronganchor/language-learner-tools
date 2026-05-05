@@ -158,6 +158,100 @@ test('lesson word reordering posts the dragged order through AJAX', async ({ pag
   await expect(page.locator('[data-ll-word-grid-order-status]')).toContainText('Order saved.');
 });
 
+test('lesson word reordering auto-scrolls the viewport near screen edges', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 600 });
+  await page.goto('about:blank');
+  await page.setContent(`
+    ${buildWordOrderMarkup()}
+    <div style="height: 2400px;"></div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: wordGridCssSource });
+
+  await page.evaluate((cfg) => {
+    window.llToolsWordGridData = cfg;
+    window.__llRefreshPositionsCount = 0;
+
+    jQuery.fn.sortable = function (arg) {
+      if (typeof arg === 'string') {
+        if (arg === 'refreshPositions') {
+          window.__llRefreshPositionsCount += this.length;
+        }
+        return this;
+      }
+
+      return this.each(function () {
+        jQuery(this).data('ui-sortable', { options: arg || {} });
+        this.__llSortableOptions = arg || {};
+      });
+    };
+  }, buildWordGridConfig());
+
+  await page.addScriptTag({ content: wordGridScriptSource });
+
+  const result = await page.locator('[data-ll-word-grid]').evaluate(async (grid) => {
+    const options = grid.__llSortableOptions || {};
+    const item = jQuery(grid.querySelector('.word-item[data-word-id="102"]'));
+    const placeholder = jQuery(document.createElement('div'));
+    const ui = { item, placeholder };
+
+    function waitFrames(count) {
+      return new Promise((resolve) => {
+        let remaining = count;
+        const tick = () => {
+          remaining -= 1;
+          if (remaining <= 0) {
+            resolve();
+            return;
+          }
+          window.requestAnimationFrame(tick);
+        };
+        window.requestAnimationFrame(tick);
+      });
+    }
+
+    window.scrollTo(0, 280);
+    await waitFrames(2);
+    const downBefore = window.scrollY;
+    options.start.call(grid, { clientY: window.innerHeight / 2 }, ui);
+    options.sort.call(grid, { clientY: window.innerHeight - 2 }, ui);
+    await waitFrames(8);
+    const downAfter = window.scrollY;
+    options.stop.call(grid, {}, ui);
+    await waitFrames(3);
+    const downAfterStop = window.scrollY;
+
+    window.scrollTo(0, 760);
+    await waitFrames(2);
+    const upBefore = window.scrollY;
+    options.start.call(grid, { clientY: window.innerHeight / 2 }, ui);
+    options.sort.call(grid, { clientY: 2 }, ui);
+    await waitFrames(8);
+    const upAfter = window.scrollY;
+    options.stop.call(grid, {}, ui);
+    await waitFrames(3);
+    const upAfterStop = window.scrollY;
+
+    return {
+      scrollOption: options.scroll,
+      downDelta: downAfter - downBefore,
+      downStopDelta: downAfterStop - downAfter,
+      upDelta: upBefore - upAfter,
+      upStopDelta: upAfter - upAfterStop,
+      refreshPositionsCount: window.__llRefreshPositionsCount
+    };
+  });
+
+  expect(result.scrollOption).toBe(false);
+  expect(result.downDelta).toBeGreaterThan(40);
+  expect(result.downDelta).toBeLessThanOrEqual(100);
+  expect(result.downStopDelta).toBe(0);
+  expect(result.upDelta).toBeGreaterThan(40);
+  expect(result.upDelta).toBeLessThanOrEqual(100);
+  expect(result.upStopDelta).toBe(0);
+  expect(result.refreshPositionsCount).toBeGreaterThan(0);
+});
+
 test('mobile lesson word reordering uses a drag handle so card bodies can scroll', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent(buildWordOrderMarkup());
