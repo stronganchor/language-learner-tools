@@ -7107,6 +7107,7 @@ function ll_tools_wordset_page_handle_manager_recorder_queue_action(): void {
         $config['include_recording_types'] = implode(',', $include_types);
         $config['exclude_recording_types'] = implode(',', $exclude_types);
         $config['allow_new_words'] = !empty($_POST['ll_wordset_manager_recorder_queue_allow_new_words']) ? '1' : '0';
+        $config['auto_process_recordings'] = !empty($_POST['ll_wordset_manager_recorder_queue_auto_process_recordings']) ? '1' : '0';
 
         update_user_meta($recorder_user_id, 'll_recording_config', $config);
 
@@ -11025,6 +11026,92 @@ function ll_tools_wordset_page_get_recorder_queue_secondary_label(array $item): 
     return '';
 }
 
+function ll_tools_wordset_page_get_recorder_queue_item_image_url(array $item, string $size = 'medium'): string {
+    $image_url = trim((string) ($item['image_url'] ?? ''));
+    if ($image_url !== '') {
+        return $image_url;
+    }
+
+    $attachment_id = isset($item['attachment_id']) ? (int) $item['attachment_id'] : 0;
+    if ($attachment_id > 0) {
+        $attachment_url = wp_get_attachment_image_url($attachment_id, $size);
+        if (is_string($attachment_url) && $attachment_url !== '') {
+            return $attachment_url;
+        }
+    }
+
+    $candidate_post_ids = array_values(array_unique(array_filter(array_map('intval', [
+        $item['word_id'] ?? 0,
+        $item['image_id'] ?? ($item['id'] ?? 0),
+    ]))));
+
+    foreach ($candidate_post_ids as $post_id) {
+        $post = get_post($post_id);
+        if (!($post instanceof WP_Post)) {
+            continue;
+        }
+
+        $candidate_url = ($post->post_type === 'attachment')
+            ? wp_get_attachment_image_url($post_id, $size)
+            : get_the_post_thumbnail_url($post_id, $size);
+        if (is_string($candidate_url) && $candidate_url !== '') {
+            return $candidate_url;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_wordset_page_get_recorder_queue_category_preview_items(array $items, int $limit = 2): array {
+    $limit = max(1, $limit);
+    $preview_items = [];
+    $seen = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $label = ll_tools_wordset_page_get_recorder_queue_primary_label($item);
+        $image_url = ll_tools_wordset_page_get_recorder_queue_item_image_url($item);
+        if ($image_url !== '') {
+            $dedupe_key = 'image:' . strtolower($image_url);
+            if (isset($seen[$dedupe_key])) {
+                continue;
+            }
+
+            $preview_items[] = [
+                'type' => 'image',
+                'url' => $image_url,
+                'alt' => $label,
+            ];
+            $seen[$dedupe_key] = true;
+        } else {
+            $label = trim($label);
+            if ($label === '') {
+                $label = __('Untitled word', 'll-tools-text-domain');
+            }
+
+            $dedupe_key = 'text:' . strtolower($label);
+            if (isset($seen[$dedupe_key])) {
+                continue;
+            }
+
+            $preview_items[] = [
+                'type' => 'text',
+                'label' => $label,
+            ];
+            $seen[$dedupe_key] = true;
+        }
+
+        if (count($preview_items) >= $limit) {
+            break;
+        }
+    }
+
+    return $preview_items;
+}
+
 function ll_tools_wordset_page_get_recorder_queue_type_labels(array $slugs): array {
     $slugs = function_exists('ll_sort_recording_type_slugs')
         ? ll_sort_recording_type_slugs($slugs)
@@ -11305,6 +11392,7 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
         $include_types = trim((string) ($config['include_recording_types'] ?? ''));
         $exclude_types = trim((string) ($config['exclude_recording_types'] ?? ''));
         $allow_new_words = !empty($config['allow_new_words']);
+        $auto_process_recordings = !empty($config['auto_process_recordings']);
         $all_items = function_exists('ll_tools_get_recording_queue_items')
             ? ll_tools_get_recording_queue_items('', [$wordset_id], $include_types, $exclude_types, true, $recorder_user_id)
             : (function_exists('ll_get_images_needing_audio')
@@ -11412,6 +11500,9 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
         if ($allow_new_words) {
             $queue_notes[] = __('Can add new words', 'll-tools-text-domain');
         }
+        if ($auto_process_recordings) {
+            $queue_notes[] = __('Recorder processes audio', 'll-tools-text-domain');
+        }
 
         $display_name = trim((string) $recorder_user->display_name);
         if ($display_name === '') {
@@ -11427,7 +11518,7 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
             'include_recording_types' => $include_types,
             'exclude_recording_types' => $exclude_types,
             'allow_new_words' => $allow_new_words,
-            'auto_process_recordings' => !empty($config['auto_process_recordings']),
+            'auto_process_recordings' => $auto_process_recordings,
             'queue_notes' => $queue_notes,
             'visible_items' => array_values($visible_items),
             'hidden_items' => array_values($hidden_entries),
@@ -11626,19 +11717,58 @@ function ll_tools_wordset_page_render_recorder_queue_category_group(array $categ
     $category_slug = sanitize_title((string) ($category_group['slug'] ?? $category_name));
     $category_open = !empty($args['category_open']);
     $list_id = 'll-recorder-queue-category-' . md5($category_slug . '|' . (string) ($args['recorder_user_id'] ?? 0) . '|' . (string) ($args['action'] ?? ''));
+    $preview_limit = 2;
+    $preview_items = ll_tools_wordset_page_get_recorder_queue_category_preview_items($items, $preview_limit);
+    $has_image_preview = false;
+    foreach ($preview_items as $preview_item) {
+        if (is_array($preview_item) && ($preview_item['type'] ?? '') === 'image') {
+            $has_image_preview = true;
+            break;
+        }
+    }
 
     ob_start();
     ?>
     <details class="ll-wordset-recorder-queue-category"<?php echo $category_open ? ' open' : ''; ?>>
         <summary class="ll-wordset-recorder-queue-category__summary" aria-controls="<?php echo esc_attr($list_id); ?>">
-            <span class="ll-wordset-recorder-queue-category__name"><?php echo esc_html($category_name); ?></span>
-            <span class="ll-wordset-settings-card__pill">
-                <?php
-                echo esc_html(sprintf(
-                    _n('%d word', '%d words', count($items), 'll-tools-text-domain'),
-                    count($items)
-                ));
-                ?>
+            <span class="ll-wordset-recorder-queue-category__card">
+                <span class="ll-wordset-card__top ll-wordset-recorder-queue-category__top">
+                    <span class="ll-wordset-recorder-queue-category__heading">
+                        <span class="ll-wordset-recorder-queue-category__toggle" aria-hidden="true"></span>
+                        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name"><?php echo esc_html($category_name); ?></span>
+                    </span>
+                    <span class="ll-wordset-settings-card__pill">
+                        <?php
+                        echo esc_html(sprintf(
+                            _n('%d word', '%d words', count($items), 'll-tools-text-domain'),
+                            count($items)
+                        ));
+                        ?>
+                    </span>
+                </span>
+                <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview <?php echo $has_image_preview ? 'has-images' : 'has-text'; ?>">
+                    <?php if (!empty($preview_items)) : ?>
+                        <?php $displayed_count = min(count($preview_items), $preview_limit); ?>
+                        <?php foreach (array_slice($preview_items, 0, $preview_limit) as $preview_item) : ?>
+                            <?php if (($preview_item['type'] ?? '') === 'image') : ?>
+                                <span class="ll-wordset-preview-item ll-wordset-preview-item--image">
+                                    <img src="<?php echo esc_url((string) ($preview_item['url'] ?? '')); ?>" alt="<?php echo esc_attr((string) ($preview_item['alt'] ?? '')); ?>" loading="lazy" decoding="async" fetchpriority="low" />
+                                </span>
+                            <?php else : ?>
+                                <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                                    <span class="ll-wordset-preview-text" dir="auto"><?php echo esc_html((string) ($preview_item['label'] ?? '')); ?></span>
+                                </span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        <?php for ($i = $displayed_count; $i < $preview_limit; $i++) : ?>
+                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                        <?php endfor; ?>
+                    <?php else : ?>
+                        <?php for ($i = 0; $i < $preview_limit; $i++) : ?>
+                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                        <?php endfor; ?>
+                    <?php endif; ?>
+                </span>
             </span>
         </summary>
         <ul id="<?php echo esc_attr($list_id); ?>" class="ll-wordset-recorder-queue-list">
@@ -11726,6 +11856,14 @@ function ll_tools_wordset_page_render_recorder_queue_settings_form(array $queue_
                 <input type="checkbox" name="ll_wordset_manager_recorder_queue_allow_new_words" value="1" <?php checked(!empty($queue_row['allow_new_words'])); ?> />
                 <span><?php echo esc_html__('Allow this recorder to record new words', 'll-tools-text-domain'); ?></span>
             </label>
+
+            <label class="ll-wordset-recorder-queue-settings__toggle">
+                <input type="checkbox" name="ll_wordset_manager_recorder_queue_auto_process_recordings" value="1" <?php checked(!empty($queue_row['auto_process_recordings'])); ?> />
+                <span><?php echo esc_html__('Recorder processes audio before saving', 'll-tools-text-domain'); ?></span>
+            </label>
+            <p class="description ll-wordset-recorder-queue-settings__note">
+                <?php echo esc_html__('Shows the recorder the audio processing review step for trimming, noise reduction, and loudness before the recording is saved.', 'll-tools-text-domain'); ?>
+            </p>
 
             <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary ll-wordset-recorder-queue-settings__save">
                 <?php echo esc_html__('Save queue settings', 'll-tools-text-domain'); ?>

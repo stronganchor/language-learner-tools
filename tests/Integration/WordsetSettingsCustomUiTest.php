@@ -92,14 +92,15 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         wp_set_post_terms($hidden_word_id, [$wordset_id], 'wordset', false);
         update_post_meta($hidden_word_id, 'word_translation', 'Hidden queue translation');
 
-        $visible_word_id = self::factory()->post->create([
-            'post_type' => 'words',
-            'post_status' => 'publish',
+        $visible_word_id = (int) $fixture['word_id'];
+        wp_update_post([
+            'ID' => $visible_word_id,
             'post_title' => 'Visible Queue Word',
         ]);
-        wp_set_post_terms($visible_word_id, [(int) $fixture['category_id']], 'word-category', false);
-        wp_set_post_terms($visible_word_id, [$wordset_id], 'wordset', false);
         update_post_meta($visible_word_id, 'word_translation', 'Visible queue translation');
+        $visible_attachment_id = $this->createImageAttachment('visible-queue-word.png');
+        set_post_thumbnail($visible_word_id, $visible_attachment_id);
+        set_post_thumbnail((int) $fixture['template_image_id'], $visible_attachment_id);
         update_post_meta($visible_word_id, ll_tools_recording_prompt_hints_meta_key(), [
             'question' => 'Where is the visible queue word?',
         ]);
@@ -125,10 +126,14 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Visible Queue Word', $html);
         $this->assertStringNotContainsString('Hidden Queue Word', $html);
         $this->assertStringContainsString('Queue by Category', $html);
+        $this->assertStringContainsString('ll-wordset-recorder-queue-category__card', $html);
+        $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview has-images', $html);
+        $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--image', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
         $this->assertStringContainsString('Change queue settings', $html);
         $this->assertStringContainsString('Skipped types', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_allow_new_words"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_auto_process_recordings"', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="hide"', $html);
         $this->assertStringContainsString('Recording prompts', $html);
         $this->assertStringContainsString('<details class="ll-wordset-recorder-queue-prompts" open>', $html);
@@ -250,6 +255,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'category' => 'old-category',
             'exclude_recording_types' => 'isolation',
             'allow_new_words' => '0',
+            'auto_process_recordings' => '0',
         ]);
 
         $_GET = [];
@@ -261,6 +267,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_manager_recorder_queue_include_types' => ['question'],
             'll_wordset_manager_recorder_queue_exclude_types' => ['sentence'],
             'll_wordset_manager_recorder_queue_allow_new_words' => '1',
+            'll_wordset_manager_recorder_queue_auto_process_recordings' => '1',
             'll_wordset_page' => $wordset_slug,
             'll_wordset_view' => 'settings',
             'll_wordset_tool' => 'recorder-queues',
@@ -285,6 +292,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('question', (string) ($config['include_recording_types'] ?? ''));
         $this->assertSame('sentence', (string) ($config['exclude_recording_types'] ?? ''));
         $this->assertSame('1', (string) ($config['allow_new_words'] ?? ''));
+        $this->assertSame('1', (string) ($config['auto_process_recordings'] ?? ''));
     }
 
     public function test_recorder_queue_action_saves_recording_prompts_for_queue_items(): void

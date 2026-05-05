@@ -151,6 +151,7 @@ function buildRecorderQueueToolMarkup() {
           <div class="ll-wordset-settings-card__meta ll-wordset-recorder-queue-card__notes">
             <span class="ll-wordset-settings-card__pill">Skipping: Sentence</span>
             <span class="ll-wordset-settings-card__pill">Can add new words</span>
+            <span class="ll-wordset-settings-card__pill">Recorder processes audio</span>
           </div>
 
           <details class="ll-wordset-recorder-queue-settings">
@@ -175,6 +176,8 @@ function buildRecorderQueueToolMarkup() {
                 </fieldset>
               </div>
               <label class="ll-wordset-recorder-queue-settings__toggle"><input type="checkbox" checked /> <span>Allow this recorder to record new words</span></label>
+              <label class="ll-wordset-recorder-queue-settings__toggle"><input type="checkbox" checked /> <span>Recorder processes audio before saving</span></label>
+              <p class="description ll-wordset-recorder-queue-settings__note">Shows the recorder the audio processing review step for trimming, noise reduction, and loudness before the recording is saved.</p>
               <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--primary ll-wordset-recorder-queue-settings__save">Save queue settings</button>
             </form>
           </details>
@@ -184,8 +187,23 @@ function buildRecorderQueueToolMarkup() {
             <div class="ll-wordset-recorder-queue-categories">
               <details class="ll-wordset-recorder-queue-category">
                 <summary class="ll-wordset-recorder-queue-category__summary">
-                  <span class="ll-wordset-recorder-queue-category__name">Fruit and market questions</span>
-                  <span class="ll-wordset-settings-card__pill">2 words</span>
+                  <span class="ll-wordset-recorder-queue-category__card">
+                    <span class="ll-wordset-card__top ll-wordset-recorder-queue-category__top">
+                      <span class="ll-wordset-recorder-queue-category__heading">
+                        <span class="ll-wordset-recorder-queue-category__toggle" aria-hidden="true"></span>
+                        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Fruit and market questions</span>
+                      </span>
+                      <span class="ll-wordset-settings-card__pill">2 words</span>
+                    </span>
+                    <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images">
+                      <span class="ll-wordset-preview-item ll-wordset-preview-item--image">
+                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=" alt="loquat" loading="lazy" decoding="async" fetchpriority="low" />
+                      </span>
+                      <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                        <span class="ll-wordset-preview-text" dir="auto">loquat</span>
+                      </span>
+                    </span>
+                  </span>
                 </summary>
                 <ul class="ll-wordset-recorder-queue-list">
                   <li class="ll-wordset-recorder-queue-item">
@@ -689,8 +707,11 @@ test('manager recorder queue groups words and keeps prompt editing usable on mob
   await page.getByText('Change queue settings').click();
   await expect(page.getByText('Skipped types')).toBeVisible();
   await expect(page.getByText('Allow this recorder to record new words')).toBeVisible();
+  await expect(page.getByText('Recorder processes audio before saving')).toBeVisible();
 
   await expect(page.getByText('Fruit and market questions')).toBeVisible();
+  await expect(page.locator('.ll-wordset-recorder-queue-category__preview img[alt="loquat"]')).toBeVisible();
+  await expect(page.locator('.ll-wordset-recorder-queue-category .ll-wordset-card__quiz-btn')).toHaveCount(0);
   await page.getByText('Fruit and market questions').click();
   await expect(page.locator('.ll-wordset-recorder-queue-item__title', { hasText: 'loquat' })).toBeVisible();
   await expect(page.getByText('Recording prompts')).toBeVisible();
