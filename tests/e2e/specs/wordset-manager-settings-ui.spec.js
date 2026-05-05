@@ -119,6 +119,112 @@ function buildRecorderToolMarkup() {
   `;
 }
 
+function buildRecorderQueueToolMarkup() {
+  return `
+    <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
+      <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+          <h2 class="ll-wordset-settings-card__title">Recorder Queues</h2>
+          <p class="description" style="margin-top:0;">Review each assigned recorder's queue by category, edit prompt wording, and tune their recording settings from one place.</p>
+          <div class="ll-wordset-settings-card__meta">
+            <span class="ll-wordset-settings-card__pill">1 recorder</span>
+            <span class="ll-wordset-settings-card__pill">2 queued words</span>
+            <a class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-view-link" href="#hidden">Hidden (1)</a>
+          </div>
+        </div>
+
+        <article class="ll-wordset-settings-card ll-wordset-recorder-queue-card" id="ll-recorder-queue-44">
+          <div class="ll-wordset-recorder-queue-card__head">
+            <div class="ll-wordset-recorder-queue-card__identity">
+              <h3 class="ll-wordset-recorder-queue-card__title">Queue Recorder</h3>
+              <p class="ll-wordset-recorder-queue-card__identity-meta">
+                <span>@queue-recorder</span>
+                <span>queue-recorder@example.com</span>
+              </p>
+            </div>
+            <div class="ll-wordset-settings-card__meta ll-wordset-recorder-queue-card__summary">
+              <span class="ll-wordset-settings-card__pill">2 queued words</span>
+              <a class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-view-link" href="#hidden">Hidden (1)</a>
+            </div>
+          </div>
+
+          <div class="ll-wordset-settings-card__meta ll-wordset-recorder-queue-card__notes">
+            <span class="ll-wordset-settings-card__pill">Skipping: Sentence</span>
+            <span class="ll-wordset-settings-card__pill">Can add new words</span>
+          </div>
+
+          <details class="ll-wordset-recorder-queue-settings">
+            <summary class="ll-wordset-recorder-queue-settings__summary">Change queue settings</summary>
+            <form class="ll-wordset-recorder-queue-settings__form">
+              <div class="ll-wordset-recorder-queue-settings__grid">
+                <fieldset class="ll-wordset-recorder-queue-settings__fieldset">
+                  <legend>Only include types</legend>
+                  <p class="description">Leave all unchecked to include every recording type.</p>
+                  <div class="ll-wordset-recorder-queue-settings__checks">
+                    <label><input type="checkbox" /> <span>Isolation</span></label>
+                    <label><input type="checkbox" /> <span>Question</span></label>
+                  </div>
+                </fieldset>
+                <fieldset class="ll-wordset-recorder-queue-settings__fieldset">
+                  <legend>Skipped types</legend>
+                  <p class="description">These are hidden from the recorder queue unless the only-include list is set.</p>
+                  <div class="ll-wordset-recorder-queue-settings__checks">
+                    <label><input type="checkbox" /> <span>Sentence</span></label>
+                    <label><input type="checkbox" /> <span>Introduction</span></label>
+                  </div>
+                </fieldset>
+              </div>
+              <label class="ll-wordset-recorder-queue-settings__toggle"><input type="checkbox" checked /> <span>Allow this recorder to record new words</span></label>
+              <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--primary ll-wordset-recorder-queue-settings__save">Save queue settings</button>
+            </form>
+          </details>
+
+          <section class="ll-wordset-recorder-queue-column">
+            <h4 class="ll-wordset-settings-card__subtitle">Queue by Category</h4>
+            <div class="ll-wordset-recorder-queue-categories">
+              <details class="ll-wordset-recorder-queue-category">
+                <summary class="ll-wordset-recorder-queue-category__summary">
+                  <span class="ll-wordset-recorder-queue-category__name">Fruit and market questions</span>
+                  <span class="ll-wordset-settings-card__pill">2 words</span>
+                </summary>
+                <ul class="ll-wordset-recorder-queue-list">
+                  <li class="ll-wordset-recorder-queue-item">
+                    <div class="ll-wordset-recorder-queue-item__media">
+                      <span class="ll-wordset-recorder-queue-item__thumb ll-wordset-recorder-queue-item__thumb--text" aria-hidden="true">L</span>
+                    </div>
+                    <div class="ll-wordset-recorder-queue-item__content">
+                      <div class="ll-wordset-recorder-queue-item__title-row">
+                        <span class="ll-wordset-recorder-queue-item__title">loquat</span>
+                      </div>
+                      <p class="ll-wordset-recorder-queue-item__secondary">yenidunya</p>
+                      <div class="ll-wordset-recorder-queue-item__types">
+                        <span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-item__type">Question</span>
+                      </div>
+                      <details class="ll-wordset-recorder-queue-prompts" open>
+                        <summary>Recording prompts</summary>
+                        <form class="ll-wordset-recorder-queue-prompts__form">
+                          <div class="ll-wordset-recorder-queue-prompts__grid">
+                            <label class="ll-wordset-recorder-queue-prompts__field">
+                              <span>Question</span>
+                              <textarea rows="2">Where are the loquats?</textarea>
+                            </label>
+                          </div>
+                          <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--secondary ll-wordset-recorder-queue-prompts__save">Save prompts</button>
+                        </form>
+                      </details>
+                    </div>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-recorder-queue-item__action">Hide</button>
+                  </li>
+                </ul>
+              </details>
+            </div>
+          </section>
+        </article>
+      </section>
+    </main>
+  `;
+}
+
 function buildCategoriesToolMarkup() {
   return `
     <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
@@ -571,6 +677,25 @@ test('manager recorder access tool stays usable on mobile', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Assign Recorder' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enable Recorder Access' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send Recorder Invite' })).toBeVisible();
+
+  await assertPageFitsViewport(page);
+});
+
+test('manager recorder queue groups words and keeps prompt editing usable on mobile', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueToolMarkup(), { width: 390, height: 844 });
+
+  await expect(page.getByRole('link', { name: 'Hidden (1)' }).first()).toBeVisible();
+  await expect(page.getByText('Change queue settings')).toBeVisible();
+  await page.getByText('Change queue settings').click();
+  await expect(page.getByText('Skipped types')).toBeVisible();
+  await expect(page.getByText('Allow this recorder to record new words')).toBeVisible();
+
+  await expect(page.getByText('Fruit and market questions')).toBeVisible();
+  await page.getByText('Fruit and market questions').click();
+  await expect(page.locator('.ll-wordset-recorder-queue-item__title', { hasText: 'loquat' })).toBeVisible();
+  await expect(page.getByText('Recording prompts')).toBeVisible();
+  await expect(page.locator('.ll-wordset-recorder-queue-prompts textarea')).toHaveValue('Where are the loquats?');
+  await expect(page.getByRole('button', { name: 'Hide' })).toBeVisible();
 
   await assertPageFitsViewport(page);
 });

@@ -4789,6 +4789,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 6px;
 }
 
+.ll-wordset-recorder-queue-view-link {
+    color: #1d4d99;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.ll-wordset-recorder-queue-view-link:hover,
+.ll-wordset-recorder-queue-view-link:focus-visible {
+    color: #15366d;
+    text-decoration: underline;
+}
+
 .ll-wordset-recorder-queue-card__columns {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -4807,8 +4819,125 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     padding: 0;
     display: grid;
     gap: 8px;
-    max-height: 420px;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
+}
+
+.ll-wordset-recorder-queue-categories {
+    display: grid;
+    gap: 10px;
+}
+
+.ll-wordset-recorder-queue-category {
+    border: 1px solid #d8dde6;
+    border-radius: 10px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.ll-wordset-recorder-queue-category__summary {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 11px;
+    cursor: pointer;
+    color: var(--ll-wp-text);
+}
+
+.ll-wordset-recorder-queue-category__summary:hover,
+.ll-wordset-recorder-queue-category__summary:focus-visible {
+    background: #eef4fb;
+}
+
+.ll-wordset-recorder-queue-category__name {
+    min-width: 0;
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.ll-wordset-recorder-queue-category .ll-wordset-recorder-queue-list {
+    padding: 0 10px 10px;
+}
+
+.ll-wordset-recorder-queue-settings {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.ll-wordset-recorder-queue-settings__summary {
+    min-height: 38px;
+    padding: 8px 10px;
+    cursor: pointer;
+    color: #1d4d99;
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.ll-wordset-recorder-queue-settings__summary:hover,
+.ll-wordset-recorder-queue-settings__summary:focus-visible {
+    background: #eef4fb;
+}
+
+.ll-wordset-recorder-queue-settings__form {
+    display: grid;
+    gap: 10px;
+    padding: 0 10px 10px;
+}
+
+.ll-wordset-recorder-queue-settings__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.ll-wordset-recorder-queue-settings__fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 9px;
+    border: 1px solid #d8dde6;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.ll-wordset-recorder-queue-settings__fieldset legend {
+    padding: 0 4px;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ll-wordset-recorder-queue-settings__checks {
+    display: grid;
+    gap: 6px;
+    margin-top: 7px;
+}
+
+.ll-wordset-recorder-queue-settings__checks label,
+.ll-wordset-recorder-queue-settings__toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.ll-wordset-recorder-queue-settings__checks input,
+.ll-wordset-recorder-queue-settings__toggle input {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+.ll-wordset-page .ll-wordset-recorder-queue-settings__save {
+    justify-self: start;
+    min-height: 34px !important;
+    padding: 7px 11px !important;
 }
 
 .ll-wordset-recorder-queue-item {
