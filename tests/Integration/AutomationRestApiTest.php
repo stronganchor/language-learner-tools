@@ -211,6 +211,136 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
     }
 
+    public function test_transcriptions_route_dry_run_update_and_review_surfaces_agree(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Transcription Review Sync Wordset', 'rest-transcription-review-sync-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Transcription Review Sync Category', 'rest-transcription-review-sync-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Review Sync Word', 'Review Sync Translation');
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'REST Review Sync Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'old text');
+        update_post_meta($recording_id, 'recording_ipa', 'old.ipa');
+
+        wp_set_current_user($admin_id);
+
+        $update_row = [
+            'recording_id' => $recording_id,
+            'recording_text' => 'new text',
+            'recording_ipa' => 'new.ipa',
+            'review_fields' => [
+                'recording_text' => true,
+                'recording_ipa' => true,
+            ],
+            'review_note' => 'Review both generated transcription fields.',
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-transcription-review-sync-wordset/transcriptions', [
+            'dry_run' => true,
+            'updates' => [$update_row],
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_run_data = $dry_run->get_data();
+        $this->assertIsArray($dry_run_data);
+        $this->assertTrue((bool) (($dry_run_data['updated'][0]['changed'] ?? false)));
+        $this->assertSame(1, (int) ($dry_run_data['updated_count'] ?? 0));
+        $dry_run_after = (array) (($dry_run_data['updated'][0]['after'] ?? []));
+        $this->assertSame('new text', (string) ($dry_run_after['recording_text'] ?? ''));
+        $this->assertSame('new.ipa', (string) ($dry_run_after['recording_ipa'] ?? ''));
+        $this->assertTrue((bool) ($dry_run_after['needs_review'] ?? false));
+        $this->assertTrue((bool) (($dry_run_after['review_fields']['recording_text'] ?? false)));
+        $this->assertTrue((bool) (($dry_run_after['review_fields']['recording_ipa'] ?? false)));
+        $this->assertSame('Review both generated transcription fields.', (string) ($dry_run_after['review_note'] ?? ''));
+        $this->assertSame('old text', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('old.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        $this->assertFalse(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
+
+        $real_update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-transcription-review-sync-wordset/transcriptions', [
+            'updates' => [$update_row],
+        ]);
+
+        $this->assertSame(200, $real_update->get_status());
+        $real_data = $real_update->get_data();
+        $this->assertIsArray($real_data);
+        $this->assertSame(1, (int) ($real_data['updated_count'] ?? 0));
+        $real_after = (array) (($real_data['updated'][0]['after'] ?? []));
+        $this->assertSame('new text', (string) ($real_after['recording_text'] ?? ''));
+        $this->assertSame('new.ipa', (string) ($real_after['recording_ipa'] ?? ''));
+        $this->assertTrue((bool) ($real_after['needs_review'] ?? false));
+        $this->assertTrue((bool) (($real_after['review_fields']['recording_text'] ?? false)));
+        $this->assertTrue((bool) (($real_after['review_fields']['recording_ipa'] ?? false)));
+        $this->assertSame('Review both generated transcription fields.', (string) ($real_after['review_note'] ?? ''));
+
+        $search = ll_tools_ipa_keyboard_search_recordings($wordset_id, '', 'both', false, true, false, 1);
+        $search_rows = array_values((array) ($search['results'] ?? []));
+        $this->assertCount(1, $search_rows);
+        $search_row = (array) $search_rows[0];
+        $this->assertSame($recording_id, (int) ($search_row['recording_id'] ?? 0));
+        $this->assertTrue((bool) ($search_row['needs_review'] ?? false));
+        $this->assertTrue((bool) (($search_row['review_fields']['recording_text'] ?? false)));
+        $this->assertTrue((bool) (($search_row['review_fields']['recording_ipa'] ?? false)));
+        $this->assertSame('Review both generated transcription fields.', (string) ($search_row['review_note'] ?? ''));
+
+        $snapshot_response = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-transcription-review-sync-wordset/site-sync/snapshot');
+        $this->assertSame(200, $snapshot_response->get_status());
+        $snapshot_data = $snapshot_response->get_data();
+        $this->assertIsArray($snapshot_data);
+        $snapshot_record = null;
+        foreach ((array) ($snapshot_data['records'] ?? []) as $record) {
+            if ((int) (($record['recording']['id'] ?? 0)) === $recording_id) {
+                $snapshot_record = (array) $record;
+                break;
+            }
+        }
+        $this->assertIsArray($snapshot_record);
+        $snapshot_values = (array) ($snapshot_record['values'] ?? []);
+        $snapshot_review_fields = array_values((array) ($snapshot_values['review_fields'] ?? []));
+        sort($snapshot_review_fields);
+        $this->assertSame('new text', (string) ($snapshot_values['recording_text'] ?? ''));
+        $this->assertSame('new.ipa', (string) ($snapshot_values['recording_ipa'] ?? ''));
+        $this->assertTrue((bool) ($snapshot_values['needs_review'] ?? false));
+        $this->assertSame(['recording_ipa', 'recording_text'], $snapshot_review_fields);
+        $this->assertSame('Review both generated transcription fields.', (string) ($snapshot_values['review_note'] ?? ''));
+    }
+
+    public function test_transcriptions_route_accepts_field_specific_review_note_aliases(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Transcription Alias Wordset', 'rest-transcription-alias-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Transcription Alias Category', 'rest-transcription-alias-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Transcription Alias Word', 'Alias Translation');
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'REST Transcription Alias Recording',
+        ]);
+
+        wp_set_current_user($admin_id);
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-transcription-alias-wordset/transcriptions', [
+            'updates' => [
+                [
+                    'recording_id' => $recording_id,
+                    'recording_text_review_note' => 'Check the orthography before publishing.',
+                ],
+            ],
+        ]);
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_text'));
+        $this->assertFalse(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_ipa'));
+        $this->assertSame('Check the orthography before publishing.', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
+    }
+
     public function test_bulk_update_route_caps_write_batches_by_default(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
