@@ -15580,7 +15580,7 @@ msgstr "Bu ekrandan öğrenci hesaplarını silme iznin yok."
 #: includes/admin/user-progress-report.php:450
 msgid ""
 "You cannot delete the account you are currently using from this screen."
-msgstr "Şu anda kullanmakta olduğunuz hesabı bu ekrandan silemezsiniz."
+msgstr "Şu anda kullandığın hesabı bu ekrandan silemezsin."
 
 #: includes/admin/user-progress-report.php:165
 msgid ""
@@ -15933,7 +15933,7 @@ msgstr "Bu REST isteğinin kimliği doğrulanamıyor."
 
 #: includes/api/automation-rest.php:211
 msgid "You are not allowed to use LL Tools automation on this site."
-msgstr "Bu sitede LL Tools otomasyonunu kullanmanıza izin verilmiyor."
+msgstr "Bu sitede LL Tools otomasyonunu kullanma iznin yok."
 
 #: includes/api/automation-rest.php:218
 msgid ""
@@ -16908,7 +16908,7 @@ msgstr "Lütfen şifreni gir."
 
 #: includes/login-window.php:1008 includes/login-window.php:1055
 msgid "Unable to sign you in right now. Please try again."
-msgstr "Şu anda oturumunuz açılamıyor. Lütfen tekrar deneyin."
+msgstr "Şu anda oturumun açılamıyor. Lütfen tekrar dene."
 
 #: includes/login-window.php:1236
 msgid "Please use the invited recorder email address for this signup link."
@@ -17972,7 +17972,7 @@ msgstr "Yeni oyun"
 
 #: includes/pages/wordset-pages.php:7682
 msgid "Leave this game? Your current run will be lost."
-msgstr "Bu oyundan ayrılmak mı istiyorsunuz? Mevcut koşunuz kaybolacak."
+msgstr "Bu oyundan ayrılmak mı istiyorsun? Mevcut koşun kaybolacak."
 
 #: includes/pages/wordset-pages.php:7683
 #: includes/pages/wordset-pages.php:14705
@@ -18172,7 +18172,7 @@ msgstr "Bir sonraki kelimeyi dinlemek..."
 
 #: includes/pages/wordset-pages.php:7742
 msgid "Checking your word..."
-msgstr "Sözünüzü kontrol ediyorum..."
+msgstr "Kelimen kontrol ediliyor..."
 
 #: includes/pages/wordset-pages.php:7744
 msgid "No clear word detected."
@@ -22039,7 +22039,7 @@ msgstr "%1$s - %2$s"
 
 #: includes/taxonomies/wordset-taxonomy.php:829
 msgid "Sorry, you are not allowed to view this item."
-msgstr "Üzgünüz, bu öğeyi görüntülemenize izin verilmiyor."
+msgstr "Üzgünüz, bu öğeyi görüntüleme iznin yok."
 
 #: includes/taxonomies/wordset-taxonomy.php:2725
 msgid ""
