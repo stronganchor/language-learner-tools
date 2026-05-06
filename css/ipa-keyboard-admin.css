@@ -1170,6 +1170,26 @@
     width: 116px;
 }
 
+.ll-ipa-search-field-wrap {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.ll-ipa-search-field-review-note {
+    box-sizing: border-box;
+    width: 100%;
+    color: #475569;
+    font-size: 11px;
+    line-height: 1.35;
+    padding: 4px 6px;
+    border-left: 3px solid #93c5fd;
+    border-radius: 4px;
+    background: #f8fafc;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
 .ll-ipa-search-actions {
     display: grid;
     gap: 6px;
@@ -1321,22 +1341,6 @@
 
 .ll-ipa-search-review-field-label {
     font-weight: 600;
-}
-
-.ll-ipa-search-review-note,
-.ll-ipa-search-review-note-compact {
-    color: #475569;
-    font-size: 11px;
-    line-height: 1.35;
-}
-
-.ll-ipa-search-review-note {
-    margin-top: 5px;
-}
-
-.ll-ipa-search-review-note-compact {
-    display: block;
-    max-width: 180px;
 }
 
 .ll-ipa-search-issue {

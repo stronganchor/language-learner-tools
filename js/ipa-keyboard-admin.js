@@ -1442,7 +1442,38 @@
             : t('searchReviewIpaLabel', 'Pronunciation');
     }
 
-    function buildSearchReviewItem(reviewFields, reviewNote) {
+    function buildSearchFieldReviewNote(reviewNote) {
+        if (!reviewNote) {
+            return null;
+        }
+
+        return $('<div>', {
+            class: 'll-ipa-search-field-review-note',
+            text: reviewNote
+        });
+    }
+
+    function getSearchReviewNoteField(reviewFields) {
+        const fields = normalizeReviewFields(reviewFields);
+        if (fields.recording_text) {
+            return 'recording_text';
+        }
+        if (fields.recording_ipa) {
+            return 'recording_ipa';
+        }
+        return '';
+    }
+
+    function buildSearchFieldCell(cellClass, $input, field, reviewFields, reviewNote) {
+        const $cell = $('<td>', { class: cellClass });
+        const $wrap = $('<div>', { class: 'll-ipa-search-field-wrap' }).append($input);
+        if (reviewNote && getSearchReviewNoteField(reviewFields) === field) {
+            $wrap.append(buildSearchFieldReviewNote(reviewNote));
+        }
+        return $cell.append($wrap);
+    }
+
+    function buildSearchReviewItem(reviewFields) {
         const fields = normalizeReviewFields(reviewFields);
         if (!fields.recording_text && !fields.recording_ipa) {
             return null;
@@ -1470,17 +1501,10 @@
             }
             $item.append($row);
         });
-        if (reviewNote) {
-            $item.append($('<div>', {
-                class: 'll-ipa-search-review-note',
-                text: reviewNote
-            }));
-        } else {
-            $item.append($('<div>', {
+        $item.append($('<div>', {
             class: 'll-ipa-search-review-message',
             text: t('searchReviewPendingMessage', 'This transcription is marked for follow-up review.')
-            }));
-        }
+        }));
         return $item;
     }
 
@@ -1511,7 +1535,7 @@
         });
     }
 
-    function buildIssuesCellData(activeIssues, ignoredIssues, reviewFields, reviewNote) {
+    function buildIssuesCellData(activeIssues, ignoredIssues, reviewFields) {
         const active = Array.isArray(activeIssues) ? activeIssues : [];
         const ignored = Array.isArray(ignoredIssues) ? ignoredIssues : [];
         const fields = normalizeReviewFields(reviewFields);
@@ -1524,7 +1548,7 @@
                     return $wrap;
                 }
                 if (reviewPending) {
-                    $wrap.append(buildSearchReviewItem(fields, reviewNote));
+                    $wrap.append(buildSearchReviewItem(fields));
                 }
                 active.forEach(function (issue) {
                     $wrap.append(buildSearchIssueItem(issue, false));
@@ -1659,16 +1683,10 @@
                 $actionWrap.append($reviewToggle);
             }
         });
-        if (reviewNote) {
-            $actionWrap.append($('<span>', {
-                class: 'll-ipa-search-review-note-compact',
-                text: reviewNote
-            }));
-        }
         $actionCell.append($actionWrap);
 
         const $issueCell = $('<td>', { class: 'll-ipa-search-issues-cell' }).append(
-            buildIssuesCellData(issues, ignoredIssues, reviewFields, reviewNote).html()
+            buildIssuesCellData(issues, ignoredIssues, reviewFields).html()
         );
 
         return $('<tr>', {
@@ -1678,8 +1696,8 @@
             'data-review-ipa': reviewFields.recording_ipa ? '1' : '0'
         })
             .append($metaCell)
-            .append($('<td>', { class: 'll-ipa-search-text-cell' }).append($textInput))
-            .append($('<td>', { class: 'll-ipa-search-ipa-cell' }).append($ipaInput))
+            .append(buildSearchFieldCell('ll-ipa-search-text-cell', $textInput, 'recording_text', reviewFields, reviewNote))
+            .append(buildSearchFieldCell('ll-ipa-search-ipa-cell', $ipaInput, 'recording_ipa', reviewFields, reviewNote))
             .append($('<td>', { class: 'll-ipa-search-categories-cell' }).append(buildCategoriesCell(categories)))
             .append($issueCell)
             .append($actionCell);
@@ -2497,7 +2515,7 @@
         };
         const $cell = $row.find('.ll-ipa-search-issues-cell').first();
         if ($cell.length) {
-            $cell.empty().append(buildIssuesCellData(active, ignored, reviewFields, '').html());
+            $cell.empty().append(buildIssuesCellData(active, ignored, reviewFields).html());
         }
     }
 

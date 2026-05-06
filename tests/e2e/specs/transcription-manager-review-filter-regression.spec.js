@@ -65,7 +65,9 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await page.addScriptTag({ content: jquerySource });
 
   await page.evaluate(() => {
-    function buildRecording(recordingId, wordText, needsReview) {
+    function buildRecording(recordingId, wordText, reviewFields, reviewNote) {
+      const fields = Object.assign({ recording_text: false, recording_ipa: false }, reviewFields || {});
+      const needsReview = !!(fields.recording_text || fields.recording_ipa);
       return {
         recording_id: recordingId,
         word_text: wordText,
@@ -85,6 +87,8 @@ test('reviewed rows stay visible until the transcription search is manually refr
         issue_count: 0,
         ignored_issue_count: 0,
         needs_review: needsReview,
+        review_fields: fields,
+        review_note: reviewNote || '',
         image: {},
         audio_url: '',
         audio_label: 'Play recording'
@@ -113,8 +117,8 @@ test('reviewed rows stay visible until the transcription search is manually refr
 
     window.__llTranscriptionManagerMock = {
       recordings: [
-        buildRecording(101, 'Alpha', true),
-        buildRecording(202, 'Beta', true)
+        buildRecording(101, 'Alpha', { recording_text: true }, 'Check the vowel length before clearing.'),
+        buildRecording(202, 'Beta', { recording_ipa: true }, '')
       ],
       postCalls: []
     };
@@ -180,8 +184,15 @@ test('reviewed rows stay visible until the transcription search is manually refr
               return recording;
             }
 
+            const reviewField = requestData.review_field === 'recording_text' ? 'recording_text' : 'recording_ipa';
+            const reviewFields = Object.assign({ recording_text: false, recording_ipa: false }, recording.review_fields || {});
+            reviewFields[reviewField] = needsReview;
+            const stillNeedsReview = !!(reviewFields.recording_text || reviewFields.recording_ipa);
+
             return Object.assign({}, recording, {
-              needs_review: needsReview
+              needs_review: stillNeedsReview,
+              review_fields: reviewFields,
+              review_note: stillNeedsReview ? (recording.review_note || '') : ''
             });
           });
 
@@ -211,6 +222,12 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toHaveAttribute('data-recording-id', '101');
   await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '1');
+  await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(1);
+  await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveText('Check the vowel length before clearing.');
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-note')).toHaveCount(1);
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-note')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-review-note, .ll-ipa-search-review-note-compact')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-review .ll-ipa-search-field-review-note')).toHaveCount(0);
 
   await rows.nth(0).locator('.ll-ipa-search-review .ll-ipa-review-toggle').click();
 
@@ -219,6 +236,7 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '0');
   await expect(rows.nth(0).locator('.ll-ipa-search-review')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-action-toggle')).toHaveCount(1);
+  await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(0);
   await expect(rows.nth(1)).toHaveAttribute('data-recording-id', '202');
   await expect(rows.nth(1)).toHaveAttribute('data-needs-review', '1');
   await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Reviewed.');
