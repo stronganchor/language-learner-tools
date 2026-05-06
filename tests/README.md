@@ -211,6 +211,8 @@ Representative E2E coverage areas:
   - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
 - `tests/e2e/specs/page-speed-throttled-load.spec.js`
   - Verifies the learn page still becomes usable within a configurable budget while Chromium throttles localhost traffic to a slower network profile.
+- `tests/e2e/specs/wordset-page-speed-large-wordset.spec.js`
+  - Verifies a large wordset page such as `/genc-palu/` reaches visible category cards within a configurable throttled-load budget.
 - `tests/e2e/specs/wordset-manager-settings-ui.spec.js`
   - Verifies frontend wordset-manager tools stay usable under narrow/mobile layouts, including the Wordset Editor table and full-width recording details.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
@@ -323,6 +325,11 @@ tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js
 ```
 
 - If it fails on a slower machine, inspect the attached `page-speed-metrics` artifact in the Playwright report, then adjust the `LL_E2E_PAGE_SPEED_*` env vars rather than hardcoding machine-specific values into the spec.
+- The large-wordset companion spec defaults to `/genc-palu/`, waits for `.ll-wordset-card`, and uses `LL_E2E_WORDSET_PAGE_SPEED_*` env vars:
+
+```bash
+tests/bin/run-e2e.sh specs/wordset-page-speed-large-wordset.spec.js
+```
 
 ## Notes
 

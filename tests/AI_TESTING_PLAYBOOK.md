@@ -179,6 +179,11 @@ Playwright cannot find `.ll-quiz-page-trigger`:
 - If the wrong page or ready signal is being tested, set `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_SELECTOR`.
 - If the environment is slower but behavior is acceptable, tune the `LL_E2E_PAGE_SPEED_MAX_*` budgets in `tests/.env.local`.
 
+`wordset-page-speed-large-wordset.spec.js` fails:
+- Confirm the configured large wordset path exists locally; by default it targets `/genc-palu/`.
+- Inspect the attached `wordset-page-speed-metrics` JSON before changing budgets.
+- If you need a different large wordset, set `LL_E2E_WORDSET_PAGE_SPEED_PATH` and keep the selector pointed at a visible wordset-page card.
+
 `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:
 - This is usually a PHP shim path-conversion issue in WSL.
 - `tests/bin/php-local.sh` auto-converts args for Windows-runtime PHP.
@@ -198,7 +203,8 @@ For behavior changes touching quiz/recording flows:
 For public-page shell, asset, or template changes that could affect perceived load time:
 
 1. `tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js`
-2. `tests/bin/run-live-smoke.sh` when you also need a low-impact post-deploy production sanity check
+2. `tests/bin/run-e2e.sh specs/wordset-page-speed-large-wordset.spec.js` when the wordset page, large category lists, or wordset page caches are involved
+3. `tests/bin/run-live-smoke.sh` when you also need a low-impact post-deploy production sanity check
 
 Wordset-boundary changes should also include:
 
