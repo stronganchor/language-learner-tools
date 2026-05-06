@@ -252,6 +252,33 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($clearedRecording['needs_review'] ?? true));
     }
 
+    public function test_validation_flags_bad_dental_marks_and_unapproved_symbols(): void
+    {
+        $wordset_id = $this->create_wordset('IPA Validation Wordset');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Invalid IPA',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Invalid IPA Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_ipa', 'q̪ʰ aġʒɨz');
+
+        $validation = ll_tools_ipa_keyboard_validate_recording_for_wordset($recording_id, $wordset_id);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($validation['active'] ?? []));
+
+        $this->assertContains('dental_diacritic_context', $codes);
+        $this->assertContains('unapproved_ipa_symbol', $codes);
+    }
+
     private function create_viewer_user(): int
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);

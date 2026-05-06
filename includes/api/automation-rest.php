@@ -1130,6 +1130,9 @@ function ll_tools_rest_automation_transcription_payload(int $recording_id, int $
     $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
         : 'ipa';
+    $review_fields = function_exists('ll_tools_ipa_keyboard_get_recording_review_fields')
+        ? ll_tools_ipa_keyboard_get_recording_review_fields($recording_id)
+        : ll_tools_rest_automation_get_recording_review_fields($recording_id);
 
     return [
         'recording_id' => $recording_id,
@@ -1140,16 +1143,76 @@ function ll_tools_rest_automation_transcription_payload(int $recording_id, int $
         'recording_ipa' => function_exists('ll_tools_word_grid_normalize_ipa_output')
             ? ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $transcription_mode)
             : (string) get_post_meta($recording_id, 'recording_ipa', true),
-        'review_fields' => function_exists('ll_tools_ipa_keyboard_get_recording_review_fields')
-            ? ll_tools_ipa_keyboard_get_recording_review_fields($recording_id)
-            : ['recording_text' => false, 'recording_ipa' => false],
+        'review_fields' => $review_fields,
         'needs_review' => function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')
             ? ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id)
-            : false,
+            : !empty(array_filter($review_fields)),
         'review_note' => function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
             ? ll_tools_ipa_keyboard_get_recording_review_note($recording_id)
-            : '',
+            : trim((string) get_post_meta($recording_id, 'll_auto_transcription_review_note', true)),
     ];
+}
+
+function ll_tools_rest_automation_normalize_review_field(string $field): string {
+    if (function_exists('ll_tools_ipa_keyboard_normalize_review_field')) {
+        return ll_tools_ipa_keyboard_normalize_review_field($field);
+    }
+
+    $field = sanitize_key($field);
+    if (in_array($field, ['recording_text', 'recordingtext', 'text', 'orthography', 'ortho'], true)) {
+        return 'recording_text';
+    }
+    if (in_array($field, ['recording_ipa', 'recordingipa', 'ipa', 'transcription', 'pronunciation', 'phonetic'], true)) {
+        return 'recording_ipa';
+    }
+
+    return '';
+}
+
+function ll_tools_rest_automation_normalize_review_fields($fields): array {
+    if (function_exists('ll_tools_ipa_keyboard_normalize_review_fields')) {
+        return ll_tools_ipa_keyboard_normalize_review_fields($fields);
+    }
+
+    if (is_string($fields)) {
+        $fields = preg_split('/[,;|]/', $fields);
+    }
+
+    $normalized = [];
+    foreach ((array) $fields as $key => $field) {
+        if (is_string($key)) {
+            if (!$field) {
+                continue;
+            }
+            $field_key = ll_tools_rest_automation_normalize_review_field($key);
+            if ($field_key !== '') {
+                $normalized[$field_key] = true;
+            }
+            continue;
+        }
+
+        if (is_array($field)) {
+            foreach ($field as $nested_field => $enabled) {
+                if (!$enabled) {
+                    continue;
+                }
+                $field_key = is_string($nested_field)
+                    ? ll_tools_rest_automation_normalize_review_field($nested_field)
+                    : ll_tools_rest_automation_normalize_review_field((string) $enabled);
+                if ($field_key !== '') {
+                    $normalized[$field_key] = true;
+                }
+            }
+            continue;
+        }
+
+        $field_key = ll_tools_rest_automation_normalize_review_field((string) $field);
+        if ($field_key !== '') {
+            $normalized[$field_key] = true;
+        }
+    }
+
+    return array_values(array_keys($normalized));
 }
 
 function ll_tools_rest_automation_review_field_map(array $review_fields): array {
@@ -1163,13 +1226,9 @@ function ll_tools_rest_automation_review_field_map(array $review_fields): array 
             if (!$enabled) {
                 continue;
             }
-            $field_key = function_exists('ll_tools_ipa_keyboard_normalize_review_field')
-                ? ll_tools_ipa_keyboard_normalize_review_field($field)
-                : sanitize_key($field);
+            $field_key = ll_tools_rest_automation_normalize_review_field($field);
         } else {
-            $field_key = function_exists('ll_tools_ipa_keyboard_normalize_review_field')
-                ? ll_tools_ipa_keyboard_normalize_review_field((string) $enabled)
-                : sanitize_key((string) $enabled);
+            $field_key = ll_tools_rest_automation_normalize_review_field((string) $enabled);
         }
         if (array_key_exists($field_key, $map)) {
             $map[$field_key] = true;
@@ -1177,6 +1236,32 @@ function ll_tools_rest_automation_review_field_map(array $review_fields): array 
     }
 
     return $map;
+}
+
+function ll_tools_rest_automation_get_recording_review_fields(int $recording_id): array {
+    $fields = [
+        'recording_text' => false,
+        'recording_ipa' => false,
+    ];
+    if ($recording_id <= 0) {
+        return $fields;
+    }
+
+    $raw = get_post_meta($recording_id, 'll_auto_transcription_review_fields', true);
+    if (is_array($raw)) {
+        $fields = ll_tools_rest_automation_review_field_map($raw);
+    } elseif (is_string($raw) && trim($raw) !== '') {
+        foreach (ll_tools_rest_automation_normalize_review_fields($raw) as $field_key) {
+            $fields[$field_key] = true;
+        }
+    }
+
+    $has_field_meta = is_array($raw) ? !empty($raw) : (is_string($raw) && trim($raw) !== '');
+    if (!$has_field_meta && (string) get_post_meta($recording_id, 'll_auto_transcription_needs_review', true) === '1') {
+        $fields['recording_ipa'] = true;
+    }
+
+    return $fields;
 }
 
 function ll_tools_rest_automation_review_field_list_from_map(array $review_field_map): array {
@@ -1318,21 +1403,6 @@ function ll_tools_rest_automation_apply_transcription_review_state(
         return;
     }
 
-    if (function_exists('ll_tools_ipa_keyboard_set_recording_review_state')) {
-        foreach ($review_fields as $field_key) {
-            ll_tools_ipa_keyboard_set_recording_review_state($recording_id, $needs_review, $field_key, $review_note);
-        }
-
-        if (
-            $needs_review
-            && ($review_note_submitted || $replace_review_fields)
-            && function_exists('ll_tools_ipa_keyboard_set_recording_review_note')
-        ) {
-            ll_tools_ipa_keyboard_set_recording_review_note($recording_id, $review_note);
-        }
-        return;
-    }
-
     $field_map = $replace_review_fields
         ? ['recording_text' => false, 'recording_ipa' => false]
         : ll_tools_rest_automation_review_field_map((array) (get_post_meta($recording_id, 'll_auto_transcription_review_fields', true) ?: []));
@@ -1357,6 +1427,13 @@ function ll_tools_rest_automation_apply_transcription_review_state(
             update_post_meta($recording_id, 'll_auto_transcription_review_note', $review_note);
         }
     }
+
+    if (function_exists('ll_tools_ipa_keyboard_set_recording_review_state')) {
+        foreach ($enabled_fields as $field_key) {
+            ll_tools_ipa_keyboard_set_recording_review_state($recording_id, true, $field_key, $review_note);
+        }
+    }
+    clean_post_cache($recording_id);
 }
 
 function ll_tools_rest_automation_project_transcription_after(
@@ -1472,14 +1549,10 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
         $has_targeted_review_field = false;
         if (array_key_exists('review_fields', $update)) {
             $has_explicit_review_fields = true;
-            $review_fields = function_exists('ll_tools_ipa_keyboard_normalize_review_fields')
-                ? ll_tools_ipa_keyboard_normalize_review_fields($update['review_fields'])
-                : array_values(array_intersect((array) $update['review_fields'], ['recording_text', 'recording_ipa']));
+            $review_fields = ll_tools_rest_automation_normalize_review_fields($update['review_fields']);
         } elseif (array_key_exists('review_field', $update)) {
             $has_targeted_review_field = true;
-            $field = function_exists('ll_tools_ipa_keyboard_normalize_review_field')
-                ? ll_tools_ipa_keyboard_normalize_review_field((string) $update['review_field'])
-                : sanitize_key((string) $update['review_field']);
+            $field = ll_tools_rest_automation_normalize_review_field((string) $update['review_field']);
             if (in_array($field, ['recording_text', 'recording_ipa'], true)) {
                 $review_fields[] = $field;
             }

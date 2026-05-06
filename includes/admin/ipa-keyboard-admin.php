@@ -1805,7 +1805,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 2;
+    return 3;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -1830,7 +1830,66 @@ function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
             'label' => __('Aspiration placement', 'll-tools-text-domain'),
             'description' => __('Flags ʰ unless it follows a voiceless stop or affricate.', 'll-tools-text-domain'),
         ],
+        'dental_diacritic_context' => [
+            'label' => __('Dental diacritic placement', 'll-tools-text-domain'),
+            'description' => __('Flags dental marks that are not attached to t or d.', 'll-tools-text-domain'),
+        ],
+        'unapproved_ipa_symbol' => [
+            'label' => __('Unapproved IPA symbol', 'll-tools-text-domain'),
+            'description' => __('Flags symbols outside the approved IPA inventory for this workflow.', 'll-tools-text-domain'),
+        ],
     ];
+}
+
+function ll_tools_ipa_keyboard_get_unapproved_ipa_symbols(): array {
+    return ['ā', 'ê', 'ı', 'ø', 'ġ', 'ʉ', 'ʐ'];
+}
+
+function ll_tools_ipa_keyboard_token_has_unapproved_ipa_symbol(string $token): string {
+    if ($token === '') {
+        return '';
+    }
+
+    foreach (ll_tools_ipa_keyboard_split_token_characters($token) as $char) {
+        if (in_array($char, ll_tools_ipa_keyboard_get_unapproved_ipa_symbols(), true)) {
+            return $char;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_ipa_keyboard_token_has_invalid_dental_diacritic(string $token): bool {
+    if ($token === '' || !preg_match('/\x{032A}/u', $token)) {
+        return false;
+    }
+
+    $normalized_token = (function_exists('normalizer_normalize') && class_exists('Normalizer'))
+        ? (normalizer_normalize($token, Normalizer::FORM_D) ?: $token)
+        : $token;
+    $chars = ll_tools_ipa_keyboard_split_token_characters($normalized_token);
+    foreach ($chars as $index => $char) {
+        if ($char !== "\u{032A}") {
+            continue;
+        }
+
+        $cursor = $index - 1;
+        while ($cursor >= 0) {
+            $previous = (string) ($chars[$cursor] ?? '');
+            if ($previous === "\u{0361}" || (function_exists('ll_tools_word_grid_is_ipa_combining_mark') && ll_tools_word_grid_is_ipa_combining_mark($previous))) {
+                $cursor--;
+                continue;
+            }
+            break;
+        }
+
+        $base = $cursor >= 0 ? (string) ($chars[$cursor] ?? '') : '';
+        if (!in_array($base, ['t', 'd'], true)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function ll_tools_ipa_keyboard_generate_validation_rule_id(): string {
@@ -2163,6 +2222,19 @@ function ll_tools_ipa_orthography_normalize_word_text(string $text, string $lang
     );
 }
 
+function ll_tools_ipa_orthography_apply_surface_trill_policy(string $segment, string $output): string {
+    $segment = ll_tools_ipa_orthography_normalize_segment_key($segment, 'ipa');
+    $output = trim($output);
+
+    // A broad [r] -> rr rule over-promotes occasional surface trills. Reserve
+    // rr for reviewed word-level phonemic-trill exceptions instead.
+    if ($segment === 'r' && $output === 'rr') {
+        return 'r';
+    }
+
+    return $output;
+}
+
 function ll_tools_ipa_orthography_tokenize_segment(string $segment, string $mode = 'ipa'): array {
     $segment = function_exists('ll_tools_word_grid_sanitize_ipa')
         ? ll_tools_word_grid_sanitize_ipa($segment, $mode)
@@ -2212,6 +2284,7 @@ function ll_tools_ipa_orthography_sanitize_manual_rules($raw, int $wordset_id): 
         foreach ($contexts as $context => $output) {
             $context_key = ll_tools_ipa_orthography_normalize_context((string) $context);
             $output_key = ll_tools_ipa_orthography_normalize_word_text((string) $output, $language);
+            $output_key = ll_tools_ipa_orthography_apply_surface_trill_policy($segment_key, $output_key);
             if ($output_key === '') {
                 continue;
             }
@@ -2658,6 +2731,7 @@ function ll_tools_ipa_orthography_build_auto_rules_from_stats(array $stats): arr
         if ($use_split) {
             foreach (['final' => $final, 'nonfinal' => $nonfinal] as $context_key => $best) {
                 $output = (string) ($best['output'] ?? '');
+                $output = ll_tools_ipa_orthography_apply_surface_trill_policy((string) $segment, $output);
                 if ($output === '') {
                     continue;
                 }
@@ -2671,6 +2745,7 @@ function ll_tools_ipa_orthography_build_auto_rules_from_stats(array $stats): arr
             }
         } else {
             $output = (string) ($any['output'] ?? '');
+            $output = ll_tools_ipa_orthography_apply_surface_trill_policy((string) $segment, $output);
             $rules[$segment][] = [
                 'segment' => (string) $segment,
                 'context' => 'any',
@@ -2792,6 +2867,7 @@ function ll_tools_ipa_orthography_prepare_engine_rules(array $auto_rules, array 
     $rules = [];
     $append_rule = static function (string $segment, string $context, string $output, bool $manual, int $count = 1) use (&$rules, $mode): void {
         $tokens = ll_tools_ipa_orthography_tokenize_segment($segment, $mode);
+        $output = ll_tools_ipa_orthography_apply_surface_trill_policy($segment, $output);
         if (empty($tokens) || $output === '') {
             return;
         }
@@ -3538,6 +3614,43 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                     $token
                 );
             }
+        }
+    }
+
+    if (!in_array('dental_diacritic_context', $disabled_builtin_rules, true)) {
+        foreach ($segment_tokens as $token) {
+            $token = (string) $token;
+            if (!ll_tools_ipa_keyboard_token_has_invalid_dental_diacritic($token)) {
+                continue;
+            }
+            $add_issue(
+                $issue_map,
+                'builtin:dental_diacritic_context',
+                'dental_diacritic_context',
+                'builtin',
+                (string) ($builtin_rules['dental_diacritic_context']['label'] ?? ''),
+                __('The dental diacritic should be attached to t or d in this IPA inventory.', 'll-tools-text-domain'),
+                $token
+            );
+        }
+    }
+
+    if (!in_array('unapproved_ipa_symbol', $disabled_builtin_rules, true)) {
+        foreach ($segment_tokens as $token) {
+            $token = (string) $token;
+            $unapproved_symbol = ll_tools_ipa_keyboard_token_has_unapproved_ipa_symbol($token);
+            if ($unapproved_symbol === '') {
+                continue;
+            }
+            $add_issue(
+                $issue_map,
+                'builtin:unapproved_ipa_symbol',
+                'unapproved_ipa_symbol',
+                'builtin',
+                (string) ($builtin_rules['unapproved_ipa_symbol']['label'] ?? ''),
+                __('This IPA token contains a symbol outside the approved inventory.', 'll-tools-text-domain'),
+                $token
+            );
         }
     }
 

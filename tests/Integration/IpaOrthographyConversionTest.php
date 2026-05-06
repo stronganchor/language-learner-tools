@@ -118,6 +118,38 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) (($response['data']['orthography']['stats']['candidate_count'] ?? 0)));
     }
 
+    public function test_surface_trill_auto_rule_defaults_to_single_r(): void
+    {
+        $wordset_id = $this->createWordset('Orthography Surface Trill');
+        $engine_rules = ll_tools_ipa_orthography_prepare_engine_rules(
+            [
+                'a' => [
+                    [
+                        'segment' => 'a',
+                        'context' => 'any',
+                        'output' => 'a',
+                        'count' => 10,
+                    ],
+                ],
+                'r' => [
+                    [
+                        'segment' => 'r',
+                        'context' => 'any',
+                        'output' => 'rr',
+                        'count' => 10,
+                    ],
+                ],
+            ],
+            [],
+            $wordset_id
+        );
+
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_text('ara', $engine_rules, $wordset_id);
+
+        $this->assertTrue((bool) ($prediction['complete'] ?? false));
+        $this->assertSame('ara', (string) ($prediction['text'] ?? ''));
+    }
+
     public function test_word_exception_marks_contradiction_as_approved(): void
     {
         $wordset_id = $this->createWordset('Orthography Exceptions');
