@@ -599,6 +599,50 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertStringContainsString('https://example.com/image.webp', $html);
     }
 
+    public function test_live_comparison_preview_emphasizes_conflicts(): void
+    {
+        $base = $this->snapshot([
+            $this->record('conflict-preview', 101, 'Conflict Word', 'Conflict Recording', [
+                'recording_ipa' => 'baseline.ipa',
+            ]),
+        ]);
+        $local = $this->snapshot([
+            $this->record('conflict-preview', 201, 'Conflict Word', 'Conflict Recording', [
+                'recording_ipa' => 'staging.ipa',
+            ]),
+        ]);
+        $remote = $this->snapshot([
+            $this->record('conflict-preview', 301, 'Conflict Word', 'Conflict Recording', [
+                'recording_ipa' => 'live.ipa',
+            ]),
+        ]);
+
+        $plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+
+        ob_start();
+        ll_tools_site_sync_render_plan_summary($plan);
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('Live Comparison Preview', $html);
+        $this->assertStringContainsString('fresh live-site snapshot', $html);
+        $this->assertStringContainsString('1 conflict needs review', $html);
+        $this->assertStringContainsString('Last pulled', $html);
+        $this->assertStringContainsString('baseline.ipa', $html);
+        $this->assertStringContainsString('staging.ipa', $html);
+        $this->assertStringContainsString('live.ipa', $html);
+    }
+
+    public function test_remote_plan_hides_page_load_local_change_overview(): void
+    {
+        $this->assertTrue(ll_tools_site_sync_should_render_local_change_overview(['plan' => null]));
+        $this->assertTrue(ll_tools_site_sync_should_render_local_change_overview([]));
+        $this->assertFalse(ll_tools_site_sync_should_render_local_change_overview([
+            'plan' => [
+                'direction' => 'push',
+            ],
+        ]));
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

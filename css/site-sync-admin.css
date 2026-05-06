@@ -106,6 +106,21 @@
   border-top: 1px solid #e2e4e7;
 }
 
+.ll-site-sync .ll-site-sync-conflict-banner {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #d63638;
+  border-radius: 8px;
+  background: #fcf0f1;
+  color: #1d2327;
+}
+
+.ll-site-sync .ll-site-sync-conflict-banner strong {
+  color: #8a2424;
+}
+
 .ll-site-sync .ll-site-sync-change-list {
   display: grid;
   gap: 12px;

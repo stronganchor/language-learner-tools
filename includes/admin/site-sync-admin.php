@@ -963,6 +963,10 @@ function ll_tools_site_sync_render_local_change_overview(array $summary): void {
     <?php
 }
 
+function ll_tools_site_sync_should_render_local_change_overview(array $result): bool {
+    return !is_array($result['plan'] ?? null);
+}
+
 function ll_tools_site_sync_render_notices(array $result): void {
     foreach ((array) ($result['notices'] ?? []) as $notice) {
         echo '<div class="notice notice-success"><p>' . esc_html((string) $notice) . '</p></div>';
@@ -1019,9 +1023,18 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
     $stats = (array) ($plan['stats'] ?? []);
     $clean_items = ll_tools_site_sync_plan_change_items($plan, 25);
     $conflict_items = ll_tools_site_sync_conflict_change_items($plan, 25);
+    $direction = (string) ($plan['direction'] ?? '');
+    $conflict_count = count((array) ($plan['conflicts'] ?? []));
     ?>
     <section class="ll-site-sync-panel">
-        <h2><?php esc_html_e('Sync Preview', 'll-tools-text-domain'); ?></h2>
+        <h2><?php esc_html_e('Live Comparison Preview', 'll-tools-text-domain'); ?></h2>
+        <p class="description">
+            <?php
+            echo esc_html($direction === 'pull'
+                ? __('This preview uses a fresh live-site snapshot for this request and shows what would change on staging if you pull now.', 'll-tools-text-domain')
+                : __('This preview uses a fresh live-site snapshot for this request and shows what would change on live if you push now.', 'll-tools-text-domain'));
+            ?>
+        </p>
         <div class="ll-site-sync-stat-row">
             <span><?php echo esc_html(sprintf(__('Records checked: %d', 'll-tools-text-domain'), (int) ($stats['records_checked'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Words to create: %d', 'll-tools-text-domain'), (int) ($stats['words_to_create'] ?? 0))); ?></span>
@@ -1031,6 +1044,16 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
             <span><?php echo esc_html(sprintf(__('Conflicts: %d', 'll-tools-text-domain'), (int) ($stats['conflicts'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Skipped: %d', 'll-tools-text-domain'), (int) ($stats['skipped'] ?? 0))); ?></span>
         </div>
+        <?php if ($conflict_count > 0) : ?>
+            <div class="ll-site-sync-conflict-banner" role="alert">
+                <strong><?php echo esc_html(sprintf(
+                    /* translators: %d: conflict count */
+                    _n('%d conflict needs review', '%d conflicts need review', $conflict_count, 'll-tools-text-domain'),
+                    $conflict_count
+                )); ?></strong>
+                <span><?php esc_html_e('These fields changed on both staging and live since the saved baseline. Review the baseline, staging, and live values before applying clean changes.', 'll-tools-text-domain'); ?></span>
+            </div>
+        <?php endif; ?>
         <?php if (!empty($clean_items)) : ?>
             <h3><?php esc_html_e('Clean Changes', 'll-tools-text-domain'); ?></h3>
             <?php ll_tools_site_sync_render_change_cards($clean_items); ?>
@@ -1059,7 +1082,11 @@ function ll_tools_site_sync_render_admin_page(): void {
     $connection = ll_tools_site_sync_get_saved_connection();
     $result = ll_tools_site_sync_admin_process_request($connection);
     $base_snapshot = ll_tools_site_sync_get_base_snapshot($connection);
-    $local_change_summary = ll_tools_site_sync_build_local_change_summary($connection, $base_snapshot);
+    $plan = is_array($result['plan'] ?? null) ? $result['plan'] : null;
+    $show_local_change_overview = ll_tools_site_sync_should_render_local_change_overview($result);
+    $local_change_summary = $show_local_change_overview
+        ? ll_tools_site_sync_build_local_change_summary($connection, $base_snapshot)
+        : null;
     ?>
     <div class="wrap ll-site-sync">
         <h1><?php esc_html_e('LL Site Sync', 'll-tools-text-domain'); ?></h1>
@@ -1086,10 +1113,14 @@ function ll_tools_site_sync_render_admin_page(): void {
             <?php else : ?>
                 <p><?php esc_html_e('No pull baseline is stored yet. Pull from live before pushing staging changes.', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
-            <?php ll_tools_site_sync_render_local_change_overview($local_change_summary); ?>
+            <?php if ($show_local_change_overview && is_array($local_change_summary)) : ?>
+                <?php ll_tools_site_sync_render_local_change_overview($local_change_summary); ?>
+            <?php elseif (is_array($plan)) : ?>
+                <p class="description"><?php esc_html_e('The saved-baseline local overview is hidden because a fresh live comparison preview is shown below for this request.', 'll-tools-text-domain'); ?></p>
+            <?php endif; ?>
         </section>
 
-        <?php ll_tools_site_sync_render_plan_summary(is_array($result['plan'] ?? null) ? $result['plan'] : null); ?>
+        <?php ll_tools_site_sync_render_plan_summary($plan); ?>
 
         <?php if (is_array($result['plan'] ?? null) && (string) (($result['plan']['direction'] ?? '')) === 'push' && (string) ($result['processed_action'] ?? '') === 'preview_push') : ?>
             <section class="ll-site-sync-panel">
