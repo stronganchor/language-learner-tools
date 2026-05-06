@@ -172,15 +172,75 @@ function ll_tools_site_sync_remote_request(array $connection, string $method, st
     return $data;
 }
 
-function ll_tools_site_sync_fetch_remote_snapshot(array $connection, string $password) {
+function ll_tools_site_sync_remote_snapshot_per_page(): int {
+    $per_page = (int) apply_filters('ll_tools_site_sync_remote_snapshot_per_page', 100);
+    return max(1, min(250, $per_page));
+}
+
+function ll_tools_site_sync_remote_update_batch_size(): int {
+    $batch_size = (int) apply_filters('ll_tools_site_sync_remote_update_batch_size', 10);
+    return max(1, min(50, $batch_size));
+}
+
+function ll_tools_site_sync_remote_apply_update_limit(): int {
+    $limit = (int) apply_filters('ll_tools_site_sync_remote_apply_update_limit', 25);
+    return max(1, min(100, $limit));
+}
+
+function ll_tools_site_sync_fetch_remote_snapshot_page(array $connection, string $password, bool $include_media, int $offset = 0) {
     $remote_wordset = rawurlencode((string) $connection['remote_wordset']);
     $surface = ll_tools_site_sync_normalize_surface((string) ($connection['surface'] ?? 'transcriptions'));
     $route = '/wordsets/' . $remote_wordset . '/site-sync/snapshot?' . http_build_query([
         'surface' => $surface,
         'ensure_sync_ids' => 1,
+        'include_media' => $include_media ? 1 : 0,
+        'per_page' => ll_tools_site_sync_remote_snapshot_per_page(),
+        'offset' => max(0, $offset),
     ]);
 
     return ll_tools_site_sync_remote_request($connection, 'GET', $route, $password);
+}
+
+function ll_tools_site_sync_fetch_remote_snapshot(array $connection, string $password, bool $include_media = true) {
+    $snapshot = ll_tools_site_sync_fetch_remote_snapshot_page($connection, $password, $include_media, 0);
+    if (is_wp_error($snapshot)) {
+        return $snapshot;
+    }
+
+    $pagination = (array) ($snapshot['pagination'] ?? []);
+    if (empty($pagination)) {
+        return $snapshot;
+    }
+
+    $records = array_values((array) ($snapshot['records'] ?? []));
+    $next_offset = isset($pagination['next_offset']) ? (int) $pagination['next_offset'] : null;
+    while (!empty($pagination['has_more']) && $next_offset !== null) {
+        $page = ll_tools_site_sync_fetch_remote_snapshot_page($connection, $password, $include_media, $next_offset);
+        if (is_wp_error($page)) {
+            return $page;
+        }
+
+        $records = array_merge($records, array_values((array) ($page['records'] ?? [])));
+        $pagination = (array) ($page['pagination'] ?? []);
+        $next_offset = isset($pagination['next_offset']) ? (int) $pagination['next_offset'] : null;
+        if (empty($pagination)) {
+            break;
+        }
+    }
+
+    $snapshot['records'] = $records;
+    $snapshot['record_count'] = isset($pagination['total_count']) ? (int) $pagination['total_count'] : count($records);
+    $snapshot['records_returned'] = count($records);
+    $snapshot['pagination'] = [
+        'limit' => ll_tools_site_sync_remote_snapshot_per_page(),
+        'offset' => 0,
+        'returned_count' => count($records),
+        'total_count' => (int) ($snapshot['record_count'] ?? count($records)),
+        'has_more' => false,
+        'next_offset' => null,
+    ];
+
+    return $snapshot;
 }
 
 function ll_tools_site_sync_send_remote_transcription_updates(array $connection, string $password, array $updates) {
@@ -195,13 +255,39 @@ function ll_tools_site_sync_send_remote_transcription_updates(array $connection,
     }
 
     $remote_wordset = rawurlencode((string) $connection['remote_wordset']);
-    return ll_tools_site_sync_remote_request(
-        $connection,
-        'POST',
-        '/wordsets/' . $remote_wordset . '/transcriptions',
-        $password,
-        ['updates' => $updates]
-    );
+    $batch_size = ll_tools_site_sync_remote_update_batch_size();
+    $summary = [
+        'matched_count' => 0,
+        'updated_count' => 0,
+        'updated' => [],
+        'errors' => [],
+        'batch' => [
+            'batch_size' => $batch_size,
+            'request_count' => 0,
+            'sent_count' => count($updates),
+        ],
+    ];
+
+    foreach (array_chunk($updates, $batch_size) as $chunk) {
+        $response = ll_tools_site_sync_remote_request(
+            $connection,
+            'POST',
+            '/wordsets/' . $remote_wordset . '/transcriptions',
+            $password,
+            ['updates' => $chunk]
+        );
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $summary['matched_count'] += (int) ($response['matched_count'] ?? 0);
+        $summary['updated_count'] += (int) ($response['updated_count'] ?? 0);
+        $summary['updated'] = array_merge($summary['updated'], array_values((array) ($response['updated'] ?? [])));
+        $summary['errors'] = array_merge($summary['errors'], array_values((array) ($response['errors'] ?? [])));
+        $summary['batch']['request_count']++;
+    }
+
+    return $summary;
 }
 
 function ll_tools_site_sync_register_admin_page(): void {
@@ -275,7 +361,7 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
         return $result;
     }
 
-    $remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password);
+    $remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password, $action === 'pull');
     if (is_wp_error($remote_snapshot)) {
         $result['errors'][] = $remote_snapshot->get_error_message();
         return $result;
@@ -321,7 +407,11 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
     if ($action === 'apply_push') {
         $plan = ll_tools_site_sync_build_push_plan($local_snapshot, $remote_snapshot, $base_snapshot);
         $result['plan'] = $plan;
-        $remote_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, (array) ($plan['remote_updates'] ?? []));
+        $apply_limit = ll_tools_site_sync_remote_apply_update_limit();
+        $remote_updates = array_values((array) ($plan['remote_updates'] ?? []));
+        $remote_updates_to_send = array_slice($remote_updates, 0, $apply_limit);
+        $remaining_clean_updates = max(0, count($remote_updates) - count($remote_updates_to_send));
+        $remote_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, $remote_updates_to_send);
         if (is_wp_error($remote_result)) {
             $result['errors'][] = $remote_result->get_error_message();
             return $result;
@@ -329,27 +419,51 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
         $result['remote_result'] = $remote_result;
 
         $flag_conflicts = !empty($_POST['ll_site_sync_flag_conflicts']);
+        $conflict_review_updates = array_values((array) ($plan['conflict_review_updates'] ?? []));
+        $remaining_capacity = max(0, $apply_limit - count($remote_updates_to_send));
+        $conflict_review_updates_to_send = $flag_conflicts && $remaining_capacity > 0
+            ? array_slice($conflict_review_updates, 0, $remaining_capacity)
+            : [];
+        $remaining_conflict_review_updates = $flag_conflicts
+            ? max(0, count($conflict_review_updates) - count($conflict_review_updates_to_send))
+            : 0;
         if ($flag_conflicts && !empty($plan['conflict_review_updates'])) {
-            $conflict_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, (array) $plan['conflict_review_updates']);
-            if (is_wp_error($conflict_result)) {
-                $result['errors'][] = $conflict_result->get_error_message();
-                return $result;
+            if (!empty($conflict_review_updates_to_send)) {
+                $conflict_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, $conflict_review_updates_to_send);
+                if (is_wp_error($conflict_result)) {
+                    $result['errors'][] = $conflict_result->get_error_message();
+                    return $result;
+                }
+                $result['conflict_result'] = $conflict_result;
             }
-            $result['conflict_result'] = $conflict_result;
         }
 
-        $fresh_remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password);
+        $fresh_remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password, false);
         if (!is_wp_error($fresh_remote_snapshot)) {
             $merged_base = ll_tools_site_sync_merge_base_snapshot_after_pull($base_snapshot, $fresh_remote_snapshot, $plan);
             ll_tools_site_sync_save_base_snapshot($connection, $merged_base);
+            $result['plan'] = ll_tools_site_sync_build_push_plan($local_snapshot, $fresh_remote_snapshot, $merged_base);
         }
 
-        $result['notices'][] = sprintf(
-            /* translators: 1: remote updated count, 2: conflict count */
-            __('Push finished. Applied %1$d remote updates. Conflicts remaining: %2$d.', 'll-tools-text-domain'),
-            (int) ($remote_result['updated_count'] ?? 0),
-            count((array) ($plan['conflicts'] ?? []))
-        );
+        if ($remaining_clean_updates > 0 || $remaining_conflict_review_updates > 0) {
+            $result['notices'][] = sprintf(
+                /* translators: 1: applied update count, 2: total clean update count, 3: remaining clean update count, 4: conflict count */
+                __('Push batch finished. Applied %1$d of %2$d clean remote updates. %3$d clean updates remain; run Apply Clean Push to Live again to continue. Conflicts remaining: %4$d.', 'll-tools-text-domain'),
+                (int) ($remote_result['updated_count'] ?? 0),
+                count($remote_updates),
+                $remaining_clean_updates,
+                count((array) ($plan['conflicts'] ?? []))
+            );
+        } else {
+            $request_count = (int) (($remote_result['batch'] ?? [])['request_count'] ?? 1);
+            $result['notices'][] = sprintf(
+                /* translators: 1: remote updated count, 2: remote request count, 3: conflict count */
+                __('Push finished. Applied %1$d remote updates across %2$d small request(s). Conflicts remaining: %3$d.', 'll-tools-text-domain'),
+                (int) ($remote_result['updated_count'] ?? 0),
+                max(1, $request_count),
+                count((array) ($plan['conflicts'] ?? []))
+            );
+        }
         return $result;
     }
 

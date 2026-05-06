@@ -30,6 +30,36 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertNotSame('', (string) get_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), true));
     }
 
+    public function test_snapshot_endpoint_pages_records_and_can_skip_media(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'Paged Sync Wordset', 'paged-sync-wordset');
+        $category_id = $this->ensure_term('word-category', 'Paged Sync Category', 'paged-sync-category');
+        $first_word_id = $this->create_word($wordset_id, [$category_id], 'Paged Sync Word A', 'A');
+        $second_word_id = $this->create_word($wordset_id, [$category_id], 'Paged Sync Word B', 'B');
+        $this->create_recording($first_word_id, 'Paged Sync Recording A', ['recording_ipa' => 'a.ipa']);
+        $this->create_recording($second_word_id, 'Paged Sync Recording B', ['recording_ipa' => 'b.ipa']);
+
+        wp_set_current_user($admin_id);
+
+        $response = $this->dispatch_rest_request('GET', '/ll-tools/v1/wordsets/paged-sync-wordset/site-sync/snapshot', [
+            'per_page' => 1,
+            'offset' => 1,
+            'include_media' => 0,
+        ]);
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(2, (int) ($data['record_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['records_returned'] ?? 0));
+        $this->assertFalse((bool) ($data['include_media'] ?? true));
+        $this->assertFalse((bool) (($data['pagination'] ?? [])['has_more'] ?? true));
+
+        $record = (array) (($data['records'] ?? [])[0] ?? []);
+        $this->assertArrayNotHasKey('media', $record);
+    }
+
     public function test_push_plan_separates_clean_updates_from_conflicts(): void
     {
         $base = $this->snapshot([
@@ -55,6 +85,150 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame(1, count((array) $plan['conflict_review_updates']));
         $this->assertStringContainsString('local.conflict', (string) $plan['conflict_review_updates'][0]['review_note']);
         $this->assertStringContainsString('remote.conflict', (string) $plan['conflict_review_updates'][0]['review_note']);
+    }
+
+    public function test_remote_transcription_updates_are_sent_in_small_batches(): void
+    {
+        $requests = [];
+        $http_filter = static function ($preempt, array $args, string $url) use (&$requests) {
+            unset($preempt, $url);
+            $body = json_decode((string) ($args['body'] ?? ''), true);
+            $updates = array_values((array) ($body['updates'] ?? []));
+            $requests[] = $updates;
+
+            return [
+                'headers' => [],
+                'body' => wp_json_encode([
+                    'matched_count' => count($updates),
+                    'updated_count' => count($updates),
+                    'updated' => array_map(static function (array $update): array {
+                        return [
+                            'recording_id' => (int) ($update['recording_id'] ?? 0),
+                            'changed' => true,
+                        ];
+                    }, $updates),
+                    'errors' => [],
+                ]),
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+        $batch_filter = static function (): int {
+            return 2;
+        };
+
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        add_filter('ll_tools_site_sync_remote_update_batch_size', $batch_filter);
+
+        try {
+            $result = ll_tools_site_sync_send_remote_transcription_updates([
+                'local_wordset_id' => 1,
+                'remote_url' => 'https://example.com',
+                'remote_wordset' => 'remote-wordset',
+                'remote_username' => 'remote-user',
+                'surface' => 'transcriptions',
+            ], 'remote-password', [
+                ['recording_id' => 1, 'recording_ipa' => 'one'],
+                ['recording_id' => 2, 'recording_ipa' => 'two'],
+                ['recording_id' => 3, 'recording_ipa' => 'three'],
+                ['recording_id' => 4, 'recording_ipa' => 'four'],
+                ['recording_id' => 5, 'recording_ipa' => 'five'],
+            ]);
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            remove_filter('ll_tools_site_sync_remote_update_batch_size', $batch_filter);
+        }
+
+        $this->assertIsArray($result);
+        $this->assertSame(5, (int) ($result['updated_count'] ?? 0));
+        $this->assertSame(3, (int) (($result['batch'] ?? [])['request_count'] ?? 0));
+        $this->assertSame([2, 2, 1], array_map('count', $requests));
+    }
+
+    public function test_remote_snapshot_fetch_combines_paged_responses(): void
+    {
+        $offsets = [];
+        $include_media_values = [];
+        $http_filter = static function ($preempt, array $args, string $url) use (&$offsets, &$include_media_values) {
+            unset($preempt, $args);
+            $query = [];
+            parse_str((string) wp_parse_url($url, PHP_URL_QUERY), $query);
+            $offset = max(0, (int) ($query['offset'] ?? 0));
+            $offsets[] = $offset;
+            $include_media_values[] = (string) ($query['include_media'] ?? '');
+
+            $record = [
+                'record_type' => 'word_audio_transcription',
+                'sync_id' => 'remote-' . $offset,
+                'natural_key' => 'remote-' . $offset,
+                'word' => [
+                    'slug' => 'remote-word-' . $offset,
+                ],
+                'recording' => [
+                    'id' => 100 + $offset,
+                    'slug' => 'remote-recording-' . $offset,
+                    'types' => [],
+                ],
+                'values' => ll_tools_site_sync_normalize_record_values([
+                    'recording_ipa' => 'remote.' . $offset,
+                ]),
+            ];
+
+            return [
+                'headers' => [],
+                'body' => wp_json_encode([
+                    'record_count' => 2,
+                    'records_returned' => 1,
+                    'records' => [$record],
+                    'pagination' => [
+                        'limit' => 1,
+                        'offset' => $offset,
+                        'returned_count' => 1,
+                        'total_count' => 2,
+                        'has_more' => $offset === 0,
+                        'next_offset' => $offset === 0 ? 1 : null,
+                    ],
+                ]),
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+        $per_page_filter = static function (): int {
+            return 1;
+        };
+
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        add_filter('ll_tools_site_sync_remote_snapshot_per_page', $per_page_filter);
+
+        try {
+            $snapshot = ll_tools_site_sync_fetch_remote_snapshot([
+                'local_wordset_id' => 1,
+                'remote_url' => 'https://example.com',
+                'remote_wordset' => 'remote-wordset',
+                'remote_username' => 'remote-user',
+                'surface' => 'transcriptions',
+            ], 'remote-password', false);
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            remove_filter('ll_tools_site_sync_remote_snapshot_per_page', $per_page_filter);
+        }
+
+        $this->assertIsArray($snapshot);
+        $this->assertSame(2, (int) ($snapshot['record_count'] ?? 0));
+        $this->assertSame(2, (int) ($snapshot['records_returned'] ?? 0));
+        $this->assertSame(['remote-0', 'remote-1'], array_map(static function (array $record): string {
+            return (string) ($record['sync_id'] ?? '');
+        }, (array) ($snapshot['records'] ?? [])));
+        $this->assertSame([0, 1], $offsets);
+        $this->assertSame(['0', '0'], $include_media_values);
     }
 
     public function test_pull_plan_applies_remote_changes_to_local_recordings(): void

@@ -381,6 +381,9 @@ Query params:
 
 - `surface` optional, currently `transcriptions`
 - `ensure_sync_ids` optional boolean, default true
+- `include_media` optional boolean, default true; set to false for transcription-only push comparisons
+- `per_page` optional integer for paged snapshots
+- `offset` optional integer offset for paged snapshots
 
 The response includes stable LL Tools sync IDs where available. When
 `ensure_sync_ids` is true, missing sync IDs are generated and stored on the
@@ -390,6 +393,10 @@ pull.
 Use this route from the LL Site Sync admin page or external automation before a
 three-way merge. It is not a database clone endpoint; it intentionally returns a
 domain-specific content snapshot for safe diffing.
+
+Large wordsets should be read in pages. Paged responses include
+`records_returned` and `pagination.next_offset`; continue until
+`pagination.has_more` is false.
 
 ### `GET /wordsets/{wordset}/report`
 

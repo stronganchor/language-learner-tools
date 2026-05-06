@@ -507,10 +507,37 @@ function ll_tools_site_sync_word_categories(int $word_id, bool $ensure_sync_ids 
     return $categories;
 }
 
-function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool $ensure_sync_ids = true): array {
-    if ($wordset_id <= 0) {
-        return [];
+function ll_tools_site_sync_normalize_snapshot_args(array $args = []): array {
+    $max_per_page = max(1, (int) apply_filters('ll_tools_site_sync_snapshot_max_per_page', 250));
+    $limit = isset($args['limit']) ? max(0, (int) $args['limit']) : 0;
+    if ($limit > 0) {
+        $limit = min($limit, $max_per_page);
     }
+
+    return [
+        'include_media' => !array_key_exists('include_media', $args) || !empty($args['include_media']),
+        'limit' => $limit,
+        'offset' => isset($args['offset']) ? max(0, (int) $args['offset']) : 0,
+    ];
+}
+
+function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool $ensure_sync_ids = true, array $args = []): array {
+    $result = ll_tools_site_sync_collect_transcription_record_page($wordset_id, $ensure_sync_ids, $args);
+    return (array) ($result['records'] ?? []);
+}
+
+function ll_tools_site_sync_collect_transcription_record_page(int $wordset_id, bool $ensure_sync_ids = true, array $args = []): array {
+    if ($wordset_id <= 0) {
+        return [
+            'records' => [],
+            'total' => 0,
+        ];
+    }
+
+    $snapshot_args = ll_tools_site_sync_normalize_snapshot_args($args);
+    $limit = (int) $snapshot_args['limit'];
+    $offset = (int) $snapshot_args['offset'];
+    $include_media = !empty($snapshot_args['include_media']);
 
     $word_ids = get_posts([
         'post_type' => 'words',
@@ -519,6 +546,7 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
         'fields' => 'ids',
         'orderby' => 'title',
         'order' => 'ASC',
+        'no_found_rows' => true,
         'tax_query' => [
             [
                 'taxonomy' => 'wordset',
@@ -530,17 +558,28 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
 
     $word_ids = array_values(array_filter(array_map('intval', $word_ids)));
     if (empty($word_ids)) {
-        return [];
+        return [
+            'records' => [],
+            'total' => 0,
+        ];
     }
 
-    $audio_posts = get_posts([
+    $audio_query_args = [
         'post_type' => 'word_audio',
         'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
-        'posts_per_page' => -1,
+        'posts_per_page' => $limit > 0 ? $limit : -1,
         'orderby' => 'ID',
         'order' => 'ASC',
         'post_parent__in' => $word_ids,
-    ]);
+        'no_found_rows' => $limit <= 0,
+    ];
+    if ($limit > 0 && $offset > 0) {
+        $audio_query_args['offset'] = $offset;
+    }
+
+    $audio_query = new WP_Query($audio_query_args);
+    $audio_posts = (array) $audio_query->posts;
+    $total_records = $limit > 0 ? (int) $audio_query->found_posts : count($audio_posts);
 
     $records = [];
     foreach ($audio_posts as $audio_post) {
@@ -570,7 +609,7 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
         $word_translation = (string) get_post_meta($word_id, 'word_translation', true);
         $word_english_meaning = (string) get_post_meta($word_id, 'word_english_meaning', true);
 
-        $records[] = [
+        $record = [
             'record_type' => 'word_audio_transcription',
             'sync_id' => $sync_id,
             'natural_key' => ll_tools_site_sync_record_natural_key($word_slug, $recording_slug, $recording_types),
@@ -592,8 +631,12 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
             ],
             'values' => $values,
             'value_hash' => ll_tools_site_sync_value_hash($values),
-            'media' => ll_tools_site_sync_record_media((int) $audio_post->ID, $word_id, $ensure_sync_ids),
         ];
+        if ($include_media) {
+            $record['media'] = ll_tools_site_sync_record_media((int) $audio_post->ID, $word_id, $ensure_sync_ids);
+        }
+
+        $records[] = $record;
     }
 
     usort($records, static function (array $a, array $b): int {
@@ -605,10 +648,13 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
         return strcmp($a_key, $b_key);
     });
 
-    return $records;
+    return [
+        'records' => $records,
+        'total' => $total_records,
+    ];
 }
 
-function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 'transcriptions', bool $ensure_sync_ids = true) {
+function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 'transcriptions', bool $ensure_sync_ids = true, array $args = []) {
     $surface = ll_tools_site_sync_normalize_surface($surface);
     $wordset = get_term($wordset_id, 'wordset');
     if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
@@ -619,11 +665,15 @@ function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 't
     }
 
     $records = [];
+    $total_records = 0;
+    $snapshot_args = ll_tools_site_sync_normalize_snapshot_args($args);
     if ($surface === 'transcriptions') {
-        $records = ll_tools_site_sync_collect_transcription_records($wordset_id, $ensure_sync_ids);
+        $record_page = ll_tools_site_sync_collect_transcription_record_page($wordset_id, $ensure_sync_ids, $snapshot_args);
+        $records = (array) ($record_page['records'] ?? []);
+        $total_records = (int) ($record_page['total'] ?? count($records));
     }
 
-    return [
+    $snapshot = [
         'schema_version' => LL_TOOLS_SITE_SYNC_SCHEMA_VERSION,
         'surface' => $surface,
         'generated_at_gmt' => gmdate('c'),
@@ -635,9 +685,25 @@ function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 't
             'slug' => (string) $wordset->slug,
             'name' => (string) $wordset->name,
         ],
-        'record_count' => count($records),
+        'record_count' => $total_records,
+        'records_returned' => count($records),
+        'include_media' => !empty($snapshot_args['include_media']),
         'records' => $records,
     ];
+
+    if ((int) $snapshot_args['limit'] > 0) {
+        $next_offset = (int) $snapshot_args['offset'] + count($records);
+        $snapshot['pagination'] = [
+            'limit' => (int) $snapshot_args['limit'],
+            'offset' => (int) $snapshot_args['offset'],
+            'returned_count' => count($records),
+            'total_count' => $total_records,
+            'has_more' => $next_offset < $total_records,
+            'next_offset' => $next_offset < $total_records ? $next_offset : null,
+        ];
+    }
+
+    return $snapshot;
 }
 
 function ll_tools_site_sync_record_lookup_key(array $record): string {
@@ -2080,7 +2146,16 @@ function ll_tools_site_sync_snapshot_endpoint(WP_REST_Request $request) {
 
     $surface = ll_tools_site_sync_normalize_surface((string) ($request->get_param('surface') ?? 'transcriptions'));
     $ensure_sync_ids = !($request->get_param('ensure_sync_ids') === '0' || $request->get_param('ensure_sync_ids') === false);
-    $snapshot = ll_tools_site_sync_build_snapshot((int) $wordset_term->term_id, $surface, $ensure_sync_ids);
+    $include_media = !($request->get_param('include_media') === '0' || $request->get_param('include_media') === false);
+    $per_page = max(0, (int) $request->get_param('per_page'));
+    $page = max(1, (int) $request->get_param('page'));
+    $offset_param = $request->get_param('offset');
+    $offset = is_numeric($offset_param) ? max(0, (int) $offset_param) : ($per_page > 0 ? ($page - 1) * $per_page : 0);
+    $snapshot = ll_tools_site_sync_build_snapshot((int) $wordset_term->term_id, $surface, $ensure_sync_ids, [
+        'include_media' => $include_media,
+        'limit' => $per_page,
+        'offset' => $offset,
+    ]);
     if (is_wp_error($snapshot)) {
         return $snapshot;
     }
@@ -2110,6 +2185,22 @@ function ll_tools_site_sync_register_rest_routes(): void {
             'ensure_sync_ids' => [
                 'required' => false,
                 'type' => 'boolean',
+            ],
+            'include_media' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'per_page' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'page' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'offset' => [
+                'required' => false,
+                'type' => 'integer',
             ],
         ],
     ]);
