@@ -119,9 +119,11 @@ function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_t
         'min_word_count' => $min_word_count,
         'wordset_ids' => $wordset_ids,
         'epoch' => $cache_epoch,
+        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+        'schema' => 2,
     ]));
     $cache_group = 'll_tools_flashcards';
-    $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', 10 * MINUTE_IN_SECONDS);
+    $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', DAY_IN_SECONDS);
     if ($cache_ttl < 1) {
         $cache_ttl = 10 * MINUTE_IN_SECONDS;
     }
