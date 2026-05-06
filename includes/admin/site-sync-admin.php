@@ -368,6 +368,601 @@ function ll_tools_site_sync_get_wordset_options(): array {
     return is_wp_error($terms) ? [] : array_values((array) $terms);
 }
 
+function ll_tools_site_sync_field_label(string $field): string {
+    $labels = [
+        'recording_text' => __('Orthography', 'll-tools-text-domain'),
+        'recording_ipa' => __('IPA', 'll-tools-text-domain'),
+        'needs_review' => __('Needs review', 'll-tools-text-domain'),
+        'review_fields' => __('Review fields', 'll-tools-text-domain'),
+        'review_note' => __('Review note', 'll-tools-text-domain'),
+        'audio_file_path' => __('Audio', 'll-tools-text-domain'),
+        'word_image' => __('Image', 'll-tools-text-domain'),
+        'sync_id' => __('Sync IDs', 'll-tools-text-domain'),
+        'record' => __('Record', 'll-tools-text-domain'),
+    ];
+
+    return (string) ($labels[$field] ?? sprintf(
+        /* translators: %s: sync field key */
+        __('Field: %s', 'll-tools-text-domain'),
+        ucwords(str_replace('_', ' ', $field))
+    ));
+}
+
+function ll_tools_site_sync_preview_value_text($value): string {
+    if (is_array($value)) {
+        $items = array_values(array_filter(array_map('strval', $value), static function (string $item): bool {
+            return $item !== '';
+        }));
+        return empty($items) ? __('(none)', 'll-tools-text-domain') : implode(', ', $items);
+    }
+
+    if (is_bool($value)) {
+        return $value ? __('Yes', 'll-tools-text-domain') : __('No', 'll-tools-text-domain');
+    }
+
+    $text = trim((string) $value);
+    return $text === '' ? __('(empty)', 'll-tools-text-domain') : $text;
+}
+
+function ll_tools_site_sync_preview_diff_tokens(string $before, string $after): array {
+    if ($before === $after) {
+        return [
+            'before' => [['text' => $before, 'changed' => false]],
+            'after' => [['text' => $after, 'changed' => false]],
+        ];
+    }
+
+    $before_tokens = preg_split('/(\s+)/u', $before, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+    $after_tokens = preg_split('/(\s+)/u', $after, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+    $before_tokens = is_array($before_tokens) ? array_values($before_tokens) : [$before];
+    $after_tokens = is_array($after_tokens) ? array_values($after_tokens) : [$after];
+    $before_count = count($before_tokens);
+    $after_count = count($after_tokens);
+
+    if ($before_count * $after_count > 20000) {
+        return [
+            'before' => array_map(static function (string $token): array {
+                return ['text' => $token, 'changed' => trim($token) !== ''];
+            }, $before_tokens),
+            'after' => array_map(static function (string $token): array {
+                return ['text' => $token, 'changed' => trim($token) !== ''];
+            }, $after_tokens),
+        ];
+    }
+
+    $table = array_fill(0, $before_count + 1, array_fill(0, $after_count + 1, 0));
+    for ($i = $before_count - 1; $i >= 0; $i--) {
+        for ($j = $after_count - 1; $j >= 0; $j--) {
+            if ($before_tokens[$i] === $after_tokens[$j]) {
+                $table[$i][$j] = $table[$i + 1][$j + 1] + 1;
+            } else {
+                $table[$i][$j] = max($table[$i + 1][$j], $table[$i][$j + 1]);
+            }
+        }
+    }
+
+    $before_output = [];
+    $after_output = [];
+    $i = 0;
+    $j = 0;
+    while ($i < $before_count && $j < $after_count) {
+        if ($before_tokens[$i] === $after_tokens[$j]) {
+            $before_output[] = ['text' => $before_tokens[$i], 'changed' => false];
+            $after_output[] = ['text' => $after_tokens[$j], 'changed' => false];
+            $i++;
+            $j++;
+            continue;
+        }
+
+        if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
+            $before_output[] = ['text' => $before_tokens[$i], 'changed' => trim((string) $before_tokens[$i]) !== ''];
+            $i++;
+        } else {
+            $after_output[] = ['text' => $after_tokens[$j], 'changed' => trim((string) $after_tokens[$j]) !== ''];
+            $j++;
+        }
+    }
+
+    while ($i < $before_count) {
+        $before_output[] = ['text' => $before_tokens[$i], 'changed' => trim((string) $before_tokens[$i]) !== ''];
+        $i++;
+    }
+
+    while ($j < $after_count) {
+        $after_output[] = ['text' => $after_tokens[$j], 'changed' => trim((string) $after_tokens[$j]) !== ''];
+        $j++;
+    }
+
+    return [
+        'before' => $before_output,
+        'after' => $after_output,
+    ];
+}
+
+function ll_tools_site_sync_render_diff_value($before, $after, string $side): string {
+    $before_text = ll_tools_site_sync_preview_value_text($before);
+    $after_text = ll_tools_site_sync_preview_value_text($after);
+    $side = $side === 'after' ? 'after' : 'before';
+    $class = $side === 'after' ? 'll-site-sync-diff-added' : 'll-site-sync-diff-removed';
+    $tokens = ll_tools_site_sync_preview_diff_tokens($before_text, $after_text)[$side] ?? [];
+    $html = '';
+
+    foreach ($tokens as $token) {
+        $text = (string) ($token['text'] ?? '');
+        if (!empty($token['changed'])) {
+            $html .= '<mark class="' . esc_attr($class) . '">' . esc_html($text) . '</mark>';
+        } else {
+            $html .= esc_html($text);
+        }
+    }
+
+    return $html === '' ? esc_html(ll_tools_site_sync_preview_value_text('')) : $html;
+}
+
+function ll_tools_site_sync_preview_media_from_record(array $record): array {
+    $media = ll_tools_site_sync_normalize_record_media((array) ($record['media'] ?? []));
+    $audio = (array) ($media['audio'] ?? []);
+    $word_image = (array) ($media['word_image'] ?? []);
+    $attachment = (array) ($word_image['attachment'] ?? []);
+    $word = (array) ($record['word'] ?? []);
+
+    $image_url = (string) (($attachment['source_url'] ?? '') ?: ($attachment['url'] ?? ''));
+    $audio_url = (string) (($audio['url'] ?? '') ?: ($audio['path'] ?? ''));
+
+    return [
+        'image_url' => $image_url,
+        'image_alt' => (string) (($attachment['alt'] ?? '') ?: ($word['title'] ?? '')),
+        'audio_url' => $audio_url,
+        'audio_mime_type' => (string) ($audio['mime_type'] ?? ''),
+    ];
+}
+
+function ll_tools_site_sync_preview_media_value(array $record, string $field): string {
+    $media = ll_tools_site_sync_preview_media_from_record($record);
+
+    if ($field === 'audio_file_path') {
+        return (string) ($media['audio_url'] ?? '');
+    }
+
+    if ($field === 'word_image') {
+        return (string) ($media['image_url'] ?? '');
+    }
+
+    return '';
+}
+
+function ll_tools_site_sync_preview_record_title(array $record, string $part): string {
+    $data = (array) ($record[$part] ?? []);
+    return (string) ($data['title'] ?? '');
+}
+
+function ll_tools_site_sync_preview_recording_types(array $record): array {
+    return array_values(array_filter(array_map('strval', (array) (($record['recording'] ?? [])['types'] ?? []))));
+}
+
+function ll_tools_site_sync_build_preview_changes(array $before_record, array $after_record, array $fields): array {
+    $changes = [];
+    $before_values = ll_tools_site_sync_normalize_record_values((array) ($before_record['values'] ?? []));
+    $after_values = ll_tools_site_sync_normalize_record_values((array) ($after_record['values'] ?? []));
+
+    foreach (array_values(array_unique(array_map('strval', $fields))) as $field) {
+        if (in_array($field, ll_tools_site_sync_transcription_value_keys(), true)) {
+            $before_value = $before_values[$field] ?? '';
+            $after_value = $after_values[$field] ?? '';
+        } elseif (in_array($field, ['audio_file_path', 'word_image'], true)) {
+            $before_value = ll_tools_site_sync_preview_media_value($before_record, $field);
+            $after_value = ll_tools_site_sync_preview_media_value($after_record, $field);
+        } else {
+            continue;
+        }
+
+        if (ll_tools_site_sync_values_equal($before_value, $after_value)) {
+            continue;
+        }
+
+        $changes[] = [
+            'field' => $field,
+            'label' => ll_tools_site_sync_field_label($field),
+            'before' => $before_value,
+            'after' => $after_value,
+        ];
+    }
+
+    return $changes;
+}
+
+function ll_tools_site_sync_build_record_presence_change(string $status): array {
+    if ($status === 'local_only') {
+        return [
+            'field' => 'record',
+            'label' => ll_tools_site_sync_field_label('record'),
+            'before' => __('Not in baseline', 'll-tools-text-domain'),
+            'after' => __('Exists locally', 'll-tools-text-domain'),
+        ];
+    }
+
+    if ($status === 'base_only') {
+        return [
+            'field' => 'record',
+            'label' => ll_tools_site_sync_field_label('record'),
+            'before' => __('Exists in baseline', 'll-tools-text-domain'),
+            'after' => __('Missing locally', 'll-tools-text-domain'),
+        ];
+    }
+
+    return [
+        'field' => 'record',
+        'label' => ll_tools_site_sync_field_label('record'),
+        'before' => __('Previous version', 'll-tools-text-domain'),
+        'after' => __('Current version', 'll-tools-text-domain'),
+    ];
+}
+
+function ll_tools_site_sync_build_change_item(
+    string $status,
+    array $before_record,
+    array $after_record,
+    array $changes,
+    string $before_label,
+    string $after_label,
+    array $extra = []
+): array {
+    $display_record = !empty($after_record) ? $after_record : $before_record;
+    $changes = !empty($changes) ? $changes : [ll_tools_site_sync_build_record_presence_change($status)];
+
+    return array_merge([
+        'status' => $status,
+        'status_label' => (string) ($extra['status_label'] ?? ''),
+        'before_label' => $before_label,
+        'after_label' => $after_label,
+        'word_title' => ll_tools_site_sync_preview_record_title($display_record, 'word'),
+        'recording_title' => ll_tools_site_sync_preview_record_title($display_record, 'recording'),
+        'recording_types' => ll_tools_site_sync_preview_recording_types($display_record),
+        'before_media' => ll_tools_site_sync_preview_media_from_record($before_record),
+        'after_media' => ll_tools_site_sync_preview_media_from_record($after_record),
+        'changes' => $changes,
+    ], $extra);
+}
+
+function ll_tools_site_sync_plan_change_items(array $plan, int $limit = 25): array {
+    $direction = (string) ($plan['direction'] ?? '');
+    $before_label = $direction === 'pull'
+        ? __('Staging now', 'll-tools-text-domain')
+        : __('Live now', 'll-tools-text-domain');
+    $after_label = $direction === 'pull'
+        ? __('After pull', 'll-tools-text-domain')
+        : __('After push', 'll-tools-text-domain');
+    $items = [];
+
+    foreach ((array) ($plan['actions'] ?? []) as $action) {
+        if (!is_array($action)) {
+            continue;
+        }
+
+        $local_record = (array) ($action['local_record'] ?? []);
+        $remote_record = (array) ($action['remote_record'] ?? []);
+        $before_record = $direction === 'pull' ? $local_record : $remote_record;
+        $after_record = $direction === 'pull' ? $remote_record : $local_record;
+        $fields = array_values(array_unique(array_merge(
+            (array) ($action['value_fields'] ?? []),
+            (array) ($action['media_fields'] ?? [])
+        )));
+        if (empty($fields)) {
+            $fields = (array) ($action['fields'] ?? []);
+        }
+
+        $changes = ll_tools_site_sync_build_preview_changes($before_record, $after_record, $fields);
+        if ((string) ($action['type'] ?? '') === 'link_sync_id' && empty($changes)) {
+            $changes[] = [
+                'field' => 'sync_id',
+                'label' => ll_tools_site_sync_field_label('sync_id'),
+                'before' => trim((string) ($local_record['sync_id'] ?? '')),
+                'after' => trim((string) ($remote_record['sync_id'] ?? '')),
+            ];
+        }
+
+        $items[] = ll_tools_site_sync_build_change_item(
+            (string) ($action['type'] ?? 'change'),
+            $before_record,
+            $after_record,
+            $changes,
+            $before_label,
+            $after_label,
+            [
+                'status_label' => (string) ($action['type'] ?? '') === 'create_local_recording'
+                    ? __('Create locally', 'll-tools-text-domain')
+                    : __('Clean change', 'll-tools-text-domain'),
+            ]
+        );
+
+        if (count($items) >= $limit) {
+            return $items;
+        }
+    }
+
+    return $items;
+}
+
+function ll_tools_site_sync_conflict_change_items(array $plan, int $limit = 25): array {
+    $items = [];
+
+    foreach ((array) ($plan['conflicts'] ?? []) as $conflict) {
+        if (!is_array($conflict)) {
+            continue;
+        }
+
+        $local_record = (array) ($conflict['local_record'] ?? []);
+        $remote_record = (array) ($conflict['remote_record'] ?? []);
+        $field = (string) ($conflict['field'] ?? '');
+        $items[] = ll_tools_site_sync_build_change_item(
+            'conflict',
+            $local_record,
+            $remote_record,
+            [[
+                'field' => $field,
+                'label' => ll_tools_site_sync_field_label($field),
+                'before' => $conflict['local_value'] ?? '',
+                'after' => $conflict['remote_value'] ?? '',
+                'base' => $conflict['base_value'] ?? '',
+                'base_label' => __('Last pulled', 'll-tools-text-domain'),
+            ]],
+            __('Staging', 'll-tools-text-domain'),
+            __('Live', 'll-tools-text-domain'),
+            [
+                'status_label' => __('Conflict', 'll-tools-text-domain'),
+                'word_title' => (string) ($conflict['word_title'] ?? ''),
+                'recording_title' => (string) ($conflict['recording_title'] ?? ''),
+            ]
+        );
+
+        if (count($items) >= $limit) {
+            return $items;
+        }
+    }
+
+    return $items;
+}
+
+function ll_tools_site_sync_build_local_change_summary(array $connection, array $base_snapshot = [], int $sample_limit = 12): array {
+    $summary = [
+        'available' => false,
+        'message' => '',
+        'stats' => [
+            'baseline_records' => count((array) ($base_snapshot['records'] ?? [])),
+            'local_records' => 0,
+            'changed_records' => 0,
+            'local_only_records' => 0,
+            'missing_local_records' => 0,
+        ],
+        'field_counts' => [],
+        'samples' => [],
+    ];
+
+    if ((int) ($connection['local_wordset_id'] ?? 0) <= 0) {
+        $summary['message'] = __('Select and save a local staging word set to see local changes.', 'll-tools-text-domain');
+        return $summary;
+    }
+
+    if (empty($base_snapshot['records'])) {
+        $summary['message'] = __('No local change overview is available until a pull baseline exists.', 'll-tools-text-domain');
+        return $summary;
+    }
+
+    $local_snapshot = ll_tools_site_sync_build_snapshot(
+        (int) $connection['local_wordset_id'],
+        (string) ($connection['surface'] ?? 'transcriptions'),
+        false
+    );
+    if (is_wp_error($local_snapshot)) {
+        $summary['message'] = $local_snapshot->get_error_message();
+        return $summary;
+    }
+
+    $summary['available'] = true;
+    $summary['generated_at_gmt'] = (string) ($local_snapshot['generated_at_gmt'] ?? '');
+    $summary['stats']['local_records'] = count((array) ($local_snapshot['records'] ?? []));
+
+    $base_index = ll_tools_site_sync_index_snapshot($base_snapshot);
+    $local_index = ll_tools_site_sync_index_snapshot($local_snapshot);
+    $fields = ll_tools_site_sync_transcription_value_keys();
+
+    foreach ((array) ($local_snapshot['records'] ?? []) as $local_record) {
+        if (!is_array($local_record)) {
+            continue;
+        }
+
+        $base_record = ll_tools_site_sync_find_matching_record($local_record, $base_index);
+        if ($base_record === null) {
+            $summary['stats']['local_only_records']++;
+            $changes = ll_tools_site_sync_build_preview_changes([], $local_record, $fields);
+            if (count($summary['samples']) < $sample_limit) {
+                $summary['samples'][] = ll_tools_site_sync_build_change_item(
+                    'local_only',
+                    [],
+                    $local_record,
+                    $changes,
+                    __('Baseline', 'll-tools-text-domain'),
+                    __('Local', 'll-tools-text-domain'),
+                    ['status_label' => __('Local only', 'll-tools-text-domain')]
+                );
+            }
+            continue;
+        }
+
+        $changes = ll_tools_site_sync_build_preview_changes($base_record, $local_record, $fields);
+        if (empty($changes)) {
+            continue;
+        }
+
+        $summary['stats']['changed_records']++;
+        foreach ($changes as $change) {
+            $field = (string) ($change['field'] ?? '');
+            if ($field === '') {
+                continue;
+            }
+            $summary['field_counts'][$field] = (int) ($summary['field_counts'][$field] ?? 0) + 1;
+        }
+
+        if (count($summary['samples']) < $sample_limit) {
+            $summary['samples'][] = ll_tools_site_sync_build_change_item(
+                'modified',
+                $base_record,
+                $local_record,
+                $changes,
+                __('Baseline', 'll-tools-text-domain'),
+                __('Local', 'll-tools-text-domain'),
+                ['status_label' => __('Modified locally', 'll-tools-text-domain')]
+            );
+        }
+    }
+
+    foreach ((array) ($base_snapshot['records'] ?? []) as $base_record) {
+        if (!is_array($base_record)) {
+            continue;
+        }
+
+        if (ll_tools_site_sync_find_matching_record($base_record, $local_index) !== null) {
+            continue;
+        }
+
+        $summary['stats']['missing_local_records']++;
+        if (count($summary['samples']) < $sample_limit) {
+            $summary['samples'][] = ll_tools_site_sync_build_change_item(
+                'base_only',
+                $base_record,
+                [],
+                ll_tools_site_sync_build_preview_changes($base_record, [], $fields),
+                __('Baseline', 'll-tools-text-domain'),
+                __('Local', 'll-tools-text-domain'),
+                ['status_label' => __('Missing locally', 'll-tools-text-domain')]
+            );
+        }
+    }
+
+    ksort($summary['field_counts']);
+    return $summary;
+}
+
+function ll_tools_site_sync_render_change_cards(array $items, array $args = []): void {
+    $empty_message = (string) ($args['empty_message'] ?? __('No changes to preview.', 'll-tools-text-domain'));
+    if (empty($items)) {
+        echo '<p class="description">' . esc_html($empty_message) . '</p>';
+        return;
+    }
+
+    ?>
+    <div class="ll-site-sync-change-list">
+        <?php foreach ($items as $item) : ?>
+            <?php
+            $before_media = (array) ($item['before_media'] ?? []);
+            $after_media = (array) ($item['after_media'] ?? []);
+            $image_url = (string) (($after_media['image_url'] ?? '') ?: ($before_media['image_url'] ?? ''));
+            $image_alt = (string) (($after_media['image_alt'] ?? '') ?: ($before_media['image_alt'] ?? ''));
+            $audio_url = (string) (($after_media['audio_url'] ?? '') ?: ($before_media['audio_url'] ?? ''));
+            $status = sanitize_html_class((string) ($item['status'] ?? 'change'));
+            ?>
+            <article class="ll-site-sync-change-card ll-site-sync-change-card--<?php echo esc_attr($status); ?>">
+                <div class="ll-site-sync-change-media">
+                    <?php if ($image_url !== '') : ?>
+                        <img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($image_alt); ?>" loading="lazy">
+                    <?php else : ?>
+                        <div class="ll-site-sync-media-empty"><?php esc_html_e('No image', 'll-tools-text-domain'); ?></div>
+                    <?php endif; ?>
+                    <?php if ($audio_url !== '') : ?>
+                        <audio controls preload="none" src="<?php echo esc_url($audio_url); ?>"></audio>
+                    <?php else : ?>
+                        <div class="ll-site-sync-audio-empty"><?php esc_html_e('No audio', 'll-tools-text-domain'); ?></div>
+                    <?php endif; ?>
+                </div>
+                <div class="ll-site-sync-change-main">
+                    <div class="ll-site-sync-change-header">
+                        <?php if ((string) ($item['status_label'] ?? '') !== '') : ?>
+                            <span class="ll-site-sync-status-badge"><?php echo esc_html((string) $item['status_label']); ?></span>
+                        <?php endif; ?>
+                        <div>
+                            <strong><?php echo esc_html((string) ($item['word_title'] ?? '')); ?></strong>
+                            <?php if ((string) ($item['recording_title'] ?? '') !== '') : ?>
+                                <span><?php echo esc_html((string) $item['recording_title']); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php if (!empty($item['recording_types'])) : ?>
+                        <div class="ll-site-sync-type-row">
+                            <?php foreach ((array) $item['recording_types'] as $type) : ?>
+                                <code><?php echo esc_html((string) $type); ?></code>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                    <div class="ll-site-sync-field-diffs">
+                        <?php foreach ((array) ($item['changes'] ?? []) as $change) : ?>
+                            <?php
+                            $before_label = (string) ($item['before_label'] ?? __('Before', 'll-tools-text-domain'));
+                            $after_label = (string) ($item['after_label'] ?? __('After', 'll-tools-text-domain'));
+                            ?>
+                            <div class="ll-site-sync-field-diff">
+                                <div class="ll-site-sync-field-name"><?php echo esc_html((string) ($change['label'] ?? ll_tools_site_sync_field_label((string) ($change['field'] ?? '')))); ?></div>
+                                <?php if (array_key_exists('base', $change)) : ?>
+                                    <div class="ll-site-sync-base-value">
+                                        <span><?php echo esc_html((string) ($change['base_label'] ?? __('Baseline', 'll-tools-text-domain'))); ?></span>
+                                        <div><?php echo esc_html(ll_tools_site_sync_preview_value_text($change['base'])); ?></div>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="ll-site-sync-diff-grid">
+                                    <div class="ll-site-sync-diff-side">
+                                        <span><?php echo esc_html($before_label); ?></span>
+                                        <div class="ll-site-sync-diff-value"><?php echo ll_tools_site_sync_render_diff_value($change['before'] ?? '', $change['after'] ?? '', 'before'); ?></div>
+                                    </div>
+                                    <div class="ll-site-sync-diff-side">
+                                        <span><?php echo esc_html($after_label); ?></span>
+                                        <div class="ll-site-sync-diff-value"><?php echo ll_tools_site_sync_render_diff_value($change['before'] ?? '', $change['after'] ?? '', 'after'); ?></div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </article>
+        <?php endforeach; ?>
+    </div>
+    <?php
+}
+
+function ll_tools_site_sync_render_local_change_overview(array $summary): void {
+    ?>
+    <div class="ll-site-sync-local-overview">
+        <h3><?php esc_html_e('Local changes since baseline', 'll-tools-text-domain'); ?></h3>
+        <p class="description"><?php esc_html_e('This overview compares the current staging word set to the last saved pull baseline. It does not contact the live site or require the remote password.', 'll-tools-text-domain'); ?></p>
+        <?php if (empty($summary['available'])) : ?>
+            <p class="description"><?php echo esc_html((string) ($summary['message'] ?? '')); ?></p>
+        <?php else : ?>
+            <?php $stats = (array) ($summary['stats'] ?? []); ?>
+            <div class="ll-site-sync-stat-row">
+                <span><?php echo esc_html(sprintf(__('Baseline records: %d', 'll-tools-text-domain'), (int) ($stats['baseline_records'] ?? 0))); ?></span>
+                <span><?php echo esc_html(sprintf(__('Local records: %d', 'll-tools-text-domain'), (int) ($stats['local_records'] ?? 0))); ?></span>
+                <span><?php echo esc_html(sprintf(__('Modified locally: %d', 'll-tools-text-domain'), (int) ($stats['changed_records'] ?? 0))); ?></span>
+                <span><?php echo esc_html(sprintf(__('Local only: %d', 'll-tools-text-domain'), (int) ($stats['local_only_records'] ?? 0))); ?></span>
+                <span><?php echo esc_html(sprintf(__('Missing locally: %d', 'll-tools-text-domain'), (int) ($stats['missing_local_records'] ?? 0))); ?></span>
+            </div>
+            <?php if (!empty($summary['field_counts'])) : ?>
+                <div class="ll-site-sync-field-counts">
+                    <?php foreach ((array) $summary['field_counts'] as $field => $count) : ?>
+                        <span><?php echo esc_html(sprintf(
+                            /* translators: 1: sync field label, 2: changed row count */
+                            __('%1$s: %2$d', 'll-tools-text-domain'),
+                            ll_tools_site_sync_field_label((string) $field),
+                            (int) $count
+                        )); ?></span>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+            <?php ll_tools_site_sync_render_change_cards((array) ($summary['samples'] ?? []), [
+                'empty_message' => __('No local changes were found against the saved baseline.', 'll-tools-text-domain'),
+            ]); ?>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
 function ll_tools_site_sync_render_notices(array $result): void {
     foreach ((array) ($result['notices'] ?? []) as $notice) {
         echo '<div class="notice notice-success"><p>' . esc_html((string) $notice) . '</p></div>';
@@ -422,6 +1017,8 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
     }
 
     $stats = (array) ($plan['stats'] ?? []);
+    $clean_items = ll_tools_site_sync_plan_change_items($plan, 25);
+    $conflict_items = ll_tools_site_sync_conflict_change_items($plan, 25);
     ?>
     <section class="ll-site-sync-panel">
         <h2><?php esc_html_e('Sync Preview', 'll-tools-text-domain'); ?></h2>
@@ -434,52 +1031,16 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
             <span><?php echo esc_html(sprintf(__('Conflicts: %d', 'll-tools-text-domain'), (int) ($stats['conflicts'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Skipped: %d', 'll-tools-text-domain'), (int) ($stats['skipped'] ?? 0))); ?></span>
         </div>
-        <?php if (!empty($plan['actions'])) : ?>
+        <?php if (!empty($clean_items)) : ?>
             <h3><?php esc_html_e('Clean Changes', 'll-tools-text-domain'); ?></h3>
-            <table class="widefat striped ll-site-sync-table">
-                <thead>
-                    <tr>
-                        <th><?php esc_html_e('Word', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Recording', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Fields', 'll-tools-text-domain'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach (array_slice((array) $plan['actions'], 0, 25) as $action) : ?>
-                        <?php $local_record = (array) ($action['local_record'] ?? []); ?>
-                        <tr>
-                            <td><?php echo esc_html((string) ($local_record['word']['title'] ?? '')); ?></td>
-                            <td><?php echo esc_html((string) ($local_record['recording']['title'] ?? '')); ?></td>
-                            <td><?php echo esc_html(implode(', ', array_map('strval', (array) ($action['fields'] ?? [])))); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+            <?php ll_tools_site_sync_render_change_cards($clean_items); ?>
         <?php endif; ?>
-        <?php if (!empty($plan['conflicts'])) : ?>
+        <?php if (!empty($conflict_items)) : ?>
             <h3><?php esc_html_e('Conflicts', 'll-tools-text-domain'); ?></h3>
-            <table class="widefat striped ll-site-sync-table">
-                <thead>
-                    <tr>
-                        <th><?php esc_html_e('Word', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Recording', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Field', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Staging', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Live', 'll-tools-text-domain'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach (array_slice((array) $plan['conflicts'], 0, 25) as $conflict) : ?>
-                        <tr>
-                            <td><?php echo esc_html((string) ($conflict['word_title'] ?? '')); ?></td>
-                            <td><?php echo esc_html((string) ($conflict['recording_title'] ?? '')); ?></td>
-                            <td><code><?php echo esc_html((string) ($conflict['field'] ?? '')); ?></code></td>
-                            <td><?php echo esc_html(is_array($conflict['local_value'] ?? null) ? implode(', ', (array) $conflict['local_value']) : (string) ($conflict['local_value'] ?? '')); ?></td>
-                            <td><?php echo esc_html(is_array($conflict['remote_value'] ?? null) ? implode(', ', (array) $conflict['remote_value']) : (string) ($conflict['remote_value'] ?? '')); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+            <?php ll_tools_site_sync_render_change_cards($conflict_items); ?>
+        <?php endif; ?>
+        <?php if (empty($clean_items) && empty($conflict_items) && empty($plan['skipped'])) : ?>
+            <p class="description"><?php esc_html_e('No changes were found for this sync direction.', 'll-tools-text-domain'); ?></p>
         <?php endif; ?>
         <?php if (!empty($plan['skipped'])) : ?>
             <p class="description">
@@ -498,6 +1059,7 @@ function ll_tools_site_sync_render_admin_page(): void {
     $connection = ll_tools_site_sync_get_saved_connection();
     $result = ll_tools_site_sync_admin_process_request($connection);
     $base_snapshot = ll_tools_site_sync_get_base_snapshot($connection);
+    $local_change_summary = ll_tools_site_sync_build_local_change_summary($connection, $base_snapshot);
     ?>
     <div class="wrap ll-site-sync">
         <h1><?php esc_html_e('LL Site Sync', 'll-tools-text-domain'); ?></h1>
@@ -524,6 +1086,7 @@ function ll_tools_site_sync_render_admin_page(): void {
             <?php else : ?>
                 <p><?php esc_html_e('No pull baseline is stored yet. Pull from live before pushing staging changes.', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
+            <?php ll_tools_site_sync_render_local_change_overview($local_change_summary); ?>
         </section>
 
         <?php ll_tools_site_sync_render_plan_summary(is_array($result['plan'] ?? null) ? $result['plan'] : null); ?>

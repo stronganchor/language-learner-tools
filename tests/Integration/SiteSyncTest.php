@@ -512,6 +512,93 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame('base.ipa', (string) ($plan['conflicts'][0]['base_value'] ?? ''));
     }
 
+    public function test_local_change_summary_compares_current_site_to_saved_baseline(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Local Summary Wordset', 'local-summary-wordset');
+        $category_id = $this->ensure_term('word-category', 'Local Summary Category', 'local-summary-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Local Summary Word', 'Local Summary Translation');
+        $recording_id = $this->create_recording($word_id, 'Local Summary Recording', [
+            'recording_text' => 'baseline text',
+            'recording_ipa' => 'baseline.ipa',
+        ]);
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'local-summary-recording');
+
+        $base_snapshot = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($base_snapshot);
+
+        update_post_meta($recording_id, 'recording_ipa', 'changed local ipa');
+
+        $summary = ll_tools_site_sync_build_local_change_summary([
+            'local_wordset_id' => $wordset_id,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ], $base_snapshot);
+
+        $this->assertTrue((bool) ($summary['available'] ?? false));
+        $this->assertSame(1, (int) (($summary['stats'] ?? [])['changed_records'] ?? 0));
+        $this->assertSame(1, (int) (($summary['field_counts'] ?? [])['recording_ipa'] ?? 0));
+
+        $sample = (array) (($summary['samples'] ?? [])[0] ?? []);
+        $change = (array) (($sample['changes'] ?? [])[0] ?? []);
+        $this->assertSame('Modified locally', (string) ($sample['status_label'] ?? ''));
+        $this->assertSame('recording_ipa', (string) ($change['field'] ?? ''));
+        $this->assertSame('baseline.ipa', (string) ($change['before'] ?? ''));
+        $this->assertSame('changed local ipa', (string) ($change['after'] ?? ''));
+    }
+
+    public function test_site_sync_preview_renders_media_and_before_after_values(): void
+    {
+        $base = $this->snapshot([
+            $this->record('rich-preview', 101, 'Preview Word', 'Preview Recording', [
+                'recording_text' => 'baseline text',
+                'recording_ipa' => 'baseline.ipa',
+            ]),
+        ]);
+        $local = $this->snapshot([
+            $this->record('rich-preview', 201, 'Preview Word', 'Preview Recording', [
+                'recording_text' => 'changed local text',
+                'recording_ipa' => 'baseline.ipa',
+            ], [
+                'audio' => [
+                    'url' => 'https://example.com/audio.mp3',
+                    'mime_type' => 'audio/mpeg',
+                    'has_local_file' => false,
+                ],
+                'word_image' => [
+                    'attachment' => [
+                        'source_url' => 'https://example.com/image.webp',
+                        'url' => 'https://example.com/image.webp',
+                        'mime_type' => 'image/webp',
+                    ],
+                ],
+            ]),
+        ]);
+        $remote = $this->snapshot([
+            $this->record('rich-preview', 301, 'Preview Word', 'Preview Recording', [
+                'recording_text' => 'baseline text',
+                'recording_ipa' => 'baseline.ipa',
+            ]),
+        ]);
+
+        $plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+
+        ob_start();
+        ll_tools_site_sync_render_plan_summary($plan);
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('Preview Word', $html);
+        $this->assertStringContainsString('Live now', $html);
+        $this->assertStringContainsString('After push', $html);
+        $this->assertStringContainsString('baseline', $html);
+        $this->assertStringContainsString('changed', $html);
+        $this->assertStringContainsString('local', $html);
+        $this->assertStringContainsString('ll-site-sync-diff-added', $html);
+        $this->assertStringContainsString('<audio controls', $html);
+        $this->assertStringContainsString('https://example.com/image.webp', $html);
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);
