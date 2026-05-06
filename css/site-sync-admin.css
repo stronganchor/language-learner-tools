@@ -106,6 +106,30 @@
   border-top: 1px solid #e2e4e7;
 }
 
+.ll-site-sync .ll-site-sync-loading,
+.ll-site-sync .ll-site-sync-error-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  margin-top: 10px;
+  color: var(--ll-site-sync-muted);
+}
+
+.ll-site-sync .ll-site-sync-loading .spinner {
+  float: none;
+  margin: 0;
+}
+
+.ll-site-sync .ll-site-sync-error-state {
+  color: #8a2424;
+}
+
+.ll-site-sync .ll-site-sync-retry-overview {
+  margin-top: 10px;
+}
+
 .ll-site-sync .ll-site-sync-conflict-banner {
   display: grid;
   gap: 4px;

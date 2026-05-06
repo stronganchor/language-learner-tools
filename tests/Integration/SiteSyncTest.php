@@ -722,6 +722,82 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame('changed local ipa', (string) ($change['after'] ?? ''));
     }
 
+    public function test_local_change_overview_placeholder_defers_saved_baseline_comparison(): void
+    {
+        $connection = [
+            'local_wordset_id' => 123,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ];
+        $base_snapshot = $this->snapshot([
+            $this->record('deferred-local-overview', 101, 'Deferred Word', 'Deferred Recording', [
+                'recording_ipa' => 'baseline.ipa',
+            ]),
+        ]);
+
+        ob_start();
+        ll_tools_site_sync_render_local_change_overview_placeholder($connection, $base_snapshot);
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('data-ll-site-sync-local-overview', $html);
+        $this->assertStringContainsString('Checking local changes in the background', $html);
+        $this->assertStringNotContainsString('Deferred Word', $html);
+        $this->assertStringNotContainsString('baseline.ipa', $html);
+    }
+
+    public function test_ajax_local_change_overview_returns_saved_baseline_comparison(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'Ajax Summary Wordset', 'ajax-summary-wordset');
+        $category_id = $this->ensure_term('word-category', 'Ajax Summary Category', 'ajax-summary-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Ajax Summary Word', 'Ajax Summary Translation');
+        $recording_id = $this->create_recording($word_id, 'Ajax Summary Recording', [
+            'recording_text' => 'baseline text',
+            'recording_ipa' => 'baseline.ipa',
+        ]);
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'ajax-summary-recording');
+
+        $connection = [
+            'local_wordset_id' => $wordset_id,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ];
+        update_option(ll_tools_site_sync_connection_option_name(), $connection, false);
+        $base_snapshot = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true, [
+            'include_media' => false,
+        ]);
+        $this->assertIsArray($base_snapshot);
+        ll_tools_site_sync_save_base_snapshot($connection, $base_snapshot);
+
+        update_post_meta($recording_id, 'recording_ipa', 'changed ajax ipa');
+        wp_set_current_user($admin_id);
+
+        $previous_post = $_POST;
+        $previous_request = $_REQUEST;
+        $_POST['nonce'] = wp_create_nonce('ll_tools_site_sync_local_overview');
+        $_REQUEST['nonce'] = $_POST['nonce'];
+
+        try {
+            $payload = $this->run_json_endpoint(static function (): void {
+                ll_tools_site_sync_ajax_local_overview();
+            });
+        } finally {
+            $_POST = $previous_post;
+            $_REQUEST = $previous_request;
+        }
+
+        $this->assertTrue((bool) ($payload['success'] ?? false));
+        $html = (string) (($payload['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Ajax Summary Word', $html);
+        $this->assertStringContainsString('changed', $html);
+        $this->assertStringContainsString('ajax', $html);
+        $this->assertStringContainsString('ipa', $html);
+    }
+
     public function test_site_sync_preview_renders_media_and_before_after_values(): void
     {
         $base = $this->snapshot([
@@ -937,5 +1013,44 @@ final class SiteSyncTest extends LL_Tools_TestCase
                 $_GET['rest_route'] = $previous_rest_route;
             }
         }
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function run_json_endpoint(callable $callback): array
+    {
+        $die_handler = static function (): void {
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $die_ajax_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_ajax_filter);
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+
+        ob_start();
+        try {
+            $callback();
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_die', $e->getMessage());
+        } finally {
+            $output = (string) ob_get_clean();
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_ajax_filter);
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+        }
+
+        $decoded = json_decode($output, true);
+        $this->assertIsArray($decoded, 'Expected JSON response payload.');
+        return $decoded;
     }
 }

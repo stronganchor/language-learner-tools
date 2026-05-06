@@ -308,8 +308,41 @@ function ll_tools_site_sync_enqueue_admin_assets($hook): void {
     }
 
     ll_enqueue_asset_by_timestamp('/css/site-sync-admin.css', 'll-tools-site-sync-admin', [], false);
+    ll_enqueue_asset_by_timestamp('/js/site-sync-admin.js', 'll-tools-site-sync-admin-js', [], true);
+    wp_localize_script('ll-tools-site-sync-admin-js', 'llToolsSiteSyncAdmin', [
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'localOverviewNonce' => wp_create_nonce('ll_tools_site_sync_local_overview'),
+        'strings' => [
+            'loadingOverview' => __('Checking local changes in the background...', 'll-tools-text-domain'),
+            'overviewFailed' => __('Local change overview could not load.', 'll-tools-text-domain'),
+            'retry' => __('Retry', 'll-tools-text-domain'),
+        ],
+    ]);
 }
 add_action('admin_enqueue_scripts', 'll_tools_site_sync_enqueue_admin_assets');
+
+function ll_tools_site_sync_ajax_local_overview(): void {
+    if (!current_user_can(ll_tools_site_sync_capability())) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to use site sync.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_tools_site_sync_local_overview', 'nonce');
+
+    $connection = ll_tools_site_sync_get_saved_connection();
+    $base_snapshot = ll_tools_site_sync_get_base_snapshot($connection);
+    $summary = ll_tools_site_sync_build_local_change_summary($connection, $base_snapshot);
+
+    ob_start();
+    ll_tools_site_sync_render_local_change_overview($summary);
+    $html = (string) ob_get_clean();
+
+    wp_send_json_success([
+        'html' => $html,
+    ]);
+}
+add_action('wp_ajax_ll_tools_site_sync_local_overview', 'll_tools_site_sync_ajax_local_overview');
 
 function ll_tools_site_sync_admin_process_request(array &$connection): array {
     $result = [
@@ -865,7 +898,8 @@ function ll_tools_site_sync_build_local_change_summary(array $connection, array 
     $local_snapshot = ll_tools_site_sync_build_snapshot(
         (int) $connection['local_wordset_id'],
         (string) ($connection['surface'] ?? 'transcriptions'),
-        false
+        false,
+        ['include_media' => false]
     );
     if (is_wp_error($local_snapshot)) {
         $summary['message'] = $local_snapshot->get_error_message();
@@ -1077,6 +1111,54 @@ function ll_tools_site_sync_render_local_change_overview(array $summary): void {
     <?php
 }
 
+function ll_tools_site_sync_render_local_change_overview_placeholder(array $connection, array $base_snapshot): void {
+    if ((int) ($connection['local_wordset_id'] ?? 0) <= 0) {
+        ll_tools_site_sync_render_local_change_overview([
+            'available' => false,
+            'message' => __('Select and save a local staging word set to see local changes.', 'll-tools-text-domain'),
+            'stats' => [
+                'baseline_records' => 0,
+                'local_records' => 0,
+                'changed_records' => 0,
+                'local_only_records' => 0,
+                'missing_local_records' => 0,
+            ],
+            'field_counts' => [],
+            'samples' => [],
+        ]);
+        return;
+    }
+
+    if (empty($base_snapshot['records'])) {
+        ll_tools_site_sync_render_local_change_overview([
+            'available' => false,
+            'message' => __('No local change overview is available until a pull baseline exists.', 'll-tools-text-domain'),
+            'stats' => [
+                'baseline_records' => 0,
+                'local_records' => 0,
+                'changed_records' => 0,
+                'local_only_records' => 0,
+                'missing_local_records' => 0,
+            ],
+            'field_counts' => [],
+            'samples' => [],
+        ]);
+        return;
+    }
+
+    ?>
+    <div class="ll-site-sync-local-overview ll-site-sync-local-overview--async" data-ll-site-sync-local-overview aria-busy="true">
+        <h3><?php esc_html_e('Local changes since baseline', 'll-tools-text-domain'); ?></h3>
+        <p class="description"><?php esc_html_e('This overview compares the current staging word set to the last saved pull baseline. It does not contact the live site or require the remote password.', 'll-tools-text-domain'); ?></p>
+        <div class="ll-site-sync-loading" role="status" aria-live="polite" data-ll-site-sync-overview-state="1">
+            <span class="spinner is-active" aria-hidden="true"></span>
+            <span><?php esc_html_e('Checking local changes in the background...', 'll-tools-text-domain'); ?></span>
+        </div>
+        <button type="button" class="button ll-site-sync-retry-overview" hidden><?php esc_html_e('Retry', 'll-tools-text-domain'); ?></button>
+    </div>
+    <?php
+}
+
 function ll_tools_site_sync_should_render_local_change_overview(array $result): bool {
     return !is_array($result['plan'] ?? null);
 }
@@ -1198,9 +1280,6 @@ function ll_tools_site_sync_render_admin_page(): void {
     $base_snapshot = ll_tools_site_sync_get_base_snapshot($connection);
     $plan = is_array($result['plan'] ?? null) ? $result['plan'] : null;
     $show_local_change_overview = ll_tools_site_sync_should_render_local_change_overview($result);
-    $local_change_summary = $show_local_change_overview
-        ? ll_tools_site_sync_build_local_change_summary($connection, $base_snapshot)
-        : null;
     ?>
     <div class="wrap ll-site-sync">
         <h1><?php esc_html_e('LL Site Sync', 'll-tools-text-domain'); ?></h1>
@@ -1227,8 +1306,8 @@ function ll_tools_site_sync_render_admin_page(): void {
             <?php else : ?>
                 <p><?php esc_html_e('No pull baseline is stored yet. Pull from live before pushing staging changes.', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
-            <?php if ($show_local_change_overview && is_array($local_change_summary)) : ?>
-                <?php ll_tools_site_sync_render_local_change_overview($local_change_summary); ?>
+            <?php if ($show_local_change_overview) : ?>
+                <?php ll_tools_site_sync_render_local_change_overview_placeholder($connection, $base_snapshot); ?>
             <?php elseif (is_array($plan)) : ?>
                 <p class="description"><?php esc_html_e('The saved-baseline local overview is hidden because a fresh live comparison preview is shown below for this request.', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
