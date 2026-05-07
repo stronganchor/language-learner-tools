@@ -14,6 +14,11 @@ TR_PO_FILE="languages/ll-tools-text-domain-tr_TR.po"
   --exclude=offline-app-builder,tests \
   --skip-audit
 
+# When WP-CLI runs through Windows PHP, it may emit absolute drive-letter paths in
+# `#:` location lines inside the POT. Those paths are machine-specific noise and
+# make diffs harder to review, so normalize back to plugin-relative paths.
+perl -0pi -e 's{(?m)^#:\s+[A-Za-z]:\\\\[^\\n]*\\\\wp-content\\\\plugins\\\\language-learner-tools\\\\}{#: }g' "$POT_FILE"
+
 "$WP_CLI" i18n update-po "$POT_FILE" "$TR_PO_FILE"
 "$WP_CLI" i18n make-mo "$TR_PO_FILE" languages
 "$WP_CLI" i18n make-php "$TR_PO_FILE" languages

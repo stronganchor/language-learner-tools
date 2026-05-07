@@ -4,8 +4,8 @@
   var config = window.llToolsSiteSyncAdmin || {};
   var strings = config.strings || {};
 
-  function t(key, fallback) {
-    return strings[key] || fallback;
+  function t(key) {
+    return strings[key] || '';
   }
 
   function setLoading(container) {
@@ -28,7 +28,7 @@
     state.innerHTML = '<span class="spinner is-active" aria-hidden="true"></span><span></span>';
     var label = state.querySelector('span:last-child');
     if (label) {
-      label.textContent = t('loadingOverview', 'Checking local changes in the background...');
+      label.textContent = t('loadingOverview');
     }
   }
 
@@ -42,14 +42,14 @@
       container.appendChild(state);
     }
     state.className = 'll-site-sync-error-state';
-    state.textContent = message || t('overviewFailed', 'Local change overview could not load.');
+    state.textContent = message || t('overviewFailed');
 
     var retry = container.querySelector('.ll-site-sync-retry-overview');
     if (!retry) {
       retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'button ll-site-sync-retry-overview';
-      retry.textContent = t('retry', 'Retry');
+      retry.textContent = t('retry');
       container.appendChild(retry);
     }
     retry.hidden = false;
@@ -81,7 +81,7 @@
       .then(function (payload) {
         if (!payload || !payload.success || !payload.data || !payload.data.html) {
           var message = payload && payload.data && payload.data.message ? payload.data.message : '';
-          throw new Error(message || t('overviewFailed', 'Local change overview could not load.'));
+          throw new Error(message || t('overviewFailed'));
         }
         container.outerHTML = payload.data.html;
       })
