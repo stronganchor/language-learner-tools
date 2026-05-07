@@ -132,6 +132,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--image', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
         $this->assertStringContainsString('Change queue settings', $html);
+        $this->assertStringContainsString('data-ll-recorder-queue-autosave="settings"', $html);
         $this->assertStringContainsString('Skipped types', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_allow_new_words"', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_auto_process_recordings"', $html);
@@ -158,6 +159,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="hide"', $focused_html);
         $this->assertStringContainsString('Recording prompts', $focused_html);
         $this->assertStringContainsString('<details class="ll-wordset-recorder-queue-prompts" open>', $focused_html);
+        $this->assertStringContainsString('data-ll-recorder-queue-autosave="prompts"', $focused_html);
+        $this->assertStringContainsString('data-ll-recorder-queue-save-status', $focused_html);
         $this->assertStringContainsString('Where is the visible queue word?', $focused_html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_prompts[question]"', $focused_html);
         $this->assertStringContainsString('Edit word', $focused_html);
@@ -387,6 +390,58 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertIsArray($matched);
         $this->assertSame('Where is the custom settings word?', (string) ($matched['recording_prompts']['question'] ?? ''));
+    }
+
+    public function test_recorder_queue_ajax_saves_recording_prompts_without_redirect(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->ensureRecordingType('Question', 'question');
+
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => $wordset_slug,
+        ]);
+
+        $word_id = (int) $fixture['word_id'];
+        $word_title = get_the_title($word_id);
+
+        $_POST = [
+            'll_wordset_manager_recorder_queue_action' => 'save_prompts',
+            'll_wordset_manager_recorder_queue_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_recorder_queue_user_id' => (string) $recorder_id,
+            'll_wordset_manager_recorder_queue_nonce' => wp_create_nonce('ll_wordset_manager_recorder_queue_' . $wordset_id),
+            'll_wordset_manager_recorder_queue_word_id' => (string) $word_id,
+            'll_wordset_manager_recorder_queue_title' => (string) $word_title,
+            'll_wordset_manager_recorder_queue_category_name' => (string) $fixture['category_name'],
+            'll_wordset_manager_recorder_queue_category_slug' => (string) $fixture['category_slug'],
+            'll_wordset_manager_recorder_queue_prompts' => [
+                'question' => 'How should the recorder say this?',
+                'isolation' => '',
+            ],
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_wordset_page_handle_manager_recorder_queue_action_ajax();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame('prompts', (string) ($response['data']['result'] ?? ''));
+        $this->assertSame($wordset_id, (int) ($response['data']['wordset_id'] ?? 0));
+        $this->assertSame($recorder_id, (int) ($response['data']['recorder_user_id'] ?? 0));
+
+        $stored = get_post_meta($word_id, ll_tools_recording_prompt_hints_meta_key(), true);
+        $this->assertIsArray($stored);
+        $this->assertSame('How should the recorder say this?', (string) ($stored['question'] ?? ''));
+        $this->assertArrayNotHasKey('isolation', $stored);
     }
 
     public function test_template_tool_renders_create_wordset_form_for_managers(): void
@@ -1361,5 +1416,43 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertNotSame('', $redirect_url);
         return $redirect_url;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function runJsonEndpoint(callable $callback): array
+    {
+        $die_handler = static function (): void {
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_filter);
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+
+        ob_start();
+        try {
+            $callback();
+            $this->fail('Expected wp_die to be called.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_die', $e->getMessage());
+        } finally {
+            $output = (string) ob_get_clean();
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_filter);
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+        }
+
+        $decoded = json_decode($output, true);
+        $this->assertIsArray($decoded, 'Expected JSON response payload.');
+
+        return $decoded;
     }
 }

@@ -4995,6 +4995,49 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     padding: 7px 11px !important;
 }
 
+.ll-wordset-recorder-queue-autosave-status {
+    min-height: 22px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
+    color: #52606d;
+    font-size: 0.8rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.ll-wordset-recorder-queue-autosave-status[hidden] {
+    display: none !important;
+}
+
+.is-autosave-saved .ll-wordset-recorder-queue-autosave-status {
+    color: #147344;
+}
+
+.is-autosave-saved .ll-wordset-recorder-queue-autosave-status::before {
+    content: "\2713";
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #147344;
+    color: #ffffff;
+    font-size: 0.72rem;
+    line-height: 1;
+}
+
+.is-autosave-error .ll-wordset-recorder-queue-autosave-status {
+    color: #b42318;
+}
+
+.is-recorder-queue-autosave-ready .ll-wordset-recorder-queue-settings__save,
+.is-recorder-queue-autosave-ready .ll-wordset-recorder-queue-prompts__save {
+    display: none !important;
+}
+
 .ll-wordset-recorder-queue-item {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;

@@ -4,6 +4,7 @@ Codebase-specific guidelines:
 - For testing workflows and conventions (PHPUnit + Playwright), see `tests/AI_TESTING_PLAYBOOK.md` and `tests/README.md`.
 - When adding buttons or using emojis, ensure the styling remains consistent across WordPress themes and devices by applying explicit classes and theme-resistant CSS (avoid relying on theme defaults).
 - For user-facing pages, prefer icons and language-agnostic visual cues; keep text minimal and only when needed. Admin pages can be more verbose.
+- For editing UIs, prefer autosaving changes as users work instead of requiring explicit Save clicks; show small inline Saving/Saved status messages and avoid page refreshes after successful saves whenever practical.
 - Make all admin and user-facing text translation-ready so tools like Loco Translate can detect it (use WordPress i18n functions with `ll-tools-text-domain`; localize JS strings instead of hardcoding UI copy in scripts).
 - Use `ll_enqueue_asset_by_timestamp()` for plugin CSS/JS so `filemtime` versioning stays consistent.
 - Prefer `LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`, and `LL_TOOLS_MAIN_FILE` instead of hardcoded paths/URLs.

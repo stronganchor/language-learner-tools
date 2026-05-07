@@ -13879,11 +13879,178 @@
         updateSelectionState();
     }
 
+    function getRecorderQueueAutosaveState($form) {
+        let state = $form.data('llRecorderQueueAutosaveState');
+        if (!state || typeof state !== 'object') {
+            state = {
+                timer: 0,
+                saving: false,
+                queued: false,
+                pendingSignature: '',
+                lastSavedSignature: getRecorderQueueFormSignature($form)
+            };
+            $form.data('llRecorderQueueAutosaveState', state);
+        }
+
+        return state;
+    }
+
+    function getRecorderQueueFormSignature($form) {
+        return String($form.serialize() || '');
+    }
+
+    function setRecorderQueueAutosaveStatus($form, status, message) {
+        if (!$form || !$form.length) { return; }
+
+        const cleanStatus = String(status || '');
+        const $status = $form.find('[data-ll-recorder-queue-save-status]').first();
+        const text = String(message || (
+            cleanStatus === 'saving'
+                ? (i18n.recorderQueueSaving || 'Saving...')
+                : (cleanStatus === 'saved'
+                    ? (i18n.recorderQueueSaved || 'Saved!')
+                    : (cleanStatus === 'error' ? (i18n.recorderQueueSaveError || 'Unable to save right now.') : '')
+                )
+        ));
+
+        $form
+            .removeClass('is-autosave-saving is-autosave-saved is-autosave-error')
+            .toggleClass('is-autosave-saving', cleanStatus === 'saving')
+            .toggleClass('is-autosave-saved', cleanStatus === 'saved')
+            .toggleClass('is-autosave-error', cleanStatus === 'error');
+
+        if ($status.length) {
+            $status.text(text).prop('hidden', text === '');
+        }
+    }
+
+    function buildRecorderQueueAutosavePayload($form) {
+        const payload = $form.serializeArray();
+        payload.push({
+            name: 'action',
+            value: 'll_tools_wordset_recorder_queue_save'
+        });
+
+        return payload;
+    }
+
+    function saveRecorderQueueAutosaveForm($form, options) {
+        const opts = options && typeof options === 'object' ? options : {};
+        const state = getRecorderQueueAutosaveState($form);
+        const signature = getRecorderQueueFormSignature($form);
+
+        if (state.timer) {
+            clearTimeout(state.timer);
+            state.timer = 0;
+        }
+
+        if (!ajaxUrl) {
+            return $.Deferred().reject().promise();
+        }
+
+        if (!opts.force && signature === state.lastSavedSignature && !state.queued) {
+            setRecorderQueueAutosaveStatus($form, '');
+            return $.Deferred().resolve().promise();
+        }
+
+        if (state.saving) {
+            state.queued = true;
+            setRecorderQueueAutosaveStatus($form, 'saving');
+            return $.Deferred().resolve().promise();
+        }
+
+        state.saving = true;
+        state.queued = false;
+        state.pendingSignature = signature;
+        setRecorderQueueAutosaveStatus($form, 'saving');
+
+        let succeeded = false;
+        return $.post(ajaxUrl, buildRecorderQueueAutosavePayload($form))
+            .done(function (response) {
+                if (!response || !response.success) {
+                    const errorMessage = response && response.data && response.data.message
+                        ? String(response.data.message)
+                        : (i18n.recorderQueueSaveError || i18n.saveError || 'Unable to save right now.');
+                    setRecorderQueueAutosaveStatus($form, 'error', errorMessage);
+                    return;
+                }
+
+                succeeded = true;
+                state.lastSavedSignature = state.pendingSignature;
+                if (getRecorderQueueFormSignature($form) === state.lastSavedSignature) {
+                    setRecorderQueueAutosaveStatus($form, 'saved');
+                } else {
+                    state.queued = true;
+                }
+            })
+            .fail(function () {
+                setRecorderQueueAutosaveStatus($form, 'error', i18n.recorderQueueSaveError || i18n.saveError || 'Unable to save right now.');
+            })
+            .always(function () {
+                state.saving = false;
+                if (succeeded && (state.queued || getRecorderQueueFormSignature($form) !== state.lastSavedSignature)) {
+                    state.queued = false;
+                    scheduleRecorderQueueAutosave($form, 20);
+                }
+            });
+    }
+
+    function scheduleRecorderQueueAutosave($form, delay) {
+        if (!$form || !$form.length || !ajaxUrl) { return; }
+
+        const state = getRecorderQueueAutosaveState($form);
+        const signature = getRecorderQueueFormSignature($form);
+        if (signature === state.lastSavedSignature && !state.saving) {
+            setRecorderQueueAutosaveStatus($form, '');
+            return;
+        }
+
+        if (state.timer) {
+            clearTimeout(state.timer);
+        }
+        setRecorderQueueAutosaveStatus($form, 'saving');
+        state.timer = setTimeout(function () {
+            saveRecorderQueueAutosaveForm($form);
+        }, Math.max(0, parseInt(delay, 10) || 0));
+    }
+
+    function bindRecorderQueueAutosaveInteractions() {
+        const $forms = $root.find('[data-ll-recorder-queue-autosave]');
+        if (!$forms.length || !ajaxUrl) {
+            return;
+        }
+
+        $root.addClass('is-recorder-queue-autosave-ready');
+        $forms.each(function () {
+            const $form = $(this);
+            getRecorderQueueAutosaveState($form);
+            setRecorderQueueAutosaveStatus($form, '');
+        });
+
+        $root.on('input', '[data-ll-recorder-queue-autosave] textarea, [data-ll-recorder-queue-autosave] input[type="text"]', function () {
+            scheduleRecorderQueueAutosave($(this).closest('[data-ll-recorder-queue-autosave]'), 650);
+        });
+
+        $root.on('change', '[data-ll-recorder-queue-autosave] input, [data-ll-recorder-queue-autosave] textarea, [data-ll-recorder-queue-autosave] select', function () {
+            scheduleRecorderQueueAutosave($(this).closest('[data-ll-recorder-queue-autosave]'), 120);
+        });
+
+        $root.on('focusout', '[data-ll-recorder-queue-autosave] input, [data-ll-recorder-queue-autosave] textarea, [data-ll-recorder-queue-autosave] select', function () {
+            scheduleRecorderQueueAutosave($(this).closest('[data-ll-recorder-queue-autosave]'), 0);
+        });
+
+        $root.on('submit', '[data-ll-recorder-queue-autosave]', function (evt) {
+            evt.preventDefault();
+            saveRecorderQueueAutosaveForm($(this), { force: true });
+        });
+    }
+
     function bindSettingsPageInteractions() {
         syncSettingsButtons();
         syncGlobalPrefs();
         renderSettingsQueue();
         bindWordsetEditorInteractions();
+        bindRecorderQueueAutosaveInteractions();
         scheduleUniformQueueItemWidth();
         $(window).off('resize.llWordsetQueueWidth').on('resize.llWordsetQueueWidth', function () {
             scheduleUniformQueueItemWidth();

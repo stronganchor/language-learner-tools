@@ -156,29 +156,34 @@ function buildRecorderQueueToolMarkup() {
 
           <details class="ll-wordset-recorder-queue-settings">
             <summary class="ll-wordset-recorder-queue-settings__summary">Change queue settings</summary>
-            <form class="ll-wordset-recorder-queue-settings__form">
+            <form class="ll-wordset-recorder-queue-settings__form" data-ll-recorder-queue-autosave="settings">
+              <input type="hidden" name="ll_wordset_manager_recorder_queue_action" value="save_settings" />
+              <input type="hidden" name="ll_wordset_manager_recorder_queue_wordset_id" value="22" />
+              <input type="hidden" name="ll_wordset_manager_recorder_queue_user_id" value="44" />
+              <input type="hidden" name="ll_wordset_manager_recorder_queue_nonce" value="queue-nonce" />
               <div class="ll-wordset-recorder-queue-settings__grid">
                 <fieldset class="ll-wordset-recorder-queue-settings__fieldset">
                   <legend>Only include types</legend>
                   <p class="description">Leave all unchecked to include every recording type.</p>
                   <div class="ll-wordset-recorder-queue-settings__checks">
-                    <label><input type="checkbox" /> <span>Isolation</span></label>
-                    <label><input type="checkbox" /> <span>Question</span></label>
+                    <label><input type="checkbox" name="ll_wordset_manager_recorder_queue_include_types[]" value="isolation" /> <span>Isolation</span></label>
+                    <label><input type="checkbox" name="ll_wordset_manager_recorder_queue_include_types[]" value="question" /> <span>Question</span></label>
                   </div>
                 </fieldset>
                 <fieldset class="ll-wordset-recorder-queue-settings__fieldset">
                   <legend>Skipped types</legend>
                   <p class="description">These are hidden from the recorder queue unless the only-include list is set.</p>
                   <div class="ll-wordset-recorder-queue-settings__checks">
-                    <label><input type="checkbox" /> <span>Sentence</span></label>
-                    <label><input type="checkbox" /> <span>Introduction</span></label>
+                    <label><input type="checkbox" name="ll_wordset_manager_recorder_queue_exclude_types[]" value="sentence" /> <span>Sentence</span></label>
+                    <label><input type="checkbox" name="ll_wordset_manager_recorder_queue_exclude_types[]" value="introduction" /> <span>Introduction</span></label>
                   </div>
                 </fieldset>
               </div>
-              <label class="ll-wordset-recorder-queue-settings__toggle"><input type="checkbox" checked /> <span>Allow this recorder to record new words</span></label>
-              <label class="ll-wordset-recorder-queue-settings__toggle"><input type="checkbox" checked /> <span>Recorder processes audio before saving</span></label>
+              <label class="ll-wordset-recorder-queue-settings__toggle"><input type="checkbox" name="ll_wordset_manager_recorder_queue_allow_new_words" value="1" checked /> <span>Allow this recorder to record new words</span></label>
+              <label class="ll-wordset-recorder-queue-settings__toggle"><input type="checkbox" name="ll_wordset_manager_recorder_queue_auto_process_recordings" value="1" checked /> <span>Recorder processes audio before saving</span></label>
               <p class="description ll-wordset-recorder-queue-settings__note">Shows the recorder the audio processing review step for trimming, noise reduction, and loudness before the recording is saved.</p>
-              <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--primary ll-wordset-recorder-queue-settings__save">Save queue settings</button>
+              <span class="ll-wordset-recorder-queue-autosave-status" data-ll-recorder-queue-save-status role="status" aria-live="polite" hidden></span>
+              <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary ll-wordset-recorder-queue-settings__save">Save queue settings</button>
             </form>
           </details>
 
@@ -267,14 +272,21 @@ function buildRecorderQueueCategoryViewMarkup() {
                       </div>
                       <details class="ll-wordset-recorder-queue-prompts" open>
                         <summary>Recording prompts</summary>
-                        <form class="ll-wordset-recorder-queue-prompts__form">
+                        <form class="ll-wordset-recorder-queue-prompts__form" data-ll-recorder-queue-autosave="prompts">
+                          <input type="hidden" name="ll_wordset_manager_recorder_queue_action" value="save_prompts" />
+                          <input type="hidden" name="ll_wordset_manager_recorder_queue_wordset_id" value="22" />
+                          <input type="hidden" name="ll_wordset_manager_recorder_queue_user_id" value="44" />
+                          <input type="hidden" name="ll_wordset_manager_recorder_queue_nonce" value="queue-nonce" />
+                          <input type="hidden" name="ll_wordset_manager_recorder_queue_word_id" value="100" />
+                          <input type="hidden" name="ll_wordset_manager_recorder_queue_title" value="loquat" />
                           <div class="ll-wordset-recorder-queue-prompts__grid">
                             <label class="ll-wordset-recorder-queue-prompts__field">
                               <span>Question</span>
-                              <textarea rows="2">Where are the loquats?</textarea>
+                              <textarea name="ll_wordset_manager_recorder_queue_prompts[question]" rows="2">Where are the loquats?</textarea>
                             </label>
                           </div>
-                          <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--secondary ll-wordset-recorder-queue-prompts__save">Save prompts</button>
+                          <span class="ll-wordset-recorder-queue-autosave-status" data-ll-recorder-queue-save-status role="status" aria-live="polite" hidden></span>
+                          <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--secondary ll-wordset-recorder-queue-prompts__save">Save prompts</button>
                         </form>
                       </details>
                     </div>
@@ -717,10 +729,44 @@ async function mountSettingsTool(page, markup, viewport) {
 
 async function enableWordsetPageScript(page) {
   await page.evaluate(() => {
-    window.llWordsetPageData = { view: 'settings' };
+    window.llWordsetPageData = {
+      view: 'settings',
+      ajaxUrl: '/fake-admin-ajax.php',
+      i18n: {
+        recorderQueueSaving: 'Saving...',
+        recorderQueueSaved: 'Saved!',
+        recorderQueueSaveError: 'Unable to save right now.'
+      }
+    };
   });
   await page.addScriptTag({ content: jquerySource });
   await page.addScriptTag({ content: wordsetPagesJsSource });
+}
+
+async function stubRecorderQueueAutosave(page) {
+  await page.evaluate(() => {
+    window.__recorderQueueAutosaveCalls = [];
+    window.jQuery.post = function postRecorderQueueAutosave(url, payload) {
+      const entries = {};
+      (Array.isArray(payload) ? payload : []).forEach((entry) => {
+        const name = String(entry && entry.name || '');
+        if (!name) {
+          return;
+        }
+        if (!entries[name]) {
+          entries[name] = [];
+        }
+        entries[name].push(String(entry.value || ''));
+      });
+      window.__recorderQueueAutosaveCalls.push({ url, entries });
+
+      const deferred = window.jQuery.Deferred();
+      window.setTimeout(() => {
+        deferred.resolve({ success: true, data: { result: 'prompts' } });
+      }, 25);
+      return deferred.promise();
+    };
+  });
 }
 
 async function assertPageFitsViewport(page) {
@@ -787,6 +833,27 @@ test('manager recorder queue uses compact category cards and focused prompt edit
   await expect(page.getByRole('button', { name: 'Hide' })).toBeVisible();
 
   await assertPageFitsViewport(page);
+});
+
+test('manager recorder queue autosaves prompt edits without a manual save click', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueCategoryViewMarkup(), { width: 390, height: 844 });
+  await enableWordsetPageScript(page);
+  await stubRecorderQueueAutosave(page);
+
+  const promptForm = page.locator('.ll-wordset-recorder-queue-prompts__form');
+  const status = promptForm.locator('[data-ll-recorder-queue-save-status]');
+  await expect(promptForm.locator('.ll-wordset-recorder-queue-prompts__save')).toBeHidden();
+
+  await promptForm.locator('textarea').fill('Where should the recorder say loquat?');
+  await expect(status).toHaveText('Saving...');
+  await expect(status).toHaveText('Saved!');
+
+  const autosavePayload = await page.evaluate(() => window.__recorderQueueAutosaveCalls[0] || null);
+  expect(autosavePayload).not.toBeNull();
+  expect(autosavePayload.url).toBe('/fake-admin-ajax.php');
+  expect(autosavePayload.entries.action).toContain('ll_tools_wordset_recorder_queue_save');
+  expect(autosavePayload.entries.ll_wordset_manager_recorder_queue_action).toContain('save_prompts');
+  expect(autosavePayload.entries['ll_wordset_manager_recorder_queue_prompts[question]']).toContain('Where should the recorder say loquat?');
 });
 
 test('manager categories tool keeps create and edit actions visible on mobile', async ({ page }) => {
