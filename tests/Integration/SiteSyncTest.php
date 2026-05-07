@@ -722,6 +722,97 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame('changed local ipa', (string) ($change['after'] ?? ''));
     }
 
+    public function test_local_change_summary_paginates_visible_samples(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Paged Summary Wordset', 'paged-summary-wordset');
+        $category_id = $this->ensure_term('word-category', 'Paged Summary Category', 'paged-summary-category');
+        $recording_ids = [];
+
+        for ($i = 1; $i <= 3; $i++) {
+            $word_id = $this->create_word($wordset_id, [$category_id], 'Paged Summary Word ' . $i, 'Translation ' . $i);
+            $recording_id = $this->create_recording($word_id, 'Paged Summary Recording ' . $i, [
+                'recording_text' => 'baseline text ' . $i,
+                'recording_ipa' => 'baseline.' . $i,
+            ]);
+            update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'paged-summary-recording-' . $i);
+            $recording_ids[] = $recording_id;
+        }
+
+        $base_snapshot = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true, [
+            'include_media' => false,
+        ]);
+        $this->assertIsArray($base_snapshot);
+
+        foreach ($recording_ids as $index => $recording_id) {
+            update_post_meta($recording_id, 'recording_ipa', 'changed.' . ($index + 1));
+        }
+
+        $summary = ll_tools_site_sync_build_local_change_summary([
+            'local_wordset_id' => $wordset_id,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ], $base_snapshot, 2, 2);
+
+        $this->assertSame(3, (int) ($summary['sample_total'] ?? 0));
+        $this->assertSame(2, (int) ($summary['sample_page'] ?? 0));
+        $this->assertCount(1, (array) ($summary['samples'] ?? []));
+        $this->assertSame('Paged Summary Word 3', (string) (($summary['samples'][0] ?? [])['word_title'] ?? ''));
+    }
+
+    public function test_local_change_revert_and_edit_actions_update_visible_record(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Local Action Wordset', 'local-action-wordset');
+        $category_id = $this->ensure_term('word-category', 'Local Action Category', 'local-action-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Local Action Word', 'Local Action Translation');
+        $recording_id = $this->create_recording($word_id, 'Local Action Recording', [
+            'recording_text' => 'baseline text',
+            'recording_ipa' => 'changed.ipa',
+        ]);
+
+        $connection = [
+            'local_wordset_id' => $wordset_id,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ];
+        $previous_post = $_POST;
+
+        try {
+            $_POST = [
+                'll_site_sync_recording_id' => (string) $recording_id,
+                'll_site_sync_fields_json' => wp_json_encode(['recording_ipa']),
+                'll_site_sync_before_values_json' => wp_json_encode(['recording_ipa' => 'baseline.ipa']),
+            ];
+            $revert_result = ll_tools_site_sync_process_local_change_request($connection, 'revert_local_change');
+            $this->assertIsArray($revert_result);
+            $this->assertSame('baseline.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+
+            $_POST = [
+                'll_site_sync_recording_id' => (string) $recording_id,
+                'll_site_sync_fields_json' => wp_json_encode(['recording_text', 'recording_ipa', 'needs_review', 'review_fields', 'review_note']),
+                'll_site_sync_after_values' => [
+                    'recording_text' => 'edited text',
+                    'recording_ipa' => 'edited.ipa',
+                    'review_note' => 'edited note',
+                ],
+                'll_site_sync_needs_review' => '1',
+                'll_site_sync_review_fields' => ['recording_ipa'],
+            ];
+            $edit_result = ll_tools_site_sync_process_local_change_request($connection, 'edit_local_change');
+            $this->assertIsArray($edit_result);
+        } finally {
+            $_POST = $previous_post;
+        }
+
+        $this->assertSame('edited text', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('edited.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        $this->assertSame('edited note', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
+        $this->assertSame(['recording_ipa'], ll_tools_ipa_keyboard_get_recording_review_field_list($recording_id));
+    }
+
     public function test_local_change_overview_placeholder_defers_saved_baseline_comparison(): void
     {
         $connection = [
@@ -841,6 +932,8 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Preview Word', $html);
         $this->assertStringContainsString('Live now', $html);
         $this->assertStringContainsString('After push', $html);
+        $this->assertStringContainsString('Revert local change', $html);
+        $this->assertStringContainsString('Edit after-change state', $html);
         $this->assertStringContainsString('baseline', $html);
         $this->assertStringContainsString('changed', $html);
         $this->assertStringContainsString('local', $html);
@@ -868,6 +961,12 @@ final class SiteSyncTest extends LL_Tools_TestCase
         ]);
 
         $plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+        $conflict_items = ll_tools_site_sync_conflict_change_items($plan);
+        $this->assertSame('Live now', (string) ($conflict_items[0]['before_label'] ?? ''));
+        $this->assertSame('After push', (string) ($conflict_items[0]['after_label'] ?? ''));
+        $this->assertSame('live.ipa', (string) (($conflict_items[0]['changes'][0] ?? [])['before'] ?? ''));
+        $this->assertSame('staging.ipa', (string) (($conflict_items[0]['changes'][0] ?? [])['after'] ?? ''));
+        $this->assertTrue((bool) ($conflict_items[0]['allow_local_actions'] ?? false));
 
         ob_start();
         ll_tools_site_sync_render_plan_summary($plan);
@@ -880,6 +979,42 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertStringContainsString('baseline.ipa', $html);
         $this->assertStringContainsString('staging.ipa', $html);
         $this->assertStringContainsString('live.ipa', $html);
+    }
+
+    public function test_accept_live_conflicts_updates_local_conflict_fields(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Accept Live Wordset', 'accept-live-wordset');
+        $category_id = $this->ensure_term('word-category', 'Accept Live Category', 'accept-live-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Accept Live Word', 'Accept Live Translation');
+        $recording_id = $this->create_recording($word_id, 'Accept Live Recording', [
+            'recording_text' => 'same text',
+            'recording_ipa' => 'baseline.ipa',
+        ]);
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'accept-live-recording');
+
+        $base = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true, [
+            'include_media' => false,
+        ]);
+        $this->assertIsArray($base);
+
+        update_post_meta($recording_id, 'recording_ipa', 'local.ipa');
+        $local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true, [
+            'include_media' => false,
+        ]);
+        $this->assertIsArray($local);
+
+        $remote_record = (array) (($base['records'] ?? [])[0] ?? []);
+        $remote_record['values']['recording_ipa'] = 'live.ipa';
+        $remote_record['value_hash'] = ll_tools_site_sync_value_hash((array) $remote_record['values']);
+        $remote = $this->snapshot([$remote_record]);
+
+        $plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+        $this->assertSame(1, count((array) ($plan['conflicts'] ?? [])));
+
+        $result = ll_tools_site_sync_accept_live_conflicts_locally($plan, $wordset_id);
+
+        $this->assertSame(1, (int) ($result['fields_updated'] ?? 0));
+        $this->assertSame('live.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
     }
 
     public function test_remote_plan_hides_page_load_local_change_overview(): void

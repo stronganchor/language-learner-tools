@@ -335,6 +335,95 @@
   text-decoration: line-through;
 }
 
+.ll-site-sync .ll-site-sync-card-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e4e7;
+}
+
+.ll-site-sync .ll-site-sync-revert-form,
+.ll-site-sync .ll-site-sync-edit-form {
+  margin: 0;
+}
+
+.ll-site-sync .ll-site-sync-edit-details {
+  max-width: 720px;
+}
+
+.ll-site-sync .ll-site-sync-edit-details summary {
+  cursor: pointer;
+  color: var(--ll-site-sync-accent);
+  font-weight: 600;
+}
+
+.ll-site-sync .ll-site-sync-edit-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #dcdcde;
+  border-radius: 6px;
+  background: #fbfbfc;
+}
+
+.ll-site-sync .ll-site-sync-edit-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.ll-site-sync .ll-site-sync-edit-field {
+  display: grid;
+  gap: 5px;
+}
+
+.ll-site-sync .ll-site-sync-edit-field > span {
+  font-weight: 600;
+}
+
+.ll-site-sync .ll-site-sync-edit-field textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.ll-site-sync .ll-site-sync-review-field-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.ll-site-sync .ll-site-sync-checkbox--compact {
+  margin: 0;
+}
+
+.ll-site-sync .ll-site-sync-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.ll-site-sync .ll-site-sync-pagination span {
+  color: var(--ll-site-sync-muted);
+}
+
+.ll-site-sync .ll-site-sync-conflict-options {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #dcdcde;
+  border-radius: 6px;
+}
+
+.ll-site-sync .ll-site-sync-conflict-options legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
 .ll-site-sync .ll-site-sync-table td {
   vertical-align: top;
 }

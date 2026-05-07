@@ -290,6 +290,203 @@ function ll_tools_site_sync_send_remote_transcription_updates(array $connection,
     return $summary;
 }
 
+function ll_tools_site_sync_cached_preview_transient_key(array $connection): string {
+    return 'll_site_sync_preview_' . get_current_user_id() . '_' . ll_tools_site_sync_connection_key($connection);
+}
+
+function ll_tools_site_sync_strip_preview_media($value) {
+    if (!is_array($value)) {
+        return $value;
+    }
+
+    unset($value['media']);
+    foreach ($value as $key => $item) {
+        $value[$key] = ll_tools_site_sync_strip_preview_media($item);
+    }
+
+    return $value;
+}
+
+function ll_tools_site_sync_save_cached_preview_plan(array $connection, array $plan): void {
+    set_transient(
+        ll_tools_site_sync_cached_preview_transient_key($connection),
+        [
+            'connection_key' => ll_tools_site_sync_connection_key($connection),
+            'plan' => ll_tools_site_sync_strip_preview_media($plan),
+            'created_at_gmt' => gmdate('c'),
+        ],
+        15 * MINUTE_IN_SECONDS
+    );
+}
+
+function ll_tools_site_sync_get_cached_preview_plan(array $connection): ?array {
+    $cached = get_transient(ll_tools_site_sync_cached_preview_transient_key($connection));
+    if (!is_array($cached)) {
+        return null;
+    }
+
+    if ((string) ($cached['connection_key'] ?? '') !== ll_tools_site_sync_connection_key($connection)) {
+        return null;
+    }
+
+    $plan = $cached['plan'] ?? null;
+    return is_array($plan) ? $plan : null;
+}
+
+function ll_tools_site_sync_delete_cached_preview_plan(array $connection): void {
+    delete_transient(ll_tools_site_sync_cached_preview_transient_key($connection));
+}
+
+function ll_tools_site_sync_value_fields_from_request(): array {
+    $raw_json = isset($_POST['ll_site_sync_fields_json'])
+        ? (string) wp_unslash($_POST['ll_site_sync_fields_json'])
+        : '';
+    $decoded = $raw_json !== '' ? json_decode($raw_json, true) : [];
+    $fields = is_array($decoded) ? $decoded : [];
+    $allowed = array_fill_keys(ll_tools_site_sync_transcription_value_keys(), true);
+    $normalized = [];
+
+    foreach ($fields as $field) {
+        $field = sanitize_key((string) $field);
+        if (isset($allowed[$field])) {
+            $normalized[$field] = true;
+        }
+    }
+
+    return array_keys($normalized);
+}
+
+function ll_tools_site_sync_recording_belongs_to_wordset(int $recording_id, int $wordset_id): bool {
+    if ($recording_id <= 0 || $wordset_id <= 0 || get_post_type($recording_id) !== 'word_audio') {
+        return false;
+    }
+
+    $word_id = (int) wp_get_post_parent_id($recording_id);
+    return $word_id > 0 && has_term($wordset_id, 'wordset', $word_id);
+}
+
+function ll_tools_site_sync_values_from_json_request(string $key): array {
+    $raw_json = isset($_POST[$key]) ? (string) wp_unslash($_POST[$key]) : '';
+    $decoded = $raw_json !== '' ? json_decode($raw_json, true) : [];
+    return is_array($decoded) ? $decoded : [];
+}
+
+function ll_tools_site_sync_submitted_edit_values(array $fields, array $current_values): array {
+    $values = $current_values;
+    $raw_after_values = isset($_POST['ll_site_sync_after_values'])
+        ? (array) wp_unslash($_POST['ll_site_sync_after_values'])
+        : [];
+
+    foreach ($fields as $field) {
+        if (in_array($field, ['recording_text', 'recording_ipa', 'review_note'], true)) {
+            $values[$field] = isset($raw_after_values[$field]) ? (string) $raw_after_values[$field] : '';
+            continue;
+        }
+
+        if ($field === 'needs_review') {
+            $values[$field] = !empty($_POST['ll_site_sync_needs_review']);
+            continue;
+        }
+
+        if ($field === 'review_fields') {
+            $raw_review_fields = isset($_POST['ll_site_sync_review_fields'])
+                ? (array) wp_unslash($_POST['ll_site_sync_review_fields'])
+                : [];
+            $values[$field] = ll_tools_site_sync_normalize_review_fields($raw_review_fields);
+        }
+    }
+
+    return $values;
+}
+
+function ll_tools_site_sync_process_local_change_request(array $connection, string $action) {
+    $recording_id = isset($_POST['ll_site_sync_recording_id']) ? absint(wp_unslash((string) $_POST['ll_site_sync_recording_id'])) : 0;
+    $wordset_id = (int) ($connection['local_wordset_id'] ?? 0);
+    if (!ll_tools_site_sync_recording_belongs_to_wordset($recording_id, $wordset_id)) {
+        return new WP_Error('ll_tools_site_sync_invalid_local_recording', __('The selected local recording is not part of the configured staging word set.', 'll-tools-text-domain'));
+    }
+
+    $fields = ll_tools_site_sync_value_fields_from_request();
+    if (empty($fields)) {
+        return new WP_Error('ll_tools_site_sync_no_local_fields', __('No editable local sync fields were submitted.', 'll-tools-text-domain'));
+    }
+
+    $current_values = ll_tools_site_sync_record_values($recording_id, $wordset_id);
+    if ($action === 'revert_local_change') {
+        $before_values = ll_tools_site_sync_values_from_json_request('ll_site_sync_before_values_json');
+        $next_values = $current_values;
+        foreach ($fields as $field) {
+            if (array_key_exists($field, $before_values)) {
+                $next_values[$field] = $before_values[$field];
+            }
+        }
+    } else {
+        $next_values = ll_tools_site_sync_submitted_edit_values($fields, $current_values);
+    }
+
+    ll_tools_site_sync_apply_record_values($recording_id, $wordset_id, $next_values);
+
+    return [
+        'recording_id' => $recording_id,
+        'fields_updated' => count($fields),
+    ];
+}
+
+function ll_tools_site_sync_conflict_mode_from_request(): string {
+    $mode = isset($_POST['ll_site_sync_conflict_mode'])
+        ? sanitize_key((string) wp_unslash($_POST['ll_site_sync_conflict_mode']))
+        : '';
+    if (in_array($mode, ['flag', 'skip', 'accept_live'], true)) {
+        return $mode;
+    }
+
+    return !empty($_POST['ll_site_sync_flag_conflicts']) ? 'flag' : 'skip';
+}
+
+function ll_tools_site_sync_accept_live_conflicts_locally(array $plan, int $wordset_id): array {
+    $updates_by_recording = [];
+    $allowed = array_fill_keys(ll_tools_site_sync_transcription_value_keys(), true);
+
+    foreach ((array) ($plan['conflicts'] ?? []) as $conflict) {
+        if (!is_array($conflict)) {
+            continue;
+        }
+
+        $field = sanitize_key((string) ($conflict['field'] ?? ''));
+        if (!isset($allowed[$field])) {
+            continue;
+        }
+
+        $local_record = (array) ($conflict['local_record'] ?? []);
+        $recording_id = (int) (($local_record['recording'] ?? [])['id'] ?? 0);
+        if (!ll_tools_site_sync_recording_belongs_to_wordset($recording_id, $wordset_id)) {
+            continue;
+        }
+
+        if (!isset($updates_by_recording[$recording_id])) {
+            $updates_by_recording[$recording_id] = [];
+        }
+        $updates_by_recording[$recording_id][$field] = $conflict['remote_value'] ?? '';
+    }
+
+    $fields_updated = 0;
+    $recordings_updated = 0;
+    foreach ($updates_by_recording as $recording_id => $field_values) {
+        $current_values = ll_tools_site_sync_record_values((int) $recording_id, $wordset_id);
+        foreach ($field_values as $field => $value) {
+            $current_values[$field] = $value;
+            $fields_updated++;
+        }
+        ll_tools_site_sync_apply_record_values((int) $recording_id, $wordset_id, $current_values);
+        $recordings_updated++;
+    }
+
+    return [
+        'fields_updated' => $fields_updated,
+        'recordings_updated' => $recordings_updated,
+    ];
+}
+
 function ll_tools_site_sync_register_admin_page(): void {
     $capability = ll_tools_site_sync_capability();
     add_management_page(
@@ -332,7 +529,9 @@ function ll_tools_site_sync_ajax_local_overview(): void {
 
     $connection = ll_tools_site_sync_get_saved_connection();
     $base_snapshot = ll_tools_site_sync_get_base_snapshot($connection);
-    $summary = ll_tools_site_sync_build_local_change_summary($connection, $base_snapshot);
+    $per_page = ll_tools_site_sync_local_overview_per_page();
+    $page = ll_tools_site_sync_positive_int_from_request('page', 1, 'post');
+    $summary = ll_tools_site_sync_build_local_change_summary($connection, $base_snapshot, $per_page, ($page - 1) * $per_page);
 
     ob_start();
     ll_tools_site_sync_render_local_change_overview($summary);
@@ -372,6 +571,28 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
 
     if ($action === 'save') {
         $result['notices'][] = __('Site sync connection saved. Passwords are not stored.', 'll-tools-text-domain');
+        return $result;
+    }
+
+    if (in_array($action, ['revert_local_change', 'edit_local_change'], true)) {
+        $local_result = ll_tools_site_sync_process_local_change_request($connection, $action);
+        if (is_wp_error($local_result)) {
+            $result['errors'][] = $local_result->get_error_message();
+            return $result;
+        }
+
+        ll_tools_site_sync_delete_cached_preview_plan($connection);
+        $result['notices'][] = $action === 'revert_local_change'
+            ? sprintf(
+                /* translators: %d: updated local field count */
+                __('Reverted %d local field(s). Preview again when you are ready to compare against the live site.', 'll-tools-text-domain'),
+                (int) ($local_result['fields_updated'] ?? 0)
+            )
+            : sprintf(
+                /* translators: %d: updated local field count */
+                __('Saved %d local after-change field(s). Preview again when you are ready to compare against the live site.', 'll-tools-text-domain'),
+                (int) ($local_result['fields_updated'] ?? 0)
+            );
         return $result;
     }
 
@@ -434,12 +655,14 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
 
     if ($action === 'preview_push') {
         $result['plan'] = ll_tools_site_sync_build_push_plan($local_snapshot, $remote_snapshot, $base_snapshot);
+        ll_tools_site_sync_save_cached_preview_plan($connection, $result['plan']);
         return $result;
     }
 
     if ($action === 'apply_push') {
         $plan = ll_tools_site_sync_build_push_plan($local_snapshot, $remote_snapshot, $base_snapshot);
         $result['plan'] = $plan;
+        $conflict_mode = ll_tools_site_sync_conflict_mode_from_request();
         $apply_limit = ll_tools_site_sync_remote_apply_update_limit();
         $remote_updates = array_values((array) ($plan['remote_updates'] ?? []));
         $remote_updates_to_send = array_slice($remote_updates, 0, $apply_limit);
@@ -451,7 +674,7 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
         }
         $result['remote_result'] = $remote_result;
 
-        $flag_conflicts = !empty($_POST['ll_site_sync_flag_conflicts']);
+        $flag_conflicts = $conflict_mode === 'flag';
         $conflict_review_updates = array_values((array) ($plan['conflict_review_updates'] ?? []));
         $remaining_capacity = max(0, $apply_limit - count($remote_updates_to_send));
         $conflict_review_updates_to_send = $flag_conflicts && $remaining_capacity > 0
@@ -471,13 +694,42 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
             }
         }
 
-        $fresh_remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password, false);
-        if (!is_wp_error($fresh_remote_snapshot)) {
-            $merged_base = ll_tools_site_sync_merge_base_snapshot_after_pull($base_snapshot, $fresh_remote_snapshot, $plan);
-            ll_tools_site_sync_save_base_snapshot($connection, $merged_base);
-            $result['plan'] = ll_tools_site_sync_build_push_plan($local_snapshot, $fresh_remote_snapshot, $merged_base);
+        if ($conflict_mode === 'accept_live' && !empty($plan['conflicts'])) {
+            $accept_live_result = ll_tools_site_sync_accept_live_conflicts_locally($plan, (int) $connection['local_wordset_id']);
+            $result['accept_live_result'] = $accept_live_result;
+            $result['notices'][] = sprintf(
+                /* translators: 1: updated local field count, 2: updated local recording count */
+                __('Accepted live values locally for %1$d conflicted field(s) across %2$d recording(s).', 'll-tools-text-domain'),
+                (int) ($accept_live_result['fields_updated'] ?? 0),
+                (int) ($accept_live_result['recordings_updated'] ?? 0)
+            );
+
+            $local_snapshot = ll_tools_site_sync_build_snapshot(
+                (int) $connection['local_wordset_id'],
+                (string) $connection['surface'],
+                true
+            );
+            if (is_wp_error($local_snapshot)) {
+                $result['errors'][] = $local_snapshot->get_error_message();
+                return $result;
+            }
+        } elseif ($conflict_mode === 'skip' && !empty($plan['conflicts'])) {
+            $result['notices'][] = __('Skipped conflict handling for this push. Conflicted fields were not changed locally or on the live site.', 'll-tools-text-domain');
         }
 
+        $fresh_remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password, false);
+        if (!is_wp_error($fresh_remote_snapshot)) {
+            $base_merge_plan = $plan;
+            if ($conflict_mode === 'accept_live') {
+                $base_merge_plan['conflicts'] = [];
+            }
+            $merged_base = ll_tools_site_sync_merge_base_snapshot_after_pull($base_snapshot, $fresh_remote_snapshot, $base_merge_plan);
+            ll_tools_site_sync_save_base_snapshot($connection, $merged_base);
+            $result['plan'] = ll_tools_site_sync_build_push_plan($local_snapshot, $fresh_remote_snapshot, $merged_base);
+            ll_tools_site_sync_save_cached_preview_plan($connection, $result['plan']);
+        }
+
+        $final_conflict_count = count((array) (($result['plan']['conflicts'] ?? null) ?? ($plan['conflicts'] ?? [])));
         if ($remaining_clean_updates > 0 || $remaining_conflict_review_updates > 0) {
             $result['notices'][] = sprintf(
                 /* translators: 1: applied update count, 2: total clean update count, 3: remaining clean update count, 4: conflict count */
@@ -485,7 +737,7 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
                 (int) ($remote_result['updated_count'] ?? 0),
                 count($remote_updates),
                 $remaining_clean_updates,
-                count((array) ($plan['conflicts'] ?? []))
+                $final_conflict_count
             );
         } else {
             $request_count = (int) (($remote_result['batch'] ?? [])['request_count'] ?? 1);
@@ -494,7 +746,7 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
                 __('Push finished. Applied %1$d remote updates across %2$d small request(s). Conflicts remaining: %3$d.', 'll-tools-text-domain'),
                 (int) ($remote_result['updated_count'] ?? 0),
                 max(1, $request_count),
-                count((array) ($plan['conflicts'] ?? []))
+                $final_conflict_count
             );
         }
         return $result;
@@ -533,6 +785,71 @@ function ll_tools_site_sync_field_label(string $field): string {
         __('Field: %s', 'll-tools-text-domain'),
         ucwords(str_replace('_', ' ', $field))
     ));
+}
+
+function ll_tools_site_sync_positive_int_from_request(string $key, int $default = 1, string $source = 'request'): int {
+    $raw = null;
+    if ($source === 'post') {
+        $raw = $_POST[$key] ?? null;
+    } elseif ($source === 'get') {
+        $raw = $_GET[$key] ?? null;
+    } else {
+        $raw = $_REQUEST[$key] ?? null;
+    }
+
+    if ($raw === null || is_array($raw)) {
+        return max(1, $default);
+    }
+
+    return max(1, absint(wp_unslash((string) $raw)));
+}
+
+function ll_tools_site_sync_local_overview_per_page(): int {
+    $per_page = (int) apply_filters('ll_tools_site_sync_local_overview_per_page', 12);
+    return max(1, min(50, $per_page));
+}
+
+function ll_tools_site_sync_preview_per_page(): int {
+    $per_page = (int) apply_filters('ll_tools_site_sync_preview_per_page', 25);
+    return max(1, min(50, $per_page));
+}
+
+function ll_tools_site_sync_max_page(int $total_items, int $per_page): int {
+    return max(1, (int) ceil(max(0, $total_items) / max(1, $per_page)));
+}
+
+function ll_tools_site_sync_render_pagination(
+    string $page_key,
+    int $current_page,
+    int $total_items,
+    int $per_page,
+    array $extra_args = []
+): void {
+    if ($total_items <= $per_page) {
+        return;
+    }
+
+    $max_page = ll_tools_site_sync_max_page($total_items, $per_page);
+    $current_page = min(max(1, $current_page), $max_page);
+    $start = (($current_page - 1) * $per_page) + 1;
+    $end = min($total_items, $current_page * $per_page);
+    ?>
+    <nav class="ll-site-sync-pagination" aria-label="<?php esc_attr_e('Sync preview pagination', 'll-tools-text-domain'); ?>">
+        <span><?php echo esc_html(sprintf(
+            /* translators: 1: first visible item, 2: last visible item, 3: total item count */
+            __('Showing %1$d-%2$d of %3$d', 'll-tools-text-domain'),
+            $start,
+            $end,
+            $total_items
+        )); ?></span>
+        <?php if ($current_page > 1) : ?>
+            <a class="button" href="<?php echo esc_url(ll_tools_site_sync_get_admin_page_url(array_merge($extra_args, [$page_key => $current_page - 1]))); ?>"><?php esc_html_e('Previous', 'll-tools-text-domain'); ?></a>
+        <?php endif; ?>
+        <?php if ($current_page < $max_page) : ?>
+            <a class="button" href="<?php echo esc_url(ll_tools_site_sync_get_admin_page_url(array_merge($extra_args, [$page_key => $current_page + 1]))); ?>"><?php esc_html_e('Next', 'll-tools-text-domain'); ?></a>
+        <?php endif; ?>
+    </nav>
+    <?php
 }
 
 function ll_tools_site_sync_preview_value_text($value): string {
@@ -646,6 +963,83 @@ function ll_tools_site_sync_render_diff_value($before, $after, string $side): st
     return $html === '' ? esc_html(ll_tools_site_sync_preview_value_text('')) : $html;
 }
 
+function ll_tools_site_sync_json_attr($value): string {
+    return esc_attr((string) wp_json_encode($value));
+}
+
+function ll_tools_site_sync_render_local_action_hidden_fields(array $item): void {
+    ?>
+    <input type="hidden" name="ll_site_sync_recording_id" value="<?php echo esc_attr((string) ((int) ($item['local_recording_id'] ?? 0))); ?>">
+    <input type="hidden" name="ll_site_sync_fields_json" value="<?php echo ll_tools_site_sync_json_attr(array_values((array) ($item['editable_fields'] ?? []))); ?>">
+    <?php
+}
+
+function ll_tools_site_sync_render_after_value_control(string $field, $value): void {
+    $field = sanitize_key($field);
+    ?>
+    <div class="ll-site-sync-edit-field ll-site-sync-edit-field--<?php echo esc_attr($field); ?>">
+        <span><?php echo esc_html(ll_tools_site_sync_field_label($field)); ?></span>
+        <?php if (in_array($field, ['recording_text', 'recording_ipa', 'review_note'], true)) : ?>
+            <textarea name="ll_site_sync_after_values[<?php echo esc_attr($field); ?>]" rows="2"><?php echo esc_textarea((string) $value); ?></textarea>
+        <?php elseif ($field === 'needs_review') : ?>
+            <label class="ll-site-sync-checkbox ll-site-sync-checkbox--compact">
+                <input type="checkbox" name="ll_site_sync_needs_review" value="1" <?php checked(!empty($value)); ?>>
+                <span><?php esc_html_e('Needs review', 'll-tools-text-domain'); ?></span>
+            </label>
+        <?php elseif ($field === 'review_fields') : ?>
+            <?php $selected = array_fill_keys(ll_tools_site_sync_normalize_review_fields($value), true); ?>
+            <div class="ll-site-sync-review-field-options">
+                <?php foreach (['recording_text', 'recording_ipa'] as $review_field) : ?>
+                    <label class="ll-site-sync-checkbox ll-site-sync-checkbox--compact">
+                        <input type="checkbox" name="ll_site_sync_review_fields[]" value="<?php echo esc_attr($review_field); ?>" <?php checked(isset($selected[$review_field])); ?>>
+                        <span><?php echo esc_html(ll_tools_site_sync_field_label($review_field)); ?></span>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+function ll_tools_site_sync_render_local_change_actions(array $item): void {
+    if (empty($item['allow_local_actions'])) {
+        return;
+    }
+
+    $editable_fields = array_values((array) ($item['editable_fields'] ?? []));
+    if (empty($editable_fields) || (int) ($item['local_recording_id'] ?? 0) <= 0) {
+        return;
+    }
+
+    $before_values = (array) ($item['before_values'] ?? []);
+    $after_values = (array) ($item['after_values'] ?? []);
+    ?>
+    <div class="ll-site-sync-card-actions">
+        <form method="post" action="<?php echo esc_url(ll_tools_site_sync_get_admin_page_url()); ?>" class="ll-site-sync-revert-form">
+            <?php wp_nonce_field('ll_tools_site_sync_action', 'll_site_sync_nonce'); ?>
+            <input type="hidden" name="ll_site_sync_action" value="revert_local_change">
+            <?php ll_tools_site_sync_render_local_action_hidden_fields($item); ?>
+            <input type="hidden" name="ll_site_sync_before_values_json" value="<?php echo ll_tools_site_sync_json_attr($before_values); ?>">
+            <button type="submit" class="button button-secondary"><?php esc_html_e('Revert local change', 'll-tools-text-domain'); ?></button>
+        </form>
+        <details class="ll-site-sync-edit-details">
+            <summary><?php esc_html_e('Edit after-change state', 'll-tools-text-domain'); ?></summary>
+            <form method="post" action="<?php echo esc_url(ll_tools_site_sync_get_admin_page_url()); ?>" class="ll-site-sync-edit-form">
+                <?php wp_nonce_field('ll_tools_site_sync_action', 'll_site_sync_nonce'); ?>
+                <input type="hidden" name="ll_site_sync_action" value="edit_local_change">
+                <?php ll_tools_site_sync_render_local_action_hidden_fields($item); ?>
+                <div class="ll-site-sync-edit-grid">
+                    <?php foreach ($editable_fields as $field) : ?>
+                        <?php ll_tools_site_sync_render_after_value_control((string) $field, $after_values[$field] ?? ''); ?>
+                    <?php endforeach; ?>
+                </div>
+                <button type="submit" class="button button-primary"><?php esc_html_e('Save local edit', 'll-tools-text-domain'); ?></button>
+            </form>
+        </details>
+    </div>
+    <?php
+}
+
 function ll_tools_site_sync_preview_media_from_record(array $record): array {
     $media = ll_tools_site_sync_normalize_record_media((array) ($record['media'] ?? []));
     $audio = (array) ($media['audio'] ?? []);
@@ -745,6 +1139,41 @@ function ll_tools_site_sync_build_record_presence_change(string $status): array 
     ];
 }
 
+function ll_tools_site_sync_recording_id_from_record(array $record): int {
+    return (int) (($record['recording'] ?? [])['id'] ?? 0);
+}
+
+function ll_tools_site_sync_change_value_fields(array $changes): array {
+    $allowed = array_fill_keys(ll_tools_site_sync_transcription_value_keys(), true);
+    $fields = [];
+
+    foreach ($changes as $change) {
+        if (!is_array($change)) {
+            continue;
+        }
+        $field = sanitize_key((string) ($change['field'] ?? ''));
+        if (isset($allowed[$field])) {
+            $fields[$field] = true;
+        }
+    }
+
+    return array_keys($fields);
+}
+
+function ll_tools_site_sync_record_values_for_fields(array $record, array $fields): array {
+    $values = ll_tools_site_sync_normalize_record_values((array) ($record['values'] ?? []));
+    $subset = [];
+
+    foreach ($fields as $field) {
+        $field = sanitize_key((string) $field);
+        if (array_key_exists($field, $values)) {
+            $subset[$field] = $values[$field];
+        }
+    }
+
+    return $subset;
+}
+
 function ll_tools_site_sync_build_change_item(
     string $status,
     array $before_record,
@@ -756,6 +1185,11 @@ function ll_tools_site_sync_build_change_item(
 ): array {
     $display_record = !empty($after_record) ? $after_record : $before_record;
     $changes = !empty($changes) ? $changes : [ll_tools_site_sync_build_record_presence_change($status)];
+    $editable_fields = ll_tools_site_sync_change_value_fields($changes);
+    $local_record = isset($extra['local_record']) && is_array($extra['local_record'])
+        ? (array) $extra['local_record']
+        : [];
+    $local_recording_id = ll_tools_site_sync_recording_id_from_record($local_record);
 
     return array_merge([
         'status' => $status,
@@ -768,10 +1202,15 @@ function ll_tools_site_sync_build_change_item(
         'before_media' => ll_tools_site_sync_preview_media_from_record($before_record),
         'after_media' => ll_tools_site_sync_preview_media_from_record($after_record),
         'changes' => $changes,
+        'editable_fields' => $editable_fields,
+        'before_values' => ll_tools_site_sync_record_values_for_fields($before_record, $editable_fields),
+        'after_values' => ll_tools_site_sync_record_values_for_fields($after_record, $editable_fields),
+        'local_recording_id' => $local_recording_id,
+        'allow_local_actions' => !empty($extra['allow_local_actions']) && $local_recording_id > 0 && !empty($editable_fields),
     ], $extra);
 }
 
-function ll_tools_site_sync_plan_change_items(array $plan, int $limit = 25): array {
+function ll_tools_site_sync_plan_change_items(array $plan, int $limit = 25, int $offset = 0): array {
     $direction = (string) ($plan['direction'] ?? '');
     $before_label = $direction === 'pull'
         ? __('Staging now', 'll-tools-text-domain')
@@ -780,9 +1219,15 @@ function ll_tools_site_sync_plan_change_items(array $plan, int $limit = 25): arr
         ? __('After pull', 'll-tools-text-domain')
         : __('After push', 'll-tools-text-domain');
     $items = [];
+    $seen = 0;
 
     foreach ((array) ($plan['actions'] ?? []) as $action) {
         if (!is_array($action)) {
+            continue;
+        }
+
+        if ($seen < $offset) {
+            $seen++;
             continue;
         }
 
@@ -819,8 +1264,11 @@ function ll_tools_site_sync_plan_change_items(array $plan, int $limit = 25): arr
                 'status_label' => (string) ($action['type'] ?? '') === 'create_local_recording'
                     ? __('Create locally', 'll-tools-text-domain')
                     : __('Clean change', 'll-tools-text-domain'),
+                'local_record' => $local_record,
+                'allow_local_actions' => $direction === 'push',
             ]
         );
+        $seen++;
 
         if (count($items) >= $limit) {
             return $items;
@@ -830,37 +1278,58 @@ function ll_tools_site_sync_plan_change_items(array $plan, int $limit = 25): arr
     return $items;
 }
 
-function ll_tools_site_sync_conflict_change_items(array $plan, int $limit = 25): array {
+function ll_tools_site_sync_conflict_change_items(array $plan, int $limit = 25, int $offset = 0): array {
+    $direction = (string) ($plan['direction'] ?? '');
+    $before_label = $direction === 'pull'
+        ? __('Staging now', 'll-tools-text-domain')
+        : __('Live now', 'll-tools-text-domain');
+    $after_label = $direction === 'pull'
+        ? __('After pull', 'll-tools-text-domain')
+        : __('After push', 'll-tools-text-domain');
     $items = [];
+    $seen = 0;
 
     foreach ((array) ($plan['conflicts'] ?? []) as $conflict) {
         if (!is_array($conflict)) {
             continue;
         }
 
+        if ($seen < $offset) {
+            $seen++;
+            continue;
+        }
+
         $local_record = (array) ($conflict['local_record'] ?? []);
         $remote_record = (array) ($conflict['remote_record'] ?? []);
         $field = (string) ($conflict['field'] ?? '');
+        $before_record = $direction === 'pull' ? $local_record : $remote_record;
+        $after_record = $direction === 'pull' ? $remote_record : $local_record;
+        $before_value = $direction === 'pull' ? ($conflict['local_value'] ?? '') : ($conflict['remote_value'] ?? '');
+        $after_value = $direction === 'pull' ? ($conflict['remote_value'] ?? '') : ($conflict['local_value'] ?? '');
+
         $items[] = ll_tools_site_sync_build_change_item(
             'conflict',
-            $local_record,
-            $remote_record,
+            $before_record,
+            $after_record,
             [[
                 'field' => $field,
                 'label' => ll_tools_site_sync_field_label($field),
-                'before' => $conflict['local_value'] ?? '',
-                'after' => $conflict['remote_value'] ?? '',
+                'before' => $before_value,
+                'after' => $after_value,
                 'base' => $conflict['base_value'] ?? '',
                 'base_label' => __('Last pulled', 'll-tools-text-domain'),
             ]],
-            __('Staging', 'll-tools-text-domain'),
-            __('Live', 'll-tools-text-domain'),
+            $before_label,
+            $after_label,
             [
                 'status_label' => __('Conflict', 'll-tools-text-domain'),
                 'word_title' => (string) ($conflict['word_title'] ?? ''),
                 'recording_title' => (string) ($conflict['recording_title'] ?? ''),
+                'local_record' => $local_record,
+                'allow_local_actions' => $direction === 'push',
             ]
         );
+        $seen++;
 
         if (count($items) >= $limit) {
             return $items;
@@ -870,10 +1339,16 @@ function ll_tools_site_sync_conflict_change_items(array $plan, int $limit = 25):
     return $items;
 }
 
-function ll_tools_site_sync_build_local_change_summary(array $connection, array $base_snapshot = [], int $sample_limit = 12): array {
+function ll_tools_site_sync_build_local_change_summary(array $connection, array $base_snapshot = [], int $sample_limit = 12, int $sample_offset = 0): array {
+    $sample_limit = max(1, min(50, $sample_limit));
+    $sample_offset = max(0, $sample_offset);
     $summary = [
         'available' => false,
         'message' => '',
+        'sample_limit' => $sample_limit,
+        'sample_offset' => $sample_offset,
+        'sample_total' => 0,
+        'sample_page' => (int) floor($sample_offset / $sample_limit) + 1,
         'stats' => [
             'baseline_records' => count((array) ($base_snapshot['records'] ?? [])),
             'local_records' => 0,
@@ -913,6 +1388,15 @@ function ll_tools_site_sync_build_local_change_summary(array $connection, array 
     $base_index = ll_tools_site_sync_index_snapshot($base_snapshot);
     $local_index = ll_tools_site_sync_index_snapshot($local_snapshot);
     $fields = ll_tools_site_sync_transcription_value_keys();
+    $add_sample = static function (array $item) use (&$summary, $sample_limit, $sample_offset): void {
+        $sample_index = (int) ($summary['sample_total'] ?? 0);
+        $summary['sample_total'] = $sample_index + 1;
+        if ($sample_index < $sample_offset || count((array) ($summary['samples'] ?? [])) >= $sample_limit) {
+            return;
+        }
+
+        $summary['samples'][] = $item;
+    };
 
     foreach ((array) ($local_snapshot['records'] ?? []) as $local_record) {
         if (!is_array($local_record)) {
@@ -923,17 +1407,19 @@ function ll_tools_site_sync_build_local_change_summary(array $connection, array 
         if ($base_record === null) {
             $summary['stats']['local_only_records']++;
             $changes = ll_tools_site_sync_build_preview_changes([], $local_record, $fields);
-            if (count($summary['samples']) < $sample_limit) {
-                $summary['samples'][] = ll_tools_site_sync_build_change_item(
-                    'local_only',
-                    [],
-                    $local_record,
-                    $changes,
-                    __('Baseline', 'll-tools-text-domain'),
-                    __('Local', 'll-tools-text-domain'),
-                    ['status_label' => __('Local only', 'll-tools-text-domain')]
-                );
-            }
+            $add_sample(ll_tools_site_sync_build_change_item(
+                'local_only',
+                [],
+                $local_record,
+                $changes,
+                __('Baseline', 'll-tools-text-domain'),
+                __('Local', 'll-tools-text-domain'),
+                [
+                    'status_label' => __('Local only', 'll-tools-text-domain'),
+                    'local_record' => $local_record,
+                    'allow_local_actions' => true,
+                ]
+            ));
             continue;
         }
 
@@ -951,17 +1437,19 @@ function ll_tools_site_sync_build_local_change_summary(array $connection, array 
             $summary['field_counts'][$field] = (int) ($summary['field_counts'][$field] ?? 0) + 1;
         }
 
-        if (count($summary['samples']) < $sample_limit) {
-            $summary['samples'][] = ll_tools_site_sync_build_change_item(
-                'modified',
-                $base_record,
-                $local_record,
-                $changes,
-                __('Baseline', 'll-tools-text-domain'),
-                __('Local', 'll-tools-text-domain'),
-                ['status_label' => __('Modified locally', 'll-tools-text-domain')]
-            );
-        }
+        $add_sample(ll_tools_site_sync_build_change_item(
+            'modified',
+            $base_record,
+            $local_record,
+            $changes,
+            __('Baseline', 'll-tools-text-domain'),
+            __('Local', 'll-tools-text-domain'),
+            [
+                'status_label' => __('Modified locally', 'll-tools-text-domain'),
+                'local_record' => $local_record,
+                'allow_local_actions' => true,
+            ]
+        ));
     }
 
     foreach ((array) ($base_snapshot['records'] ?? []) as $base_record) {
@@ -974,17 +1462,15 @@ function ll_tools_site_sync_build_local_change_summary(array $connection, array 
         }
 
         $summary['stats']['missing_local_records']++;
-        if (count($summary['samples']) < $sample_limit) {
-            $summary['samples'][] = ll_tools_site_sync_build_change_item(
-                'base_only',
-                $base_record,
-                [],
-                ll_tools_site_sync_build_preview_changes($base_record, [], $fields),
-                __('Baseline', 'll-tools-text-domain'),
-                __('Local', 'll-tools-text-domain'),
-                ['status_label' => __('Missing locally', 'll-tools-text-domain')]
-            );
-        }
+        $add_sample(ll_tools_site_sync_build_change_item(
+            'base_only',
+            $base_record,
+            [],
+            ll_tools_site_sync_build_preview_changes($base_record, [], $fields),
+            __('Baseline', 'll-tools-text-domain'),
+            __('Local', 'll-tools-text-domain'),
+            ['status_label' => __('Missing locally', 'll-tools-text-domain')]
+        ));
     }
 
     ksort($summary['field_counts']);
@@ -1068,6 +1554,7 @@ function ll_tools_site_sync_render_change_cards(array $items, array $args = []):
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    <?php ll_tools_site_sync_render_local_change_actions((array) $item); ?>
                 </div>
             </article>
         <?php endforeach; ?>
@@ -1106,6 +1593,14 @@ function ll_tools_site_sync_render_local_change_overview(array $summary): void {
             <?php ll_tools_site_sync_render_change_cards((array) ($summary['samples'] ?? []), [
                 'empty_message' => __('No local changes were found against the saved baseline.', 'll-tools-text-domain'),
             ]); ?>
+            <?php
+            ll_tools_site_sync_render_pagination(
+                'll_site_sync_local_page',
+                (int) ($summary['sample_page'] ?? 1),
+                (int) ($summary['sample_total'] ?? 0),
+                (int) ($summary['sample_limit'] ?? ll_tools_site_sync_local_overview_per_page())
+            );
+            ?>
         <?php endif; ?>
     </div>
     <?php
@@ -1217,10 +1712,25 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
     }
 
     $stats = (array) ($plan['stats'] ?? []);
-    $clean_items = ll_tools_site_sync_plan_change_items($plan, 25);
-    $conflict_items = ll_tools_site_sync_conflict_change_items($plan, 25);
+    $per_page = ll_tools_site_sync_preview_per_page();
     $direction = (string) ($plan['direction'] ?? '');
+    $clean_count = count((array) ($plan['actions'] ?? []));
     $conflict_count = count((array) ($plan['conflicts'] ?? []));
+    $clean_page = min(
+        ll_tools_site_sync_positive_int_from_request('ll_site_sync_clean_page', 1, 'get'),
+        ll_tools_site_sync_max_page($clean_count, $per_page)
+    );
+    $conflict_page = min(
+        ll_tools_site_sync_positive_int_from_request('ll_site_sync_conflict_page', 1, 'get'),
+        ll_tools_site_sync_max_page($conflict_count, $per_page)
+    );
+    $clean_items = ll_tools_site_sync_plan_change_items($plan, $per_page, ($clean_page - 1) * $per_page);
+    $conflict_items = ll_tools_site_sync_conflict_change_items($plan, $per_page, ($conflict_page - 1) * $per_page);
+    $preview_page_args = [
+        'll_site_sync_cached_preview' => 1,
+        'll_site_sync_clean_page' => $clean_page,
+        'll_site_sync_conflict_page' => $conflict_page,
+    ];
     ?>
     <section class="ll-site-sync-panel">
         <h2><?php esc_html_e('Live Comparison Preview', 'll-tools-text-domain'); ?></h2>
@@ -1253,10 +1763,24 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
         <?php if (!empty($clean_items)) : ?>
             <h3><?php esc_html_e('Clean Changes', 'll-tools-text-domain'); ?></h3>
             <?php ll_tools_site_sync_render_change_cards($clean_items); ?>
+            <?php ll_tools_site_sync_render_pagination(
+                'll_site_sync_clean_page',
+                $clean_page,
+                $clean_count,
+                $per_page,
+                array_merge($preview_page_args, ['ll_site_sync_conflict_page' => $conflict_page])
+            ); ?>
         <?php endif; ?>
         <?php if (!empty($conflict_items)) : ?>
             <h3><?php esc_html_e('Conflicts', 'll-tools-text-domain'); ?></h3>
             <?php ll_tools_site_sync_render_change_cards($conflict_items); ?>
+            <?php ll_tools_site_sync_render_pagination(
+                'll_site_sync_conflict_page',
+                $conflict_page,
+                $conflict_count,
+                $per_page,
+                array_merge($preview_page_args, ['ll_site_sync_clean_page' => $clean_page])
+            ); ?>
         <?php endif; ?>
         <?php if (empty($clean_items) && empty($conflict_items) && empty($plan['skipped'])) : ?>
             <p class="description"><?php esc_html_e('No changes were found for this sync direction.', 'll-tools-text-domain'); ?></p>
@@ -1279,6 +1803,13 @@ function ll_tools_site_sync_render_admin_page(): void {
     $result = ll_tools_site_sync_admin_process_request($connection);
     $base_snapshot = ll_tools_site_sync_get_base_snapshot($connection);
     $plan = is_array($result['plan'] ?? null) ? $result['plan'] : null;
+    if (!is_array($plan) && !empty($_GET['ll_site_sync_cached_preview'])) {
+        $plan = ll_tools_site_sync_get_cached_preview_plan($connection);
+        if (is_array($plan)) {
+            $result['plan'] = $plan;
+            $result['processed_action'] = 'preview_cache';
+        }
+    }
     $show_local_change_overview = ll_tools_site_sync_should_render_local_change_overview($result);
     ?>
     <div class="wrap ll-site-sync">
@@ -1315,16 +1846,29 @@ function ll_tools_site_sync_render_admin_page(): void {
 
         <?php ll_tools_site_sync_render_plan_summary($plan); ?>
 
-        <?php if (is_array($result['plan'] ?? null) && (string) (($result['plan']['direction'] ?? '')) === 'push' && (string) ($result['processed_action'] ?? '') === 'preview_push') : ?>
+        <?php if (is_array($result['plan'] ?? null) && (string) (($result['plan']['direction'] ?? '')) === 'push' && in_array((string) ($result['processed_action'] ?? ''), ['preview_push', 'preview_cache'], true)) : ?>
             <section class="ll-site-sync-panel">
                 <h2><?php esc_html_e('Apply Push', 'll-tools-text-domain'); ?></h2>
                 <form method="post" action="<?php echo esc_url(ll_tools_site_sync_get_admin_page_url()); ?>">
                     <?php wp_nonce_field('ll_tools_site_sync_action', 'll_site_sync_nonce'); ?>
                     <?php ll_tools_site_sync_render_connection_fields($connection); ?>
-                    <label class="ll-site-sync-checkbox">
-                        <input type="checkbox" name="ll_site_sync_flag_conflicts" value="1" checked>
-                        <span><?php esc_html_e('Flag conflicts on the live site for transcription review instead of silently ignoring them.', 'll-tools-text-domain'); ?></span>
-                    </label>
+                    <?php if (count((array) (($result['plan']['conflicts'] ?? []))) > 0) : ?>
+                        <fieldset class="ll-site-sync-conflict-options">
+                            <legend><?php esc_html_e('Conflict handling', 'll-tools-text-domain'); ?></legend>
+                            <label class="ll-site-sync-checkbox">
+                                <input type="radio" name="ll_site_sync_conflict_mode" value="flag" checked>
+                                <span><?php esc_html_e('Flag conflicts on the live site for transcription review.', 'll-tools-text-domain'); ?></span>
+                            </label>
+                            <label class="ll-site-sync-checkbox">
+                                <input type="radio" name="ll_site_sync_conflict_mode" value="skip">
+                                <span><?php esc_html_e('Skip conflicts for now.', 'll-tools-text-domain'); ?></span>
+                            </label>
+                            <label class="ll-site-sync-checkbox">
+                                <input type="radio" name="ll_site_sync_conflict_mode" value="accept_live">
+                                <span><?php esc_html_e('Accept the live site version locally for all conflicts.', 'll-tools-text-domain'); ?></span>
+                            </label>
+                        </fieldset>
+                    <?php endif; ?>
                     <button type="submit" class="button button-primary" name="ll_site_sync_action" value="apply_push"><?php esc_html_e('Apply Clean Push to Live', 'll-tools-text-domain'); ?></button>
                 </form>
             </section>

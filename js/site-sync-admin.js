@@ -65,6 +65,7 @@
     var body = new URLSearchParams();
     body.set('action', 'll_tools_site_sync_local_overview');
     body.set('nonce', config.localOverviewNonce);
+    body.set('page', new URLSearchParams(window.location.search).get('ll_site_sync_local_page') || '1');
 
     window.fetch(config.ajaxUrl, {
       method: 'POST',
