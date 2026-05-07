@@ -1318,35 +1318,40 @@
             renderWaveform(div, originalBuffer, trimStart, trimEnd);
             setupAudioPlayback(div, processedBuffer);
             setupBoundaryDragging(div, postId, originalBuffer);
+            setupWaveformResizeSync(div, postId, originalBuffer);
         }, 0);
 
         return div;
     }
 
-    function renderWaveform(container, audioBuffer, trimStart, trimEnd) {
+    function drawWaveformCanvas(container, audioBuffer) {
         const canvas = container.querySelector('.ll-waveform-canvas');
         const waveformContainer = container.querySelector('.ll-waveform-container');
-        if (!canvas || !waveformContainer) return;
+        if (!canvas || !waveformContainer || !audioBuffer) return false;
 
         const dpr = window.devicePixelRatio || 1;
         const rect = waveformContainer.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
+        const width = Math.max(1, Math.round(rect.width));
+        const height = Math.max(1, Math.round(rect.height));
+
+        canvas.width = Math.max(1, Math.round(width * dpr));
+        canvas.height = Math.max(1, Math.round(height * dpr));
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
 
         const ctx = canvas.getContext('2d');
-        ctx.scale(dpr, dpr);
+        if (!ctx) return false;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         const channelData = audioBuffer.getChannelData(0);
-        const samplesPerPixel = Math.floor(channelData.length / rect.width);
-        const centerY = rect.height / 2;
+        const samplesPerPixel = Math.max(1, Math.floor(channelData.length / width));
+        const centerY = height / 2;
 
         ctx.fillStyle = '#2ecc71';
         ctx.strokeStyle = '#27ae60';
         ctx.lineWidth = 1;
 
-        for (let x = 0; x < rect.width; x++) {
+        for (let x = 0; x < width; x++) {
             const start = x * samplesPerPixel;
             const end = start + samplesPerPixel;
             let min = 1;
@@ -1365,7 +1370,82 @@
             ctx.fillRect(x, yTop, 1, height);
         }
 
+        return true;
+    }
+
+    function renderWaveform(container, audioBuffer, trimStart, trimEnd) {
+        const waveformContainer = container.querySelector('.ll-waveform-container');
+        if (!waveformContainer || !drawWaveformCanvas(container, audioBuffer)) return;
+
         addTrimBoundaries(waveformContainer, trimStart, trimEnd, audioBuffer.length);
+    }
+
+    function setupWaveformResizeSync(container, postId, audioBuffer) {
+        const waveformContainer = container.querySelector('.ll-waveform-container');
+        if (!waveformContainer) return;
+
+        if (typeof waveformContainer._llWaveformResizeCleanup === 'function') {
+            waveformContainer._llWaveformResizeCleanup();
+        }
+
+        let frame = null;
+        let resizeObserver = null;
+        let removalObserver = null;
+
+        const redraw = () => {
+            frame = null;
+            if (!container.isConnected) {
+                cleanup();
+                return;
+            }
+
+            const data = state.reviewData.get(parseInt(postId, 10));
+            drawWaveformCanvas(container, data && data.originalBuffer ? data.originalBuffer : audioBuffer);
+        };
+
+        const scheduleRedraw = () => {
+            if (frame !== null) return;
+            frame = window.requestAnimationFrame(redraw);
+        };
+
+        const cleanup = () => {
+            if (frame !== null) {
+                window.cancelAnimationFrame(frame);
+                frame = null;
+            }
+            if (resizeObserver) {
+                resizeObserver.disconnect();
+                resizeObserver = null;
+            }
+            if (removalObserver) {
+                removalObserver.disconnect();
+                removalObserver = null;
+            }
+            window.removeEventListener('resize', scheduleRedraw);
+            delete waveformContainer._llWaveformResizeCleanup;
+        };
+
+        waveformContainer._llWaveformResizeCleanup = cleanup;
+
+        if (typeof ResizeObserver === 'function') {
+            resizeObserver = new ResizeObserver(scheduleRedraw);
+            resizeObserver.observe(waveformContainer);
+        }
+
+        window.addEventListener('resize', scheduleRedraw);
+
+        if (container.parentNode) {
+            removalObserver = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.removedNodes.forEach((node) => {
+                        if (node === container) {
+                            cleanup();
+                        }
+                    });
+                });
+            });
+            removalObserver.observe(container.parentNode, { childList: true });
+        }
     }
 
     function addTrimBoundaries(container, trimStart, trimEnd, totalSamples) {
@@ -1415,6 +1495,10 @@
         const waveformContainer = container.querySelector('.ll-waveform-container');
         if (!waveformContainer) return;
 
+        if (typeof waveformContainer._llBoundaryDragCleanup === 'function') {
+            waveformContainer._llBoundaryDragCleanup();
+        }
+
         const startBoundary = waveformContainer.querySelector('.ll-trim-boundary.ll-start');
         const endBoundary = waveformContainer.querySelector('.ll-trim-boundary.ll-end');
         if (!startBoundary || !endBoundary) return;
@@ -1422,6 +1506,7 @@
         let isDragging = false;
         let currentBoundary = null;
         let containerRect = null;
+        let removalObserver = null;
 
         const startDrag = (e, boundary) => {
             isDragging = true;
@@ -1487,20 +1572,32 @@
         document.addEventListener('touchmove', onDrag, { passive: false });
         document.addEventListener('touchend', endDrag);
 
-        const observer = new MutationObserver((mutations) => {
+        const cleanup = () => {
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', endDrag);
+            document.removeEventListener('touchmove', onDrag);
+            document.removeEventListener('touchend', endDrag);
+            if (removalObserver) {
+                removalObserver.disconnect();
+                removalObserver = null;
+            }
+            delete waveformContainer._llBoundaryDragCleanup;
+        };
+
+        waveformContainer._llBoundaryDragCleanup = cleanup;
+
+        removalObserver = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 mutation.removedNodes.forEach((node) => {
                     if (node === container) {
-                        document.removeEventListener('mousemove', onDrag);
-                        document.removeEventListener('mouseup', endDrag);
-                        document.removeEventListener('touchmove', onDrag);
-                        document.removeEventListener('touchend', endDrag);
-                        observer.disconnect();
+                        cleanup();
                     }
                 });
             });
         });
-        observer.observe(container.parentNode, { childList: true });
+        if (container.parentNode) {
+            removalObserver.observe(container.parentNode, { childList: true });
+        }
     }
 
     function updateTrimmedRegions(container, startBoundary, endBoundary) {
