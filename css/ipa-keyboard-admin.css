@@ -1190,6 +1190,12 @@
     white-space: pre-wrap;
 }
 
+.ll-ipa-search-field-review-action {
+    display: flex;
+    align-items: center;
+    min-height: 18px;
+}
+
 .ll-ipa-search-actions {
     display: grid;
     gap: 6px;
@@ -1616,35 +1622,73 @@
     }
 
     .ll-ipa-search-table {
-        min-width: 640px;
+        width: 100%;
+        min-width: 0;
+        overflow: visible;
+        border: 0;
+        table-layout: auto;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-meta {
-        width: 160px;
+    .ll-ipa-search-table colgroup,
+    .ll-ipa-search-table thead {
+        display: none;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-text {
-        width: 110px;
+    .ll-ipa-search-table tbody {
+        display: grid;
+        gap: 12px;
+        width: 100%;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-ipa {
-        width: 240px;
+    .ll-ipa-search-table tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+        box-sizing: border-box;
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--ll-ipa-border);
+        border-radius: 10px;
+        background: #ffffff;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-checks {
-        width: 165px;
+    .ll-ipa-search-table th,
+    .ll-ipa-search-table td {
+        display: block;
+        box-sizing: border-box;
+        width: 100% !important;
+        padding: 0;
+        border: 0;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-actions {
-        width: 72px;
+    .ll-ipa-search-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 4px;
+        color: var(--ll-ipa-muted);
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .ll-ipa-search-table .ll-ipa-search-categories-cell {
+        display: none;
     }
 
     .ll-ipa-search-action-cell {
-        width: 94px;
+        width: auto;
     }
 
     .ll-ipa-search-save-state {
+        min-height: 0;
         font-size: 11px;
         gap: 4px;
+    }
+
+    .ll-ipa-search-meta-media {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
     }
 }

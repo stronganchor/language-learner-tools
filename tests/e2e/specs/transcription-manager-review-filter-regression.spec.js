@@ -7,6 +7,10 @@ const ipaKeyboardAdminSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/ipa-keyboard-admin.js'),
   'utf8'
 );
+const ipaKeyboardAdminCss = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/ipa-keyboard-admin.css'),
+  'utf8'
+);
 
 function buildMarkup() {
   return `
@@ -52,8 +56,10 @@ function buildMarkup() {
 }
 
 test('reviewed rows stay visible until the transcription search is manually refreshed', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
   await page.evaluate(() => {
     try {
       window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
@@ -226,16 +232,39 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveText('Check the vowel length before clearing.');
   await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-note')).toHaveCount(1);
   await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-note')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark text reviewed');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark pronunciation for review');
   await expect(rows.nth(0).locator('.ll-ipa-search-review-note, .ll-ipa-search-review-note-compact')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-review .ll-ipa-search-field-review-note')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-review')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-action-toggle')).toHaveCount(0);
 
-  await rows.nth(0).locator('.ll-ipa-search-review .ll-ipa-review-toggle').click();
+  const mobileLayout = await rows.nth(0).evaluate((row) => {
+    const textCell = row.querySelector('.ll-ipa-search-text-cell').getBoundingClientRect();
+    const ipaCell = row.querySelector('.ll-ipa-search-ipa-cell').getBoundingClientRect();
+    const results = document.querySelector('#ll-ipa-search-results');
+    return {
+      rowDisplay: window.getComputedStyle(row).display,
+      textTop: textCell.top,
+      ipaTop: ipaCell.top,
+      scrollWidth: results.scrollWidth,
+      clientWidth: results.clientWidth
+    };
+  });
+
+  expect(mobileLayout.rowDisplay).toBe('grid');
+  expect(mobileLayout.ipaTop).toBeGreaterThan(mobileLayout.textTop);
+  expect(mobileLayout.scrollWidth).toBeLessThanOrEqual(mobileLayout.clientWidth + 1);
+
+  await rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle').click();
 
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toHaveAttribute('data-recording-id', '101');
   await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '0');
   await expect(rows.nth(0).locator('.ll-ipa-search-review')).toHaveCount(0);
-  await expect(rows.nth(0).locator('.ll-ipa-search-action-toggle')).toHaveCount(1);
+  await expect(rows.nth(0).locator('.ll-ipa-search-action-toggle')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-field-review-toggle')).toHaveCount(2);
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark text for review');
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(0);
   await expect(rows.nth(1)).toHaveAttribute('data-recording-id', '202');
   await expect(rows.nth(1)).toHaveAttribute('data-needs-review', '1');

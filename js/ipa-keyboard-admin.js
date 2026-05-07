@@ -1464,48 +1464,30 @@
         return '';
     }
 
-    function buildSearchFieldCell(cellClass, $input, field, reviewFields, reviewNote) {
-        const $cell = $('<td>', { class: cellClass });
+    function buildSearchFieldReviewAction(field, reviewFields) {
+        const fields = normalizeReviewFields(reviewFields);
+        const $toggle = buildReviewToggleButton(!!fields[field], 'll-ipa-search-field-review-toggle', field);
+        if (!$toggle) {
+            return null;
+        }
+
+        return $('<div>', { class: 'll-ipa-search-field-review-action' }).append($toggle);
+    }
+
+    function buildSearchFieldCell(cellClass, $input, field, reviewFields, reviewNote, label) {
+        const $cell = $('<td>', {
+            class: cellClass,
+            'data-label': label || ''
+        });
         const $wrap = $('<div>', { class: 'll-ipa-search-field-wrap' }).append($input);
         if (reviewNote && getSearchReviewNoteField(reviewFields) === field) {
             $wrap.append(buildSearchFieldReviewNote(reviewNote));
         }
-        return $cell.append($wrap);
-    }
-
-    function buildSearchReviewItem(reviewFields) {
-        const fields = normalizeReviewFields(reviewFields);
-        if (!fields.recording_text && !fields.recording_ipa) {
-            return null;
+        const $reviewAction = buildSearchFieldReviewAction(field, reviewFields);
+        if ($reviewAction) {
+            $wrap.append($reviewAction);
         }
-
-        const $item = $('<div>', { class: 'll-ipa-search-review' });
-        const $header = $('<div>', { class: 'll-ipa-search-review-header' });
-        $header.append($('<span>', {
-            class: 'll-ipa-search-review-title',
-            text: t('searchReviewPendingTitle', 'Needs review')
-        }));
-        $item.append($header);
-        const activeFields = [];
-        if (fields.recording_text) { activeFields.push('recording_text'); }
-        if (fields.recording_ipa) { activeFields.push('recording_ipa'); }
-        activeFields.forEach(function (field) {
-            const $row = $('<div>', { class: 'll-ipa-search-review-field' });
-            $row.append($('<span>', {
-                class: 'll-ipa-search-review-field-label',
-                text: getReviewFieldLabel(field)
-            }));
-            const $toggle = buildReviewToggleButton(true, 'll-ipa-search-review-toggle', field);
-            if ($toggle) {
-                $row.append($toggle);
-            }
-            $item.append($row);
-        });
-        $item.append($('<div>', {
-            class: 'll-ipa-search-review-message',
-            text: t('searchReviewPendingMessage', 'This transcription is marked for follow-up review.')
-        }));
-        return $item;
+        return $cell.append($wrap);
     }
 
     function buildReviewToggleButton(needsReview, extraClass, reviewField) {
@@ -1535,20 +1517,15 @@
         });
     }
 
-    function buildIssuesCellData(activeIssues, ignoredIssues, reviewFields) {
+    function buildIssuesCellData(activeIssues, ignoredIssues) {
         const active = Array.isArray(activeIssues) ? activeIssues : [];
         const ignored = Array.isArray(ignoredIssues) ? ignoredIssues : [];
-        const fields = normalizeReviewFields(reviewFields);
-        const reviewPending = !!(fields.recording_text || fields.recording_ipa);
         return {
             html: function () {
                 const $wrap = $('<div>', { class: 'll-ipa-search-issues-wrap' });
-                if (!active.length && !ignored.length && !reviewPending) {
+                if (!active.length && !ignored.length) {
                     $wrap.append($('<span>', { class: 'll-ipa-search-issues-empty', text: t('searchNoIssues', 'No warnings') }));
                     return $wrap;
-                }
-                if (reviewPending) {
-                    $wrap.append(buildSearchReviewItem(fields));
                 }
                 active.forEach(function (issue) {
                     $wrap.append(buildSearchIssueItem(issue, false));
@@ -1676,17 +1653,13 @@
             .append($('<span>', { class: 'll-ipa-search-save-label' }));
         const $actionCell = $('<td>', { class: 'll-ipa-search-action-cell' });
         const $actionWrap = $('<div>', { class: 'll-ipa-search-actions' }).append($saveState);
-        ['recording_text', 'recording_ipa'].forEach(function (field) {
-            if (reviewFields[field]) { return; }
-            const $reviewToggle = buildReviewToggleButton(false, 'll-ipa-search-action-toggle', field);
-            if ($reviewToggle) {
-                $actionWrap.append($reviewToggle);
-            }
-        });
         $actionCell.append($actionWrap);
 
-        const $issueCell = $('<td>', { class: 'll-ipa-search-issues-cell' }).append(
-            buildIssuesCellData(issues, ignoredIssues, reviewFields).html()
+        const $issueCell = $('<td>', {
+            class: 'll-ipa-search-issues-cell',
+            'data-label': t('searchIssuesLabel', 'Checks')
+        }).append(
+            buildIssuesCellData(issues, ignoredIssues).html()
         );
 
         return $('<tr>', {
@@ -1696,8 +1669,8 @@
             'data-review-ipa': reviewFields.recording_ipa ? '1' : '0'
         })
             .append($metaCell)
-            .append(buildSearchFieldCell('ll-ipa-search-text-cell', $textInput, 'recording_text', reviewFields, reviewNote))
-            .append(buildSearchFieldCell('ll-ipa-search-ipa-cell', $ipaInput, 'recording_ipa', reviewFields, reviewNote))
+            .append(buildSearchFieldCell('ll-ipa-search-text-cell', $textInput, 'recording_text', reviewFields, reviewNote, t('textColumnLabel', 'Text')))
+            .append(buildSearchFieldCell('ll-ipa-search-ipa-cell', $ipaInput, 'recording_ipa', reviewFields, reviewNote, getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation')))
             .append($('<td>', { class: 'll-ipa-search-categories-cell' }).append(buildCategoriesCell(categories)))
             .append($issueCell)
             .append($actionCell);
@@ -2509,13 +2482,9 @@
     function updateSearchRowValidation($row, validation) {
         const active = validation && Array.isArray(validation.active) ? validation.active : [];
         const ignored = validation && Array.isArray(validation.ignored) ? validation.ignored : [];
-        const reviewFields = {
-            recording_text: ($row.attr('data-review-text') || '0') === '1',
-            recording_ipa: ($row.attr('data-review-ipa') || '0') === '1'
-        };
         const $cell = $row.find('.ll-ipa-search-issues-cell').first();
         if ($cell.length) {
-            $cell.empty().append(buildIssuesCellData(active, ignored, reviewFields).html());
+            $cell.empty().append(buildIssuesCellData(active, ignored).html());
         }
     }
 
