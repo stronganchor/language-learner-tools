@@ -379,6 +379,44 @@ function ll_tools_dictionary_static_cache_debug_log(string $event, array $contex
     error_log('[ll-tools dictionary-cache] ' . wp_json_encode($payload)); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 }
 
+function ll_tools_dictionary_static_cache_status_code_from_headers(array $headers): int {
+    for ($index = count($headers) - 1; $index >= 0; $index--) {
+        $header = trim((string) $headers[$index]);
+        if ($header === '') {
+            continue;
+        }
+
+        if (preg_match('/^HTTP\/\S+\s+([1-5][0-9]{2})\b/i', $header, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if (preg_match('/^Status:\s*([1-5][0-9]{2})\b/i', $header, $matches)) {
+            return (int) $matches[1];
+        }
+    }
+
+    return 0;
+}
+
+function ll_tools_dictionary_static_cache_current_status_code(): int {
+    $status = function_exists('http_response_code') ? http_response_code() : 200;
+    if (is_numeric($status)) {
+        $status_code = (int) $status;
+        if ($status_code >= 100 && $status_code <= 599) {
+            return $status_code;
+        }
+    }
+
+    $header_status = function_exists('headers_list')
+        ? ll_tools_dictionary_static_cache_status_code_from_headers(headers_list())
+        : 0;
+    if ($header_status >= 100 && $header_status <= 599) {
+        return $header_status;
+    }
+
+    return 200;
+}
+
 /**
  * Confirm that one public entry-detail ID is a real published dictionary entry.
  */
@@ -735,32 +773,48 @@ function ll_tools_store_dictionary_static_cache(): void {
         return;
     }
 
-    $status = function_exists('http_response_code') ? (int) http_response_code() : 200;
+    $status = ll_tools_dictionary_static_cache_current_status_code();
     if ($status < 200 || $status >= 300) {
+        ll_tools_dictionary_static_cache_debug_log('skip_status', [
+            'status' => $status,
+        ]);
         return;
     }
 
     $headers = function_exists('headers_list') ? headers_list() : [];
     foreach ($headers as $header) {
         if (stripos((string) $header, 'Location:') === 0) {
+            ll_tools_dictionary_static_cache_debug_log('skip_redirect', [
+                'header' => 'Location',
+            ]);
             return;
         }
     }
 
     $buffer_level = max(0, (int) ($context['buffer_level'] ?? 0));
     if (ob_get_level() <= $buffer_level) {
+        ll_tools_dictionary_static_cache_debug_log('skip_buffer_closed', [
+            'buffer_level' => $buffer_level,
+            'current_level' => ob_get_level(),
+        ]);
         return;
     }
 
     try {
         $html = ob_get_contents();
         if (!is_string($html) || !ll_tools_dictionary_static_cache_html_is_cacheable($html)) {
+            ll_tools_dictionary_static_cache_debug_log('skip_uncacheable_html', [
+                'bytes' => is_string($html) ? strlen($html) : 0,
+            ]);
             return;
         }
 
         $file = (string) $context['file'];
         $dir = dirname($file);
         if (!wp_mkdir_p($dir) || !is_dir($dir) || !is_writable($dir)) {
+            ll_tools_dictionary_static_cache_debug_log('skip_unwritable_dir', [
+                'dir' => basename($dir),
+            ]);
             return;
         }
 
@@ -773,12 +827,18 @@ function ll_tools_store_dictionary_static_cache(): void {
         $written = @file_put_contents($tmp, ll_tools_dictionary_static_cache_prepare_html_for_storage($html), LOCK_EX);
         if ($written === false) {
             @unlink($tmp);
+            ll_tools_dictionary_static_cache_debug_log('write_failed', [
+                'file' => basename($file),
+            ]);
             return;
         }
 
         @chmod($tmp, 0644);
         if (!@rename($tmp, $file)) {
             @unlink($tmp);
+            ll_tools_dictionary_static_cache_debug_log('rename_failed', [
+                'file' => basename($file),
+            ]);
         } else {
             ll_tools_dictionary_static_cache_debug_log('stored', [
                 'file' => basename($file),

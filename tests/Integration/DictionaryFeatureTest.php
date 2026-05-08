@@ -200,6 +200,50 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         remove_filter('ll_tools_dictionary_static_cache_debug_enabled', $enabled);
     }
 
+    public function test_dictionary_static_cache_status_defaults_unset_php_status_to_success(): void
+    {
+        $this->assertSame(200, ll_tools_dictionary_static_cache_current_status_code());
+        $this->assertSame(404, ll_tools_dictionary_static_cache_status_code_from_headers([
+            'Content-Type: text/html',
+            'HTTP/1.1 404 Not Found',
+        ]));
+        $this->assertSame(503, ll_tools_dictionary_static_cache_status_code_from_headers([
+            'Status: 503 Service Unavailable',
+        ]));
+    }
+
+    public function test_dictionary_static_cache_store_writes_when_php_status_is_unset(): void
+    {
+        $dir = ll_tools_dictionary_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'dictionary-store-test.html';
+        @unlink($file);
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_dictionary_static_cache_request'] = [
+            'active' => true,
+            'file' => $file,
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('dictionary cache store test ', 40) . '</body></html>';
+            ll_tools_store_dictionary_static_cache();
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_dictionary_static_cache_request']);
+        }
+
+        $this->assertFileExists($file);
+        $this->assertStringContainsString('dictionary cache store test', (string) file_get_contents($file));
+    }
+
     public function test_dictionary_public_navigation_drops_nonce_auth_and_tracking_noise(): void
     {
         $clean_url = ll_tools_dictionary_strip_noise_query_args_from_url(

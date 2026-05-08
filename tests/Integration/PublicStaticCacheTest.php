@@ -116,6 +116,61 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString(ll_tools_public_static_cache_vocab_grid_nonce_placeholder((int) $lesson_id), $output);
     }
 
+    public function test_public_static_cache_status_defaults_unset_php_status_to_success(): void
+    {
+        $this->assertSame(200, ll_tools_public_static_cache_current_status_code());
+        $this->assertSame(404, ll_tools_public_static_cache_status_code_from_headers([
+            'Content-Type: text/html',
+            'HTTP/1.1 404 Not Found',
+        ]));
+        $this->assertSame(503, ll_tools_public_static_cache_status_code_from_headers([
+            'Status: 503 Service Unavailable',
+        ]));
+    }
+
+    public function test_public_static_cache_store_writes_when_php_status_is_unset(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-store-test.html';
+        @unlink($file);
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'file' => $file,
+            'identity' => [
+                'type' => 'wordset_main',
+                'id' => 17,
+                'path' => '/cached-wordset',
+                'wordset_id' => 17,
+            ],
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('public cache store test ', 40) . '</body></html>';
+            ll_tools_store_public_static_cache();
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+        }
+
+        $this->assertFileExists($file);
+        $this->assertStringContainsString('public cache store test', (string) file_get_contents($file));
+    }
+
+    public function test_public_static_cache_store_runs_before_wordpress_flushes_output_buffers(): void
+    {
+        $this->assertSame(0, has_action('shutdown', 'll_tools_store_public_static_cache'));
+    }
+
     public function test_public_static_cache_purge_removes_html_files(): void
     {
         $dir = ll_tools_public_static_cache_dir();
