@@ -1,7 +1,7 @@
 # Maintenance Backlog
 
-Updated May 1, 2026 after the security, i18n, UI, routing-maintenance, and
-follow-up maintenance passes.
+Updated May 8, 2026 after the security, i18n, UI, routing-maintenance,
+wordset performance, and follow-up maintenance passes.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -69,6 +69,23 @@ decisions, and documentation upkeep.
    - `includes/shortcodes/word-grid-shortcode.php` (roughly 9k lines): rendering, inline edit handling, media selection, REST/AJAX helpers, and lesson-grid behavior need clearer boundaries.
    - `includes/shortcodes/audio-recording-shortcode.php` (roughly 7k lines): recorder UI, queue construction, upload handling, prompt-card handling, and translation helpers should be separated.
    - `js/wordset-pages.js` and `js/wordset-games.js` are both large enough to make targeted game/page work riskier than it needs to be.
+
+3. Move main wordset category search indexing off the first render path.
+   - The wordset main page currently builds and localizes the full category
+     word-search index via `ll_tools_get_wordset_page_category_search_index()`
+     in `includes/pages/wordset-pages.php`.
+   - That preserves instant client-side category search, including matches on
+     word titles/translations and diacritic-insensitive text, but it still makes
+     first render scan the whole wordset's published words.
+   - Treat this as a larger performance project because the replacement should
+     be an on-demand cached AJAX/REST lookup that loads when search is focused
+     or typed, returns matching category IDs without forcing lazy-card loads,
+     and preserves hidden-selection cleanup, empty-state behavior, clear-button
+     behavior, and diacritic-insensitive matching.
+   - Reuse and extend the existing regressions around
+     `wordset-page-category-search.spec.js`, `wordset-page-lazy-loading.spec.js`,
+     and `wordset-page-speed-large-wordset.spec.js` before changing the search
+     data contract.
 
 ## Lower Priority
 
