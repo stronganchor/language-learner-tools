@@ -7034,7 +7034,7 @@
         if (xhrPayload && String(xhrPayload.message || '').trim() !== '') {
             return String(xhrPayload.message || '').trim();
         }
-        return i18n.saveError || 'Unable to save right now.';
+        return i18n.saveError || '';
     }
 
     function removeInactiveCategoryCardFromGrid(categoryId) {
@@ -13105,7 +13105,7 @@
         }).fail(function () {
             goals.ignored_category_ids = previousIgnored;
             renderHiddenCount();
-            alert(i18n.saveError || 'Unable to save right now.');
+            alert(i18n.saveError || '');
         });
     }
 
@@ -13130,12 +13130,12 @@
                 $row.remove();
             }
             if (!$root.find('[data-ll-hidden-row]').length) {
-                $root.find('[data-ll-wordset-hidden-list]').html('<div class="ll-wordset-empty">' + escapeHtml(i18n.hiddenEmpty || 'No hidden categories in this word set.') + '</div>');
+                $root.find('[data-ll-wordset-hidden-list]').html('<div class="ll-wordset-empty">' + escapeHtml(i18n.hiddenEmpty || '') + '</div>');
             }
         }).fail(function () {
             goals.ignored_category_ids = previousIgnored;
             renderHiddenCount();
-            alert(i18n.saveError || 'Unable to save right now.');
+            alert(i18n.saveError || '');
         });
     }
 
@@ -13174,7 +13174,7 @@
         }).fail(function () {
             clearNextCardLoadingState();
             renderNextCard();
-            alert(i18n.saveError || 'Unable to save right now.');
+            alert(i18n.saveError || '');
         });
     }
 
@@ -13216,7 +13216,7 @@
                 }
                 goals.enabled_modes = prevEnabledModes;
                 syncSettingsButtons();
-                alert(i18n.saveError || 'Unable to save right now.');
+                alert(i18n.saveError || '');
             });
         });
 
@@ -13238,7 +13238,7 @@
                 applyFocusChoice(previousChoice);
                 syncSettingsButtons();
                 renderSelectionBar();
-                alert(i18n.saveError || 'Unable to save right now.');
+                alert(i18n.saveError || '');
             });
         });
 
@@ -13247,7 +13247,7 @@
             const queueId = String($(this).attr('data-queue-id') || '');
             if (!queueId) { return; }
             removeQueueActivity(queueId).fail(function () {
-                alert(i18n.saveError || 'Unable to save right now.');
+                alert(i18n.saveError || '');
             });
         });
     }
@@ -13906,10 +13906,10 @@
         const $status = $form.find('[data-ll-recorder-queue-save-status]').first();
         const text = String(message || (
             cleanStatus === 'saving'
-                ? (i18n.recorderQueueSaving || 'Saving...')
+                ? (i18n.recorderQueueSaving || '')
                 : (cleanStatus === 'saved'
-                    ? (i18n.recorderQueueSaved || 'Saved!')
-                    : (cleanStatus === 'error' ? (i18n.recorderQueueSaveError || 'Unable to save right now.') : '')
+                    ? (i18n.recorderQueueSaved || '')
+                    : (cleanStatus === 'error' ? (i18n.recorderQueueSaveError || '') : '')
                 )
         ));
 
@@ -13970,7 +13970,7 @@
                 if (!response || !response.success) {
                     const errorMessage = response && response.data && response.data.message
                         ? String(response.data.message)
-                        : (i18n.recorderQueueSaveError || i18n.saveError || 'Unable to save right now.');
+                        : (i18n.recorderQueueSaveError || i18n.saveError || '');
                     setRecorderQueueAutosaveStatus($form, 'error', errorMessage);
                     return;
                 }
@@ -13984,7 +13984,7 @@
                 }
             })
             .fail(function () {
-                setRecorderQueueAutosaveStatus($form, 'error', i18n.recorderQueueSaveError || i18n.saveError || 'Unable to save right now.');
+                setRecorderQueueAutosaveStatus($form, 'error', i18n.recorderQueueSaveError || i18n.saveError || '');
             })
             .always(function () {
                 state.saving = false;
