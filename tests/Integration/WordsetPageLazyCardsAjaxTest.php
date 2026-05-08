@@ -98,6 +98,7 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($data['nextOffset'] ?? 0));
         $this->assertFalse((bool) ($data['hasMore'] ?? true));
         $this->assertStringContainsString('Lazy Ajax Category B', (string) ($data['html'] ?? ''));
+        $this->assertStringContainsString('ll-wordset-preview-item--text', (string) ($data['html'] ?? ''));
     }
 
     public function test_guest_ajax_rejects_missing_lazy_cards_payload_instead_of_rebuilding_by_wordset_id(): void
@@ -185,6 +186,36 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             $this->assertSame(6, (int) ($payload['base_offset'] ?? 0));
             $this->assertSame(7, (int) ($payload['total'] ?? 0));
             $this->assertCount(1, (array) ($payload['cards'] ?? []));
+
+            $payload_cards = array_values((array) ($payload['cards'] ?? []));
+            $payload_card = isset($payload_cards[0]) && is_array($payload_cards[0]) ? $payload_cards[0] : [];
+            $payload_category = isset($payload_card['data']) && is_array($payload_card['data']) ? $payload_card['data'] : [];
+            $this->assertTrue((bool) ($payload_category['preview_deferred'] ?? false));
+            $this->assertSame([], (array) ($payload_category['preview'] ?? []));
+
+            $original_post = $_POST;
+            $original_request = $_REQUEST;
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_lazy_cards'),
+                'token' => $first_token,
+                'wordset_id' => $wordset_id,
+                'preview_limit' => 2,
+                'offset' => 6,
+                'count' => 1,
+            ];
+            $_REQUEST = $_POST;
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_wordset_page_handle_lazy_cards_ajax();
+                });
+            } finally {
+                $_POST = $original_post;
+                $_REQUEST = $original_request;
+            }
+
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            $this->assertStringContainsString('Lazy Ajax Category G', (string) ($response['data']['html'] ?? ''));
+            $this->assertStringContainsString('ll-wordset-preview-item--text', (string) ($response['data']['html'] ?? ''));
         } finally {
             $_GET = $original_get;
             set_query_var('ll_wordset_page', $original_wordset_page);
