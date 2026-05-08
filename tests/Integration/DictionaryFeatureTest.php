@@ -3,6 +3,15 @@ declare(strict_types=1);
 
 final class DictionaryFeatureTest extends LL_Tools_TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
+            ll_tools_reset_dictionary_static_cache_purge_once_state();
+        }
+    }
+
     protected function tearDown(): void
     {
         global $wpdb;
@@ -78,7 +87,13 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
         unset($GLOBALS['ll_tools_dictionary_source_registry_cache']);
         unset($GLOBALS['ll_tools_dictionary_browser_cache_version']);
+        if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
+            ll_tools_reset_dictionary_static_cache_purge_once_state();
+        }
         ll_tools_bump_dictionary_browser_cache_version();
+        if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
+            ll_tools_reset_dictionary_static_cache_purge_once_state();
+        }
         parent::tearDown();
     }
 
@@ -288,6 +303,115 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ll_tools_bump_dictionary_browser_cache_version();
 
         $this->assertFileDoesNotExist($file);
+    }
+
+    public function test_dictionary_browser_cache_bump_purges_static_html_once_per_request(): void
+    {
+        $dir = ll_tools_dictionary_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $first_file = trailingslashit($dir) . 'dictionary-once-first.html';
+        $second_file = trailingslashit($dir) . 'dictionary-once-second.html';
+        @unlink($first_file);
+        @unlink($second_file);
+
+        if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
+            ll_tools_reset_dictionary_static_cache_purge_once_state();
+        }
+
+        file_put_contents($first_file, '<!doctype html><html><body>first</body></html>');
+        $this->assertFileExists($first_file);
+
+        ll_tools_bump_dictionary_browser_cache_version();
+        $this->assertFileDoesNotExist($first_file);
+
+        file_put_contents($second_file, '<!doctype html><html><body>second</body></html>');
+        $this->assertFileExists($second_file);
+
+        ll_tools_bump_dictionary_browser_cache_version();
+        $this->assertFileExists($second_file);
+
+        if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
+            ll_tools_reset_dictionary_static_cache_purge_once_state();
+        }
+        @unlink($second_file);
+    }
+
+    public function test_dictionary_browser_word_invalidation_skips_unlinked_words(): void
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Unlinked Cache Word',
+        ]);
+        $post = get_post($word_id);
+        $this->assertInstanceOf(WP_Post::class, $post);
+
+        $version = ll_tools_get_dictionary_browser_cache_version();
+        ll_tools_dictionary_browser_invalidate_on_post_save($word_id, $post);
+        $this->assertSame($version, ll_tools_get_dictionary_browser_cache_version());
+
+        ll_tools_dictionary_browser_invalidate_on_terms_change($word_id, [], [], 'wordset');
+        $this->assertSame($version, ll_tools_get_dictionary_browser_cache_version());
+
+        ll_tools_dictionary_browser_invalidate_on_post_delete($word_id);
+        $this->assertSame($version, ll_tools_get_dictionary_browser_cache_version());
+    }
+
+    public function test_dictionary_browser_word_invalidation_keeps_linked_words_fresh(): void
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Linked Cache Entry',
+        ]);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Linked Cache Word',
+        ]);
+        update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $entry_id);
+        $post = get_post($word_id);
+        $this->assertInstanceOf(WP_Post::class, $post);
+
+        $version = ll_tools_get_dictionary_browser_cache_version();
+        ll_tools_dictionary_browser_invalidate_on_post_save($word_id, $post);
+        $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
+
+        $version = ll_tools_get_dictionary_browser_cache_version();
+        ll_tools_dictionary_browser_invalidate_on_terms_change($word_id, [], [], 'wordset');
+        $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
+
+        $version = ll_tools_get_dictionary_browser_cache_version();
+        ll_tools_dictionary_browser_invalidate_on_post_delete($word_id);
+        $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
+    }
+
+    public function test_dictionary_browser_link_meta_changes_invalidate_without_word_save(): void
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Meta Cache Entry',
+        ]);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Meta Cache Word',
+        ]);
+
+        $version = ll_tools_get_dictionary_browser_cache_version();
+        update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $entry_id);
+        $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
+
+        $version = ll_tools_get_dictionary_browser_cache_version();
+        update_post_meta($word_id, 'll_dictionary_unrelated_test_meta', '1');
+        $this->assertSame($version, ll_tools_get_dictionary_browser_cache_version());
+
+        $version = ll_tools_get_dictionary_browser_cache_version();
+        delete_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $entry_id);
+        $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
     }
 
     public function test_dictionary_static_cache_refreshes_embedded_public_nonces(): void

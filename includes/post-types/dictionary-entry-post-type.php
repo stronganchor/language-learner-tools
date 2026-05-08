@@ -2315,11 +2315,43 @@ function ll_tools_dictionary_browser_invalidate_on_post_save($post_id, $post = n
     if (!in_array($post_type, ['ll_dictionary_entry', 'words'], true)) {
         return;
     }
+    if ($post_type === 'words' && ll_tools_get_word_dictionary_entry_id($post_id) <= 0) {
+        return;
+    }
 
     ll_tools_bump_dictionary_browser_cache_version();
 }
 add_action('save_post_ll_dictionary_entry', 'll_tools_dictionary_browser_invalidate_on_post_save', 60, 2);
 add_action('save_post_words', 'll_tools_dictionary_browser_invalidate_on_post_save', 60, 2);
+
+/**
+ * Invalidate dictionary browser caches when a word is linked to or unlinked from an entry.
+ *
+ * @param mixed  $meta_id    Meta row ID or IDs.
+ * @param int    $object_id  Post ID.
+ * @param string $meta_key   Meta key.
+ * @param mixed  $meta_value Meta value.
+ * @return void
+ */
+function ll_tools_dictionary_browser_invalidate_on_word_dictionary_meta_change($meta_id, $object_id, $meta_key, $meta_value = null): void {
+    if (!function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        return;
+    }
+
+    if ((string) $meta_key !== LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY) {
+        return;
+    }
+
+    $word_id = (int) $object_id;
+    if ($word_id <= 0 || get_post_type($word_id) !== 'words') {
+        return;
+    }
+
+    ll_tools_bump_dictionary_browser_cache_version();
+}
+add_action('added_post_meta', 'll_tools_dictionary_browser_invalidate_on_word_dictionary_meta_change', 10, 4);
+add_action('updated_post_meta', 'll_tools_dictionary_browser_invalidate_on_word_dictionary_meta_change', 10, 4);
+add_action('deleted_post_meta', 'll_tools_dictionary_browser_invalidate_on_word_dictionary_meta_change', 10, 4);
 
 /**
  * Invalidate dictionary browser caches when linked terms change.
@@ -2341,6 +2373,9 @@ function ll_tools_dictionary_browser_invalidate_on_terms_change($object_id, $ter
 
     $post_id = (int) $object_id;
     if ($post_id <= 0 || get_post_type($post_id) !== 'words') {
+        return;
+    }
+    if (ll_tools_get_word_dictionary_entry_id($post_id) <= 0) {
         return;
     }
 
@@ -2366,6 +2401,9 @@ function ll_tools_dictionary_browser_invalidate_on_post_delete($post_id): void {
 
     $post_type = (string) get_post_type($post_id);
     if (!in_array($post_type, ['ll_dictionary_entry', 'words'], true)) {
+        return;
+    }
+    if ($post_type === 'words' && ll_tools_get_word_dictionary_entry_id($post_id) <= 0) {
         return;
     }
 

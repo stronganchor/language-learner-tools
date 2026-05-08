@@ -2574,27 +2574,12 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         }
     }
 
-    $gender_support_map = [];
-    if (
-        function_exists('ll_tools_wordset_has_grammatical_gender')
-        && ll_tools_wordset_has_grammatical_gender($wordset_id)
-        && function_exists('ll_flashcards_build_categories')
-    ) {
-        $use_translations = function_exists('ll_flashcards_should_use_translations')
-            ? ll_flashcards_should_use_translations([$wordset_id])
-            : false;
-        [$flashcard_categories] = ll_flashcards_build_categories('', $use_translations, [$wordset_id]);
-        foreach ((array) $flashcard_categories as $flashcard_category) {
-            if (!is_array($flashcard_category)) {
-                continue;
-            }
-            $category_id = isset($flashcard_category['id']) ? (int) $flashcard_category['id'] : 0;
-            if ($category_id <= 0) {
-                continue;
-            }
-            $gender_support_map[$category_id] = !empty($flashcard_category['gender_supported']);
-        }
-    }
+    $gender_enabled_for_wordset = function_exists('ll_tools_wordset_has_grammatical_gender')
+        && ll_tools_wordset_has_grammatical_gender($wordset_id);
+    $gender_options_for_wordset = ($gender_enabled_for_wordset && function_exists('ll_tools_wordset_get_gender_options'))
+        ? ll_tools_wordset_get_gender_options($wordset_id)
+        : [];
+    $gender_min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
 
     $items = [];
     foreach ($rows as $row) {
@@ -2630,6 +2615,16 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         if ($aspect_bucket === '') {
             $aspect_bucket = 'no-image';
         }
+        $gender_supported = false;
+        if ($gender_enabled_for_wordset && function_exists('ll_tools_count_gender_eligible_words_for_category')) {
+            $gender_word_count = ll_tools_count_gender_eligible_words_for_category(
+                $category,
+                [$wordset_id],
+                array_merge($quiz_config, ['__skip_quiz_config_merge' => true]),
+                $gender_options_for_wordset
+            );
+            $gender_supported = $gender_word_count >= $gender_min_word_count;
+        }
 
         $requires_images = true;
         if (function_exists('ll_tools_vocab_lesson_category_requires_images')) {
@@ -2661,7 +2656,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'option_type' => $option_type,
             'learning_supported' => $learning_supported,
             'self_check_supported' => $self_check_supported,
-            'gender_supported' => !empty($gender_support_map[(int) $category->term_id]),
+            'gender_supported' => $gender_supported,
             'aspect_bucket' => $aspect_bucket,
             'count'      => (int) ($row['word_count'] ?? 0),
             'wordset_id' => $wordset_id,
@@ -13327,17 +13322,20 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         $classes[] = 'll-wordset-page--single-category';
     }
     $classes = ll_tools_wordset_page_sanitize_class_list($classes);
+    $defer_main_recommendation_refresh = $is_study_user
+        && $is_main_view
+        && (bool) apply_filters('ll_tools_wordset_page_defer_main_recommendation_refresh', true, $wordset_id);
     if ($is_study_user) {
         if (function_exists('ll_tools_get_user_recommendation_queue')) {
             $recommendation_queue = ll_tools_get_user_recommendation_queue(get_current_user_id(), $wordset_id);
         }
-        if (empty($recommendation_queue) && function_exists('ll_tools_refresh_user_recommendation_queue')) {
+        if (empty($recommendation_queue) && !$defer_main_recommendation_refresh && function_exists('ll_tools_refresh_user_recommendation_queue')) {
             $recommendation_queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $visible_category_ids, $study_categories, 8);
         }
         if (function_exists('ll_tools_recommendation_queue_pick_next')) {
             $next_activity = ll_tools_recommendation_queue_pick_next($recommendation_queue);
         }
-        if (!$next_activity && function_exists('ll_tools_build_next_activity_recommendation')) {
+        if (!$next_activity && !$defer_main_recommendation_refresh && function_exists('ll_tools_build_next_activity_recommendation')) {
             $next_activity = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $visible_category_ids, $study_categories);
         }
     }

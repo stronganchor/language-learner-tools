@@ -878,3 +878,30 @@ function ll_tools_purge_dictionary_static_cache(): int {
 
     return $deleted;
 }
+
+/**
+ * Delete static dictionary HTML cache files at most once in one request.
+ *
+ * Bulk imports can bump the dictionary browser cache version many times. The
+ * version bump is cheap, but repeatedly scanning the static cache directory is
+ * not useful after the first purge.
+ */
+function ll_tools_purge_dictionary_static_cache_once(): int {
+    if (!empty($GLOBALS['ll_tools_dictionary_static_cache_purged_this_request'])) {
+        return 0;
+    }
+
+    $GLOBALS['ll_tools_dictionary_static_cache_purged_this_request'] = true;
+
+    return ll_tools_purge_dictionary_static_cache();
+}
+
+/**
+ * Reset the request-scope dictionary static cache purge guard.
+ *
+ * This exists for tests and CLI loops that intentionally simulate multiple
+ * independent requests in one PHP process.
+ */
+function ll_tools_reset_dictionary_static_cache_purge_once_state(): void {
+    unset($GLOBALS['ll_tools_dictionary_static_cache_purged_this_request']);
+}
