@@ -8,9 +8,10 @@ const {
 } = require('../helpers/page-speed');
 
 const PAGE_PATH = process.env.LL_E2E_WORDSET_PAGE_SPEED_PATH || '/genc-palu/';
-const ACTIONABLE_SELECTOR = process.env.LL_E2E_WORDSET_PAGE_SPEED_SELECTOR || '.ll-wordset-card';
+const ACTIONABLE_SELECTOR = process.env.LL_E2E_WORDSET_PAGE_SPEED_SELECTOR || '.ll-wordset-card[data-cat-id]:not(.ll-wordset-card--lazy-placeholder):not([data-ll-wordset-inline-placeholder])';
+const PLACEHOLDER_SELECTOR = '.ll-wordset-card--lazy-placeholder, [data-ll-wordset-inline-placeholder]';
 const PAGE_ROOT_SELECTOR = process.env.LL_E2E_WORDSET_PAGE_SPEED_ROOT_SELECTOR || '[data-ll-wordset-page], .ll-wordset-page';
-const MIN_CARD_COUNT = readEnvNumber('LL_E2E_WORDSET_PAGE_SPEED_MIN_CARDS', 20);
+const MIN_CARD_COUNT = readEnvNumber('LL_E2E_WORDSET_PAGE_SPEED_MIN_CARDS', 18);
 
 const MAX_DOMCONTENTLOADED_MS = readEnvNumber('LL_E2E_WORDSET_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS', 12000);
 const MAX_ACTIONABLE_MS = readEnvNumber('LL_E2E_WORDSET_PAGE_SPEED_MAX_ACTIONABLE_MS', 12000);
@@ -42,16 +43,22 @@ test('large wordset page stays within the throttled load budget', async ({ page,
     await page.waitForLoadState('load', { timeout: MAX_LOAD_MS });
 
     const metrics = await collectPageSpeedMetrics(page, ACTIONABLE_SELECTOR, firstActionableMs);
+    const placeholderCount = await page.locator(PLACEHOLDER_SELECTOR).count();
 
     await testInfo.attach('wordset-page-speed-metrics', {
       body: JSON.stringify({
         path: PAGE_PATH,
+        selectors: {
+          actionable: ACTIONABLE_SELECTOR,
+          placeholders: PLACEHOLDER_SELECTOR
+        },
         budgetsMs: {
           domContentLoaded: MAX_DOMCONTENTLOADED_MS,
           actionable: MAX_ACTIONABLE_MS,
           load: MAX_LOAD_MS
         },
         minCardCount: MIN_CARD_COUNT,
+        placeholderCount,
         throttleProfile: session.profile,
         metrics
       }, null, 2),

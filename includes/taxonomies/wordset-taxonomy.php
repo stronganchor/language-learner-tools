@@ -4701,11 +4701,14 @@ function ll_tools_get_wordset_cache_epoch(): int {
     return $epoch;
 }
 
-function ll_tools_bump_wordset_cache_epoch(): void {
+function ll_tools_bump_wordset_cache_epoch($wordset_ids = []): void {
     $epoch = ll_tools_get_wordset_cache_epoch();
     update_option('ll_tools_wordset_cache_epoch', $epoch + 1, false);
     if (function_exists('ll_tools_purge_public_static_cache_once')) {
-        ll_tools_purge_public_static_cache_once();
+        $wordset_ids = function_exists('ll_tools_public_static_cache_normalize_id_list')
+            ? ll_tools_public_static_cache_normalize_id_list($wordset_ids)
+            : array_values(array_filter(array_map('intval', (array) $wordset_ids)));
+        ll_tools_purge_public_static_cache_once(!empty($wordset_ids) ? ['wordset_ids' => $wordset_ids] : []);
     }
     if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
         ll_tools_purge_wordset_buttons_shortcode_cache_once();
@@ -4713,7 +4716,7 @@ function ll_tools_bump_wordset_cache_epoch(): void {
 }
 
 function ll_tools_handle_wordset_cache_epoch_bump($term_id = 0): void {
-    ll_tools_bump_wordset_cache_epoch();
+    ll_tools_bump_wordset_cache_epoch([(int) $term_id]);
 }
 add_action('created_wordset', 'll_tools_handle_wordset_cache_epoch_bump', 20, 1);
 add_action('edited_wordset', 'll_tools_handle_wordset_cache_epoch_bump', 20, 1);

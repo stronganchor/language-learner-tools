@@ -325,7 +325,7 @@ tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js
 ```
 
 - If it fails on a slower machine, inspect the attached `page-speed-metrics` artifact in the Playwright report, then adjust the `LL_E2E_PAGE_SPEED_*` env vars rather than hardcoding machine-specific values into the spec.
-- The large-wordset companion spec defaults to `/genc-palu/`, waits for `.ll-wordset-card`, and uses `LL_E2E_WORDSET_PAGE_SPEED_*` env vars:
+- The large-wordset companion spec defaults to `/genc-palu/`, waits for real category cards via `.ll-wordset-card[data-cat-id]:not(.ll-wordset-card--lazy-placeholder):not([data-ll-wordset-inline-placeholder])`, and uses `LL_E2E_WORDSET_PAGE_SPEED_*` env vars:
 
 ```bash
 tests/bin/run-e2e.sh specs/wordset-page-speed-large-wordset.spec.js

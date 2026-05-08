@@ -182,6 +182,9 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             $payload = ll_tools_wordset_page_get_lazy_cards_payload($first_token);
             $this->assertIsArray($payload);
             $this->assertSame(0, (int) ($payload['user_id'] ?? -1));
+            $this->assertSame(6, (int) ($payload['base_offset'] ?? 0));
+            $this->assertSame(7, (int) ($payload['total'] ?? 0));
+            $this->assertCount(1, (array) ($payload['cards'] ?? []));
         } finally {
             $_GET = $original_get;
             set_query_var('ll_wordset_page', $original_wordset_page);

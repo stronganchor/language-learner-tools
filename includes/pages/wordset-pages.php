@@ -2949,6 +2949,8 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'cards' => [],
             'render_context' => [],
             'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+            'base_offset' => 0,
+            'total' => 0,
             'user_id' => get_current_user_id(),
         ];
     }
@@ -2959,6 +2961,8 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'cards' => [],
             'render_context' => [],
             'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+            'base_offset' => 0,
+            'total' => 0,
             'user_id' => get_current_user_id(),
         ];
     }
@@ -2968,6 +2972,8 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'cards' => [],
             'render_context' => [],
             'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+            'base_offset' => 0,
+            'total' => 0,
             'user_id' => get_current_user_id(),
         ];
     }
@@ -3278,6 +3284,8 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'mode_fallback_icons' => $mode_fallback_icons,
         ],
         'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+        'base_offset' => 0,
+        'total' => count($mixed_lesson_cards),
         'user_id' => get_current_user_id(),
     ];
 }
@@ -13483,9 +13491,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             ]);
         }
         $lazy_payload = [
-            'cards' => array_values($mixed_lesson_cards),
+            'cards' => array_values(array_slice($mixed_lesson_cards, $lazy_batch_size)),
             'render_context' => $mixed_lesson_render_context,
             'batch_size' => $lazy_batch_size,
+            'base_offset' => $lazy_batch_size,
+            'total' => count($mixed_lesson_cards),
             'user_id' => $lazy_cards_user_id,
         ];
         $lazy_cards_token = ll_tools_wordset_page_store_lazy_cards_payload($lazy_payload, 0, $lazy_cards_token_hint);
@@ -15238,7 +15248,9 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     }
 
     $cards = (isset($payload['cards']) && is_array($payload['cards'])) ? array_values($payload['cards']) : [];
-    $total = count($cards);
+    $base_offset = max(0, (int) ($payload['base_offset'] ?? 0));
+    $payload_total = max(0, (int) ($payload['total'] ?? 0));
+    $total = max($payload_total, $base_offset + count($cards));
     if ($total === 0 || $offset >= $total) {
         wp_send_json_success([
             'html' => '',
@@ -15253,9 +15265,10 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
         $batch_size = min(max(1, $requested_count), 96);
     }
 
-    $slice = array_slice($cards, $offset, $batch_size);
+    $relative_offset = max(0, $offset - $base_offset);
+    $slice = array_slice($cards, $relative_offset, $batch_size);
     $render_context = (isset($payload['render_context']) && is_array($payload['render_context'])) ? $payload['render_context'] : [];
-    $next_offset = min($total, $offset + count($slice));
+    $next_offset = min($total, $base_offset + $relative_offset + count($slice));
 
     $response = [
         'html' => ll_tools_wordset_page_render_mixed_cards($slice, $render_context),

@@ -3,6 +3,14 @@ declare(strict_types=1);
 
 final class PublicStaticCacheTest extends LL_Tools_TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        if (function_exists('ll_tools_public_static_cache_reset_purge_once_state')) {
+            ll_tools_public_static_cache_reset_purge_once_state();
+        }
+    }
+
     protected function tearDown(): void
     {
         $_GET = [];
@@ -11,6 +19,9 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         set_query_var('ll_wordset_view', '');
         if (function_exists('ll_tools_purge_public_static_cache')) {
             ll_tools_purge_public_static_cache();
+        }
+        if (function_exists('ll_tools_public_static_cache_reset_purge_once_state')) {
+            ll_tools_public_static_cache_reset_purge_once_state();
         }
         parent::tearDown();
     }
@@ -188,6 +199,156 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
 
         $this->assertFileDoesNotExist($file);
         $this->assertFileDoesNotExist($tmp);
+    }
+
+    public function test_public_static_cache_targeted_purge_keeps_unrelated_wordset_files(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $matching = trailingslashit($dir) . 'public-matching.html';
+        $unrelated = trailingslashit($dir) . 'public-unrelated.html';
+        file_put_contents($matching, '<!doctype html><html><body>matching</body></html>');
+        file_put_contents($unrelated, '<!doctype html><html><body>unrelated</body></html>');
+
+        ll_tools_public_static_cache_write_meta($matching, 'matching', [
+            'type' => 'wordset_main',
+            'id' => 17,
+            'path' => '/matching',
+            'wordset_id' => 17,
+        ]);
+        ll_tools_public_static_cache_write_meta($unrelated, 'unrelated', [
+            'type' => 'wordset_main',
+            'id' => 18,
+            'path' => '/unrelated',
+            'wordset_id' => 18,
+        ]);
+
+        $deleted = ll_tools_purge_public_static_cache(['wordset_ids' => [17]]);
+
+        $this->assertSame(1, $deleted);
+        $this->assertFileDoesNotExist($matching);
+        $this->assertFileDoesNotExist(ll_tools_public_static_cache_meta_file_path($matching));
+        $this->assertFileExists($unrelated);
+        $this->assertFileExists(ll_tools_public_static_cache_meta_file_path($unrelated));
+    }
+
+    public function test_public_static_cache_targeted_purge_deletes_legacy_files_without_metadata(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $legacy = trailingslashit($dir) . 'public-legacy.html';
+        file_put_contents($legacy, '<!doctype html><html><body>legacy</body></html>');
+
+        $deleted = ll_tools_purge_public_static_cache(['wordset_ids' => [17]]);
+
+        $this->assertSame(1, $deleted);
+        $this->assertFileDoesNotExist($legacy);
+    }
+
+    public function test_public_static_cache_draft_save_does_not_purge_public_files(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = $this->writePublicCacheFileForWordset($dir, 17, 'draft-save');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Draft Cache Word',
+        ]);
+
+        ll_tools_public_static_cache_purge_on_post_change((int) $word_id);
+
+        $this->assertFileExists($file);
+    }
+
+    public function test_public_static_cache_publish_status_transition_purges_public_files(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'draft',
+            'post_title' => 'Draft Lesson Becoming Public',
+        ]);
+        $file = trailingslashit($dir) . 'public-status-purge.html';
+        file_put_contents($file, '<!doctype html><html><body>status purge</body></html>');
+        ll_tools_public_static_cache_write_meta($file, 'status-purge', [
+            'type' => 'vocab_lesson',
+            'id' => (int) $lesson_id,
+            'path' => '/status-purge',
+            'wordset_id' => 0,
+        ]);
+
+        ll_tools_public_static_cache_purge_on_status_transition('publish', 'draft', get_post((int) $lesson_id));
+
+        $this->assertFileDoesNotExist($file);
+    }
+
+    public function test_public_static_cache_term_move_purges_old_and_new_wordsets_only(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $old = wp_insert_term('Old Public Cache Wordset', 'wordset');
+        $new = wp_insert_term('New Public Cache Wordset', 'wordset');
+        $unrelated = wp_insert_term('Unrelated Public Cache Wordset', 'wordset');
+        $this->assertIsArray($old);
+        $this->assertIsArray($new);
+        $this->assertIsArray($unrelated);
+
+        $old_id = (int) ($old['term_id'] ?? 0);
+        $new_id = (int) ($new['term_id'] ?? 0);
+        $unrelated_id = (int) ($unrelated['term_id'] ?? 0);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Moved Cache Word',
+        ]);
+
+        $old_term = get_term($old_id, 'wordset');
+        $new_term = get_term($new_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $old_term);
+        $this->assertInstanceOf(WP_Term::class, $new_term);
+        ll_tools_public_static_cache_reset_purge_once_state();
+        $old_file = $this->writePublicCacheFileForWordset($dir, $old_id, 'old');
+        $new_file = $this->writePublicCacheFileForWordset($dir, $new_id, 'new');
+        $unrelated_file = $this->writePublicCacheFileForWordset($dir, $unrelated_id, 'unrelated-term-move');
+
+        ll_tools_public_static_cache_purge_on_object_terms_change(
+            (int) $word_id,
+            [$new_id],
+            [(int) $new_term->term_taxonomy_id],
+            'wordset',
+            false,
+            [(int) $old_term->term_taxonomy_id]
+        );
+
+        $this->assertFileDoesNotExist($old_file);
+        $this->assertFileDoesNotExist($new_file);
+        $this->assertFileExists($unrelated_file);
+    }
+
+    private function writePublicCacheFileForWordset(string $dir, int $wordset_id, string $slug): string
+    {
+        $file = trailingslashit($dir) . 'public-' . sanitize_key($slug) . '.html';
+        file_put_contents($file, '<!doctype html><html><body>' . esc_html($slug) . '</body></html>');
+        ll_tools_public_static_cache_write_meta($file, sanitize_key($slug), [
+            'type' => 'wordset_main',
+            'id' => $wordset_id,
+            'path' => '/' . sanitize_key($slug),
+            'wordset_id' => $wordset_id,
+        ]);
+
+        return $file;
     }
 
     private function clear404Flag(): void

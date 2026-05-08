@@ -537,6 +537,11 @@
     let lazyCardsAutoLoadRaf = 0;
     let lazyCardsAutoLoadPollTimer = 0;
     let lazyCardsPlaceholderCount = 0;
+    let lazyCardsPlaceholderColumnCache = {
+        width: 0,
+        template: '',
+        count: 0
+    };
 
     function warmupFlashcardVisualizerContext() {
         try {
@@ -7332,52 +7337,74 @@
             return 1;
         }
 
-        const visibleCards = $grid.children('.ll-wordset-card').toArray().map(function (cardEl) {
+        const gridEl = $grid[0];
+        if (gridEl && window.getComputedStyle && typeof window.getComputedStyle === 'function') {
+            const gridRect = gridEl.getBoundingClientRect ? gridEl.getBoundingClientRect() : null;
+            const gridWidth = gridRect ? Math.round(gridRect.width || 0) : 0;
+            const gridStyles = window.getComputedStyle(gridEl);
+            const template = gridStyles ? String(gridStyles.gridTemplateColumns || '') : '';
+            if (gridWidth > 0 && template && template !== 'none') {
+                if (
+                    lazyCardsPlaceholderColumnCache.width === gridWidth
+                    && lazyCardsPlaceholderColumnCache.template === template
+                    && lazyCardsPlaceholderColumnCache.count > 0
+                ) {
+                    return lazyCardsPlaceholderColumnCache.count;
+                }
+
+                const columnCount = template.split(/\s+/).filter(function (column) {
+                    return column && column !== '0px';
+                }).length;
+                if (columnCount > 0) {
+                    lazyCardsPlaceholderColumnCache = {
+                        width: gridWidth,
+                        template: template,
+                        count: Math.max(1, columnCount)
+                    };
+                    return lazyCardsPlaceholderColumnCache.count;
+                }
+            }
+        }
+
+        let firstRowTop = null;
+        let columnCount = 0;
+        const cards = $grid.children('.ll-wordset-card:not(.ll-wordset-card--lazy-placeholder):not([data-ll-wordset-inline-placeholder])').toArray();
+        for (let index = 0; index < cards.length; index += 1) {
+            const cardEl = cards[index];
             if (!cardEl || cardEl.hidden) {
-                return null;
+                continue;
             }
             if (cardEl.classList && cardEl.classList.contains('is-search-filtered-out')) {
-                return null;
+                continue;
             }
             if (window.getComputedStyle && typeof window.getComputedStyle === 'function') {
                 const computed = window.getComputedStyle(cardEl);
                 if (computed && (computed.display === 'none' || computed.visibility === 'hidden')) {
-                    return null;
+                    continue;
                 }
             }
             if (!cardEl.getBoundingClientRect) {
-                return null;
+                continue;
             }
 
             const rect = cardEl.getBoundingClientRect();
             if (!rect || rect.width <= 0 || rect.height <= 0) {
-                return null;
+                continue;
             }
 
-            return {
-                element: cardEl,
-                rect: rect
-            };
-        }).filter(Boolean);
-
-        if (!visibleCards.length) {
-            return 1;
-        }
-
-        visibleCards.sort(function (left, right) {
-            if (Math.abs(left.rect.top - right.rect.top) > 6) {
-                return left.rect.top - right.rect.top;
+            if (firstRowTop === null) {
+                firstRowTop = rect.top;
             }
-            return left.rect.left - right.rect.left;
-        });
 
-        const firstRowTop = visibleCards[0].rect.top;
-        let columnCount = 0;
-        visibleCards.forEach(function (entry) {
-            if (Math.abs(entry.rect.top - firstRowTop) <= 6) {
+            if (Math.abs(rect.top - firstRowTop) <= 6) {
                 columnCount += 1;
+                continue;
             }
-        });
+
+            if (columnCount > 0) {
+                break;
+            }
+        }
 
         return Math.max(1, columnCount);
     }
@@ -7456,6 +7483,9 @@
 
     function startLazyCardsAutoLoadPolling() {
         if (lazyCardsAutoLoadPollTimer || !lazyCardsEnabled || !hasPendingLazyCards()) {
+            return;
+        }
+        if (typeof window.IntersectionObserver === 'function' && $lazyCardsSentinel.length) {
             return;
         }
         lazyCardsAutoLoadPollTimer = window.setInterval(function () {

@@ -2737,11 +2737,14 @@ function ll_tools_get_category_cache_epoch() {
     return $epoch;
 }
 
-function ll_tools_bump_category_cache_epoch() {
+function ll_tools_bump_category_cache_epoch($wordset_ids = []) {
     $epoch = ll_tools_get_category_cache_epoch();
     update_option('ll_tools_wc_cache_epoch', $epoch + 1, false);
     if (function_exists('ll_tools_purge_public_static_cache_once')) {
-        ll_tools_purge_public_static_cache_once();
+        $wordset_ids = function_exists('ll_tools_public_static_cache_normalize_id_list')
+            ? ll_tools_public_static_cache_normalize_id_list($wordset_ids)
+            : array_values(array_filter(array_map('intval', (array) $wordset_ids)));
+        ll_tools_purge_public_static_cache_once(!empty($wordset_ids) ? ['wordset_ids' => $wordset_ids] : []);
     }
     if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
         ll_tools_purge_wordset_buttons_shortcode_cache_once();
@@ -2754,6 +2757,7 @@ function ll_tools_bump_category_cache_epoch() {
 function ll_tools_bump_category_cache_version($term_ids) {
     $term_ids = array_map('intval', (array) $term_ids);
     $did_bump_any = false;
+    $wordset_ids = [];
     foreach ($term_ids as $term_id) {
         if ($term_id <= 0) {
             continue;
@@ -2761,10 +2765,16 @@ function ll_tools_bump_category_cache_version($term_ids) {
         $current = ll_tools_get_category_cache_version($term_id);
         update_term_meta($term_id, '_ll_wc_cache_version', $current + 1);
         $did_bump_any = true;
+        if (defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
+            $owner_id = (int) get_term_meta($term_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, true);
+            if ($owner_id > 0) {
+                $wordset_ids[] = $owner_id;
+            }
+        }
     }
 
     if ($did_bump_any) {
-        ll_tools_bump_category_cache_epoch();
+        ll_tools_bump_category_cache_epoch($wordset_ids);
     }
 }
 

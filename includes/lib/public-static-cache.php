@@ -389,6 +389,147 @@ function ll_tools_public_static_cache_file_path(string $key): string {
     return trailingslashit($dir) . 'public-' . $key . '.html';
 }
 
+function ll_tools_public_static_cache_meta_file_path(string $file): string {
+    $file = trim($file);
+    if ($file === '' || !preg_match('/^(.+)\.html$/', $file, $matches)) {
+        return '';
+    }
+
+    return (string) $matches[1] . '.meta.json';
+}
+
+function ll_tools_public_static_cache_normalize_id_list($ids): array {
+    $normalized = [];
+    foreach ((array) $ids as $id) {
+        $id = (int) $id;
+        if ($id > 0) {
+            $normalized[$id] = true;
+        }
+    }
+
+    $result = array_values(array_map('intval', array_keys($normalized)));
+    sort($result, SORT_NUMERIC);
+    return $result;
+}
+
+function ll_tools_public_static_cache_normalize_purge_criteria(array $criteria = []): array {
+    $normalized = [];
+
+    $wordset_ids = ll_tools_public_static_cache_normalize_id_list($criteria['wordset_ids'] ?? ($criteria['wordset_id'] ?? []));
+    if (!empty($wordset_ids)) {
+        $normalized['wordset_ids'] = $wordset_ids;
+    }
+
+    $post_ids = ll_tools_public_static_cache_normalize_id_list($criteria['post_ids'] ?? ($criteria['post_id'] ?? []));
+    if (!empty($post_ids)) {
+        $normalized['post_ids'] = $post_ids;
+    }
+
+    $types = [];
+    foreach ((array) ($criteria['types'] ?? ($criteria['type'] ?? [])) as $type) {
+        $type = sanitize_key((string) $type);
+        if ($type !== '') {
+            $types[$type] = true;
+        }
+    }
+    if (!empty($types)) {
+        $normalized['types'] = array_values(array_keys($types));
+    }
+
+    return $normalized;
+}
+
+function ll_tools_public_static_cache_read_meta(string $file): ?array {
+    $meta_file = ll_tools_public_static_cache_meta_file_path($file);
+    if ($meta_file === '' || !is_readable($meta_file)) {
+        return null;
+    }
+
+    $raw = file_get_contents($meta_file);
+    if (!is_string($raw) || trim($raw) === '') {
+        return null;
+    }
+
+    $meta = json_decode($raw, true);
+    return is_array($meta) ? $meta : null;
+}
+
+function ll_tools_public_static_cache_meta_matches_criteria(?array $meta, array $criteria): bool {
+    $criteria = ll_tools_public_static_cache_normalize_purge_criteria($criteria);
+    if (empty($criteria)) {
+        return true;
+    }
+
+    if (!is_array($meta)) {
+        return true;
+    }
+
+    $identity = isset($meta['identity']) && is_array($meta['identity']) ? $meta['identity'] : [];
+    if (empty($identity)) {
+        return true;
+    }
+
+    $identity_type = sanitize_key((string) ($identity['type'] ?? ''));
+    if (!empty($criteria['types']) && !in_array($identity_type, $criteria['types'], true)) {
+        return false;
+    }
+
+    if (!empty($criteria['post_ids'])) {
+        $identity_id = (int) ($identity['id'] ?? 0);
+        if ($identity_id > 0 && in_array($identity_id, $criteria['post_ids'], true)) {
+            return true;
+        }
+    }
+
+    if (!empty($criteria['wordset_ids'])) {
+        $identity_wordset_id = (int) ($identity['wordset_id'] ?? 0);
+        $identity_id = (int) ($identity['id'] ?? 0);
+        if ($identity_wordset_id > 0 && in_array($identity_wordset_id, $criteria['wordset_ids'], true)) {
+            return true;
+        }
+        if ($identity_type === 'wordset_main' && $identity_id > 0 && in_array($identity_id, $criteria['wordset_ids'], true)) {
+            return true;
+        }
+    }
+
+    return empty($criteria['post_ids']) && empty($criteria['wordset_ids']);
+}
+
+function ll_tools_public_static_cache_write_meta(string $file, string $key, ?array $identity): void {
+    $meta_file = ll_tools_public_static_cache_meta_file_path($file);
+    if ($meta_file === '') {
+        return;
+    }
+
+    $identity = is_array($identity) ? $identity : [];
+    $safe_identity = [
+        'type' => sanitize_key((string) ($identity['type'] ?? '')),
+        'id' => max(0, (int) ($identity['id'] ?? 0)),
+        'path' => (string) ($identity['path'] ?? ''),
+        'wordset_id' => max(0, (int) ($identity['wordset_id'] ?? 0)),
+    ];
+
+    $payload = [
+        'schema' => 1,
+        'key' => preg_replace('/[^a-f0-9]/', '', strtolower($key)),
+        'created_at' => time(),
+        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+        'identity' => $safe_identity,
+    ];
+
+    $tmp = $meta_file . '.tmp-' . wp_generate_password(12, false, false);
+    $written = @file_put_contents($tmp, wp_json_encode($payload), LOCK_EX);
+    if ($written === false) {
+        @unlink($tmp);
+        return;
+    }
+
+    @chmod($tmp, 0644);
+    if (!@rename($tmp, $meta_file)) {
+        @unlink($tmp);
+    }
+}
+
 /**
  * Replace request-short public AJAX nonces before storing cached HTML.
  *
@@ -526,6 +667,7 @@ function ll_tools_serve_public_static_cache(): void {
 
     $GLOBALS['ll_tools_public_static_cache_request'] = [
         'active' => true,
+        'key' => $key,
         'file' => $file,
         'identity' => $identity,
         'buffer_level' => ob_get_level(),
@@ -639,6 +781,7 @@ function ll_tools_store_public_static_cache(): void {
                 'file' => basename($file),
             ]);
         } else {
+            ll_tools_public_static_cache_write_meta($file, (string) ($context['key'] ?? ''), $identity);
             ll_tools_public_static_cache_debug_log('stored', [
                 'file' => basename($file),
                 'bytes' => (int) $written,
@@ -655,23 +798,52 @@ add_action('shutdown', 'll_tools_store_public_static_cache', 0);
 /**
  * Delete static public HTML cache files.
  */
-function ll_tools_purge_public_static_cache(): int {
+function ll_tools_purge_public_static_cache(array $criteria = []): int {
     $dir = ll_tools_public_static_cache_dir();
     if ($dir === '' || !is_dir($dir)) {
         return 0;
     }
 
     $deleted = 0;
-    $patterns = [
-        trailingslashit($dir) . 'public-*.html',
-        trailingslashit($dir) . 'public-*.html.tmp-*',
-    ];
+    $criteria = ll_tools_public_static_cache_normalize_purge_criteria($criteria);
 
-    foreach ($patterns as $pattern) {
-        foreach (glob($pattern) ?: [] as $file) {
-            if (is_file($file) && @unlink($file)) {
-                $deleted++;
+    foreach (glob(trailingslashit($dir) . 'public-*.html') ?: [] as $file) {
+        if (!is_file($file)) {
+            continue;
+        }
+
+        $meta = ll_tools_public_static_cache_read_meta($file);
+        if (!ll_tools_public_static_cache_meta_matches_criteria($meta, $criteria)) {
+            continue;
+        }
+
+        if (@unlink($file)) {
+            $deleted++;
+        }
+
+        $meta_file = ll_tools_public_static_cache_meta_file_path($file);
+        if ($meta_file !== '' && is_file($meta_file)) {
+            @unlink($meta_file);
+        }
+    }
+
+    if (empty($criteria)) {
+        foreach (glob(trailingslashit($dir) . 'public-*.meta.json') ?: [] as $meta_file) {
+            if (is_file($meta_file)) {
+                @unlink($meta_file);
             }
+        }
+    }
+
+    foreach (glob(trailingslashit($dir) . 'public-*.html.tmp-*') ?: [] as $tmp_file) {
+        if (is_file($tmp_file) && @unlink($tmp_file)) {
+            $deleted++;
+        }
+    }
+
+    foreach (glob(trailingslashit($dir) . 'public-*.meta.json.tmp-*') ?: [] as $tmp_file) {
+        if (is_file($tmp_file)) {
+            @unlink($tmp_file);
         }
     }
 
@@ -681,32 +853,238 @@ function ll_tools_purge_public_static_cache(): int {
 /**
  * Purge public static cache once per mutating request.
  */
-function ll_tools_purge_public_static_cache_once(): int {
-    static $did_purge = false;
-    if ($did_purge) {
+function ll_tools_purge_public_static_cache_once(array $criteria = []): int {
+    if (!isset($GLOBALS['ll_tools_public_static_cache_purged_keys']) || !is_array($GLOBALS['ll_tools_public_static_cache_purged_keys'])) {
+        $GLOBALS['ll_tools_public_static_cache_purged_keys'] = [];
+    }
+    $purged_keys =& $GLOBALS['ll_tools_public_static_cache_purged_keys'];
+
+    $criteria = ll_tools_public_static_cache_normalize_purge_criteria($criteria);
+    $key = empty($criteria) ? 'all' : md5((string) wp_json_encode($criteria));
+    if (!empty($purged_keys['all']) || !empty($purged_keys[$key])) {
         return 0;
     }
 
-    $did_purge = true;
-    return ll_tools_purge_public_static_cache();
+    $purged_keys[$key] = true;
+    if ($key === 'all') {
+        $purged_keys = ['all' => true];
+    }
+
+    return ll_tools_purge_public_static_cache($criteria);
+}
+
+function ll_tools_public_static_cache_reset_purge_once_state(): void {
+    $GLOBALS['ll_tools_public_static_cache_purged_keys'] = [];
+}
+
+function ll_tools_public_static_cache_wordset_ids_for_categories($category_ids): array {
+    $wordset_ids = [];
+    if (!defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
+        return [];
+    }
+
+    foreach (ll_tools_public_static_cache_normalize_id_list($category_ids) as $category_id) {
+        $owner_id = (int) get_term_meta($category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, true);
+        if ($owner_id > 0) {
+            $wordset_ids[] = $owner_id;
+        }
+    }
+
+    return ll_tools_public_static_cache_normalize_id_list($wordset_ids);
+}
+
+function ll_tools_public_static_cache_wordset_ids_for_post(int $post_id): array {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0) {
+        return [];
+    }
+
+    $post = get_post($post_id);
+    if (!($post instanceof WP_Post)) {
+        return [];
+    }
+
+    $wordset_ids = [];
+    if ($post->post_type === 'word_audio') {
+        $parent_id = (int) wp_get_post_parent_id($post_id);
+        if ($parent_id > 0) {
+            $wordset_ids = array_merge($wordset_ids, ll_tools_public_static_cache_wordset_ids_for_post($parent_id));
+        }
+    }
+
+    if ($post->post_type === 'll_vocab_lesson' && defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')) {
+        $wordset_ids[] = (int) get_post_meta($post_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+    }
+
+    if ($post->post_type === 'll_content_lesson' && function_exists('ll_tools_get_content_lesson_wordset_id')) {
+        $wordset_ids[] = (int) ll_tools_get_content_lesson_wordset_id($post_id);
+    }
+
+    if ($post->post_type === 'word_images' && defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+        $wordset_ids[] = (int) get_post_meta($post_id, LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, true);
+    }
+
+    if (function_exists('ll_tools_get_post_wordset_ids')) {
+        $wordset_ids = array_merge($wordset_ids, ll_tools_get_post_wordset_ids($post_id));
+    } else {
+        $terms = wp_get_post_terms($post_id, 'wordset', ['fields' => 'ids']);
+        if (!is_wp_error($terms)) {
+            $wordset_ids = array_merge($wordset_ids, (array) $terms);
+        }
+    }
+
+    $category_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+    if (!is_wp_error($category_ids) && !empty($category_ids)) {
+        $wordset_ids = array_merge(
+            $wordset_ids,
+            ll_tools_public_static_cache_wordset_ids_for_categories($category_ids)
+        );
+    }
+
+    return ll_tools_public_static_cache_normalize_id_list($wordset_ids);
+}
+
+function ll_tools_public_static_cache_relevant_post_type(string $post_type): bool {
+    return in_array($post_type, ['words', 'word_images', 'word_audio', 'll_vocab_lesson', 'll_content_lesson', 'll_prompt_card'], true);
+}
+
+function ll_tools_public_static_cache_term_ids_from_term_taxonomy_ids($term_taxonomy_ids, string $taxonomy): array {
+    $term_taxonomy_ids = ll_tools_public_static_cache_normalize_id_list($term_taxonomy_ids);
+    $taxonomy = sanitize_key($taxonomy);
+    if (empty($term_taxonomy_ids) || $taxonomy === '') {
+        return [];
+    }
+
+    global $wpdb;
+    $placeholders = implode(',', array_fill(0, count($term_taxonomy_ids), '%d'));
+    $sql = "SELECT term_id FROM {$wpdb->term_taxonomy} WHERE taxonomy = %s AND term_taxonomy_id IN ({$placeholders})";
+    $prepared = (string) call_user_func_array([$wpdb, 'prepare'], array_merge([$sql, $taxonomy], $term_taxonomy_ids));
+    $ids = $wpdb->get_col($prepared);
+
+    return ll_tools_public_static_cache_normalize_id_list($ids);
+}
+
+function ll_tools_public_static_cache_purge_criteria_for_post(int $post_id): array {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0) {
+        return [];
+    }
+
+    $post = get_post($post_id);
+    if (!($post instanceof WP_Post)) {
+        return [];
+    }
+
+    $criteria = [
+        'post_ids' => [$post_id],
+    ];
+
+    $wordset_ids = ll_tools_public_static_cache_wordset_ids_for_post($post_id);
+    if (!empty($wordset_ids)) {
+        $criteria['wordset_ids'] = $wordset_ids;
+    }
+
+    return ll_tools_public_static_cache_normalize_purge_criteria($criteria);
 }
 
 /**
  * Broad invalidation for content that can appear on public wordset/lesson pages.
  */
 function ll_tools_public_static_cache_purge_on_post_change($post_id = 0): void {
-    $post_type = $post_id ? get_post_type((int) $post_id) : '';
-    if (!in_array($post_type, ['words', 'word_images', 'word_audio', 'll_vocab_lesson', 'll_content_lesson', 'll_prompt_card'], true)) {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0 || wp_is_post_autosave($post_id) || wp_is_post_revision($post_id)) {
         return;
     }
 
-    ll_tools_purge_public_static_cache_once();
+    $post_type = get_post_type($post_id);
+    if (!is_string($post_type) || !ll_tools_public_static_cache_relevant_post_type($post_type)) {
+        return;
+    }
+
+    if ((string) get_post_status($post_id) !== 'publish') {
+        return;
+    }
+
+    $criteria = ll_tools_public_static_cache_purge_criteria_for_post($post_id);
+    ll_tools_purge_public_static_cache_once($criteria);
 }
 add_action('save_post', 'll_tools_public_static_cache_purge_on_post_change', 30, 1);
 add_action('before_delete_post', 'll_tools_public_static_cache_purge_on_post_change', 30, 1);
 
+function ll_tools_public_static_cache_purge_on_status_transition(string $new_status, string $old_status, $post): void {
+    if (!($post instanceof WP_Post) || !ll_tools_public_static_cache_relevant_post_type((string) $post->post_type)) {
+        return;
+    }
+
+    if ($new_status !== 'publish' && $old_status !== 'publish') {
+        return;
+    }
+
+    ll_tools_purge_public_static_cache_once(
+        ll_tools_public_static_cache_purge_criteria_for_post((int) $post->ID)
+    );
+}
+add_action('transition_post_status', 'll_tools_public_static_cache_purge_on_status_transition', 30, 3);
+
+function ll_tools_public_static_cache_purge_on_object_terms_change($object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids): void {
+    $object_id = (int) $object_id;
+    $taxonomy = sanitize_key((string) $taxonomy);
+    if ($object_id <= 0 || !in_array($taxonomy, ['wordset', 'word-category'], true)) {
+        return;
+    }
+
+    $post_type = get_post_type($object_id);
+    if (!is_string($post_type) || !ll_tools_public_static_cache_relevant_post_type($post_type)) {
+        return;
+    }
+
+    $term_ids = array_merge(
+        ll_tools_public_static_cache_normalize_id_list($terms),
+        ll_tools_public_static_cache_term_ids_from_term_taxonomy_ids($old_tt_ids, $taxonomy),
+        ll_tools_public_static_cache_term_ids_from_term_taxonomy_ids($tt_ids, $taxonomy)
+    );
+    if ($taxonomy === 'wordset') {
+        $term_ids = array_merge(
+            $term_ids,
+            ll_tools_public_static_cache_normalize_id_list($old_tt_ids),
+            ll_tools_public_static_cache_normalize_id_list($tt_ids)
+        );
+    }
+    if ($taxonomy === 'word-category') {
+        $wordset_ids = ll_tools_public_static_cache_wordset_ids_for_categories($term_ids);
+    } else {
+        $wordset_ids = ll_tools_public_static_cache_normalize_id_list($term_ids);
+    }
+
+    if (empty($wordset_ids)) {
+        ll_tools_purge_public_static_cache_once();
+        return;
+    }
+
+    ll_tools_purge_public_static_cache_once(['wordset_ids' => $wordset_ids]);
+}
+add_action('set_object_terms', 'll_tools_public_static_cache_purge_on_object_terms_change', 30, 6);
+
 function ll_tools_public_static_cache_purge_on_term_change($term_id = 0): void {
-    ll_tools_purge_public_static_cache_once();
+    $term_id = (int) $term_id;
+    if ($term_id <= 0) {
+        ll_tools_purge_public_static_cache_once();
+        return;
+    }
+
+    $taxonomy = (string) current_filter();
+    if (strpos($taxonomy, 'wordset') !== false) {
+        ll_tools_purge_public_static_cache_once(['wordset_ids' => [$term_id]]);
+        return;
+    }
+
+    $wordset_ids = ll_tools_public_static_cache_wordset_ids_for_categories([$term_id]);
+    if (empty($wordset_ids)) {
+        ll_tools_purge_public_static_cache_once();
+        return;
+    }
+
+    ll_tools_purge_public_static_cache_once(['wordset_ids' => $wordset_ids]);
 }
 add_action('created_wordset', 'll_tools_public_static_cache_purge_on_term_change', 30, 1);
 add_action('edited_wordset', 'll_tools_public_static_cache_purge_on_term_change', 30, 1);
