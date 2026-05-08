@@ -68,7 +68,7 @@ async function ensureLoggedIntoAdmin(page, targetPath = '/wp-admin/') {
   await expect(page).toHaveURL(/\/wp-admin\//);
 }
 
-async function createWpPage(page, { title, content, status = 'publish' }) {
+async function createWpPage(page, { title, content, status = 'publish', timeoutMs = 30000 }) {
   await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
 
   const result = await page.evaluate(async (payload) => {
@@ -77,21 +77,37 @@ async function createWpPage(page, { title, content, status = 'publish' }) {
       return { error: 'missing-rest-nonce' };
     }
 
-    const response = await fetch('/wp-json/wp/v2/pages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-WP-Nonce': nonce
-      },
-      body: JSON.stringify(payload)
-    });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), payload.timeoutMs || 30000);
+    let response;
+    let data;
+    try {
+      response = await fetch('/wp-json/wp/v2/pages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': nonce
+        },
+        body: JSON.stringify({
+          title: payload.title,
+          content: payload.content,
+          status: payload.status
+        }),
+        signal: controller.signal
+      });
+      data = await response.json();
+    } catch (error) {
+      return { error: error && error.name === 'AbortError' ? 'rest-create-page-timeout' : 'rest-create-page-failed' };
+    } finally {
+      window.clearTimeout(timeout);
+    }
 
     return {
       ok: response.ok,
       status: response.status,
-      data: await response.json()
+      data
     };
-  }, { title, content, status });
+  }, { title, content, status, timeoutMs });
 
   if (!result || result.error) {
     throw new Error(`Failed to create page: ${result && result.error ? result.error : 'unknown error'}`);

@@ -19,8 +19,10 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $category_id = (int) $category['term_id'];
 
         $attachment_id = $this->createImageAttachment('preview-dedup-shared.png');
-        $this->createWordWithThumbnail($category_id, $wordset_id, $attachment_id, 'Preview Dedup Word A');
-        $this->createWordWithThumbnail($category_id, $wordset_id, $attachment_id, 'Preview Dedup Word B');
+        $first_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $attachment_id, 'Preview Dedup Word A');
+        $second_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $attachment_id, 'Preview Dedup Word B');
+        $this->createAudioRecording($first_word_id, 'preview-dedup-word-a.mp3');
+        $this->createAudioRecording($second_word_id, 'preview-dedup-word-b.mp3');
 
         $preview = ll_tools_get_wordset_category_preview($wordset_id, $category_id, 2, true);
         $this->assertIsArray($preview);
@@ -65,9 +67,12 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $duplicate_attachment_b = $this->createImageAttachment('preview-dedup-file-b.png');
         $unique_attachment = $this->createImageAttachment('preview-dedup-file-c.png', self::ALT_PIXEL_PNG_BASE64);
 
-        $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_a, 'Preview File Dedup Word A', '2026-01-01 00:00:03');
-        $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_b, 'Preview File Dedup Word B', '2026-01-01 00:00:02');
-        $this->createWordWithThumbnail($category_id, $wordset_id, $unique_attachment, 'Preview File Dedup Word C', '2026-01-01 00:00:01');
+        $first_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_a, 'Preview File Dedup Word A', '2026-01-01 00:00:03');
+        $second_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_b, 'Preview File Dedup Word B', '2026-01-01 00:00:02');
+        $third_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $unique_attachment, 'Preview File Dedup Word C', '2026-01-01 00:00:01');
+        $this->createAudioRecording($first_word_id, 'preview-file-dedup-word-a.mp3');
+        $this->createAudioRecording($second_word_id, 'preview-file-dedup-word-b.mp3');
+        $this->createAudioRecording($third_word_id, 'preview-file-dedup-word-c.mp3');
 
         $preview = ll_tools_get_wordset_category_preview($wordset_id, $category_id, 2, true);
         $this->assertIsArray($preview);
@@ -122,6 +127,9 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
             'post_status' => 'publish',
             'post_title' => 'Prompt Preview Correct',
         ]);
+        $this->createAudioRecording($first_image_word_id, 'prompt-preview-first.mp3');
+        $this->createAudioRecording($second_image_word_id, 'prompt-preview-second.mp3');
+        $this->createAudioRecording($correct_answer_id, 'prompt-preview-correct.mp3');
 
         $this->createPromptCard($prompt_category_id, $wordset_id, [
             'title' => 'Prompt Preview First Card',
@@ -165,6 +173,19 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         set_post_thumbnail($word_id, $attachment_id);
 
         return (int) $word_id;
+    }
+
+    private function createAudioRecording(int $word_id, string $audio_file_name): int
+    {
+        $audio_post_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio ' . $word_id,
+        ]);
+        update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
+
+        return (int) $audio_post_id;
     }
 
     /**

@@ -59,7 +59,7 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         ]);
         $flagged_recording_id = $this->createAudioRecording($word_id, 'stt-flagged.mp3', [
             'recording_text' => 'Charlie needs review',
-            'needs_review' => '1',
+            'review_fields' => ['recording_text'],
         ]);
 
         $default_entries = ll_tools_export_build_stt_training_entries($wordset_id, 'recording_text');
@@ -109,7 +109,7 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $recording_id = $this->createAudioRecording($word_id, 'stt-zip.mp3', [
             'recording_text' => 'Bravo text',
             'recording_ipa' => 'bɹa.vo',
-            'needs_review' => '1',
+            'review_fields' => ['recording_text'],
             'recording_type' => 'isolation',
             'audio_credit' => 'Speaker: Speaker Bravo; Recorder: Example Commons',
             'audio_source_name' => 'Example Commons',
@@ -260,7 +260,7 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
     }
 
     /**
-     * @param array<string,string> $meta
+     * @param array<string,mixed> $meta
      */
     private function createAudioRecording(int $word_id, string $filename, array $meta): int
     {
@@ -300,8 +300,18 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         if (isset($meta['audio_change_note'])) {
             update_post_meta($recording_id, 'audio_change_note', (string) $meta['audio_change_note']);
         }
-        if (!empty($meta['needs_review'])) {
-            update_post_meta($recording_id, 'll_auto_transcription_needs_review', '1');
+        $review_fields = [];
+        if (!empty($meta['review_fields']) && is_array($meta['review_fields'])) {
+            $review_fields = $meta['review_fields'];
+        } elseif (!empty($meta['needs_review'])) {
+            $review_fields = ['recording_ipa'];
+        }
+        foreach ($review_fields as $review_field) {
+            if (function_exists('ll_tools_ipa_keyboard_mark_recording_needs_auto_review')) {
+                ll_tools_ipa_keyboard_mark_recording_needs_auto_review($recording_id, (string) $review_field);
+            } else {
+                update_post_meta($recording_id, 'll_auto_transcription_needs_review', '1');
+            }
         }
         if (!empty($meta['recording_type'])) {
             $recording_type_id = $this->ensureRecordingType((string) $meta['recording_type']);

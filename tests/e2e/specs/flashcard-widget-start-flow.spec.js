@@ -39,20 +39,24 @@ test('standalone flashcard widget start flow reaches quiz popup', async ({ page 
   let selectedPath = null;
 
   if (hasAdminCredentials()) {
-    createdPage = await createWpPage(page, {
-      title: `E2E Flashcard Widget ${Date.now()}`,
-      content: '[flashcard_widget embed="false" wordset="" wordset_fallback="true" quiz_mode="practice"]'
-    });
+    try {
+      createdPage = await createWpPage(page, {
+        title: `E2E Flashcard Widget ${Date.now()}`,
+        content: '[flashcard_widget embed="false" wordset="" wordset_fallback="true" quiz_mode="practice"]'
+      });
 
-    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
-    const startButton = page.locator('#ll-tools-start-flashcard');
-    if ((await startButton.count()) > 0) {
-      try {
-        await startButton.first().waitFor({ state: 'visible', timeout: 10000 });
-        selectedPath = createdPage.link;
-      } catch {
-        // The shortcode rendered, but the local site still has no compatible quiz data.
+      await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+      const startButton = page.locator('#ll-tools-start-flashcard');
+      if ((await startButton.count()) > 0) {
+        try {
+          await startButton.first().waitFor({ state: 'visible', timeout: 10000 });
+          selectedPath = createdPage.link;
+        } catch {
+          // The shortcode rendered, but the local site still has no compatible quiz data.
+        }
       }
+    } catch (error) {
+      console.warn(`Could not create temporary flashcard widget page; falling back to existing pages. ${error.message}`);
     }
   }
 
