@@ -172,6 +172,51 @@ function ll_tools_site_sync_remote_request(array $connection, string $method, st
     return $data;
 }
 
+function ll_tools_site_sync_remote_error_is_retryable(WP_Error $error): bool {
+    $data = (array) $error->get_error_data();
+    $status = (int) ($data['status'] ?? 0);
+    if (in_array($status, [408, 429, 500, 502, 503, 504], true)) {
+        return true;
+    }
+
+    $message = $error->get_error_message();
+    foreach (['already processing', 'cURL error 28', 'timed out', 'timeout'] as $needle) {
+        if (stripos($message, $needle) !== false) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_site_sync_remote_request_with_retry(
+    array $connection,
+    string $method,
+    string $route,
+    string $password,
+    array $body = [],
+    int $max_attempts = 5
+) {
+    $attempt = 0;
+    $delays = [2, 4, 8, 12];
+
+    do {
+        $attempt++;
+        $result = ll_tools_site_sync_remote_request($connection, $method, $route, $password, $body);
+        if (!is_wp_error($result)) {
+            return $result;
+        }
+
+        if ($attempt >= $max_attempts || !ll_tools_site_sync_remote_error_is_retryable($result)) {
+            return $result;
+        }
+
+        sleep((int) ($delays[$attempt - 1] ?? 12));
+    } while ($attempt < $max_attempts);
+
+    return $result;
+}
+
 function ll_tools_site_sync_remote_snapshot_per_page(): int {
     $per_page = (int) apply_filters('ll_tools_site_sync_remote_snapshot_per_page', 100);
     return max(1, min(250, $per_page));
@@ -183,7 +228,7 @@ function ll_tools_site_sync_remote_update_batch_size(): int {
 }
 
 function ll_tools_site_sync_remote_apply_update_limit(): int {
-    $limit = (int) apply_filters('ll_tools_site_sync_remote_apply_update_limit', 25);
+    $limit = (int) apply_filters('ll_tools_site_sync_remote_apply_update_limit', 100);
     return max(1, min(100, $limit));
 }
 
@@ -198,7 +243,7 @@ function ll_tools_site_sync_fetch_remote_snapshot_page(array $connection, string
         'offset' => max(0, $offset),
     ]);
 
-    return ll_tools_site_sync_remote_request($connection, 'GET', $route, $password);
+    return ll_tools_site_sync_remote_request_with_retry($connection, 'GET', $route, $password);
 }
 
 function ll_tools_site_sync_fetch_remote_snapshot(array $connection, string $password, bool $include_media = true) {
@@ -269,7 +314,7 @@ function ll_tools_site_sync_send_remote_transcription_updates(array $connection,
     ];
 
     foreach (array_chunk($updates, $batch_size) as $chunk) {
-        $response = ll_tools_site_sync_remote_request(
+        $response = ll_tools_site_sync_remote_request_with_retry(
             $connection,
             'POST',
             '/wordsets/' . $remote_wordset . '/transcriptions',
@@ -285,6 +330,7 @@ function ll_tools_site_sync_send_remote_transcription_updates(array $connection,
         $summary['updated'] = array_merge($summary['updated'], array_values((array) ($response['updated'] ?? [])));
         $summary['errors'] = array_merge($summary['errors'], array_values((array) ($response['errors'] ?? [])));
         $summary['batch']['request_count']++;
+        usleep(300000);
     }
 
     return $summary;
@@ -436,11 +482,67 @@ function ll_tools_site_sync_conflict_mode_from_request(): string {
     $mode = isset($_POST['ll_site_sync_conflict_mode'])
         ? sanitize_key((string) wp_unslash($_POST['ll_site_sync_conflict_mode']))
         : '';
-    if (in_array($mode, ['flag', 'skip', 'accept_live'], true)) {
+    if (in_array($mode, ['flag', 'skip', 'accept_live', 'push_local'], true)) {
         return $mode;
     }
 
     return !empty($_POST['ll_site_sync_flag_conflicts']) ? 'flag' : 'skip';
+}
+
+function ll_tools_site_sync_merge_remote_update(array $current, array $next): array {
+    foreach ($next as $key => $value) {
+        $current[$key] = $key === 'recording_id' ? (int) $value : $value;
+    }
+
+    return $current;
+}
+
+function ll_tools_site_sync_push_local_conflict_updates(array $plan): array {
+    $updates_by_recording = [];
+
+    foreach ((array) ($plan['remote_updates'] ?? []) as $update) {
+        if (!is_array($update)) {
+            continue;
+        }
+
+        $recording_id = (int) ($update['recording_id'] ?? 0);
+        if ($recording_id <= 0) {
+            continue;
+        }
+
+        $updates_by_recording[$recording_id] = ll_tools_site_sync_merge_remote_update(
+            (array) ($updates_by_recording[$recording_id] ?? ['recording_id' => $recording_id]),
+            $update
+        );
+    }
+
+    foreach ((array) ($plan['conflicts'] ?? []) as $conflict) {
+        if (!is_array($conflict)) {
+            continue;
+        }
+
+        $remote_record = (array) ($conflict['remote_record'] ?? []);
+        $local_record = (array) ($conflict['local_record'] ?? []);
+        $recording_id = (int) (($remote_record['recording'] ?? [])['id'] ?? 0);
+        $field = sanitize_key((string) ($conflict['field'] ?? ''));
+        if ($recording_id <= 0 || $field === '') {
+            continue;
+        }
+
+        $local_values = ll_tools_site_sync_normalize_record_values((array) ($local_record['values'] ?? []));
+        $update = (array) ($updates_by_recording[$recording_id] ?? ['recording_id' => $recording_id]);
+        if (in_array($field, ['recording_text', 'recording_ipa'], true)) {
+            $update[$field] = (string) ($local_values[$field] ?? '');
+        } elseif (in_array($field, ['needs_review', 'review_fields', 'review_note'], true)) {
+            $update['needs_review'] = (bool) ($local_values['needs_review'] ?? false);
+            $update['review_fields'] = array_values((array) ($local_values['review_fields'] ?? []));
+            $update['review_note'] = (string) ($local_values['review_note'] ?? '');
+        }
+
+        $updates_by_recording[$recording_id] = $update;
+    }
+
+    return array_values($updates_by_recording);
 }
 
 function ll_tools_site_sync_accept_live_conflicts_locally(array $plan, int $wordset_id): array {
@@ -509,10 +611,16 @@ function ll_tools_site_sync_enqueue_admin_assets($hook): void {
     wp_localize_script('ll-tools-site-sync-admin-js', 'llToolsSiteSyncAdmin', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'localOverviewNonce' => wp_create_nonce('ll_tools_site_sync_local_overview'),
+        'applyPushNonce' => wp_create_nonce('ll_tools_site_sync_apply_push'),
         'strings' => [
             'loadingOverview' => __('Checking local changes in the background...', 'll-tools-text-domain'),
             'overviewFailed' => __('Local change overview could not load.', 'll-tools-text-domain'),
             'retry' => __('Retry', 'll-tools-text-domain'),
+            'applyPasswordRequired' => __('Enter the remote password before applying the push.', 'll-tools-text-domain'),
+            'applyStarting' => __('Starting push batches...', 'll-tools-text-domain'),
+            'applyRunning' => __('Applying push batches. Keep this tab open.', 'll-tools-text-domain'),
+            'applyDone' => __('Push batches finished.', 'll-tools-text-domain'),
+            'applyFailed' => __('Push batches stopped before finishing.', 'll-tools-text-domain'),
         ],
     ]);
 }
@@ -542,6 +650,193 @@ function ll_tools_site_sync_ajax_local_overview(): void {
     ]);
 }
 add_action('wp_ajax_ll_tools_site_sync_local_overview', 'll_tools_site_sync_ajax_local_overview');
+
+function ll_tools_site_sync_apply_push_batch(array $connection, string $password, string $conflict_mode): array {
+    $result = [
+        'errors' => [],
+        'notices' => [],
+        'plan' => null,
+        'remote_result' => null,
+        'conflict_result' => null,
+        'accept_live_result' => null,
+        'progress' => [
+            'sent_remote_updates' => 0,
+            'total_remote_updates' => 0,
+            'remaining_remote_updates_before_refresh' => 0,
+            'sent_conflict_review_updates' => 0,
+            'total_conflict_review_updates' => 0,
+            'remaining_conflict_review_updates_before_refresh' => 0,
+            'next_remote_updates' => 0,
+            'next_conflict_review_updates' => 0,
+            'next_conflicts' => 0,
+            'next_skipped' => 0,
+            'done' => false,
+        ],
+    ];
+
+    $local_snapshot = ll_tools_site_sync_build_snapshot(
+        (int) $connection['local_wordset_id'],
+        (string) $connection['surface'],
+        true,
+        ['include_media' => false]
+    );
+    if (is_wp_error($local_snapshot)) {
+        $result['errors'][] = $local_snapshot->get_error_message();
+        return $result;
+    }
+
+    $remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password, false);
+    if (is_wp_error($remote_snapshot)) {
+        $result['errors'][] = $remote_snapshot->get_error_message();
+        return $result;
+    }
+
+    $base_snapshot = ll_tools_site_sync_get_base_snapshot($connection);
+    $plan = ll_tools_site_sync_build_push_plan($local_snapshot, $remote_snapshot, $base_snapshot);
+    $result['plan'] = $plan;
+
+    $apply_limit = ll_tools_site_sync_remote_apply_update_limit();
+    $remote_updates = $conflict_mode === 'push_local'
+        ? ll_tools_site_sync_push_local_conflict_updates($plan)
+        : array_values((array) ($plan['remote_updates'] ?? []));
+    $remote_updates_to_send = array_slice($remote_updates, 0, $apply_limit);
+    $remaining_remote_updates = max(0, count($remote_updates) - count($remote_updates_to_send));
+
+    $remote_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, $remote_updates_to_send);
+    if (is_wp_error($remote_result)) {
+        $result['errors'][] = $remote_result->get_error_message();
+        return $result;
+    }
+    $result['remote_result'] = $remote_result;
+    $result['progress']['sent_remote_updates'] = count($remote_updates_to_send);
+    $result['progress']['total_remote_updates'] = count($remote_updates);
+    $result['progress']['remaining_remote_updates_before_refresh'] = $remaining_remote_updates;
+
+    $flag_conflicts = $conflict_mode === 'flag';
+    $conflict_review_updates = array_values((array) ($plan['conflict_review_updates'] ?? []));
+    $remaining_capacity = max(0, $apply_limit - count($remote_updates_to_send));
+    $conflict_review_updates_to_send = $flag_conflicts && $remaining_capacity > 0
+        ? array_slice($conflict_review_updates, 0, $remaining_capacity)
+        : [];
+    $remaining_conflict_review_updates = $flag_conflicts
+        ? max(0, count($conflict_review_updates) - count($conflict_review_updates_to_send))
+        : 0;
+    if (!empty($conflict_review_updates_to_send)) {
+        $conflict_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, $conflict_review_updates_to_send);
+        if (is_wp_error($conflict_result)) {
+            $result['errors'][] = $conflict_result->get_error_message();
+            return $result;
+        }
+        $result['conflict_result'] = $conflict_result;
+    }
+    $result['progress']['sent_conflict_review_updates'] = count($conflict_review_updates_to_send);
+    $result['progress']['total_conflict_review_updates'] = $flag_conflicts ? count($conflict_review_updates) : 0;
+    $result['progress']['remaining_conflict_review_updates_before_refresh'] = $remaining_conflict_review_updates;
+
+    if ($conflict_mode === 'accept_live' && !empty($plan['conflicts'])) {
+        $accept_live_result = ll_tools_site_sync_accept_live_conflicts_locally($plan, (int) $connection['local_wordset_id']);
+        $result['accept_live_result'] = $accept_live_result;
+        $result['notices'][] = sprintf(
+            /* translators: 1: updated local field count, 2: updated local recording count */
+            __('Accepted live values locally for %1$d conflicted field(s) across %2$d recording(s).', 'll-tools-text-domain'),
+            (int) ($accept_live_result['fields_updated'] ?? 0),
+            (int) ($accept_live_result['recordings_updated'] ?? 0)
+        );
+
+        $local_snapshot = ll_tools_site_sync_build_snapshot(
+            (int) $connection['local_wordset_id'],
+            (string) $connection['surface'],
+            true,
+            ['include_media' => false]
+        );
+        if (is_wp_error($local_snapshot)) {
+            $result['errors'][] = $local_snapshot->get_error_message();
+            return $result;
+        }
+    } elseif ($conflict_mode === 'skip' && !empty($plan['conflicts'])) {
+        $result['notices'][] = __('Skipped conflict handling for this push. Conflicted fields were not changed locally or on the live site.', 'll-tools-text-domain');
+    }
+
+    $fresh_remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password, false);
+    if (is_wp_error($fresh_remote_snapshot)) {
+        $result['errors'][] = $fresh_remote_snapshot->get_error_message();
+        return $result;
+    }
+
+    $base_merge_plan = $plan;
+    if (in_array($conflict_mode, ['accept_live', 'push_local'], true)) {
+        $base_merge_plan['conflicts'] = [];
+    }
+    $merged_base = ll_tools_site_sync_merge_base_snapshot_after_pull($base_snapshot, $fresh_remote_snapshot, $base_merge_plan);
+    ll_tools_site_sync_save_base_snapshot($connection, $merged_base);
+
+    $next_plan = ll_tools_site_sync_build_push_plan($local_snapshot, $fresh_remote_snapshot, $merged_base);
+    $result['plan'] = $next_plan;
+    ll_tools_site_sync_save_cached_preview_plan($connection, $next_plan);
+
+    $next_remote_updates = $conflict_mode === 'push_local'
+        ? count(ll_tools_site_sync_push_local_conflict_updates($next_plan))
+        : count((array) ($next_plan['remote_updates'] ?? []));
+    $next_conflict_review_updates = count((array) ($next_plan['conflict_review_updates'] ?? []));
+    $next_conflicts = count((array) ($next_plan['conflicts'] ?? []));
+    $result['progress']['next_remote_updates'] = $next_remote_updates;
+    $result['progress']['next_conflict_review_updates'] = $next_conflict_review_updates;
+    $result['progress']['next_conflicts'] = $next_conflicts;
+    $result['progress']['next_skipped'] = count((array) ($next_plan['skipped'] ?? []));
+    $result['progress']['done'] = $next_remote_updates <= 0
+        && ($conflict_mode !== 'push_local' || $next_conflicts <= 0)
+        && ($conflict_mode !== 'flag' || $next_conflict_review_updates <= 0);
+
+    return $result;
+}
+
+function ll_tools_site_sync_ajax_apply_push_batch(): void {
+    if (!current_user_can(ll_tools_site_sync_capability())) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to use site sync.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_tools_site_sync_apply_push', 'nonce');
+
+    $connection = ll_tools_site_sync_connection_from_request(ll_tools_site_sync_get_saved_connection());
+    update_option(ll_tools_site_sync_connection_option_name(), $connection, false);
+    $password = isset($_POST['ll_site_sync_remote_password'])
+        ? (string) wp_unslash($_POST['ll_site_sync_remote_password'])
+        : '';
+    $validation = ll_tools_site_sync_validate_connection($connection, $password);
+    if (is_wp_error($validation)) {
+        wp_send_json_error(['message' => $validation->get_error_message()], 400);
+    }
+
+    $conflict_mode = ll_tools_site_sync_conflict_mode_from_request();
+    $batch_result = ll_tools_site_sync_apply_push_batch($connection, $password, $conflict_mode);
+    if (!empty($batch_result['errors'])) {
+        wp_send_json_error([
+            'message' => implode(' ', array_map('strval', (array) $batch_result['errors'])),
+            'progress' => (array) ($batch_result['progress'] ?? []),
+        ], 500);
+    }
+
+    $progress = (array) ($batch_result['progress'] ?? []);
+    $message = !empty($progress['done'])
+        ? __('Push finished. Live comparison is up to date for pushable rows.', 'll-tools-text-domain')
+        : sprintf(
+            /* translators: 1: processed update count, 2: total update count, 3: remaining update count, 4: conflict count */
+            __('Processed %1$d of %2$d queued remote update(s). %3$d update(s) remain after refresh. Conflicts remaining: %4$d.', 'll-tools-text-domain'),
+            (int) ($progress['sent_remote_updates'] ?? 0),
+            (int) ($progress['total_remote_updates'] ?? 0),
+            (int) ($progress['next_remote_updates'] ?? 0),
+            (int) ($progress['next_conflicts'] ?? 0)
+        );
+
+    wp_send_json_success([
+        'message' => $message,
+        'progress' => $progress,
+        'notices' => array_values((array) ($batch_result['notices'] ?? [])),
+    ]);
+}
+add_action('wp_ajax_ll_tools_site_sync_apply_push_batch', 'll_tools_site_sync_ajax_apply_push_batch');
 
 function ll_tools_site_sync_admin_process_request(array &$connection): array {
     $result = [
@@ -605,6 +900,48 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
         return $result;
     }
 
+    if ($action === 'apply_push') {
+        $conflict_mode = ll_tools_site_sync_conflict_mode_from_request();
+        $batch_result = ll_tools_site_sync_apply_push_batch($connection, $password, $conflict_mode);
+        $result['plan'] = $batch_result['plan'] ?? null;
+        $result['remote_result'] = $batch_result['remote_result'] ?? null;
+        $result['conflict_result'] = $batch_result['conflict_result'] ?? null;
+        $result['accept_live_result'] = $batch_result['accept_live_result'] ?? null;
+        $result['notices'] = array_merge($result['notices'], array_values((array) ($batch_result['notices'] ?? [])));
+        foreach ((array) ($batch_result['errors'] ?? []) as $batch_error) {
+            $result['errors'][] = (string) $batch_error;
+        }
+        if (!empty($result['errors'])) {
+            return $result;
+        }
+
+        $progress = (array) ($batch_result['progress'] ?? []);
+        $remaining_clean_updates = (int) ($progress['next_remote_updates'] ?? 0);
+        $final_conflict_count = (int) ($progress['next_conflicts'] ?? 0);
+        if (empty($progress['done'])) {
+            $result['notices'][] = sprintf(
+                /* translators: 1: processed update count, 2: total clean update count, 3: remaining clean update count, 4: conflict count */
+                __('Push batch finished. Processed %1$d of %2$d queued remote update(s). %3$d update(s) remain; use Apply All Push Batches to continue automatically. Conflicts remaining: %4$d.', 'll-tools-text-domain'),
+                (int) ($progress['sent_remote_updates'] ?? 0),
+                (int) ($progress['total_remote_updates'] ?? 0),
+                $remaining_clean_updates,
+                $final_conflict_count
+            );
+        } else {
+            $remote_result = (array) ($batch_result['remote_result'] ?? []);
+            $request_count = (int) (($remote_result['batch'] ?? [])['request_count'] ?? 1);
+            $result['notices'][] = sprintf(
+                /* translators: 1: remote updated count, 2: remote request count, 3: conflict count */
+                __('Push finished. Applied %1$d remote updates across %2$d small request(s). Conflicts remaining: %3$d.', 'll-tools-text-domain'),
+                (int) ($remote_result['updated_count'] ?? 0),
+                max(1, $request_count),
+                $final_conflict_count
+            );
+        }
+
+        return $result;
+    }
+
     $local_snapshot = ll_tools_site_sync_build_snapshot(
         (int) $connection['local_wordset_id'],
         (string) $connection['surface'],
@@ -656,99 +993,6 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
     if ($action === 'preview_push') {
         $result['plan'] = ll_tools_site_sync_build_push_plan($local_snapshot, $remote_snapshot, $base_snapshot);
         ll_tools_site_sync_save_cached_preview_plan($connection, $result['plan']);
-        return $result;
-    }
-
-    if ($action === 'apply_push') {
-        $plan = ll_tools_site_sync_build_push_plan($local_snapshot, $remote_snapshot, $base_snapshot);
-        $result['plan'] = $plan;
-        $conflict_mode = ll_tools_site_sync_conflict_mode_from_request();
-        $apply_limit = ll_tools_site_sync_remote_apply_update_limit();
-        $remote_updates = array_values((array) ($plan['remote_updates'] ?? []));
-        $remote_updates_to_send = array_slice($remote_updates, 0, $apply_limit);
-        $remaining_clean_updates = max(0, count($remote_updates) - count($remote_updates_to_send));
-        $remote_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, $remote_updates_to_send);
-        if (is_wp_error($remote_result)) {
-            $result['errors'][] = $remote_result->get_error_message();
-            return $result;
-        }
-        $result['remote_result'] = $remote_result;
-
-        $flag_conflicts = $conflict_mode === 'flag';
-        $conflict_review_updates = array_values((array) ($plan['conflict_review_updates'] ?? []));
-        $remaining_capacity = max(0, $apply_limit - count($remote_updates_to_send));
-        $conflict_review_updates_to_send = $flag_conflicts && $remaining_capacity > 0
-            ? array_slice($conflict_review_updates, 0, $remaining_capacity)
-            : [];
-        $remaining_conflict_review_updates = $flag_conflicts
-            ? max(0, count($conflict_review_updates) - count($conflict_review_updates_to_send))
-            : 0;
-        if ($flag_conflicts && !empty($plan['conflict_review_updates'])) {
-            if (!empty($conflict_review_updates_to_send)) {
-                $conflict_result = ll_tools_site_sync_send_remote_transcription_updates($connection, $password, $conflict_review_updates_to_send);
-                if (is_wp_error($conflict_result)) {
-                    $result['errors'][] = $conflict_result->get_error_message();
-                    return $result;
-                }
-                $result['conflict_result'] = $conflict_result;
-            }
-        }
-
-        if ($conflict_mode === 'accept_live' && !empty($plan['conflicts'])) {
-            $accept_live_result = ll_tools_site_sync_accept_live_conflicts_locally($plan, (int) $connection['local_wordset_id']);
-            $result['accept_live_result'] = $accept_live_result;
-            $result['notices'][] = sprintf(
-                /* translators: 1: updated local field count, 2: updated local recording count */
-                __('Accepted live values locally for %1$d conflicted field(s) across %2$d recording(s).', 'll-tools-text-domain'),
-                (int) ($accept_live_result['fields_updated'] ?? 0),
-                (int) ($accept_live_result['recordings_updated'] ?? 0)
-            );
-
-            $local_snapshot = ll_tools_site_sync_build_snapshot(
-                (int) $connection['local_wordset_id'],
-                (string) $connection['surface'],
-                true
-            );
-            if (is_wp_error($local_snapshot)) {
-                $result['errors'][] = $local_snapshot->get_error_message();
-                return $result;
-            }
-        } elseif ($conflict_mode === 'skip' && !empty($plan['conflicts'])) {
-            $result['notices'][] = __('Skipped conflict handling for this push. Conflicted fields were not changed locally or on the live site.', 'll-tools-text-domain');
-        }
-
-        $fresh_remote_snapshot = ll_tools_site_sync_fetch_remote_snapshot($connection, $password, false);
-        if (!is_wp_error($fresh_remote_snapshot)) {
-            $base_merge_plan = $plan;
-            if ($conflict_mode === 'accept_live') {
-                $base_merge_plan['conflicts'] = [];
-            }
-            $merged_base = ll_tools_site_sync_merge_base_snapshot_after_pull($base_snapshot, $fresh_remote_snapshot, $base_merge_plan);
-            ll_tools_site_sync_save_base_snapshot($connection, $merged_base);
-            $result['plan'] = ll_tools_site_sync_build_push_plan($local_snapshot, $fresh_remote_snapshot, $merged_base);
-            ll_tools_site_sync_save_cached_preview_plan($connection, $result['plan']);
-        }
-
-        $final_conflict_count = count((array) (($result['plan']['conflicts'] ?? null) ?? ($plan['conflicts'] ?? [])));
-        if ($remaining_clean_updates > 0 || $remaining_conflict_review_updates > 0) {
-            $result['notices'][] = sprintf(
-                /* translators: 1: applied update count, 2: total clean update count, 3: remaining clean update count, 4: conflict count */
-                __('Push batch finished. Applied %1$d of %2$d clean remote updates. %3$d clean updates remain; run Apply Clean Push to Live again to continue. Conflicts remaining: %4$d.', 'll-tools-text-domain'),
-                (int) ($remote_result['updated_count'] ?? 0),
-                count($remote_updates),
-                $remaining_clean_updates,
-                $final_conflict_count
-            );
-        } else {
-            $request_count = (int) (($remote_result['batch'] ?? [])['request_count'] ?? 1);
-            $result['notices'][] = sprintf(
-                /* translators: 1: remote updated count, 2: remote request count, 3: conflict count */
-                __('Push finished. Applied %1$d remote updates across %2$d small request(s). Conflicts remaining: %3$d.', 'll-tools-text-domain'),
-                (int) ($remote_result['updated_count'] ?? 0),
-                max(1, $request_count),
-                $final_conflict_count
-            );
-        }
         return $result;
     }
 
@@ -1706,6 +1950,91 @@ function ll_tools_site_sync_render_connection_fields(array $connection): void {
     <?php
 }
 
+function ll_tools_site_sync_render_connection_hidden_fields(array $connection): void {
+    ?>
+    <input type="hidden" name="ll_site_sync_local_wordset_id" value="<?php echo esc_attr((string) ((int) ($connection['local_wordset_id'] ?? 0))); ?>">
+    <input type="hidden" name="ll_site_sync_remote_url" value="<?php echo esc_attr((string) ($connection['remote_url'] ?? '')); ?>">
+    <input type="hidden" name="ll_site_sync_remote_wordset" value="<?php echo esc_attr((string) ($connection['remote_wordset'] ?? '')); ?>">
+    <input type="hidden" name="ll_site_sync_remote_username" value="<?php echo esc_attr((string) ($connection['remote_username'] ?? '')); ?>">
+    <input type="hidden" name="ll_site_sync_surface" value="<?php echo esc_attr(ll_tools_site_sync_normalize_surface((string) ($connection['surface'] ?? 'transcriptions'))); ?>">
+    <?php
+}
+
+function ll_tools_site_sync_render_apply_push_panel(array $connection, ?array $plan): void {
+    if (!is_array($plan) || (string) ($plan['direction'] ?? '') !== 'push') {
+        return;
+    }
+
+    $clean_count = count((array) ($plan['remote_updates'] ?? []));
+    $conflict_count = count((array) ($plan['conflicts'] ?? []));
+    $skipped_count = count((array) ($plan['skipped'] ?? []));
+    $total_push_local_count = count(ll_tools_site_sync_push_local_conflict_updates($plan));
+    ?>
+    <section class="ll-site-sync-panel ll-site-sync-apply-panel" data-ll-site-sync-apply-panel>
+        <h2><?php esc_html_e('Apply Push', 'll-tools-text-domain'); ?></h2>
+        <p class="description">
+            <?php echo esc_html(sprintf(
+                /* translators: 1: clean update count, 2: conflict count, 3: skipped count */
+                __('Ready to process %1$d clean update(s), %2$d conflict(s), and %3$d skipped row(s). The browser will keep sending small live-safe batches until the pushable work is finished.', 'll-tools-text-domain'),
+                $clean_count,
+                $conflict_count,
+                $skipped_count
+            )); ?>
+        </p>
+        <form method="post" action="<?php echo esc_url(ll_tools_site_sync_get_admin_page_url()); ?>" data-ll-site-sync-apply-form>
+            <?php wp_nonce_field('ll_tools_site_sync_action', 'll_site_sync_nonce'); ?>
+            <?php ll_tools_site_sync_render_connection_hidden_fields($connection); ?>
+            <label class="ll-site-sync-field ll-site-sync-apply-password">
+                <span><?php esc_html_e('Remote password', 'll-tools-text-domain'); ?></span>
+                <input type="password" name="ll_site_sync_remote_password" value="" autocomplete="current-password" required>
+            </label>
+            <?php if ($conflict_count > 0) : ?>
+                <fieldset class="ll-site-sync-conflict-options">
+                    <legend><?php esc_html_e('Conflict handling', 'll-tools-text-domain'); ?></legend>
+                    <label class="ll-site-sync-checkbox">
+                        <input type="radio" name="ll_site_sync_conflict_mode" value="flag" checked>
+                        <span><?php esc_html_e('Flag conflicts on the live site for transcription review.', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <label class="ll-site-sync-checkbox">
+                        <input type="radio" name="ll_site_sync_conflict_mode" value="push_local">
+                        <span><?php esc_html_e('Push staging values to live for conflicts.', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <label class="ll-site-sync-checkbox">
+                        <input type="radio" name="ll_site_sync_conflict_mode" value="skip">
+                        <span><?php esc_html_e('Skip conflicts for now.', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <label class="ll-site-sync-checkbox">
+                        <input type="radio" name="ll_site_sync_conflict_mode" value="accept_live">
+                        <span><?php esc_html_e('Accept the live site version locally for all conflicts.', 'll-tools-text-domain'); ?></span>
+                    </label>
+                </fieldset>
+                <p class="description">
+                    <?php echo esc_html(sprintf(
+                        /* translators: %d: update count including local-wins conflicts */
+                        __('Choosing staging-values conflict handling would queue %d total remote update(s).', 'll-tools-text-domain'),
+                        $total_push_local_count
+                    )); ?>
+                </p>
+            <?php else : ?>
+                <input type="hidden" name="ll_site_sync_conflict_mode" value="skip">
+            <?php endif; ?>
+            <div class="ll-site-sync-actions">
+                <button type="submit" class="button button-primary" name="ll_site_sync_action" value="apply_push" data-ll-site-sync-apply-button>
+                    <?php esc_html_e('Apply All Push Batches', 'll-tools-text-domain'); ?>
+                </button>
+            </div>
+            <div class="ll-site-sync-apply-progress" data-ll-site-sync-apply-progress hidden>
+                <div class="ll-site-sync-loading" role="status" aria-live="polite">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <span data-ll-site-sync-apply-status><?php esc_html_e('Waiting to start.', 'll-tools-text-domain'); ?></span>
+                </div>
+                <progress data-ll-site-sync-apply-meter max="100" value="0"></progress>
+            </div>
+        </form>
+    </section>
+    <?php
+}
+
 function ll_tools_site_sync_render_plan_summary(?array $plan): void {
     if (!is_array($plan)) {
         return;
@@ -1844,35 +2173,9 @@ function ll_tools_site_sync_render_admin_page(): void {
             <?php endif; ?>
         </section>
 
-        <?php ll_tools_site_sync_render_plan_summary($plan); ?>
+        <?php ll_tools_site_sync_render_apply_push_panel($connection, $plan); ?>
 
-        <?php if (is_array($result['plan'] ?? null) && (string) (($result['plan']['direction'] ?? '')) === 'push' && in_array((string) ($result['processed_action'] ?? ''), ['preview_push', 'preview_cache'], true)) : ?>
-            <section class="ll-site-sync-panel">
-                <h2><?php esc_html_e('Apply Push', 'll-tools-text-domain'); ?></h2>
-                <form method="post" action="<?php echo esc_url(ll_tools_site_sync_get_admin_page_url()); ?>">
-                    <?php wp_nonce_field('ll_tools_site_sync_action', 'll_site_sync_nonce'); ?>
-                    <?php ll_tools_site_sync_render_connection_fields($connection); ?>
-                    <?php if (count((array) (($result['plan']['conflicts'] ?? []))) > 0) : ?>
-                        <fieldset class="ll-site-sync-conflict-options">
-                            <legend><?php esc_html_e('Conflict handling', 'll-tools-text-domain'); ?></legend>
-                            <label class="ll-site-sync-checkbox">
-                                <input type="radio" name="ll_site_sync_conflict_mode" value="flag" checked>
-                                <span><?php esc_html_e('Flag conflicts on the live site for transcription review.', 'll-tools-text-domain'); ?></span>
-                            </label>
-                            <label class="ll-site-sync-checkbox">
-                                <input type="radio" name="ll_site_sync_conflict_mode" value="skip">
-                                <span><?php esc_html_e('Skip conflicts for now.', 'll-tools-text-domain'); ?></span>
-                            </label>
-                            <label class="ll-site-sync-checkbox">
-                                <input type="radio" name="ll_site_sync_conflict_mode" value="accept_live">
-                                <span><?php esc_html_e('Accept the live site version locally for all conflicts.', 'll-tools-text-domain'); ?></span>
-                            </label>
-                        </fieldset>
-                    <?php endif; ?>
-                    <button type="submit" class="button button-primary" name="ll_site_sync_action" value="apply_push"><?php esc_html_e('Apply Clean Push to Live', 'll-tools-text-domain'); ?></button>
-                </form>
-            </section>
-        <?php endif; ?>
+        <?php ll_tools_site_sync_render_plan_summary($plan); ?>
     </div>
     <?php
 }

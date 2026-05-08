@@ -192,8 +192,14 @@ function ll_tools_site_sync_apply_recording_review_state(int $recording_id, bool
     ll_tools_site_sync_set_recording_review_note($recording_id, $review_note);
 }
 
+function ll_tools_site_sync_sanitize_recording_text_for_sync(string $recording_text): string {
+    return function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
+        ? ll_tools_word_grid_sanitize_non_ipa_text($recording_text)
+        : sanitize_text_field($recording_text);
+}
+
 function ll_tools_site_sync_write_recording_text(int $recording_id, string $recording_text): void {
-    $recording_text = sanitize_text_field($recording_text);
+    $recording_text = ll_tools_site_sync_sanitize_recording_text_for_sync($recording_text);
     if ($recording_text === '') {
         delete_post_meta($recording_id, 'recording_text');
         return;
@@ -209,7 +215,7 @@ function ll_tools_site_sync_record_values(int $recording_id, int $wordset_id): a
     $recording_ipa = (string) get_post_meta($recording_id, 'recording_ipa', true);
 
     return [
-        'recording_text' => (string) get_post_meta($recording_id, 'recording_text', true),
+        'recording_text' => ll_tools_site_sync_sanitize_recording_text_for_sync((string) get_post_meta($recording_id, 'recording_text', true)),
         'recording_ipa' => function_exists('ll_tools_word_grid_normalize_ipa_output')
             ? ll_tools_word_grid_normalize_ipa_output($recording_ipa, $transcription_mode)
             : $recording_ipa,
@@ -227,7 +233,7 @@ function ll_tools_site_sync_normalize_record_values(array $values): array {
     }
 
     return [
-        'recording_text' => (string) ($values['recording_text'] ?? ''),
+        'recording_text' => ll_tools_site_sync_sanitize_recording_text_for_sync((string) ($values['recording_text'] ?? '')),
         'recording_ipa' => (string) ($values['recording_ipa'] ?? ''),
         'needs_review' => $needs_review,
         'review_fields' => $review_fields,
@@ -811,6 +817,19 @@ function ll_tools_site_sync_build_conflict_note(array $conflict): string {
         . __('Last pulled value:', 'll-tools-text-domain') . "\n" . $format_value($base_value);
 }
 
+function ll_tools_site_sync_conflict_review_update_already_applied(array $remote_values, array $review_update): bool {
+    $remote_values = ll_tools_site_sync_normalize_record_values($remote_values);
+    $expected_values = ll_tools_site_sync_normalize_record_values([
+        'needs_review' => true,
+        'review_fields' => $review_update['review_fields'] ?? [],
+        'review_note' => (string) ($review_update['review_note'] ?? ''),
+    ]);
+
+    return (bool) ($remote_values['needs_review'] ?? false) === true
+        && ll_tools_site_sync_values_equal($remote_values['review_fields'] ?? [], $expected_values['review_fields'] ?? [])
+        && (string) ($remote_values['review_note'] ?? '') === (string) ($expected_values['review_note'] ?? '');
+}
+
 function ll_tools_site_sync_plan_empty(string $direction, array $local_snapshot, array $remote_snapshot, array $base_snapshot): array {
     return [
         'direction' => $direction,
@@ -942,12 +961,15 @@ function ll_tools_site_sync_build_push_plan(array $local_snapshot, array $remote
             $review_field = in_array((string) $conflict['field'], ['recording_text', 'recording_ipa'], true)
                 ? (string) $conflict['field']
                 : 'recording_ipa';
-            $plan['conflict_review_updates'][] = [
+            $review_update = [
                 'recording_id' => (int) ($remote_record['recording']['id'] ?? 0),
                 'needs_review' => true,
                 'review_fields' => [$review_field],
                 'review_note' => ll_tools_site_sync_build_conflict_note($conflict),
             ];
+            if (!ll_tools_site_sync_conflict_review_update_already_applied($remote_values, $review_update)) {
+                $plan['conflict_review_updates'][] = $review_update;
+            }
         }
     }
 
@@ -1897,7 +1919,7 @@ function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_
     }
 
     if ($desired_recording_text !== null) {
-        $desired_recording_text = sanitize_text_field($desired_recording_text);
+        $desired_recording_text = ll_tools_site_sync_sanitize_recording_text_for_sync($desired_recording_text);
     }
     if ($desired_recording_text !== null && (string) get_post_meta($recording_id, 'recording_text', true) !== $desired_recording_text) {
         ll_tools_site_sync_write_recording_text($recording_id, $desired_recording_text);

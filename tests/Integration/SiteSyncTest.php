@@ -87,6 +87,70 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertStringContainsString('remote.conflict', (string) $plan['conflict_review_updates'][0]['review_note']);
     }
 
+    public function test_push_plan_does_not_requeue_already_flagged_conflict_review(): void
+    {
+        $base = $this->snapshot([
+            $this->record('shared-flagged-conflict', 102, 'Word B', 'Recording B', ['recording_ipa' => 'base.conflict']),
+        ]);
+        $local = $this->snapshot([
+            $this->record('shared-flagged-conflict', 202, 'Word B', 'Recording B', ['recording_ipa' => 'local.conflict']),
+        ]);
+        $remote = $this->snapshot([
+            $this->record('shared-flagged-conflict', 302, 'Word B', 'Recording B', ['recording_ipa' => 'remote.conflict']),
+        ]);
+
+        $plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+        $this->assertSame(1, count((array) $plan['conflict_review_updates']));
+
+        $remote_record = (array) $remote['records'][0];
+        $review_update = (array) $plan['conflict_review_updates'][0];
+        foreach (['needs_review', 'review_fields', 'review_note'] as $field) {
+            $remote_record['values'][$field] = $review_update[$field];
+        }
+        $remote_record['values'] = ll_tools_site_sync_normalize_record_values((array) $remote_record['values']);
+        $remote_record['value_hash'] = ll_tools_site_sync_value_hash((array) $remote_record['values']);
+        $remote = $this->snapshot([$remote_record]);
+
+        $flagged_plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+
+        $this->assertSame(1, count((array) $flagged_plan['conflicts']));
+        $this->assertSame(0, count((array) $flagged_plan['conflict_review_updates']));
+    }
+
+    public function test_recording_text_is_sanitized_for_site_sync_comparison(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Sanitized Sync Wordset', 'sanitized-sync-wordset');
+        $category_id = $this->ensure_term('word-category', 'Sanitized Sync Category', 'sanitized-sync-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Sanitized Word', 'Sanitized Translation');
+        $recording_id = $this->create_recording($word_id, 'Sanitized Recording', [
+            'recording_text' => 'Yo ho ça da?',
+        ]);
+
+        $values = ll_tools_site_sync_record_values($recording_id, $wordset_id);
+
+        $this->assertSame('Yo ho ça da', (string) ($values['recording_text'] ?? ''));
+    }
+
+    public function test_push_local_conflict_updates_include_staging_conflict_values(): void
+    {
+        $base = $this->snapshot([
+            $this->record('shared-conflict-local-wins', 102, 'Word B', 'Recording B', ['recording_ipa' => 'base.conflict']),
+        ]);
+        $local = $this->snapshot([
+            $this->record('shared-conflict-local-wins', 202, 'Word B', 'Recording B', ['recording_ipa' => 'local.conflict']),
+        ]);
+        $remote = $this->snapshot([
+            $this->record('shared-conflict-local-wins', 302, 'Word B', 'Recording B', ['recording_ipa' => 'remote.conflict']),
+        ]);
+
+        $plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+        $updates = ll_tools_site_sync_push_local_conflict_updates($plan);
+
+        $this->assertSame(1, count($updates));
+        $this->assertSame(302, (int) ($updates[0]['recording_id'] ?? 0));
+        $this->assertSame('local.conflict', (string) ($updates[0]['recording_ipa'] ?? ''));
+    }
+
     public function test_remote_transcription_updates_are_sent_in_small_batches(): void
     {
         $requests = [];
@@ -147,6 +211,98 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame(5, (int) ($result['updated_count'] ?? 0));
         $this->assertSame(3, (int) (($result['batch'] ?? [])['request_count'] ?? 0));
         $this->assertSame([2, 2, 1], array_map('count', $requests));
+    }
+
+    public function test_apply_push_batch_processes_update_and_reports_done(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Apply Batch Wordset', 'apply-batch-wordset');
+        $category_id = $this->ensure_term('word-category', 'Apply Batch Category', 'apply-batch-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Apply Batch Word', 'Apply Batch Translation');
+        $recording_id = $this->create_recording($word_id, 'Apply Batch Recording', [
+            'recording_ipa' => 'baseline.ipa',
+        ]);
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'apply-batch-recording');
+
+        $connection = [
+            'local_wordset_id' => $wordset_id,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ];
+        update_option(ll_tools_site_sync_connection_option_name(), $connection, false);
+        $base = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true, [
+            'include_media' => false,
+        ]);
+        $this->assertIsArray($base);
+        ll_tools_site_sync_save_base_snapshot($connection, $base);
+
+        $remote_record = (array) (($base['records'] ?? [])[0] ?? []);
+        $remote_record['recording']['id'] = 9001;
+        update_post_meta($recording_id, 'recording_ipa', 'local.ipa');
+
+        $http_filter = static function ($preempt, array $args, string $url) use (&$remote_record) {
+            unset($preempt);
+            if (str_contains($url, '/site-sync/snapshot')) {
+                return [
+                    'headers' => [],
+                    'body' => wp_json_encode([
+                        'schema_version' => LL_TOOLS_SITE_SYNC_SCHEMA_VERSION,
+                        'surface' => 'transcriptions',
+                        'generated_at_gmt' => gmdate('c'),
+                        'wordset' => ['id' => 1, 'slug' => 'remote-wordset', 'name' => 'Remote Wordset'],
+                        'record_count' => 1,
+                        'records_returned' => 1,
+                        'include_media' => false,
+                        'records' => [$remote_record],
+                    ]),
+                    'response' => ['code' => 200, 'message' => 'OK'],
+                    'cookies' => [],
+                    'filename' => null,
+                ];
+            }
+
+            if (str_contains($url, '/transcriptions')) {
+                $body = json_decode((string) ($args['body'] ?? ''), true);
+                $updates = array_values((array) ($body['updates'] ?? []));
+                foreach ($updates as $update) {
+                    foreach (['recording_text', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'] as $field) {
+                        if (array_key_exists($field, $update)) {
+                            $remote_record['values'][$field] = $update[$field];
+                        }
+                    }
+                }
+                $remote_record['values'] = ll_tools_site_sync_normalize_record_values((array) ($remote_record['values'] ?? []));
+                $remote_record['value_hash'] = ll_tools_site_sync_value_hash((array) ($remote_record['values'] ?? []));
+
+                return [
+                    'headers' => [],
+                    'body' => wp_json_encode([
+                        'matched_count' => count($updates),
+                        'updated_count' => count($updates),
+                        'updated' => [],
+                        'errors' => [],
+                    ]),
+                    'response' => ['code' => 200, 'message' => 'OK'],
+                    'cookies' => [],
+                    'filename' => null,
+                ];
+            }
+
+            return false;
+        };
+
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        try {
+            $result = ll_tools_site_sync_apply_push_batch($connection, 'remote-password', 'skip');
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+        }
+
+        $this->assertSame([], (array) ($result['errors'] ?? []));
+        $this->assertSame(1, (int) (($result['progress'] ?? [])['sent_remote_updates'] ?? 0));
+        $this->assertTrue((bool) (($result['progress'] ?? [])['done'] ?? false));
+        $this->assertSame(0, (int) (($result['progress'] ?? [])['next_remote_updates'] ?? -1));
     }
 
     public function test_remote_snapshot_fetch_combines_paged_responses(): void
@@ -255,7 +411,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $summary = ll_tools_site_sync_apply_pull_plan($plan, $wordset_id);
 
         $this->assertSame(1, (int) $summary['records_updated']);
-        $this->assertSame('remote text?', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('remote text', (string) get_post_meta($recording_id, 'recording_text', true));
         $this->assertSame('remote.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
     }
 
@@ -979,6 +1135,40 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertStringContainsString('baseline.ipa', $html);
         $this->assertStringContainsString('staging.ipa', $html);
         $this->assertStringContainsString('live.ipa', $html);
+    }
+
+    public function test_apply_push_panel_renders_automatic_batch_controls(): void
+    {
+        $base = $this->snapshot([
+            $this->record('apply-panel', 101, 'Apply Panel Word', 'Apply Panel Recording', [
+                'recording_ipa' => 'baseline.ipa',
+            ]),
+        ]);
+        $local = $this->snapshot([
+            $this->record('apply-panel', 201, 'Apply Panel Word', 'Apply Panel Recording', [
+                'recording_ipa' => 'local.ipa',
+            ]),
+        ]);
+        $remote = $this->snapshot([
+            $this->record('apply-panel', 301, 'Apply Panel Word', 'Apply Panel Recording', [
+                'recording_ipa' => 'baseline.ipa',
+            ]),
+        ]);
+        $plan = ll_tools_site_sync_build_push_plan($local, $remote, $base);
+
+        ob_start();
+        ll_tools_site_sync_render_apply_push_panel([
+            'local_wordset_id' => 123,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ], $plan);
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('data-ll-site-sync-apply-form', $html);
+        $this->assertStringContainsString('Apply All Push Batches', $html);
+        $this->assertStringContainsString('data-ll-site-sync-apply-progress', $html);
     }
 
     public function test_accept_live_conflicts_updates_local_conflict_fields(): void
