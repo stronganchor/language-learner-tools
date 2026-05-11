@@ -625,6 +625,91 @@ function ll_tools_interlinear_render_morpheme_row(string $label, array $line, ar
     return '<tr><th scope="row">' . esc_html($label) . '</th>' . $cells . '</tr>';
 }
 
+function ll_tools_interlinear_normalize_comparison_value(string $value): string {
+    $value = remove_accents($value);
+    $value = strtolower($value);
+    return preg_replace('/[^a-z0-9]+/', '', $value) ?? '';
+}
+
+function ll_tools_interlinear_hidden_rows(array $line): array {
+    $hidden = $line['hidden_rows'] ?? ($line['hide_rows'] ?? []);
+    if (is_string($hidden)) {
+        $hidden = preg_split('/[\s,]+/', $hidden, -1, PREG_SPLIT_NO_EMPTY);
+    }
+    if (!is_array($hidden)) {
+        return [];
+    }
+
+    return array_map(static function ($row): string {
+        return strtoupper(trim((string) $row));
+    }, $hidden);
+}
+
+function ll_tools_interlinear_row_is_hidden(array $line, string $label): bool {
+    return in_array(strtoupper($label), ll_tools_interlinear_hidden_rows($line), true);
+}
+
+function ll_tools_interlinear_has_spanning_row_value(array $tokens, callable $value_fn): bool {
+    foreach ($tokens as $token) {
+        if (!is_array($token)) {
+            continue;
+        }
+        $value = trim((string) call_user_func($value_fn, $token));
+        if ($value !== '' && $value !== '?') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_interlinear_has_morpheme_row_value(array $tokens, string $field): bool {
+    foreach ($tokens as $token) {
+        if (!is_array($token)) {
+            continue;
+        }
+        foreach (ll_tools_interlinear_token_morphemes($token) as $morpheme) {
+            $value = $field === 'gloss' ? (string) ($morpheme['gloss'] ?? '') : (string) ($morpheme['form'] ?? '');
+            $value = trim($value);
+            if ($value !== '' && $value !== '?') {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_interlinear_lemma_row_is_informative(array $tokens): bool {
+    foreach ($tokens as $token) {
+        if (!is_array($token)) {
+            continue;
+        }
+        $lemma = trim(ll_tools_interlinear_display_lemma($token));
+        if ($lemma === '' || $lemma === '?') {
+            continue;
+        }
+
+        $word = trim(ll_tools_interlinear_display_form($token));
+        $morph_forms = [];
+        foreach (ll_tools_interlinear_token_morphemes($token) as $morpheme) {
+            $form = trim((string) ($morpheme['form'] ?? ''));
+            if ($form !== '' && $form !== '?') {
+                $morph_forms[] = $form;
+            }
+        }
+        $morph = implode('', $morph_forms);
+        $lemma_key = ll_tools_interlinear_normalize_comparison_value($lemma);
+        $word_key = ll_tools_interlinear_normalize_comparison_value($word);
+        $morph_key = ll_tools_interlinear_normalize_comparison_value($morph);
+        if ($lemma_key !== '' && $lemma_key !== $word_key && $lemma_key !== $morph_key) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function ll_tools_interlinear_phrase_label(array $phrase): string {
     $lemma = ll_tools_interlinear_scalar($phrase, ['lemma']);
     $gloss = ll_tools_interlinear_scalar($phrase, ['display_gloss', 'gloss_en', 'gloss']);
@@ -717,11 +802,21 @@ function ll_tools_render_interlinear_line(array $line, bool $show_line_text = tr
             <div class="ll-interlinear-grid">
                 <table class="ll-interlinear-table">
                     <tbody>
-                        <?php echo ll_tools_interlinear_render_spanning_row('WORD', $line, $tokens, 'll_tools_interlinear_word_display_form'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <?php echo ll_tools_interlinear_render_morpheme_row('MORPH', $line, $tokens, 'form'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <?php echo ll_tools_interlinear_render_spanning_row('LEMMA', $line, $tokens, 'll_tools_interlinear_display_lemma'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <?php echo ll_tools_interlinear_render_morpheme_row('GLOSS', $line, $tokens, 'gloss'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <?php echo ll_tools_interlinear_render_spanning_row('POS', $line, $tokens, 'll_tools_interlinear_display_pos'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php if (!ll_tools_interlinear_row_is_hidden($line, 'WORD') && ll_tools_interlinear_has_spanning_row_value($tokens, 'll_tools_interlinear_word_display_form')) : ?>
+                            <?php echo ll_tools_interlinear_render_spanning_row('WORD', $line, $tokens, 'll_tools_interlinear_word_display_form'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php endif; ?>
+                        <?php if (!ll_tools_interlinear_row_is_hidden($line, 'MORPH') && ll_tools_interlinear_has_morpheme_row_value($tokens, 'form')) : ?>
+                            <?php echo ll_tools_interlinear_render_morpheme_row('MORPH', $line, $tokens, 'form'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php endif; ?>
+                        <?php if (!ll_tools_interlinear_row_is_hidden($line, 'LEMMA') && ll_tools_interlinear_lemma_row_is_informative($tokens)) : ?>
+                            <?php echo ll_tools_interlinear_render_spanning_row('LEMMA', $line, $tokens, 'll_tools_interlinear_display_lemma'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php endif; ?>
+                        <?php if (!ll_tools_interlinear_row_is_hidden($line, 'GLOSS') && ll_tools_interlinear_has_morpheme_row_value($tokens, 'gloss')) : ?>
+                            <?php echo ll_tools_interlinear_render_morpheme_row('GLOSS', $line, $tokens, 'gloss'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php endif; ?>
+                        <?php if (!ll_tools_interlinear_row_is_hidden($line, 'POS') && ll_tools_interlinear_has_spanning_row_value($tokens, 'll_tools_interlinear_display_pos')) : ?>
+                            <?php echo ll_tools_interlinear_render_spanning_row('POS', $line, $tokens, 'll_tools_interlinear_display_pos'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php endif; ?>
                         <?php echo ll_tools_interlinear_render_phrase_row($line, $tokens); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     </tbody>
                 </table>
@@ -783,6 +878,19 @@ function ll_tools_current_user_can_view_text_document(int $lesson_id): bool {
 }
 
 function ll_tools_text_document_user_can_view_linguist(int $lesson_id): bool {
+    $post = get_post($lesson_id);
+    if ($post instanceof WP_Post && $post->post_type === 'll_content_lesson') {
+        $is_corpus_text = function_exists('ll_tools_content_lesson_is_corpus_text')
+            ? ll_tools_content_lesson_is_corpus_text($lesson_id)
+            : (
+                defined('LL_TOOLS_CONTENT_LESSON_KIND_META')
+                && get_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, true) === 'corpus_text'
+            );
+        if ($is_corpus_text) {
+            return ll_tools_current_user_can_view_text_document($lesson_id);
+        }
+    }
+
     return ll_tools_current_user_can_view_interlinear($lesson_id);
 }
 
@@ -791,7 +899,8 @@ function ll_tools_text_document_request_arg(string $key): string {
         return '';
     }
 
-    return sanitize_key(wp_unslash((string) $_GET[$key]));
+    $value = sanitize_key(wp_unslash((string) $_GET[$key]));
+    return $value === 'linguist' ? 'interlinear' : $value;
 }
 
 function ll_tools_text_document_translation_label(array $payload, string $key): string {
@@ -927,15 +1036,15 @@ function ll_tools_text_document_view_url(string $view, string $translation_key =
 
 function ll_tools_text_document_render_tabs(string $current_view, string $translation_key, bool $can_view_linguist, array $payload): string {
     $tabs = [
-        'reader' => __('Reader', 'll-tools-text-domain'),
+        'reader' => __('Text', 'll-tools-text-domain'),
     ];
 
     $source_lines = isset($payload['source_lines']) && is_array($payload['source_lines']) ? $payload['source_lines'] : [];
     $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
     if ($can_view_linguist && (!empty($source_lines) || !empty($lines))) {
-        $tabs['linguist'] = __('Linguist', 'll-tools-text-domain');
+        $tabs['interlinear'] = __('Interlinear', 'll-tools-text-domain');
     }
-    if ($can_view_linguist && !empty($payload['witnesses']) && is_array($payload['witnesses'])) {
+    if (!empty($payload['witnesses']) && is_array($payload['witnesses'])) {
         $tabs['sources'] = __('Sources', 'll-tools-text-domain');
     }
 
@@ -992,6 +1101,10 @@ function ll_tools_text_document_render_reader(array $payload, string $translatio
     if ($source_label === '') {
         $source_label = __('Text', 'll-tools-text-domain');
     }
+    $translation_heading = ll_tools_text_document_render_translation_switcher($payload, $translation_key, 'reader');
+    if ($translation_heading === '') {
+        $translation_heading = esc_html($translation_label);
+    }
 
     $rows = '';
     foreach ($units as $unit) {
@@ -1015,7 +1128,7 @@ function ll_tools_text_document_render_reader(array $payload, string $translatio
     }
 
     return '<section class="ll-text-reader" aria-label="' . esc_attr__('Reader text', 'll-tools-text-domain') . '">'
-        . '<div class="ll-text-reader__head" aria-hidden="true"><span>' . esc_html($source_label) . '</span><span>' . esc_html($translation_label) . '</span></div>'
+        . '<div class="ll-text-reader__head"><span>' . esc_html($source_label) . '</span><span class="ll-text-reader__translation-head">' . $translation_heading . '</span></div>'
         . $rows
         . '</section>';
 }
@@ -1246,10 +1359,31 @@ function ll_tools_text_document_render_sources(array $payload): string {
             continue;
         }
         $label = ll_tools_interlinear_scalar($witness, ['label', 'title', 'name']);
-        $source = ll_tools_interlinear_scalar($witness, ['source', 'citation', 'description']);
-        $url = ll_tools_interlinear_scalar($witness, ['url', 'source_url']);
+        $source = ll_tools_interlinear_scalar($witness, ['citation', 'mla', 'source', 'description']);
+        $note = ll_tools_interlinear_scalar($witness, ['note', 'role', 'usage']);
+        $pages = ll_tools_interlinear_scalar($witness, ['pages', 'page_range']);
+        $rights = ll_tools_interlinear_scalar($witness, ['rights', 'license']);
+        $url = ll_tools_interlinear_scalar($witness, ['url', 'source_url', 'access_url']);
         $image_url = ll_tools_text_document_image_url($witness);
-        if ($label === '' && $source === '' && $url === '' && $image_url === '') {
+        $links = [];
+        if (isset($witness['urls']) && is_array($witness['urls'])) {
+            foreach ($witness['urls'] as $link) {
+                if (is_array($link)) {
+                    $link_url = ll_tools_interlinear_scalar($link, ['url', 'href']);
+                    $link_label = ll_tools_interlinear_scalar($link, ['label', 'title', 'name']);
+                    if ($link_url !== '') {
+                        $links[] = ['url' => $link_url, 'label' => $link_label !== '' ? $link_label : $link_url];
+                    }
+                } elseif (is_scalar($link) && trim((string) $link) !== '') {
+                    $link_url = trim((string) $link);
+                    $links[] = ['url' => $link_url, 'label' => $link_url];
+                }
+            }
+        }
+        if ($url !== '') {
+            array_unshift($links, ['url' => $url, 'label' => $url]);
+        }
+        if ($label === '' && $source === '' && $note === '' && $pages === '' && $rights === '' && empty($links) && $image_url === '') {
             continue;
         }
 
@@ -1258,10 +1392,23 @@ function ll_tools_text_document_render_sources(array $payload): string {
             $html .= '<h3>' . esc_html($label) . '</h3>';
         }
         if ($source !== '') {
-            $html .= '<p>' . esc_html($source) . '</p>';
+            $html .= '<p class="ll-text-sources__citation">' . esc_html($source) . '</p>';
         }
-        if ($url !== '') {
-            $html .= '<p><a href="' . esc_url($url) . '">' . esc_html($url) . '</a></p>';
+        if ($pages !== '') {
+            $html .= '<p><strong>' . esc_html__('Pages:', 'll-tools-text-domain') . '</strong> ' . esc_html($pages) . '</p>';
+        }
+        if ($note !== '') {
+            $html .= '<p>' . esc_html($note) . '</p>';
+        }
+        if ($rights !== '') {
+            $html .= '<p><strong>' . esc_html__('Rights:', 'll-tools-text-domain') . '</strong> ' . esc_html($rights) . '</p>';
+        }
+        if (!empty($links)) {
+            $html .= '<ul class="ll-text-sources__links">';
+            foreach ($links as $link) {
+                $html .= '<li><a href="' . esc_url($link['url']) . '">' . esc_html($link['label']) . '</a></li>';
+            }
+            $html .= '</ul>';
         }
         if ($image_url !== '') {
             $html .= '<img src="' . esc_url($image_url) . '" alt="' . esc_attr($label !== '' ? $label : __('Source witness', 'll-tools-text-domain')) . '" loading="lazy" decoding="async" />';
@@ -1281,12 +1428,20 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
     $can_view_linguist = ll_tools_text_document_user_can_view_linguist($lesson_id);
     $translation_key = ll_tools_text_document_selected_translation_key($payload);
     $requested_view = ll_tools_text_document_request_arg('ll_text_view');
-    $view = in_array($requested_view, ['reader', 'linguist', 'sources'], true) ? $requested_view : 'reader';
-    if (!$can_view_linguist && $view !== 'reader') {
+    $has_sources = !empty($payload['witnesses']) && is_array($payload['witnesses']);
+    $allowed_views = ['reader'];
+    if ($can_view_linguist) {
+        $allowed_views[] = 'interlinear';
+    }
+    if ($has_sources) {
+        $allowed_views[] = 'sources';
+    }
+    $view = in_array($requested_view, $allowed_views, true) ? $requested_view : 'reader';
+    if (!$can_view_linguist && $view === 'interlinear') {
         $view = 'reader';
     }
 
-    if ($view === 'linguist') {
+    if ($view === 'interlinear') {
         $body = ll_tools_text_document_render_linguist($payload);
     } elseif ($view === 'sources') {
         $body = ll_tools_text_document_render_sources($payload);
@@ -1306,20 +1461,16 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
 
     $title = ll_tools_interlinear_scalar($payload, ['title', 'document_title']);
     $tabs = ll_tools_text_document_render_tabs($view, $translation_key, $can_view_linguist, $payload);
-    $translation_switcher = $view === 'reader'
-        ? ll_tools_text_document_render_translation_switcher($payload, $translation_key, $view)
-        : '';
 
     ob_start();
     ?>
-    <section class="ll-text-document<?php echo $can_view_linguist ? ' ll-text-document--staff' : ''; ?>" data-ll-text-document data-view="<?php echo esc_attr($view); ?>">
-        <?php if ($title !== '' || $tabs !== '' || $translation_switcher !== '') : ?>
+    <section class="ll-text-document<?php echo $can_view_linguist ? ' ll-text-document--has-interlinear' : ''; ?>" data-ll-text-document data-view="<?php echo esc_attr($view); ?>">
+        <?php if ($title !== '' || $tabs !== '') : ?>
             <div class="ll-text-document__head">
                 <?php if ($title !== '') : ?>
                     <h2 class="ll-text-document__title"><?php echo esc_html($title); ?></h2>
                 <?php endif; ?>
                 <?php echo $tabs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                <?php echo $translation_switcher; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </div>
         <?php endif; ?>
         <?php echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>

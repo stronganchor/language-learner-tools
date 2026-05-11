@@ -23,6 +23,13 @@
     margin: 0 auto 24px;
 }
 
+.ll-content-lesson-page--corpus-text .ll-content-lesson-hero,
+.ll-content-lesson-page--corpus-text .ll-content-lessons-section,
+.ll-content-lesson-page--corpus-text .ll-content-lesson-stage,
+.ll-content-lesson-page--corpus-text .ll-content-lesson-notes {
+    max-width: min(1600px, 100%);
+}
+
 .ll-content-lesson-hero {
     display: flex;
     flex-direction: column;
@@ -326,6 +333,10 @@
     overflow: hidden;
 }
 
+.ll-content-lesson-page--corpus-text .ll-text-document {
+    max-width: min(1600px, 100%);
+}
+
 .ll-text-document__head {
     display: flex;
     flex-wrap: wrap;
@@ -397,6 +408,18 @@
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+}
+
+.ll-text-reader__translation-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.ll-text-reader__translation-head .ll-text-document__translations {
+    text-transform: none;
+    letter-spacing: 0;
 }
 
 .ll-text-reader__head span,
@@ -530,6 +553,19 @@
     line-height: 1.55;
 }
 
+.ll-text-sources__citation {
+    font-family: Georgia, "Times New Roman", serif;
+}
+
+.ll-text-sources__links {
+    margin: 10px 12px 0;
+    padding-left: 20px;
+}
+
+.ll-text-sources__links li + li {
+    margin-top: 6px;
+}
+
 .ll-text-sources__item img {
     width: auto;
     max-height: 420px;
@@ -580,7 +616,15 @@ video.ll-content-lesson-media {
     }
 
     .ll-text-reader__head {
+        display: block;
+    }
+
+    .ll-text-reader__head span:first-child {
         display: none;
+    }
+
+    .ll-text-reader__translation-head {
+        border-right: 0;
     }
 
     .ll-text-reader__row,

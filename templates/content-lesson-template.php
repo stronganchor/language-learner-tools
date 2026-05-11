@@ -88,7 +88,7 @@ $format_ms = static function (int $ms): string {
     return sprintf('%02d:%02d', $minutes, $seconds);
 };
 ?>
-<main class="ll-content-lesson-page" data-ll-content-lesson>
+<main class="ll-content-lesson-page<?php echo $is_corpus_text ? ' ll-content-lesson-page--corpus-text' : ''; ?>" data-ll-content-lesson>
     <header class="ll-content-lesson-hero">
         <div class="ll-content-lesson-hero__top">
             <?php if ($wordset_url !== '') : ?>

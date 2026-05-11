@@ -650,6 +650,13 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                 'tr' => ['label' => 'Turkish'],
                 'en' => ['label' => 'English'],
             ],
+            'witnesses' => [
+                [
+                    'label' => 'Scholarly source',
+                    'citation' => 'Lerch, Peter. Sample source. 1857.',
+                    'url' => 'https://example.com/source',
+                ],
+            ],
             'reading_units' => [
                 [
                     'id' => 'p1_s1',
@@ -691,10 +698,30 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         wp_set_current_user(0);
         $reader_html = ll_tools_render_interlinear_block($content_lesson_id);
         $this->assertStringContainsString('class="ll-text-document', $reader_html);
+        $this->assertStringContainsString('>Text<', $reader_html);
+        $this->assertStringContainsString('>Sources<', $reader_html);
         $this->assertStringContainsString('Merheba, Dêrsim.', $reader_html);
         $this->assertStringContainsString('Merhaba, Dersim.', $reader_html);
-        $this->assertStringNotContainsString('Linguist', $reader_html);
+        $this->assertStringContainsString('>Interlinear<', $reader_html);
         $this->assertStringNotContainsString('Russian scan', $reader_html);
+
+        $_GET['ll_text_view'] = 'sources';
+        try {
+            $sources_html = ll_tools_render_interlinear_block($content_lesson_id);
+        } finally {
+            unset($_GET['ll_text_view']);
+        }
+        $this->assertStringContainsString('Scholarly source', $sources_html);
+        $this->assertStringContainsString('Lerch, Peter. Sample source. 1857.', $sources_html);
+
+        $_GET['ll_text_view'] = 'interlinear';
+        try {
+            $public_interlinear_html = ll_tools_render_interlinear_block($content_lesson_id);
+        } finally {
+            unset($_GET['ll_text_view']);
+        }
+        $this->assertStringContainsString('class="ll-text-source-line"', $public_interlinear_html);
+        $this->assertStringContainsString('Russian scan', $public_interlinear_html);
 
         $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
         $viewer = get_user_by('id', $viewer_id);
@@ -711,6 +738,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         }
 
         $this->assertStringContainsString('class="ll-text-source-line"', $staff_html);
+        $this->assertStringContainsString('>Interlinear<', $staff_html);
         $this->assertStringContainsString('Russian scan', $staff_html);
         $this->assertStringContainsString('>LERCH<', $staff_html);
         $this->assertStringContainsString('>IPA<', $staff_html);

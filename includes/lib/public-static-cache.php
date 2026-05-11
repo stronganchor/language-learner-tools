@@ -62,7 +62,7 @@ function ll_tools_public_static_cache_request_path(): string {
  * @return string[]
  */
 function ll_tools_public_static_cache_query_keys(): array {
-    $keys = ['ll_locale'];
+    $keys = ['ll_locale', 'll_text_view', 'll_translation'];
     $filtered = apply_filters('ll_tools_public_static_cache_query_keys', $keys);
     if (!is_array($filtered)) {
         return $keys;

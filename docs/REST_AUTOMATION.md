@@ -147,9 +147,12 @@ interlinear lesson ID, or vocab category. Send `dry_run=true` first, and send
 For historical or corpus-text publishing, set the target `ll_content_lesson`
 kind to `corpus_text` in the lesson editor and import a text-document payload
 through the same interlinear route. Use `kind=corpus_text`, `reading_units` for
-public side-by-side text/translation rows, `source_lines` for staff linguist
-views, and optional `witnesses`/line-level source images for scan evidence.
-Regular interlinear `tokens` may be included on each `source_lines` row.
+public side-by-side text/translation rows, `source_lines` for the public
+Interlinear view, and optional document-level `witnesses` plus line-level source
+images for scan evidence and source citations. Regular interlinear `tokens` may
+be included on each `source_lines` row. Rows listed in `hidden_rows` are skipped;
+empty POS rows and lemma rows that only duplicate the word/morph row are hidden
+automatically.
 
 `{wordset}` can be a stable wordset slug such as `spanish` or `genc-palu`.
 
