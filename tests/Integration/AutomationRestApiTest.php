@@ -686,6 +686,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             ],
         ];
         $this->assertNotWPError(ll_tools_interlinear_set_payload($content_lesson_id, $payload, 'phpunit'));
+        $this->assertSame('corpus_text', ll_tools_get_content_lesson_kind($content_lesson_id));
 
         wp_set_current_user(0);
         $reader_html = ll_tools_render_interlinear_block($content_lesson_id);

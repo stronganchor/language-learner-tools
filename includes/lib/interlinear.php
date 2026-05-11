@@ -231,6 +231,13 @@ function ll_tools_interlinear_set_payload(int $lesson_id, $payload, string $sour
     $updated_at = gmdate('c');
     update_post_meta($lesson_id, LL_TOOLS_INTERLINEAR_PAYLOAD_META, $payload);
     update_post_meta($lesson_id, LL_TOOLS_INTERLINEAR_UPDATED_AT_META, $updated_at);
+    $post = get_post($lesson_id);
+    if ($post instanceof WP_Post
+        && $post->post_type === 'll_content_lesson'
+        && ll_tools_interlinear_payload_is_text_document($payload)
+        && defined('LL_TOOLS_CONTENT_LESSON_KIND_META')) {
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+    }
     if ($source !== '') {
         update_post_meta($lesson_id, LL_TOOLS_INTERLINEAR_SOURCE_META, $source);
     } else {
