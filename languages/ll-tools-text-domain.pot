@@ -21644,6 +21644,46 @@ msgstr[1] ""
 msgid "Add parsed transcript timing data to highlight the text during playback."
 msgstr ""
 
+#: includes/api/automation-rest.php
+msgid "Corpus text payload must be a valid JSON object."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "Provide a corpus text payload object."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "You cannot upload corpus text assets."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "Provide a source key for the corpus text asset."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "Provide a corpus text asset file."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "The corpus text asset could not be uploaded."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "The corpus text asset could not be added to the media library."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "Provide a corpus text post slug."
+msgstr ""
+
+#: includes/api/automation-rest.php
+msgid "The corpus text post could not be created or updated."
+msgstr ""
+
 #: templates/content-lesson-template.php:187
 msgid "Practice This Lesson"
 msgstr ""

@@ -24170,3 +24170,43 @@ msgid "Add parsed transcript timing data to highlight the text during playback."
 msgstr ""
 "Oynatma sırasında metni vurgulamak için ayrıştırılmış transkript zamanlama "
 "verisi ekle."
+
+#: includes/api/automation-rest.php
+msgid "Corpus text payload must be a valid JSON object."
+msgstr "Korpus metni yükü geçerli bir JSON nesnesi olmalıdır."
+
+#: includes/api/automation-rest.php
+msgid "Provide a corpus text payload object."
+msgstr "Bir korpus metni yük nesnesi sağlayın."
+
+#: includes/api/automation-rest.php
+msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
+msgstr "Kaynak tanıklar, satır arası analiz ve çeviriler içeren tarihsel Zazaca metin."
+
+#: includes/api/automation-rest.php
+msgid "You cannot upload corpus text assets."
+msgstr "Korpus metni varlıklarını yükleme iznin yok."
+
+#: includes/api/automation-rest.php
+msgid "Provide a source key for the corpus text asset."
+msgstr "Korpus metni varlığı için bir kaynak anahtarı sağlayın."
+
+#: includes/api/automation-rest.php
+msgid "Provide a corpus text asset file."
+msgstr "Bir korpus metni varlık dosyası sağlayın."
+
+#: includes/api/automation-rest.php
+msgid "The corpus text asset could not be uploaded."
+msgstr "Korpus metni varlığı yüklenemedi."
+
+#: includes/api/automation-rest.php
+msgid "The corpus text asset could not be added to the media library."
+msgstr "Korpus metni varlığı medya kütüphanesine eklenemedi."
+
+#: includes/api/automation-rest.php
+msgid "Provide a corpus text post slug."
+msgstr "Korpus metni yazısı için bir kısa ad sağlayın."
+
+#: includes/api/automation-rest.php
+msgid "The corpus text post could not be created or updated."
+msgstr "Korpus metni yazısı oluşturulamadı veya güncellenemedi."

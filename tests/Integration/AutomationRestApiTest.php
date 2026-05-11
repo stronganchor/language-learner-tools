@@ -905,6 +905,60 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame([], ll_tools_interlinear_get_payload($content_lesson_id));
     }
 
+    public function test_corpus_text_import_route_creates_wordset_free_content_lesson(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'schema' => 'll_tools_text_document.v1',
+            'kind' => 'corpus_text',
+            'lesson_id' => 'rest-corpus-text',
+            'title' => 'REST Corpus Text',
+            'metadata' => [
+                'collection' => 'lerch',
+                'collection_label' => 'Peter Lerch',
+                'source_author' => 'Peter Lerch',
+                'excerpt' => 'Kısa Türkçe özet.',
+            ],
+            'source_lines' => [
+                [
+                    'id' => 'l01',
+                    'witnesses' => [],
+                ],
+            ],
+            'reading_units' => [],
+            'translations' => [
+                'tr' => [
+                    'title' => 'REST Corpus Text',
+                    'units' => [],
+                ],
+            ],
+        ];
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/corpus-texts/import', [
+            'post_slug' => 'rest-corpus-text',
+            'payload' => $payload,
+            'source' => 'unit-test',
+        ]);
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame('created', (string) ($data['action'] ?? ''));
+
+        $post_id = (int) ($data['post_id'] ?? 0);
+        $this->assertGreaterThan(0, $post_id);
+        $this->assertSame('ll_content_lesson', get_post_type($post_id));
+        $this->assertSame('', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, true));
+        $this->assertSame('corpus_text', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_KIND_META, true));
+        $this->assertSame('lerch', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META, true));
+        $this->assertSame('Peter Lerch', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_LABEL_META, true));
+        $this->assertSame('Peter Lerch', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META, true));
+        $this->assertSame('unit-test', (string) get_post_meta($post_id, LL_TOOLS_INTERLINEAR_SOURCE_META, true));
+        $this->assertSame('rest-corpus-text', (string) (ll_tools_interlinear_get_payload($post_id)['lesson_id'] ?? ''));
+    }
+
     public function test_import_rest_routes_preview_start_process_and_expose_result_with_basic_auth(): void
     {
         if (!class_exists('ZipArchive')) {

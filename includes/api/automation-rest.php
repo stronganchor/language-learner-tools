@@ -3081,6 +3081,286 @@ function ll_tools_rest_automation_import_result(WP_REST_Request $request) {
     ]);
 }
 
+function ll_tools_rest_corpus_text_normalize_source_key(string $source_key): string {
+    $source_key = trim(str_replace('\\', '/', $source_key));
+    $source_key = preg_replace('#/+#', '/', $source_key);
+    $source_key = is_string($source_key) ? $source_key : '';
+
+    return trim($source_key, '/');
+}
+
+function ll_tools_rest_corpus_text_find_attachment_by_source(string $source_key): int {
+    $source_key = ll_tools_rest_corpus_text_normalize_source_key($source_key);
+    if ($source_key === '') {
+        return 0;
+    }
+
+    $attachments = get_posts([
+        'post_type' => 'attachment',
+        'post_status' => 'inherit',
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'meta_query' => [
+            [
+                'key' => '_ll_texts_source_asset',
+                'value' => $source_key,
+            ],
+        ],
+    ]);
+
+    return !empty($attachments[0]) ? (int) $attachments[0] : 0;
+}
+
+function ll_tools_rest_corpus_text_find_post_by_slug(string $slug): ?WP_Post {
+    $slug = sanitize_title($slug);
+    if ($slug === '') {
+        return null;
+    }
+
+    $posts = get_posts([
+        'post_type' => 'll_content_lesson',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'name' => $slug,
+        'posts_per_page' => 1,
+        'no_found_rows' => true,
+    ]);
+    $post = $posts[0] ?? null;
+
+    return $post instanceof WP_Post ? $post : null;
+}
+
+function ll_tools_rest_corpus_text_payload_from_request(WP_REST_Request $request) {
+    $payload = $request->get_param('payload');
+    if ($payload === null) {
+        $params = $request->get_json_params();
+        if (is_array($params) && (isset($params['schema']) || isset($params['source_lines']) || isset($params['reading_units']))) {
+            $payload = $params;
+        }
+    }
+
+    if (is_string($payload)) {
+        $decoded = json_decode($payload, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return new WP_Error(
+                'll_tools_rest_corpus_text_invalid_json',
+                __('Corpus text payload must be a valid JSON object.', 'll-tools-text-domain'),
+                ['status' => 400]
+            );
+        }
+        $payload = $decoded;
+    }
+
+    if (!is_array($payload)) {
+        return new WP_Error(
+            'll_tools_rest_corpus_text_missing_payload',
+            __('Provide a corpus text payload object.', 'll-tools-text-domain'),
+            ['status' => 400]
+        );
+    }
+
+    return $payload;
+}
+
+function ll_tools_rest_corpus_text_excerpt(array $payload): string {
+    $metadata = isset($payload['metadata']) && is_array($payload['metadata']) ? $payload['metadata'] : [];
+    foreach (['excerpt', 'summary_text', 'description'] as $excerpt_key) {
+        if (isset($metadata[$excerpt_key]) && is_scalar($metadata[$excerpt_key]) && trim((string) $metadata[$excerpt_key]) !== '') {
+            return trim((string) $metadata[$excerpt_key]);
+        }
+        if (isset($payload[$excerpt_key]) && is_scalar($payload[$excerpt_key]) && trim((string) $payload[$excerpt_key]) !== '') {
+            return trim((string) $payload[$excerpt_key]);
+        }
+    }
+
+    return __('Historical Zazaki text with source witnesses, interlinear analysis, and translations.', 'll-tools-text-domain');
+}
+
+function ll_tools_rest_import_corpus_text_asset(WP_REST_Request $request) {
+    if (!current_user_can('upload_files')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_asset_forbidden',
+            __('You cannot upload corpus text assets.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    $source_key = ll_tools_rest_corpus_text_normalize_source_key(ll_tools_rest_automation_request_string($request, 'source_key'));
+    if ($source_key === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_asset_missing_source',
+            __('Provide a source key for the corpus text asset.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $existing_id = ll_tools_rest_corpus_text_find_attachment_by_source($source_key);
+    if ($existing_id > 0) {
+        $existing_url = wp_get_attachment_url($existing_id);
+        return rest_ensure_response([
+            'attachment_id' => $existing_id,
+            'url' => is_string($existing_url) ? $existing_url : '',
+            'source_key' => $source_key,
+            'created' => false,
+        ]);
+    }
+
+    $files = $request->get_file_params();
+    $uploaded_file = [];
+    foreach (['asset', 'file'] as $file_key) {
+        if (!empty($files[$file_key]) && is_array($files[$file_key])) {
+            $uploaded_file = $files[$file_key];
+            break;
+        }
+    }
+    if (empty($uploaded_file['tmp_name']) || empty($uploaded_file['name'])) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_asset_missing_file',
+            __('Provide a corpus text asset file.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+
+    $upload = wp_handle_sideload($uploaded_file, [
+        'test_form' => false,
+        'mimes' => [
+            'webp' => 'image/webp',
+            'jpg|jpeg|jpe' => 'image/jpeg',
+            'png' => 'image/png',
+        ],
+    ]);
+    if (!empty($upload['error']) || empty($upload['file'])) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_asset_upload_failed',
+            is_scalar($upload['error'] ?? null) ? (string) $upload['error'] : __('The corpus text asset could not be uploaded.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $post_parent = max(0, (int) $request->get_param('post_id'));
+    $filetype = wp_check_filetype((string) $upload['file']);
+    $attachment_id = wp_insert_attachment([
+        'post_mime_type' => (string) ($filetype['type'] ?? 'image/webp'),
+        'post_title' => sanitize_file_name(pathinfo((string) $uploaded_file['name'], PATHINFO_FILENAME)),
+        'post_content' => '',
+        'post_status' => 'inherit',
+    ], (string) $upload['file'], $post_parent);
+    if (is_wp_error($attachment_id)) {
+        return ll_tools_rest_automation_with_status($attachment_id, 400);
+    }
+    if ((int) $attachment_id <= 0) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_asset_insert_failed',
+            __('The corpus text asset could not be added to the media library.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $attachment_id = (int) $attachment_id;
+    $metadata = wp_generate_attachment_metadata($attachment_id, (string) $upload['file']);
+    if (is_array($metadata)) {
+        wp_update_attachment_metadata($attachment_id, $metadata);
+    }
+    update_post_meta($attachment_id, '_ll_texts_source_asset', $source_key);
+
+    $url = wp_get_attachment_url($attachment_id);
+    return rest_ensure_response([
+        'attachment_id' => $attachment_id,
+        'url' => is_string($url) ? $url : '',
+        'source_key' => $source_key,
+        'created' => true,
+    ]);
+}
+
+function ll_tools_rest_import_corpus_text(WP_REST_Request $request) {
+    $payload = ll_tools_rest_corpus_text_payload_from_request($request);
+    if (is_wp_error($payload)) {
+        return $payload;
+    }
+
+    $post_slug = sanitize_title(ll_tools_rest_automation_request_string($request, 'post_slug'));
+    if ($post_slug === '') {
+        $lesson_id = isset($payload['lesson_id']) && is_scalar($payload['lesson_id']) ? (string) $payload['lesson_id'] : '';
+        $title_for_slug = isset($payload['title']) && is_scalar($payload['title']) ? (string) $payload['title'] : '';
+        $post_slug = sanitize_title($lesson_id !== '' ? $lesson_id : $title_for_slug);
+    }
+    if ($post_slug === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_missing_slug',
+            __('Provide a corpus text post slug.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $status = sanitize_key(ll_tools_rest_automation_request_string($request, 'status'));
+    if (!in_array($status, ['publish', 'draft', 'pending', 'private'], true)) {
+        $status = 'publish';
+    }
+
+    $title = isset($payload['title']) && is_scalar($payload['title']) && trim((string) $payload['title']) !== ''
+        ? (string) $payload['title']
+        : $post_slug;
+    $excerpt = ll_tools_rest_corpus_text_excerpt($payload);
+
+    $post = ll_tools_rest_corpus_text_find_post_by_slug($post_slug);
+    if ($post instanceof WP_Post) {
+        $post_id = wp_update_post([
+            'ID' => (int) $post->ID,
+            'post_title' => $title,
+            'post_excerpt' => $excerpt,
+            'post_status' => $status,
+            'post_type' => 'll_content_lesson',
+        ], true);
+        $action = 'updated';
+    } else {
+        $post_id = wp_insert_post([
+            'post_type' => 'll_content_lesson',
+            'post_status' => $status,
+            'post_title' => $title,
+            'post_name' => $post_slug,
+            'post_excerpt' => $excerpt,
+        ], true);
+        $action = 'created';
+    }
+    if (is_wp_error($post_id) || (int) $post_id <= 0) {
+        if (!is_wp_error($post_id)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_corpus_text_post_failed',
+                __('The corpus text post could not be created or updated.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        return ll_tools_rest_automation_with_status($post_id, 400);
+    }
+
+    $post_id = (int) $post_id;
+    if (defined('LL_TOOLS_CONTENT_LESSON_WORDSET_META')) {
+        delete_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META);
+    }
+    if (defined('LL_TOOLS_CONTENT_LESSON_KIND_META')) {
+        update_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+    }
+
+    $source = ll_tools_rest_automation_request_string($request, 'source');
+    $updated = ll_tools_interlinear_set_payload($post_id, $payload, $source);
+    if (is_wp_error($updated)) {
+        return ll_tools_rest_automation_with_status($updated, 400);
+    }
+
+    $url = get_permalink($post_id);
+    return rest_ensure_response([
+        'action' => $action,
+        'post_id' => $post_id,
+        'post_slug' => $post_slug,
+        'url' => is_string($url) ? $url : '',
+        'summary' => ll_tools_interlinear_summary(is_array($updated['payload'] ?? null) ? $updated['payload'] : []),
+        'updated_at' => isset($updated['updated_at']) ? (string) $updated['updated_at'] : '',
+    ]);
+}
+
 function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/automation/status', [
         'methods' => WP_REST_Server::READABLE,
@@ -3238,6 +3518,45 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::READABLE,
         'callback' => 'll_tools_rest_automation_import_result',
         'permission_callback' => 'll_tools_rest_automation_require_import_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/corpus-texts/asset', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_import_corpus_text_asset',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'args' => [
+            'source_key' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+            'post_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/corpus-texts/import', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_import_corpus_text',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'args' => [
+            'payload' => [
+                'required' => true,
+            ],
+            'post_slug' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'status' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'source' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+        ],
     ]);
 }
 add_action('rest_api_init', 'll_tools_rest_register_automation_routes');
