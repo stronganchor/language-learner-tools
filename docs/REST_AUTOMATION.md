@@ -144,6 +144,13 @@ array. Each item can identify the target lesson by post ID, slug, lesson value,
 interlinear lesson ID, or vocab category. Send `dry_run=true` first, and send
 `delete=true` or `clear=true` to remove an existing payload.
 
+For historical or corpus-text publishing, set the target `ll_content_lesson`
+kind to `corpus_text` in the lesson editor and import a text-document payload
+through the same interlinear route. Use `kind=corpus_text`, `reading_units` for
+public side-by-side text/translation rows, `source_lines` for staff linguist
+views, and optional `witnesses`/line-level source images for scan evidence.
+Regular interlinear `tokens` may be included on each `source_lines` row.
+
 `{wordset}` can be a stable wordset slug such as `spanish` or `genc-palu`.
 
 ## Basic auth examples

@@ -2707,6 +2707,13 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
 
 function ll_tools_wordset_page_render_content_lesson_icon(string $media_type, string $class = 'll-wordset-card__content-icon'): string {
     $media_type = sanitize_key($media_type);
+    if ($media_type === 'text') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M6.5 3.8h8.1l3.9 4v12.4H6.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+            . '<path d="M14.5 3.8v4.1h4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+            . '<path d="M9 12h6M9 15.2h6M9 18.4h3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '</svg>';
+    }
     if ($media_type === 'video') {
         return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
             . '<rect x="3.5" y="5.5" width="11" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/>'

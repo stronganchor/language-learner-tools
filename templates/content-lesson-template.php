@@ -52,6 +52,10 @@ $wordset_name = ($wordset instanceof WP_Term) ? (string) $wordset->name : '';
 $wordset_url = ($wordset instanceof WP_Term && function_exists('ll_tools_get_wordset_page_view_url'))
     ? (string) ll_tools_get_wordset_page_view_url($wordset)
     : (($wordset instanceof WP_Term && $wordset->slug !== '') ? trailingslashit(home_url($wordset->slug)) : '');
+$lesson_kind = function_exists('ll_tools_get_content_lesson_kind')
+    ? ll_tools_get_content_lesson_kind($lesson_id)
+    : 'standard';
+$is_corpus_text = $lesson_kind === 'corpus_text';
 $media_type = function_exists('ll_tools_get_content_lesson_media_type')
     ? ll_tools_get_content_lesson_media_type($lesson_id)
     : 'audio';
@@ -66,8 +70,9 @@ $related_vocab_items = function_exists('ll_tools_get_content_lesson_related_voca
     : [];
 $lesson_excerpt = has_excerpt() ? get_the_excerpt() : '';
 $media_label = function_exists('ll_tools_content_lesson_media_label')
-    ? ll_tools_content_lesson_media_label($media_type)
+    ? ll_tools_content_lesson_media_label($is_corpus_text ? 'text' : $media_type, $lesson_kind)
     : (($media_type === 'video') ? __('Video lesson', 'll-tools-text-domain') : __('Audio lesson', 'll-tools-text-domain'));
+$show_media_stage = !$is_corpus_text || $media_url !== '' || !empty($cues);
 $cue_json = wp_json_encode($cues);
 $cue_json = is_string($cue_json) ? $cue_json : '[]';
 $format_ms = static function (int $ms): string {
@@ -112,74 +117,76 @@ $format_ms = static function (int $ms): string {
     }
     ?>
 
-    <section class="ll-content-lesson-stage" data-ll-content-lesson-player>
-        <div class="ll-content-lesson-stage__media">
-            <?php if ($media_url !== '') : ?>
-                <?php if ($media_type === 'video') : ?>
-                    <video class="ll-content-lesson-media" data-ll-content-lesson-media controls preload="metadata" playsinline>
-                        <source src="<?php echo esc_url($media_url); ?>" />
-                    </video>
-                <?php else : ?>
-                    <audio class="ll-content-lesson-media" data-ll-content-lesson-media controls preload="metadata">
-                        <source src="<?php echo esc_url($media_url); ?>" />
-                    </audio>
-                <?php endif; ?>
-            <?php else : ?>
-                <div class="ll-content-lesson-empty">
-                    <?php echo esc_html__('Add a media URL in the lesson editor to play this lesson here.', 'll-tools-text-domain'); ?>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <div class="ll-content-lesson-stage__transcript">
-            <div class="ll-content-lesson-stage__heading-row">
-                <h2 class="ll-content-lesson-stage__title"><?php echo esc_html__('Transcript', 'll-tools-text-domain'); ?></h2>
-                <?php if (!empty($cues)) : ?>
-                    <span class="ll-content-lesson-stage__count">
-                        <?php
-                        echo esc_html(sprintf(
-                            _n('%d cue', '%d cues', count($cues), 'll-tools-text-domain'),
-                            count($cues)
-                        ));
-                        ?>
-                    </span>
+    <?php if ($show_media_stage) : ?>
+        <section class="ll-content-lesson-stage" data-ll-content-lesson-player>
+            <div class="ll-content-lesson-stage__media">
+                <?php if ($media_url !== '') : ?>
+                    <?php if ($media_type === 'video') : ?>
+                        <video class="ll-content-lesson-media" data-ll-content-lesson-media controls preload="metadata" playsinline>
+                            <source src="<?php echo esc_url($media_url); ?>" />
+                        </video>
+                    <?php else : ?>
+                        <audio class="ll-content-lesson-media" data-ll-content-lesson-media controls preload="metadata">
+                            <source src="<?php echo esc_url($media_url); ?>" />
+                        </audio>
+                    <?php endif; ?>
+                <?php elseif (!$is_corpus_text) : ?>
+                    <div class="ll-content-lesson-empty">
+                        <?php echo esc_html__('Add a media URL in the lesson editor to play this lesson here.', 'll-tools-text-domain'); ?>
+                    </div>
                 <?php endif; ?>
             </div>
 
-            <?php if (!empty($cues)) : ?>
-                <div class="ll-content-lesson-transcript" data-ll-content-lesson-transcript role="list" aria-label="<?php echo esc_attr__('Lesson transcript', 'll-tools-text-domain'); ?>">
-                    <?php foreach ($cues as $cue) : ?>
-                        <?php
-                        $cue_id = isset($cue['id']) ? (int) $cue['id'] : 0;
-                        $cue_start_ms = isset($cue['start_ms']) ? (int) $cue['start_ms'] : 0;
-                        $cue_end_ms = isset($cue['end_ms']) ? (int) $cue['end_ms'] : 0;
-                        $cue_text = isset($cue['text']) ? (string) $cue['text'] : '';
-                        if ($cue_text === '' || $cue_end_ms <= $cue_start_ms) {
-                            continue;
-                        }
-                        ?>
-                        <button
-                            type="button"
-                            class="ll-content-lesson-transcript__cue"
-                            role="listitem"
-                            data-ll-content-lesson-cue
-                            data-cue-id="<?php echo esc_attr((string) $cue_id); ?>"
-                            data-start-ms="<?php echo esc_attr((string) $cue_start_ms); ?>"
-                            data-end-ms="<?php echo esc_attr((string) $cue_end_ms); ?>"
-                            aria-pressed="false">
-                            <span class="ll-content-lesson-transcript__time"><?php echo esc_html($format_ms($cue_start_ms)); ?></span>
-                            <span class="ll-content-lesson-transcript__text"><?php echo esc_html($cue_text); ?></span>
-                        </button>
-                    <?php endforeach; ?>
+            <div class="ll-content-lesson-stage__transcript">
+                <div class="ll-content-lesson-stage__heading-row">
+                    <h2 class="ll-content-lesson-stage__title"><?php echo esc_html__('Transcript', 'll-tools-text-domain'); ?></h2>
+                    <?php if (!empty($cues)) : ?>
+                        <span class="ll-content-lesson-stage__count">
+                            <?php
+                            echo esc_html(sprintf(
+                                _n('%d cue', '%d cues', count($cues), 'll-tools-text-domain'),
+                                count($cues)
+                            ));
+                            ?>
+                        </span>
+                    <?php endif; ?>
                 </div>
-                <script type="application/json" data-ll-content-lesson-cues><?php echo $cue_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></script>
-            <?php else : ?>
-                <div class="ll-content-lesson-empty">
-                    <?php echo esc_html__('Add parsed transcript timing data to highlight the text during playback.', 'll-tools-text-domain'); ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </section>
+
+                <?php if (!empty($cues)) : ?>
+                    <div class="ll-content-lesson-transcript" data-ll-content-lesson-transcript role="list" aria-label="<?php echo esc_attr__('Lesson transcript', 'll-tools-text-domain'); ?>">
+                        <?php foreach ($cues as $cue) : ?>
+                            <?php
+                            $cue_id = isset($cue['id']) ? (int) $cue['id'] : 0;
+                            $cue_start_ms = isset($cue['start_ms']) ? (int) $cue['start_ms'] : 0;
+                            $cue_end_ms = isset($cue['end_ms']) ? (int) $cue['end_ms'] : 0;
+                            $cue_text = isset($cue['text']) ? (string) $cue['text'] : '';
+                            if ($cue_text === '' || $cue_end_ms <= $cue_start_ms) {
+                                continue;
+                            }
+                            ?>
+                            <button
+                                type="button"
+                                class="ll-content-lesson-transcript__cue"
+                                role="listitem"
+                                data-ll-content-lesson-cue
+                                data-cue-id="<?php echo esc_attr((string) $cue_id); ?>"
+                                data-start-ms="<?php echo esc_attr((string) $cue_start_ms); ?>"
+                                data-end-ms="<?php echo esc_attr((string) $cue_end_ms); ?>"
+                                aria-pressed="false">
+                                <span class="ll-content-lesson-transcript__time"><?php echo esc_html($format_ms($cue_start_ms)); ?></span>
+                                <span class="ll-content-lesson-transcript__text"><?php echo esc_html($cue_text); ?></span>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+                    <script type="application/json" data-ll-content-lesson-cues><?php echo $cue_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></script>
+                <?php elseif (!$is_corpus_text) : ?>
+                    <div class="ll-content-lesson-empty">
+                        <?php echo esc_html__('Add parsed transcript timing data to highlight the text during playback.', 'll-tools-text-domain'); ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <?php
     if (function_exists('ll_tools_render_content_lesson_related_vocab_links')) {

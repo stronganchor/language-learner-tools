@@ -273,7 +273,9 @@ vendor/
   - Lesson pages can include word grids, prompt-card grids, manager settings, prerequisites, text visibility, enabled games, desired recording types, and category-specific quiz config.
 - `ll_content_lesson` (public content lessons)
   - Rewrite slug: `/lesson/<slug>`.
-  - Meta includes wordset, media type/url, transcript source/format/cues, linked category ids, mix-in flag, and prerequisite category/content-lesson ids.
+  - Meta includes wordset, lesson kind, media type/url, transcript source/format/cues, linked category ids, mix-in flag, and prerequisite category/content-lesson ids.
+  - Lesson kind defaults to `standard`; `corpus_text` suppresses empty audio/video chrome and renders text-document payloads from the interlinear payload meta.
+  - Text-document payloads support a public reader view from `reading_units` plus staff-only linguist/source views from `source_lines`, `witnesses`, `display_rows`, and regular interlinear `tokens`.
   - Can render inside the mixed wordset lesson grid when `show_in_mix` is enabled.
 - `ll_prompt_card` (admin UI, REST)
   - Prompt-first quiz/lesson cards that can use prompt text/audio/image plus correct and wrong answer word ids.

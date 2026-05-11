@@ -630,6 +630,92 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Dara', $vocab_html);
     }
 
+    public function test_corpus_text_payload_renders_public_reader_and_staff_linguist_views(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'REST Corpus Text Wordset', 'rest-corpus-text-wordset');
+        $content_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Corpus Text Content',
+        ]);
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+
+        $payload = [
+            'schema' => 'll_tools_text_document.v1',
+            'kind' => 'corpus_text',
+            'title' => 'Sample corpus text',
+            'source_label' => 'Zazaki',
+            'translations' => [
+                'tr' => ['label' => 'Turkish'],
+                'en' => ['label' => 'English'],
+            ],
+            'reading_units' => [
+                [
+                    'id' => 'p1_s1',
+                    'source' => 'Merheba, Dêrsim.',
+                    'translations' => [
+                        'tr' => 'Merhaba, Dersim.',
+                        'en' => 'Hello, Dersim.',
+                    ],
+                ],
+            ],
+            'source_lines' => [
+                [
+                    'id' => 'l01',
+                    'display_rows' => [
+                        ['label' => 'LERCH', 'value' => 'Merheba, Dêrsim.'],
+                        ['label' => 'IPA', 'value' => 'merheba deːrsim'],
+                    ],
+                    'witnesses' => [
+                        [
+                            'label' => 'Russian scan',
+                            'image_url' => 'https://example.com/line-01.png',
+                        ],
+                    ],
+                    'tokens' => [
+                        [
+                            'form' => 'Merheba',
+                            'lemma' => 'merheba',
+                            'display_gloss' => 'hello',
+                            'pos' => 'INTJ',
+                            'confidence' => 1.0,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $this->assertNotWPError(ll_tools_interlinear_set_payload($content_lesson_id, $payload, 'phpunit'));
+
+        wp_set_current_user(0);
+        $reader_html = ll_tools_render_interlinear_block($content_lesson_id);
+        $this->assertStringContainsString('class="ll-text-document', $reader_html);
+        $this->assertStringContainsString('Merheba, Dêrsim.', $reader_html);
+        $this->assertStringContainsString('Merhaba, Dersim.', $reader_html);
+        $this->assertStringNotContainsString('Linguist', $reader_html);
+        $this->assertStringNotContainsString('Russian scan', $reader_html);
+
+        $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
+        $viewer = get_user_by('id', $viewer_id);
+        $this->assertInstanceOf(WP_User::class, $viewer);
+        $viewer->add_cap('view_ll_tools');
+        clean_user_cache($viewer_id);
+        wp_set_current_user($viewer_id);
+
+        $_GET['ll_text_view'] = 'linguist';
+        try {
+            $staff_html = ll_tools_render_interlinear_block($content_lesson_id);
+        } finally {
+            unset($_GET['ll_text_view']);
+        }
+
+        $this->assertStringContainsString('class="ll-text-source-line"', $staff_html);
+        $this->assertStringContainsString('Russian scan', $staff_html);
+        $this->assertStringContainsString('>LERCH<', $staff_html);
+        $this->assertStringContainsString('>IPA<', $staff_html);
+        $this->assertStringContainsString('class="ll-interlinear-table"', $staff_html);
+    }
+
     public function test_vocab_word_grid_renders_staff_interlinear_under_matching_recordings(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'REST Interlinear Grid Wordset', 'rest-interlinear-grid-wordset');

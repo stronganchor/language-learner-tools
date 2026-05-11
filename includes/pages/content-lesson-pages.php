@@ -2,7 +2,11 @@
 // /includes/pages/content-lesson-pages.php
 if (!defined('WPINC')) { die; }
 
-function ll_tools_content_lesson_media_label(string $media_type): string {
+function ll_tools_content_lesson_media_label(string $media_type, string $lesson_kind = 'standard'): string {
+    if ($lesson_kind === 'corpus_text' || $media_type === 'text') {
+        return __('Text document', 'll-tools-text-domain');
+    }
+
     return ($media_type === 'video')
         ? __('Video lesson', 'll-tools-text-domain')
         : __('Audio lesson', 'll-tools-text-domain');
@@ -40,14 +44,19 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
     $media_type = function_exists('ll_tools_get_content_lesson_media_type')
         ? ll_tools_get_content_lesson_media_type((int) $lesson->ID)
         : 'audio';
+    $lesson_kind = function_exists('ll_tools_get_content_lesson_kind')
+        ? ll_tools_get_content_lesson_kind((int) $lesson->ID)
+        : 'standard';
+    $display_media_type = $lesson_kind === 'corpus_text' ? 'text' : $media_type;
 
     return [
         'id' => (int) $lesson->ID,
         'title' => (string) get_the_title($lesson),
         'url' => (string) get_permalink($lesson),
         'excerpt' => ll_tools_get_content_lesson_excerpt($lesson),
-        'media_type' => $media_type,
-        'media_label' => ll_tools_content_lesson_media_label($media_type),
+        'lesson_kind' => $lesson_kind,
+        'media_type' => $display_media_type,
+        'media_label' => ll_tools_content_lesson_media_label($display_media_type, $lesson_kind),
         'wordset_id' => $wordset_id,
         'category_ids' => $category_ids,
         'category_count' => count($category_ids),
@@ -343,6 +352,19 @@ function ll_tools_content_lesson_enqueue_assets(): void {
 
     if (!$is_content_lesson) {
         return;
+    }
+
+    $lesson_id = (int) get_queried_object_id();
+    if ($lesson_id > 0 && function_exists('ll_tools_content_lesson_is_corpus_text') && ll_tools_content_lesson_is_corpus_text($lesson_id)) {
+        $media_url = function_exists('ll_tools_get_content_lesson_media_url')
+            ? ll_tools_get_content_lesson_media_url($lesson_id)
+            : '';
+        $cues = function_exists('ll_tools_get_content_lesson_cues')
+            ? ll_tools_get_content_lesson_cues($lesson_id)
+            : [];
+        if ($media_url === '' && empty($cues)) {
+            return;
+        }
     }
 
     ll_enqueue_asset_by_timestamp('/js/content-lesson-player.js', 'll-tools-content-lesson-player', [], true);

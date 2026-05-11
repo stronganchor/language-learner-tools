@@ -5,6 +5,9 @@ if (!defined('WPINC')) { die; }
 if (!defined('LL_TOOLS_CONTENT_LESSON_WORDSET_META')) {
     define('LL_TOOLS_CONTENT_LESSON_WORDSET_META', '_ll_tools_content_lesson_wordset_id');
 }
+if (!defined('LL_TOOLS_CONTENT_LESSON_KIND_META')) {
+    define('LL_TOOLS_CONTENT_LESSON_KIND_META', '_ll_tools_content_lesson_kind');
+}
 if (!defined('LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META')) {
     define('LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META', '_ll_tools_content_lesson_media_type');
 }
@@ -100,6 +103,18 @@ add_action('init', 'll_tools_maybe_schedule_content_lesson_rewrite_flush', 5);
 function ll_tools_content_lesson_sanitize_media_type($raw): string {
     $value = sanitize_key((string) $raw);
     return in_array($value, ['audio', 'video'], true) ? $value : 'audio';
+}
+
+function ll_tools_content_lesson_kind_options(): array {
+    return [
+        'standard' => __('Audio/video lesson', 'll-tools-text-domain'),
+        'corpus_text' => __('Corpus text', 'll-tools-text-domain'),
+    ];
+}
+
+function ll_tools_content_lesson_sanitize_kind($raw): string {
+    $value = sanitize_key((string) $raw);
+    return array_key_exists($value, ll_tools_content_lesson_kind_options()) ? $value : 'standard';
 }
 
 function ll_tools_content_lesson_sanitize_transcript_format($raw): string {
@@ -484,6 +499,16 @@ function ll_tools_content_lesson_parse_source(string $raw, string $format = 'aut
 
 function ll_tools_get_content_lesson_wordset_id($lesson_id): int {
     return max(0, (int) get_post_meta((int) $lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, true));
+}
+
+function ll_tools_get_content_lesson_kind($lesson_id): string {
+    return ll_tools_content_lesson_sanitize_kind(
+        (string) get_post_meta((int) $lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, true)
+    );
+}
+
+function ll_tools_content_lesson_is_corpus_text($lesson_id): bool {
+    return ll_tools_get_content_lesson_kind((int) $lesson_id) === 'corpus_text';
 }
 
 function ll_tools_get_content_lesson_media_type($lesson_id): string {
@@ -1106,6 +1131,7 @@ function ll_tools_render_content_lesson_metabox($post): void {
     wp_nonce_field('ll_tools_content_lesson_save', 'll_tools_content_lesson_nonce');
 
     $wordset_id = ll_tools_get_content_lesson_wordset_id((int) $post->ID);
+    $lesson_kind = ll_tools_get_content_lesson_kind((int) $post->ID);
     $media_type = ll_tools_get_content_lesson_media_type((int) $post->ID);
     $media_url = (string) get_post_meta((int) $post->ID, LL_TOOLS_CONTENT_LESSON_MEDIA_URL_META, true);
     $transcript_format = ll_tools_get_content_lesson_transcript_format((int) $post->ID);
@@ -1155,6 +1181,23 @@ function ll_tools_render_content_lesson_metabox($post): void {
                     </select>
                     <p class="description">
                         <?php esc_html_e('Used for front-end access checks and to surface this lesson on the word set page.', 'll-tools-text-domain'); ?>
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    <label for="ll-content-lesson-kind"><?php esc_html_e('Lesson kind', 'll-tools-text-domain'); ?></label>
+                </th>
+                <td>
+                    <select id="ll-content-lesson-kind" name="ll_content_lesson_kind" class="regular-text">
+                        <?php foreach (ll_tools_content_lesson_kind_options() as $kind_value => $kind_label) : ?>
+                            <option value="<?php echo esc_attr((string) $kind_value); ?>" <?php selected($lesson_kind, (string) $kind_value); ?>>
+                                <?php echo esc_html((string) $kind_label); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description">
+                        <?php esc_html_e('Use Corpus text for historical texts, text editions, translations, and linguist-facing interlinear payloads that are not primarily audio or video lessons.', 'll-tools-text-domain'); ?>
                     </p>
                 </td>
             </tr>
@@ -1353,6 +1396,9 @@ function ll_tools_save_content_lesson_metabox($post_id, $post): void {
         $wordset_id = 0;
     }
 
+    $lesson_kind = ll_tools_content_lesson_sanitize_kind(
+        wp_unslash((string) ($_POST['ll_content_lesson_kind'] ?? 'standard'))
+    );
     $media_type = ll_tools_content_lesson_sanitize_media_type(
         wp_unslash((string) ($_POST['ll_content_lesson_media_type'] ?? 'audio'))
     );
@@ -1386,6 +1432,12 @@ function ll_tools_save_content_lesson_metabox($post_id, $post): void {
         update_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, (string) $wordset_id);
     } else {
         delete_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META);
+    }
+
+    if ($lesson_kind === 'corpus_text') {
+        update_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_KIND_META, $lesson_kind);
+    } else {
+        delete_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_KIND_META);
     }
 
     update_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META, $media_type);

@@ -155,6 +155,38 @@ function ll_tools_interlinear_normalize_payload($payload) {
     }
     $payload['lines'] = array_values(array_filter($payload['lines'], 'is_array'));
 
+    $schema = isset($payload['schema']) && is_scalar($payload['schema']) ? (string) $payload['schema'] : '';
+    $has_text_document_keys = false;
+    foreach (['source_lines', 'reading_units', 'witnesses', 'translations'] as $text_key) {
+        if (array_key_exists($text_key, $payload)) {
+            $has_text_document_keys = true;
+            break;
+        }
+    }
+    if (isset($payload['kind']) && is_scalar($payload['kind'])) {
+        $payload['kind'] = sanitize_key((string) $payload['kind']);
+    }
+    $is_text_document = $has_text_document_keys
+        || (isset($payload['kind']) && in_array((string) $payload['kind'], ['corpus_text', 'text_document', 'historical_text'], true))
+        || ($schema !== '' && preg_match('/(?:corpus|text_document|historical_text)/i', $schema));
+
+    if ($is_text_document) {
+        foreach (['source_lines', 'reading_units', 'witnesses'] as $list_key) {
+            if (!isset($payload[$list_key]) || !is_array($payload[$list_key])) {
+                $payload[$list_key] = [];
+            }
+            $payload[$list_key] = array_values(array_filter($payload[$list_key], 'is_array'));
+        }
+
+        if (!isset($payload['translations']) || !is_array($payload['translations'])) {
+            $payload['translations'] = [];
+        }
+    }
+
+    if ($is_text_document && (!isset($payload['kind']) || (string) $payload['kind'] === '')) {
+        $payload['kind'] = 'corpus_text';
+    }
+
     if (!isset($payload['schema']) || !is_scalar($payload['schema'])) {
         $payload['schema'] = 'll_tools_interlinear.v1';
     }
@@ -173,7 +205,13 @@ function ll_tools_interlinear_get_payload(int $lesson_id): array {
 
 function ll_tools_interlinear_has_payload(int $lesson_id): bool {
     $payload = ll_tools_interlinear_get_payload($lesson_id);
-    return !empty($payload) && !empty($payload['lines']) && is_array($payload['lines']);
+    foreach (['lines', 'source_lines', 'reading_units'] as $line_key) {
+        if (!empty($payload[$line_key]) && is_array($payload[$line_key])) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function ll_tools_interlinear_set_payload(int $lesson_id, $payload, string $source = '') {
@@ -224,12 +262,16 @@ function ll_tools_interlinear_clear_payload(int $lesson_id): void {
 function ll_tools_interlinear_summary(array $payload): array {
     $summary = isset($payload['summary']) && is_array($payload['summary']) ? $payload['summary'] : [];
     $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
+    $source_lines = isset($payload['source_lines']) && is_array($payload['source_lines']) ? $payload['source_lines'] : [];
+    $reading_units = isset($payload['reading_units']) && is_array($payload['reading_units']) ? $payload['reading_units'] : [];
 
     return [
-        'lines' => max(0, (int) ($summary['lines'] ?? count($lines))),
+        'lines' => max(0, (int) ($summary['lines'] ?? count(!empty($source_lines) ? $source_lines : $lines))),
+        'source_lines' => max(0, (int) ($summary['source_lines'] ?? count($source_lines))),
+        'reading_units' => max(0, (int) ($summary['reading_units'] ?? count($reading_units))),
         'tokens' => max(0, (int) ($summary['tokens'] ?? array_sum(array_map(static function ($line): int {
             return is_array($line) && isset($line['tokens']) && is_array($line['tokens']) ? count($line['tokens']) : 0;
-        }, $lines)))),
+        }, !empty($source_lines) ? $source_lines : $lines)))),
         'matched_tokens' => max(0, (int) ($summary['matched_tokens'] ?? 0)),
         'matched_pct' => isset($summary['matched_pct']) && is_scalar($summary['matched_pct']) ? (string) $summary['matched_pct'] : '',
         'high_confidence_tokens' => max(0, (int) ($summary['high_confidence_tokens'] ?? 0)),
@@ -700,6 +742,586 @@ function ll_tools_render_interlinear_lines(array $lines, bool $show_line_text = 
     return '<div class="ll-interlinear__lines">' . $html . '</div>';
 }
 
+function ll_tools_interlinear_payload_is_text_document(array $payload): bool {
+    $kind = isset($payload['kind']) && is_scalar($payload['kind']) ? sanitize_key((string) $payload['kind']) : '';
+    if (in_array($kind, ['corpus_text', 'text_document', 'historical_text'], true)) {
+        return true;
+    }
+
+    $schema = isset($payload['schema']) && is_scalar($payload['schema']) ? (string) $payload['schema'] : '';
+    if ($schema !== '' && preg_match('/(?:corpus|text_document|historical_text)/i', $schema)) {
+        return true;
+    }
+
+    return !empty($payload['source_lines']) || !empty($payload['reading_units']);
+}
+
+function ll_tools_current_user_can_view_text_document(int $lesson_id): bool {
+    if ($lesson_id <= 0) {
+        return false;
+    }
+
+    $post = get_post($lesson_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== 'll_content_lesson') {
+        return ll_tools_current_user_can_view_interlinear($lesson_id);
+    }
+
+    $wordset_id = ll_tools_interlinear_get_wordset_id_for_lesson($lesson_id);
+    if ($wordset_id <= 0) {
+        return current_user_can('manage_options');
+    }
+
+    return !function_exists('ll_tools_user_can_view_wordset')
+        || ll_tools_user_can_view_wordset($wordset_id, (int) get_current_user_id());
+}
+
+function ll_tools_text_document_user_can_view_linguist(int $lesson_id): bool {
+    return ll_tools_current_user_can_view_interlinear($lesson_id);
+}
+
+function ll_tools_text_document_request_arg(string $key): string {
+    if (!isset($_GET[$key])) {
+        return '';
+    }
+
+    return sanitize_key(wp_unslash((string) $_GET[$key]));
+}
+
+function ll_tools_text_document_translation_label(array $payload, string $key): string {
+    $translations = isset($payload['translations']) && is_array($payload['translations']) ? $payload['translations'] : [];
+    if (isset($translations[$key]) && is_array($translations[$key])) {
+        $label = ll_tools_interlinear_scalar($translations[$key], ['label', 'name', 'title']);
+        if ($label !== '') {
+            return $label;
+        }
+    }
+
+    $labels = [
+        'en' => __('English', 'll-tools-text-domain'),
+        'tr' => __('Turkish', 'll-tools-text-domain'),
+        'de' => __('German', 'll-tools-text-domain'),
+        'ru' => __('Russian', 'll-tools-text-domain'),
+    ];
+
+    return $labels[$key] ?? strtoupper($key);
+}
+
+function ll_tools_text_document_available_translation_keys(array $payload): array {
+    $keys = [];
+    $translations = isset($payload['translations']) && is_array($payload['translations']) ? $payload['translations'] : [];
+    foreach ($translations as $key => $value) {
+        if (!is_string($key) && !is_int($key)) {
+            continue;
+        }
+        $key = sanitize_key((string) $key);
+        if ($key !== '') {
+            $keys[$key] = true;
+        }
+    }
+
+    $units = isset($payload['reading_units']) && is_array($payload['reading_units']) ? $payload['reading_units'] : [];
+    foreach ($units as $unit) {
+        if (!is_array($unit)) {
+            continue;
+        }
+        if (isset($unit['translations']) && is_array($unit['translations'])) {
+            foreach ($unit['translations'] as $key => $value) {
+                $key = sanitize_key((string) $key);
+                if ($key !== '' && is_scalar($value) && trim((string) $value) !== '') {
+                    $keys[$key] = true;
+                }
+            }
+        }
+        foreach ($unit as $key => $value) {
+            $key = (string) $key;
+            if (preg_match('/^translation_([a-z0-9_-]+)$/i', $key, $matches) && is_scalar($value) && trim((string) $value) !== '') {
+                $keys[sanitize_key((string) $matches[1])] = true;
+            }
+        }
+    }
+
+    $keys = array_keys($keys);
+    usort($keys, static function (string $left, string $right): int {
+        $priority = ['tr' => 0, 'en' => 1, 'de' => 2, 'ru' => 3];
+        return (($priority[$left] ?? 50) <=> ($priority[$right] ?? 50)) ?: strcmp($left, $right);
+    });
+
+    return $keys;
+}
+
+function ll_tools_text_document_selected_translation_key(array $payload): string {
+    $keys = ll_tools_text_document_available_translation_keys($payload);
+    if (empty($keys)) {
+        return '';
+    }
+
+    $requested = ll_tools_text_document_request_arg('ll_translation');
+    if ($requested !== '' && in_array($requested, $keys, true)) {
+        return $requested;
+    }
+
+    foreach (['tr', 'en', 'de'] as $preferred) {
+        if (in_array($preferred, $keys, true)) {
+            return $preferred;
+        }
+    }
+
+    return (string) $keys[0];
+}
+
+function ll_tools_text_document_unit_source_text(array $unit): string {
+    return ll_tools_interlinear_scalar($unit, [
+        'zazaki',
+        'source',
+        'source_text',
+        'text',
+        'orthography',
+        'zazaki_orthography',
+        'normalized_text',
+    ]);
+}
+
+function ll_tools_text_document_unit_translation(array $unit, string $key): string {
+    if ($key !== '' && isset($unit['translations']) && is_array($unit['translations'])) {
+        $value = $unit['translations'][$key] ?? '';
+        if (is_scalar($value) && trim((string) $value) !== '') {
+            return trim((string) $value);
+        }
+    }
+
+    $candidates = $key !== ''
+        ? ['translation_' . $key, $key . '_translation', $key, 'translation']
+        : ['translation'];
+
+    return ll_tools_interlinear_scalar($unit, $candidates);
+}
+
+function ll_tools_text_document_reader_units(array $payload): array {
+    $units = isset($payload['reading_units']) && is_array($payload['reading_units']) ? $payload['reading_units'] : [];
+    if (!empty($units)) {
+        return array_values(array_filter($units, 'is_array'));
+    }
+
+    $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
+    $source_lines = isset($payload['source_lines']) && is_array($payload['source_lines']) ? $payload['source_lines'] : [];
+    $units = !empty($source_lines) ? $source_lines : $lines;
+
+    return array_values(array_filter($units, 'is_array'));
+}
+
+function ll_tools_text_document_view_url(string $view, string $translation_key = ''): string {
+    $args = ['ll_text_view' => $view];
+    if ($translation_key !== '') {
+        $args['ll_translation'] = $translation_key;
+    }
+
+    return add_query_arg($args, remove_query_arg(['ll_text_view', 'll_translation']));
+}
+
+function ll_tools_text_document_render_tabs(string $current_view, string $translation_key, bool $can_view_linguist, array $payload): string {
+    $tabs = [
+        'reader' => __('Reader', 'll-tools-text-domain'),
+    ];
+
+    $source_lines = isset($payload['source_lines']) && is_array($payload['source_lines']) ? $payload['source_lines'] : [];
+    $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
+    if ($can_view_linguist && (!empty($source_lines) || !empty($lines))) {
+        $tabs['linguist'] = __('Linguist', 'll-tools-text-domain');
+    }
+    if ($can_view_linguist && !empty($payload['witnesses']) && is_array($payload['witnesses'])) {
+        $tabs['sources'] = __('Sources', 'll-tools-text-domain');
+    }
+
+    if (count($tabs) < 2) {
+        return '';
+    }
+
+    $html = '<nav class="ll-text-document__tabs" aria-label="' . esc_attr__('Text view', 'll-tools-text-domain') . '">';
+    foreach ($tabs as $view => $label) {
+        $class = 'll-text-document__tab';
+        if ($view === $current_view) {
+            $class .= ' is-active';
+        }
+        $html .= '<a class="' . esc_attr($class) . '" href="' . esc_url(ll_tools_text_document_view_url($view, $translation_key)) . '"' . ($view === $current_view ? ' aria-current="page"' : '') . '>';
+        $html .= esc_html($label);
+        $html .= '</a>';
+    }
+    $html .= '</nav>';
+
+    return $html;
+}
+
+function ll_tools_text_document_render_translation_switcher(array $payload, string $selected_key, string $current_view): string {
+    $keys = ll_tools_text_document_available_translation_keys($payload);
+    if (count($keys) < 2) {
+        return '';
+    }
+
+    $html = '<nav class="ll-text-document__translations" aria-label="' . esc_attr__('Translation language', 'll-tools-text-domain') . '">';
+    foreach ($keys as $key) {
+        $class = 'll-text-document__translation';
+        if ($key === $selected_key) {
+            $class .= ' is-active';
+        }
+        $html .= '<a class="' . esc_attr($class) . '" href="' . esc_url(ll_tools_text_document_view_url($current_view, $key)) . '"' . ($key === $selected_key ? ' aria-current="page"' : '') . '>';
+        $html .= esc_html(ll_tools_text_document_translation_label($payload, $key));
+        $html .= '</a>';
+    }
+    $html .= '</nav>';
+
+    return $html;
+}
+
+function ll_tools_text_document_render_reader(array $payload, string $translation_key): string {
+    $units = ll_tools_text_document_reader_units($payload);
+    if (empty($units)) {
+        return '';
+    }
+
+    $translation_label = $translation_key !== ''
+        ? ll_tools_text_document_translation_label($payload, $translation_key)
+        : __('Translation', 'll-tools-text-domain');
+    $source_label = ll_tools_interlinear_scalar($payload, ['source_label', 'text_label']);
+    if ($source_label === '') {
+        $source_label = __('Text', 'll-tools-text-domain');
+    }
+
+    $rows = '';
+    foreach ($units as $unit) {
+        if (!is_array($unit)) {
+            continue;
+        }
+        $source_text = ll_tools_text_document_unit_source_text($unit);
+        $translation = ll_tools_text_document_unit_translation($unit, $translation_key);
+        if ($source_text === '' && $translation === '') {
+            continue;
+        }
+
+        $rows .= '<div class="ll-text-reader__row">';
+        $rows .= '<div class="ll-text-reader__cell ll-text-reader__cell--source" dir="auto">' . nl2br(esc_html($source_text)) . '</div>';
+        $rows .= '<div class="ll-text-reader__cell ll-text-reader__cell--translation" dir="auto">' . nl2br(esc_html($translation)) . '</div>';
+        $rows .= '</div>';
+    }
+
+    if ($rows === '') {
+        return '';
+    }
+
+    return '<section class="ll-text-reader" aria-label="' . esc_attr__('Reader text', 'll-tools-text-domain') . '">'
+        . '<div class="ll-text-reader__head" aria-hidden="true"><span>' . esc_html($source_label) . '</span><span>' . esc_html($translation_label) . '</span></div>'
+        . $rows
+        . '</section>';
+}
+
+function ll_tools_text_document_source_lines(array $payload): array {
+    $source_lines = isset($payload['source_lines']) && is_array($payload['source_lines']) ? $payload['source_lines'] : [];
+    if (!empty($source_lines)) {
+        return array_values(array_filter($source_lines, 'is_array'));
+    }
+
+    $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
+    return array_values(array_filter($lines, 'is_array'));
+}
+
+function ll_tools_text_document_label_from_key(string $key): string {
+    $labels = [
+        'lerch' => 'LERCH',
+        'transcription' => 'LERCH',
+        'ipa' => 'IPA',
+        'zazaki' => 'ZAZAKI',
+        'orthography' => 'ZAZAKI',
+        'zazaki_orthography' => 'ZAZAKI',
+        'gloss_en' => 'ENGLISH',
+        'translation_en' => 'ENGLISH',
+        'translation_tr' => 'TURKISH',
+        'translation_de' => 'GERMAN',
+    ];
+
+    $key = sanitize_key($key);
+    return $labels[$key] ?? strtoupper(str_replace('_', ' ', $key));
+}
+
+function ll_tools_text_document_line_rows(array $line): array {
+    $raw_rows = [];
+    if (isset($line['display_rows']) && is_array($line['display_rows'])) {
+        $raw_rows = $line['display_rows'];
+    } elseif (isset($line['rows']) && is_array($line['rows'])) {
+        $raw_rows = $line['rows'];
+    } elseif (isset($line['layers']) && is_array($line['layers'])) {
+        $raw_rows = $line['layers'];
+    }
+
+    $rows = [];
+    if (!empty($raw_rows)) {
+        $keys = array_keys($raw_rows);
+        $is_list = $keys === range(0, count($raw_rows) - 1);
+        if ($is_list) {
+            foreach ($raw_rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $label = ll_tools_interlinear_scalar($row, ['label', 'name']);
+                $value = ll_tools_interlinear_scalar($row, ['value', 'text', 'content']);
+                if ($label !== '' && $value !== '') {
+                    $rows[] = ['label' => $label, 'value' => $value];
+                }
+            }
+        } else {
+            foreach ($raw_rows as $label => $value) {
+                if (is_scalar($value) && trim((string) $value) !== '') {
+                    $rows[] = ['label' => ll_tools_text_document_label_from_key((string) $label), 'value' => trim((string) $value)];
+                }
+            }
+        }
+    }
+
+    foreach (['lerch', 'transcription', 'ipa', 'zazaki', 'orthography', 'zazaki_orthography', 'translation_en', 'translation_tr', 'translation_de'] as $key) {
+        $value = ll_tools_interlinear_scalar($line, [$key]);
+        if ($value !== '') {
+            $rows[] = ['label' => ll_tools_text_document_label_from_key($key), 'value' => $value];
+        }
+    }
+
+    $deduped = [];
+    $seen = [];
+    foreach ($rows as $row) {
+        $label = (string) ($row['label'] ?? '');
+        $value = (string) ($row['value'] ?? '');
+        $key = $label . "\0" . $value;
+        if ($label === '' || $value === '' || isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $deduped[] = ['label' => $label, 'value' => $value];
+    }
+
+    return $deduped;
+}
+
+function ll_tools_text_document_image_url($image): string {
+    if (is_array($image)) {
+        $attachment_id = isset($image['attachment_id']) ? (int) $image['attachment_id'] : 0;
+        if ($attachment_id > 0) {
+            $attachment_url = wp_get_attachment_image_url($attachment_id, 'full');
+            if (is_string($attachment_url) && $attachment_url !== '') {
+                return $attachment_url;
+            }
+        }
+        $image = $image['image_url'] ?? ($image['url'] ?? ($image['src'] ?? ''));
+    }
+
+    if (!is_scalar($image)) {
+        return '';
+    }
+
+    $url = trim((string) $image);
+    if ($url === '') {
+        return '';
+    }
+
+    if (ctype_digit($url)) {
+        $attachment_url = wp_get_attachment_image_url((int) $url, 'full');
+        return is_string($attachment_url) ? $attachment_url : '';
+    }
+
+    return $url;
+}
+
+function ll_tools_text_document_line_witnesses(array $line): array {
+    $witnesses = [];
+    foreach (['witnesses', 'source_images', 'images'] as $key) {
+        if (isset($line[$key]) && is_array($line[$key])) {
+            foreach ($line[$key] as $witness) {
+                if (is_array($witness)) {
+                    $witnesses[] = $witness;
+                } elseif (is_scalar($witness)) {
+                    $witnesses[] = ['image_url' => (string) $witness];
+                }
+            }
+        }
+    }
+
+    foreach (['source_image', 'scan', 'scan_url', 'image_url'] as $key) {
+        if (isset($line[$key]) && is_scalar($line[$key])) {
+            $witnesses[] = [
+                'label' => ll_tools_text_document_label_from_key($key),
+                'image_url' => (string) $line[$key],
+            ];
+        }
+    }
+
+    return $witnesses;
+}
+
+function ll_tools_text_document_render_source_images(array $line): string {
+    $witnesses = ll_tools_text_document_line_witnesses($line);
+    if (empty($witnesses)) {
+        return '';
+    }
+
+    $html = '<div class="ll-text-source-line__witnesses">';
+    foreach ($witnesses as $witness) {
+        $image_url = ll_tools_text_document_image_url($witness);
+        if ($image_url === '') {
+            continue;
+        }
+        $label = is_array($witness) ? ll_tools_interlinear_scalar($witness, ['label', 'name', 'source']) : '';
+        $caption = is_array($witness) ? ll_tools_interlinear_scalar($witness, ['caption', 'description']) : '';
+        $alt = $label !== '' ? $label : __('Source scan', 'll-tools-text-domain');
+        $html .= '<figure class="ll-text-source-line__witness">';
+        if ($label !== '') {
+            $html .= '<figcaption>' . esc_html($label) . '</figcaption>';
+        }
+        $html .= '<img src="' . esc_url($image_url) . '" alt="' . esc_attr($alt) . '" loading="lazy" decoding="async" />';
+        if ($caption !== '') {
+            $html .= '<figcaption class="ll-text-source-line__caption">' . esc_html($caption) . '</figcaption>';
+        }
+        $html .= '</figure>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
+function ll_tools_text_document_render_linguist(array $payload): string {
+    $source_lines = ll_tools_text_document_source_lines($payload);
+    if (empty($source_lines)) {
+        return '';
+    }
+
+    $html = '<section class="ll-text-linguist" aria-label="' . esc_attr__('Linguistic edition', 'll-tools-text-domain') . '">';
+    foreach ($source_lines as $index => $line) {
+        if (!is_array($line)) {
+            continue;
+        }
+        $line_id = ll_tools_interlinear_scalar($line, ['id', 'line_id']);
+        $title = ll_tools_interlinear_scalar($line, ['title', 'label']);
+        if ($title === '') {
+            $title = $line_id !== '' ? $line_id : sprintf(__('Line %d', 'll-tools-text-domain'), $index + 1);
+        }
+        $rows = ll_tools_text_document_line_rows($line);
+        $interlinear_html = ll_tools_render_interlinear_line($line, empty($rows));
+        $image_html = ll_tools_text_document_render_source_images($line);
+        if ($image_html === '' && empty($rows) && $interlinear_html === '') {
+            continue;
+        }
+
+        $html .= '<article class="ll-text-source-line">';
+        $html .= '<h3 class="ll-text-source-line__title">' . esc_html($title) . '</h3>';
+        $html .= $image_html;
+        if (!empty($rows)) {
+            $html .= '<dl class="ll-text-source-line__rows">';
+            foreach ($rows as $row) {
+                $html .= '<div class="ll-text-source-line__row">';
+                $html .= '<dt>' . esc_html((string) $row['label']) . '</dt>';
+                $html .= '<dd dir="auto">' . nl2br(esc_html((string) $row['value'])) . '</dd>';
+                $html .= '</div>';
+            }
+            $html .= '</dl>';
+        }
+        $html .= $interlinear_html;
+        $html .= '</article>';
+    }
+    $html .= '</section>';
+
+    return $html;
+}
+
+function ll_tools_text_document_render_sources(array $payload): string {
+    $witnesses = isset($payload['witnesses']) && is_array($payload['witnesses']) ? $payload['witnesses'] : [];
+    if (empty($witnesses)) {
+        return '';
+    }
+
+    $html = '<section class="ll-text-sources" aria-label="' . esc_attr__('Source witnesses', 'll-tools-text-domain') . '">';
+    foreach ($witnesses as $witness) {
+        if (!is_array($witness)) {
+            continue;
+        }
+        $label = ll_tools_interlinear_scalar($witness, ['label', 'title', 'name']);
+        $source = ll_tools_interlinear_scalar($witness, ['source', 'citation', 'description']);
+        $url = ll_tools_interlinear_scalar($witness, ['url', 'source_url']);
+        $image_url = ll_tools_text_document_image_url($witness);
+        if ($label === '' && $source === '' && $url === '' && $image_url === '') {
+            continue;
+        }
+
+        $html .= '<article class="ll-text-sources__item">';
+        if ($label !== '') {
+            $html .= '<h3>' . esc_html($label) . '</h3>';
+        }
+        if ($source !== '') {
+            $html .= '<p>' . esc_html($source) . '</p>';
+        }
+        if ($url !== '') {
+            $html .= '<p><a href="' . esc_url($url) . '">' . esc_html($url) . '</a></p>';
+        }
+        if ($image_url !== '') {
+            $html .= '<img src="' . esc_url($image_url) . '" alt="' . esc_attr($label !== '' ? $label : __('Source witness', 'll-tools-text-domain')) . '" loading="lazy" decoding="async" />';
+        }
+        $html .= '</article>';
+    }
+    $html .= '</section>';
+
+    return $html;
+}
+
+function ll_tools_render_text_document_block(int $lesson_id, array $payload): string {
+    if (!ll_tools_current_user_can_view_text_document($lesson_id)) {
+        return '';
+    }
+
+    $can_view_linguist = ll_tools_text_document_user_can_view_linguist($lesson_id);
+    $translation_key = ll_tools_text_document_selected_translation_key($payload);
+    $requested_view = ll_tools_text_document_request_arg('ll_text_view');
+    $view = in_array($requested_view, ['reader', 'linguist', 'sources'], true) ? $requested_view : 'reader';
+    if (!$can_view_linguist && $view !== 'reader') {
+        $view = 'reader';
+    }
+
+    if ($view === 'linguist') {
+        $body = ll_tools_text_document_render_linguist($payload);
+    } elseif ($view === 'sources') {
+        $body = ll_tools_text_document_render_sources($payload);
+    } else {
+        $view = 'reader';
+        $body = ll_tools_text_document_render_reader($payload, $translation_key);
+    }
+
+    if ($body === '' && $view !== 'reader') {
+        $view = 'reader';
+        $body = ll_tools_text_document_render_reader($payload, $translation_key);
+    }
+
+    if ($body === '') {
+        return '';
+    }
+
+    $title = ll_tools_interlinear_scalar($payload, ['title', 'document_title']);
+    $tabs = ll_tools_text_document_render_tabs($view, $translation_key, $can_view_linguist, $payload);
+    $translation_switcher = $view === 'reader'
+        ? ll_tools_text_document_render_translation_switcher($payload, $translation_key, $view)
+        : '';
+
+    ob_start();
+    ?>
+    <section class="ll-text-document<?php echo $can_view_linguist ? ' ll-text-document--staff' : ''; ?>" data-ll-text-document data-view="<?php echo esc_attr($view); ?>">
+        <?php if ($title !== '' || $tabs !== '' || $translation_switcher !== '') : ?>
+            <div class="ll-text-document__head">
+                <?php if ($title !== '') : ?>
+                    <h2 class="ll-text-document__title"><?php echo esc_html($title); ?></h2>
+                <?php endif; ?>
+                <?php echo $tabs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <?php echo $translation_switcher; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </div>
+        <?php endif; ?>
+        <?php echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+    </section>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
 function ll_tools_interlinear_match_key(string $value): string {
     $value = trim(wp_strip_all_tags(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
     if ($value === '') {
@@ -873,13 +1495,21 @@ function ll_tools_render_recording_interlinear_block(int $lesson_id, array $reco
 }
 
 function ll_tools_render_interlinear_block(int $lesson_id): string {
-    if (!ll_tools_current_user_can_view_interlinear($lesson_id) || !ll_tools_interlinear_has_payload($lesson_id)) {
+    if (!ll_tools_interlinear_has_payload($lesson_id)) {
+        return '';
+    }
+
+    $payload = ll_tools_interlinear_get_payload($lesson_id);
+    if (ll_tools_interlinear_payload_is_text_document($payload)) {
+        return ll_tools_render_text_document_block($lesson_id, $payload);
+    }
+
+    if (!ll_tools_current_user_can_view_interlinear($lesson_id)) {
         return '';
     }
 
     $post = get_post($lesson_id);
     $is_vocab_lesson = $post instanceof WP_Post && $post->post_type === 'll_vocab_lesson';
-    $payload = ll_tools_interlinear_get_payload($lesson_id);
     $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
     $lines_html = ll_tools_render_interlinear_lines($lines);
     if ($lines_html === '') {
