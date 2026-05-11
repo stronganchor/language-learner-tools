@@ -226,6 +226,56 @@ final class InternalReviewNotesTest extends LL_Tools_TestCase
         $this->assertSame('Assigned manager can save this.', ll_tools_get_internal_review_note($word_id));
     }
 
+    public function test_text_document_review_notes_are_staff_only_and_save_by_line_key(): void
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Corpus Review Notes',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+
+        wp_set_current_user(0);
+        $public_field = ll_tools_text_document_render_review_note_field($lesson_id, 'line:l01', 'Line review note');
+        $this->assertSame('', $public_field);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+        wp_set_current_user($admin_id);
+
+        $empty_field = ll_tools_text_document_render_review_note_field($lesson_id, 'line:l01', 'Line review note');
+        $this->assertStringContainsString('data-ll-text-document-review-note', $empty_field);
+        $this->assertStringContainsString('data-note-key="line:l01"', $empty_field);
+        $this->assertStringNotContainsString(' open', $empty_field);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_text_document_review_note'),
+            'lesson_id' => (string) $lesson_id,
+            'note_key' => 'line:l01',
+            'note' => 'Check the dotted e in this line.',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $save_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_save_text_document_review_note_ajax_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($save_response['success']);
+        $this->assertSame('Check the dotted e in this line.', ll_tools_get_text_document_review_note($lesson_id, 'line:l01'));
+
+        $filled_field = ll_tools_text_document_render_review_note_field($lesson_id, 'line:l01', 'Line review note');
+        $this->assertStringContainsString(' open', $filled_field);
+        $this->assertStringContainsString('Check the dotted e in this line.', $filled_field);
+    }
+
     private function createTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

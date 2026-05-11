@@ -21953,3 +21953,78 @@ msgstr ""
 #: templates/vocab-lesson-template.php:1351
 msgid "Add word to this lesson"
 msgstr ""
+
+#: includes/lib/interlinear.php:1064
+msgid "Staff-only note. Mention a line, word, or source issue to revisit."
+msgstr ""
+
+#: includes/lib/interlinear.php:1081
+msgid "You do not have permission to save this review note."
+msgstr ""
+
+#: includes/lib/interlinear.php:1252
+msgid "Text view"
+msgstr ""
+
+#: includes/lib/interlinear.php:1327
+msgid "Reader text"
+msgstr ""
+
+#: includes/lib/interlinear.php:1339
+msgid "Print sources"
+msgstr ""
+
+#: includes/lib/interlinear.php:1499
+msgid "Source scan"
+msgstr ""
+
+#: includes/lib/interlinear.php:1521
+msgid "Linguistic edition"
+msgstr ""
+
+#: includes/lib/interlinear.php:1529
+#, php-format
+msgid "Line %d"
+msgstr ""
+
+#: includes/lib/interlinear.php:1539
+msgid "Line review note"
+msgstr ""
+
+#: includes/lib/interlinear.php:1570
+msgid "Source witnesses"
+msgstr ""
+
+#: includes/lib/interlinear.php:1612
+msgid "Pages:"
+msgstr ""
+
+#: includes/lib/interlinear.php:1618
+msgid "Rights:"
+msgstr ""
+
+#: includes/lib/interlinear.php:1628
+msgid "Source witness"
+msgstr ""
+
+#: includes/lib/interlinear.php:1679
+msgid "Document review note"
+msgstr ""
+
+#: includes/pages/content-lesson-pages.php:7
+msgid "Text document"
+msgstr ""
+
+#: includes/pages/content-lesson-pages.php:90
+#: includes/pages/content-lesson-pages.php:429
+#: templates/content-lesson-template.php:108
+msgid "Texts"
+msgstr ""
+
+#: includes/pages/content-lesson-pages.php:431
+msgid "Open text"
+msgstr ""
+
+#: templates/content-lesson-template.php:102
+msgid "Back to text collection"
+msgstr ""

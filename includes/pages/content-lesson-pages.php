@@ -73,6 +73,54 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
     ];
 }
 
+function ll_tools_get_corpus_text_collection_link(int $lesson_id): array {
+    if ($lesson_id <= 0 || get_post_type($lesson_id) !== 'll_content_lesson') {
+        return ['url' => '', 'label' => ''];
+    }
+
+    $collection_meta = defined('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META')
+        ? LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META
+        : '_ll_tools_corpus_text_collection';
+    $collection_label_meta = defined('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_LABEL_META')
+        ? LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_LABEL_META
+        : '_ll_tools_corpus_text_collection_label';
+    $collection = sanitize_title((string) get_post_meta($lesson_id, $collection_meta, true));
+    $label = trim((string) get_post_meta($lesson_id, $collection_label_meta, true));
+    if ($label === '') {
+        $label = __('Texts', 'll-tools-text-domain');
+    }
+    if ($collection === '') {
+        return ['url' => '', 'label' => $label];
+    }
+
+    $pages = get_posts([
+        'post_type' => 'page',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'orderby' => 'menu_order title',
+        'order' => 'ASC',
+        'no_found_rows' => true,
+    ]);
+    $collection_double = 'collection="' . $collection . '"';
+    $collection_single = "collection='" . $collection . "'";
+    foreach ($pages as $page) {
+        if (!($page instanceof WP_Post)) {
+            continue;
+        }
+        $content = (string) $page->post_content;
+        if ($content === '' || (!has_shortcode($content, 'll_corpus_text_grid') && !has_shortcode($content, 'll_text_document_grid'))) {
+            continue;
+        }
+        if (strpos($content, $collection_double) === false && strpos($content, $collection_single) === false) {
+            continue;
+        }
+        $url = get_permalink($page);
+        return ['url' => is_string($url) ? $url : '', 'label' => get_the_title($page) ?: $label];
+    }
+
+    return ['url' => '', 'label' => $label];
+}
+
 function ll_tools_get_content_lessons_for_wordset(int $wordset_id): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
@@ -91,9 +139,22 @@ function ll_tools_get_content_lessons_for_wordset(int $wordset_id): array {
         'order' => 'ASC',
         'no_found_rows' => true,
         'meta_query' => [
+            'relation' => 'AND',
             [
                 'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
                 'value' => (string) $wordset_id,
+            ],
+            [
+                'relation' => 'OR',
+                [
+                    'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
+                    'compare' => 'NOT EXISTS',
+                ],
+                [
+                    'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
+                    'value' => 'corpus_text',
+                    'compare' => '!=',
+                ],
             ],
         ],
     ]);
@@ -200,16 +261,21 @@ function ll_tools_render_content_lesson_cards(array $lessons, array $args = []):
     $description = isset($args['description']) ? (string) $args['description'] : '';
     $context = isset($args['context']) ? sanitize_html_class((string) $args['context']) : 'default';
     $open_label = isset($args['open_label']) ? (string) $args['open_label'] : __('Open lesson', 'll-tools-text-domain');
+    $show_head = $title !== '' || $description !== '';
 
     ob_start();
     ?>
     <section class="ll-content-lessons-section ll-content-lessons-section--<?php echo esc_attr($context); ?>">
-        <div class="ll-content-lessons-section__head">
-            <h2 class="ll-content-lessons-section__title"><?php echo esc_html($title); ?></h2>
-            <?php if ($description !== '') : ?>
-                <p class="ll-content-lessons-section__description"><?php echo esc_html($description); ?></p>
-            <?php endif; ?>
-        </div>
+        <?php if ($show_head) : ?>
+            <div class="ll-content-lessons-section__head">
+                <?php if ($title !== '') : ?>
+                    <h2 class="ll-content-lessons-section__title"><?php echo esc_html($title); ?></h2>
+                <?php endif; ?>
+                <?php if ($description !== '') : ?>
+                    <p class="ll-content-lessons-section__description"><?php echo esc_html($description); ?></p>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
         <div class="ll-content-lessons-grid" role="list">
             <?php foreach ($lessons as $lesson) : ?>
                 <?php
@@ -261,6 +327,135 @@ function ll_tools_render_content_lesson_cards(array $lessons, array $args = []):
 
     return (string) ob_get_clean();
 }
+
+function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
+    $limit = isset($args['limit']) ? (int) $args['limit'] : -1;
+    $limit = $limit > 0 ? $limit : -1;
+    $collection = isset($args['collection']) ? sanitize_title((string) $args['collection']) : '';
+    $source_author = isset($args['source_author']) ? sanitize_text_field((string) $args['source_author']) : '';
+    $ids = [];
+    if (!empty($args['ids'])) {
+        $id_parts = preg_split('/[\s,]+/', (string) $args['ids']);
+        $ids = is_array($id_parts)
+            ? array_values(array_filter(array_map('absint', $id_parts)))
+            : [];
+    }
+
+    $meta_query = [
+        [
+            'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
+            'value' => 'corpus_text',
+        ],
+    ];
+    if ($collection !== '') {
+        $meta_query[] = [
+            'key' => LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META,
+            'value' => $collection,
+        ];
+    }
+    if ($source_author !== '') {
+        $meta_query[] = [
+            'key' => LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META,
+            'value' => $source_author,
+            'compare' => 'LIKE',
+        ];
+    }
+    if (count($meta_query) > 1) {
+        $meta_query['relation'] = 'AND';
+    }
+    $orderby = isset($args['orderby']) ? trim((string) $args['orderby']) : 'menu_order title';
+    if (!in_array($orderby, ['menu_order title', 'title', 'date', 'modified', 'post__in'], true)) {
+        $orderby = 'menu_order title';
+    }
+
+    $query_args = [
+        'post_type' => 'll_content_lesson',
+        'post_status' => 'publish',
+        'posts_per_page' => $limit,
+        'orderby' => $orderby,
+        'order' => (isset($args['order']) && strtoupper((string) $args['order']) === 'DESC') ? 'DESC' : 'ASC',
+        'no_found_rows' => true,
+        'meta_query' => $meta_query,
+    ];
+    if (!empty($ids)) {
+        $query_args['post__in'] = $ids;
+        $query_args['orderby'] = 'post__in';
+    }
+
+    $posts = get_posts($query_args);
+    $lessons = [];
+    foreach ((array) $posts as $post) {
+        if ($post instanceof WP_Post) {
+            $lessons[] = ll_tools_get_content_lesson_card_data($post);
+        }
+    }
+
+    return $lessons;
+}
+
+function ll_tools_corpus_text_grid_inline_styles(): string {
+    static $printed = false;
+    if ($printed) {
+        return '';
+    }
+    $printed = true;
+
+    return '<style id="ll-corpus-text-grid-inline-css">'
+        . '.ll-corpus-text-grid{--ll-cl-card:#fffdf8;--ll-cl-border:#e6ddcf;--ll-cl-text:#2f2a24;--ll-cl-muted:#6f6659;--ll-cl-accent:#1f6b5c;color:var(--ll-cl-text);}'
+        . '.ll-corpus-text-grid .ll-content-lessons-section{max-width:1180px;margin:0 auto 24px;padding:0;border:0;background:transparent;box-shadow:none;}'
+        . '.ll-corpus-text-grid .ll-content-lessons-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:18px;}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card{display:flex;flex-direction:column;gap:12px;min-height:100%;padding:22px;border:1px solid #d7c5a9;border-radius:8px;background:#fffdf8;box-shadow:0 12px 26px rgba(57,46,32,.09);}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card:hover,.ll-corpus-text-grid .ll-content-lesson-card:focus-within{border-color:#bfa279;box-shadow:0 14px 30px rgba(57,46,32,.13);}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card__pill--media{display:none!important;}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card__title{margin:0;font-size:20px;line-height:1.2;font-weight:700;}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card__title a{color:inherit;text-decoration:none;}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card__title a:hover,.ll-corpus-text-grid .ll-content-lesson-card__title a:focus-visible{color:var(--ll-cl-accent);outline:none;}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card__excerpt{margin:0;color:var(--ll-cl-muted);font-size:14px;line-height:1.6;}'
+        . '.ll-corpus-text-grid .ll-content-lesson-card__actions{margin-top:auto;padding-top:4px;}'
+        . '.ll-corpus-text-grid .ll-study-btn{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 11px;border:1px solid var(--ll-cl-border);border-radius:999px;background:#fff;color:var(--ll-cl-text);font-size:13px;font-weight:700;text-decoration:none!important;}'
+        . '.ll-corpus-text-grid .ll-study-btn:hover,.ll-corpus-text-grid .ll-study-btn:focus-visible{border-color:var(--ll-cl-accent);color:var(--ll-cl-accent);outline:none;text-decoration:none!important;}'
+        . '@media(max-width:820px){.ll-corpus-text-grid .ll-content-lessons-grid{grid-template-columns:1fr;}}'
+        . '</style>';
+}
+
+function ll_tools_corpus_text_grid_shortcode($atts = []): string {
+    $atts = shortcode_atts([
+        'collection' => '',
+        'source_author' => '',
+        'ids' => '',
+        'limit' => '-1',
+        'orderby' => 'menu_order title',
+        'order' => 'ASC',
+        'title' => __('Texts', 'll-tools-text-domain'),
+        'description' => '',
+        'open_label' => __('Open text', 'll-tools-text-domain'),
+    ], is_array($atts) ? $atts : [], 'll_corpus_text_grid');
+
+    if (function_exists('ll_enqueue_asset_by_timestamp')) {
+        ll_enqueue_asset_by_timestamp('/css/content-lesson-pages.css', 'll-tools-content-lesson-pages', ['ll-tools-style']);
+    }
+
+    $lessons = ll_tools_get_corpus_text_grid_lessons($atts);
+    if (empty($lessons)) {
+        return '';
+    }
+
+    return ll_tools_corpus_text_grid_inline_styles()
+        . '<div class="ll-corpus-text-grid">'
+        . ll_tools_render_content_lesson_cards($lessons, [
+            'title' => (string) $atts['title'],
+            'description' => (string) $atts['description'],
+            'context' => 'corpus-text-grid',
+            'open_label' => (string) $atts['open_label'],
+        ])
+        . '</div>';
+}
+
+function ll_tools_register_corpus_text_grid_shortcodes(): void {
+    add_shortcode('ll_corpus_text_grid', 'll_tools_corpus_text_grid_shortcode');
+    add_shortcode('ll_text_document_grid', 'll_tools_corpus_text_grid_shortcode');
+}
+add_action('init', 'll_tools_register_corpus_text_grid_shortcodes');
 
 function ll_tools_render_content_lesson_related_vocab_links(array $items, array $args = []): string {
     if (empty($items)) {
@@ -322,6 +517,10 @@ function ll_tools_content_lesson_enforce_frontend_access(): void {
         return;
     }
 
+    if (function_exists('ll_tools_content_lesson_is_corpus_text') && ll_tools_content_lesson_is_corpus_text($lesson_id)) {
+        return;
+    }
+
     $wordset_id = function_exists('ll_tools_get_content_lesson_wordset_id')
         ? ll_tools_get_content_lesson_wordset_id($lesson_id)
         : 0;
@@ -343,8 +542,15 @@ function ll_tools_content_lesson_enqueue_assets(): void {
     $is_content_lesson = is_singular('ll_content_lesson');
     $is_vocab_lesson = is_singular('ll_vocab_lesson');
     $is_wordset_page = function_exists('ll_tools_is_wordset_page_context') && ll_tools_is_wordset_page_context();
+    $is_corpus_grid_page = false;
+    if (!$is_content_lesson && is_singular()) {
+        $post = get_post();
+        $post_content = $post instanceof WP_Post ? (string) $post->post_content : '';
+        $is_corpus_grid_page = $post_content !== ''
+            && (has_shortcode($post_content, 'll_corpus_text_grid') || has_shortcode($post_content, 'll_text_document_grid'));
+    }
 
-    if (!$is_content_lesson && !$is_vocab_lesson && !$is_wordset_page) {
+    if (!$is_content_lesson && !$is_vocab_lesson && !$is_wordset_page && !$is_corpus_grid_page) {
         return;
     }
 
@@ -355,7 +561,31 @@ function ll_tools_content_lesson_enqueue_assets(): void {
     }
 
     $lesson_id = (int) get_queried_object_id();
-    if ($lesson_id > 0 && function_exists('ll_tools_content_lesson_is_corpus_text') && ll_tools_content_lesson_is_corpus_text($lesson_id)) {
+    $is_corpus_text = $lesson_id > 0
+        && function_exists('ll_tools_content_lesson_is_corpus_text')
+        && ll_tools_content_lesson_is_corpus_text($lesson_id);
+
+    if ($is_corpus_text) {
+        ll_enqueue_asset_by_timestamp('/js/text-document.js', 'll-tools-text-document', [], true);
+    }
+
+    if ($is_corpus_text
+        && function_exists('ll_tools_current_user_can_manage_text_document_review_notes')
+        && ll_tools_current_user_can_manage_text_document_review_notes($lesson_id)) {
+        ll_enqueue_asset_by_timestamp('/js/text-document-review-notes.js', 'll-tools-text-document-review-notes', [], true);
+        wp_localize_script('ll-tools-text-document-review-notes', 'llToolsTextDocumentReviewNotes', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'action' => 'll_tools_save_text_document_review_note',
+            'nonce' => wp_create_nonce('ll_text_document_review_note'),
+            'i18n' => [
+                'saving' => __('Saving review note...', 'll-tools-text-domain'),
+                'saved' => __('Review note saved.', 'll-tools-text-domain'),
+                'error' => __('Unable to save the review note.', 'll-tools-text-domain'),
+            ],
+        ]);
+    }
+
+    if ($is_corpus_text) {
         $media_url = function_exists('ll_tools_get_content_lesson_media_url')
             ? ll_tools_get_content_lesson_media_url($lesson_id)
             : '';

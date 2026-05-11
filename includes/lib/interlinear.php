@@ -55,6 +55,19 @@ function ll_tools_interlinear_get_wordset_id_for_lesson(int $lesson_id): int {
     return max(0, (int) get_post_meta($lesson_id, $meta_key, true));
 }
 
+function ll_tools_interlinear_content_lesson_is_corpus_text(int $lesson_id): bool {
+    if ($lesson_id <= 0) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_content_lesson_is_corpus_text')) {
+        return ll_tools_content_lesson_is_corpus_text($lesson_id);
+    }
+
+    return defined('LL_TOOLS_CONTENT_LESSON_KIND_META')
+        && get_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, true) === 'corpus_text';
+}
+
 function ll_tools_current_user_can_view_interlinear(int $lesson_id): bool {
     if ($lesson_id <= 0 || !is_user_logged_in()) {
         return false;
@@ -237,6 +250,40 @@ function ll_tools_interlinear_set_payload(int $lesson_id, $payload, string $sour
         && ll_tools_interlinear_payload_is_text_document($payload)
         && defined('LL_TOOLS_CONTENT_LESSON_KIND_META')) {
         update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+    }
+    if ($post instanceof WP_Post
+        && $post->post_type === 'll_content_lesson'
+        && ll_tools_interlinear_payload_is_text_document($payload)) {
+        $metadata = isset($payload['metadata']) && is_array($payload['metadata']) ? $payload['metadata'] : [];
+        $collection = ll_tools_interlinear_scalar($metadata, ['collection', 'corpus_collection', 'series']);
+        $collection_label = ll_tools_interlinear_scalar($metadata, ['collection_label', 'corpus_collection_label', 'series_label']);
+        $source_author = ll_tools_interlinear_scalar($metadata, ['source_author', 'author', 'collector']);
+
+        $collection_meta = defined('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META')
+            ? LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META
+            : '_ll_tools_corpus_text_collection';
+        $collection_label_meta = defined('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_LABEL_META')
+            ? LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_LABEL_META
+            : '_ll_tools_corpus_text_collection_label';
+        $source_author_meta = defined('LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META')
+            ? LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META
+            : '_ll_tools_corpus_text_source_author';
+
+        if ($collection !== '') {
+            update_post_meta($lesson_id, $collection_meta, sanitize_title($collection));
+        } else {
+            delete_post_meta($lesson_id, $collection_meta);
+        }
+        if ($collection_label !== '') {
+            update_post_meta($lesson_id, $collection_label_meta, sanitize_text_field($collection_label));
+        } else {
+            delete_post_meta($lesson_id, $collection_label_meta);
+        }
+        if ($source_author !== '') {
+            update_post_meta($lesson_id, $source_author_meta, sanitize_text_field($source_author));
+        } else {
+            delete_post_meta($lesson_id, $source_author_meta);
+        }
     }
     if ($source !== '') {
         update_post_meta($lesson_id, LL_TOOLS_INTERLINEAR_SOURCE_META, $source);
@@ -868,6 +915,10 @@ function ll_tools_current_user_can_view_text_document(int $lesson_id): bool {
         return ll_tools_current_user_can_view_interlinear($lesson_id);
     }
 
+    if (ll_tools_interlinear_content_lesson_is_corpus_text($lesson_id)) {
+        return $post->post_status === 'publish' || current_user_can('read_post', $lesson_id);
+    }
+
     $wordset_id = ll_tools_interlinear_get_wordset_id_for_lesson($lesson_id);
     if ($wordset_id <= 0) {
         return current_user_can('manage_options');
@@ -893,6 +944,152 @@ function ll_tools_text_document_user_can_view_linguist(int $lesson_id): bool {
 
     return ll_tools_current_user_can_view_interlinear($lesson_id);
 }
+
+if (!defined('LL_TOOLS_TEXT_DOCUMENT_REVIEW_NOTES_META')) {
+    define('LL_TOOLS_TEXT_DOCUMENT_REVIEW_NOTES_META', '_ll_tools_text_document_review_notes');
+}
+
+function ll_tools_text_document_review_notes_meta_key(): string {
+    return LL_TOOLS_TEXT_DOCUMENT_REVIEW_NOTES_META;
+}
+
+function ll_tools_text_document_normalize_review_note_key(string $key): string {
+    $key = trim(wp_check_invalid_utf8($key));
+    $key = preg_replace('/[^A-Za-z0-9_.:-]+/', '_', (string) $key);
+    $key = trim((string) $key, '_.:-');
+
+    return $key !== '' ? substr($key, 0, 120) : 'document';
+}
+
+function ll_tools_current_user_can_manage_text_document_review_notes(int $lesson_id): bool {
+    if ($lesson_id <= 0 || !is_user_logged_in()) {
+        return false;
+    }
+    if (current_user_can('manage_options')) {
+        return true;
+    }
+    if (!current_user_can('view_ll_tools')) {
+        return false;
+    }
+    if (current_user_can('edit_post', $lesson_id)) {
+        return true;
+    }
+
+    $wordset_id = ll_tools_interlinear_get_wordset_id_for_lesson($lesson_id);
+    return $wordset_id > 0
+        && function_exists('ll_tools_user_can_manage_wordset_content')
+        && ll_tools_user_can_manage_wordset_content($wordset_id, (int) get_current_user_id());
+}
+
+function ll_tools_get_text_document_review_notes(int $lesson_id): array {
+    if ($lesson_id <= 0) {
+        return [];
+    }
+
+    $notes = get_post_meta($lesson_id, ll_tools_text_document_review_notes_meta_key(), true);
+    return is_array($notes) ? $notes : [];
+}
+
+function ll_tools_get_text_document_review_note(int $lesson_id, string $note_key): string {
+    $notes = ll_tools_get_text_document_review_notes($lesson_id);
+    $note_key = ll_tools_text_document_normalize_review_note_key($note_key);
+    $note = $notes[$note_key] ?? '';
+
+    return is_scalar($note) ? trim((string) $note) : '';
+}
+
+function ll_tools_set_text_document_review_note(int $lesson_id, string $note_key, string $note): string {
+    if ($lesson_id <= 0) {
+        return '';
+    }
+
+    $note_key = ll_tools_text_document_normalize_review_note_key($note_key);
+    $note = function_exists('ll_tools_sanitize_internal_review_note')
+        ? ll_tools_sanitize_internal_review_note($note)
+        : trim(sanitize_textarea_field($note));
+
+    $notes = ll_tools_get_text_document_review_notes($lesson_id);
+    if ($note === '') {
+        unset($notes[$note_key]);
+    } else {
+        $notes[$note_key] = $note;
+    }
+
+    if (empty($notes)) {
+        delete_post_meta($lesson_id, ll_tools_text_document_review_notes_meta_key());
+    } else {
+        ksort($notes, SORT_NATURAL);
+        update_post_meta($lesson_id, ll_tools_text_document_review_notes_meta_key(), $notes);
+    }
+
+    return $note;
+}
+
+function ll_tools_text_document_render_review_note_field(int $lesson_id, string $note_key, string $label = ''): string {
+    if (!ll_tools_current_user_can_manage_text_document_review_notes($lesson_id)) {
+        return '';
+    }
+
+    $note_key = ll_tools_text_document_normalize_review_note_key($note_key);
+    $note = ll_tools_get_text_document_review_note($lesson_id, $note_key);
+    $has_note = $note !== '';
+    $field_id = 'll-text-document-review-note-' . $lesson_id . '-' . md5($note_key);
+    $status_id = $field_id . '-status';
+    if ($label === '') {
+        $label = __('Internal review note', 'll-tools-text-domain');
+    }
+
+    ob_start();
+    ?>
+    <details
+        class="ll-text-document-review-note"
+        data-ll-text-document-review-note
+        data-lesson-id="<?php echo esc_attr((string) $lesson_id); ?>"
+        data-note-key="<?php echo esc_attr($note_key); ?>"
+        <?php if ($has_note) : ?>open<?php endif; ?>
+    >
+        <summary class="ll-text-document-review-note__summary">
+            <span><?php echo esc_html($has_note ? $label : __('Add internal review note', 'll-tools-text-domain')); ?></span>
+            <span class="ll-text-document-review-note__status" id="<?php echo esc_attr($status_id); ?>" data-ll-text-document-review-note-status aria-live="polite"></span>
+        </summary>
+        <label class="ll-text-document-review-note__label" for="<?php echo esc_attr($field_id); ?>">
+            <?php echo esc_html($label); ?>
+        </label>
+        <textarea
+            class="ll-text-document-review-note__input"
+            id="<?php echo esc_attr($field_id); ?>"
+            rows="3"
+            data-ll-text-document-review-note-input
+            aria-describedby="<?php echo esc_attr($status_id); ?>"
+            placeholder="<?php echo esc_attr__('Staff-only note. Mention a line, word, or source issue to revisit.', 'll-tools-text-domain'); ?>"
+        ><?php echo esc_textarea($note); ?></textarea>
+    </details>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
+function ll_tools_save_text_document_review_note_ajax_handler(): void {
+    check_ajax_referer('ll_text_document_review_note', 'nonce');
+
+    $lesson_id = isset($_POST['lesson_id']) ? absint(wp_unslash((string) $_POST['lesson_id'])) : 0;
+    $note_key = isset($_POST['note_key']) ? ll_tools_text_document_normalize_review_note_key(wp_unslash((string) $_POST['note_key'])) : 'document';
+    $note = isset($_POST['note']) ? (string) wp_unslash((string) $_POST['note']) : '';
+
+    if ($lesson_id <= 0 || !ll_tools_current_user_can_manage_text_document_review_notes($lesson_id)) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to save this review note.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $saved_note = ll_tools_set_text_document_review_note($lesson_id, $note_key, $note);
+    wp_send_json_success([
+        'lesson_id' => $lesson_id,
+        'note_key' => $note_key,
+        'note' => $saved_note,
+    ]);
+}
+add_action('wp_ajax_ll_tools_save_text_document_review_note', 'll_tools_save_text_document_review_note_ajax_handler');
 
 function ll_tools_text_document_request_arg(string $key): string {
     if (!isset($_GET[$key])) {
@@ -1133,6 +1330,18 @@ function ll_tools_text_document_render_reader(array $payload, string $translatio
         . '</section>';
 }
 
+function ll_tools_text_document_render_print_sources(array $payload): string {
+    $sources = ll_tools_text_document_render_sources($payload);
+    if ($sources === '') {
+        return '';
+    }
+
+    return '<section class="ll-text-document__print-sources" aria-label="' . esc_attr__('Print sources', 'll-tools-text-domain') . '">'
+        . '<h2>' . esc_html__('Sources', 'll-tools-text-domain') . '</h2>'
+        . $sources
+        . '</section>';
+}
+
 function ll_tools_text_document_source_lines(array $payload): array {
     $source_lines = isset($payload['source_lines']) && is_array($payload['source_lines']) ? $payload['source_lines'] : [];
     if (!empty($source_lines)) {
@@ -1303,7 +1512,7 @@ function ll_tools_text_document_render_source_images(array $line): string {
     return $html;
 }
 
-function ll_tools_text_document_render_linguist(array $payload): string {
+function ll_tools_text_document_render_linguist(array $payload, int $lesson_id = 0): string {
     $source_lines = ll_tools_text_document_source_lines($payload);
     if (empty($source_lines)) {
         return '';
@@ -1325,9 +1534,14 @@ function ll_tools_text_document_render_linguist(array $payload): string {
         if ($image_html === '' && empty($rows) && $interlinear_html === '') {
             continue;
         }
+        $note_key = 'line:' . ($line_id !== '' ? $line_id : (string) ($index + 1));
+        $note_html = $lesson_id > 0
+            ? ll_tools_text_document_render_review_note_field($lesson_id, $note_key, __('Line review note', 'll-tools-text-domain'))
+            : '';
 
         $html .= '<article class="ll-text-source-line">';
         $html .= '<h3 class="ll-text-source-line__title">' . esc_html($title) . '</h3>';
+        $html .= $note_html;
         $html .= $image_html;
         if (!empty($rows)) {
             $html .= '<dl class="ll-text-source-line__rows">';
@@ -1442,12 +1656,13 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
     }
 
     if ($view === 'interlinear') {
-        $body = ll_tools_text_document_render_linguist($payload);
+        $body = ll_tools_text_document_render_linguist($payload, $lesson_id);
     } elseif ($view === 'sources') {
         $body = ll_tools_text_document_render_sources($payload);
     } else {
         $view = 'reader';
         $body = ll_tools_text_document_render_reader($payload, $translation_key);
+        $body .= ll_tools_text_document_render_print_sources($payload);
     }
 
     if ($body === '' && $view !== 'reader') {
@@ -1461,6 +1676,10 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
 
     $title = ll_tools_interlinear_scalar($payload, ['title', 'document_title']);
     $tabs = ll_tools_text_document_render_tabs($view, $translation_key, $can_view_linguist, $payload);
+    $review_note_html = ll_tools_text_document_render_review_note_field($lesson_id, 'document', __('Document review note', 'll-tools-text-domain'));
+    $print_button = $view === 'reader'
+        ? '<button type="button" class="ll-text-document__print-button" data-ll-text-document-print>' . esc_html__('Print', 'll-tools-text-domain') . '</button>'
+        : '';
 
     ob_start();
     ?>
@@ -1470,9 +1689,13 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
                 <?php if ($title !== '') : ?>
                     <h2 class="ll-text-document__title"><?php echo esc_html($title); ?></h2>
                 <?php endif; ?>
-                <?php echo $tabs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <div class="ll-text-document__head-actions">
+                    <?php echo $tabs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <?php echo $print_button; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </div>
             </div>
         <?php endif; ?>
+        <?php echo $review_note_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     </section>
     <?php

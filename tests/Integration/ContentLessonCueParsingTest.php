@@ -144,6 +144,51 @@ TSV;
         $this->assertSame(404, $status);
     }
 
+    public function test_orphan_corpus_text_is_public_and_excluded_from_wordset_lesson_grid(): void
+    {
+        $wordset = wp_insert_term('Corpus Wordset', 'wordset', ['slug' => 'corpus-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $standard_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Standard Lesson',
+        ]);
+        update_post_meta($standard_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+
+        $corpus_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Corpus Text',
+            'post_excerpt' => 'Historical text excerpt.',
+        ]);
+        update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+        update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META, 'lerch');
+        update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META, 'Peter Lerch');
+
+        $wordset_lessons = ll_tools_get_content_lessons_for_wordset($wordset_id);
+        $this->assertCount(1, $wordset_lessons);
+        $this->assertSame($standard_lesson_id, (int) $wordset_lessons[0]['id']);
+
+        delete_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META);
+        $this->assertTrue(ll_tools_current_user_can_view_text_document($corpus_lesson_id));
+
+        $this->go_to('/?post_type=ll_content_lesson&p=' . (int) $corpus_lesson_id);
+        $this->assertTrue(is_singular('ll_content_lesson'));
+
+        ll_tools_content_lesson_enforce_frontend_access();
+        global $wp_query;
+        $this->assertInstanceOf(WP_Query::class, $wp_query);
+        $this->assertFalse((bool) $wp_query->is_404);
+
+        $grid_html = do_shortcode('[ll_corpus_text_grid collection="lerch" title=""]');
+        $this->assertStringContainsString('Corpus Text', $grid_html);
+        $this->assertStringContainsString('Historical text excerpt.', $grid_html);
+        $this->assertStringContainsString('Open text', $grid_html);
+    }
+
     public function test_content_lesson_category_rows_scope_to_selected_wordset(): void
     {
         $fixture = $this->createScopedCategoryFixture();

@@ -24087,3 +24087,86 @@ msgstr "Kelime görseli yardımcısı kullanılamıyor"
 #: includes/pages/vocab-lesson-pages.php:1503
 msgid "Invalid wordset term."
 msgstr "Geçersiz kelime seti terimi."
+
+#: includes/lib/interlinear.php:1064
+msgid "Staff-only note. Mention a line, word, or source issue to revisit."
+msgstr ""
+"Sadece ekip tarafından görülen not. Yeniden bakılacak satır, kelime veya "
+"kaynak sorununu yazın."
+
+#: includes/lib/interlinear.php:1081
+msgid "You do not have permission to save this review note."
+msgstr "Bu inceleme notunu kaydetme iznin yok."
+
+#: includes/lib/interlinear.php:1252
+msgid "Text view"
+msgstr "Metin görünümü"
+
+#: includes/lib/interlinear.php:1327
+msgid "Reader text"
+msgstr "Okuma metni"
+
+#: includes/lib/interlinear.php:1339
+msgid "Print sources"
+msgstr "Yazdırma kaynakları"
+
+#: includes/lib/interlinear.php:1499
+msgid "Source scan"
+msgstr "Kaynak tarama görüntüsü"
+
+#: includes/lib/interlinear.php:1521
+msgid "Linguistic edition"
+msgstr "Dilbilimsel edisyon"
+
+#: includes/lib/interlinear.php:1529
+#, php-format
+msgid "Line %d"
+msgstr "Satır %d"
+
+#: includes/lib/interlinear.php:1539
+msgid "Line review note"
+msgstr "Satır inceleme notu"
+
+#: includes/lib/interlinear.php:1570
+msgid "Source witnesses"
+msgstr "Kaynak tanıklar"
+
+#: includes/lib/interlinear.php:1612
+msgid "Pages:"
+msgstr "Sayfalar:"
+
+#: includes/lib/interlinear.php:1618
+msgid "Rights:"
+msgstr "Haklar:"
+
+#: includes/lib/interlinear.php:1628
+msgid "Source witness"
+msgstr "Kaynak tanık"
+
+#: includes/lib/interlinear.php:1679
+msgid "Document review note"
+msgstr "Belge inceleme notu"
+
+#: includes/pages/content-lesson-pages.php:7
+msgid "Text document"
+msgstr "Metin belgesi"
+
+#: includes/pages/content-lesson-pages.php:90
+#: includes/pages/content-lesson-pages.php:429
+#: templates/content-lesson-template.php:108
+msgid "Texts"
+msgstr "Metinler"
+
+#: includes/pages/content-lesson-pages.php:431
+msgid "Open text"
+msgstr "Metni aç"
+
+#: templates/content-lesson-template.php:102
+msgid "Back to text collection"
+msgstr "Metin koleksiyonuna dön"
+
+#: templates/content-lesson-template.php:202
+msgid "Add parsed transcript timing data to highlight the text during playback."
+msgstr ""
+"Oynatma sırasında metni vurgulamak için ayrıştırılmış transkript zamanlama "
+"verisi ekle."

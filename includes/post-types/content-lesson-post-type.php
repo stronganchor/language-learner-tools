@@ -29,6 +29,15 @@ if (!defined('LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META')) {
 if (!defined('LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META')) {
     define('LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META', '_ll_tools_content_lesson_show_in_mix');
 }
+if (!defined('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META')) {
+    define('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META', '_ll_tools_corpus_text_collection');
+}
+if (!defined('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_LABEL_META')) {
+    define('LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_LABEL_META', '_ll_tools_corpus_text_collection_label');
+}
+if (!defined('LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META')) {
+    define('LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META', '_ll_tools_corpus_text_source_author');
+}
 if (!defined('LL_TOOLS_CONTENT_LESSON_PREREQ_CATEGORY_IDS_META')) {
     define('LL_TOOLS_CONTENT_LESSON_PREREQ_CATEGORY_IDS_META', '_ll_tools_content_lesson_prereq_category_ids');
 }

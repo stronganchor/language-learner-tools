@@ -6,10 +6,12 @@ $ll_content_lesson_access_denied = false;
 if (is_singular('ll_content_lesson') && function_exists('ll_tools_get_content_lesson_wordset_id')) {
     $preflight_post_id = (int) get_queried_object_id();
     if ($preflight_post_id > 0) {
+        $preflight_is_corpus_text = function_exists('ll_tools_content_lesson_is_corpus_text')
+            && ll_tools_content_lesson_is_corpus_text($preflight_post_id);
         $preflight_wordset_id = ll_tools_get_content_lesson_wordset_id($preflight_post_id);
         $can_view_wordset = $preflight_wordset_id > 0
             && (!function_exists('ll_tools_user_can_view_wordset') || ll_tools_user_can_view_wordset($preflight_wordset_id));
-        if (!$can_view_wordset) {
+        if (!$preflight_is_corpus_text && !$can_view_wordset) {
             $ll_content_lesson_access_denied = true;
             $wp_query = $GLOBALS['wp_query'] ?? null;
             if ($wp_query instanceof WP_Query) {
@@ -56,6 +58,11 @@ $lesson_kind = function_exists('ll_tools_get_content_lesson_kind')
     ? ll_tools_get_content_lesson_kind($lesson_id)
     : 'standard';
 $is_corpus_text = $lesson_kind === 'corpus_text';
+$corpus_collection_link = ($is_corpus_text && function_exists('ll_tools_get_corpus_text_collection_link'))
+    ? ll_tools_get_corpus_text_collection_link($lesson_id)
+    : ['url' => '', 'label' => ''];
+$corpus_collection_url = isset($corpus_collection_link['url']) ? (string) $corpus_collection_link['url'] : '';
+$corpus_collection_label = isset($corpus_collection_link['label']) ? (string) $corpus_collection_link['label'] : '';
 $media_type = function_exists('ll_tools_get_content_lesson_media_type')
     ? ll_tools_get_content_lesson_media_type($lesson_id)
     : 'audio';
@@ -91,7 +98,16 @@ $format_ms = static function (int $ms): string {
 <main class="ll-content-lesson-page<?php echo $is_corpus_text ? ' ll-content-lesson-page--corpus-text' : ''; ?>" data-ll-content-lesson>
     <header class="ll-content-lesson-hero">
         <div class="ll-content-lesson-hero__top">
-            <?php if ($wordset_url !== '') : ?>
+            <?php if ($is_corpus_text && $corpus_collection_url !== '') : ?>
+                <a class="ll-content-lesson-back ll-content-lesson-back--corpus" href="<?php echo esc_url($corpus_collection_url); ?>" aria-label="<?php echo esc_attr($corpus_collection_label !== '' ? sprintf(__('Back to %s', 'll-tools-text-domain'), $corpus_collection_label) : __('Back to text collection', 'll-tools-text-domain')); ?>">
+                    <span class="ll-content-lesson-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
+                        <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                            <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span class="ll-content-lesson-back__label"><?php echo esc_html($corpus_collection_label !== '' ? $corpus_collection_label : __('Texts', 'll-tools-text-domain')); ?></span>
+                </a>
+            <?php elseif (!$is_corpus_text && $wordset_url !== '') : ?>
                 <a class="ll-content-lesson-back ll-vocab-lesson-back" href="<?php echo esc_url($wordset_url); ?>" aria-label="<?php echo esc_attr($wordset_name !== '' ? sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_name) : __('Back to Word Set', 'll-tools-text-domain')); ?>">
                     <span class="ll-content-lesson-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
@@ -101,7 +117,9 @@ $format_ms = static function (int $ms): string {
                     <span class="ll-content-lesson-back__label"><?php echo esc_html($wordset_name !== '' ? $wordset_name : __('Word Set', 'll-tools-text-domain')); ?></span>
                 </a>
             <?php endif; ?>
-            <span class="ll-content-lesson-pill"><?php echo esc_html($media_label); ?></span>
+            <?php if (!$is_corpus_text) : ?>
+                <span class="ll-content-lesson-pill"><?php echo esc_html($media_label); ?></span>
+            <?php endif; ?>
         </div>
         <div class="ll-content-lesson-hero__content">
             <h1 class="ll-content-lesson-title"><?php the_title(); ?></h1>
