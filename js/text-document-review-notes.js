@@ -12,8 +12,11 @@
         return;
     }
 
-    function message(key, fallback) {
-        return messages[key] || fallback;
+    function message(key) {
+        if (!messages || typeof messages[key] !== 'string') {
+            return '';
+        }
+        return messages[key];
     }
 
     function setStatus(wrapper, text, state) {
@@ -32,7 +35,7 @@
         if (response && response.data && typeof response.data.message === 'string') {
             return response.data.message;
         }
-        return message('error', 'Unable to save the review note.');
+        return message('error');
     }
 
     function saveNote(wrapper) {
@@ -50,7 +53,7 @@
         }
 
         wrapper.classList.add('is-saving');
-        setStatus(wrapper, message('saving', 'Saving review note...'), 'saving');
+        setStatus(wrapper, message('saving'), 'saving');
 
         const body = new URLSearchParams();
         body.set('action', action);
@@ -82,12 +85,12 @@
             if ((input.value || '') === pendingValue) {
                 input.dataset.originalValue = savedNote;
             }
-            setStatus(wrapper, message('saved', 'Review note saved.'), 'success');
+            setStatus(wrapper, message('saved'), 'success');
             window.setTimeout(function () {
                 setStatus(wrapper, '', '');
             }, 1800);
         }).catch(function () {
-            setStatus(wrapper, message('error', 'Unable to save the review note.'), 'error');
+            setStatus(wrapper, message('error'), 'error');
         }).finally(function () {
             wrapper.classList.remove('is-saving');
         });
