@@ -1191,9 +1191,60 @@
 }
 
 .ll-ipa-search-field-review-action {
-    display: flex;
-    align-items: center;
+    display: grid;
+    align-items: start;
+    justify-items: start;
+    gap: 4px;
     min-height: 18px;
+}
+
+.ll-ipa-search-review-status {
+    --ll-ipa-search-review-accent: #166534;
+    box-sizing: border-box;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 7px 3px 5px;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    background: #f0fdf4;
+    color: var(--ll-ipa-search-review-accent);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.ll-ipa-search-review-status.is-needs-review {
+    --ll-ipa-search-review-accent: #b91c1c;
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.ll-ipa-search-review-status-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 14px;
+    background: var(--ll-ipa-search-review-accent);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ll-ipa-search-review-status-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ll-ipa-search-field-review-link {
+    line-height: 1.2;
 }
 
 .ll-ipa-search-actions {

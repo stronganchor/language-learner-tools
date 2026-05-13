@@ -57,7 +57,13 @@ function buildMarkup() {
 
 test('reviewed rows stay visible until the transcription search is manually refreshed', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
   await page.setContent(buildMarkup());
   await page.addStyleTag({ content: ipaKeyboardAdminCss });
   await page.evaluate(() => {
@@ -232,8 +238,10 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveText('Check the vowel length before clearing.');
   await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-note')).toHaveCount(1);
   await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-note')).toHaveCount(0);
-  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark text reviewed');
-  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark pronunciation for review');
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-review-status')).toHaveText('×Needs review');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-review-status')).toHaveText('✓Reviewed');
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as reviewed');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as needing review');
   await expect(rows.nth(0).locator('.ll-ipa-search-review-note, .ll-ipa-search-review-note-compact')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-review .ll-ipa-search-field-review-note')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-review')).toHaveCount(0);
@@ -264,7 +272,9 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(rows.nth(0).locator('.ll-ipa-search-review')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-action-toggle')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-toggle')).toHaveCount(2);
-  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark text for review');
+  await expect(rows.nth(0).locator('.ll-ipa-search-review-status.is-needs-review')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-review-status.is-reviewed')).toHaveCount(2);
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as needing review');
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(0);
   await expect(rows.nth(1)).toHaveAttribute('data-recording-id', '202');
   await expect(rows.nth(1)).toHaveAttribute('data-needs-review', '1');

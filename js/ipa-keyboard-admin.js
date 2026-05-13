@@ -1464,14 +1464,41 @@
         return '';
     }
 
+    function buildSearchReviewStatus(needsReview) {
+        const statusLabel = needsReview
+            ? t('searchReviewNeedsReviewTag', 'Needs review')
+            : t('searchReviewReviewedTag', 'Reviewed');
+        const statusClass = needsReview ? 'is-needs-review' : 'is-reviewed';
+        const icon = needsReview ? '\u00d7' : '\u2713';
+
+        return $('<span>', {
+            class: 'll-ipa-search-review-status ' + statusClass,
+            'aria-label': statusLabel
+        })
+            .append($('<span>', {
+                class: 'll-ipa-search-review-status-icon',
+                'aria-hidden': 'true',
+                text: icon
+            }))
+            .append($('<span>', {
+                class: 'll-ipa-search-review-status-label',
+                text: statusLabel
+            }));
+    }
+
     function buildSearchFieldReviewAction(field, reviewFields) {
         const fields = normalizeReviewFields(reviewFields);
-        const $toggle = buildReviewToggleButton(!!fields[field], 'll-ipa-search-field-review-toggle', field);
+        const needsReview = !!fields[field];
+        const $action = $('<div>', { class: 'll-ipa-search-field-review-action' });
+        const $toggle = buildReviewToggleButton(needsReview, 'll-ipa-search-field-review-toggle', field);
+        $action.append(buildSearchReviewStatus(needsReview));
         if (!$toggle) {
-            return null;
+            return $action;
         }
 
-        return $('<div>', { class: 'll-ipa-search-field-review-action' }).append($toggle);
+        return $action.append(
+            $('<div>', { class: 'll-ipa-search-field-review-link' }).append($toggle)
+        );
     }
 
     function buildSearchFieldCell(cellClass, $input, field, reviewFields, reviewNote, label) {
@@ -1500,17 +1527,17 @@
         if (extraClass) {
             classes.push(extraClass);
         }
-        const flagLabel = field === 'recording_text'
-            ? t('searchReviewFlagText', 'Mark text for review')
-            : t('searchReviewFlagIpa', 'Mark pronunciation for review');
-        const confirmLabel = field === 'recording_text'
-            ? t('searchReviewConfirmText', 'Mark text reviewed')
-            : t('searchReviewConfirmIpa', 'Mark pronunciation reviewed');
+        const flagLabel = t('searchReviewMarkAsNeedsReview', 'Mark as needing review');
+        const confirmLabel = t('searchReviewMarkAsReviewed', 'Mark as reviewed');
+        const fieldLabel = getReviewFieldLabel(field);
+        const flagAriaLabel = formatText(t('searchReviewMarkFieldAsNeedsReview', '%s: mark as needing review'), [fieldLabel]);
+        const confirmAriaLabel = formatText(t('searchReviewMarkFieldAsReviewed', '%s: mark as reviewed'), [fieldLabel]);
 
         return $('<button>', {
             type: 'button',
             class: classes.join(' '),
             text: needsReview ? confirmLabel : flagLabel,
+            'aria-label': needsReview ? confirmAriaLabel : flagAriaLabel,
             'data-next-review-state': needsReview ? '0' : '1',
             'data-review-field': field,
             'aria-pressed': needsReview ? 'true' : 'false'
