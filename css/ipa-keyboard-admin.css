@@ -1038,11 +1038,7 @@
     width: 220px;
 }
 
-.ll-ipa-search-table col.ll-ipa-search-col-text {
-    width: 160px;
-}
-
-.ll-ipa-search-table col.ll-ipa-search-col-ipa {
+.ll-ipa-search-table col.ll-ipa-search-col-transcriptions {
     width: auto;
 }
 
@@ -1158,8 +1154,7 @@
     line-height: 1.3;
 }
 
-.ll-ipa-search-text-cell,
-.ll-ipa-search-ipa-cell,
+.ll-ipa-search-transcription-cell,
 .ll-ipa-search-categories-cell,
 .ll-ipa-search-issues-cell,
 .ll-ipa-search-action-cell {
@@ -1176,6 +1171,56 @@
     min-width: 0;
 }
 
+.ll-ipa-search-transcription-stack {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+}
+
+.ll-ipa-search-field-block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    align-items: start;
+    min-width: 0;
+}
+
+.ll-ipa-search-field-block + .ll-ipa-search-field-block {
+    padding-top: 10px;
+    border-top: 1px solid #dbe3ed;
+}
+
+.ll-ipa-search-field-editor,
+.ll-ipa-search-field-review-panel {
+    min-width: 0;
+}
+
+.ll-ipa-search-field-label {
+    color: var(--ll-ipa-muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.ll-ipa-search-field-review-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    align-items: flex-start;
+}
+
+.ll-ipa-search-table textarea.ll-ipa-search-input-field {
+    box-sizing: border-box;
+    min-height: 38px;
+    line-height: 1.35;
+    resize: vertical;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
 .ll-ipa-search-field-review-note {
     box-sizing: border-box;
     width: 100%;
@@ -1188,6 +1233,10 @@
     background: #f8fafc;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+}
+
+.ll-ipa-search-field-review-panel .ll-ipa-search-field-review-note {
+    flex: 1 0 100%;
 }
 
 .ll-ipa-search-field-review-action {
@@ -1558,12 +1607,8 @@
         width: 190px;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-text {
-        width: 132px;
-    }
-
-    .ll-ipa-search-table col.ll-ipa-search-col-ipa {
-        width: 280px;
+    .ll-ipa-search-table col.ll-ipa-search-col-transcriptions {
+        width: auto;
     }
 
     .ll-ipa-search-table col.ll-ipa-search-col-categories {
@@ -1612,12 +1657,8 @@
         width: 176px;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-text {
-        width: 120px;
-    }
-
-    .ll-ipa-search-table col.ll-ipa-search-col-ipa {
-        width: 260px;
+    .ll-ipa-search-table col.ll-ipa-search-col-transcriptions {
+        width: auto;
     }
 
     .ll-ipa-search-table col.ll-ipa-search-col-checks {

@@ -1522,20 +1522,46 @@
         );
     }
 
-    function buildSearchFieldCell(cellClass, $input, field, reviewFields, reviewNote, label) {
-        const $cell = $('<td>', {
-            class: cellClass,
-            'data-label': label || ''
+    function buildSearchFieldBlock(cellClass, $input, field, reviewFields, reviewNote, label) {
+        const $block = $('<div>', {
+            class: 'll-ipa-search-field-block ' + cellClass,
+            'data-field-label': label || ''
         });
+        const $editor = $('<div>', { class: 'll-ipa-search-field-editor' });
+        $editor.append($('<div>', {
+            class: 'll-ipa-search-field-label',
+            text: label || ''
+        }));
         const $wrap = $('<div>', { class: 'll-ipa-search-field-wrap' }).append($input);
+        $editor.append($wrap);
+        const $review = $('<div>', { class: 'll-ipa-search-field-review-panel' });
         if (reviewNote && getSearchReviewNoteField(reviewFields) === field) {
-            $wrap.append(buildSearchFieldReviewNote(reviewNote));
+            $review.append(buildSearchFieldReviewNote(reviewNote));
         }
         const $reviewAction = buildSearchFieldReviewAction(field, reviewFields);
         if ($reviewAction) {
-            $wrap.append($reviewAction);
+            $review.append($reviewAction);
         }
-        return $cell.append($wrap);
+        $block.append($editor);
+        if ($review.children().length) {
+            $block.append($review);
+        }
+        return $block;
+    }
+
+    function buildSearchTranscriptionCell($textInput, $ipaInput, reviewFields, reviewNote) {
+        const transcription = getTranscription();
+        const textLabel = t('searchReviewTextLabel', 'Orthography');
+        const ipaLabel = transcription.symbols_column_label || t('pronunciationLabel', 'Pronunciation');
+        const $cell = $('<td>', {
+            class: 'll-ipa-search-transcription-cell',
+            'data-label': t('searchTranscriptionsLabel', 'Transcriptions')
+        });
+        return $cell.append(
+            $('<div>', { class: 'll-ipa-search-transcription-stack' })
+                .append(buildSearchFieldBlock('ll-ipa-search-text-cell', $textInput, 'recording_text', reviewFields, reviewNote, textLabel))
+                .append(buildSearchFieldBlock('ll-ipa-search-ipa-cell', $ipaInput, 'recording_ipa', reviewFields, reviewNote, ipaLabel))
+        );
     }
 
     function buildReviewToggleButton(needsReview, extraClass, reviewField) {
@@ -1678,21 +1704,18 @@
         }
         $metaCell.append($metaWrap);
 
-        const $textInput = $('<input>', {
-            type: 'text',
+        const $textInput = $('<textarea>', {
             class: 'll-ipa-search-input-field ll-ipa-search-text-input',
-            value: textValue,
-            'data-saved-value': textValue,
-            disabled: !currentCanEdit
-        });
-        const $ipaInput = $('<input>', {
-            type: 'text',
+            rows: 2,
+            disabled: !currentCanEdit,
+            'aria-label': t('searchReviewTextLabel', 'Orthography')
+        }).val(textValue).attr('data-saved-value', textValue);
+        const $ipaInput = $('<textarea>', {
             class: 'll-ipa-search-input-field ll-ipa-search-ipa-input',
-            value: ipaValue,
-            'data-saved-value': ipaValue,
+            rows: 2,
             disabled: !currentCanEdit,
             'aria-label': transcription.symbols_column_label || t('pronunciationLabel', 'Pronunciation')
-        });
+        }).val(ipaValue).attr('data-saved-value', ipaValue);
         const $saveState = $('<div>', {
             class: 'll-ipa-search-save-state is-idle',
             'aria-live': 'polite'
@@ -1717,8 +1740,7 @@
             'data-review-ipa': reviewFields.recording_ipa ? '1' : '0'
         })
             .append($metaCell)
-            .append(buildSearchFieldCell('ll-ipa-search-text-cell', $textInput, 'recording_text', reviewFields, reviewNote, t('textColumnLabel', 'Text')))
-            .append(buildSearchFieldCell('ll-ipa-search-ipa-cell', $ipaInput, 'recording_ipa', reviewFields, reviewNote, getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation')))
+            .append(buildSearchTranscriptionCell($textInput, $ipaInput, reviewFields, reviewNote))
             .append($('<td>', { class: 'll-ipa-search-categories-cell' }).append(buildCategoriesCell(categories)))
             .append($issueCell)
             .append($actionCell);
@@ -1910,16 +1932,14 @@
         const $table = $('<table>', { class: 'widefat striped ll-ipa-search-table' });
         const $colgroup = $('<colgroup>')
             .append($('<col>', { class: 'll-ipa-search-col-meta' }))
-            .append($('<col>', { class: 'll-ipa-search-col-text' }))
-            .append($('<col>', { class: 'll-ipa-search-col-ipa' }))
+            .append($('<col>', { class: 'll-ipa-search-col-transcriptions' }))
             .append($('<col>', { class: 'll-ipa-search-col-categories' }))
             .append($('<col>', { class: 'll-ipa-search-col-checks' }))
             .append($('<col>', { class: 'll-ipa-search-col-actions' }));
         const $thead = $('<thead>').append(
             $('<tr>')
                 .append($('<th>', { class: 'll-ipa-search-meta-heading', text: t('searchWordLabel', 'Word') }))
-                .append($('<th>', { class: 'll-ipa-search-text-heading', text: t('textColumnLabel', 'Text') }))
-                .append($('<th>', { class: 'll-ipa-search-ipa-heading', text: getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation') }))
+                .append($('<th>', { class: 'll-ipa-search-transcription-heading', text: t('searchTranscriptionsLabel', 'Transcriptions') }))
                 .append($('<th>', { class: 'll-ipa-search-categories-heading', text: t('searchCategoriesLabel', 'Categories') }))
                 .append($('<th>', { class: 'll-ipa-search-checks-heading', text: t('searchIssuesLabel', 'Checks') }))
                 .append($('<th>', { class: 'll-ipa-search-actions-heading', text: '' }))

@@ -250,11 +250,15 @@ test('reviewed rows stay visible until the transcription search is manually refr
   const mobileLayout = await rows.nth(0).evaluate((row) => {
     const textCell = row.querySelector('.ll-ipa-search-text-cell').getBoundingClientRect();
     const ipaCell = row.querySelector('.ll-ipa-search-ipa-cell').getBoundingClientRect();
+    const transcriptionCell = row.querySelector('.ll-ipa-search-transcription-cell');
+    const textInput = row.querySelector('.ll-ipa-search-text-input');
     const results = document.querySelector('#ll-ipa-search-results');
     return {
       rowDisplay: window.getComputedStyle(row).display,
       textTop: textCell.top,
       ipaTop: ipaCell.top,
+      transcriptionLabel: transcriptionCell ? transcriptionCell.getAttribute('data-label') : '',
+      textInputTag: textInput ? textInput.tagName : '',
       scrollWidth: results.scrollWidth,
       clientWidth: results.clientWidth
     };
@@ -262,6 +266,8 @@ test('reviewed rows stay visible until the transcription search is manually refr
 
   expect(mobileLayout.rowDisplay).toBe('grid');
   expect(mobileLayout.ipaTop).toBeGreaterThan(mobileLayout.textTop);
+  expect(mobileLayout.transcriptionLabel).toBe('Transcriptions');
+  expect(mobileLayout.textInputTag).toBe('TEXTAREA');
   expect(mobileLayout.scrollWidth).toBeLessThanOrEqual(mobileLayout.clientWidth + 1);
 
   await rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle').click();
