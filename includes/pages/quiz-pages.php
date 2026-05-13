@@ -215,6 +215,121 @@ function ll_tools_get_quiz_title_for_term($term, bool $include_site_name = false
 }
 
 /**
+ * Resolve a wordset-owned category whose current slug was derived from an old
+ * embed slug after the original source category is no longer resolvable.
+ *
+ * @param string       $embed_category Legacy embed route slug.
+ * @param WP_Term|null $wordset_term   Optional explicit wordset term.
+ * @param int          $min_word_count Minimum words required to treat the match as usable.
+ * @return array{term:WP_Term,wordset_term:WP_Term,wordset:string}|null
+ */
+function ll_tools_resolve_legacy_embed_isolated_category(string $embed_category, ?WP_Term $wordset_term, int $min_word_count): ?array {
+    $legacy_slug = sanitize_title(trim($embed_category));
+    if ($legacy_slug === '' || !defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
+        return null;
+    }
+
+    $owner_query = [
+        'key'     => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+        'compare' => 'EXISTS',
+    ];
+    if ($wordset_term instanceof WP_Term) {
+        $owner_query = [
+            'key'     => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+            'value'   => (int) $wordset_term->term_id,
+            'compare' => '=',
+            'type'    => 'NUMERIC',
+        ];
+    }
+
+    $terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'fields'     => 'all',
+        'orderby'    => 'term_id',
+        'order'      => 'ASC',
+        'meta_query' => [$owner_query],
+    ]);
+
+    if (is_wp_error($terms) || empty($terms)) {
+        return null;
+    }
+
+    $prefixes = [
+        $legacy_slug . '--',
+        $legacy_slug . '-',
+    ];
+    $best_context = null;
+    $best_owner_wordset_id = 0;
+    $best_term_id = 0;
+
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {
+            continue;
+        }
+
+        $term_slug = sanitize_title((string) $term->slug);
+        $matches_legacy_slug = false;
+        foreach ($prefixes as $prefix) {
+            if (strpos($term_slug, $prefix) === 0 && strlen($term_slug) > strlen($prefix)) {
+                $matches_legacy_slug = true;
+                break;
+            }
+        }
+        if (!$matches_legacy_slug) {
+            continue;
+        }
+
+        $owner_wordset_id = function_exists('ll_tools_get_category_wordset_owner_id')
+            ? (int) ll_tools_get_category_wordset_owner_id($term)
+            : max(0, (int) get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, true));
+        if ($owner_wordset_id <= 0) {
+            continue;
+        }
+        if ($wordset_term instanceof WP_Term && $owner_wordset_id !== (int) $wordset_term->term_id) {
+            continue;
+        }
+
+        $candidate_wordset = $wordset_term instanceof WP_Term
+            ? $wordset_term
+            : get_term($owner_wordset_id, 'wordset');
+        if (!($candidate_wordset instanceof WP_Term) || is_wp_error($candidate_wordset)) {
+            continue;
+        }
+
+        if (
+            function_exists('ll_can_category_generate_quiz')
+            && !ll_can_category_generate_quiz($term, $min_word_count, [$owner_wordset_id])
+        ) {
+            continue;
+        }
+
+        $context = [
+            'term' => $term,
+            'wordset_term' => $candidate_wordset,
+            'wordset' => (string) $candidate_wordset->slug,
+        ];
+
+        if ($wordset_term instanceof WP_Term) {
+            return $context;
+        }
+
+        $term_id = (int) $term->term_id;
+        if (
+            $best_context === null
+            || $owner_wordset_id < $best_owner_wordset_id
+            || ($owner_wordset_id === $best_owner_wordset_id && $term_id < $best_term_id)
+        ) {
+            $best_context = $context;
+            $best_owner_wordset_id = $owner_wordset_id;
+            $best_term_id = $term_id;
+        }
+    }
+
+    return $best_context;
+}
+
+/**
  * Resolve the effective category + wordset context for an embed request.
  *
  * Legacy embed URLs may still point at the source category slug even after the
@@ -229,6 +344,10 @@ function ll_tools_get_quiz_title_for_term($term, bool $include_site_name = false
 function ll_tools_resolve_embed_quiz_context(string $embed_category, string $wordset_spec = ''): array {
     $embed_category = trim($embed_category);
     $wordset_spec = trim($wordset_spec);
+    $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    if ($min_word_count < 1) {
+        $min_word_count = 1;
+    }
 
     $resolve_wordset_term = static function (string $raw_wordset): ?WP_Term {
         if ($raw_wordset === '') {
@@ -266,17 +385,18 @@ function ll_tools_resolve_embed_quiz_context(string $embed_category, string $wor
     }
 
     $term = $resolve_category_term($embed_category, $wordset_term);
+    if (!($term instanceof WP_Term) && function_exists('ll_tools_resolve_legacy_embed_isolated_category')) {
+        $legacy_context = ll_tools_resolve_legacy_embed_isolated_category($embed_category, $wordset_term, $min_word_count);
+        if (is_array($legacy_context)) {
+            return $legacy_context;
+        }
+    }
 
     if (
         $wordset_term === null
         && $term instanceof WP_Term
         && function_exists('ll_get_default_wordset_id_for_category')
     ) {
-        $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
-        if ($min_word_count < 1) {
-            $min_word_count = 1;
-        }
-
         $default_wordset_id = ll_get_default_wordset_id_for_category($term, $min_word_count);
         if ($default_wordset_id > 0) {
             $default_wordset_term = get_term($default_wordset_id, 'wordset');
@@ -289,6 +409,24 @@ function ll_tools_resolve_embed_quiz_context(string $embed_category, string $wor
                     $term = $resolved_term;
                 }
             }
+        }
+    }
+
+    if (
+        function_exists('ll_tools_resolve_legacy_embed_isolated_category')
+        && (
+            !($term instanceof WP_Term)
+            || $wordset_term === null
+            || (
+                $wordset_term instanceof WP_Term
+                && function_exists('ll_can_category_generate_quiz')
+                && !ll_can_category_generate_quiz($term, $min_word_count, [(int) $wordset_term->term_id])
+            )
+        )
+    ) {
+        $legacy_context = ll_tools_resolve_legacy_embed_isolated_category($embed_category, $wordset_term, $min_word_count);
+        if (is_array($legacy_context)) {
+            return $legacy_context;
         }
     }
 
