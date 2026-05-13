@@ -2613,6 +2613,31 @@ function ll_tools_user_can_manage_vocab_lesson_category_settings(int $category_i
     return false;
 }
 
+function ll_tools_get_vocab_lesson_split_category_url(int $wordset_id, int $category_id, int $lesson_id = 0): string {
+    $wordset_id = (int) $wordset_id;
+    $category_id = (int) $category_id;
+    $lesson_id = (int) $lesson_id;
+    if ($wordset_id <= 0 || $category_id <= 0 || !function_exists('ll_tools_get_wordset_settings_tool_url')) {
+        return '';
+    }
+
+    $wordset = get_term($wordset_id, 'wordset');
+    if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+        return '';
+    }
+
+    $back_url = $lesson_id > 0 ? get_permalink($lesson_id) : '';
+    $back_url = is_string($back_url) ? $back_url : '';
+
+    $url = ll_tools_get_wordset_settings_tool_url($wordset, 'editor', $back_url);
+    $url = add_query_arg([
+        'll_editor_category'       => $category_id,
+        'll_editor_split_category' => '1',
+    ], $url);
+
+    return $url . '#ll-wordset-editor-split';
+}
+
 function ll_tools_get_vocab_lesson_category_settings_panel_data($category, int $wordset_id = 0): array {
     if (!($category instanceof WP_Term)) {
         $category = get_term($category, 'word-category');

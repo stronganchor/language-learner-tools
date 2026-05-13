@@ -61,6 +61,32 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_tool=offline-app', $html);
     }
 
+    public function test_wordset_page_renders_add_category_card_before_category_grid_for_managers(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', null);
+
+        $html = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
+
+        $add_card_position = strpos($html, 'll-wordset-card--add-category');
+        $category_card_position = strpos($html, 'data-cat-id="' . (int) $fixture['category_id'] . '"');
+
+        $this->assertIsInt($add_card_position);
+        $this->assertIsInt($category_card_position);
+        $this->assertLessThan($category_card_position, $add_card_position);
+        $this->assertStringContainsString('ll_wordset_tool=categories', $html);
+        $this->assertStringContainsString('#ll-wordset-category-create', $html);
+    }
+
     public function test_recorder_queue_tool_renders_visible_and_hidden_items_for_assigned_recorders(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

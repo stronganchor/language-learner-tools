@@ -447,6 +447,123 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertNotContains((int) $fixture['category_b_id'], $beta_categories);
     }
 
+    public function test_split_category_panel_renders_for_single_category_filter(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-split-panel');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_category' => (string) $fixture['category_a_id'],
+            'll_editor_split_category' => '1',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg($_GET, ll_tools_get_wordset_page_view_url($wordset_term, 'settings')));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('id="ll-wordset-editor-split"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_editor_action" value="split_category"', $html);
+        $this->assertStringContainsString('name="ll_wordset_editor_new_category_name"', $html);
+        $this->assertStringContainsString('ll_wordset_editor_copy_category_settings', $html);
+        $this->assertStringContainsString('Move 2 filtered words', $html);
+    }
+
+    public function test_split_category_action_creates_target_moves_filtered_words_and_linked_images(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-split-action');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Split Action Alpha Image',
+        ]);
+        wp_set_object_terms($word_image_id, [(int) $fixture['category_a_id']], 'word-category', false);
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($word_image_id, $wordset_id, $word_image_id);
+        }
+        update_post_meta((int) $fixture['alpha_word_id'], '_ll_autopicked_image_id', (int) $word_image_id);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'split_category',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_all_filtered' => '1',
+            'll_editor_category' => (string) $fixture['category_a_id'],
+            'll_editor_split_category' => '1',
+            'll_editor_q' => 'Alpha Translation',
+            'll_editor_sort' => 'word',
+            'll_editor_dir' => 'asc',
+            'll_wordset_editor_new_category_name' => 'Split Action Target',
+            'll_wordset_editor_copy_category_settings' => '1',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $split_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $split_query = $this->parseRedirectQuery($split_redirect);
+        $this->assertSame('split_category', (string) ($split_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('1', (string) ($split_query['ll_wordset_manager_editor_count'] ?? ''));
+        $this->assertSame('Alpha Translation', (string) ($split_query['ll_editor_q'] ?? ''));
+
+        $target_category = get_term_by('name', 'Split Action Target', 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $target_category);
+        $target_category_id = (int) $target_category->term_id;
+        $this->assertSame('audio', (string) get_term_meta($target_category_id, 'll_quiz_prompt_type', true));
+        $this->assertSame(['isolation'], array_values((array) get_term_meta($target_category_id, 'll_desired_recording_types', true)));
+
+        $alpha_categories = array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids']));
+        $beta_categories = array_map('intval', wp_get_post_terms((int) $fixture['beta_word_id'], 'word-category', ['fields' => 'ids']));
+        $image_categories = array_map('intval', wp_get_post_terms((int) $word_image_id, 'word-category', ['fields' => 'ids']));
+        $this->assertContains($target_category_id, $alpha_categories);
+        $this->assertNotContains((int) $fixture['category_a_id'], $alpha_categories);
+        $this->assertContains((int) $fixture['category_a_id'], $beta_categories);
+        $this->assertNotContains($target_category_id, $beta_categories);
+        $this->assertContains($target_category_id, $image_categories);
+        $this->assertNotContains((int) $fixture['category_a_id'], $image_categories);
+
+        $recent = ll_tools_wordset_editor_get_recent_actions($wordset_id, 1);
+        $this->assertCount(1, $recent);
+        $this->assertSame('category_split', (string) ($recent[0]['type'] ?? ''));
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'undo',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_action_id' => (string) ($recent[0]['id'] ?? ''),
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $undo_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $undo_query = $this->parseRedirectQuery($undo_redirect);
+        $this->assertSame('undo', (string) ($undo_query['ll_wordset_manager_editor_result'] ?? ''));
+        $alpha_categories_after_undo = array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids']));
+        $image_categories_after_undo = array_map('intval', wp_get_post_terms((int) $word_image_id, 'word-category', ['fields' => 'ids']));
+        $this->assertContains((int) $fixture['category_a_id'], $alpha_categories_after_undo);
+        $this->assertNotContains($target_category_id, $alpha_categories_after_undo);
+        $this->assertContains((int) $fixture['category_a_id'], $image_categories_after_undo);
+        $this->assertNotContains($target_category_id, $image_categories_after_undo);
+    }
+
     public function test_bulk_category_move_logs_undo_and_restores_previous_category(): void
     {
         wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));

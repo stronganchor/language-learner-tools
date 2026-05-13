@@ -48,6 +48,9 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_vocab_lesson_category_enabled_games[]"', $html);
         $this->assertStringContainsString('name="ll_vocab_lesson_category_lineup_word_ids"', $html);
         $this->assertStringContainsString('data-ll-category-settings-status', $html);
+        $this->assertStringContainsString('ll_editor_split_category=1', $html);
+        $this->assertStringContainsString('ll_editor_category=' . (int) $fixture['category_id'], $html);
+        $this->assertStringContainsString('#ll-wordset-editor-split', $html);
         $this->assertStringNotContainsString('ll-vocab-lesson-category-settings-save', $html);
     }
 

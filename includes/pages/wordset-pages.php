@@ -3629,6 +3629,30 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     return (string) ob_get_clean();
 }
 
+function ll_tools_wordset_page_render_add_category_card(string $url): string {
+    $url = trim($url);
+    if ($url === '') {
+        return '';
+    }
+
+    ob_start();
+    ?>
+    <article class="ll-wordset-card ll-wordset-card--add-category" role="listitem" data-ll-wordset-card-type="add-category">
+        <a class="ll-wordset-add-category-card" href="<?php echo esc_url($url); ?>" aria-label="<?php echo esc_attr__('Add category', 'll-tools-text-domain'); ?>">
+            <span class="ll-wordset-add-category-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </span>
+            <span class="ll-wordset-add-category-card__title"><?php echo esc_html__('Add Category', 'll-tools-text-domain'); ?></span>
+            <span class="ll-wordset-add-category-card__meta"><?php echo esc_html__('Create a fresh lesson category.', 'll-tools-text-domain'); ?></span>
+        </a>
+    </article>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_wordset_page_render_mixed_card(array $card, array $context = []): string {
     if (($card['type'] ?? '') === 'content') {
         return ll_tools_wordset_page_render_content_lesson_card((array) ($card['data'] ?? []));
@@ -10469,7 +10493,7 @@ function ll_tools_wordset_page_render_settings_categories_tool(WP_Term $wordset_
                 <?php endif; ?>
             </div>
 
-            <div class="ll-wordset-settings-card__group">
+            <div id="ll-wordset-category-create" class="ll-wordset-settings-card__group">
                 <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Create Category', 'll-tools-text-domain'); ?></h3>
                 <p class="description" style="margin-top:0;">
                     <?php echo esc_html__('Categories created here stay scoped to this word set.', 'll-tools-text-domain'); ?>
@@ -13085,6 +13109,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'image-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'image-upload', $settings_navigation_back_url),
         'audio-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'audio-upload', $settings_navigation_back_url),
     ];
+    $add_category_url = $settings_tool_urls['categories'] . '#ll-wordset-category-create';
     $utility_current_url = function_exists('ll_tools_get_current_request_url')
         ? (string) ll_tools_get_current_request_url()
         : ll_tools_wordset_page_current_url();
@@ -15148,6 +15173,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 </button>
                             </form>
                         </div>
+                    <?php elseif ($can_manage_wordset_categories) : ?>
+                        <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
+                            <?php echo ll_tools_wordset_page_render_add_category_card($add_category_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        </div>
                     <?php else : ?>
                         <?php echo esc_html__('No lesson categories yet.', 'll-tools-text-domain'); ?>
                     <?php endif; ?>
@@ -15239,6 +15268,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     </div>
                 <?php endif; ?>
                 <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
+                    <?php if ($can_manage_wordset_categories) : ?>
+                        <?php echo ll_tools_wordset_page_render_add_category_card($add_category_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <?php endif; ?>
                     <?php echo ll_tools_wordset_page_render_mixed_cards($initial_mixed_lesson_cards, $mixed_lesson_render_context); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </div>
                 <?php echo ll_tools_wordset_page_render_lazy_cards_controls($lazy_cards_config); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>

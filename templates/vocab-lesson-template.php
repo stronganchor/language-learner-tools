@@ -135,6 +135,9 @@ if (have_posts()) {
     $category_settings_panel = ($can_manage_category_settings && function_exists('ll_tools_get_vocab_lesson_category_settings_panel_data'))
         ? ll_tools_get_vocab_lesson_category_settings_panel_data($category, $wordset_id)
         : [];
+    $category_split_url = ($can_manage_category_settings && function_exists('ll_tools_get_vocab_lesson_split_category_url'))
+        ? ll_tools_get_vocab_lesson_split_category_url((int) $wordset_id, (int) $category_id, (int) $post_id)
+        : '';
 
     $wordset_name = ($wordset && !is_wp_error($wordset)) ? $wordset->name : '';
     $wordset_slug = ($wordset && !is_wp_error($wordset)) ? $wordset->slug : '';
@@ -863,6 +866,22 @@ if (have_posts()) {
                                             <span class="ll-vocab-lesson-category-settings-summary-pill"><?php echo esc_html($category_panel_recording_summary); ?></span>
                                         </div>
                                     </div>
+
+                                    <?php if ($category_split_url !== '') : ?>
+                                        <div class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-category-settings-section--tools">
+                                            <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Tools', 'll-tools-text-domain'); ?></div>
+                                            <a class="ll-vocab-lesson-category-settings-tool-link" href="<?php echo esc_url($category_split_url); ?>">
+                                                <span class="ll-vocab-lesson-category-settings-tool-link__icon" aria-hidden="true">
+                                                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                                        <path d="M5 4v4a5 5 0 0 0 5 5h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                                        <path d="M5 20v-4a5 5 0 0 1 5-5h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                                        <path d="M14 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    </svg>
+                                                </span>
+                                                <span><?php echo esc_html__('Split Category', 'll-tools-text-domain'); ?></span>
+                                            </a>
+                                        </div>
+                                    <?php endif; ?>
 
                                     <?php if (!empty($lesson_prereq_editor['show'])) : ?>
                                         <div

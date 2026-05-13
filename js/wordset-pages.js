@@ -13770,12 +13770,14 @@
         }
 
         const categoryBulkActions = ['add_category', 'remove_category', 'move_category'];
+        const categoryCreateActions = ['add_category', 'move_category'];
 
         const syncBulkCategoryTarget = function ($form) {
             if (!$form || !$form.length) { return; }
             const action = String($form.find('[data-ll-wordset-editor-bulk-action]').first().val() || '');
             const shouldShow = categoryBulkActions.indexOf(action) !== -1;
             $form.find('[data-ll-wordset-editor-category-target-field]').first().prop('hidden', !shouldShow);
+            $form.find('[data-ll-wordset-editor-new-category-target-field]').first().prop('hidden', categoryCreateActions.indexOf(action) === -1);
         };
 
         const syncCategoryFilterSummary = function (dropdown) {
@@ -13997,7 +13999,10 @@
             const action = String($form.find('select[name="ll_wordset_manager_editor_action"]').val() || '');
             if (categoryBulkActions.indexOf(action) !== -1) {
                 const targetCategory = parseInt($form.find('select[name="ll_wordset_editor_target_category"]').val(), 10) || 0;
-                if (!targetCategory) {
+                const newCategory = categoryCreateActions.indexOf(action) !== -1
+                    ? String($form.find('input[name="ll_wordset_editor_new_category_name"]').val() || '').trim()
+                    : '';
+                if (!targetCategory && !newCategory) {
                     evt.preventDefault();
                     alert(String($form.attr('data-ll-wordset-editor-category-required') || 'Choose a category target.'));
                     return;
