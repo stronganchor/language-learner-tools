@@ -1818,7 +1818,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 4;
+    return 5;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -3998,16 +3998,25 @@ function ll_tools_ipa_keyboard_update_recording_validation(int $recording_id): a
         $active_issue_count += count((array) ($validation['active'] ?? []));
     }
 
-    if (empty($state)) {
-        delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key());
-    } else {
-        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), $state);
+    $state = ll_tools_ipa_keyboard_sanitize_validation_state($state);
+    $state_meta_key = ll_tools_ipa_keyboard_validation_state_meta_key();
+    $existing_state = ll_tools_ipa_keyboard_get_recording_validation_state($recording_id);
+    if ($state !== $existing_state) {
+        if (empty($state)) {
+            delete_post_meta($recording_id, $state_meta_key);
+        } else {
+            update_post_meta($recording_id, $state_meta_key, $state);
+        }
     }
 
+    $issue_count_meta_key = ll_tools_ipa_keyboard_validation_issue_count_meta_key();
+    $existing_issue_count = (int) get_post_meta($recording_id, $issue_count_meta_key, true);
     if ($active_issue_count > 0) {
-        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), $active_issue_count);
-    } else {
-        delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key());
+        if ($active_issue_count !== $existing_issue_count) {
+            update_post_meta($recording_id, $issue_count_meta_key, $active_issue_count);
+        }
+    } elseif ($existing_issue_count > 0 || metadata_exists('post', $recording_id, $issue_count_meta_key)) {
+        delete_post_meta($recording_id, $issue_count_meta_key);
     }
 
     return $state;
@@ -4596,6 +4605,10 @@ function ll_tools_ipa_keyboard_build_search_row_payload(int $recording_id, int $
     $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa'));
     $payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, (int) wp_get_post_parent_id($recording_id), $word_info, $recording_ipa, $wordset_id);
     $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+    if (!empty($validation['active']) || !empty($validation['ignored'])) {
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+    }
 
     $payload['issues'] = array_values((array) ($validation['active'] ?? []));
     $payload['ignored_issues'] = array_values((array) ($validation['ignored'] ?? []));

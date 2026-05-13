@@ -356,6 +356,123 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) ($recording['issue_count'] ?? -1));
     }
 
+    public function test_search_row_payload_refreshes_stale_unapproved_symbol_warning(): void
+    {
+        $wordset_id = $this->create_wordset('Stale Validation Search Wordset');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Fresh IPA',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Fresh IPA Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'Biregê ispanax');
+        update_post_meta($recording_id, 'recording_ipa', 'biʁege ispʰanaχ');
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $wordset_id => [
+                'active' => [
+                    [
+                        'rule_key' => 'builtin:unapproved_ipa_symbol',
+                        'code' => 'unapproved_ipa_symbol',
+                        'type' => 'builtin',
+                        'label' => 'Unapproved IPA symbol',
+                        'message' => 'This IPA token contains a symbol outside the approved inventory.',
+                        'count' => 1,
+                        'samples' => ['ø'],
+                    ],
+                ],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        $payload = ll_tools_ipa_keyboard_build_search_row_payload($recording_id, $wordset_id, [
+            'word_text' => 'Fresh IPA',
+            'translation' => '',
+        ]);
+
+        $this->assertSame([], (array) ($payload['issues'] ?? []));
+        $this->assertSame(0, (int) ($payload['issue_count'] ?? -1));
+        $this->assertSame('', (string) get_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), true));
+    }
+
+    public function test_approve_symbol_mapping_clears_stale_unapproved_symbol_warning(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Stale IPA Symbol Approval Wordset');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Ispanakli Borek',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Ispanakli Borek Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'Biregê ispanax');
+        update_post_meta($recording_id, 'recording_ipa', 'biʁege ispʰanaχ');
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $wordset_id => [
+                'active' => [
+                    [
+                        'rule_key' => 'builtin:unapproved_ipa_symbol',
+                        'code' => 'unapproved_ipa_symbol',
+                        'type' => 'builtin',
+                        'label' => 'Unapproved IPA symbol',
+                        'message' => 'This IPA token contains a symbol outside the approved inventory.',
+                        'count' => 1,
+                        'samples' => ['ø'],
+                        'approval_options' => [
+                            [
+                                'symbol' => 'ø',
+                                'output' => 'ö',
+                            ],
+                        ],
+                    ],
+                ],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        wp_set_current_user($user_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'recording_id' => $recording_id,
+            'symbol' => 'ø',
+            'output' => 'ö',
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_approve_ipa_keyboard_symbol_mapping_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = (array) ($response['data'] ?? []);
+        $this->assertContains('ø', (array) ($data['approved_ipa_symbols'] ?? []));
+
+        $recording = (array) ($data['recording'] ?? []);
+        $this->assertSame($recording_id, (int) ($recording['recording_id'] ?? 0));
+        $this->assertSame([], (array) ($recording['issues'] ?? []));
+        $this->assertSame(0, (int) ($recording['issue_count'] ?? -1));
+        $this->assertSame('', (string) get_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), true));
+
+        $state = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $this->assertSame([], (array) ($state['active'] ?? []));
+    }
+
     private function create_viewer_user(): int
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);
