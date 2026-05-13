@@ -1447,6 +1447,13 @@
     font-size: 12px;
 }
 
+.ll-ipa-search-issue-actions {
+    display: grid;
+    gap: 4px;
+    justify-items: start;
+    margin-top: 6px;
+}
+
 .ll-ipa-search-ignored {
     display: grid;
     gap: 8px;
@@ -1459,7 +1466,8 @@
     color: var(--ll-ipa-muted);
 }
 
-.ll-ipa-issue-toggle {
+.ll-ipa-issue-toggle,
+.ll-ipa-symbol-approval {
     padding: 0;
     border: 0;
     background: transparent;
@@ -1467,6 +1475,10 @@
     cursor: pointer;
     text-align: left;
     font-size: 12px;
+}
+
+.ll-ipa-symbol-approval {
+    color: #047857;
 }
 
 .ll-ipa-review-toggle,

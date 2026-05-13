@@ -291,3 +291,181 @@ test('reviewed rows stay visible until the transcription search is manually refr
     'll_tools_set_ipa_keyboard_transcription_review_state'
   ]);
 });
+
+test('unapproved IPA symbol warnings offer a wordset approval mapping action', async ({ page }) => {
+  await page.setViewportSize({ width: 760, height: 800 });
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    try {
+      window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+      window.localStorage.removeItem('llTranscriptionManagerLastTab');
+    } catch (error) {
+      // Ignore storage cleanup failures in the test harness.
+    }
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    const issue = {
+      rule_key: 'builtin:unapproved_ipa_symbol',
+      code: 'unapproved_ipa_symbol',
+      type: 'builtin',
+      label: 'Unapproved IPA symbol',
+      message: 'This IPA token contains a symbol outside the approved inventory.',
+      count: 1,
+      samples: ['ø'],
+      approval_options: [
+        {
+          symbol: 'ø',
+          output: 'ö'
+        }
+      ]
+    };
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'search',
+      initialSearch: {
+        query: '',
+        scope: 'both',
+        issues_only: true,
+        review_only: false,
+        exact_transcription: false,
+        page: 1
+      },
+      i18n: {}
+    };
+
+    window.__llSymbolApprovalMock = {
+      approved: false,
+      postCalls: []
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const requestData = Object.assign({}, data);
+      window.__llSymbolApprovalMock.postCalls.push({
+        url: String(url || ''),
+        data: requestData
+      });
+
+      window.setTimeout(function () {
+        if (requestData.action === 'll_tools_search_ipa_keyboard_recordings') {
+          const hasIssue = !window.__llSymbolApprovalMock.approved;
+          deferred.resolve({
+            success: true,
+            data: {
+              wordset: {
+                id: 7,
+                name: 'Regression Wordset'
+              },
+              transcription: {
+                mode: 'ipa',
+                symbols_column_label: 'Pronunciation'
+              },
+              results: [
+                {
+                  recording_id: 101,
+                  word_text: 'Loan word',
+                  word_translation: '',
+                  word_edit_link: '',
+                  recording_text: 'kör',
+                  recording_translation: '',
+                  recording_ipa: 'kør',
+                  categories: [],
+                  issues: hasIssue ? [clone(issue)] : [],
+                  ignored_issues: [],
+                  issue_count: hasIssue ? 1 : 0,
+                  ignored_issue_count: 0,
+                  needs_review: false,
+                  review_fields: {
+                    recording_text: false,
+                    recording_ipa: false
+                  },
+                  review_note: '',
+                  image: {},
+                  audio_url: '',
+                  audio_label: 'Play recording'
+                }
+              ],
+              total_matches: 1,
+              shown_count: 1,
+              has_more: false,
+              current_page: 1,
+              total_pages: 1,
+              per_page: 100,
+              page_start: 1,
+              page_end: 1,
+              issues_only: true,
+              review_only: false,
+              exact_transcription: false,
+              can_edit: true,
+              validation_config: {
+                supports_rules: true,
+                builtin_rules: [],
+                custom_rules: [],
+                approved_ipa_symbols: window.__llSymbolApprovalMock.approved ? ['ø'] : []
+              }
+            }
+          });
+          return;
+        }
+
+        if (requestData.action === 'll_tools_approve_ipa_keyboard_symbol_mapping') {
+          window.__llSymbolApprovalMock.approved = true;
+          deferred.resolve({
+            success: true,
+            data: {
+              approved_symbol: 'ø',
+              orthography_output: 'ö',
+              approved_ipa_symbols: ['ø'],
+              rescanned_count: 1
+            }
+          });
+          return;
+        }
+
+        deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
+      }, 0);
+
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  const approveButton = page.locator('.ll-ipa-symbol-approval').first();
+  await expect(approveButton).toHaveText('Approve ø symbol and map it to ö in orthography');
+  await expect(page.locator('.ll-ipa-issue-toggle').first()).toHaveText('Ignore for this transcription');
+
+  await approveButton.click();
+  await expect(page.locator('.ll-ipa-symbol-approval')).toHaveCount(0);
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Approved symbol mapping.');
+
+  const actions = await page.evaluate(() => {
+    return window.__llSymbolApprovalMock.postCalls.map(function (call) {
+      return call.data.action;
+    });
+  });
+
+  expect(actions).toEqual([
+    'll_tools_search_ipa_keyboard_recordings',
+    'll_tools_approve_ipa_keyboard_symbol_mapping',
+    'll_tools_search_ipa_keyboard_recordings'
+  ]);
+});

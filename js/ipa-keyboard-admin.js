@@ -1401,14 +1401,35 @@
                 }).join(' ')
             }));
         }
-        if (currentCanEdit && issue.rule_key) {
-            $item.append($('<button>', {
-                type: 'button',
-                class: 'button-link ll-ipa-issue-toggle',
-                text: ignored ? t('searchExceptionRestore', 'Undo exception') : t('searchExceptionIgnore', 'Ignore for this transcription'),
-                'data-rule-key': issue.rule_key,
-                'data-enabled': ignored ? '0' : '1'
-            }));
+        if (currentCanEdit) {
+            const $actions = $('<div>', { class: 'll-ipa-search-issue-actions' });
+            const approvals = Array.isArray(issue.approval_options) ? issue.approval_options : [];
+            approvals.forEach(function (option) {
+                const symbol = option && option.symbol ? String(option.symbol) : '';
+                const output = option && option.output ? String(option.output) : '';
+                if (!symbol || !output) {
+                    return;
+                }
+                $actions.append($('<button>', {
+                    type: 'button',
+                    class: 'button-link ll-ipa-symbol-approval',
+                    text: formatText(t('searchApproveSymbolMapping', 'Approve %1$s symbol and map it to %2$s in orthography'), [symbol, output]),
+                    'data-symbol': symbol,
+                    'data-output': output
+                }));
+            });
+            if (issue.rule_key) {
+                $actions.append($('<button>', {
+                    type: 'button',
+                    class: 'button-link ll-ipa-issue-toggle',
+                    text: ignored ? t('searchExceptionRestore', 'Undo exception') : t('searchExceptionIgnore', 'Ignore for this transcription'),
+                    'data-rule-key': issue.rule_key,
+                    'data-enabled': ignored ? '0' : '1'
+                }));
+            }
+            if ($actions.children().length) {
+                $item.append($actions);
+            }
         }
         return $item;
     }
@@ -3205,6 +3226,45 @@
 
         $btn.prop('disabled', true);
         submitSearchReviewState(recordingId, nextNeedsReview, reviewField).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    $searchResults.on('click', '.ll-ipa-symbol-approval', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
+        const symbol = ($btn.attr('data-symbol') || '').toString();
+        const output = ($btn.attr('data-output') || '').toString();
+
+        if (!recordingId || !currentWordsetId || !symbol || !output) {
+            return;
+        }
+
+        $btn.prop('disabled', true);
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_approve_ipa_keyboard_symbol_mapping',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: recordingId,
+            symbol: symbol,
+            output: output
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+
+            markTabsDirty(['symbols', 'orthography']);
+            loadSearch(currentWordsetId, true, {
+                quietStatus: true,
+                showLoading: false,
+                successStatus: t('searchApprovedSymbolMapping', 'Approved symbol mapping.')
+            });
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
             $btn.prop('disabled', false);
         });
     });

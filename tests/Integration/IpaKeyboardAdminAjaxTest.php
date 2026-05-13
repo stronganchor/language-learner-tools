@@ -279,6 +279,83 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertContains('unapproved_ipa_symbol', $codes);
     }
 
+    public function test_approve_symbol_mapping_adds_wordset_approval_and_orthography_rule(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('IPA Symbol Approval Wordset');
+
+        $first_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Blind',
+        ]);
+        wp_set_object_terms($first_word_id, [$wordset_id], 'wordset', false);
+        $first_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $first_word_id,
+            'post_title' => 'Blind Recording',
+        ]);
+        update_post_meta($first_recording_id, 'recording_text', 'kör');
+        update_post_meta($first_recording_id, 'recording_ipa', 'kør');
+
+        $second_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Word',
+        ]);
+        wp_set_object_terms($second_word_id, [$wordset_id], 'wordset', false);
+        $second_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $second_word_id,
+            'post_title' => 'Word Recording',
+        ]);
+        update_post_meta($second_recording_id, 'recording_text', 'söz');
+        update_post_meta($second_recording_id, 'recording_ipa', 'søz');
+
+        $before = ll_tools_ipa_keyboard_validate_recording_for_wordset($first_recording_id, $wordset_id);
+        $beforeCodes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($before['active'] ?? []));
+        $this->assertContains('unapproved_ipa_symbol', $beforeCodes);
+        $approvalOptions = (array) (((array) ($before['active'][0] ?? []))['approval_options'] ?? []);
+        $this->assertSame('ø', (string) (($approvalOptions[0] ?? [])['symbol'] ?? ''));
+        $this->assertSame('ö', (string) (($approvalOptions[0] ?? [])['output'] ?? ''));
+
+        wp_set_current_user($user_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'recording_id' => $first_recording_id,
+            'symbol' => 'ø',
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_approve_ipa_keyboard_symbol_mapping_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = (array) ($response['data'] ?? []);
+        $this->assertSame('ø', (string) ($data['approved_symbol'] ?? ''));
+        $this->assertSame('ö', (string) ($data['orthography_output'] ?? ''));
+        $this->assertContains('ø', (array) ($data['approved_ipa_symbols'] ?? []));
+        $this->assertContains('ø', ll_tools_ipa_keyboard_get_wordset_approved_ipa_symbols($wordset_id));
+
+        $manualRules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
+        $this->assertSame('ö', (string) (($manualRules['ø'] ?? [])['any'] ?? ''));
+
+        $firstAfter = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($first_recording_id, $wordset_id);
+        $secondAfter = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($second_recording_id, $wordset_id);
+        $this->assertSame([], (array) ($firstAfter['active'] ?? []));
+        $this->assertSame([], (array) ($secondAfter['active'] ?? []));
+
+        $recording = (array) ($data['recording'] ?? []);
+        $this->assertSame($first_recording_id, (int) ($recording['recording_id'] ?? 0));
+        $this->assertSame(0, (int) ($recording['issue_count'] ?? -1));
+    }
+
     private function create_viewer_user(): int
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);
