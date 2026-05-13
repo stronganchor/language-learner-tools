@@ -260,6 +260,24 @@
         });
     }
 
+    function canStartDeferredPracticeRound() {
+        if (!State.widgetActive) {
+            return false;
+        }
+        if (typeof State.is === 'function' && (
+            State.is(STATES.SHOWING_QUESTION) ||
+            State.is(STATES.PROCESSING_ANSWER) ||
+            State.is(STATES.SHOWING_RESULTS) ||
+            State.is(STATES.CLOSING)
+        )) {
+            return false;
+        }
+        if (typeof State.canStartQuizRound === 'function') {
+            return State.canStartQuizRound();
+        }
+        return true;
+    }
+
     function getStarredLookup() {
         const prefs = root.llToolsStudyPrefs || {};
         const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
@@ -669,11 +687,14 @@
         const context = (ctx && typeof ctx === 'object') ? ctx : {};
         const loader = context.FlashcardLoader || root.FlashcardLoader;
         const restartAfterPendingLoad = function () {
+            if (!canStartDeferredPracticeRound()) {
+                return false;
+            }
             if (context.Dom && typeof context.Dom.showLoading === 'function') {
                 try { context.Dom.showLoading(); } catch (_) { /* no-op */ }
             }
             waitForPendingCategories(loader, PRACTICE_CATEGORY_PREFETCH_WAIT_MS).then(function () {
-                if (!State.widgetActive) {
+                if (!canStartDeferredPracticeRound()) {
                     return;
                 }
                 if (typeof context.startQuizRound === 'function') {
@@ -762,7 +783,11 @@
                 force: true
             });
             if (context && typeof context.startQuizRound === 'function') {
-                setTimeout(function () { context.startQuizRound(); }, 0);
+                setTimeout(function () {
+                    if (canStartDeferredPracticeRound()) {
+                        context.startQuizRound();
+                    }
+                }, 0);
             }
             return true;
         }

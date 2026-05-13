@@ -23,6 +23,9 @@ const allCategories = [
     gender_supported: false,
     aspect_bucket: 'ratio:1_1',
     hidden: false,
+    preview_deferred: true,
+    preview_limit: 2,
+    preview_requires_images: true,
     search_text: 'apple elma banana muz pear armut',
     preview: []
   },
@@ -40,6 +43,9 @@ const allCategories = [
     gender_supported: false,
     aspect_bucket: 'ratio:1_1',
     hidden: false,
+    preview_deferred: true,
+    preview_limit: 2,
+    preview_requires_images: true,
     search_text: 'cat kedi dog kopek bird kus',
     preview: []
   },
@@ -57,10 +63,43 @@ const allCategories = [
     gender_supported: false,
     aspect_bucket: 'ratio:1_1',
     hidden: false,
+    preview_deferred: true,
+    preview_limit: 2,
+    preview_requires_images: true,
     search_text: 'plane ucak train tren hotel otel',
     preview: []
   }
 ];
+
+const hydratedLazyCategories = allCategories.map((category) => {
+  if (category.id !== 33) {
+    return category;
+  }
+
+  return Object.assign({}, category, {
+    has_images: true,
+    preview_deferred: false,
+    preview_aspect_ratio: '1 / 1',
+    preview: [
+      {
+        type: 'image',
+        url: 'https://example.test/travel-preview.jpg',
+        alt: 'Travel preview',
+        ratio: '1 / 1',
+        width: 320,
+        height: 320
+      },
+      {
+        type: 'image',
+        url: 'https://example.test/travel-preview-2.jpg',
+        alt: 'Travel preview 2',
+        ratio: '1 / 1',
+        width: 320,
+        height: 320
+      }
+    ]
+  });
+});
 
 const inactiveCategory = {
   id: 44,
@@ -308,7 +347,7 @@ function buildConfig(options = {}) {
 
 async function mountWordsetPage(page, options = {}) {
   const config = buildConfig(options);
-  const remainingCards = Array.isArray(options.remainingCards) ? options.remainingCards : allCategories;
+  const remainingCards = Array.isArray(options.remainingCards) ? options.remainingCards : hydratedLazyCategories;
   const analyticsResponse = options.analyticsResponse || {
     scope: {},
     summary: {},
@@ -397,14 +436,36 @@ async function mountWordsetPage(page, options = {}) {
       }
 
       window.__llLazyAjaxCalls.push(data);
+      const requestedCategoryIds = String(data.category_ids || '')
+        .split(',')
+        .map((value) => Number.parseInt(value, 10) || 0)
+        .filter(Boolean);
+      const requestedLookup = new Set(requestedCategoryIds);
       const offset = Number.parseInt(data.offset, 10) || 0;
       const count = Math.max(1, Number.parseInt(data.count, 10) || 1);
       const startIndex = Math.max(0, offset);
-      const nextCards = remainingCards.slice(startIndex, startIndex + count);
+      const nextCards = requestedCategoryIds.length
+        ? remainingCards.filter((card) => requestedLookup.has(card.id))
+        : remainingCards.slice(startIndex, startIndex + count);
       const html = nextCards.map((card) => {
         const trackClass = lazyProgressTrackLoading
           ? 'll-wordset-card__progress-track is-loading'
           : 'll-wordset-card__progress-track';
+        const previewItems = Array.isArray(card.preview) ? card.preview : [];
+        const hasImages = !!card.has_images || previewItems.some((item) => item && item.type === 'image' && item.url);
+        const previewHtml = previewItems.length
+          ? previewItems.map((item) => {
+            if (item && item.type === 'image' && item.url) {
+              return '<span class=\"ll-wordset-preview-item ll-wordset-preview-item--image\">'
+                + '<img src=\"' + item.url + '\" alt=\"' + (item.alt || '') + '\" loading=\"lazy\" decoding=\"async\" fetchpriority=\"low\" />'
+                + '</span>';
+            }
+            return '<span class=\"ll-wordset-preview-item ll-wordset-preview-item--text\">'
+              + '<span class=\"ll-wordset-preview-text\" dir=\"auto\">' + ((item && item.label) || '') + '</span>'
+              + '</span>';
+          }).join('')
+          : '<span class=\"ll-wordset-preview-item ll-wordset-preview-item--empty\" aria-hidden=\"true\"></span>'
+            + '<span class=\"ll-wordset-preview-item ll-wordset-preview-item--empty\" aria-hidden=\"true\"></span>';
         return [
           '<article class=\"ll-wordset-card\" role=\"listitem\" data-cat-id=\"' + card.id + '\" data-word-count=\"' + card.count + '\">',
           '  <div class=\"ll-wordset-card__top\">',
@@ -417,6 +478,11 @@ async function mountWordsetPage(page, options = {}) {
           '    </a>',
           '    <span class=\"ll-wordset-card__hide-spacer\" aria-hidden=\"true\"></span>',
           '  </div>',
+          '  <a class=\"ll-wordset-card__lesson-link\" href=\"#\" aria-label=\"' + card.name + '\">',
+          '    <div class=\"ll-wordset-card__preview ' + (hasImages ? 'has-images' : 'has-text') + '\">',
+          previewHtml,
+          '    </div>',
+          '  </a>',
           '  <div class=\"ll-wordset-card__progress\" aria-hidden=\"true\">',
           '    <span class=\"' + trackClass + '\">',
           '      <span class=\"ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered\" style=\"width: 0%;\"></span>',
@@ -433,9 +499,10 @@ async function mountWordsetPage(page, options = {}) {
           success: true,
           data: {
             html,
-            loaded: Math.min(remainingCards.length, startIndex + nextCards.length),
-            nextOffset: Math.min(remainingCards.length, startIndex + nextCards.length),
-            hasMore: (startIndex + nextCards.length) < remainingCards.length
+            categoryIds: nextCards.map((card) => card.id),
+            loaded: requestedCategoryIds.length ? offset : Math.min(remainingCards.length, startIndex + nextCards.length),
+            nextOffset: requestedCategoryIds.length ? offset : Math.min(remainingCards.length, startIndex + nextCards.length),
+            hasMore: requestedCategoryIds.length ? true : (startIndex + nextCards.length) < remainingCards.length
           }
         });
       }, 40);
@@ -555,7 +622,7 @@ test('lazy-loaded cards resolve stale deferred progress loading state', async ({
   });
 });
 
-test('wordset search renders matching unloaded categories without forcing lazy-load requests', async ({ page }) => {
+test('wordset search hydrates matching unloaded categories with real previews', async ({ page }) => {
   await mountWordsetPage(page);
 
   await page.fill('[data-ll-wordset-page-search]', 'hotel');
@@ -567,9 +634,11 @@ test('wordset search renders matching unloaded categories without forcing lazy-l
   }).toEqual([33]);
 
   await expect.poll(async () => {
-    return page.evaluate(() => window.__llLazyAjaxCalls.length);
-  }).toBe(0);
+    return page.evaluate(() => window.__llLazyAjaxCalls.map((call) => String(call.category_ids || '')));
+  }).toContain('33');
 
+  await expect(page.locator('.ll-wordset-card[data-cat-id="33"] .ll-wordset-preview-item--image img').first())
+    .toHaveAttribute('src', 'https://example.test/travel-preview.jpg');
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-load-more]')).toHaveCount(0);
 
@@ -579,7 +648,7 @@ test('wordset search renders matching unloaded categories without forcing lazy-l
     return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
-  }).toEqual([11]);
+  }).toEqual([11, 33]);
 });
 
 test('client-rendered inactive categories include hide and trash controls', async ({ page }) => {

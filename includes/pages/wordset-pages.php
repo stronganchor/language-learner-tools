@@ -14070,6 +14070,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'type' => 'image',
                     'url' => (string) ($preview_item['url'] ?? ''),
                     'alt' => (string) ($preview_item['alt'] ?? ''),
+                    'ratio' => (string) ($preview_item['ratio'] ?? ''),
+                    'width' => max(0, (int) ($preview_item['width'] ?? 0)),
+                    'height' => max(0, (int) ($preview_item['height'] ?? 0)),
                 ];
             } else {
                 $preview_payload[] = [
@@ -14114,6 +14117,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'aspect_bucket' => (string) ($cat['aspect_bucket'] ?? 'no-image'),
             'hidden' => !empty($cat['hidden']),
             'has_images' => !empty($cat['has_images']),
+            'preview_deferred' => !empty($cat['preview_deferred']),
+            'preview_limit' => max(1, (int) ($cat['preview_limit'] ?? 2)),
+            'preview_requires_images' => !empty($cat['preview_requires_images']),
+            'preview_aspect_ratio' => (string) ($cat['preview_aspect_ratio'] ?? ''),
             'preview' => $preview_payload,
             'search_text' => (string) ($category_search_index[$category_id]['search_text'] ?? ''),
             'mastered_words' => (int) ($metrics['mastered_words'] ?? 0),
@@ -15314,12 +15321,19 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $preview_limit = min($preview_limit, ll_tools_wordset_page_lazy_cards_preview_limit_cap());
     $offset = isset($_POST['offset']) ? max(0, (int) wp_unslash((string) $_POST['offset'])) : 0;
     $requested_count = isset($_POST['count']) ? max(1, (int) wp_unslash((string) $_POST['count'])) : 0;
+    $requested_category_ids = isset($_POST['category_ids'])
+        ? wp_parse_id_list(wp_unslash($_POST['category_ids']))
+        : [];
+    $requested_category_ids = array_values(array_unique(array_filter(array_map('intval', $requested_category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
     $public_cache_args = [
         'token' => $token,
         'wordset_id' => $wordset_id,
         'preview_limit' => $preview_limit,
         'offset' => $offset,
         'count' => $requested_count,
+        'category_ids' => $requested_category_ids,
     ];
     $cached_response = ll_tools_wordset_page_lazy_cards_ajax_cache_get($public_cache_args);
     if (is_array($cached_response)) {
@@ -15350,6 +15364,37 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $base_offset = max(0, (int) ($payload['base_offset'] ?? 0));
     $payload_total = max(0, (int) ($payload['total'] ?? 0));
     $total = max($payload_total, $base_offset + count($cards));
+    $render_context = (isset($payload['render_context']) && is_array($payload['render_context'])) ? $payload['render_context'] : [];
+
+    if (!empty($requested_category_ids)) {
+        $requested_lookup = array_fill_keys($requested_category_ids, true);
+        $matched_cards = [];
+        $matched_category_ids = [];
+        foreach ($cards as $card) {
+            if (!is_array($card) || ($card['type'] ?? '') !== 'category' || !isset($card['data']) || !is_array($card['data'])) {
+                continue;
+            }
+            $category_id = isset($card['data']['id']) ? (int) $card['data']['id'] : 0;
+            if ($category_id <= 0 || empty($requested_lookup[$category_id])) {
+                continue;
+            }
+            $matched_cards[] = $card;
+            $matched_category_ids[] = $category_id;
+        }
+
+        $matched_cards = ll_tools_wordset_page_hydrate_mixed_card_previews($matched_cards, $preview_limit);
+        $response = [
+            'html' => ll_tools_wordset_page_render_mixed_cards($matched_cards, $render_context),
+            'categoryIds' => array_values(array_unique($matched_category_ids)),
+            'loaded' => min($offset, $total),
+            'nextOffset' => min($offset, $total),
+            'hasMore' => ($offset < $total),
+        ];
+        ll_tools_wordset_page_lazy_cards_ajax_cache_set($public_cache_args, $response);
+        ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('MISS');
+        wp_send_json_success($response);
+    }
+
     if ($total === 0 || $offset >= $total) {
         wp_send_json_success([
             'html' => '',
@@ -15367,7 +15412,6 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $relative_offset = max(0, $offset - $base_offset);
     $slice = array_slice($cards, $relative_offset, $batch_size);
     $slice = ll_tools_wordset_page_hydrate_mixed_card_previews($slice, $preview_limit);
-    $render_context = (isset($payload['render_context']) && is_array($payload['render_context'])) ? $payload['render_context'] : [];
     $next_offset = min($total, $base_offset + $relative_offset + count($slice));
 
     $response = [

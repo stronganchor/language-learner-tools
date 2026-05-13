@@ -711,6 +711,27 @@
         return id;
     }
 
+    function isInteractiveQuizRoundState() {
+        return !!(
+            State &&
+            typeof State.is === 'function' &&
+            (
+                State.is(STATES.SHOWING_QUESTION) ||
+                State.is(STATES.PROCESSING_ANSWER)
+            )
+        );
+    }
+
+    function canStartDeferredQuizRound() {
+        if (!State.widgetActive || isInteractiveQuizRoundState()) {
+            return false;
+        }
+        if (typeof State.is !== 'function') {
+            return true;
+        }
+        return State.is(STATES.LOADING) || State.is(STATES.QUIZ_READY);
+    }
+
     function tryRecoverFirstRoundLoad() {
         const names = Array.isArray(State.categoryNames)
             ? State.categoryNames.filter(Boolean)
@@ -732,6 +753,7 @@
         const retryRound = function () {
             setGuardedTimeout(function () {
                 if (!State.widgetActive) { return; }
+                if (!canStartDeferredQuizRound()) { return; }
                 if (!State.isFirstRound) {
                     runQuizRound();
                     return;
@@ -3529,6 +3551,11 @@
     }
 
     function startQuizRound(number_of_options) {
+        if (isInteractiveQuizRoundState()) {
+            console.warn('Ignoring quiz round start while a question is active:', State.getState());
+            return;
+        }
+
         State.modeSessionCompleteTracked = false;
         if (State.isFirstRound) {
             if (!State.is(STATES.LOADING)) {
@@ -3577,6 +3604,9 @@
             }
 
             const bootstrapFirstRound = function () {
+                if (!canStartDeferredQuizRound()) {
+                    return;
+                }
                 // Ensure "starred only" can't accidentally produce a no-words error for single-category popups.
                 maybeFallbackStarModeForSingleCategoryQuiz();
 
@@ -3587,9 +3617,17 @@
                 });
 
                 updateModeSwitcherPanel();
-                const ready = State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
-                if (!ready) {
-                    State.forceTransitionTo(STATES.QUIZ_READY, 'Forced ready state after load');
+                if (!State.is(STATES.QUIZ_READY)) {
+                    const ready = State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
+                    if (!ready) {
+                        if (!canStartDeferredQuizRound()) {
+                            return;
+                        }
+                        State.forceTransitionTo(STATES.QUIZ_READY, 'Forced ready state after load');
+                    }
+                }
+                if (!State.canStartQuizRound()) {
+                    return;
                 }
                 runQuizRound();
             };
@@ -3646,6 +3684,9 @@
             if (!State.is(STATES.QUIZ_READY)) {
                 const ready = State.transitionTo(STATES.QUIZ_READY, 'Continuing quiz round');
                 if (!ready) {
+                    if (!canStartDeferredQuizRound()) {
+                        return;
+                    }
                     State.forceTransitionTo(STATES.QUIZ_READY, 'Forced continuation state');
                 }
             }
@@ -3960,6 +4001,14 @@
     function skipWordAfterMediaFailure(targetWord, reason, details) {
         const normalized = normalizeRoundWordId(targetWord && targetWord.id);
         if (!normalized) return false;
+        if (isInteractiveQuizRoundState()) {
+            console.warn('Ignoring stale media skip after the question became interactive', {
+                wordId: normalized,
+                reason: reason || '',
+                details: details || {}
+            });
+            return false;
+        }
         const attempts = incrementRoundMediaFailure(normalized);
         const shouldDropWord = attempts >= 2;
         let dropped = false;

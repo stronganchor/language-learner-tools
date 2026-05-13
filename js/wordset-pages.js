@@ -537,6 +537,9 @@
     let lazyCardsAutoLoadRaf = 0;
     let lazyCardsAutoLoadPollTimer = 0;
     let lazyCardsPlaceholderCount = 0;
+    let searchCardHydrationRequestToken = 0;
+    const searchCardHydratedIds = {};
+    const searchCardHydratingIds = {};
     let lazyCardsPlaceholderColumnCache = {
         width: 0,
         template: '',
@@ -1551,6 +1554,10 @@
                 delete_reason: String((cat && cat.delete_reason) || ''),
                 inactive_action_nonce: String((cat && cat.inactive_action_nonce) || ''),
                 inactive_action_url: String((cat && cat.inactive_action_url) || ''),
+                preview_deferred: normalizeBooleanFlag(cat && cat.preview_deferred),
+                preview_limit: Math.max(1, parseInt(cat && cat.preview_limit, 10) || 2),
+                preview_requires_images: normalizeBooleanFlag(cat && cat.preview_requires_images),
+                preview_aspect_ratio: String((cat && cat.preview_aspect_ratio) || ''),
                 preview: normalizeCategoryPreview(cat && cat.preview)
             };
         }).filter(Boolean);
@@ -1564,7 +1571,10 @@
                 return {
                     type: 'image',
                     url: String(source.url || ''),
-                    alt: String(source.alt || '')
+                    alt: String(source.alt || ''),
+                    ratio: String(source.ratio || ''),
+                    width: Math.max(0, parseInt(source.width, 10) || 0),
+                    height: Math.max(0, parseInt(source.height, 10) || 0)
                 };
             }
             return {
@@ -6726,7 +6736,9 @@
     function buildWordsetCategoryPreviewMarkup(category) {
         const cat = (category && typeof category === 'object') ? category : {};
         const previewItems = Array.isArray(cat.preview) ? cat.preview : [];
-        const previewSlotCount = Math.max(previewItems.length, cat.has_images ? 2 : 4, 1);
+        const configuredLimit = Math.max(0, parseInt(cat.preview_limit, 10) || 0);
+        const defaultSlotCount = (cat.has_images || cat.preview_requires_images) ? 2 : 4;
+        const previewSlotCount = Math.max(previewItems.length, configuredLimit || defaultSlotCount, 1);
         let html = '';
 
         for (let index = 0; index < previewSlotCount; index += 1) {
@@ -6737,8 +6749,15 @@
             }
 
             if (String(preview.type || '').toLowerCase() === 'image' && String(preview.url || '').trim() !== '') {
-                html += '<span class="ll-wordset-preview-item ll-wordset-preview-item--image">'
-                    + '<img src="' + escapeHtml(String(preview.url || '')) + '" alt="' + escapeHtml(String(preview.alt || '')) + '" loading="lazy" decoding="async" fetchpriority="low" />'
+                const ratio = String(preview.ratio || '').trim();
+                const ratioStyle = ratio ? ' style="aspect-ratio: ' + escapeHtml(ratio) + ' !important;"' : '';
+                const width = Math.max(0, parseInt(preview.width, 10) || 0);
+                const height = Math.max(0, parseInt(preview.height, 10) || 0);
+                html += '<span class="ll-wordset-preview-item ll-wordset-preview-item--image"' + ratioStyle + '>'
+                    + '<img src="' + escapeHtml(String(preview.url || '')) + '" alt="' + escapeHtml(String(preview.alt || '')) + '"'
+                    + (width > 0 ? ' width="' + width + '"' : '')
+                    + (height > 0 ? ' height="' + height + '"' : '')
+                    + ' loading="lazy" decoding="async" fetchpriority="low" />'
                     + '</span>';
                 continue;
             }
@@ -6862,6 +6881,10 @@
         const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
         const starredCount = Math.max(0, parseInt(starredLookup[categoryId], 10) || 0);
         const trackLoadingClass = (summaryMetricsLoading || cardProgressInitialLoading) ? ' is-loading' : '';
+        const previewAspectRatio = String(cat.preview_aspect_ratio || '').trim();
+        const previewStyle = previewAspectRatio
+            ? ' style="--ll-wordset-preview-aspect: ' + escapeHtml(previewAspectRatio) + ';"'
+            : '';
         const selectAria = formatTemplate(i18n.selectCategoryAria || 'Select %s', [catName]);
         const hideAria = formatTemplate(i18n.hideCategoryAria || 'Hide %s', [catName]);
         const starredAria = formatTemplate(i18n.starredWordsCategoryAria || 'Starred words in %s', [catName]);
@@ -6922,7 +6945,7 @@
                 + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
                 + '>';
         }
-        html += '  <div class="ll-wordset-card__preview ' + (cat.has_images ? 'has-images' : 'has-text') + '">';
+        html += '  <div class="ll-wordset-card__preview ' + (cat.has_images ? 'has-images' : 'has-text') + '"' + previewStyle + '>';
         if (isPublic && starredCount > 0) {
             html += '    <span class="ll-wordset-card__starred-pill ll-wordset-progress-pill ll-wordset-progress-pill--starred" aria-label="' + escapeHtml(starredAria) + '">'
                 + buildProgressIconMarkup('starred', 'll-wordset-progress-pill__icon ll-wordset-card__starred-icon')
@@ -7287,6 +7310,80 @@
         return removed;
     }
 
+    function categoryNeedsSearchCardHydration(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        if (!cat.preview_deferred) {
+            return false;
+        }
+        const previewItems = Array.isArray(cat.preview) ? cat.preview : [];
+        return !previewItems.some(function (item) {
+            const entry = (item && typeof item === 'object') ? item : {};
+            if (String(entry.type || '').toLowerCase() === 'image') {
+                return String(entry.url || '').trim() !== '';
+            }
+            return String(entry.label || '').trim() !== '';
+        });
+    }
+
+    function requestHydratedSearchMatchCards(categoryIds) {
+        if (!lazyCardsEnabled || !ajaxUrl || !lazyCardsNonce || !lazyCardsToken) {
+            return;
+        }
+
+        const ids = uniqueIntList(categoryIds || []).filter(function (categoryId) {
+            return categoryId > 0 && !searchCardHydratedIds[categoryId] && !searchCardHydratingIds[categoryId];
+        });
+        if (!ids.length) {
+            return;
+        }
+
+        const requestToken = ++searchCardHydrationRequestToken;
+        ids.forEach(function (categoryId) {
+            searchCardHydratingIds[categoryId] = true;
+        });
+
+        $.ajax({
+            url: ajaxUrl,
+            method: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'll_tools_wordset_page_lazy_cards',
+                nonce: lazyCardsNonce,
+                token: lazyCardsToken,
+                wordset_id: lazyCardsWordsetId,
+                preview_limit: lazyCardsPreviewLimit,
+                category_ids: ids.join(',')
+            }
+        }).done(function (response) {
+            const payload = (response && response.success && response.data && typeof response.data === 'object')
+                ? response.data
+                : null;
+            if (!payload) {
+                return;
+            }
+
+            const payloadIds = uniqueIntList(payload.categoryIds || payload.category_ids || []);
+            const hydratedIds = payloadIds.length ? payloadIds : ids;
+            hydratedIds.forEach(function (categoryId) {
+                searchCardHydratedIds[categoryId] = true;
+            });
+
+            if (payload.html) {
+                appendLazyCardsMarkup(payload.html);
+            }
+        }).always(function () {
+            ids.forEach(function (categoryId) {
+                delete searchCardHydratingIds[categoryId];
+            });
+            if (requestToken === searchCardHydrationRequestToken && isMainCategorySearchActive()) {
+                syncLazyCardsUi({
+                    loading: !!lazyCardsRequest,
+                    error: $lazyCardsRoot.hasClass('is-error')
+                });
+            }
+        });
+    }
+
     function ensureSearchMatchCardsRendered(visibleLookup, query) {
         const normalizedQuery = String(query || '').trim().toLowerCase();
         if (!normalizedQuery || !$grid.length) {
@@ -7299,11 +7396,21 @@
 
         const progressLookup = buildCategoryProgressLookupFromAnalytics();
         const starredLookup = buildCategoryStarredLookupFromAnalytics();
+        const hydrateCategoryIds = [];
         let $inserted = $();
 
         categories.forEach(function (category) {
             const categoryId = parseInt(category && category.id, 10) || 0;
-            if (!categoryId || !lookup[categoryId] || getWordsetCardByCategoryId(categoryId).length) {
+            if (!categoryId || !lookup[categoryId]) {
+                return;
+            }
+
+            const needsHydration = categoryNeedsSearchCardHydration(category);
+            const $existingCard = getWordsetCardByCategoryId(categoryId);
+            if ($existingCard.length) {
+                if (needsHydration && $existingCard.is('[data-ll-wordset-search-rendered="true"]')) {
+                    hydrateCategoryIds.push(categoryId);
+                }
                 return;
             }
 
@@ -7326,9 +7433,14 @@
             if ($mounted.length) {
                 $inserted = $inserted.add($mounted);
             }
+
+            if (needsHydration) {
+                hydrateCategoryIds.push(categoryId);
+            }
         });
 
         finalizeInsertedMainGridCards($inserted);
+        requestHydratedSearchMatchCards(hydrateCategoryIds);
         return $inserted.length;
     }
 
