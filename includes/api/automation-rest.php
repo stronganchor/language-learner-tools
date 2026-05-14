@@ -573,7 +573,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 2.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|review-notes|interlinear)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|prompt-cards|review-notes|interlinear)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 1.25;
     }
@@ -801,6 +801,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
+            'prompt_cards' => '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
             'review_notes' => '/ll-tools/v1/wordsets/{wordset}/review-notes',
@@ -2214,6 +2215,373 @@ function ll_tools_rest_automation_word_option_rules(WP_REST_Request $request) {
     return rest_ensure_response($summary);
 }
 
+function ll_tools_rest_automation_post_term_ids(int $post_id, string $taxonomy): array {
+    $term_ids = wp_get_post_terms($post_id, $taxonomy, ['fields' => 'ids']);
+    if (is_wp_error($term_ids)) {
+        return [];
+    }
+
+    return ll_tools_rest_automation_prepare_id_list((array) $term_ids);
+}
+
+function ll_tools_rest_automation_prompt_card_request_id(WP_REST_Request $request): int {
+    foreach (['prompt_card_id', 'object_id', 'id'] as $key) {
+        $value = $request->get_param($key);
+        if (is_scalar($value) && absint($value) > 0) {
+            return absint($value);
+        }
+    }
+
+    return 0;
+}
+
+function ll_tools_rest_automation_prompt_card_belongs_to_wordset(int $prompt_card_id, int $wordset_id): bool {
+    if ($prompt_card_id <= 0 || $wordset_id <= 0) {
+        return false;
+    }
+
+    return has_term($wordset_id, 'wordset', $prompt_card_id);
+}
+
+function ll_tools_rest_automation_prompt_card_ref_value($ref, array $keys = []): string {
+    if (is_scalar($ref)) {
+        return trim((string) $ref);
+    }
+
+    if (is_array($ref)) {
+        $candidate_keys = !empty($keys) ? $keys : ['id', 'term_id', 'slug', 'name'];
+        foreach ($candidate_keys as $key) {
+            if (isset($ref[$key]) && is_scalar($ref[$key])) {
+                return trim((string) $ref[$key]);
+            }
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_rest_automation_prompt_card_collect_refs($raw): array {
+    if (is_scalar($raw)) {
+        return [trim((string) $raw)];
+    }
+
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    if (ll_tools_rest_automation_array_is_list($raw)) {
+        return array_values($raw);
+    }
+
+    foreach (['ids', 'term_ids', 'slugs', 'categories', 'wordsets'] as $key) {
+        if (array_key_exists($key, $raw) && is_array($raw[$key])) {
+            return array_values($raw[$key]);
+        }
+    }
+
+    return [$raw];
+}
+
+function ll_tools_rest_automation_prompt_card_resolve_category_ref(WP_Term $wordset_term, $ref) {
+    $category_spec = ll_tools_rest_automation_prompt_card_ref_value($ref, ['id', 'term_id', 'category_id', 'slug', 'category_slug', 'name', 'category_name']);
+    if ($category_spec === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_empty_category',
+            __('Prompt-card category references cannot be empty.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $term = null;
+    if (is_numeric($category_spec)) {
+        $term = get_term((int) $category_spec, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        if (function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
+            $term = ll_tools_resolve_word_category_term_for_wordsets($category_spec, [(int) $wordset_term->term_id]);
+        }
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        $term = function_exists('ll_tools_resolve_word_category_term')
+            ? ll_tools_resolve_word_category_term($category_spec)
+            : get_term_by('slug', sanitize_title($category_spec), 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_category_not_found',
+            sprintf(
+                /* translators: %s: category identifier */
+                __('Unable to resolve prompt-card category: %s', 'll-tools-text-domain'),
+                $category_spec
+            ),
+            404
+        );
+    }
+
+    if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $term->term_id, (int) $wordset_term->term_id, true);
+        if ($effective_category_id > 0 && $effective_category_id !== (int) $term->term_id) {
+            $effective_term = get_term($effective_category_id, 'word-category');
+            if ($effective_term instanceof WP_Term && !is_wp_error($effective_term)) {
+                $term = $effective_term;
+            }
+        }
+    }
+
+    if (function_exists('ll_tools_get_category_wordset_owner_id')) {
+        $owner_wordset_id = (int) ll_tools_get_category_wordset_owner_id($term);
+        if ($owner_wordset_id > 0 && $owner_wordset_id !== (int) $wordset_term->term_id) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_prompt_card_category_forbidden',
+                __('That prompt-card category belongs to a different word set.', 'll-tools-text-domain'),
+                403
+            );
+        }
+    }
+
+    return $term;
+}
+
+function ll_tools_rest_automation_prompt_card_resolve_category_ids(WP_Term $wordset_term, $raw) {
+    $refs = ll_tools_rest_automation_prompt_card_collect_refs($raw);
+    $category_ids = [];
+    foreach ($refs as $ref) {
+        $term = ll_tools_rest_automation_prompt_card_resolve_category_ref($wordset_term, $ref);
+        if (is_wp_error($term)) {
+            return $term;
+        }
+        $category_ids[] = (int) $term->term_id;
+    }
+
+    $category_ids = ll_tools_rest_automation_prepare_id_list($category_ids);
+    if (empty($category_ids)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_missing_category',
+            __('Provide at least one word-category assignment for the prompt card.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    return $category_ids;
+}
+
+function ll_tools_rest_automation_prompt_card_resolve_wordset_ref($ref) {
+    $wordset_spec = ll_tools_rest_automation_prompt_card_ref_value($ref, ['id', 'term_id', 'wordset_id', 'slug', 'wordset_slug', 'name', 'wordset_name']);
+    if ($wordset_spec === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_empty_wordset',
+            __('Prompt-card word set references cannot be empty.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $term = null;
+    if (is_numeric($wordset_spec)) {
+        $term = get_term((int) $wordset_spec, 'wordset');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        $term = ll_tools_cli_resolve_wordset_term($wordset_spec);
+    }
+    if (is_wp_error($term)) {
+        return ll_tools_rest_automation_with_status($term, 404);
+    }
+    if (!($term instanceof WP_Term)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_wordset_not_found',
+            sprintf(
+                /* translators: %s: word set identifier */
+                __('Unable to resolve prompt-card word set: %s', 'll-tools-text-domain'),
+                $wordset_spec
+            ),
+            404
+        );
+    }
+
+    return $term;
+}
+
+function ll_tools_rest_automation_prompt_card_resolve_wordset_ids(int $route_wordset_id, $raw) {
+    $refs = ll_tools_rest_automation_prompt_card_collect_refs($raw);
+    $wordset_ids = [];
+    foreach ($refs as $ref) {
+        $term = ll_tools_rest_automation_prompt_card_resolve_wordset_ref($ref);
+        if (is_wp_error($term)) {
+            return $term;
+        }
+        $wordset_ids[] = (int) $term->term_id;
+    }
+
+    $wordset_ids = ll_tools_rest_automation_prepare_id_list($wordset_ids);
+    if (empty($wordset_ids)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_missing_wordset',
+            __('Provide at least one word set assignment for the prompt card.', 'll-tools-text-domain'),
+            400
+        );
+    }
+    if (!in_array($route_wordset_id, $wordset_ids, true)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_wordset_scope_missing',
+            __('Prompt-card word set assignments must include the route word set.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    return $wordset_ids;
+}
+
+function ll_tools_rest_automation_prompt_card_terms_payload(int $post_id, string $taxonomy): array {
+    $terms = wp_get_post_terms($post_id, $taxonomy);
+    if (is_wp_error($terms)) {
+        return [];
+    }
+
+    $payload = [];
+    foreach ((array) $terms as $term) {
+        if ($term instanceof WP_Term) {
+            $payload[] = ll_tools_rest_automation_term_summary($term);
+        }
+    }
+
+    return $payload;
+}
+
+function ll_tools_rest_automation_prompt_card_payload(int $prompt_card_id): array {
+    $post = get_post($prompt_card_id);
+    $card = function_exists('ll_tools_get_prompt_card_data')
+        ? ll_tools_get_prompt_card_data($prompt_card_id)
+        : [];
+
+    return [
+        'id' => $prompt_card_id,
+        'title' => $post instanceof WP_Post ? (string) $post->post_title : '',
+        'status' => $post instanceof WP_Post ? (string) $post->post_status : '',
+        'data' => $card,
+        'categories' => ll_tools_rest_automation_prompt_card_terms_payload($prompt_card_id, 'word-category'),
+        'wordsets' => ll_tools_rest_automation_prompt_card_terms_payload($prompt_card_id, 'wordset'),
+    ];
+}
+
+function ll_tools_rest_automation_prompt_cards(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $prompt_card_id = ll_tools_rest_automation_prompt_card_request_id($request);
+    if ($prompt_card_id <= 0) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_missing_id',
+            __('Provide prompt_card_id, object_id, or id for the prompt card to update.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $post = get_post($prompt_card_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== (defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_not_found',
+            __('That prompt card was not found.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    if (!ll_tools_rest_automation_prompt_card_belongs_to_wordset($prompt_card_id, $wordset_id)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_prompt_card_wrong_wordset',
+            __('That prompt card does not belong to the selected word set.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $before_category_ids = function_exists('ll_tools_prompt_card_get_word_category_term_ids')
+        ? ll_tools_prompt_card_get_word_category_term_ids($prompt_card_id)
+        : ll_tools_rest_automation_post_term_ids($prompt_card_id, 'word-category');
+    $before_wordset_ids = ll_tools_rest_automation_post_term_ids($prompt_card_id, 'wordset');
+    $before_payload = ll_tools_rest_automation_prompt_card_payload($prompt_card_id);
+    $fields = [];
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['prompt_text', 'prompt'])) {
+        $fields['prompt_text'] = ll_tools_rest_automation_first_request_param($request, ['prompt_text', 'prompt']);
+    }
+    $has_prompt_audio_attachment = ll_tools_rest_automation_request_has_any_param($request, ['prompt_audio_attachment_id', 'prompt_audio_id']);
+    if ($has_prompt_audio_attachment) {
+        $fields['prompt_audio_attachment_id'] = ll_tools_rest_automation_first_request_param($request, ['prompt_audio_attachment_id', 'prompt_audio_id']);
+    }
+    if (ll_tools_rest_automation_request_has_any_param($request, ['prompt_audio_url', 'prompt_audio'])) {
+        $prompt_audio_url = ll_tools_rest_automation_first_request_param($request, ['prompt_audio_url', 'prompt_audio']);
+        $fields['prompt_audio_url'] = $prompt_audio_url;
+        if (!$has_prompt_audio_attachment && is_scalar($prompt_audio_url) && trim((string) $prompt_audio_url) !== '') {
+            $fields['prompt_audio_attachment_id'] = 0;
+        }
+    }
+    if (ll_tools_rest_automation_request_has_any_param($request, ['prompt_image_word_id', 'prompt_image_id'])) {
+        $fields['prompt_image_word_id'] = ll_tools_rest_automation_first_request_param($request, ['prompt_image_word_id', 'prompt_image_id']);
+    }
+    if (ll_tools_rest_automation_request_has_any_param($request, ['correct_answer_word_id', 'answer_word_id'])) {
+        $fields['correct_answer_word_id'] = ll_tools_rest_automation_first_request_param($request, ['correct_answer_word_id', 'answer_word_id']);
+    }
+    if (ll_tools_rest_automation_request_has_any_param($request, ['wrong_answer_word_ids', 'wrong_answer_ids'])) {
+        $fields['wrong_answer_word_ids'] = ll_tools_rest_automation_first_request_param($request, ['wrong_answer_word_ids', 'wrong_answer_ids']);
+    }
+    if (ll_tools_rest_automation_request_has_any_param($request, ['track_answer_word_progress'])) {
+        $fields['track_answer_word_progress'] = rest_sanitize_boolean($request->get_param('track_answer_word_progress'));
+    }
+
+    $changed_keys = [];
+    if (!empty($fields) && function_exists('ll_tools_update_prompt_card_configuration')) {
+        $changed_keys = ll_tools_update_prompt_card_configuration($prompt_card_id, $fields);
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['category_ids', 'categories', 'category', 'category_slug'])) {
+        $category_raw = ll_tools_rest_automation_first_request_param($request, ['category_ids', 'categories', 'category', 'category_slug']);
+        $category_ids = ll_tools_rest_automation_prompt_card_resolve_category_ids($wordset_term, $category_raw);
+        if (is_wp_error($category_ids)) {
+            return $category_ids;
+        }
+
+        $assigned = wp_set_post_terms($prompt_card_id, $category_ids, 'word-category', false);
+        if (is_wp_error($assigned)) {
+            return ll_tools_rest_automation_with_status($assigned, 400);
+        }
+        if (ll_tools_rest_automation_prepare_id_list($before_category_ids) !== ll_tools_rest_automation_prepare_id_list((array) $category_ids)) {
+            $changed_keys[] = 'categories';
+        }
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['wordset_ids', 'wordsets'])) {
+        $wordset_raw = ll_tools_rest_automation_first_request_param($request, ['wordset_ids', 'wordsets']);
+        $wordset_ids = ll_tools_rest_automation_prompt_card_resolve_wordset_ids($wordset_id, $wordset_raw);
+        if (is_wp_error($wordset_ids)) {
+            return $wordset_ids;
+        }
+
+        $assigned = wp_set_post_terms($prompt_card_id, $wordset_ids, 'wordset', false);
+        if (is_wp_error($assigned)) {
+            return ll_tools_rest_automation_with_status($assigned, 400);
+        }
+        if (ll_tools_rest_automation_prepare_id_list($before_wordset_ids) !== ll_tools_rest_automation_prepare_id_list((array) $wordset_ids)) {
+            $changed_keys[] = 'wordsets';
+        }
+    }
+
+    $bumped_category_ids = function_exists('ll_tools_prompt_card_invalidate_category_caches')
+        ? ll_tools_prompt_card_invalidate_category_caches($prompt_card_id, $before_category_ids)
+        : [];
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
+        'prompt_card_id' => $prompt_card_id,
+        'changed' => !empty($changed_keys),
+        'changed_keys' => array_values(array_unique(array_map('strval', $changed_keys))),
+        'bumped_category_ids' => $bumped_category_ids,
+        'before' => $before_payload,
+        'after' => ll_tools_rest_automation_prompt_card_payload($prompt_card_id),
+    ]);
+}
+
 function ll_tools_rest_automation_wordset_report_summary(WP_REST_Request $request) {
     $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
     if (is_wp_error($wordset_term)) {
@@ -3414,6 +3782,53 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_word_option_rules',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/prompt-cards', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_prompt_cards',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'prompt_card_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'object_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'prompt_text' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'prompt_audio_url' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'prompt_audio_attachment_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'prompt_image_word_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'correct_answer_word_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'wrong_answer_word_ids' => [
+                'required' => false,
+            ],
+            'track_answer_word_progress' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+        ],
     ]);
 
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/report', [

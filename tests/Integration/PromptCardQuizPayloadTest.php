@@ -69,6 +69,128 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertSame([$fixture['is_this_horse_card_id']], $this->normalizeIds((array) ($no_support_row['specific_wrong_answer_owner_ids'] ?? [])));
     }
 
+    public function test_prompt_card_admin_save_invalidates_cached_wrong_answer_payload(): void
+    {
+        $asset_category_id = $this->createCategory('Prompt Card Cache Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
+        $prompt_category_name = 'Prompt Card Cache Questions ' . wp_generate_password(5, false);
+        $prompt_category_id = $this->createCategory($prompt_category_name, 'text_title', 'text_title');
+        $wordset_id = $this->createWordset('Prompt Card Cache Wordset ' . wp_generate_password(5, false));
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $answer_id = $this->createWord($asset_category_id, 'Cache Answer');
+        $wrong_one_id = $this->createWord($asset_category_id, 'Cache Wrong One');
+        $wrong_two_id = $this->createWord($asset_category_id, 'Cache Wrong Two');
+        $wrong_three_id = $this->createWord($asset_category_id, 'Cache Wrong Three');
+        foreach ([$answer_id, $wrong_one_id, $wrong_two_id, $wrong_three_id] as $word_id) {
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'Cached Wrong Answers',
+            'prompt_text' => 'Choose the cached answer.',
+            'correct_answer_word_id' => $answer_id,
+            'wrong_answer_word_ids' => [$wrong_one_id, $wrong_two_id, $wrong_three_id],
+            'track_answer_word_progress' => true,
+        ]);
+
+        $config = [
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+        ];
+
+        $primed_rows = ll_get_words_by_category($prompt_category_name, 'text_title', [$wordset_id], $config);
+        $primed_prompt_row = $this->findPromptCardRow((array) $primed_rows, $prompt_card_id);
+        $this->assertSame(
+            [$wrong_one_id, $wrong_two_id, $wrong_three_id],
+            $this->normalizeIds((array) ($primed_prompt_row['specific_wrong_answer_ids'] ?? []))
+        );
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $post = get_post($prompt_card_id);
+        $this->assertInstanceOf(WP_Post::class, $post);
+
+        $post_backup = $_POST;
+        try {
+            $_POST = [
+                'll_tools_prompt_card_nonce' => wp_create_nonce('ll_tools_prompt_card_save'),
+                'll_prompt_card_prompt_text' => 'Choose the updated cached answer.',
+                'll_prompt_card_prompt_audio_attachment_id' => '0',
+                'll_prompt_card_prompt_audio_url' => '',
+                'll_prompt_card_prompt_image_word_id' => '0',
+                'll_prompt_card_correct_answer_word_id' => (string) $answer_id,
+                'll_prompt_card_wrong_answer_word_ids' => $wrong_one_id . ', ' . $wrong_three_id,
+                'll_prompt_card_track_answer_word_progress' => '1',
+            ];
+            ll_tools_prompt_card_save_post($prompt_card_id, $post);
+        } finally {
+            $_POST = $post_backup;
+        }
+
+        $updated_rows = ll_get_words_by_category($prompt_category_name, 'text_title', [$wordset_id], $config);
+        $updated_prompt_row = $this->findPromptCardRow((array) $updated_rows, $prompt_card_id);
+
+        $this->assertSame(
+            [$wrong_one_id, $wrong_three_id],
+            $this->normalizeIds((array) ($updated_prompt_row['specific_wrong_answer_ids'] ?? []))
+        );
+    }
+
+    public function test_prompt_card_rest_route_invalidates_cached_wrong_answer_payload_and_allows_clearing(): void
+    {
+        $fixture = $this->createPromptCardFixture();
+        $term = get_term($fixture['effective_prompt_category_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $config = ll_tools_get_category_quiz_config($term);
+        $primed_rows = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+        $primed_prompt_row = $this->findPromptCardRow((array) $primed_rows, (int) $fixture['horse_or_cow_card_id']);
+        $this->assertSame([$fixture['cow_id']], $this->normalizeIds((array) ($primed_prompt_row['specific_wrong_answer_ids'] ?? [])));
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+        wp_set_current_user($admin_id);
+
+        $update = $this->dispatchLlToolsRestRequest('POST', '/ll-tools/v1/wordsets/' . $fixture['wordset_id'] . '/prompt-cards', [
+            'prompt_card_id' => $fixture['horse_or_cow_card_id'],
+            'prompt_text' => 'Updated REST prompt question.',
+            'prompt_audio_url' => 'https://example.com/rest-updated-prompt.mp3',
+            'prompt_image_word_id' => $fixture['horse_id'],
+            'correct_answer_word_id' => $fixture['horse_id'],
+            'wrong_answer_word_ids' => [$fixture['cow_id'], $fixture['no_id']],
+            'category_ids' => [$fixture['effective_prompt_category_id']],
+            'wordset_ids' => [$fixture['wordset_id']],
+            'track_answer_word_progress' => false,
+        ]);
+
+        $this->assertSame(200, $update->get_status());
+        $update_data = $update->get_data();
+        $this->assertIsArray($update_data);
+        $changed_keys = array_values(array_map('strval', (array) ($update_data['changed_keys'] ?? [])));
+        $this->assertContains('prompt_text', $changed_keys);
+        $this->assertContains('wrong_answer_word_ids', $changed_keys);
+        $this->assertContains('track_answer_word_progress', $changed_keys);
+
+        $updated_rows = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+        $updated_prompt_row = $this->findPromptCardRow((array) $updated_rows, (int) $fixture['horse_or_cow_card_id']);
+        $this->assertSame([$fixture['cow_id'], $fixture['no_id']], $this->normalizeIds((array) ($updated_prompt_row['specific_wrong_answer_ids'] ?? [])));
+        $this->assertSame('Updated REST prompt question.', (string) ($updated_prompt_row['prompt_label'] ?? ''));
+        $this->assertFalse((bool) ($updated_prompt_row['track_answer_word_progress'] ?? true));
+
+        $clear = $this->dispatchLlToolsRestRequest('POST', '/ll-tools/v1/wordsets/' . $fixture['wordset_id'] . '/prompt-cards', [
+            'prompt_card_id' => $fixture['horse_or_cow_card_id'],
+            'wrong_answer_word_ids' => [],
+        ]);
+        $this->assertSame(200, $clear->get_status());
+
+        $cleared_rows = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+        $cleared_prompt_row = $this->findPromptCardRow((array) $cleared_rows, (int) $fixture['horse_or_cow_card_id']);
+        $this->assertSame([], $this->normalizeIds((array) ($cleared_prompt_row['specific_wrong_answer_ids'] ?? [])));
+    }
+
     public function test_prompt_card_progress_batches_support_wordless_cards_and_scoped_reset(): void
     {
         $fixture = $this->createPromptCardFixture();
@@ -300,6 +422,47 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         }
 
         return $category_id;
+    }
+
+    private function findPromptCardRow(array $rows, int $prompt_card_id): array
+    {
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if (!empty($row['is_prompt_card']) && (int) ($row['prompt_card_id'] ?? 0) === $prompt_card_id) {
+                return $row;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string,mixed> $params
+     */
+    private function dispatchLlToolsRestRequest(string $method, string $route, array $params = []): WP_REST_Response
+    {
+        $rest_route_backup = $_GET['rest_route'] ?? null;
+        $_GET['rest_route'] = $route;
+
+        try {
+            $request = new WP_REST_Request($method, $route);
+            foreach ($params as $key => $value) {
+                $request->set_param($key, $value);
+            }
+
+            $response = rest_get_server()->dispatch($request);
+            $this->assertNotWPError($response);
+
+            return rest_ensure_response($response);
+        } finally {
+            if ($rest_route_backup === null) {
+                unset($_GET['rest_route']);
+            } else {
+                $_GET['rest_route'] = $rest_route_backup;
+            }
+        }
     }
 
     /**
