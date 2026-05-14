@@ -1850,6 +1850,98 @@ function ll_tools_site_sync_merge_base_snapshot_after_pull(array $base_snapshot,
     return $merged;
 }
 
+function ll_tools_site_sync_merge_base_snapshot_after_push(array $base_snapshot, array $fresh_remote_snapshot, array $sent_updates): array {
+    $sent_updates = array_values(array_filter($sent_updates, 'is_array'));
+    if (empty($sent_updates)) {
+        return $base_snapshot;
+    }
+
+    $fresh_remote_by_recording_id = [];
+    foreach ((array) ($fresh_remote_snapshot['records'] ?? []) as $remote_record) {
+        if (!is_array($remote_record)) {
+            continue;
+        }
+        $recording_id = (int) ($remote_record['recording']['id'] ?? 0);
+        if ($recording_id > 0) {
+            $fresh_remote_by_recording_id[$recording_id] = $remote_record;
+        }
+    }
+
+    $updates_by_key = [];
+    foreach ($sent_updates as $update) {
+        $recording_id = (int) ($update['recording_id'] ?? 0);
+        if ($recording_id <= 0 || !isset($fresh_remote_by_recording_id[$recording_id])) {
+            continue;
+        }
+
+        $remote_record = $fresh_remote_by_recording_id[$recording_id];
+        $key = ll_tools_site_sync_record_lookup_key($remote_record);
+        if ($key === '') {
+            continue;
+        }
+
+        $remote_values = ll_tools_site_sync_normalize_record_values((array) ($remote_record['values'] ?? []));
+        $verified_fields = [];
+        foreach (ll_tools_site_sync_transcription_value_keys() as $field) {
+            if (!array_key_exists($field, $update)) {
+                continue;
+            }
+            if (ll_tools_site_sync_values_equal($remote_values[$field] ?? '', $update[$field])) {
+                $verified_fields[$field] = $remote_values[$field] ?? '';
+            }
+        }
+
+        if (!empty($verified_fields)) {
+            $updates_by_key[$key] = [
+                'record' => $remote_record,
+                'fields' => $verified_fields,
+            ];
+        }
+    }
+
+    if (empty($updates_by_key)) {
+        return $base_snapshot;
+    }
+
+    $merged = $base_snapshot;
+    $records = [];
+    $seen_keys = [];
+    foreach ((array) ($base_snapshot['records'] ?? []) as $base_record) {
+        if (!is_array($base_record)) {
+            continue;
+        }
+
+        $key = ll_tools_site_sync_record_lookup_key($base_record);
+        if ($key !== '' && isset($updates_by_key[$key])) {
+            $base_values = ll_tools_site_sync_normalize_record_values((array) ($base_record['values'] ?? []));
+            foreach ($updates_by_key[$key]['fields'] as $field => $value) {
+                $base_values[$field] = $value;
+            }
+            $base_record['values'] = $base_values;
+            $base_record['value_hash'] = ll_tools_site_sync_value_hash($base_values);
+            $seen_keys[$key] = true;
+        }
+
+        $records[] = $base_record;
+    }
+
+    foreach ($updates_by_key as $key => $update) {
+        if (isset($seen_keys[$key])) {
+            continue;
+        }
+        $remote_record = $update['record'];
+        $remote_values = ll_tools_site_sync_normalize_record_values((array) ($remote_record['values'] ?? []));
+        $remote_record['values'] = $remote_values;
+        $remote_record['value_hash'] = ll_tools_site_sync_value_hash($remote_values);
+        $records[] = $remote_record;
+    }
+
+    $merged['records'] = $records;
+    $merged['record_count'] = count($records);
+    $merged['generated_at_gmt'] = gmdate('c');
+    return $merged;
+}
+
 function ll_tools_site_sync_compact_base_snapshot(array $snapshot): array {
     $compacted = $snapshot;
     $records = [];

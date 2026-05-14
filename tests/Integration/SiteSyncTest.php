@@ -305,6 +305,121 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) (($result['progress'] ?? [])['next_remote_updates'] ?? -1));
     }
 
+    public function test_apply_push_batch_keeps_remote_only_changes_out_of_next_push(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Push Base Guard Wordset', 'push-base-guard-wordset');
+        $category_id = $this->ensure_term('word-category', 'Push Base Guard Category', 'push-base-guard-category');
+        $changed_word_id = $this->create_word($wordset_id, [$category_id], 'Push Base Guard Changed', 'Changed');
+        $remote_word_id = $this->create_word($wordset_id, [$category_id], 'Push Base Guard Remote', 'Remote');
+        $changed_recording_id = $this->create_recording($changed_word_id, 'Push Base Guard Changed Recording', [
+            'recording_ipa' => 'base.changed',
+        ]);
+        $remote_recording_id = $this->create_recording($remote_word_id, 'Push Base Guard Remote Recording', [
+            'recording_ipa' => 'pulled.remote',
+        ]);
+        update_post_meta($changed_recording_id, ll_tools_site_sync_uuid_meta_key(), 'push-base-guard-changed');
+        update_post_meta($remote_recording_id, ll_tools_site_sync_uuid_meta_key(), 'push-base-guard-remote');
+
+        $connection = [
+            'local_wordset_id' => $wordset_id,
+            'remote_url' => 'https://example.com',
+            'remote_wordset' => 'remote-wordset',
+            'remote_username' => 'remote-user',
+            'surface' => 'transcriptions',
+        ];
+        update_option(ll_tools_site_sync_connection_option_name(), $connection, false);
+        $base = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true, [
+            'include_media' => false,
+        ]);
+        $this->assertIsArray($base);
+        ll_tools_site_sync_save_base_snapshot($connection, $base);
+
+        $remote_records = [];
+        foreach ((array) ($base['records'] ?? []) as $record) {
+            $record = (array) $record;
+            if ((string) ($record['sync_id'] ?? '') === 'push-base-guard-changed') {
+                $record['recording']['id'] = 9101;
+            } elseif ((string) ($record['sync_id'] ?? '') === 'push-base-guard-remote') {
+                $record['recording']['id'] = 9102;
+                $record['values']['recording_ipa'] = 'live.remote';
+                $record['values'] = ll_tools_site_sync_normalize_record_values((array) $record['values']);
+                $record['value_hash'] = ll_tools_site_sync_value_hash((array) $record['values']);
+            }
+            $remote_records[] = $record;
+        }
+        update_post_meta($changed_recording_id, 'recording_ipa', 'local.changed');
+
+        $http_filter = static function ($preempt, array $args, string $url) use (&$remote_records) {
+            unset($preempt);
+            if (str_contains($url, '/site-sync/snapshot')) {
+                return [
+                    'headers' => [],
+                    'body' => wp_json_encode([
+                        'schema_version' => LL_TOOLS_SITE_SYNC_SCHEMA_VERSION,
+                        'surface' => 'transcriptions',
+                        'generated_at_gmt' => gmdate('c'),
+                        'wordset' => ['id' => 1, 'slug' => 'remote-wordset', 'name' => 'Remote Wordset'],
+                        'record_count' => count($remote_records),
+                        'records_returned' => count($remote_records),
+                        'include_media' => false,
+                        'records' => $remote_records,
+                    ]),
+                    'response' => ['code' => 200, 'message' => 'OK'],
+                    'cookies' => [],
+                    'filename' => null,
+                ];
+            }
+
+            if (str_contains($url, '/transcriptions')) {
+                $body = json_decode((string) ($args['body'] ?? ''), true);
+                $updates = array_values((array) ($body['updates'] ?? []));
+                foreach ($updates as $update) {
+                    $recording_id = (int) ($update['recording_id'] ?? 0);
+                    foreach ($remote_records as &$remote_record) {
+                        if ((int) (($remote_record['recording'] ?? [])['id'] ?? 0) !== $recording_id) {
+                            continue;
+                        }
+                        foreach (['recording_text', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'] as $field) {
+                            if (array_key_exists($field, $update)) {
+                                $remote_record['values'][$field] = $update[$field];
+                            }
+                        }
+                        $remote_record['values'] = ll_tools_site_sync_normalize_record_values((array) ($remote_record['values'] ?? []));
+                        $remote_record['value_hash'] = ll_tools_site_sync_value_hash((array) ($remote_record['values'] ?? []));
+                    }
+                    unset($remote_record);
+                }
+
+                return [
+                    'headers' => [],
+                    'body' => wp_json_encode([
+                        'matched_count' => count($updates),
+                        'updated_count' => count($updates),
+                        'updated' => [],
+                        'errors' => [],
+                    ]),
+                    'response' => ['code' => 200, 'message' => 'OK'],
+                    'cookies' => [],
+                    'filename' => null,
+                ];
+            }
+
+            return false;
+        };
+
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        try {
+            $result = ll_tools_site_sync_apply_push_batch($connection, 'remote-password', 'skip');
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+        }
+
+        $this->assertSame([], (array) ($result['errors'] ?? []));
+        $this->assertSame(1, (int) (($result['progress'] ?? [])['sent_remote_updates'] ?? 0));
+        $this->assertTrue((bool) (($result['progress'] ?? [])['done'] ?? false));
+        $this->assertSame(0, (int) (($result['progress'] ?? [])['next_remote_updates'] ?? -1));
+    }
+
     public function test_remote_snapshot_fetch_combines_paged_responses(): void
     {
         $offsets = [];

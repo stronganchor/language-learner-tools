@@ -763,11 +763,11 @@ function ll_tools_site_sync_apply_push_batch(array $connection, string $password
         return $result;
     }
 
-    $base_merge_plan = $plan;
-    if (in_array($conflict_mode, ['accept_live', 'push_local'], true)) {
-        $base_merge_plan['conflicts'] = [];
+    $base_updates = $remote_updates_to_send;
+    if ($flag_conflicts && !empty($conflict_review_updates_to_send)) {
+        $base_updates = array_merge($base_updates, $conflict_review_updates_to_send);
     }
-    $merged_base = ll_tools_site_sync_merge_base_snapshot_after_pull($base_snapshot, $fresh_remote_snapshot, $base_merge_plan);
+    $merged_base = ll_tools_site_sync_merge_base_snapshot_after_push($base_snapshot, $fresh_remote_snapshot, $base_updates);
     ll_tools_site_sync_save_base_snapshot($connection, $merged_base);
 
     $next_plan = ll_tools_site_sync_build_push_plan($local_snapshot, $fresh_remote_snapshot, $merged_base);
