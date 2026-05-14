@@ -143,12 +143,19 @@ function ll_tools_duplicate_category_words_user_can_access_wordset($wordset_id):
         return false;
     }
 
-    $manager_user_id = (int) get_term_meta($wordset_id, 'manager_user_id', true);
-    if ($manager_user_id <= 0) {
+    if (function_exists('ll_tools_current_user_can_manage_wordset_content')) {
+        return ll_tools_current_user_can_manage_wordset_content($wordset_id);
+    }
+
+    $manager_user_ids = function_exists('ll_tools_get_wordset_manager_user_ids')
+        ? ll_tools_get_wordset_manager_user_ids($wordset_id, true)
+        : [(int) get_term_meta($wordset_id, 'manager_user_id', true)];
+    $manager_user_ids = array_values(array_filter(array_map('intval', (array) $manager_user_ids)));
+    if (empty($manager_user_ids)) {
         return true;
     }
 
-    return ((int) get_current_user_id()) === $manager_user_id;
+    return in_array((int) get_current_user_id(), $manager_user_ids, true);
 }
 
 /**

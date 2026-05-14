@@ -286,7 +286,11 @@ function ll_tools_create_wordset_from_template(int $source_wordset_id, array $ar
     }
 
     if ($manager_user_id > 0) {
-        update_term_meta($target_wordset_id, 'manager_user_id', $manager_user_id);
+        if (function_exists('ll_tools_set_wordset_manager_user_ids')) {
+            ll_tools_set_wordset_manager_user_ids($target_wordset_id, [$manager_user_id], $manager_user_id);
+        } else {
+            update_term_meta($target_wordset_id, 'manager_user_id', $manager_user_id);
+        }
     }
 
     $category_id_map = [];

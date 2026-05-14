@@ -66,6 +66,40 @@ if (!function_exists('ll_tools_is_learner_self_registration_available')) {
                 return true;
             }
         }
+        $redirect_to = isset($_POST['redirect_to']) ? wp_unslash((string) $_POST['redirect_to']) : '';
+        $redirect_query = [];
+        if ($redirect_to !== '') {
+            $query = (string) wp_parse_url($redirect_to, PHP_URL_QUERY);
+            if ($query !== '') {
+                parse_str($query, $redirect_query);
+            }
+        }
+        if (
+            defined('LL_TOOLS_RECORDER_INVITE_QUERY_ARG')
+            && function_exists('ll_tools_recorder_invite_parse_token')
+            && !empty($redirect_query[LL_TOOLS_RECORDER_INVITE_QUERY_ARG])
+        ) {
+            $recorder_invite = ll_tools_recorder_invite_parse_token((string) $redirect_query[LL_TOOLS_RECORDER_INVITE_QUERY_ARG]);
+            if (!is_wp_error($recorder_invite)) {
+                return true;
+            }
+        }
+
+        if (function_exists('ll_tools_wordset_manager_invite_current_request_allows_signup_registration')) {
+            if (ll_tools_wordset_manager_invite_current_request_allows_signup_registration()) {
+                return true;
+            }
+        }
+        if (
+            defined('LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG')
+            && function_exists('ll_tools_wordset_manager_invite_parse_token')
+            && !empty($redirect_query[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG])
+        ) {
+            $manager_invite = ll_tools_wordset_manager_invite_parse_token((string) $redirect_query[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG]);
+            if (!is_wp_error($manager_invite)) {
+                return true;
+            }
+        }
 
         if (function_exists('ll_tools_teacher_class_current_request_allows_signup_registration')) {
             return ll_tools_teacher_class_current_request_allows_signup_registration();
@@ -1175,6 +1209,40 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
             ? ll_tools_recorder_invite_get_request_context()
             : [];
         $is_recorder_invite_registration = is_array($recorder_invite_context) && !empty($recorder_invite_context['wordset_id']);
+        $manager_invite_token = function_exists('ll_tools_wordset_manager_invite_get_request_token')
+            ? ll_tools_wordset_manager_invite_get_request_token()
+            : '';
+        $manager_invite_context = function_exists('ll_tools_wordset_manager_invite_get_request_context')
+            ? ll_tools_wordset_manager_invite_get_request_context()
+            : [];
+        $is_manager_invite_registration = is_array($manager_invite_context) && !empty($manager_invite_context['wordset_id']);
+        if (!$is_recorder_invite_registration || !$is_manager_invite_registration) {
+            $redirect_query = [];
+            $redirect_query_string = (string) wp_parse_url($raw_redirect, PHP_URL_QUERY);
+            if ($redirect_query_string !== '') {
+                parse_str($redirect_query_string, $redirect_query);
+            }
+            if (
+                !$is_recorder_invite_registration
+                && defined('LL_TOOLS_RECORDER_INVITE_QUERY_ARG')
+                && function_exists('ll_tools_recorder_invite_parse_token')
+                && !empty($redirect_query[LL_TOOLS_RECORDER_INVITE_QUERY_ARG])
+            ) {
+                $recorder_invite_token = (string) $redirect_query[LL_TOOLS_RECORDER_INVITE_QUERY_ARG];
+                $recorder_invite_context = ll_tools_recorder_invite_parse_token($recorder_invite_token);
+                $is_recorder_invite_registration = is_array($recorder_invite_context) && !empty($recorder_invite_context['wordset_id']);
+            }
+            if (
+                !$is_manager_invite_registration
+                && defined('LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG')
+                && function_exists('ll_tools_wordset_manager_invite_parse_token')
+                && !empty($redirect_query[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG])
+            ) {
+                $manager_invite_token = (string) $redirect_query[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG];
+                $manager_invite_context = ll_tools_wordset_manager_invite_parse_token($manager_invite_token);
+                $is_manager_invite_registration = is_array($manager_invite_context) && !empty($manager_invite_context['wordset_id']);
+            }
+        }
 
         if (is_user_logged_in()) {
             wp_safe_redirect($redirect_to);
@@ -1282,13 +1350,28 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         if ($is_recorder_invite_registration && function_exists('ll_tools_register_or_refresh_audio_recorder_role')) {
             ll_tools_register_or_refresh_audio_recorder_role();
         }
+        if ($is_manager_invite_registration) {
+            if (function_exists('ll_create_wordset_manager_role')) {
+                ll_create_wordset_manager_role();
+            }
+            if (function_exists('ll_ensure_wordset_manager_has_view_ll_tools_cap')) {
+                ll_ensure_wordset_manager_has_view_ll_tools_cap();
+            }
+        }
+
+        $registration_role = 'll_tools_learner';
+        if ($is_manager_invite_registration) {
+            $registration_role = 'wordset_manager';
+        } elseif ($is_recorder_invite_registration) {
+            $registration_role = 'audio_recorder';
+        }
 
         $insert_args = [
             'user_login' => $username,
             'user_email' => $email,
             'user_pass' => $password,
             'display_name' => $username,
-            'role' => $is_recorder_invite_registration ? 'audio_recorder' : 'll_tools_learner',
+            'role' => $registration_role,
         ];
         $user_id = wp_insert_user($insert_args);
 
@@ -1321,10 +1404,13 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         $user_id = (int) $user_id;
         $user = get_user_by('id', $user_id);
         if ($user instanceof WP_User) {
-            $user->set_role($is_recorder_invite_registration ? 'audio_recorder' : 'll_tools_learner');
+            $user->set_role($registration_role);
         }
         if ($is_recorder_invite_registration && $recorder_invite_token !== '' && function_exists('ll_tools_recorder_invite_accept_for_user')) {
             ll_tools_recorder_invite_accept_for_user($recorder_invite_token, $user_id);
+        }
+        if ($is_manager_invite_registration && $manager_invite_token !== '' && function_exists('ll_tools_wordset_manager_invite_accept_for_user')) {
+            ll_tools_wordset_manager_invite_accept_for_user($manager_invite_token, $user_id);
         }
 
         ll_tools_maybe_send_registration_admin_notification($user_id);

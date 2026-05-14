@@ -5099,10 +5099,12 @@ function ll_tools_import_wordset_payload_is_identical(array $source_wordset, int
     }
 
     $source_meta = isset($source_wordset['meta']) && is_array($source_wordset['meta']) ? $source_wordset['meta'] : [];
-    if (isset($source_meta['manager_user_id'])) {
-        unset($source_meta['manager_user_id']);
+    foreach (['manager_user_id', 'manager_user_ids'] as $manager_meta_key) {
+        if (isset($source_meta[$manager_meta_key])) {
+            unset($source_meta[$manager_meta_key]);
+        }
     }
-    $existing_meta = ll_tools_prepare_meta_for_export(get_term_meta($existing_term_id), ['manager_user_id']);
+    $existing_meta = ll_tools_prepare_meta_for_export(get_term_meta($existing_term_id), ['manager_user_id', 'manager_user_ids']);
     $normalized_source_meta = ll_tools_import_normalize_meta_for_compare($source_meta);
     $normalized_existing_meta = ll_tools_import_normalize_meta_for_compare($existing_meta);
 
@@ -10980,7 +10982,7 @@ function ll_tools_export_collect_wordsets(array $wordset_ids): array {
             'slug'        => (string) $term->slug,
             'name'        => (string) $term->name,
             'description' => (string) $term->description,
-            'meta'        => ll_tools_prepare_meta_for_export(get_term_meta($term->term_id), ['manager_user_id']),
+            'meta'        => ll_tools_prepare_meta_for_export(get_term_meta($term->term_id), ['manager_user_id', 'manager_user_ids']),
         ];
     }
 
@@ -14233,10 +14235,20 @@ function ll_tools_import_prepare_wordset_map(array $wordsets, array $options, ar
             ll_tools_import_track_undo_id($result, 'wordset_term_ids', $term_id);
         }
 
-        ll_tools_import_replace_term_meta_values($term_id, isset($wordset['meta']) && is_array($wordset['meta']) ? $wordset['meta'] : [], 'wordset');
+        $wordset_meta = isset($wordset['meta']) && is_array($wordset['meta']) ? $wordset['meta'] : [];
+        foreach (['manager_user_id', 'manager_user_ids'] as $manager_meta_key) {
+            if (isset($wordset_meta[$manager_meta_key])) {
+                unset($wordset_meta[$manager_meta_key]);
+            }
+        }
+        ll_tools_import_replace_term_meta_values($term_id, $wordset_meta, 'wordset');
         if (get_current_user_id() > 0) {
-            delete_term_meta($term_id, 'manager_user_id');
-            add_term_meta($term_id, 'manager_user_id', get_current_user_id());
+            if (function_exists('ll_tools_set_wordset_manager_user_ids')) {
+                ll_tools_set_wordset_manager_user_ids($term_id, [get_current_user_id()], get_current_user_id());
+            } else {
+                delete_term_meta($term_id, 'manager_user_id');
+                add_term_meta($term_id, 'manager_user_id', get_current_user_id());
+            }
         }
 
         $map[$slug] = $term_id;

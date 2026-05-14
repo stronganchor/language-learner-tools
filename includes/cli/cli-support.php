@@ -235,32 +235,11 @@ function ll_tools_cli_assign_wordset_manager(int $wordset_id, int $user_id): voi
         return;
     }
 
-    if (function_exists('ll_tools_get_user_managed_wordset_ids')) {
-        $existing_managed_ids = ll_tools_get_user_managed_wordset_ids($user_id);
-        foreach ((array) $existing_managed_ids as $existing_id) {
-            $existing_id = (int) $existing_id;
-            if ($existing_id <= 0 || $existing_id === $wordset_id) {
-                continue;
-            }
-
-            $existing_manager_user_id = (int) get_term_meta($existing_id, 'manager_user_id', true);
-            if ($existing_manager_user_id === $user_id) {
-                delete_term_meta($existing_id, 'manager_user_id');
-            }
-        }
-    }
-
-    $previous_manager_user_id = (int) get_term_meta($wordset_id, 'manager_user_id', true);
-    if ($previous_manager_user_id > 0 && $previous_manager_user_id !== $user_id) {
-        $previous_legacy = array_values(array_filter(array_map('intval', (array) get_user_meta($previous_manager_user_id, 'managed_wordsets', true))));
-        if (!empty($previous_legacy)) {
-            $previous_legacy = array_values(array_diff($previous_legacy, [$wordset_id]));
-            if (empty($previous_legacy)) {
-                delete_user_meta($previous_manager_user_id, 'managed_wordsets');
-            } else {
-                update_user_meta($previous_manager_user_id, 'managed_wordsets', array_map('intval', $previous_legacy));
-            }
-        }
+    if (function_exists('ll_tools_set_wordset_manager_user_ids') && function_exists('ll_tools_get_wordset_manager_user_ids')) {
+        $manager_ids = ll_tools_get_wordset_manager_user_ids($wordset_id, true);
+        $manager_ids[] = $user_id;
+        ll_tools_set_wordset_manager_user_ids($wordset_id, $manager_ids, $user_id);
+        return;
     }
 
     update_term_meta($wordset_id, 'manager_user_id', $user_id);

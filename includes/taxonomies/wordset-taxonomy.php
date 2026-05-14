@@ -322,12 +322,198 @@ function ll_tools_wordset_get_answer_option_text_style_config(int $wordset_id): 
     return $config;
 }
 
+if (!defined('LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY')) {
+    define('LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY', 'manager_user_ids');
+}
+
+function ll_tools_normalize_wordset_manager_user_ids($raw_ids): array {
+    $ids = [];
+    $collect = static function ($value) use (&$collect, &$ids): void {
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                $collect($item);
+            }
+            return;
+        }
+
+        $user_id = absint($value);
+        if ($user_id > 0) {
+            $ids[$user_id] = true;
+        }
+    };
+
+    $collect($raw_ids);
+    return array_map('intval', array_keys($ids));
+}
+
 function ll_tools_get_wordset_manager_user_id(int $wordset_id): int {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return 0;
     }
     return (int) get_term_meta($wordset_id, 'manager_user_id', true);
+}
+
+function ll_tools_get_wordset_manager_user_ids(int $wordset_id, bool $include_legacy = true): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $ids = ll_tools_normalize_wordset_manager_user_ids(
+        get_term_meta($wordset_id, LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY, true)
+    );
+
+    if ($include_legacy) {
+        $legacy_manager_id = ll_tools_get_wordset_manager_user_id($wordset_id);
+        if ($legacy_manager_id > 0) {
+            $ids[] = $legacy_manager_id;
+        }
+    }
+
+    $ids = ll_tools_normalize_wordset_manager_user_ids($ids);
+    return array_values($ids);
+}
+
+function ll_tools_get_wordset_manager_users(int $wordset_id): array {
+    $users = [];
+    foreach (ll_tools_get_wordset_manager_user_ids($wordset_id, true) as $manager_user_id) {
+        $user = get_userdata((int) $manager_user_id);
+        if ($user instanceof WP_User && $user->exists()) {
+            $users[] = $user;
+        }
+    }
+
+    return $users;
+}
+
+function ll_tools_update_user_managed_wordsets_assignment(int $user_id, int $wordset_id, bool $assigned): void {
+    $user_id = (int) $user_id;
+    $wordset_id = (int) $wordset_id;
+    if ($user_id <= 0 || $wordset_id <= 0) {
+        return;
+    }
+
+    $managed_wordsets = ll_tools_normalize_wordset_manager_user_ids(get_user_meta($user_id, 'managed_wordsets', true));
+    $lookup = array_fill_keys($managed_wordsets, true);
+    if ($assigned) {
+        $lookup[$wordset_id] = true;
+    } else {
+        unset($lookup[$wordset_id]);
+    }
+
+    $managed_wordsets = array_map('intval', array_keys($lookup));
+    sort($managed_wordsets, SORT_NUMERIC);
+    if (empty($managed_wordsets)) {
+        delete_user_meta($user_id, 'managed_wordsets');
+        delete_user_meta($user_id, 'll_primary_managed_wordset_id');
+        return;
+    }
+
+    update_user_meta($user_id, 'managed_wordsets', $managed_wordsets);
+    $primary_id = (int) get_user_meta($user_id, 'll_primary_managed_wordset_id', true);
+    if ($assigned && $primary_id <= 0) {
+        update_user_meta($user_id, 'll_primary_managed_wordset_id', $wordset_id);
+    } elseif (!$assigned && $primary_id === $wordset_id) {
+        update_user_meta($user_id, 'll_primary_managed_wordset_id', (int) $managed_wordsets[0]);
+    }
+}
+
+function ll_tools_set_wordset_manager_user_ids(int $wordset_id, array $manager_user_ids, int $primary_user_id = 0) {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return new WP_Error('wordset', __('Unable to find that word set.', 'll-tools-text-domain'));
+    }
+
+    $wordset = get_term($wordset_id, 'wordset');
+    if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+        return new WP_Error('wordset', __('Unable to find that word set.', 'll-tools-text-domain'));
+    }
+
+    $previous_ids = ll_tools_get_wordset_manager_user_ids($wordset_id, true);
+    $normalized_ids = [];
+    foreach (ll_tools_normalize_wordset_manager_user_ids($manager_user_ids) as $candidate_user_id) {
+        $user = get_userdata((int) $candidate_user_id);
+        if ($user instanceof WP_User && $user->exists()) {
+            $normalized_ids[(int) $candidate_user_id] = true;
+        }
+    }
+
+    $next_ids = array_map('intval', array_keys($normalized_ids));
+    $primary_user_id = absint($primary_user_id);
+    if ($primary_user_id <= 0 || !isset($normalized_ids[$primary_user_id])) {
+        $legacy_primary_id = ll_tools_get_wordset_manager_user_id($wordset_id);
+        if ($legacy_primary_id > 0 && isset($normalized_ids[$legacy_primary_id])) {
+            $primary_user_id = $legacy_primary_id;
+        } elseif (!empty($next_ids)) {
+            $primary_user_id = (int) $next_ids[0];
+        }
+    }
+
+    if ($primary_user_id > 0 && isset($normalized_ids[$primary_user_id])) {
+        $next_ids = array_values(array_unique(array_merge([$primary_user_id], $next_ids)));
+    }
+
+    if (empty($next_ids)) {
+        delete_term_meta($wordset_id, LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY);
+        delete_term_meta($wordset_id, 'manager_user_id');
+    } else {
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY, array_map('intval', $next_ids));
+        update_term_meta($wordset_id, 'manager_user_id', (int) $next_ids[0]);
+    }
+
+    $previous_lookup = array_fill_keys(array_map('intval', $previous_ids), true);
+    $next_lookup = array_fill_keys(array_map('intval', $next_ids), true);
+
+    foreach ($previous_lookup as $previous_user_id => $_value) {
+        if (!isset($next_lookup[(int) $previous_user_id])) {
+            ll_tools_update_user_managed_wordsets_assignment((int) $previous_user_id, $wordset_id, false);
+        }
+    }
+
+    foreach ($next_lookup as $next_user_id => $_value) {
+        ll_tools_update_user_managed_wordsets_assignment((int) $next_user_id, $wordset_id, true);
+    }
+
+    clean_term_cache($wordset_id, 'wordset');
+    return true;
+}
+
+function ll_tools_add_wordset_manager_user(int $wordset_id, int $user_id) {
+    $wordset_id = (int) $wordset_id;
+    $user_id = (int) $user_id;
+    if ($wordset_id <= 0 || $user_id <= 0) {
+        return new WP_Error('assignment', __('Word set manager assignment could not be updated.', 'll-tools-text-domain'));
+    }
+
+    $user = get_userdata($user_id);
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return new WP_Error('user', __('Unable to find that user.', 'll-tools-text-domain'));
+    }
+
+    $manager_ids = ll_tools_get_wordset_manager_user_ids($wordset_id, true);
+    $manager_ids[] = $user_id;
+    return ll_tools_set_wordset_manager_user_ids($wordset_id, $manager_ids);
+}
+
+function ll_tools_remove_wordset_manager_user(int $wordset_id, int $user_id) {
+    $wordset_id = (int) $wordset_id;
+    $user_id = (int) $user_id;
+    if ($wordset_id <= 0 || $user_id <= 0) {
+        return new WP_Error('assignment', __('Word set manager assignment could not be updated.', 'll-tools-text-domain'));
+    }
+
+    $manager_ids = ll_tools_get_wordset_manager_user_ids($wordset_id, true);
+    if (!in_array($user_id, $manager_ids, true)) {
+        return true;
+    }
+
+    if (count($manager_ids) <= 1) {
+        return new WP_Error('last_manager', __('Add another manager before removing the last manager for this word set.', 'll-tools-text-domain'));
+    }
+
+    $manager_ids = array_values(array_diff($manager_ids, [$user_id]));
+    return ll_tools_set_wordset_manager_user_ids($wordset_id, $manager_ids);
 }
 
 function ll_tools_get_user_managed_wordset_ids(int $user_id = 0): array {
@@ -352,6 +538,33 @@ function ll_tools_get_user_managed_wordset_ids(int $user_id = 0): array {
     ]);
     if (!is_wp_error($owned_term_ids)) {
         foreach ((array) $owned_term_ids as $term_id) {
+            $term_id = (int) $term_id;
+            if ($term_id > 0) {
+                $ids[$term_id] = true;
+            }
+        }
+    }
+
+    $multi_manager_term_ids = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'fields'     => 'ids',
+        'meta_query' => [
+            'relation' => 'OR',
+            [
+                'key'     => LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY,
+                'value'   => 'i:' . $user_id . ';',
+                'compare' => 'LIKE',
+            ],
+            [
+                'key'     => LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY,
+                'value'   => '"' . $user_id . '"',
+                'compare' => 'LIKE',
+            ],
+        ],
+    ]);
+    if (!is_wp_error($multi_manager_term_ids)) {
+        foreach ((array) $multi_manager_term_ids as $term_id) {
             $term_id = (int) $term_id;
             if ($term_id > 0) {
                 $ids[$term_id] = true;
@@ -402,8 +615,8 @@ function ll_tools_user_can_manage_wordset_content($wordset, int $user_id = 0): b
         return true;
     }
 
-    $manager_user_id = ll_tools_get_wordset_manager_user_id($wordset_id);
-    if ($manager_user_id > 0 && $manager_user_id === (int) $user->ID) {
+    $manager_user_ids = ll_tools_get_wordset_manager_user_ids($wordset_id, true);
+    if (in_array((int) $user->ID, $manager_user_ids, true)) {
         return true;
     }
 
@@ -1051,7 +1264,7 @@ function modify_wordset_columns($columns) {
     
     // Don't remove columns if user is an administrator
     if (current_user_can('manage_options')) {
-        $columns['manager_user_id'] = __('Manager', 'll-tools-text-domain');
+        $columns['manager_user_id'] = __('Managers', 'll-tools-text-domain');
         return $columns;
     }
 
@@ -1074,12 +1287,26 @@ function display_wordset_columns($content, $column_name, $term_id) {
             }
             break;
         case 'manager_user_id':
-            $user_id = get_term_meta($term_id, 'manager_user_id', true);
-            if (!empty($user_id)) {
-                $user = get_user_by('ID', $user_id);
-                $content = esc_html($user->display_name);
+            $manager_users = function_exists('ll_tools_get_wordset_manager_users')
+                ? ll_tools_get_wordset_manager_users((int) $term_id)
+                : [];
+            if (empty($manager_users)) {
+                $content = '&mdash;';
             } else {
-                $content = '—';
+                $manager_names = [];
+                foreach ($manager_users as $manager_user) {
+                    if (!$manager_user instanceof WP_User) {
+                        continue;
+                    }
+                    $manager_label = trim((string) $manager_user->display_name);
+                    if ($manager_label === '') {
+                        $manager_label = (string) $manager_user->user_login;
+                    }
+                    if ($manager_label !== '') {
+                        $manager_names[] = $manager_label;
+                    }
+                }
+                $content = !empty($manager_names) ? esc_html(implode(', ', $manager_names)) : '&mdash;';
             }
             break;
     }
@@ -1116,6 +1343,16 @@ function filter_wordset_by_user($query) {
             'key' => 'manager_user_id',
             'value' => $user_id,
             'compare' => '=',
+        ),
+        array(
+            'key' => LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY,
+            'value' => 'i:' . $user_id . ';',
+            'compare' => 'LIKE',
+        ),
+        array(
+            'key' => LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY,
+            'value' => '"' . $user_id . '"',
+            'compare' => 'LIKE',
         ),
     );
 }
@@ -3610,11 +3847,18 @@ function ll_save_wordset_language($term_id) {
     }
 
     // Preserve the assigned manager on edits; only seed a manager if none exists yet.
-    $existing_manager_user_id = (int) get_term_meta($term_id, 'manager_user_id', true);
-    if ($existing_manager_user_id <= 0) {
+    $existing_manager_user_ids = function_exists('ll_tools_get_wordset_manager_user_ids')
+        ? ll_tools_get_wordset_manager_user_ids((int) $term_id, true)
+        : [(int) get_term_meta($term_id, 'manager_user_id', true)];
+    $existing_manager_user_ids = array_values(array_filter(array_map('intval', (array) $existing_manager_user_ids)));
+    if (empty($existing_manager_user_ids)) {
         $user_id = (int) get_current_user_id();
         if ($user_id > 0) {
-            update_term_meta($term_id, 'manager_user_id', $user_id);
+            if (function_exists('ll_tools_set_wordset_manager_user_ids')) {
+                ll_tools_set_wordset_manager_user_ids((int) $term_id, [$user_id], $user_id);
+            } else {
+                update_term_meta($term_id, 'manager_user_id', $user_id);
+            }
         }
     }
 }

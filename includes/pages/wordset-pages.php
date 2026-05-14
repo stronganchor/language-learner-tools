@@ -4666,6 +4666,127 @@ function ll_tools_wordset_page_manager_settings_notice(): ?array {
     ];
 }
 
+function ll_tools_wordset_page_manager_access_notice(): ?array {
+    $status = isset($_GET['ll_wordset_manager_access'])
+        ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_access']))
+        : '';
+    if ($status === '') {
+        return null;
+    }
+
+    if ($status === 'ok') {
+        $result = isset($_GET['ll_wordset_manager_access_result'])
+            ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_access_result']))
+            : '';
+        $identifier = isset($_GET['ll_wordset_manager_access_identifier'])
+            ? sanitize_text_field(wp_unslash((string) $_GET['ll_wordset_manager_access_identifier']))
+            : '';
+        $email = isset($_GET['ll_wordset_manager_access_email'])
+            ? sanitize_email(wp_unslash((string) $_GET['ll_wordset_manager_access_email']))
+            : '';
+        if ($result === 'removed') {
+            return [
+                'type' => 'success',
+                'message' => __('Word set manager access removed.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($result === 'upgraded') {
+            return [
+                'type' => 'success',
+                'message' => $identifier !== ''
+                    ? sprintf(__('Word set manager access enabled for %s.', 'll-tools-text-domain'), $identifier)
+                    : __('Word set manager access enabled.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($result === 'invited') {
+            return [
+                'type' => 'success',
+                'message' => $email !== ''
+                    ? sprintf(__('Word set manager invitation sent to %s.', 'll-tools-text-domain'), $email)
+                    : __('Word set manager invitation sent.', 'll-tools-text-domain'),
+            ];
+        }
+
+        return [
+            'type' => 'success',
+            'message' => __('Word set manager access updated.', 'll-tools-text-domain'),
+        ];
+    }
+
+    $error = isset($_GET['ll_wordset_manager_access_error'])
+        ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_access_error']))
+        : '';
+    $message = isset($_GET['ll_wordset_manager_access_message'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_wordset_manager_access_message']))
+        : '';
+
+    if ($error === 'permission') {
+        return [
+            'type' => 'error',
+            'message' => __('You do not have permission to manage word set managers for this word set.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'nonce') {
+        return [
+            'type' => 'error',
+            'message' => __('Your session expired. Please try again.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'wordset') {
+        return [
+            'type' => 'error',
+            'message' => __('Unable to find that word set.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'user') {
+        return [
+            'type' => 'error',
+            'message' => __('Unable to find that user.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'identifier') {
+        return [
+            'type' => 'error',
+            'message' => __('Enter an existing username or email address to enable manager access.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'email') {
+        return [
+            'type' => 'error',
+            'message' => __('Enter a valid email address for the manager invite.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'mail_failed') {
+        return [
+            'type' => 'error',
+            'message' => __('The word set manager invitation email could not be sent.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'last_manager') {
+        return [
+            'type' => 'error',
+            'message' => __('Add another manager before removing the last manager for this word set.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'assignment') {
+        return [
+            'type' => 'error',
+            'message' => __('Word set manager access could not be updated.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($message !== '') {
+        return [
+            'type' => 'error',
+            'message' => $message,
+        ];
+    }
+
+    return [
+        'type' => 'error',
+        'message' => __('Unable to update word set manager access right now.', 'll-tools-text-domain'),
+    ];
+}
+
 function ll_tools_wordset_page_manager_offline_export_notice(): ?array {
     $status = isset($_GET['ll_wordset_manager_offline_export'])
         ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_offline_export']))
@@ -6525,6 +6646,413 @@ function ll_tools_recorder_invite_accept_for_user(string $token, int $user_id) {
     ];
 }
 
+if (!defined('LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG')) {
+    define('LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG', 'll_tools_wordset_manager_invite');
+}
+
+function ll_tools_wordset_page_ensure_wordset_manager_user(int $user_id): ?WP_User {
+    if ($user_id <= 0) {
+        return null;
+    }
+
+    if (function_exists('ll_create_wordset_manager_role')) {
+        ll_create_wordset_manager_role();
+    }
+    if (function_exists('ll_ensure_wordset_manager_has_view_ll_tools_cap')) {
+        ll_ensure_wordset_manager_has_view_ll_tools_cap();
+    }
+
+    $user = get_userdata($user_id);
+    if (!($user instanceof WP_User)) {
+        return null;
+    }
+
+    if (!in_array('wordset_manager', (array) $user->roles, true)) {
+        $user->add_role('wordset_manager');
+        clean_user_cache($user_id);
+        $user = get_userdata($user_id);
+    }
+
+    return ($user instanceof WP_User) ? $user : null;
+}
+
+function ll_tools_wordset_page_assign_manager_user_to_wordset(int $user_id, int $wordset_id, bool $ensure_role = false) {
+    if ($user_id <= 0 || $wordset_id <= 0) {
+        return new WP_Error('assignment', __('Word set manager access could not be updated right now.', 'll-tools-text-domain'));
+    }
+
+    $user = $ensure_role
+        ? ll_tools_wordset_page_ensure_wordset_manager_user($user_id)
+        : get_userdata($user_id);
+    if (!($user instanceof WP_User)) {
+        return new WP_Error('user', __('Unable to find that user.', 'll-tools-text-domain'));
+    }
+
+    if ($ensure_role && !user_can($user, 'view_ll_tools')) {
+        $user->add_cap('view_ll_tools');
+    }
+
+    if (function_exists('ll_tools_add_wordset_manager_user')) {
+        return ll_tools_add_wordset_manager_user($wordset_id, $user_id);
+    }
+
+    update_term_meta($wordset_id, 'manager_user_id', $user_id);
+    update_user_meta($user_id, 'managed_wordsets', [$wordset_id]);
+    return true;
+}
+
+function ll_tools_wordset_manager_invite_secret(): string {
+    return (string) wp_salt('auth') . '|wordset-manager';
+}
+
+function ll_tools_wordset_manager_invite_build_token(int $wordset_id, array $args = []): string {
+    $wordset_term = get_term($wordset_id, 'wordset');
+    if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
+        return '';
+    }
+
+    $email = '';
+    if (!empty($args['email'])) {
+        $email = strtolower(trim(sanitize_email((string) $args['email'])));
+        if (!is_email($email)) {
+            return '';
+        }
+    }
+
+    $expiry = isset($args['expires_at']) ? (int) $args['expires_at'] : 0;
+    if ($expiry <= time()) {
+        $expiry = time() + (int) apply_filters('ll_tools_wordset_manager_invite_expiration_seconds', 30 * DAY_IN_SECONDS, $wordset_id, $email);
+    }
+
+    $payload = [
+        'wid' => (int) $wordset_term->term_id,
+        'email' => $email,
+        'exp' => $expiry,
+    ];
+
+    $encoded_payload = ll_tools_recorder_invite_base64url_encode((string) wp_json_encode($payload));
+    if ($encoded_payload === '') {
+        return '';
+    }
+
+    return $encoded_payload . '.' . hash_hmac('sha256', $encoded_payload, ll_tools_wordset_manager_invite_secret());
+}
+
+function ll_tools_wordset_manager_invite_parse_token(string $token) {
+    $token = trim($token);
+    if ($token === '' || strpos($token, '.') === false) {
+        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
+    }
+
+    [$encoded_payload, $signature] = explode('.', $token, 2);
+    $expected_signature = hash_hmac('sha256', $encoded_payload, ll_tools_wordset_manager_invite_secret());
+    if (!hash_equals($expected_signature, (string) $signature)) {
+        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
+    }
+
+    $decoded_payload = ll_tools_recorder_invite_base64url_decode($encoded_payload);
+    if ($decoded_payload === '') {
+        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
+    }
+
+    $payload = json_decode($decoded_payload, true);
+    if (!is_array($payload)) {
+        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
+    }
+
+    $wordset_id = max(0, (int) ($payload['wid'] ?? 0));
+    $email = strtolower(trim(sanitize_email((string) ($payload['email'] ?? ''))));
+    $expires_at = (int) ($payload['exp'] ?? 0);
+    $wordset_term = get_term($wordset_id, 'wordset');
+    if ($wordset_id <= 0 || !($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
+        return new WP_Error('missing_wordset', __('This word set manager invitation no longer matches an available word set.', 'll-tools-text-domain'));
+    }
+    if ($email !== '' && !is_email($email)) {
+        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
+    }
+    if ($expires_at <= time()) {
+        return new WP_Error('expired_invite', __('This word set manager invitation link has expired.', 'll-tools-text-domain'));
+    }
+
+    return [
+        'wordset_id' => $wordset_id,
+        'wordset_slug' => (string) $wordset_term->slug,
+        'wordset_name' => (string) $wordset_term->name,
+        'wordset_term' => $wordset_term,
+        'email' => $email,
+        'expires_at' => $expires_at,
+    ];
+}
+
+function ll_tools_wordset_manager_invite_get_request_token(): string {
+    $raw = isset($_REQUEST[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG])
+        ? (string) wp_unslash($_REQUEST[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG])
+        : '';
+    $token = preg_replace('/[^A-Za-z0-9\-\_\.]/', '', $raw);
+    return is_string($token) ? $token : '';
+}
+
+function ll_tools_wordset_manager_invite_get_request_context() {
+    if (array_key_exists('ll_tools_wordset_manager_invite_request_context', $GLOBALS)) {
+        return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
+    }
+
+    $token = ll_tools_wordset_manager_invite_get_request_token();
+    if ($token === '') {
+        $GLOBALS['ll_tools_wordset_manager_invite_request_context'] = [];
+        return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
+    }
+
+    $parsed = ll_tools_wordset_manager_invite_parse_token($token);
+    if (is_wp_error($parsed)) {
+        $GLOBALS['ll_tools_wordset_manager_invite_request_context'] = $parsed;
+        return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
+    }
+
+    $parsed['token'] = $token;
+    $GLOBALS['ll_tools_wordset_manager_invite_request_context'] = $parsed;
+    return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
+}
+
+function ll_tools_wordset_manager_invite_current_request_allows_signup_registration(): bool {
+    $context = ll_tools_wordset_manager_invite_get_request_context();
+    return is_array($context) && !empty($context['wordset_id']);
+}
+
+function ll_tools_wordset_manager_invite_get_landing_url(int $wordset_id = 0): string {
+    if ($wordset_id > 0 && function_exists('ll_tools_get_wordset_settings_tool_url')) {
+        $wordset_term = get_term($wordset_id, 'wordset');
+        if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term)) {
+            return (string) wp_validate_redirect(ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility'), home_url('/'));
+        }
+    }
+
+    return home_url('/');
+}
+
+function ll_tools_wordset_manager_invite_get_url(WP_Term $wordset_term, array $args = []): string {
+    $token = ll_tools_wordset_manager_invite_build_token((int) $wordset_term->term_id, $args);
+    if ($token === '') {
+        return '';
+    }
+
+    $landing_url = ll_tools_wordset_manager_invite_get_landing_url((int) $wordset_term->term_id);
+    if (function_exists('ll_tools_get_frontend_auth_url')) {
+        $landing_url = ll_tools_get_frontend_auth_url($landing_url, 'register');
+    } else {
+        $landing_url = (string) add_query_arg('ll_tools_auth', 'register', $landing_url);
+    }
+
+    return (string) add_query_arg(LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG, $token, $landing_url);
+}
+
+function ll_tools_wordset_manager_invite_send_email(WP_Term $wordset_term, string $email, int $sender_user_id = 0) {
+    $email = strtolower(trim(sanitize_email($email)));
+    if (!is_email($email)) {
+        return new WP_Error('invalid_email', __('Please enter a valid email address.', 'll-tools-text-domain'));
+    }
+
+    $invite_url = ll_tools_wordset_manager_invite_get_url($wordset_term, ['email' => $email]);
+    if ($invite_url === '') {
+        return new WP_Error('invalid_invite', __('Could not create a word set manager invitation link right now.', 'll-tools-text-domain'));
+    }
+
+    $site_name = wp_specialchars_decode(get_option('blogname'), ENT_QUOTES);
+    $manager_name = '';
+    if ($sender_user_id > 0) {
+        $sender = get_userdata($sender_user_id);
+        if ($sender instanceof WP_User) {
+            $manager_name = trim((string) $sender->display_name);
+            if ($manager_name === '') {
+                $manager_name = (string) $sender->user_login;
+            }
+        }
+    }
+
+    $subject = sprintf(
+        /* translators: 1: site name, 2: word set name */
+        __('[%1$s] Word set manager invitation for %2$s', 'll-tools-text-domain'),
+        $site_name,
+        (string) $wordset_term->name
+    );
+
+    $lines = [
+        sprintf(
+            /* translators: 1: site name, 2: word set name */
+            __('You have been invited on %1$s to manage the word set "%2$s".', 'll-tools-text-domain'),
+            $site_name,
+            (string) $wordset_term->name
+        ),
+    ];
+    if ($manager_name !== '') {
+        $lines[] = sprintf(
+            /* translators: %s: manager display name */
+            __('Invited by: %s', 'll-tools-text-domain'),
+            $manager_name
+        );
+    }
+    $lines[] = '';
+    $lines[] = __('Open this link to create or connect a word set manager account for this word set:', 'll-tools-text-domain');
+    $lines[] = $invite_url;
+
+    $headers = ['Content-Type: text/plain; charset=UTF-8'];
+    if (function_exists('ll_tools_get_notification_sender_email') && function_exists('ll_tools_override_mail_from_header')) {
+        $from_email = ll_tools_get_notification_sender_email();
+        if ($from_email !== '') {
+            $headers = ll_tools_override_mail_from_header(
+                $headers,
+                function_exists('ll_tools_get_notification_sender_name')
+                    ? ll_tools_get_notification_sender_name()
+                    : 'WordPress',
+                $from_email
+            );
+        }
+    }
+
+    $sent = wp_mail($email, $subject, implode("\n", $lines), $headers);
+    if (!$sent) {
+        return new WP_Error('mail_failed', __('The word set manager invitation email could not be sent.', 'll-tools-text-domain'));
+    }
+
+    return [
+        'invite_url' => $invite_url,
+        'email' => $email,
+    ];
+}
+
+function ll_tools_wordset_manager_invite_accept_for_user(string $token, int $user_id) {
+    $context = ll_tools_wordset_manager_invite_parse_token($token);
+    if (is_wp_error($context)) {
+        return $context;
+    }
+
+    $user = get_userdata($user_id);
+    if (!($user instanceof WP_User)) {
+        return new WP_Error('missing_user', __('Please sign in with a valid user account.', 'll-tools-text-domain'));
+    }
+
+    $expected_email = strtolower(trim((string) ($context['email'] ?? '')));
+    if ($expected_email !== '' && strtolower(trim((string) $user->user_email)) !== $expected_email) {
+        return new WP_Error('wrong_user', __('Please continue with the invited word set manager email address.', 'll-tools-text-domain'));
+    }
+
+    $wordset_term = $context['wordset_term'] ?? null;
+    if (!($wordset_term instanceof WP_Term)) {
+        return new WP_Error('missing_wordset', __('This word set manager invitation no longer matches an available word set.', 'll-tools-text-domain'));
+    }
+
+    $already_assigned = function_exists('ll_tools_user_can_manage_wordset_content')
+        ? ll_tools_user_can_manage_wordset_content((int) $wordset_term->term_id, $user_id)
+        : false;
+    $assigned = ll_tools_wordset_page_assign_manager_user_to_wordset($user_id, (int) $wordset_term->term_id, true);
+    if (is_wp_error($assigned)) {
+        return $assigned;
+    }
+    if (!$assigned) {
+        return new WP_Error('assignment_failed', __('Word set manager access could not be enabled right now.', 'll-tools-text-domain'));
+    }
+
+    return [
+        'wordset_id' => (int) $wordset_term->term_id,
+        'wordset_name' => (string) $wordset_term->name,
+        'already_assigned' => $already_assigned,
+    ];
+}
+
+function ll_tools_wordset_manager_invite_get_current_base_url(): string {
+    $context = ll_tools_wordset_manager_invite_get_request_context();
+    if (is_array($context) && !empty($context['wordset_id'])) {
+        return ll_tools_wordset_manager_invite_get_landing_url((int) $context['wordset_id']);
+    }
+
+    $current_url = function_exists('ll_tools_get_current_request_url')
+        ? ll_tools_get_current_request_url()
+        : home_url('/');
+    return (string) remove_query_arg([
+        LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG,
+        'll_tools_auth',
+        'll_tools_auth_feedback',
+    ], $current_url);
+}
+
+function ll_tools_wordset_manager_invite_maybe_handle_request(): void {
+    if (is_admin() || (function_exists('wp_doing_ajax') && wp_doing_ajax())) {
+        return;
+    }
+
+    $token = ll_tools_wordset_manager_invite_get_request_token();
+    if ($token === '') {
+        return;
+    }
+
+    $context = ll_tools_wordset_manager_invite_get_request_context();
+    $base_url = ll_tools_wordset_manager_invite_get_current_base_url();
+    if (is_wp_error($context)) {
+        $redirect_url = function_exists('ll_tools_get_frontend_auth_url')
+            ? ll_tools_get_frontend_auth_url($base_url, 'register')
+            : $base_url;
+        if (function_exists('ll_tools_login_window_append_feedback_to_url')) {
+            $redirect_url = ll_tools_login_window_append_feedback_to_url($redirect_url, [
+                'type' => 'error',
+                'form' => 'register',
+                'messages' => [$context->get_error_message()],
+            ], 'register');
+        }
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+
+    if (!is_user_logged_in()) {
+        $requested_mode = function_exists('ll_tools_login_window_requested_mode')
+            ? ll_tools_login_window_requested_mode()
+            : '';
+        if ($requested_mode === 'register') {
+            return;
+        }
+
+        $redirect_url = function_exists('ll_tools_get_frontend_auth_url')
+            ? ll_tools_get_frontend_auth_url($base_url, 'register')
+            : (string) add_query_arg('ll_tools_auth', 'register', $base_url);
+        $redirect_url = (string) add_query_arg(LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG, $token, $redirect_url);
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+
+    $current_user = wp_get_current_user();
+    $acceptance = ll_tools_wordset_manager_invite_accept_for_user($token, (int) $current_user->ID);
+    if (is_wp_error($acceptance)) {
+        $expected_email = is_array($context) ? strtolower(trim((string) ($context['email'] ?? ''))) : '';
+        if ($expected_email !== '' && strtolower(trim((string) $current_user->user_email)) !== $expected_email) {
+            wp_logout();
+        }
+
+        $redirect_url = function_exists('ll_tools_get_frontend_auth_url')
+            ? ll_tools_get_frontend_auth_url($base_url, 'register')
+            : (string) add_query_arg('ll_tools_auth', 'register', $base_url);
+        $redirect_url = (string) add_query_arg(LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG, $token, $redirect_url);
+        if (function_exists('ll_tools_login_window_append_feedback_to_url')) {
+            $payload = [
+                'type' => 'error',
+                'form' => 'register',
+                'messages' => [$acceptance->get_error_message()],
+            ];
+            if ($expected_email !== '') {
+                $payload['prefill'] = ['email' => $expected_email];
+            }
+            $redirect_url = ll_tools_login_window_append_feedback_to_url($redirect_url, $payload, 'register');
+        }
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+
+    wp_safe_redirect(add_query_arg([
+        'll_wordset_manager_settings' => 'ok',
+        'll_wordset_manager_settings_message' => __('Word set manager access enabled.', 'll-tools-text-domain'),
+    ], $base_url));
+    exit;
+}
+add_action('template_redirect', 'll_tools_wordset_manager_invite_maybe_handle_request', 1);
+
 function ll_tools_recorder_invite_get_current_base_url(): string {
     $context = ll_tools_recorder_invite_get_request_context();
     if (is_array($context) && !empty($context['wordset_id'])) {
@@ -7070,6 +7598,161 @@ function ll_tools_wordset_page_handle_manager_recorder_action(): void {
     $redirect_success(($action === 'assign') ? 'assigned' : 'unassigned');
 }
 add_action('template_redirect', 'll_tools_wordset_page_handle_manager_recorder_action', 6);
+
+function ll_tools_wordset_page_handle_manager_access_action(): void {
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+        return;
+    }
+    if (!ll_tools_is_wordset_page_context()) {
+        return;
+    }
+
+    $action = isset($_POST['ll_wordset_manager_access_action'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_manager_access_action']))
+        : '';
+    if (!in_array($action, ['upgrade', 'invite', 'remove'], true)) {
+        return;
+    }
+
+    $wordset_term = ll_tools_get_wordset_page_term();
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $submitted_wordset_id = isset($_POST['ll_wordset_manager_access_wordset_id'])
+        ? (int) wp_unslash((string) $_POST['ll_wordset_manager_access_wordset_id'])
+        : 0;
+    $target_user_id = isset($_POST['ll_wordset_manager_access_user_id'])
+        ? (int) wp_unslash((string) $_POST['ll_wordset_manager_access_user_id'])
+        : 0;
+    $identifier = isset($_POST['ll_wordset_manager_access_identifier'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['ll_wordset_manager_access_identifier']))
+        : '';
+    $invite_email = isset($_POST['ll_wordset_manager_access_email'])
+        ? sanitize_email(wp_unslash((string) $_POST['ll_wordset_manager_access_email']))
+        : '';
+    $nonce = isset($_POST['ll_wordset_manager_access_nonce'])
+        ? wp_unslash((string) $_POST['ll_wordset_manager_access_nonce'])
+        : '';
+    $submitted_tool = ll_tools_get_wordset_settings_tool();
+
+    $base_redirect = ll_tools_get_wordset_settings_tool_url(
+        $wordset_term,
+        $submitted_tool !== '' ? $submitted_tool : 'visibility',
+        ll_tools_wordset_page_resolve_back_url($wordset_term)
+    );
+
+    $redirect_error = static function (string $error, string $message = '', array $extra_args = []) use ($base_redirect): void {
+        $args = [
+            'll_wordset_manager_access' => 'error',
+            'll_wordset_manager_access_error' => $error,
+        ];
+        if ($message !== '') {
+            $args['ll_wordset_manager_access_message'] = $message;
+        }
+        foreach ($extra_args as $key => $value) {
+            if (!is_scalar($value) || $value === '') {
+                continue;
+            }
+            $args[$key] = (string) $value;
+        }
+        wp_safe_redirect(add_query_arg($args, $base_redirect));
+        exit;
+    };
+    $redirect_success = static function (string $result, array $extra_args = []) use ($base_redirect): void {
+        $args = [
+            'll_wordset_manager_access' => 'ok',
+            'll_wordset_manager_access_result' => $result,
+        ];
+        foreach ($extra_args as $key => $value) {
+            if (!is_scalar($value) || $value === '') {
+                continue;
+            }
+            $args[$key] = (string) $value;
+        }
+        wp_safe_redirect(add_query_arg($args, $base_redirect));
+        exit;
+    };
+
+    if ($submitted_wordset_id !== $wordset_id) {
+        $redirect_error('wordset');
+    }
+    if (!function_exists('ll_tools_current_user_can_manage_wordset_content') || !ll_tools_current_user_can_manage_wordset_content($wordset_id)) {
+        $redirect_error('permission');
+    }
+    if (!wp_verify_nonce($nonce, 'll_wordset_manager_access_' . $wordset_id)) {
+        $redirect_error('nonce');
+    }
+
+    if ($action === 'invite') {
+        if (!is_email($invite_email)) {
+            $redirect_error('email');
+        }
+
+        $invite_result = ll_tools_wordset_manager_invite_send_email($wordset_term, $invite_email, (int) get_current_user_id());
+        if (is_wp_error($invite_result)) {
+            $redirect_error(
+                sanitize_key($invite_result->get_error_code()),
+                $invite_result->get_error_message(),
+                ['ll_wordset_manager_access_email' => $invite_email]
+            );
+        }
+
+        $redirect_success('invited', ['ll_wordset_manager_access_email' => $invite_email]);
+    }
+
+    if ($action === 'upgrade') {
+        if ($identifier === '') {
+            $redirect_error('identifier');
+        }
+
+        $target_user = ll_tools_wordset_page_find_user_by_identifier($identifier);
+        if (!($target_user instanceof WP_User)) {
+            $redirect_error('user', '', ['ll_wordset_manager_access_identifier' => $identifier]);
+        }
+
+        $assignment = ll_tools_wordset_page_assign_manager_user_to_wordset((int) $target_user->ID, $wordset_id, true);
+        if (is_wp_error($assignment)) {
+            $redirect_error(sanitize_key($assignment->get_error_code()), $assignment->get_error_message());
+        }
+        if (!$assignment) {
+            $redirect_error('assignment');
+        }
+
+        $success_identifier = $target_user->user_email !== ''
+            ? (string) $target_user->user_email
+            : (string) $target_user->user_login;
+        $redirect_success('upgraded', ['ll_wordset_manager_access_identifier' => $success_identifier]);
+    }
+
+    if ($target_user_id <= 0) {
+        $redirect_error('user');
+    }
+    if ($target_user_id === (int) get_current_user_id()) {
+        $redirect_error('assignment', __('Ask another manager or administrator to remove your manager access.', 'll-tools-text-domain'));
+    }
+
+    $target_user = get_userdata($target_user_id);
+    if (!($target_user instanceof WP_User)) {
+        $redirect_error('user');
+    }
+
+    if (function_exists('ll_tools_remove_wordset_manager_user')) {
+        $removed = ll_tools_remove_wordset_manager_user($wordset_id, $target_user_id);
+        if (is_wp_error($removed)) {
+            $redirect_error(sanitize_key($removed->get_error_code()), $removed->get_error_message());
+        }
+    } else {
+        $manager_user_id = (int) get_term_meta($wordset_id, 'manager_user_id', true);
+        if ($manager_user_id === $target_user_id) {
+            delete_term_meta($wordset_id, 'manager_user_id');
+        }
+    }
+
+    $redirect_success('removed');
+}
+add_action('template_redirect', 'll_tools_wordset_page_handle_manager_access_action', 6);
 
 function ll_tools_wordset_page_recorder_queue_request_scalar(array $request, string $key): string {
     if (!array_key_exists($key, $request) || is_array($request[$key])) {
@@ -9012,7 +9695,7 @@ function ll_tools_wordset_settings_tool_description(string $tool): string {
         return __('Target language, translation labels, and recording text behavior.', 'll-tools-text-domain');
     }
     if ($tool === 'visibility') {
-        return __('Public or private access for this word set.', 'll-tools-text-domain');
+        return __('Public/private visibility and manager access for this word set.', 'll-tools-text-domain');
     }
     if ($tool === 'categories') {
         return __('Create, rename, translate, re-parent, and safely delete categories in this word set.', 'll-tools-text-domain');
@@ -9388,6 +10071,11 @@ function ll_tools_wordset_page_render_settings_language_tool(WP_Term $wordset_te
 
 function ll_tools_wordset_page_render_settings_visibility_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, string $wordset_visibility, bool $wordset_is_private): string {
     $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility', $back_url);
+    $manager_users = function_exists('ll_tools_get_wordset_manager_users')
+        ? ll_tools_get_wordset_manager_users($wordset_id)
+        : [];
+    $manager_count = count($manager_users);
+    $current_user_id = (int) get_current_user_id();
 
     ob_start();
     ?>
@@ -9410,7 +10098,7 @@ function ll_tools_wordset_page_render_settings_visibility_tool(WP_Term $wordset_
                         <option value="private" <?php selected($wordset_visibility, 'private'); ?>><?php echo esc_html__('Private', 'll-tools-text-domain'); ?></option>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('Private word sets are only visible to the assigned manager and administrators in this first pass.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Private word sets are only visible to assigned managers and administrators in this first pass.', 'll-tools-text-domain'); ?>
                     </p>
                     <p class="description" style="margin-top:0;">
                         <?php
@@ -9426,6 +10114,112 @@ function ll_tools_wordset_page_render_settings_visibility_tool(WP_Term $wordset_
                     </div>
                 </div>
             </form>
+
+            <div class="ll-wordset-settings-card__group">
+                <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Word Set Managers', 'll-tools-text-domain'); ?></h3>
+                <?php if (empty($manager_users)) : ?>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('No word set managers are currently assigned. Add a manager below so this word set has a front-end owner.', 'll-tools-text-domain'); ?>
+                    </p>
+                <?php else : ?>
+                    <div style="display:grid;gap:10px;">
+                        <?php foreach ($manager_users as $manager_user) : ?>
+                            <?php
+                            if (!$manager_user instanceof WP_User) {
+                                continue;
+                            }
+                            $manager_user_id = (int) $manager_user->ID;
+                            $manager_label = trim((string) $manager_user->display_name);
+                            if ($manager_label === '') {
+                                $manager_label = (string) $manager_user->user_login;
+                            }
+                            $can_remove_manager = ($manager_count > 1 && $manager_user_id !== $current_user_id);
+                            ?>
+                            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+                                <div>
+                                    <strong><?php echo esc_html($manager_label); ?></strong>
+                                    <?php if (!empty($manager_user->user_email)) : ?>
+                                        <div class="description" style="margin-top:2px;"><?php echo esc_html((string) $manager_user->user_email); ?></div>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if ($can_remove_manager) : ?>
+                                    <form method="post" action="<?php echo esc_url($action_url); ?>" style="margin:0;">
+                                        <input type="hidden" name="ll_wordset_manager_access_action" value="remove" />
+                                        <input type="hidden" name="ll_wordset_manager_access_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                                        <input type="hidden" name="ll_wordset_manager_access_user_id" value="<?php echo esc_attr($manager_user_id); ?>" />
+                                        <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                                        <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                                        <input type="hidden" name="ll_wordset_view" value="settings" />
+                                        <input type="hidden" name="ll_wordset_tool" value="visibility" />
+                                        <?php wp_nonce_field('ll_wordset_manager_access_' . $wordset_id, 'll_wordset_manager_access_nonce'); ?>
+                                        <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--danger"><?php echo esc_html__('Remove Manager', 'll-tools-text-domain'); ?></button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="ll-wordset-settings-card__group">
+                <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Add Existing User', 'll-tools-text-domain'); ?></h3>
+                <form method="post" action="<?php echo esc_url($action_url); ?>">
+                    <input type="hidden" name="ll_wordset_manager_access_action" value="upgrade" />
+                    <input type="hidden" name="ll_wordset_manager_access_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                    <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                    <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                    <input type="hidden" name="ll_wordset_view" value="settings" />
+                    <input type="hidden" name="ll_wordset_tool" value="visibility" />
+                    <?php wp_nonce_field('ll_wordset_manager_access_' . $wordset_id, 'll_wordset_manager_access_nonce'); ?>
+                    <div class="ll-wordset-settings-card__field">
+                        <label for="ll-wordset-manager-access-identifier">
+                            <span><?php echo esc_html__('Username or email', 'll-tools-text-domain'); ?></span>
+                            <input
+                                id="ll-wordset-manager-access-identifier"
+                                type="text"
+                                name="ll_wordset_manager_access_identifier"
+                                class="regular-text ll-tools-settings-input"
+                                style="max-width:420px;"
+                                autocomplete="off"
+                            />
+                        </label>
+                        <p class="description"><?php echo esc_html__('Find an existing user by username or email, add the Word Set Manager role, and allow that person to manage this word set.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary"><?php echo esc_html__('Add Manager', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="ll-wordset-settings-card__group">
+                <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Invite Manager By Email', 'll-tools-text-domain'); ?></h3>
+                <form method="post" action="<?php echo esc_url($action_url); ?>">
+                    <input type="hidden" name="ll_wordset_manager_access_action" value="invite" />
+                    <input type="hidden" name="ll_wordset_manager_access_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                    <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                    <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                    <input type="hidden" name="ll_wordset_view" value="settings" />
+                    <input type="hidden" name="ll_wordset_tool" value="visibility" />
+                    <?php wp_nonce_field('ll_wordset_manager_access_' . $wordset_id, 'll_wordset_manager_access_nonce'); ?>
+                    <div class="ll-wordset-settings-card__field">
+                        <label for="ll-wordset-manager-access-email">
+                            <span><?php echo esc_html__('Manager email', 'll-tools-text-domain'); ?></span>
+                            <input
+                                id="ll-wordset-manager-access-email"
+                                type="email"
+                                name="ll_wordset_manager_access_email"
+                                class="regular-text ll-tools-settings-input"
+                                style="max-width:420px;"
+                                autocomplete="email"
+                            />
+                        </label>
+                        <p class="description"><?php echo esc_html__('This sends a signup link that creates or connects a Word Set Manager account and assigns that person to this word set.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary"><?php echo esc_html__('Send Manager Invite', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </form>
+            </div>
         </div>
     </section>
     <?php
@@ -13651,6 +14445,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $lesson_enable_notice = ($view === '') ? ll_tools_wordset_page_lesson_enable_notice() : null;
     $inactive_category_notice = ($view === '') ? ll_tools_wordset_page_inactive_category_notice() : null;
     $manager_settings_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_settings_notice() : null;
+    $manager_access_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_access_notice() : null;
     $manager_offline_export_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_offline_export_notice() : null;
     $manager_import_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_import_notice() : null;
     $manager_template_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_template_notice() : null;
@@ -14412,15 +15207,26 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         <?php endif; ?>
         <?php if (!($utility_user instanceof WP_User) && $view !== 'progress' && $view !== 'games' && function_exists('ll_tools_login_window_requested_mode') && ll_tools_login_window_requested_mode() !== '') : ?>
             <?php
+            $is_manager_invite_signup = function_exists('ll_tools_wordset_manager_invite_current_request_allows_signup_registration')
+                && ll_tools_wordset_manager_invite_current_request_allows_signup_registration();
             echo ll_tools_render_login_window([
                 'container_class' => 'll-wordset-empty ll-wordset-login-window',
                 'title' => __('Sign in or create an account', 'll-tools-text-domain'),
-                'message' => __('Use an account to save your progress and keep learning from this page.', 'll-tools-text-domain'),
+                'message' => $is_manager_invite_signup
+                    ? __('Use the invited email address to manage this word set.', 'll-tools-text-domain')
+                    : __('Use an account to save your progress and keep learning from this page.', 'll-tools-text-domain'),
                 'submit_label' => __('Continue', 'll-tools-text-domain'),
                 'redirect_to' => $utility_current_url,
                 'show_registration' => true,
-                'registration_title' => __('Create learner account', 'll-tools-text-domain'),
-                'registration_submit_label' => __('Create account', 'll-tools-text-domain'),
+                'registration_title' => $is_manager_invite_signup
+                    ? __('Create manager account', 'll-tools-text-domain')
+                    : __('Create learner account', 'll-tools-text-domain'),
+                'registration_message' => $is_manager_invite_signup
+                    ? __('This invite can create or connect a Word Set Manager account for this word set.', 'll-tools-text-domain')
+                    : '',
+                'registration_submit_label' => $is_manager_invite_signup
+                    ? __('Create manager account', 'll-tools-text-domain')
+                    : __('Create account', 'll-tools-text-domain'),
             ]);
             ?>
         <?php endif; ?>
@@ -14888,6 +15694,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $settings_notices = [];
             if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message']) && ($settings_tool === '' || in_array($settings_tool, ['study', 'language', 'visibility', 'categories', 'advanced', 'transcription'], true))) {
                 $settings_notices[] = $manager_settings_notice;
+            }
+            if (is_array($manager_access_notice) && !empty($manager_access_notice['message']) && ($settings_tool === '' || $settings_tool === 'visibility')) {
+                $settings_notices[] = $manager_access_notice;
             }
             if (is_array($manager_template_notice) && !empty($manager_template_notice['message']) && ($settings_tool === '' || in_array($settings_tool, ['template', 'language'], true))) {
                 $settings_notices[] = $manager_template_notice;

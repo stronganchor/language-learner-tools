@@ -134,6 +134,11 @@ function ll_tools_get_primary_managed_wordset_id_for_user(int $user_id): int {
 
     if (function_exists('ll_tools_get_user_managed_wordset_ids')) {
         $managed_ids = ll_tools_get_user_managed_wordset_ids($user_id);
+        $primary_id = (int) get_user_meta($user_id, 'll_primary_managed_wordset_id', true);
+        if ($primary_id > 0 && in_array($primary_id, array_map('intval', (array) $managed_ids), true)) {
+            return $primary_id;
+        }
+
         foreach ((array) $managed_ids as $managed_id) {
             $managed_id = (int) $managed_id;
             if ($managed_id > 0) {
@@ -192,7 +197,7 @@ function ll_tools_render_wordset_manager_assignment_fields($user = null, bool $i
             <th colspan="2">
                 <h2><?php echo esc_html__('Word Set Manager Assignment', 'll-tools-text-domain'); ?></h2>
                 <p class="description">
-                    <?php echo esc_html__('Choose the word set this user is allowed to manage. This is required when assigning the Word Set Manager role.', 'll-tools-text-domain'); ?>
+                    <?php echo esc_html__('Choose the primary word set this user is allowed to manage. Additional manager assignments can be added from each word set settings page.', 'll-tools-text-domain'); ?>
                 </p>
             </th>
         </tr>
@@ -212,7 +217,7 @@ function ll_tools_render_wordset_manager_assignment_fields($user = null, bool $i
                     <?php endforeach; ?>
                 </select>
                 <p class="description">
-                    <?php echo esc_html__('If this role is selected, one word set must be chosen.', 'll-tools-text-domain'); ?>
+                    <?php echo esc_html__('If this role is selected, a primary word set must be chosen.', 'll-tools-text-domain'); ?>
                 </p>
             </td>
         </tr>
@@ -346,36 +351,17 @@ function ll_tools_save_wordset_manager_assignment($user_id): void {
         return;
     }
 
-    if (function_exists('ll_tools_get_user_managed_wordset_ids')) {
-        $existing_managed_ids = ll_tools_get_user_managed_wordset_ids($user_id);
-        foreach ((array) $existing_managed_ids as $existing_id) {
-            $existing_id = (int) $existing_id;
-            if ($existing_id <= 0 || $existing_id === $wordset_id) {
-                continue;
-            }
-
-            $existing_manager_user_id = (int) get_term_meta($existing_id, 'manager_user_id', true);
-            if ($existing_manager_user_id === $user_id) {
-                delete_term_meta($existing_id, 'manager_user_id');
-            }
-        }
+    if (function_exists('ll_tools_set_wordset_manager_user_ids') && function_exists('ll_tools_get_wordset_manager_user_ids')) {
+        $manager_ids = ll_tools_get_wordset_manager_user_ids($wordset_id, true);
+        $manager_ids[] = $user_id;
+        ll_tools_set_wordset_manager_user_ids($wordset_id, $manager_ids, $user_id);
+    } elseif (function_exists('ll_tools_add_wordset_manager_user')) {
+        ll_tools_add_wordset_manager_user($wordset_id, $user_id);
+    } else {
+        update_term_meta($wordset_id, 'manager_user_id', $user_id);
+        update_user_meta($user_id, 'managed_wordsets', [$wordset_id]);
     }
-
-    $previous_manager_user_id = (int) get_term_meta($wordset_id, 'manager_user_id', true);
-    if ($previous_manager_user_id > 0 && $previous_manager_user_id !== $user_id) {
-        $previous_legacy = array_values(array_filter(array_map('intval', (array) get_user_meta($previous_manager_user_id, 'managed_wordsets', true))));
-        if (!empty($previous_legacy)) {
-            $previous_legacy = array_values(array_diff($previous_legacy, [$wordset_id]));
-            if (empty($previous_legacy)) {
-                delete_user_meta($previous_manager_user_id, 'managed_wordsets');
-            } else {
-                update_user_meta($previous_manager_user_id, 'managed_wordsets', array_map('intval', $previous_legacy));
-            }
-        }
-    }
-
-    update_term_meta($wordset_id, 'manager_user_id', $user_id);
-    update_user_meta($user_id, 'managed_wordsets', [$wordset_id]);
+    update_user_meta($user_id, 'll_primary_managed_wordset_id', $wordset_id);
 }
 add_action('edit_user_profile_update', 'll_tools_save_wordset_manager_assignment');
 add_action('user_register', 'll_tools_save_wordset_manager_assignment');

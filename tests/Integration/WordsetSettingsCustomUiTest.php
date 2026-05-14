@@ -494,6 +494,179 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_manager_template_copy_settings"', $html);
     }
 
+    public function test_wordset_settings_renders_manager_access_controls(): void
+    {
+        $this->ensureWordsetManagerRole();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $manager_id = self::factory()->user->create([
+            'role' => 'wordset_manager',
+            'display_name' => 'Primary Manager',
+            'user_email' => 'primary-manager@example.org',
+        ]);
+        $this->assertTrue((bool) ll_tools_set_wordset_manager_user_ids($wordset_id, [$manager_id], $manager_id));
+
+        $_GET = [
+            'll_wordset_tool' => 'visibility',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('Word Set Managers', $html);
+        $this->assertStringContainsString('Primary Manager', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_access_action" value="upgrade"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_access_identifier"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_access_action" value="invite"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_access_email"', $html);
+    }
+
+    public function test_wordset_manager_upgrade_action_adds_second_manager_without_replacing_primary(): void
+    {
+        $this->ensureWordsetManagerRole();
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $primary_manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        $this->assertTrue((bool) ll_tools_set_wordset_manager_user_ids($wordset_id, [$primary_manager_id], $primary_manager_id));
+        wp_set_current_user($primary_manager_id);
+
+        $target_user_id = self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_login' => 'secondmanager',
+            'user_email' => 'second-manager@example.org',
+        ]);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_access_action' => 'upgrade',
+            'll_wordset_manager_access_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_access_identifier' => 'second-manager@example.org',
+            'll_wordset_manager_access_nonce' => wp_create_nonce('ll_wordset_manager_access_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'visibility',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_access_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_access'] ?? ''));
+        $this->assertSame('upgraded', (string) ($query['ll_wordset_manager_access_result'] ?? ''));
+        $this->assertSame($primary_manager_id, (int) get_term_meta($wordset_id, 'manager_user_id', true));
+
+        $manager_ids = ll_tools_get_wordset_manager_user_ids($wordset_id, true);
+        $this->assertContains($primary_manager_id, $manager_ids);
+        $this->assertContains($target_user_id, $manager_ids);
+        $this->assertTrue(ll_tools_user_can_manage_wordset_content($wordset_id, $target_user_id));
+
+        $target_user = get_userdata($target_user_id);
+        $this->assertInstanceOf(WP_User::class, $target_user);
+        $this->assertContains('wordset_manager', (array) $target_user->roles);
+    }
+
+    public function test_wordset_manager_invite_action_sends_email(): void
+    {
+        $this->ensureWordsetManagerRole();
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $primary_manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        $this->assertTrue((bool) ll_tools_set_wordset_manager_user_ids($wordset_id, [$primary_manager_id], $primary_manager_id));
+        wp_set_current_user($primary_manager_id);
+
+        $captured = [];
+        $mail_filter = static function ($pre, $atts) use (&$captured) {
+            $captured[] = $atts;
+            return true;
+        };
+        add_filter('pre_wp_mail', $mail_filter, 10, 2);
+
+        try {
+            $_GET = [];
+            $_POST = [
+                'll_wordset_manager_access_action' => 'invite',
+                'll_wordset_manager_access_wordset_id' => (string) $wordset_id,
+                'll_wordset_manager_access_email' => 'invited-manager@example.org',
+                'll_wordset_manager_access_nonce' => wp_create_nonce('ll_wordset_manager_access_' . $wordset_id),
+                'll_wordset_page' => $wordset_slug,
+                'll_wordset_view' => 'settings',
+                'll_wordset_tool' => 'visibility',
+            ];
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility'));
+            set_query_var('ll_wordset_page', $wordset_slug);
+            set_query_var('ll_wordset_view', 'settings');
+
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_wordset_page_handle_manager_access_action();
+            });
+        } finally {
+            remove_filter('pre_wp_mail', $mail_filter, 10);
+        }
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_access'] ?? ''));
+        $this->assertSame('invited', (string) ($query['ll_wordset_manager_access_result'] ?? ''));
+        $this->assertCount(1, $captured);
+        $this->assertSame('invited-manager@example.org', (string) ($captured[0]['to'] ?? ''));
+        $this->assertStringContainsString((string) $wordset_term->name, (string) ($captured[0]['subject'] ?? ''));
+        $this->assertStringContainsString('ll_tools_wordset_manager_invite=', (string) ($captured[0]['message'] ?? ''));
+    }
+
+    public function test_wordset_manager_invite_acceptance_adds_manager_assignment(): void
+    {
+        $this->ensureWordsetManagerRole();
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $primary_manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        $this->assertTrue((bool) ll_tools_set_wordset_manager_user_ids($wordset_id, [$primary_manager_id], $primary_manager_id));
+
+        $target_user_id = self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_email' => 'accepted-manager@example.org',
+        ]);
+        $token = ll_tools_wordset_manager_invite_build_token($wordset_id, [
+            'email' => 'accepted-manager@example.org',
+            'expires_at' => time() + HOUR_IN_SECONDS,
+        ]);
+        $this->assertNotSame('', $token);
+
+        $result = ll_tools_wordset_manager_invite_accept_for_user($token, $target_user_id);
+
+        $this->assertIsArray($result);
+        $this->assertSame($wordset_id, (int) ($result['wordset_id'] ?? 0));
+        $this->assertTrue(ll_tools_user_can_manage_wordset_content($wordset_id, $target_user_id));
+        $this->assertContains($target_user_id, ll_tools_get_wordset_manager_user_ids($wordset_id, true));
+
+        $target_user = get_userdata($target_user_id);
+        $this->assertInstanceOf(WP_User::class, $target_user);
+        $this->assertContains('wordset_manager', (array) $target_user->roles);
+    }
+
     public function test_language_settings_action_updates_wordset_meta_and_redirects_back_to_language_tool(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
