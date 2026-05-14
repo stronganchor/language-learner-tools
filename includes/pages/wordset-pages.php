@@ -13277,8 +13277,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
         $study_state['wordset_id'] = $wordset_id;
         if ($should_bootstrap_analytics && function_exists('ll_tools_build_user_study_analytics_payload')) {
-            $analytics_include_ignored = ($view === 'progress');
-            $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, $analytics_include_ignored);
+            $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, false);
         }
         if (function_exists('ll_tools_user_study_categories_for_wordset')) {
             $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);
@@ -14203,7 +14202,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'mainCategorySortCookieName' => ll_tools_wordset_page_get_main_sort_cookie_name($wordset_id),
         'links' => $localized_links,
         'progressReset' => $localized_progress_reset,
-        'progressIncludeHidden' => ($view === 'progress'),
+        'progressIncludeHidden' => false,
         'categories' => $script_categories,
         'visibleCategoryIds' => ($view === 'games') ? $visible_category_ids : [],
         'hiddenCategoryIds' => array_values(array_map('intval', wp_list_pluck($hidden_categories, 'id'))),
