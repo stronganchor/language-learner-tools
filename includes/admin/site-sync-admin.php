@@ -545,6 +545,35 @@ function ll_tools_site_sync_push_local_conflict_updates(array $plan): array {
     return array_values($updates_by_recording);
 }
 
+function ll_tools_site_sync_accept_live_base_updates(array $plan): array {
+    $updates_by_recording = [];
+    $allowed = array_fill_keys(ll_tools_site_sync_transcription_value_keys(), true);
+
+    foreach ((array) ($plan['conflicts'] ?? []) as $conflict) {
+        if (!is_array($conflict)) {
+            continue;
+        }
+
+        $field = sanitize_key((string) ($conflict['field'] ?? ''));
+        if (!isset($allowed[$field])) {
+            continue;
+        }
+
+        $remote_record = (array) ($conflict['remote_record'] ?? []);
+        $recording_id = (int) (($remote_record['recording'] ?? [])['id'] ?? 0);
+        if ($recording_id <= 0) {
+            continue;
+        }
+
+        $remote_values = ll_tools_site_sync_normalize_record_values((array) ($remote_record['values'] ?? []));
+        $update = (array) ($updates_by_recording[$recording_id] ?? ['recording_id' => $recording_id]);
+        $update[$field] = $remote_values[$field] ?? ($conflict['remote_value'] ?? '');
+        $updates_by_recording[$recording_id] = $update;
+    }
+
+    return array_values($updates_by_recording);
+}
+
 function ll_tools_site_sync_accept_live_conflicts_locally(array $plan, int $wordset_id): array {
     $updates_by_recording = [];
     $allowed = array_fill_keys(ll_tools_site_sync_transcription_value_keys(), true);
@@ -764,8 +793,8 @@ function ll_tools_site_sync_apply_push_batch(array $connection, string $password
     }
 
     $base_updates = $remote_updates_to_send;
-    if ($flag_conflicts && !empty($conflict_review_updates_to_send)) {
-        $base_updates = array_merge($base_updates, $conflict_review_updates_to_send);
+    if ($conflict_mode === 'accept_live' && !empty($plan['conflicts'])) {
+        $base_updates = array_merge($base_updates, ll_tools_site_sync_accept_live_base_updates($plan));
     }
     $merged_base = ll_tools_site_sync_merge_base_snapshot_after_push($base_snapshot, $fresh_remote_snapshot, $base_updates);
     ll_tools_site_sync_save_base_snapshot($connection, $merged_base);

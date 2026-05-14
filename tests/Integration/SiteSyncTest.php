@@ -305,20 +305,71 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) (($result['progress'] ?? [])['next_remote_updates'] ?? -1));
     }
 
-    public function test_apply_push_batch_keeps_remote_only_changes_out_of_next_push(): void
+    public function test_apply_push_batch_keeps_remote_only_changes_out_of_next_push_across_conflict_modes(): void
     {
-        $wordset_id = $this->ensure_term('wordset', 'Push Base Guard Wordset', 'push-base-guard-wordset');
-        $category_id = $this->ensure_term('word-category', 'Push Base Guard Category', 'push-base-guard-category');
-        $changed_word_id = $this->create_word($wordset_id, [$category_id], 'Push Base Guard Changed', 'Changed');
-        $remote_word_id = $this->create_word($wordset_id, [$category_id], 'Push Base Guard Remote', 'Remote');
-        $changed_recording_id = $this->create_recording($changed_word_id, 'Push Base Guard Changed Recording', [
-            'recording_ipa' => 'base.changed',
+        foreach (['skip', 'flag', 'push_local', 'accept_live'] as $conflict_mode) {
+            $result = $this->run_push_base_guard_batch($conflict_mode);
+            $progress = (array) ($result['result']['progress'] ?? []);
+
+            $this->assertSame([], (array) ($result['result']['errors'] ?? []), $conflict_mode);
+            $this->assertSame(1, (int) ($progress['sent_remote_updates'] ?? 0), $conflict_mode);
+            $this->assertSame(0, (int) ($progress['next_remote_updates'] ?? -1), $conflict_mode);
+            $this->assertSame(
+                'pulled.remote',
+                $this->base_recording_ipa_for_sync_id($result['base_snapshot'], 'push-base-guard-remote-' . $conflict_mode),
+                $conflict_mode
+            );
+
+            if ($conflict_mode === 'skip' || $conflict_mode === 'flag') {
+                $this->assertSame(1, (int) ($progress['next_conflicts'] ?? 0), $conflict_mode);
+                $this->assertSame(
+                    'base.conflict',
+                    $this->base_recording_ipa_for_sync_id($result['base_snapshot'], 'push-base-guard-conflict-' . $conflict_mode),
+                    $conflict_mode
+                );
+            } elseif ($conflict_mode === 'push_local') {
+                $this->assertSame(0, (int) ($progress['next_conflicts'] ?? -1), $conflict_mode);
+                $this->assertSame(
+                    'local.conflict',
+                    $this->base_recording_ipa_for_sync_id($result['base_snapshot'], 'push-base-guard-conflict-' . $conflict_mode),
+                    $conflict_mode
+                );
+            } else {
+                $this->assertSame(0, (int) ($progress['next_conflicts'] ?? -1), $conflict_mode);
+                $this->assertSame(
+                    'live.conflict',
+                    $this->base_recording_ipa_for_sync_id($result['base_snapshot'], 'push-base-guard-conflict-' . $conflict_mode),
+                    $conflict_mode
+                );
+            }
+
+            $this->assertSame(
+                'local.clean',
+                $this->base_recording_text_for_sync_id($result['base_snapshot'], 'push-base-guard-conflict-' . $conflict_mode),
+                $conflict_mode
+            );
+        }
+    }
+
+    /**
+     * @return array{result:array<string,mixed>,base_snapshot:array<string,mixed>}
+     */
+    private function run_push_base_guard_batch(string $conflict_mode): array
+    {
+        $slug = sanitize_title('push-base-guard-' . $conflict_mode);
+        $wordset_id = $this->ensure_term('wordset', 'Push Base Guard Wordset ' . $conflict_mode, $slug . '-wordset');
+        $category_id = $this->ensure_term('word-category', 'Push Base Guard Category ' . $conflict_mode, $slug . '-category');
+        $conflict_word_id = $this->create_word($wordset_id, [$category_id], 'Push Base Guard Conflict ' . $conflict_mode, 'Conflict');
+        $remote_word_id = $this->create_word($wordset_id, [$category_id], 'Push Base Guard Remote ' . $conflict_mode, 'Remote');
+        $conflict_recording_id = $this->create_recording($conflict_word_id, 'Push Base Guard Conflict Recording ' . $conflict_mode, [
+            'recording_text' => 'base.clean',
+            'recording_ipa' => 'base.conflict',
         ]);
-        $remote_recording_id = $this->create_recording($remote_word_id, 'Push Base Guard Remote Recording', [
+        $remote_recording_id = $this->create_recording($remote_word_id, 'Push Base Guard Remote Recording ' . $conflict_mode, [
             'recording_ipa' => 'pulled.remote',
         ]);
-        update_post_meta($changed_recording_id, ll_tools_site_sync_uuid_meta_key(), 'push-base-guard-changed');
-        update_post_meta($remote_recording_id, ll_tools_site_sync_uuid_meta_key(), 'push-base-guard-remote');
+        update_post_meta($conflict_recording_id, ll_tools_site_sync_uuid_meta_key(), 'push-base-guard-conflict-' . $conflict_mode);
+        update_post_meta($remote_recording_id, ll_tools_site_sync_uuid_meta_key(), 'push-base-guard-remote-' . $conflict_mode);
 
         $connection = [
             'local_wordset_id' => $wordset_id,
@@ -328,6 +379,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
             'surface' => 'transcriptions',
         ];
         update_option(ll_tools_site_sync_connection_option_name(), $connection, false);
+
         $base = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true, [
             'include_media' => false,
         ]);
@@ -337,9 +389,12 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $remote_records = [];
         foreach ((array) ($base['records'] ?? []) as $record) {
             $record = (array) $record;
-            if ((string) ($record['sync_id'] ?? '') === 'push-base-guard-changed') {
+            if ((string) ($record['sync_id'] ?? '') === 'push-base-guard-conflict-' . $conflict_mode) {
                 $record['recording']['id'] = 9101;
-            } elseif ((string) ($record['sync_id'] ?? '') === 'push-base-guard-remote') {
+                $record['values']['recording_ipa'] = 'live.conflict';
+                $record['values'] = ll_tools_site_sync_normalize_record_values((array) $record['values']);
+                $record['value_hash'] = ll_tools_site_sync_value_hash((array) $record['values']);
+            } elseif ((string) ($record['sync_id'] ?? '') === 'push-base-guard-remote-' . $conflict_mode) {
                 $record['recording']['id'] = 9102;
                 $record['values']['recording_ipa'] = 'live.remote';
                 $record['values'] = ll_tools_site_sync_normalize_record_values((array) $record['values']);
@@ -347,7 +402,8 @@ final class SiteSyncTest extends LL_Tools_TestCase
             }
             $remote_records[] = $record;
         }
-        update_post_meta($changed_recording_id, 'recording_ipa', 'local.changed');
+        update_post_meta($conflict_recording_id, 'recording_text', 'local.clean');
+        update_post_meta($conflict_recording_id, 'recording_ipa', 'local.conflict');
 
         $http_filter = static function ($preempt, array $args, string $url) use (&$remote_records) {
             unset($preempt);
@@ -409,15 +465,48 @@ final class SiteSyncTest extends LL_Tools_TestCase
 
         add_filter('pre_http_request', $http_filter, 10, 3);
         try {
-            $result = ll_tools_site_sync_apply_push_batch($connection, 'remote-password', 'skip');
+            $result = ll_tools_site_sync_apply_push_batch($connection, 'remote-password', $conflict_mode);
         } finally {
             remove_filter('pre_http_request', $http_filter, 10);
         }
 
-        $this->assertSame([], (array) ($result['errors'] ?? []));
-        $this->assertSame(1, (int) (($result['progress'] ?? [])['sent_remote_updates'] ?? 0));
-        $this->assertTrue((bool) (($result['progress'] ?? [])['done'] ?? false));
-        $this->assertSame(0, (int) (($result['progress'] ?? [])['next_remote_updates'] ?? -1));
+        return [
+            'result' => is_array($result) ? $result : [],
+            'base_snapshot' => ll_tools_site_sync_get_base_snapshot($connection),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $snapshot
+     */
+    private function base_recording_text_for_sync_id(array $snapshot, string $sync_id): string
+    {
+        return $this->base_value_for_sync_id($snapshot, $sync_id, 'recording_text');
+    }
+
+    /**
+     * @param array<string,mixed> $snapshot
+     */
+    private function base_recording_ipa_for_sync_id(array $snapshot, string $sync_id): string
+    {
+        return $this->base_value_for_sync_id($snapshot, $sync_id, 'recording_ipa');
+    }
+
+    /**
+     * @param array<string,mixed> $snapshot
+     */
+    private function base_value_for_sync_id(array $snapshot, string $sync_id, string $field): string
+    {
+        foreach ((array) ($snapshot['records'] ?? []) as $record) {
+            if (!is_array($record) || (string) ($record['sync_id'] ?? '') !== $sync_id) {
+                continue;
+            }
+
+            $values = ll_tools_site_sync_normalize_record_values((array) ($record['values'] ?? []));
+            return is_scalar($values[$field] ?? '') ? (string) $values[$field] : '';
+        }
+
+        return '';
     }
 
     public function test_remote_snapshot_fetch_combines_paged_responses(): void

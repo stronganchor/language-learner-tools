@@ -1892,9 +1892,12 @@ function ll_tools_site_sync_merge_base_snapshot_after_push(array $base_snapshot,
         }
 
         if (!empty($verified_fields)) {
+            $existing_fields = isset($updates_by_key[$key]['fields']) && is_array($updates_by_key[$key]['fields'])
+                ? $updates_by_key[$key]['fields']
+                : [];
             $updates_by_key[$key] = [
                 'record' => $remote_record,
-                'fields' => $verified_fields,
+                'fields' => array_merge($existing_fields, $verified_fields),
             ];
         }
     }
