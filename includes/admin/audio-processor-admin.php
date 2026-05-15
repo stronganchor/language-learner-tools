@@ -391,6 +391,8 @@ function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $pr
     $original_audio_path = function_exists('ll_tools_get_audio_original_file_path')
         ? ll_tools_get_audio_original_file_path($audio_post_id)
         : '';
+    $word_image_data = ll_tools_get_effective_word_image_data_for_word($parent_word_id, 'thumbnail', true);
+    $word_image_url = (string) ($word_image_data['url'] ?? '');
 
     return [
         'id' => $audio_post_id,
@@ -407,7 +409,7 @@ function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $pr
         'recordingTypes' => $recording_type_names,
         'recordingTypeItems' => $recording_type_items,
         'recordingType' => $recording_type_slug,
-        'imageUrl' => get_the_post_thumbnail_url($parent_word_id, 'thumbnail') ?: '',
+        'imageUrl' => $word_image_url,
         'parentWordId' => (int) $parent_word_id,
         'recordingKey' => ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug),
         'hasOriginalAudio' => $original_audio_path !== '',
