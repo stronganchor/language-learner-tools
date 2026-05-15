@@ -19,6 +19,7 @@ From plugin root:
 tests/bin/run-tests.sh
 tests/bin/run-e2e.sh
 tests/bin/run-live-smoke.sh
+tests/bin/run-performance-benchmark.sh
 ```
 
 Run one PHPUnit test:
@@ -48,6 +49,12 @@ Read-only live smoke checks against public URLs in a local config file:
 tests/bin/run-live-smoke.sh
 ```
 
+Seeded Local-site performance benchmark:
+
+```bash
+tests/bin/run-performance-benchmark.sh
+```
+
 ## 3) Environment Rules
 
 - Primary runtime values come from `tests/.env` (ignored by git).
@@ -72,6 +79,7 @@ Recommended `.env` keys to verify before debugging code:
 - `LL_E2E_BASE_URL`
 - `LL_E2E_LEARN_PATH`
 - `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS` when debugging the throttled page-speed regression
+- `LL_E2E_PERF_*` when running the seeded performance benchmark
 - `LL_LIVE_SITES_FILE` when running the read-only live smoke suite against public URLs
 
 ## 4) Adding New PHPUnit Integration Tests
@@ -118,6 +126,7 @@ For network-sensitive regressions on Local sites:
 - Prefer Chromium DevTools throttling via CDP over fake `setTimeout()` delays.
 - Calibrate with env vars such as `LL_E2E_PAGE_SPEED_LATENCY_MS`, `LL_E2E_PAGE_SPEED_DOWNLOAD_KBPS`, and the `LL_E2E_PAGE_SPEED_MAX_*` budgets.
 - Measure an actionable selector becoming visible, not just the `load` event.
+- For release-to-release performance comparison, use `tests/bin/run-performance-benchmark.sh` so the static `ll-perf-*` wordsets are reused when current or refreshed from `tests/performance/fixtures/performance-wordsets.json` when stale before timing starts.
 
 ## 6) Modifying Existing Tests Safely
 
@@ -184,6 +193,14 @@ Playwright cannot find `.ll-quiz-page-trigger`:
 - Inspect the attached `wordset-page-speed-metrics` JSON before changing budgets.
 - If you need a different large wordset, set `LL_E2E_WORDSET_PAGE_SPEED_PATH` and keep the selector pointed at a visible wordset-page card.
 
+`performance-benchmark.spec.js` fails:
+- Run it through `tests/bin/run-performance-benchmark.sh` unless you deliberately seeded the fixture yourself.
+- Inspect the attached `performance-benchmark-summary` JSON.
+- Set `LL_PERF_FORCE_SEED=1` when you need a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify the fixture state.
+- Confirm `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` are set because progress-page scenarios are authenticated.
+- If the fixture manifest changed intentionally, bump `fixtureVersion`; historical comparison only makes sense for the same fixture shape.
+- If a slower machine produced acceptable timings, tune `LL_E2E_PERF_MAX_REGRESSION_RATIO` and `LL_E2E_PERF_MAX_REGRESSION_MS` rather than weakening scenario selectors.
+
 `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:
 - This is usually a PHP shim path-conversion issue in WSL.
 - `tests/bin/php-local.sh` auto-converts args for Windows-runtime PHP.
@@ -204,7 +221,8 @@ For public-page shell, asset, or template changes that could affect perceived lo
 
 1. `tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js`
 2. `tests/bin/run-e2e.sh specs/wordset-page-speed-large-wordset.spec.js` when the wordset page, large category lists, or wordset page caches are involved
-3. `tests/bin/run-live-smoke.sh` when you also need a low-impact post-deploy production sanity check
+3. `tests/bin/run-performance-benchmark.sh` when the change could affect release-to-release performance trends
+4. `tests/bin/run-live-smoke.sh` when you also need a low-impact post-deploy production sanity check
 
 Wordset-boundary changes should also include:
 

@@ -1,0 +1,40 @@
+{
+  "fixtureVersion": "2026-05-15.1",
+  "description": "Static LL Tools performance benchmark fixture. Change fixtureVersion whenever counts, slugs, generated content, or page makeup changes.",
+  "learnPage": {
+    "slug": "ll-perf-learn",
+    "title": "LL Performance Learn Grid",
+    "wordsetSlug": "ll-perf-large"
+  },
+  "quizConfig": {
+    "promptType": "text_title",
+    "optionType": "text_translation"
+  },
+  "media": {
+    "imagePerCategory": true,
+    "audioPerWord": true
+  },
+  "wordsets": [
+    {
+      "size": "small",
+      "slug": "ll-perf-small",
+      "title": "LL Performance Small",
+      "categoryCount": 4,
+      "wordsPerCategory": 8
+    },
+    {
+      "size": "medium",
+      "slug": "ll-perf-medium",
+      "title": "LL Performance Medium",
+      "categoryCount": 12,
+      "wordsPerCategory": 15
+    },
+    {
+      "size": "large",
+      "slug": "ll-perf-large",
+      "title": "LL Performance Large",
+      "categoryCount": 30,
+      "wordsPerCategory": 24
+    }
+  ]
+}

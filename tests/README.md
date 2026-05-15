@@ -21,6 +21,7 @@ This directory contains the plugin test framework:
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
 - `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars.
 - `bin/run-e2e.sh`: installs Playwright deps/browsers (if needed) and runs browser E2E tests.
+- `bin/run-performance-benchmark.sh`: reuses or refreshes the static `ll-perf-*` Local-site fixture and runs the opt-in performance benchmark.
 - `e2e/*`: Playwright configuration + browser test specs.
 
 ## 1) Prerequisites
@@ -213,6 +214,8 @@ Representative E2E coverage areas:
   - Verifies the learn page still becomes usable within a configurable budget while Chromium throttles localhost traffic to a slower network profile.
 - `tests/e2e/specs/wordset-page-speed-large-wordset.spec.js`
   - Verifies a large wordset page such as `/genc-palu/` reaches visible category cards within a configurable throttled-load budget.
+- `tests/e2e/specs/performance-benchmark.spec.js`
+  - Opt-in benchmark for static `ll-perf-small`, `ll-perf-medium`, and `ll-perf-large` fixtures. It records medians for seeded learn-grid, wordset, progress, games, search, and quiz-popup scenarios, then compares them with the previous matching JSONL history record.
 - `tests/e2e/specs/wordset-manager-settings-ui.spec.js`
   - Verifies frontend wordset-manager tools stay usable under narrow/mobile layouts, including the Wordset Editor table and full-width recording details.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
@@ -280,6 +283,8 @@ LL_E2E_PAGE_SPEED_CPU_SLOWDOWN_RATE=1
 LL_E2E_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS=7000
 LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS=10000
 LL_E2E_PAGE_SPEED_MAX_LOAD_MS=15000
+LL_E2E_PERF_RUNS=3
+LL_E2E_PERF_HISTORY_FILE=tests/performance/history/performance-history.jsonl
 ```
 
 Live smoke runner config:
@@ -330,6 +335,23 @@ tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js
 ```bash
 tests/bin/run-e2e.sh specs/wordset-page-speed-large-wordset.spec.js
 ```
+
+Seeded performance benchmark:
+
+- Use this when you want release-to-release performance history rather than a single fixed-budget page-speed check.
+- The fixture is defined in `tests/performance/fixtures/performance-wordsets.json`; keep the wordset/category/word counts static and bump `fixtureVersion` when that file changes.
+- The seeder reuses the existing fixture when the manifest version, checksum, expected counts, fixture tags, and key pages still match.
+- The runner writes one JSONL record with plugin version, git commit, fixture version, throttle profile, medians, p95s, and comparison results.
+- Progress-page scenarios are authenticated, so keep `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` set in `tests/.env.local`.
+
+```bash
+tests/bin/run-performance-benchmark.sh
+```
+
+- By default, history is appended to `tests/performance/history/performance-history.jsonl`.
+- Set `LL_E2E_PERF_WRITE_HISTORY=0` for a dry verification run that does not modify the history log.
+- Set `LL_E2E_PERF_COMPARE_HISTORY=0` to record metrics without failing on a historical comparison.
+- Set `LL_PERF_FORCE_SEED=1` for a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify or refresh the fixture.
 
 ## Notes
 
