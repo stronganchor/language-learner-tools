@@ -5718,6 +5718,30 @@ function ll_tools_wordset_page_manager_import_notice(): ?array {
             'message' => __('No valid prompt and answer pairs were found. Use one pair per line (tab-separated is recommended).', 'll-tools-text-domain'),
         ];
     }
+    if ($error === 'too_large') {
+        $max_bytes = isset($_GET['ll_wordset_manager_import_max_bytes'])
+            ? max(1, (int) wp_unslash((string) $_GET['ll_wordset_manager_import_max_bytes']))
+            : ll_tools_wordset_page_get_manager_import_max_bytes();
+        return [
+            'type' => 'error',
+            'message' => sprintf(
+                __('That paste is too large for the frontend importer. Keep each import under %s, split the list into smaller batches, and try again.', 'll-tools-text-domain'),
+                size_format($max_bytes)
+            ),
+        ];
+    }
+    if ($error === 'too_many_rows') {
+        $max_rows = isset($_GET['ll_wordset_manager_import_max_rows'])
+            ? max(1, (int) wp_unslash((string) $_GET['ll_wordset_manager_import_max_rows']))
+            : ll_tools_wordset_page_get_manager_import_max_rows();
+        return [
+            'type' => 'error',
+            'message' => sprintf(
+                _n('That paste has too many valid rows for the frontend importer. Keep each import to %d row or fewer, split the list into smaller batches, and try again.', 'That paste has too many valid rows for the frontend importer. Keep each import to %d rows or fewer, split the list into smaller batches, and try again.', $max_rows, 'll-tools-text-domain'),
+                $max_rows
+            ),
+        ];
+    }
 
     return [
         'type' => 'error',
@@ -5834,6 +5858,31 @@ function ll_tools_wordset_page_manager_template_notice(): ?array {
         'type' => 'error',
         'message' => __('Unable to create a word set from this template right now.', 'll-tools-text-domain'),
     ];
+}
+
+function ll_tools_wordset_page_normalize_manager_import_cap($value, int $default): int {
+    $cap = is_numeric($value) ? (int) $value : $default;
+    if ($cap <= 0) {
+        $cap = $default;
+    }
+
+    return max(1, $cap);
+}
+
+function ll_tools_wordset_page_get_manager_import_max_bytes(): int {
+    $default = 256 * 1024;
+    return ll_tools_wordset_page_normalize_manager_import_cap(
+        apply_filters('ll_tools_wordset_manager_import_max_bytes', $default),
+        $default
+    );
+}
+
+function ll_tools_wordset_page_get_manager_import_max_rows(): int {
+    $default = 1000;
+    return ll_tools_wordset_page_normalize_manager_import_cap(
+        apply_filters('ll_tools_wordset_manager_import_max_rows', $default),
+        $default
+    );
 }
 
 function ll_tools_wordset_page_parse_manager_import_pairs(string $raw_pairs): array {
@@ -6004,6 +6053,31 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
         $redirect_error('empty');
     }
 
+    $max_bytes = ll_tools_wordset_page_get_manager_import_max_bytes();
+    if (strlen($raw_pairs) > $max_bytes) {
+        $redirect_error('too_large', [
+            'll_wordset_manager_import_max_bytes' => $max_bytes,
+        ]);
+    }
+
+    $parsed = ll_tools_wordset_page_parse_manager_import_pairs($raw_pairs);
+    $rows = (isset($parsed['rows']) && is_array($parsed['rows'])) ? $parsed['rows'] : [];
+    $skipped_empty = max(0, (int) ($parsed['skipped_empty'] ?? 0));
+    $skipped_invalid = max(0, (int) ($parsed['skipped_invalid'] ?? 0));
+    if (empty($rows)) {
+        $redirect_error('format', [
+            'll_wordset_manager_import_skipped_empty' => $skipped_empty,
+            'll_wordset_manager_import_skipped_invalid' => $skipped_invalid,
+        ]);
+    }
+
+    $max_rows = ll_tools_wordset_page_get_manager_import_max_rows();
+    if (count($rows) > $max_rows) {
+        $redirect_error('too_many_rows', [
+            'll_wordset_manager_import_max_rows' => $max_rows,
+        ]);
+    }
+
     $category_id = 0;
     if ($new_category_name !== '') {
         if (function_exists('ll_tools_create_or_get_wordset_category')) {
@@ -6033,17 +6107,6 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
             $redirect_error('category');
         }
         $category_id = (int) $selected_category_id;
-    }
-
-    $parsed = ll_tools_wordset_page_parse_manager_import_pairs($raw_pairs);
-    $rows = (isset($parsed['rows']) && is_array($parsed['rows'])) ? $parsed['rows'] : [];
-    $skipped_empty = max(0, (int) ($parsed['skipped_empty'] ?? 0));
-    $skipped_invalid = max(0, (int) ($parsed['skipped_invalid'] ?? 0));
-    if (empty($rows)) {
-        $redirect_error('format', [
-            'll_wordset_manager_import_skipped_empty' => $skipped_empty,
-            'll_wordset_manager_import_skipped_invalid' => $skipped_invalid,
-        ]);
     }
 
     ll_tools_wordset_page_maybe_set_manager_import_text_quiz_defaults($category_id);

@@ -58,6 +58,106 @@ final class WordsetManagerImportActionTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $this->findQuizPageId($fixture['category_id']));
     }
 
+    public function test_manager_import_rejects_oversized_paste_before_creating_category_or_words(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetCategoryFixture();
+        $new_category_name = 'Oversized Import Category ' . strtolower(wp_generate_password(6, false));
+        $max_bytes_filter = static function (): int {
+            return 12;
+        };
+        add_filter('ll_tools_wordset_manager_import_max_bytes', $max_bytes_filter);
+
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_GET['ll_wordset_page'] = $fixture['wordset_slug'];
+            set_query_var('ll_wordset_page', $fixture['wordset_slug']);
+            $_POST = [
+                'll_wordset_manager_import_action' => 'import_pairs',
+                'll_wordset_manager_import_wordset_id' => (string) $fixture['wordset_id'],
+                'll_wordset_manager_import_nonce' => wp_create_nonce('ll_wordset_manager_import_' . $fixture['wordset_id']),
+                'll_wordset_manager_import_pairs' => "lion\tdoud\nsheep\tgnemai\n",
+                'll_wordset_manager_import_new_category' => $new_category_name,
+                'll_wordset_view' => 'settings',
+                'll_wordset_tool' => 'import',
+                'll_wordset_back' => home_url('/'),
+            ];
+            $_REQUEST = $_POST;
+
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_wordset_page_handle_manager_import_action();
+            });
+        } finally {
+            remove_filter('ll_tools_wordset_manager_import_max_bytes', $max_bytes_filter);
+        }
+
+        $redirect_query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('error', (string) ($redirect_query['ll_wordset_manager_import'] ?? ''));
+        $this->assertSame('too_large', (string) ($redirect_query['ll_wordset_manager_import_error'] ?? ''));
+        $this->assertSame('12', (string) ($redirect_query['ll_wordset_manager_import_max_bytes'] ?? ''));
+        $this->assertEmpty(term_exists($new_category_name, 'word-category'));
+        $this->assertSame([], $this->findWordIdsInWordset($fixture['wordset_id']));
+
+        $_GET = $redirect_query;
+        $notice = ll_tools_wordset_page_manager_import_notice();
+        $this->assertIsArray($notice);
+        $this->assertSame('error', (string) ($notice['type'] ?? ''));
+        $this->assertStringContainsString('too large', (string) ($notice['message'] ?? ''));
+        $this->assertStringContainsString('split the list', (string) ($notice['message'] ?? ''));
+    }
+
+    public function test_manager_import_rejects_too_many_parsed_rows_before_creating_category_or_words(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetCategoryFixture();
+        $new_category_name = 'Too Many Rows Import Category ' . strtolower(wp_generate_password(6, false));
+        $max_rows_filter = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_wordset_manager_import_max_rows', $max_rows_filter);
+
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_GET['ll_wordset_page'] = $fixture['wordset_slug'];
+            set_query_var('ll_wordset_page', $fixture['wordset_slug']);
+            $_POST = [
+                'll_wordset_manager_import_action' => 'import_pairs',
+                'll_wordset_manager_import_wordset_id' => (string) $fixture['wordset_id'],
+                'll_wordset_manager_import_nonce' => wp_create_nonce('ll_wordset_manager_import_' . $fixture['wordset_id']),
+                'll_wordset_manager_import_pairs' => "lion\tdoud\nsheep\tgnemai\ndog\tkalib\n",
+                'll_wordset_manager_import_new_category' => $new_category_name,
+                'll_wordset_view' => 'settings',
+                'll_wordset_tool' => 'import',
+                'll_wordset_back' => home_url('/'),
+            ];
+            $_REQUEST = $_POST;
+
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_wordset_page_handle_manager_import_action();
+            });
+        } finally {
+            remove_filter('ll_tools_wordset_manager_import_max_rows', $max_rows_filter);
+        }
+
+        $redirect_query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('error', (string) ($redirect_query['ll_wordset_manager_import'] ?? ''));
+        $this->assertSame('too_many_rows', (string) ($redirect_query['ll_wordset_manager_import_error'] ?? ''));
+        $this->assertSame('2', (string) ($redirect_query['ll_wordset_manager_import_max_rows'] ?? ''));
+        $this->assertEmpty(term_exists($new_category_name, 'word-category'));
+        $this->assertSame([], $this->findWordIdsInWordset($fixture['wordset_id']));
+
+        $_GET = $redirect_query;
+        $notice = ll_tools_wordset_page_manager_import_notice();
+        $this->assertIsArray($notice);
+        $this->assertSame('error', (string) ($notice['type'] ?? ''));
+        $this->assertStringContainsString('2 rows or fewer', (string) ($notice['message'] ?? ''));
+        $this->assertStringContainsString('split the list', (string) ($notice['message'] ?? ''));
+    }
+
     /**
      * @return array{wordset_id:int, wordset_slug:string, category_id:int}
      */
@@ -113,6 +213,28 @@ final class WordsetManagerImportActionTest extends LL_Tools_TestCase
                     'taxonomy' => 'word-category',
                     'field' => 'term_id',
                     'terms' => [$category_id],
+                ],
+            ],
+        ]);
+
+        return array_values(array_map('intval', (array) $ids));
+    }
+
+    /**
+     * @return int[]
+     */
+    private function findWordIdsInWordset(int $wordset_id): array
+    {
+        $ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => ['publish', 'draft'],
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'tax_query' => [
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$wordset_id],
                 ],
             ],
         ]);
