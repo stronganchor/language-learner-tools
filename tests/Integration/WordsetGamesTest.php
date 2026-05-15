@@ -1683,7 +1683,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($allowed['data']['games']['space-shooter']['launchable'] ?? false));
     }
 
-    public function test_launch_ajax_returns_full_game_pool_beyond_bootstrap_cap(): void
+    public function test_launch_ajax_returns_capped_game_pool_while_preserving_available_count(): void
     {
         $fixture = $this->createGamesFixture(10);
         wp_set_current_user((int) $fixture['user_id']);
@@ -1716,10 +1716,82 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertIsArray($response['data']['game'] ?? null);
         $this->assertSame('space-shooter', (string) ($response['data']['game']['slug'] ?? ''));
         $this->assertSame(10, (int) ($response['data']['game']['available_word_count'] ?? 0));
-        $this->assertSame(10, (int) ($response['data']['game']['launch_word_cap'] ?? 0));
-        $this->assertSame(10, (int) ($response['data']['game']['launch_word_count'] ?? 0));
-        $this->assertCount(10, (array) ($response['data']['game']['words'] ?? []));
+        $this->assertSame(5, (int) ($response['data']['game']['launch_word_cap'] ?? 0));
+        $this->assertSame(5, (int) ($response['data']['game']['launch_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($response['data']['game']['words'] ?? []));
         $this->assertTrue((bool) ($response['data']['game']['launchable'] ?? false));
+    }
+
+    public function test_launch_entries_apply_word_caps_but_preserve_available_counts(): void
+    {
+        $gamesFixture = $this->createGamesFixture(10);
+        $speakingFixture = $this->createSpeakingGamesFixture(10);
+
+        $spaceCapFilter = static function (): int {
+            return 5;
+        };
+        $bubbleCapFilter = static function (): int {
+            return 6;
+        };
+        $speakingPracticeCapFilter = static function (): int {
+            return 7;
+        };
+        $speakingStackCapFilter = static function (): int {
+            return 8;
+        };
+
+        add_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $spaceCapFilter);
+        add_filter('ll_tools_wordset_games_bubble_pop_launch_word_cap', $bubbleCapFilter);
+        add_filter('ll_tools_wordset_games_speaking_practice_launch_word_cap', $speakingPracticeCapFilter);
+        add_filter('ll_tools_wordset_games_speaking_stack_launch_word_cap', $speakingStackCapFilter);
+
+        try {
+            $entries = [
+                'space-shooter' => ll_tools_wordset_games_build_launch_entry(
+                    'space-shooter',
+                    (int) $gamesFixture['wordset_id'],
+                    (int) $gamesFixture['user_id']
+                ),
+                'bubble-pop' => ll_tools_wordset_games_build_launch_entry(
+                    'bubble-pop',
+                    (int) $gamesFixture['wordset_id'],
+                    (int) $gamesFixture['user_id']
+                ),
+                'speaking-practice' => ll_tools_wordset_games_build_launch_entry(
+                    'speaking-practice',
+                    (int) $speakingFixture['wordset_id'],
+                    (int) $speakingFixture['user_id']
+                ),
+                'speaking-stack' => ll_tools_wordset_games_build_launch_entry(
+                    'speaking-stack',
+                    (int) $speakingFixture['wordset_id'],
+                    (int) $speakingFixture['user_id']
+                ),
+            ];
+        } finally {
+            remove_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $spaceCapFilter);
+            remove_filter('ll_tools_wordset_games_bubble_pop_launch_word_cap', $bubbleCapFilter);
+            remove_filter('ll_tools_wordset_games_speaking_practice_launch_word_cap', $speakingPracticeCapFilter);
+            remove_filter('ll_tools_wordset_games_speaking_stack_launch_word_cap', $speakingStackCapFilter);
+        }
+
+        $expectedCaps = [
+            'space-shooter' => 5,
+            'bubble-pop' => 6,
+            'speaking-practice' => 7,
+            'speaking-stack' => 8,
+        ];
+
+        foreach ($expectedCaps as $slug => $expectedCap) {
+            $entry = $entries[$slug] ?? null;
+            $this->assertIsArray($entry);
+            $this->assertSame($slug, (string) ($entry['slug'] ?? ''));
+            $this->assertSame(10, (int) ($entry['available_word_count'] ?? 0));
+            $this->assertSame($expectedCap, (int) ($entry['launch_word_cap'] ?? 0));
+            $this->assertSame($expectedCap, (int) ($entry['launch_word_count'] ?? 0));
+            $this->assertCount($expectedCap, (array) ($entry['words'] ?? []));
+            $this->assertTrue((bool) ($entry['launchable'] ?? false));
+        }
     }
 
     public function test_speaking_practice_catalog_only_uses_learned_text_prompt_words(): void
@@ -2720,6 +2792,78 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             'mastered_word_id' => $masteredWordId,
             'new_word_id' => $newWordId,
             'out_of_scope_word_id' => $outOfScopeWordId,
+        ];
+    }
+
+    /**
+     * @return array{
+     *   user_id:int,
+     *   wordset_id:int,
+     *   category_id:int,
+     *   eligible_word_ids:int[]
+     * }
+     */
+    private function createSpeakingGamesFixture(int $eligibleCount): array
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+
+        $wordset = wp_insert_term('Speaking Launch Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Speaking Launch Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId, ['speaking-practice', 'speaking-stack']);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'http://127.0.0.1:8765/transcribe');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_ipa');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'local_browser');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_ipa');
+
+        $eligibleWordIds = [];
+        for ($index = 1; $index <= $eligibleCount; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Speaking Launch Word ' . $index,
+                'Speaking Launch Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Speaking launch isolation ' . $index]
+            );
+            $audioPosts = get_posts([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => $wordId,
+                'posts_per_page' => -1,
+            ]);
+            $this->assertNotEmpty($audioPosts);
+            foreach ($audioPosts as $audioPost) {
+                $this->assertInstanceOf(WP_Post::class, $audioPost);
+                update_post_meta((int) $audioPost->ID, 'recording_ipa', 'speaking launch ipa ' . $index);
+            }
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 6,
+                'coverage_practice' => 6,
+                'correct_clean' => 4,
+                'incorrect' => 0,
+                'lapse_count' => 0,
+                'stage' => 6,
+            ]);
+            $eligibleWordIds[] = $wordId;
+        }
+
+        return [
+            'user_id' => $userId,
+            'wordset_id' => $wordsetId,
+            'category_id' => $categoryId,
+            'eligible_word_ids' => $eligibleWordIds,
         ];
     }
 

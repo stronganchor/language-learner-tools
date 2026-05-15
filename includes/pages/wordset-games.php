@@ -4103,14 +4103,14 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
 
     if ($slug === 'space-shooter' || $slug === 'bubble-pop') {
         $source_pool = ll_tools_wordset_games_build_practice_source_pool($wordset_id, $uid, $slug);
-        $available_words = isset($source_pool['words']) && is_array($source_pool['words'])
-            ? array_values(array_filter($source_pool['words'], 'is_array'))
-            : [];
         $minimum = (int) ($source_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
+        $launch_word_cap = $slug === 'space-shooter'
+            ? ll_tools_wordset_games_space_shooter_launch_word_cap()
+            : ll_tools_wordset_games_bubble_pop_launch_word_cap();
         $launch_pool = ll_tools_wordset_games_finalize_pool(
             $source_pool,
             $slug,
-            max($minimum, count($available_words))
+            $launch_word_cap
         );
         $base_entry = isset($catalog[$slug]) && is_array($catalog[$slug]) ? $catalog[$slug] : [
             'slug' => $slug,
@@ -4122,7 +4122,7 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
         return array_merge($base_entry, [
             'minimum_word_count' => $minimum,
             'available_word_count' => $available_count,
-            'launch_word_cap' => max($minimum, $available_count),
+            'launch_word_cap' => (int) ($launch_pool['launch_word_cap'] ?? max($minimum, $launch_word_cap)),
             'launch_word_count' => count((array) ($launch_pool['words'] ?? [])),
             'launchable' => !empty($launch_pool['launchable']),
             'reason_code' => $available_count >= $minimum ? '' : 'not_enough_words',
@@ -4198,6 +4198,8 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             : [];
         $minimum = (int) ($speaking_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
         $available_count = count($available_words);
+        $launch_word_cap = ll_tools_wordset_games_speaking_practice_launch_word_cap();
+        $launch_words = ll_tools_wordset_games_limit_launch_words($available_words, $launch_word_cap);
 
         return [
             'slug' => 'speaking-practice',
@@ -4205,14 +4207,14 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             'description' => __('Say the word aloud. Compare what you said to the target text.', 'll-tools-text-domain'),
             'minimum_word_count' => $minimum,
             'available_word_count' => $available_count,
-            'launch_word_cap' => max($minimum, $available_count),
-            'launch_word_count' => $available_count,
+            'launch_word_cap' => $launch_word_cap,
+            'launch_word_count' => count($launch_words),
             'launchable' => $available_count >= $minimum,
             'reason_code' => $available_count >= $minimum
                 ? ''
                 : (!empty($speaking_pool['reason_code']) ? (string) ($speaking_pool['reason_code']) : 'not_enough_learned_words'),
             'category_ids' => isset($speaking_pool['category_ids']) && is_array($speaking_pool['category_ids']) ? $speaking_pool['category_ids'] : [],
-            'words' => $available_words,
+            'words' => $launch_words,
             'target_field' => (string) ($speaking_pool['target_field'] ?? ''),
             'target_label' => (string) ($speaking_pool['target_label'] ?? ''),
             'provider' => (string) ($speaking_pool['provider'] ?? ''),
@@ -4232,6 +4234,8 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             : [];
         $minimum = (int) ($speaking_stack_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
         $available_count = count($available_words);
+        $launch_word_cap = ll_tools_wordset_games_speaking_stack_launch_word_cap();
+        $launch_words = ll_tools_wordset_games_limit_launch_words($available_words, $launch_word_cap);
 
         return [
             'slug' => 'speaking-stack',
@@ -4239,14 +4243,14 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             'description' => __('Say the picture before the stack reaches the top.', 'll-tools-text-domain'),
             'minimum_word_count' => $minimum,
             'available_word_count' => $available_count,
-            'launch_word_cap' => max($minimum, $available_count),
-            'launch_word_count' => $available_count,
+            'launch_word_cap' => $launch_word_cap,
+            'launch_word_count' => count($launch_words),
             'launchable' => $available_count >= $minimum,
             'reason_code' => $available_count >= $minimum
                 ? ''
                 : (!empty($speaking_stack_pool['reason_code']) ? (string) ($speaking_stack_pool['reason_code']) : 'not_enough_learned_words'),
             'category_ids' => isset($speaking_stack_pool['category_ids']) && is_array($speaking_stack_pool['category_ids']) ? $speaking_stack_pool['category_ids'] : [],
-            'words' => $available_words,
+            'words' => $launch_words,
             'target_field' => (string) ($speaking_stack_pool['target_field'] ?? ''),
             'target_label' => (string) ($speaking_stack_pool['target_label'] ?? ''),
             'provider' => (string) ($speaking_stack_pool['provider'] ?? ''),
