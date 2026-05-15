@@ -720,6 +720,60 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('disabled', $html);
     }
 
+    public function test_lesson_template_renders_warm_public_grid_cache_without_shell(): void
+    {
+        wp_set_current_user(0);
+
+        $wordset = wp_insert_term('Warm Grid Cache Wordset', 'wordset', ['slug' => 'warm-grid-cache-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Warm Grid Cache Category', 'word-category', ['slug' => 'warm-grid-cache-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Warm Cached Word',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', 'Warm Cached Translation');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Warm Cached Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $cached_grid_html = '<div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="' . (int) $wordset_id . '" data-ll-category-id="' . (int) $category_id . '">';
+        $cached_grid_html .= '<div class="word-item" data-word-id="' . (int) $word_id . '">';
+        $cached_grid_html .= '<span class="ll-word-text" data-ll-word-text>Warm Cached Word</span>';
+        $cached_grid_html .= '<span class="ll-word-translation" data-ll-word-translation>Warm Cached Translation</span>';
+        $cached_grid_html .= '</div></div>';
+
+        ll_tools_vocab_lesson_grid_public_cache_set($lesson_id, $wordset_id, $category_id, $cached_grid_html);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('Warm Cached Word', $html);
+        $this->assertStringContainsString('Warm Cached Translation', $html);
+        $this->assertStringContainsString('data-ll-word-grid', $html);
+        $this->assertStringNotContainsString('data-ll-vocab-lesson-grid-shell', $html);
+        $this->assertStringNotContainsString('ll-vocab-lesson-skeleton-card', $html);
+    }
+
     public function test_text_answer_lesson_grid_renders_images_when_every_visible_word_has_an_image(): void
     {
         $wordset = wp_insert_term('Deferred Text Image Wordset', 'wordset', ['slug' => 'deferred-text-image-wordset']);

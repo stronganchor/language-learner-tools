@@ -307,6 +307,7 @@ if (have_posts()) {
         && (bool) apply_filters('ll_tools_vocab_lesson_defer_grid', true, $post_id, $wordset_id, $category_id);
     $grid_shell_spec = null;
     $grid_shell_nonce = '';
+    $grid_cached_html = '';
     $render_html_attributes = static function (array $attributes): string {
         $parts = [];
         foreach ($attributes as $name => $value) {
@@ -383,6 +384,12 @@ if (have_posts()) {
                 $grid_shell_attributes['class'] = trim((string) ($grid_shell_attributes['class'] ?? 'word-grid ll-word-grid') . ' ll-vocab-prompt-card-grid ll-vocab-prompt-card-grid--skeleton');
                 $grid_shell_attributes['data-ll-prompt-card-lesson-grid'] = '1';
                 $grid_shell_spec['attributes'] = $grid_shell_attributes;
+            }
+            if (function_exists('ll_tools_vocab_lesson_grid_public_cache_get')) {
+                $cached_grid_html = ll_tools_vocab_lesson_grid_public_cache_get($post_id, $wordset_id, $category_id);
+                if (is_string($cached_grid_html) && trim($cached_grid_html) !== '') {
+                    $grid_cached_html = $cached_grid_html;
+                }
             }
             $grid_shell_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . $post_id);
         }
@@ -1265,7 +1272,9 @@ if (have_posts()) {
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             }
             ?>
-            <?php if ($defer_grid && is_array($grid_shell_spec)) : ?>
+            <?php if ($defer_grid && $grid_cached_html !== '') : ?>
+                <?php echo $grid_cached_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($defer_grid && is_array($grid_shell_spec)) : ?>
                 <?php
                 $is_prompt_card_shell = !empty($grid_shell_spec['prompt_card_shell']);
                 $grid_shell_classes = 'll-vocab-lesson-grid-shell is-loading';
