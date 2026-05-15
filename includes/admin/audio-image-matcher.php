@@ -217,16 +217,20 @@ function ll_aim_get_images_handler() {
     ]);
 
     $thumb_ids = [];
+    $image_ids = [];
     $thumb_id_by_image_id = [];
     foreach ($images as $img_post) {
+        $image_id = (int) $img_post->ID;
+        $image_ids[$image_id] = true;
         $thumb_id = (int) get_post_thumbnail_id($img_post->ID);
-        $thumb_id_by_image_id[(int) $img_post->ID] = $thumb_id;
+        $thumb_id_by_image_id[$image_id] = $thumb_id;
         if ($thumb_id > 0) {
             $thumb_ids[$thumb_id] = true;
         }
     }
 
     $used_count_by_thumb_id = [];
+    $used_count_by_image_id = [];
     if (!empty($thumb_ids)) {
         global $wpdb;
         $thumb_id_list = array_keys($thumb_ids);
@@ -251,14 +255,40 @@ function ll_aim_get_images_handler() {
             $used_count_by_thumb_id[$thumb_id] = (int) ($row['used_count'] ?? 0);
         }
     }
+    if (!empty($image_ids)) {
+        global $wpdb;
+        $image_id_list = array_keys($image_ids);
+        $placeholders = implode(', ', array_fill(0, count($image_id_list), '%d'));
+        $sql = "
+            SELECT CAST(pm.meta_value AS UNSIGNED) AS image_id, COUNT(*) AS used_count
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm
+                ON pm.post_id = p.ID
+               AND pm.meta_key = '_ll_autopicked_image_id'
+            WHERE p.post_type = 'words'
+              AND p.post_status = 'publish'
+              AND CAST(pm.meta_value AS UNSIGNED) IN ($placeholders)
+            GROUP BY CAST(pm.meta_value AS UNSIGNED)
+        ";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $image_id_list), ARRAY_A);
+        foreach ((array) $rows as $row) {
+            $image_id = (int) ($row['image_id'] ?? 0);
+            if ($image_id <= 0) {
+                continue;
+            }
+            $used_count_by_image_id[$image_id] = (int) ($row['used_count'] ?? 0);
+        }
+    }
 
     $out = [];
     foreach ($images as $img_post) {
-        $thumb_id = (int) ($thumb_id_by_image_id[(int) $img_post->ID] ?? 0);
+        $image_id = (int) $img_post->ID;
+        $thumb_id = (int) ($thumb_id_by_image_id[$image_id] ?? 0);
         $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '';
 
         // Always count actual published words using this image (ignore cached meta)
         $used_count = $thumb_id ? (int) ($used_count_by_thumb_id[$thumb_id] ?? 0) : 0;
+        $used_count += (int) ($used_count_by_image_id[$image_id] ?? 0);
 
         if ($hide_used && $used_count > 0) {
             continue;
@@ -318,10 +348,19 @@ function ll_aim_get_next_handler() {
     if (!empty($word_ids)) {
         foreach ($word_ids as $pid) {
             $pid = (int) $pid;
-            $has_thumb = has_post_thumbnail($pid);
-            if (!$rematch && $has_thumb) { continue; }
+            $has_image = function_exists('ll_tools_word_has_effective_image')
+                ? ll_tools_word_has_effective_image($pid, true)
+                : has_post_thumbnail($pid);
+            if (!$rematch && $has_image) { continue; }
 
             $audio_url = function_exists('ll_get_word_audio_url') ? ll_get_word_audio_url($pid) : '';
+            $image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
+                ? ll_tools_get_effective_word_image_data_for_word($pid, 'medium', true)
+                : [];
+            $current_thumb = is_array($image_data) ? (string) ($image_data['url'] ?? '') : '';
+            if ($current_thumb === '' && has_post_thumbnail($pid)) {
+                $current_thumb = (string) get_the_post_thumbnail_url($pid, 'medium');
+            }
 
             $item = [
                 'id'            => $pid,
@@ -329,7 +368,7 @@ function ll_aim_get_next_handler() {
                 'translation'   => get_post_meta($pid, 'word_english_meaning', true),
                 'audio_url'     => $audio_url,
                 'edit_link'     => get_edit_post_link($pid, 'raw'),
-                'current_thumb' => $has_thumb ? get_the_post_thumbnail_url($pid, 'medium') : '',
+                'current_thumb' => $has_image ? $current_thumb : '',
             ];
             break;
         }
@@ -490,6 +529,11 @@ function ll_aim_get_word_ids_with_audio($term_id, $wordset_id = 0, $exclude = []
         $where .= " AND NOT EXISTS (
             SELECT 1 FROM {$wpdb->postmeta} pm
             WHERE pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM {$wpdb->postmeta} pm_img
+            WHERE pm_img.post_id = p.ID
+              AND pm_img.meta_key = '_ll_autopicked_image_id'
+              AND pm_img.meta_value <> ''
         )";
     }
 
