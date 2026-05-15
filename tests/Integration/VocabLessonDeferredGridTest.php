@@ -67,6 +67,70 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertNull(ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id));
     }
 
+    public function test_lesson_grid_ajax_decodes_stored_entities_for_visible_text(): void
+    {
+        $wordset = wp_insert_term('Encoded Entity Grid Wordset', 'wordset', ['slug' => 'encoded-entity-grid-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Encoded Entity Grid Category', 'word-category', ['slug' => 'encoded-entity-grid-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'She can&#8217;t open &amp; close the door',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', 'Kap&#305;y&#305; a&ccedil;am&#305;yor &amp; bekliyor');
+        $this->createAudioRecording($word_id, 'isolation', 'encoded-entity-grid-word.mp3');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Encoded Entity Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+        $visible_text = html_entity_decode(wp_strip_all_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $this->assertStringNotContainsString('&amp;#8217;', $html);
+        $this->assertStringNotContainsString('&amp;#305;', $html);
+        $this->assertStringNotContainsString('&amp;ccedil;', $html);
+        $this->assertStringContainsString(
+            html_entity_decode('She can&#8217;t open &amp; close the door', ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            $visible_text
+        );
+        $this->assertStringContainsString(
+            html_entity_decode('Kap&#305;y&#305; a&ccedil;am&#305;yor &amp; bekliyor', ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            $visible_text
+        );
+    }
+
     public function test_lesson_grid_ajax_shows_draft_words_to_staff_with_audio_status_notes(): void
     {
         $wordset = wp_insert_term('Deferred Draft Wordset', 'wordset', ['slug' => 'deferred-draft-wordset']);

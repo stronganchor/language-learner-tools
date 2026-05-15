@@ -43,8 +43,38 @@ if (!function_exists('ll_tools_strip_display_word_joiners')) {
     }
 }
 
+if (!function_exists('ll_tools_decode_display_entities')) {
+    /**
+     * Decode text that was stored with HTML entities before rendering it as plain text.
+     */
+    function ll_tools_decode_display_entities($text): string {
+        $value = (string) $text;
+        if ($value === '') {
+            return '';
+        }
+
+        $flags = ENT_QUOTES;
+        if (defined('ENT_HTML5')) {
+            $flags |= ENT_HTML5;
+        }
+        if (defined('ENT_SUBSTITUTE')) {
+            $flags |= ENT_SUBSTITUTE;
+        }
+
+        for ($i = 0; $i < 3; $i++) {
+            $decoded = html_entity_decode($value, $flags, 'UTF-8');
+            if ($decoded === $value) {
+                break;
+            }
+            $value = $decoded;
+        }
+
+        return $value;
+    }
+}
+
 if (!function_exists('ll_tools_esc_html_display')) {
     function ll_tools_esc_html_display($text): string {
-        return esc_html(ll_tools_protect_maqqef_for_display($text));
+        return esc_html(ll_tools_protect_maqqef_for_display(ll_tools_decode_display_entities($text)));
     }
 }

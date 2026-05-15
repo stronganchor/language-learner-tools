@@ -975,7 +975,7 @@ function ll_tools_get_category_display_name($term, array $args = []) {
             'site_language' => (string) ($opts['site_language'] ?? ''),
             'meta_key' => (string) ($opts['meta_key'] ?? 'term_translation'),
             'wordset_ids' => array_values(array_map('intval', (array) ($opts['wordset_ids'] ?? []))),
-            'schema' => 1,
+            'schema' => 2,
         ]));
         $cache_group = 'll_tools_quiz_category';
         $cache_ttl = 6 * HOUR_IN_SECONDS;
@@ -1014,6 +1014,9 @@ function ll_tools_get_category_display_name($term, array $args = []) {
      */
     $result = apply_filters('ll_tools_category_display_name', $display, $term, $opts);
     $result = is_string($result) ? $result : (string) $result;
+    if (function_exists('ll_tools_decode_display_entities')) {
+        $result = ll_tools_decode_display_entities($result);
+    }
 
     if ($cacheable) {
         $request_cache[$cache_key] = $result;

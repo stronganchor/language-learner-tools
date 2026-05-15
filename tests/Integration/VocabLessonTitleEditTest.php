@@ -96,6 +96,28 @@ final class VocabLessonTitleEditTest extends LL_Tools_TestCase
         $this->assertSame('Raw Category Name', (string) ($data['category_name'] ?? ''));
     }
 
+    public function test_title_edit_target_decodes_stored_translation_entities_for_display(): void
+    {
+        $target_language = strtolower(substr((string) get_locale(), 0, 2));
+        if ($target_language === '') {
+            $target_language = 'en';
+        }
+
+        $lesson = $this->createLessonFixture('Raw Entity Category', 'raw-entity-category');
+        $category_id = $lesson['category_id'];
+        $wordset_id = $lesson['wordset_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_ENABLED_META_KEY, '1');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, $target_language);
+        update_term_meta($category_id, 'term_translation', 'She can&#8217;t practice &amp; review');
+
+        $target = ll_tools_get_vocab_lesson_category_title_edit_target(get_term($category_id, 'word-category'), $wordset_id);
+        $expected = html_entity_decode('She can&#8217;t practice &amp; review', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $this->assertSame('term_translation', (string) ($target['field'] ?? ''));
+        $this->assertSame($expected, (string) ($target['value'] ?? ''));
+        $this->assertSame($expected, (string) ($target['display_name'] ?? ''));
+    }
+
     public function test_author_cannot_update_lesson_category_title(): void
     {
         $author_id = self::factory()->user->create(['role' => 'author']);

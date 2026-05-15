@@ -1142,7 +1142,7 @@ if (have_posts()) {
                                     aria-controls="<?php echo esc_attr($title_form_id); ?>"
                                     aria-label="<?php echo esc_attr__('Edit category title', 'll-tools-text-domain'); ?>"
                                     title="<?php echo esc_attr__('Edit category title', 'll-tools-text-domain'); ?>">
-                                    <span class="ll-vocab-lesson-title-text" data-ll-vocab-lesson-title-text><?php echo esc_html($display_name); ?></span>
+                                    <span class="ll-vocab-lesson-title-text" data-ll-vocab-lesson-title-text><?php echo ll_tools_esc_html_display($display_name); ?></span>
                                     <span class="ll-vocab-lesson-title-edit-icon" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                                             <path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1191,7 +1191,7 @@ if (have_posts()) {
                             </form>
                         </div>
                     <?php else : ?>
-                        <h1 class="ll-vocab-lesson-title"><?php echo esc_html($display_name); ?></h1>
+                        <h1 class="ll-vocab-lesson-title"><?php echo ll_tools_esc_html_display($display_name); ?></h1>
                     <?php endif; ?>
                 </div>
                 <div class="ll-vocab-lesson-actions">

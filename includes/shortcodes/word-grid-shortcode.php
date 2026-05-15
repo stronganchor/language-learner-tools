@@ -770,7 +770,9 @@ function ll_tools_word_grid_format_ipa_display_html(string $ipa, string $mode = 
         return '';
     }
 
-    return esc_html($ipa);
+    return function_exists('ll_tools_esc_html_display')
+        ? ll_tools_esc_html_display($ipa)
+        : esc_html($ipa);
 }
 
 function ll_tools_word_grid_is_ipa_tie_bar(string $char, string $mode = 'ipa'): bool {
@@ -2117,6 +2119,11 @@ function ll_tools_word_grid_resolve_display_text(int $word_id): array {
     } else {
         $word_text = $word_translation;
         $translation_text = $word_title;
+    }
+
+    if (function_exists('ll_tools_decode_display_entities')) {
+        $word_text = ll_tools_decode_display_entities($word_text);
+        $translation_text = ll_tools_decode_display_entities($translation_text);
     }
 
     return [
@@ -3487,13 +3494,8 @@ function ll_tools_word_grid_decode_plain_text_entities($text): string {
         return '';
     }
 
-    $flags = defined('ENT_HTML5') ? ENT_QUOTES | ENT_HTML5 : ENT_QUOTES;
-    for ($i = 0; $i < 3; $i++) {
-        $next = html_entity_decode($decoded, $flags, 'UTF-8');
-        if ($next === $decoded) {
-            break;
-        }
-        $decoded = $next;
+    if (function_exists('ll_tools_decode_display_entities')) {
+        $decoded = ll_tools_decode_display_entities($decoded);
     }
 
     return trim($decoded);

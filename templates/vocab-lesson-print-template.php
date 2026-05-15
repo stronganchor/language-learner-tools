@@ -2,6 +2,9 @@
 if (!defined('WPINC')) { die; }
 
 $display_name = isset($display_name) ? trim((string) $display_name) : '';
+if (function_exists('ll_tools_decode_display_entities')) {
+    $display_name = ll_tools_decode_display_entities($display_name);
+}
 $print_items = isset($print_items) && is_array($print_items) ? array_values($print_items) : [];
 $print_settings = isset($print_settings) && is_array($print_settings) ? $print_settings : [];
 $show_text = !empty($print_settings['show_text']);
@@ -45,6 +48,12 @@ $render_print_card = static function (array $item) use ($print_image_size, $show
     $alt = isset($item['alt']) ? trim((string) $item['alt']) : $label;
     $word_text = isset($item['word_text']) ? trim((string) $item['word_text']) : $label;
     $translation_text = isset($item['translation_text']) ? trim((string) $item['translation_text']) : '';
+    if (function_exists('ll_tools_decode_display_entities')) {
+        $label = ll_tools_decode_display_entities($label);
+        $alt = ll_tools_decode_display_entities($alt);
+        $word_text = ll_tools_decode_display_entities($word_text);
+        $translation_text = ll_tools_decode_display_entities($translation_text);
+    }
     $show_captions = ($show_text && $word_text !== '') || ($show_translations && $translation_text !== '');
     $image_html = wp_get_attachment_image($attachment_id, $print_image_size, false, [
         'class' => 'll-vocab-lesson-print-image',

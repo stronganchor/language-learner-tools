@@ -2558,6 +2558,9 @@ function ll_tools_get_vocab_lesson_category_title_edit_target($category, int $wo
     $display_name = function_exists('ll_tools_get_category_display_name')
         ? (string) ll_tools_get_category_display_name($category, ['wordset_ids' => $wordset_ids])
         : (string) $category->name;
+    if (function_exists('ll_tools_decode_display_entities')) {
+        $display_name = ll_tools_decode_display_entities($display_name);
+    }
     $field = $use_translation ? 'term_translation' : 'name';
     $value = $use_translation
         ? trim((string) get_term_meta((int) $category->term_id, 'term_translation', true))
@@ -2565,6 +2568,9 @@ function ll_tools_get_vocab_lesson_category_title_edit_target($category, int $wo
 
     if ($value === '') {
         $value = $display_name !== '' ? $display_name : (string) $category->name;
+    }
+    if (function_exists('ll_tools_decode_display_entities')) {
+        $value = ll_tools_decode_display_entities($value);
     }
 
     return [
@@ -2978,13 +2984,18 @@ function ll_tools_update_vocab_lesson_category_title_handler() {
     $display_name = function_exists('ll_tools_get_category_display_name')
         ? (string) ll_tools_get_category_display_name($updated_category, ['wordset_ids' => $wordset_id > 0 ? [$wordset_id] : []])
         : (string) $updated_category->name;
+    $category_name = (string) $updated_category->name;
+    if (function_exists('ll_tools_decode_display_entities')) {
+        $display_name = ll_tools_decode_display_entities($display_name);
+        $category_name = ll_tools_decode_display_entities($category_name);
+    }
 
     wp_send_json_success([
         'message' => __('Category title saved.', 'll-tools-text-domain'),
         'field' => (string) ($updated_target['field'] ?? $field),
         'edit_value' => (string) ($updated_target['value'] ?? $display_name),
         'display_name' => $display_name,
-        'category_name' => (string) $updated_category->name,
+        'category_name' => $category_name,
         'category_id' => (int) $updated_category->term_id,
     ]);
 }
