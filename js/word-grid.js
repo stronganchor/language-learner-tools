@@ -3559,6 +3559,9 @@
             const categoryId = parseInt($input.val(), 10) || 0;
             $input.prop('checked', !!(categoryId && selected[categoryId]));
         });
+        $item.find('[data-ll-word-categories-field]').each(function () {
+            updateWordCategoryField($(this));
+        });
     }
 
     function normalizeCategorySearchText(value) {
@@ -3576,6 +3579,10 @@
     function getCategoryOptionLabel(option) {
         const $option = $(option);
         return ($option.attr('data-ll-word-category-label') || $option.text() || '').toString();
+    }
+
+    function categoryOptionIsChecked(option) {
+        return $(option).find('[data-ll-word-category-input]').first().prop('checked') ? 1 : 0;
     }
 
     function compareCategoryOptionsByLabel(left, right) {
@@ -3596,6 +3603,14 @@
         return cmp !== 0 ? cmp : compareCategoryOptionsByLabel(left, right);
     }
 
+    function compareCategoryOptionsWithCheckedFirst(left, right, fallbackCompare) {
+        const checkedCmp = categoryOptionIsChecked(right) - categoryOptionIsChecked(left);
+        if (checkedCmp !== 0) {
+            return checkedCmp;
+        }
+        return fallbackCompare(left, right);
+    }
+
     function updateWordCategoryField($field) {
         if (!$field || !$field.length) { return; }
         const $list = $field.find('[data-ll-word-category-list]').first();
@@ -3607,7 +3622,10 @@
         const sortMode = ($sort.val() || '').toString() === 'alpha' ? 'alpha' : 'wordset';
         const options = $list.find('[data-ll-word-category-option]').get();
 
-        options.sort(sortMode === 'alpha' ? compareCategoryOptionsByLabel : compareCategoryOptionsByWordsetOrder);
+        const fallbackCompare = sortMode === 'alpha' ? compareCategoryOptionsByLabel : compareCategoryOptionsByWordsetOrder;
+        options.sort(function (left, right) {
+            return compareCategoryOptionsWithCheckedFirst(left, right, fallbackCompare);
+        });
         options.forEach(function (option) {
             $list.append(option);
         });
@@ -7791,6 +7809,11 @@
         $grids.on('change', '[data-ll-word-category-sort]', function () {
             const $field = $(this).closest('[data-ll-word-categories-field]');
             $field.addClass('is-expanded');
+            updateWordCategoryField($field);
+        });
+
+        $grids.on('change', '[data-ll-word-category-input]', function () {
+            const $field = $(this).closest('[data-ll-word-categories-field]');
             updateWordCategoryField($field);
         });
 

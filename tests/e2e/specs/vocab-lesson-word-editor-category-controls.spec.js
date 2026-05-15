@@ -81,9 +81,9 @@ function buildEditorMarkup() {
                 </select>
               </div>
               <div class="ll-word-edit-category-list" data-ll-word-category-list>
-                ${categoryOption(31, 'Zoo animals', 0, true)}
+                ${categoryOption(31, 'Zoo animals', 0)}
                 ${categoryOption(32, 'Apples and fruit', 1)}
-                ${categoryOption(33, 'Market phrases', 2)}
+                ${categoryOption(33, 'Market phrases', 2, true)}
               </div>
               <div class="ll-word-edit-category-empty" data-ll-word-category-empty hidden>No categories match.</div>
             </fieldset>
@@ -128,27 +128,39 @@ test('word editor category controls filter as the user types and show empty stat
   await expect(page.locator('[data-ll-word-category-empty]')).toBeVisible();
 });
 
-test('word editor category controls switch between alphabetical and wordset order', async ({ page }) => {
+test('word editor category controls keep checked categories first while switching sort modes', async ({ page }) => {
   await mountEditor(page);
 
   await expect.poll(() => visibleCategoryLabels(page)).toEqual([
+    'Market phrases',
     'Zoo animals',
-    'Apples and fruit',
-    'Market phrases'
+    'Apples and fruit'
   ]);
 
   await page.selectOption('[data-ll-word-category-sort]', 'alpha');
   await expect.poll(() => visibleCategoryLabels(page)).toEqual([
-    'Apples and fruit',
     'Market phrases',
+    'Apples and fruit',
     'Zoo animals'
   ]);
 
   await page.selectOption('[data-ll-word-category-sort]', 'wordset');
   await expect.poll(() => visibleCategoryLabels(page)).toEqual([
+    'Market phrases',
     'Zoo animals',
+    'Apples and fruit'
+  ]);
+});
+
+test('word editor category controls move newly checked categories into the selected group', async ({ page }) => {
+  await mountEditor(page);
+
+  await page.check('[data-ll-word-category-input][value="32"]');
+
+  await expect.poll(() => visibleCategoryLabels(page)).toEqual([
     'Apples and fruit',
-    'Market phrases'
+    'Market phrases',
+    'Zoo animals'
   ]);
 });
 
