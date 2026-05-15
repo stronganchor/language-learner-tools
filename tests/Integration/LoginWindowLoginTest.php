@@ -156,6 +156,38 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_keep_me_signed_in_extends_remembered_auth_cookie_expiration(): void
+    {
+        $user_id = self::factory()->user->create([
+            'user_login' => 'rememberduration',
+            'user_email' => 'rememberduration@example.org',
+        ]);
+        $default_expiration = 14 * DAY_IN_SECONDS;
+
+        $this->assertSame(
+            $default_expiration,
+            apply_filters('auth_cookie_expiration', $default_expiration, $user_id, false)
+        );
+        $this->assertSame(
+            90 * DAY_IN_SECONDS,
+            apply_filters('auth_cookie_expiration', $default_expiration, $user_id, true)
+        );
+
+        $custom_expiration = static function (): int {
+            return 45 * DAY_IN_SECONDS;
+        };
+        add_filter('ll_tools_remember_login_expiration', $custom_expiration);
+
+        try {
+            $this->assertSame(
+                45 * DAY_IN_SECONDS,
+                apply_filters('auth_cookie_expiration', $default_expiration, $user_id, true)
+            );
+        } finally {
+            remove_filter('ll_tools_remember_login_expiration', $custom_expiration);
+        }
+    }
+
     private function runLoginRequest(string $ip, array $overrides = []): string
     {
         $previous_post = $_POST;

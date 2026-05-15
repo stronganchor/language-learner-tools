@@ -190,6 +190,31 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('data-ll-wordset-game-close', $gamesHtml);
     }
 
+    public function test_guest_games_launch_controls_link_to_frontend_login_window(): void
+    {
+        $term = wp_insert_term('Guest Games Login ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        wp_set_current_user(0);
+
+        $gamesHtml = ll_tools_render_wordset_games_shell([
+            'wordset_term' => $wordset,
+            'games_catalog' => ll_tools_wordset_games_base_catalog(),
+            'is_study_user' => false,
+            'back_url' => ll_tools_get_wordset_page_view_url($wordset),
+        ]);
+
+        $this->assertMatchesRegularExpression(
+            '/<a[^>]+class="[^"]*ll-wordset-game-card__launch[^"]*ll-wordset-game-card__launch--login[^"]*"[^>]+href="[^"]*ll_tools_auth=login[^"]*#ll-tools-auth-window"[^>]+data-ll-force-hard-nav="1"/',
+            $gamesHtml
+        );
+        $this->assertStringNotContainsString('data-ll-wordset-game-launch', $gamesHtml);
+    }
+
     public function test_wordset_page_hides_games_navigation_when_no_category_has_games_enabled(): void
     {
         $wordset = wp_insert_term('Hidden Games Wordset ' . wp_generate_password(6, false), 'wordset');

@@ -9544,11 +9544,11 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                     </a>
                 <?php endforeach; ?>
             <?php else : ?>
-                <a class="ll-wordset-utility-bar__link" href="<?php echo esc_url($login_url); ?>">
+                <a class="ll-wordset-utility-bar__link" href="<?php echo esc_url($login_url); ?>" data-ll-force-hard-nav="1">
                     <?php echo esc_html__('Log in', 'll-tools-text-domain'); ?>
                 </a>
                 <?php if ($signup_url !== '') : ?>
-                    <a class="ll-wordset-utility-bar__link" href="<?php echo esc_url($signup_url); ?>">
+                    <a class="ll-wordset-utility-bar__link" href="<?php echo esc_url($signup_url); ?>" data-ll-force-hard-nav="1">
                         <?php echo esc_html__('Sign up', 'll-tools-text-domain'); ?>
                     </a>
                 <?php endif; ?>
@@ -16498,6 +16498,9 @@ function ll_tools_render_wordset_games_shell(array $args): string {
     if ($speaking_notice_label === '') {
         $speaking_notice_label = __('Open speaking settings', 'll-tools-text-domain');
     }
+    $games_login_url = function_exists('ll_tools_get_frontend_auth_url')
+        ? ll_tools_get_frontend_auth_url(ll_tools_get_current_request_url(), 'login')
+        : wp_login_url(ll_tools_get_current_request_url());
 
     ob_start();
     if ($as_modal) :
@@ -16581,13 +16584,22 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                         </div>
                         <div class="ll-wordset-game-card__actions">
                             <span class="ll-wordset-game-card__count" data-ll-wordset-game-count aria-label="<?php echo esc_attr__('Eligible words', 'll-tools-text-domain'); ?>">&#8212;</span>
-                            <button
-                                type="button"
-                                class="ll-wordset-game-card__launch"
-                                data-ll-wordset-game-launch
-                                disabled>
-                                <?php echo esc_html($is_study_user ? _x('Play', 'launch game action', 'll-tools-text-domain') : __('Sign in', 'll-tools-text-domain')); ?>
-                            </button>
+                            <?php if ($is_study_user) : ?>
+                                <button
+                                    type="button"
+                                    class="ll-wordset-game-card__launch"
+                                    data-ll-wordset-game-launch
+                                    disabled>
+                                    <?php echo esc_html_x('Play', 'launch game action', 'll-tools-text-domain'); ?>
+                                </button>
+                            <?php else : ?>
+                                <a
+                                    class="ll-wordset-game-card__launch ll-wordset-game-card__launch--login"
+                                    href="<?php echo esc_url($games_login_url); ?>"
+                                    data-ll-force-hard-nav="1">
+                                    <?php echo esc_html__('Sign in', 'll-tools-text-domain'); ?>
+                                </a>
+                            <?php endif; ?>
                         </div>
                     </article>
                 <?php endforeach; ?>

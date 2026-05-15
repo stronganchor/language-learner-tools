@@ -459,6 +459,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         ]);
 
         $this->assertStringContainsString('ll_tools_auth=login', $markup);
+        $this->assertStringContainsString('data-ll-force-hard-nav="1"', $markup);
         $this->assertStringNotContainsString('ll_tools_auth=register', $markup);
         $this->assertStringNotContainsString('wp-login.php', $markup);
     }
@@ -474,6 +475,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('ll_tools_auth=login', $markup);
         $this->assertStringContainsString('ll_tools_auth=register', $markup);
+        $this->assertSame(2, substr_count($markup, 'data-ll-force-hard-nav="1"'));
         $this->assertStringNotContainsString('wp-login.php', $markup);
     }
 

@@ -527,6 +527,27 @@ if (!function_exists('ll_tools_get_auth_redirect_target')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_remember_cookie_expiration')) {
+    function ll_tools_login_window_remember_cookie_expiration($expiration, $user_id, $remember): int {
+        $expiration = max(0, (int) $expiration);
+        if (!$remember) {
+            return $expiration;
+        }
+
+        $remember_expiration = (int) apply_filters(
+            'll_tools_remember_login_expiration',
+            90 * DAY_IN_SECONDS,
+            (int) $user_id
+        );
+        if ($remember_expiration <= 0) {
+            return $expiration;
+        }
+
+        return max($expiration, $remember_expiration);
+    }
+}
+add_filter('auth_cookie_expiration', 'll_tools_login_window_remember_cookie_expiration', 10, 3);
+
 if (!function_exists('ll_tools_login_window_trimmed_identifier')) {
     function ll_tools_login_window_trimmed_identifier($value): string {
         return trim(sanitize_text_field(wp_unslash((string) $value)));
