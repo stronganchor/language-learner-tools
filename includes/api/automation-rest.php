@@ -3498,6 +3498,76 @@ function ll_tools_rest_corpus_text_find_post_by_slug(string $slug): ?WP_Post {
     return $post instanceof WP_Post ? $post : null;
 }
 
+function ll_tools_rest_corpus_text_asset_max_bytes(): int {
+    return max(1, (int) apply_filters('ll_tools_rest_corpus_text_asset_max_bytes', 8 * 1024 * 1024));
+}
+
+function ll_tools_rest_corpus_text_asset_max_dimension(): int {
+    return max(1, (int) apply_filters('ll_tools_rest_corpus_text_asset_max_dimension', 6000));
+}
+
+function ll_tools_rest_corpus_text_payload_max_bytes(): int {
+    return max(1, (int) apply_filters('ll_tools_rest_corpus_text_payload_max_bytes', 8 * 1024 * 1024));
+}
+
+function ll_tools_rest_corpus_text_payload_max_rows(): int {
+    return max(1, (int) apply_filters('ll_tools_rest_corpus_text_payload_max_rows', 50000));
+}
+
+function ll_tools_rest_corpus_text_payload_max_depth(): int {
+    return max(1, (int) apply_filters('ll_tools_rest_corpus_text_payload_max_depth', 64));
+}
+
+/**
+ * @return array{rows:int,depth:int}
+ */
+function ll_tools_rest_corpus_text_payload_shape($value, int $depth = 1): array {
+    if (!is_array($value)) {
+        return ['rows' => 1, 'depth' => $depth];
+    }
+
+    $rows = 1;
+    $max_depth = $depth;
+    foreach ($value as $child) {
+        $shape = ll_tools_rest_corpus_text_payload_shape($child, $depth + 1);
+        $rows += (int) $shape['rows'];
+        $max_depth = max($max_depth, (int) $shape['depth']);
+    }
+
+    return ['rows' => $rows, 'depth' => $max_depth];
+}
+
+function ll_tools_rest_corpus_text_validate_payload_budget(array $payload, string $raw_json = '') {
+    $encoded = $raw_json !== '' ? $raw_json : wp_json_encode($payload);
+    $encoded_bytes = is_string($encoded) ? strlen($encoded) : 0;
+    if ($encoded_bytes > ll_tools_rest_corpus_text_payload_max_bytes()) {
+        return new WP_Error(
+            'll_tools_rest_corpus_text_payload_too_large',
+            __('Corpus text payload is larger than the allowed automation import limit.', 'll-tools-text-domain'),
+            ['status' => 413]
+        );
+    }
+
+    $shape = ll_tools_rest_corpus_text_payload_shape($payload);
+    if ((int) $shape['depth'] > ll_tools_rest_corpus_text_payload_max_depth()) {
+        return new WP_Error(
+            'll_tools_rest_corpus_text_payload_too_deep',
+            __('Corpus text payload is too deeply nested for automation import.', 'll-tools-text-domain'),
+            ['status' => 413]
+        );
+    }
+
+    if ((int) $shape['rows'] > ll_tools_rest_corpus_text_payload_max_rows()) {
+        return new WP_Error(
+            'll_tools_rest_corpus_text_payload_too_many_rows',
+            __('Corpus text payload contains too many rows for automation import.', 'll-tools-text-domain'),
+            ['status' => 413]
+        );
+    }
+
+    return true;
+}
+
 function ll_tools_rest_corpus_text_payload_from_request(WP_REST_Request $request) {
     $payload = $request->get_param('payload');
     if ($payload === null) {
@@ -3508,6 +3578,14 @@ function ll_tools_rest_corpus_text_payload_from_request(WP_REST_Request $request
     }
 
     if (is_string($payload)) {
+        $raw_payload = $payload;
+        if (strlen($raw_payload) > ll_tools_rest_corpus_text_payload_max_bytes()) {
+            return new WP_Error(
+                'll_tools_rest_corpus_text_payload_too_large',
+                __('Corpus text payload is larger than the allowed automation import limit.', 'll-tools-text-domain'),
+                ['status' => 413]
+            );
+        }
         $decoded = json_decode($payload, true);
         if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
             return new WP_Error(
@@ -3517,6 +3595,8 @@ function ll_tools_rest_corpus_text_payload_from_request(WP_REST_Request $request
             );
         }
         $payload = $decoded;
+    } else {
+        $raw_payload = '';
     }
 
     if (!is_array($payload)) {
@@ -3525,6 +3605,11 @@ function ll_tools_rest_corpus_text_payload_from_request(WP_REST_Request $request
             __('Provide a corpus text payload object.', 'll-tools-text-domain'),
             ['status' => 400]
         );
+    }
+
+    $budget = ll_tools_rest_corpus_text_validate_payload_budget($payload, $raw_payload);
+    if (is_wp_error($budget)) {
+        return $budget;
     }
 
     return $payload;
@@ -3587,6 +3672,33 @@ function ll_tools_rest_import_corpus_text_asset(WP_REST_Request $request) {
             __('Provide a corpus text asset file.', 'll-tools-text-domain'),
             400
         );
+    }
+
+    $asset_size = isset($uploaded_file['size']) ? (int) $uploaded_file['size'] : 0;
+    if ($asset_size <= 0 && is_string($uploaded_file['tmp_name']) && is_readable($uploaded_file['tmp_name'])) {
+        $filesize = filesize($uploaded_file['tmp_name']);
+        $asset_size = is_int($filesize) ? $filesize : 0;
+    }
+    if ($asset_size > ll_tools_rest_corpus_text_asset_max_bytes()) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_asset_too_large',
+            __('Corpus text asset file is larger than the allowed automation import limit.', 'll-tools-text-domain'),
+            413
+        );
+    }
+
+    if (is_string($uploaded_file['tmp_name']) && is_readable($uploaded_file['tmp_name'])) {
+        $image_size = @getimagesize($uploaded_file['tmp_name']);
+        if (is_array($image_size)) {
+            $max_dimension = ll_tools_rest_corpus_text_asset_max_dimension();
+            if ((int) ($image_size[0] ?? 0) > $max_dimension || (int) ($image_size[1] ?? 0) > $max_dimension) {
+                return ll_tools_rest_automation_error(
+                    'll_tools_rest_corpus_text_asset_dimensions_too_large',
+                    __('Corpus text asset image dimensions exceed the allowed automation import limit.', 'll-tools-text-domain'),
+                    413
+                );
+            }
+        }
     }
 
     require_once ABSPATH . 'wp-admin/includes/file.php';

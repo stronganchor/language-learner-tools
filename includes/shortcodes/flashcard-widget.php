@@ -396,6 +396,7 @@ function ll_flashcards_get_messages(): array {
         'selfCheckGotRight'       => __('I got it right', 'll-tools-text-domain'),
         'selfCheckPlayAudio'      => __('Play audio', 'll-tools-text-domain'),
         'selfCheckMultipleAnswers'=> __('%d answers', 'll-tools-text-domain'),
+        'noContentAvailable'      => __('No content available.', 'll-tools-text-domain'),
         'soundRequiredContinue'   => __('Turn on sound to continue the quiz.', 'll-tools-text-domain'),
         'soundRequiredResume'     => __('Resume audio', 'll-tools-text-domain'),
         'playAudio'               => __('Play audio', 'll-tools-text-domain'),

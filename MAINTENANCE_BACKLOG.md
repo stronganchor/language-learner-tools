@@ -14,7 +14,7 @@ decisions, and documentation upkeep.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid, including prerequisite ordering.
-   - Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
+   - Prompt-card recorder queue flows. Prompt-card quiz payload and lesson-grid shells now have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class assignment, invite, and progress-table flows. Teacher class
      creation now has frontend Playwright coverage for a teacher-role user,
      including the limited-role `admin-post.php` path and selected-class

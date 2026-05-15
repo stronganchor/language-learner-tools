@@ -355,6 +355,7 @@ Core settings live in `includes/admin/settings.php`:
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
 - `[ll_language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
 - `[ll_dictionary]` (`includes/shortcodes/dictionary-shortcode.php`).
+- `[ll_corpus_text_grid]` / `[ll_text_document_grid]` (`includes/pages/content-lesson-pages.php`).
 - `[ll_site_tools]` (`includes/shortcodes/site-tools-shortcode.php`).
 - `[audio_credit_grid]` (`includes/shortcodes/audio-credit-grid-shortcode.php`).
 

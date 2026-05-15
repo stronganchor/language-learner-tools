@@ -10875,6 +10875,18 @@ msgstr ""
 msgid "Provide a corpus text payload object."
 msgstr ""
 
+#: includes/api/automation-rest.php:3527
+msgid "Corpus text payload is larger than the allowed automation import limit."
+msgstr ""
+
+#: includes/api/automation-rest.php:3536
+msgid "Corpus text payload is too deeply nested for automation import."
+msgstr ""
+
+#: includes/api/automation-rest.php:3545
+msgid "Corpus text payload contains too many rows for automation import."
+msgstr ""
+
 #: includes/api/automation-rest.php:3544
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
 msgstr ""
@@ -10889,6 +10901,14 @@ msgstr ""
 
 #: includes/api/automation-rest.php:3587
 msgid "Provide a corpus text asset file."
+msgstr ""
+
+#: includes/api/automation-rest.php:3595
+msgid "Corpus text asset file is larger than the allowed automation import limit."
+msgstr ""
+
+#: includes/api/automation-rest.php:3609
+msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
 msgstr ""
 
 #: includes/api/automation-rest.php:3606
@@ -19988,6 +20008,10 @@ msgid "%d answers"
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:399
+msgid "No content available."
+msgstr ""
+
+#: includes/shortcodes/flashcard-widget.php:400
 msgid "Turn on sound to continue the quiz."
 msgstr ""
 

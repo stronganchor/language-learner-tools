@@ -256,7 +256,7 @@ Representative E2E coverage areas:
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md` and high-confidence hardcoded UI-string contexts using WordPress i18n wrappers.
 - Known E2E coverage gaps still worth adding:
   - Content lessons and mixed lesson-grid behavior.
-  - Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
+  - Prompt-card recorder queue flows beyond the existing prompt-card quiz payload and lesson-grid browser coverage.
   - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
   - Offline app shell launch/sync behavior.
   - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.

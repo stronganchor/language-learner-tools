@@ -959,6 +959,101 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('rest-corpus-text', (string) (ll_tools_interlinear_get_payload($post_id)['lesson_id'] ?? ''));
     }
 
+    public function test_corpus_text_import_rejects_oversized_payload_without_creating_post(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $max_bytes = static fn(): int => 128;
+        add_filter('ll_tools_rest_corpus_text_payload_max_bytes', $max_bytes);
+
+        try {
+            $payload = wp_json_encode([
+                'schema' => 'll_tools_text_document.v1',
+                'lesson_id' => 'rest-corpus-too-large',
+                'title' => str_repeat('Oversized corpus payload ', 20),
+                'source_lines' => [],
+                'reading_units' => [],
+            ]);
+            $this->assertIsString($payload);
+
+            $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/corpus-texts/import', [
+                'post_slug' => 'rest-corpus-too-large',
+                'payload' => $payload,
+            ]);
+
+            $this->assertSame(413, $response->get_status());
+            $this->assertNull(ll_tools_rest_corpus_text_find_post_by_slug('rest-corpus-too-large'));
+        } finally {
+            remove_filter('ll_tools_rest_corpus_text_payload_max_bytes', $max_bytes);
+        }
+    }
+
+    public function test_corpus_text_import_rejects_over_row_budget_payload_without_creating_post(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $max_rows = static fn(): int => 6;
+        add_filter('ll_tools_rest_corpus_text_payload_max_rows', $max_rows);
+
+        try {
+            $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/corpus-texts/import', [
+                'post_slug' => 'rest-corpus-too-many-rows',
+                'payload' => [
+                    'schema' => 'll_tools_text_document.v1',
+                    'lesson_id' => 'rest-corpus-too-many-rows',
+                    'title' => 'REST Corpus Too Many Rows',
+                    'source_lines' => array_fill(0, 10, ['id' => 'line', 'witnesses' => []]),
+                    'reading_units' => [],
+                ],
+            ]);
+
+            $this->assertSame(413, $response->get_status());
+            $this->assertNull(ll_tools_rest_corpus_text_find_post_by_slug('rest-corpus-too-many-rows'));
+        } finally {
+            remove_filter('ll_tools_rest_corpus_text_payload_max_rows', $max_rows);
+        }
+    }
+
+    public function test_corpus_text_asset_upload_rejects_oversized_file_before_sideload(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $max_bytes = static fn(): int => 8;
+        add_filter('ll_tools_rest_corpus_text_asset_max_bytes', $max_bytes);
+
+        $tmp_file = wp_tempnam('ll-tools-rest-oversized-asset.png');
+        $this->assertIsString($tmp_file);
+        file_put_contents($tmp_file, str_repeat('x', 64));
+
+        try {
+            $this->backup_request_state();
+            $_GET['rest_route'] = '/ll-tools/v1/corpus-texts/asset';
+
+            $request = new WP_REST_Request('POST', '/ll-tools/v1/corpus-texts/asset');
+            $request->set_param('source_key', 'oversized-corpus-asset');
+            $request->set_file_params([
+                'asset' => [
+                    'name' => 'oversized-corpus-asset.png',
+                    'type' => 'image/png',
+                    'tmp_name' => $tmp_file,
+                    'error' => UPLOAD_ERR_OK,
+                    'size' => 64,
+                ],
+            ]);
+
+            $response = rest_ensure_response(rest_get_server()->dispatch($request));
+
+            $this->assertSame(413, $response->get_status());
+            $this->assertSame(0, ll_tools_rest_corpus_text_find_attachment_by_source('oversized-corpus-asset'));
+        } finally {
+            remove_filter('ll_tools_rest_corpus_text_asset_max_bytes', $max_bytes);
+            @unlink($tmp_file);
+        }
+    }
+
     public function test_import_rest_routes_preview_start_process_and_expose_result_with_basic_auth(): void
     {
         if (!class_exists('ZipArchive')) {

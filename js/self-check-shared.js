@@ -418,7 +418,7 @@
         const opts = options || {};
         const emptyLabel = (typeof opts.emptyLabel === 'string' && opts.emptyLabel)
             ? opts.emptyLabel
-            : 'No content available.';
+            : ((root.llToolsFlashcardsMessages && (root.llToolsFlashcardsMessages.noContentAvailable || root.llToolsFlashcardsMessages.noWordsFound)) || '');
         const playAudioLabel = (typeof opts.playAudioLabel === 'string' && opts.playAudioLabel)
             ? opts.playAudioLabel
             : 'Play audio';

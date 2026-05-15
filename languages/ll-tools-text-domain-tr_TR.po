@@ -11665,7 +11665,7 @@ msgstr "Yükleme tamamlandı. İçe aktarma önizlemesi hazırlanıyor..."
 #: includes/admin/export-import.php:166
 msgid "Upload failed. Return to the import page and try again."
 msgstr ""
-"Yükleme başarısız oldu. İçe aktarma sayfasına dönün ve tekrar deneyin."
+"Yükleme başarısız oldu. İçe aktarma sayfasına dön ve tekrar dene."
 
 #: includes/admin/export-import.php:167
 msgid ""
@@ -11673,7 +11673,7 @@ msgid ""
 "page and try again."
 msgstr ""
 "Yükleme tamamlandı ancak önizleme ekranı yüklenmedi. İçe aktarma sayfasına "
-"dönün ve tekrar deneyin."
+"dön ve tekrar dene."
 
 #: includes/admin/export-import.php:168
 msgid "Export in progress"
@@ -12006,7 +12006,7 @@ msgstr "Resim -> metin"
 
 #: includes/admin/export-import.php:2658
 msgid "Use image files from the zip /images folder."
-msgstr "Zip /images klasöründeki görüntü dosyalarını kullanın."
+msgstr "Zip /images klasöründeki görsel dosyalarını kullan."
 
 #: includes/admin/export-import.php:2662
 msgid "Image -> text + audio"
@@ -15945,23 +15945,23 @@ msgstr ""
 
 #: includes/api/automation-rest.php:258
 msgid "You cannot manage automation for this word set."
-msgstr "Bu kelime seti için otomasyonu yönetemezsiniz."
+msgstr "Bu kelime seti için otomasyonu yönetemezsin."
 
 #: includes/api/automation-rest.php:281
 msgid "You cannot view internal review notes for this word set."
-msgstr "Bu kelime seti için dahili inceleme notlarını görüntüleyemezsiniz."
+msgstr "Bu kelime seti için dahili inceleme notlarını görüntüleyemezsin."
 
 #: includes/api/automation-rest.php:292
 msgid "You cannot manage internal review notes for this word set."
-msgstr "Bu kelime seti için dahili inceleme notlarını yönetemezsiniz."
+msgstr "Bu kelime seti için dahili inceleme notlarını yönetemezsin."
 
 #: includes/api/automation-rest.php:344
 msgid "You cannot create word sets through LL Tools automation."
-msgstr "LL Tools otomasyonu aracılığıyla kelime setleri oluşturamazsınız."
+msgstr "LL Tools otomasyonu aracılığıyla kelime setleri oluşturamazsın."
 
 #: includes/api/automation-rest.php:362
 msgid "You cannot import LL Tools bundles through automation."
-msgstr "LL Tools paketlerini otomasyon yoluyla içe aktaramazsınız."
+msgstr "LL Tools paketlerini otomasyon yoluyla içe aktaramazsın."
 
 #: includes/api/automation-rest.php:414
 msgid "Missing set.field in the REST update payload."
@@ -20262,7 +20262,7 @@ msgstr "Bağlantılı kelime resmi oluşturulamadı."
 
 #: includes/post-types/word-image-post-type.php:791
 msgid "Word Image Metadata"
-msgstr "Word Görüntüsü Meta Verileri"
+msgstr "Kelime Görseli Meta Verileri"
 
 #: includes/post-types/word-image-post-type.php:811
 msgid "Copyright Info:"
@@ -21019,8 +21019,12 @@ msgid "%d answers"
 msgstr "%d cevap"
 
 #: includes/shortcodes/flashcard-widget.php:397
+msgid "No content available."
+msgstr "Gösterilecek içerik yok."
+
+#: includes/shortcodes/flashcard-widget.php:398
 msgid "Turn on sound to continue the quiz."
-msgstr "Quiz’e devam etmek için sesi açın."
+msgstr "Quiz’e devam etmek için sesi aç."
 
 #: includes/shortcodes/flashcard-widget.php:398
 msgid "Resume audio"
@@ -22588,7 +22592,7 @@ msgstr "Ana Derslerden"
 
 #: templates/vocab-lesson-template.php:1238
 msgid "Return to the main audio/video lesson that introduced this vocabulary."
-msgstr "Bu kelime dağarcığını tanıtan ana sesli/görüntülü derse dönün."
+msgstr "Bu kelime dağarcığını tanıtan ana sesli/görüntülü derse dön."
 
 #: templates/vocab-lesson-template.php:1240
 msgid "Open main lesson"
@@ -22735,6 +22739,14 @@ msgid "Updated categories for %d word."
 msgid_plural "Updated categories for %d words."
 msgstr[0] "%d kelime için kategoriler güncellendi."
 msgstr[1] "%d kelime için kategoriler güncellendi."
+
+#: includes/pages/wordset-editor.php:2210
+#: includes/pages/wordset-editor.php:2370
+#, php-format
+msgid "Split %d word into another category."
+msgid_plural "Split %d words into another category."
+msgstr[0] "%d kelimeyi başka bir kategoriye böl."
+msgstr[1] "%d kelimeyi başka bir kategoriye böl."
 
 #: includes/pages/wordset-editor.php:1921
 msgid ""
@@ -24177,7 +24189,19 @@ msgstr "Korpus metni yükü geçerli bir JSON nesnesi olmalıdır."
 
 #: includes/api/automation-rest.php
 msgid "Provide a corpus text payload object."
-msgstr "Bir korpus metni yük nesnesi sağlayın."
+msgstr "Bir korpus metni yük nesnesi sağla."
+
+#: includes/api/automation-rest.php
+msgid "Corpus text payload is larger than the allowed automation import limit."
+msgstr "Korpus metni yükü izin verilen otomasyon içe aktarma sınırından büyük."
+
+#: includes/api/automation-rest.php
+msgid "Corpus text payload is too deeply nested for automation import."
+msgstr "Korpus metni yükü otomasyon içe aktarımı için çok derin iç içe geçmiş."
+
+#: includes/api/automation-rest.php
+msgid "Corpus text payload contains too many rows for automation import."
+msgstr "Korpus metni yükünde otomasyon içe aktarımı için çok fazla satır var."
 
 #: includes/api/automation-rest.php
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
@@ -24189,11 +24213,19 @@ msgstr "Korpus metni varlıklarını yükleme iznin yok."
 
 #: includes/api/automation-rest.php
 msgid "Provide a source key for the corpus text asset."
-msgstr "Korpus metni varlığı için bir kaynak anahtarı sağlayın."
+msgstr "Korpus metni varlığı için bir kaynak anahtarı sağla."
 
 #: includes/api/automation-rest.php
 msgid "Provide a corpus text asset file."
-msgstr "Bir korpus metni varlık dosyası sağlayın."
+msgstr "Bir korpus metni varlık dosyası sağla."
+
+#: includes/api/automation-rest.php
+msgid "Corpus text asset file is larger than the allowed automation import limit."
+msgstr "Korpus metni varlık dosyası izin verilen otomasyon içe aktarma sınırından büyük."
+
+#: includes/api/automation-rest.php
+msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
+msgstr "Korpus metni varlık görselinin boyutları izin verilen otomasyon içe aktarma sınırını aşıyor."
 
 #: includes/api/automation-rest.php
 msgid "The corpus text asset could not be uploaded."
@@ -24892,6 +24924,14 @@ msgstr "Atlanan satırlar genellikle yalnızca tek sitede bulunan kayıtlar veya
 msgid "Skipped: %d"
 msgstr "Atlandı: %d"
 
+#. translators: %d: conflict count
+#: includes/admin/site-sync-admin.php:2115
+#, php-format
+msgid "%d conflict needs review"
+msgid_plural "%d conflicts need review"
+msgstr[0] "%d çakışma inceleme gerektiriyor"
+msgstr[1] "%d çakışma inceleme gerektiriyor"
+
 #: includes/admin/site-sync-admin.php
 msgid "Staging now"
 msgstr "Staging şimdi"
@@ -25036,6 +25076,15 @@ msgstr "Kategorilere dön"
 msgid "Back to queue"
 msgstr "Kuyruğa dön"
 
+#. translators: %d: hidden queue item count
+#: includes/pages/wordset-pages.php:12911
+#: includes/pages/wordset-pages.php:12984
+#, php-format
+msgid "Hidden (%d)"
+msgid_plural "Hidden (%d)"
+msgstr[0] "Gizli (%d)"
+msgstr[1] "Gizli (%d)"
+
 #: includes/pages/wordset-editor.php
 msgid "Category splits"
 msgstr "Kategori bölmeleri"
@@ -25144,6 +25193,13 @@ msgstr "Metni incelendi olarak işaretle"
 #: includes/pages/wordset-editor.php
 msgid "Move Filtered Words"
 msgstr "Filtrelenmiş Kelimeleri Taşı"
+
+#: includes/pages/wordset-editor.php:2709
+#, php-format
+msgid "Move %1$d filtered word out of %2$s."
+msgid_plural "Move %1$d filtered words out of %2$s."
+msgstr[0] "Filtrelenen %1$d kelimeyi %2$s dışına taşı."
+msgstr[1] "Filtrelenen %1$d kelimeyi %2$s dışına taşı."
 
 #: includes/pages/wordset-editor.php
 msgid "Move all filtered words to the target category?"

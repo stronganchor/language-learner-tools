@@ -20,7 +20,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 - **Flashcard quiz shortcode**
   - `[flashcard_widget]` renders an interactive quiz. Attributes:
-    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`practice` | `learning` | `listening` | `gender` | `self-check`), `wordset` (filter by wordset).
+    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`practice` | `learning` | `listening` | `gender` | `self-check`), `wordset` (filter by wordset), `wordset_fallback` (`true|false`).
 
 - **Auto quiz pages & embed pages**
   - Auto-generated quiz pages under `/quiz/<category>`.
@@ -36,6 +36,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - **Recording Types**: Categorize audio as introduction, isolation, question, or sentence for contextual playback.
 
 - **Other shortcodes**
+  - `[ll_corpus_text_grid]` / `[ll_text_document_grid]` - front-end content-lesson grid for corpus/text-document lessons.
   - `[word_grid]` – grid of words with audio/text toggles, supports wordset filtering.
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
   - `[editor_hub]` – editor-facing workflow for filling missing word metadata and recording details.
@@ -185,6 +186,7 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
   - `embed`: `true|false` (use `true` for compact UI on `/embed/<slug>` pages).
   - `quiz_mode`: `practice` (default), `learning`, `listening`, `gender`, or `self-check`.
   - `wordset`: filter words by wordset slug/name/id.
+  - `wordset_fallback`: `true|false`; when enabled, empty wordset filters fall back to the active/default wordset.
 
 ### `[word_grid]`
 - **Common attributes**:
@@ -220,6 +222,10 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
 ### `[ll_dictionary]` / `[dictionary_search]` / `[dictionary_browser]`
 - Front-end dictionary browser/search surface.
 - **Attributes**: `wordset`, `show_title`, `per_page`, `sense_limit`, `linked_word_limit`, `title`, `gloss_lang`.
+
+### `[ll_corpus_text_grid]` / `[ll_text_document_grid]`
+- Front-end grid of corpus/text-document content lessons.
+- **Attributes**: `wordset`, `limit`, `columns`, `show_excerpt`, `show_sources`, `class`.
 
 ### `[quiz_pages_grid]` / `[quiz_pages_dropdown]`
 - **Attributes (grid)**: `show_counts`, `exclude`, `parent`, `order`, `orderby`, `wordset`, `popup` (`yes` to open flashcard overlay inline), `mode` (`practice`, `learning`, or `self-check`).

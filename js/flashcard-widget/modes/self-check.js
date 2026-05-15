@@ -431,7 +431,7 @@
     function getSelfCheckRenderOptions(msgs, ctx) {
         const messages = msgs || {};
         return {
-            emptyLabel: messages.noWordsFound || 'No content available.',
+            emptyLabel: messages.noContentAvailable || messages.noWordsFound || '',
             playAudioLabel: messages.selfCheckPlayAudio || 'Play audio',
             playAudioType: messages.playAudioType || 'Play %s recording',
             recordingIsolation: messages.recordingIsolation || 'Isolation',
@@ -665,7 +665,8 @@
         }
 
         if (!hasContent) {
-            const fallback = (root.llToolsFlashcardsMessages && root.llToolsFlashcardsMessages.noWordsFound) || 'No content available.';
+            const fallbackMessages = root.llToolsFlashcardsMessages || {};
+            const fallback = fallbackMessages.noContentAvailable || fallbackMessages.noWordsFound || '';
             $('<div>', { class: 'll-study-check-empty', text: fallback }).appendTo($inner);
         }
 
@@ -677,7 +678,7 @@
         if (SelfCheckShared && typeof SelfCheckShared.renderPromptDisplay === 'function') {
             const msgs = root.llToolsFlashcardsMessages || {};
             SelfCheckShared.renderPromptDisplay($host, displayMode, word, {
-                emptyLabel: msgs.noWordsFound || 'No content available.',
+                emptyLabel: msgs.noContentAvailable || msgs.noWordsFound || '',
                 playAudioLabel: msgs.selfCheckPlayAudio || 'Play audio',
                 onPlayAudio: function (audioUrl, buttonEl) {
                     playAudioUrl(audioUrl, ctx, buttonEl);
