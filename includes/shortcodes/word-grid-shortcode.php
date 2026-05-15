@@ -6784,11 +6784,12 @@ function ll_tools_word_grid_create_lesson_word_handler() {
     $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
     try {
         $html = ll_tools_word_grid_shortcode([
-            'category'     => (string) $lesson_category->slug,
-            'wordset'      => (string) $wordset->slug,
-            'deepest_only' => true,
-            'lesson_id'    => $lesson_id,
-            'word_ids'     => (string) $word_id,
+            'category'       => (string) $category->slug,
+            'wordset'        => (string) $wordset->slug,
+            'deepest_only'   => true,
+            'lesson_id'      => $lesson_id,
+            'word_ids'       => (string) $word_id,
+            'editor_context' => true,
         ]);
     } finally {
         unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);

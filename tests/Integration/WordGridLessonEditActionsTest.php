@@ -199,6 +199,40 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertSame('word_create', (string) ($recent_actions[0]['type'] ?? ''));
     }
 
+    public function test_lesson_editor_can_create_draft_word_for_image_lesson(): void
+    {
+        $fixture = $this->createFixture('lesson-edit-actions-create-image-word');
+        $this->loginEditor();
+
+        update_term_meta((int) $fixture['category_id'], 'll_quiz_prompt_type', 'image');
+        update_term_meta((int) $fixture['category_id'], 'll_quiz_option_type', 'text_translation');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Lesson Edit Actions Create Image Word Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (int) $fixture['wordset_id']);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (int) $fixture['category_id']);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_grid_edit'),
+            'lesson_id' => (string) $lesson_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_grid_create_lesson_word_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+        $word_id = (int) ($response['data']['word_id'] ?? 0);
+        $this->assertGreaterThan(0, $word_id);
+        $this->assertSame('draft', get_post_status($word_id));
+        $this->assertStringContainsString('data-word-id="' . $word_id . '"', (string) ($response['data']['html'] ?? ''));
+        $this->assertStringContainsString('data-ll-word-edit-toggle', (string) ($response['data']['html'] ?? ''));
+    }
+
     /**
      * @return array{wordset_id:int,category_id:int,source_word_id:int,target_word_id:int,recording_id:int}
      */
