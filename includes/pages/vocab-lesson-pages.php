@@ -1404,7 +1404,7 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     return $result;
 }
 
-function ll_tools_get_vocab_lesson_category_word_count($category, int $wordset_id, array $counts = null): int {
+function ll_tools_get_vocab_lesson_category_word_count($category, int $wordset_id, ?array $counts = null): int {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return 0;
@@ -1426,7 +1426,7 @@ function ll_tools_get_vocab_lesson_category_word_count($category, int $wordset_i
     return (int) ($counts['all'][$cat_id] ?? 0);
 }
 
-function ll_tools_can_generate_vocab_lesson($category, int $wordset_id, array $counts = null): bool {
+function ll_tools_can_generate_vocab_lesson($category, int $wordset_id, ?array $counts = null): bool {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return false;

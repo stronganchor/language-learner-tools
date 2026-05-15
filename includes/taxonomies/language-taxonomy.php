@@ -40,7 +40,7 @@ function ll_tools_get_language_seed_rows() {
 
     if (is_readable($languages_table) && ($handle = fopen($languages_table, 'r')) !== false) {
         $row_index = 0;
-        while (($data = fgetcsv($handle, 0, "\t")) !== false) {
+        while (($data = fgetcsv($handle, 0, "\t", '"', '\\')) !== false) {
             $row_index++;
             if ($row_index === 1 && isset($data[0]) && $data[0] === 'Id') {
                 continue;
@@ -63,7 +63,7 @@ function ll_tools_get_language_seed_rows() {
 
     if (is_readable($macrolanguage_mappings_table) && ($handle = fopen($macrolanguage_mappings_table, 'r')) !== false) {
         $row_index = 0;
-        while (($data = fgetcsv($handle, 0, "\t")) !== false) {
+        while (($data = fgetcsv($handle, 0, "\t", '"', '\\')) !== false) {
             $row_index++;
             if ($row_index === 1 && isset($data[0]) && $data[0] === 'M_Id') {
                 continue;

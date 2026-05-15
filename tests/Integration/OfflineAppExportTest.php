@@ -113,6 +113,60 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         $this->assertSame([$category_a_id], $option_ids);
     }
 
+    public function test_offline_app_export_bundles_effective_word_image_when_word_lacks_thumbnail(): void
+    {
+        $wordset = wp_insert_term('Offline Effective Image Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Offline Effective Image Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        $attachment_id = $this->create_image_attachment('offline-effective-word-image.png');
+        $word_image_id = self::factory()->post->create([
+            'post_type'   => 'word_images',
+            'post_status' => 'publish',
+            'post_title'  => 'Offline Effective Image Source',
+        ]);
+        set_post_thumbnail($word_image_id, $attachment_id);
+        wp_set_post_terms($word_image_id, [$category_id], 'word-category', false);
+
+        $word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'publish',
+            'post_title'  => 'Offline Effective Image Word',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
+        delete_post_meta($word_id, '_thumbnail_id');
+
+        $registry = ['images' => []];
+        $entries = [];
+        $warnings = [];
+        $relative_image = ll_tools_offline_app_register_word_image_asset($word_id, $registry, $entries, $warnings);
+
+        $this->assertNotSame('', $relative_image);
+        $this->assertStringContainsString('./content/images/' . $attachment_id . '-', $relative_image);
+        $this->assertCount(1, $entries);
+        $this->assertSame([], $warnings);
+
+        $preview = ll_tools_offline_app_build_launcher_preview([
+            [
+                'id' => $word_id,
+                'title' => 'Offline Effective Image Word',
+                'translation' => 'Offline effective translation',
+                'image' => $relative_image,
+            ],
+        ]);
+
+        $this->assertSame('image', (string) ($preview[0]['type'] ?? ''));
+        $this->assertSame($relative_image, (string) ($preview[0]['url'] ?? ''));
+    }
+
     public function test_offline_app_bundle_includes_shell_runtime_data_and_local_media(): void
     {
         $min_words_filter = static function (): int {

@@ -2080,7 +2080,9 @@ function ll_tools_offline_app_build_word_audio_url_map(int $word_id, array &$ass
 }
 
 function ll_tools_offline_app_register_word_image_asset(int $word_id, array &$asset_registry, array &$asset_entries, array &$warnings): string {
-    $attachment_id = (int) get_post_thumbnail_id($word_id);
+    $attachment_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+        ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
+        : (int) get_post_thumbnail_id($word_id);
     if ($attachment_id <= 0) {
         return '';
     }
@@ -2133,7 +2135,10 @@ function ll_tools_offline_app_build_launcher_preview(array $words, int $limit = 
                 'width' => 0,
                 'height' => 0,
             ];
-            $attachment_id = get_post_thumbnail_id((int) ($word['id'] ?? 0));
+            $word_id = (int) ($word['id'] ?? 0);
+            $attachment_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
+                : (int) get_post_thumbnail_id($word_id);
             if ($attachment_id > 0 && function_exists('ll_tools_get_image_dimensions_for_size')) {
                 $dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, 'medium');
             }

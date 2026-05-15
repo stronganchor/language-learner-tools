@@ -4791,14 +4791,30 @@ function ll_get_word_for_image_in_wordset(int $image_post_id, array $wordset_ter
             'fields'         => 'ids',
             'no_found_rows'  => true,
             'meta_query'     => [
+                'relation' => 'OR',
                 [
-                    'key'     => '_thumbnail_id',
-                    'compare' => 'EXISTS',
+                    'relation' => 'AND',
+                    [
+                        'key'     => '_thumbnail_id',
+                        'compare' => 'EXISTS',
+                    ],
+                    [
+                        'key'     => '_thumbnail_id',
+                        'value'   => '',
+                        'compare' => '!=',
+                    ],
                 ],
                 [
-                    'key'     => '_thumbnail_id',
-                    'value'   => '',
-                    'compare' => '!=',
+                    'relation' => 'AND',
+                    [
+                        'key'     => '_ll_autopicked_image_id',
+                        'compare' => 'EXISTS',
+                    ],
+                    [
+                        'key'     => '_ll_autopicked_image_id',
+                        'value'   => '',
+                        'compare' => '!=',
+                    ],
                 ],
             ],
         ];
@@ -4815,7 +4831,9 @@ function ll_get_word_for_image_in_wordset(int $image_post_id, array $wordset_ter
         ll_prime_post_thumbnail_meta((array) $word_ids);
         $map = [];
         foreach ((array) $word_ids as $word_id) {
-            $thumb_id = (int) get_post_thumbnail_id((int) $word_id);
+            $thumb_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                ? (int) ll_tools_get_effective_word_image_attachment_id_for_word((int) $word_id, true)
+                : (int) get_post_thumbnail_id((int) $word_id);
             if ($thumb_id > 0 && !isset($map[$thumb_id])) {
                 $map[$thumb_id] = (int) $word_id;
             }
@@ -6608,6 +6626,7 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
         return $id > 0;
     }));
     $primary_wordset_id = (int) ($wordset_ids[0] ?? 0);
+    $requested_image_id = (int) $image_id;
     if ($primary_wordset_id > 0 && function_exists('ll_tools_get_effective_word_image_id_for_wordset')) {
         $effective_image_id = (int) ll_tools_get_effective_word_image_id_for_wordset((int) $image_id, $primary_wordset_id);
         if ($effective_image_id > 0) {
@@ -6620,6 +6639,44 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
 
     if (!$attachment_id) {
         return new WP_Error('no_attachment', __('Image has no attachment', 'll-tools-text-domain'));
+    }
+
+    $image_ids_to_match = array_values(array_unique(array_filter([
+        $requested_image_id,
+        (int) $image_id,
+    ], static function (int $id): bool {
+        return $id > 0;
+    })));
+
+    if (!empty($image_ids_to_match)) {
+        $linked_query_args = [
+            'post_type'      => 'words',
+            'post_status'    => ['publish', 'draft', 'pending'],
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'meta_query'     => [[
+                'key'     => '_ll_autopicked_image_id',
+                'value'   => $image_ids_to_match,
+                'compare' => 'IN',
+            ]],
+        ];
+
+        if (!empty($wordset_ids)) {
+            $linked_query_args['tax_query'] = [[
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => array_map('intval', $wordset_ids),
+            ]];
+        }
+
+        $linked_words = get_posts($linked_query_args);
+        if (!empty($linked_words)) {
+            $linked_word_id = (int) $linked_words[0];
+            if ($linked_word_id > 0 && function_exists('ll_tools_normalize_word_categories_for_isolation')) {
+                ll_tools_normalize_word_categories_for_isolation($linked_word_id);
+            }
+            return $linked_word_id;
+        }
     }
 
     // Check if a word already exists with this image IN THE SPECIFIED WORDSET

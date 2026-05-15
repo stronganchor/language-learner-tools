@@ -198,6 +198,37 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame((int) $word_two, $resolved_two);
     }
 
+    public function test_recorder_image_word_lookup_uses_linked_word_image_without_word_thumbnail(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Helper Linked WS', 'rec-helper-linked-ws');
+        $category_id = $this->ensure_term('word-category', 'Recorder Helper Linked Category', 'rec-helper-linked-category');
+        $attachment_id = $this->create_image_attachment('recorder-helper-linked-image.png');
+
+        $word_image_id = self::factory()->post->create([
+            'post_type'   => 'word_images',
+            'post_status' => 'publish',
+            'post_title'  => 'Recorder Helper Linked Image',
+        ]);
+        set_post_thumbnail($word_image_id, $attachment_id);
+        wp_set_post_terms($word_image_id, [$category_id], 'word-category', false);
+
+        $word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'publish',
+            'post_title'  => 'Recorder Helper Linked Word',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
+        delete_post_meta($word_id, '_thumbnail_id');
+
+        $resolved_word_id = ll_get_word_for_image_in_wordset((int) $word_image_id, [$wordset_id]);
+        $this->assertSame((int) $word_id, $resolved_word_id);
+
+        $existing_word_id = ll_find_or_create_word_for_image((int) $word_image_id, get_post($word_image_id), [$wordset_id]);
+        $this->assertSame((int) $word_id, (int) $existing_word_id);
+    }
+
     public function test_existing_recording_type_helpers_return_unique_types_with_user_scope(): void
     {
         $type_isolation = $this->ensure_term('recording_type', 'Isolation', 'isolation');
