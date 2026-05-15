@@ -2702,11 +2702,68 @@ body.ll-vocab-lesson-category-settings-open {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
+.ll-vocab-lesson-skeleton-media--preview {
+    isolation: isolate;
+    background: #e2e8f0;
+}
+
+.ll-vocab-lesson-skeleton-media--preview::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: linear-gradient(100deg, rgba(226, 232, 240, 0.18) 16%, rgba(248, 250, 252, 0.54) 34%, rgba(226, 232, 240, 0.18) 52%);
+    background-size: 220% 100%;
+    animation: ll-vocab-lesson-skeleton-shimmer 1.15s linear infinite;
+}
+
+.ll-vocab-lesson-shell-preview-image {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(10px);
+    opacity: 0.72;
+    transform: scale(1.08);
+}
+
 .ll-vocab-lesson-skeleton-title {
     width: var(--ll-word-grid-shell-card-title-width, 68%);
     max-width: calc(100% - 24px);
     height: 28px;
     border-radius: 999px;
+}
+
+.ll-vocab-lesson-shell-title {
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+    width: min(100%, calc(100% - 18px));
+    min-height: 42px;
+    color: #0f172a;
+    line-height: var(--ll-word-grid-answer-option-line-height, 1.25);
+}
+
+.ll-vocab-lesson-shell-word-text,
+.ll-vocab-lesson-shell-translation-text {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+.ll-vocab-lesson-shell-word-text {
+    font-family: var(--ll-word-grid-answer-option-font-family, inherit);
+    font-size: 1.02rem;
+    font-weight: var(--ll-word-grid-answer-option-font-weight, 700);
+}
+
+.ll-vocab-lesson-shell-translation-text {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #64748b;
 }
 
 .ll-vocab-lesson-skeleton-recordings {
@@ -2725,6 +2782,23 @@ body.ll-vocab-lesson-category-settings-open {
     border-radius: 8px;
     border: 1px solid rgba(203, 213, 225, 0.8);
     box-sizing: border-box;
+}
+
+.word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn {
+    position: relative;
+    overflow: hidden;
+    cursor: wait !important;
+    opacity: 0.86;
+}
+
+.word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 10%, rgba(255, 255, 255, 0.72) 34%, transparent 58%);
+    background-size: 220% 100%;
+    animation: ll-vocab-lesson-skeleton-shimmer 1.15s linear infinite;
+    pointer-events: none;
 }
 
 .ll-vocab-lesson-skeleton-card--prompt-card {
@@ -3215,11 +3289,13 @@ body.ll-vocab-lesson-category-settings-open {
     }
 
     .ll-vocab-lesson-skeleton-media,
+    .ll-vocab-lesson-skeleton-media--preview::after,
     .ll-vocab-lesson-skeleton-line,
     .ll-vocab-lesson-skeleton-pill,
     .ll-vocab-lesson-skeleton-dot,
     .ll-vocab-lesson-skeleton-title,
-    .ll-vocab-lesson-skeleton-recording-button {
+    .ll-vocab-lesson-skeleton-recording-button,
+    .word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn::after {
         animation: none;
         background-position: 50% 0;
     }

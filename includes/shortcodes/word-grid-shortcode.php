@@ -4032,23 +4032,23 @@ function ll_tools_word_grid_estimate_shell_title_width(array $display_values): s
     return rtrim(rtrim(number_format($width, 2, '.', ''), '0'), '.') . '%';
 }
 
-function ll_tools_word_grid_count_visible_recording_buttons(array $audio_files, array $main_recording_types, array $recording_type_order): int {
+function ll_tools_word_grid_get_visible_recording_types(array $audio_files, array $main_recording_types, array $recording_type_order): array {
     if (empty($audio_files)) {
-        return 0;
+        return [];
     }
 
     $preferred_speaker = ll_tools_word_grid_get_preferred_speaker($audio_files, $main_recording_types);
-    $count = 0;
+    $types = [];
 
     foreach ($recording_type_order as $type) {
         $entry = ll_tools_word_grid_select_audio_entry($audio_files, (string) $type, $preferred_speaker);
         if (!empty($entry['url'])) {
-            $count++;
+            $types[] = (string) $type;
         }
     }
 
-    if ($count > 0) {
-        return $count;
+    if (!empty($types)) {
+        return array_values(array_unique($types));
     }
 
     $fallback_types = [];
@@ -4065,11 +4065,65 @@ function ll_tools_word_grid_count_visible_recording_buttons(array $audio_files, 
     foreach (array_keys($fallback_types) as $type) {
         $entry = ll_tools_word_grid_select_audio_entry($audio_files, (string) $type, $preferred_speaker);
         if (!empty($entry['url'])) {
-            $count++;
+            $types[] = (string) $type;
         }
     }
 
-    return $count;
+    return array_values(array_unique($types));
+}
+
+function ll_tools_word_grid_count_visible_recording_buttons(array $audio_files, array $main_recording_types, array $recording_type_order): int {
+    return count(ll_tools_word_grid_get_visible_recording_types($audio_files, $main_recording_types, $recording_type_order));
+}
+
+function ll_tools_word_grid_get_shell_image_preview_data(int $attachment_id): array {
+    if ($attachment_id <= 0) {
+        return [
+            'url' => '',
+            'width' => 0,
+            'height' => 0,
+        ];
+    }
+
+    $preview_size = apply_filters('ll_tools_word_grid_shell_preview_image_size', 'thumbnail', $attachment_id);
+    if (!is_array($preview_size) && !is_string($preview_size)) {
+        $preview_size = 'thumbnail';
+    }
+    if (is_string($preview_size)) {
+        $preview_size = trim($preview_size);
+        if ($preview_size === '') {
+            $preview_size = 'thumbnail';
+        }
+    }
+
+    $url = function_exists('ll_tools_get_masked_image_url')
+        ? (string) ll_tools_get_masked_image_url($attachment_id, $preview_size)
+        : '';
+    if ($url === '') {
+        $url = (string) (wp_get_attachment_image_url($attachment_id, $preview_size) ?: '');
+    }
+
+    if ($url === '') {
+        return [
+            'url' => '',
+            'width' => 0,
+            'height' => 0,
+        ];
+    }
+
+    $width = 0;
+    $height = 0;
+    $size_data = wp_get_attachment_image_src($attachment_id, $preview_size);
+    if (is_array($size_data) && isset($size_data[1], $size_data[2])) {
+        $width = (int) $size_data[1];
+        $height = (int) $size_data[2];
+    }
+
+    return [
+        'url' => $url,
+        'width' => $width,
+        'height' => $height,
+    ];
 }
 
 function ll_tools_word_grid_get_default_shell_cards(array $context, int $limit = 6): array {
@@ -4106,11 +4160,14 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
     }
 
     $persistent_cache_key = 'll_wg_shell_cards_' . md5(wp_json_encode([
+        'schema' => 2,
         'category_id' => $category_id,
         'wordset_id' => $wordset_id,
         'deepest_only' => $deepest_only,
         'is_text_based' => $is_text_based,
         'limit' => $limit,
+        'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
+        'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
     ]));
     $cached_cards = wp_cache_get($persistent_cache_key, 'll_tools');
     if (!is_array($cached_cards)) {
@@ -4242,6 +4299,11 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
     foreach ($word_ids as $word_id) {
         $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text((int) $word_id);
         $media_aspect_ratio = $default_ratio;
+        $image_preview_data = [
+            'url' => '',
+            'width' => 0,
+            'height' => 0,
+        ];
 
         if (!$is_text_based) {
             $attachment_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
@@ -4259,16 +4321,26 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
             if ($media_aspect_ratio === '') {
                 $media_aspect_ratio = $default_ratio;
             }
+            $image_preview_data = ll_tools_word_grid_get_shell_image_preview_data($attachment_id);
         }
 
+        $recording_types = ll_tools_word_grid_get_visible_recording_types(
+            (array) ($audio_by_word[$word_id] ?? []),
+            $main_recording_types,
+            $recording_type_order
+        );
+
         $cards[] = [
+            'word_id' => (int) $word_id,
+            'word_text' => (string) ($display_values['word_text'] ?? ''),
+            'translation_text' => (string) ($display_values['translation_text'] ?? ''),
             'media_aspect_ratio' => $media_aspect_ratio,
             'title_width' => ll_tools_word_grid_estimate_shell_title_width($display_values),
-            'recording_count' => ll_tools_word_grid_count_visible_recording_buttons(
-                (array) ($audio_by_word[$word_id] ?? []),
-                $main_recording_types,
-                $recording_type_order
-            ),
+            'recording_count' => count($recording_types),
+            'recording_types' => $recording_types,
+            'image_preview_url' => (string) ($image_preview_data['url'] ?? ''),
+            'image_preview_width' => (int) ($image_preview_data['width'] ?? 0),
+            'image_preview_height' => (int) ($image_preview_data['height'] ?? 0),
         ];
     }
 
@@ -4861,8 +4933,11 @@ function ll_tools_word_grid_shortcode($atts) {
                 $word_grid_image_size = 'medium_large';
             }
         }
+        $word_grid_render_index = 0;
+        $prioritize_initial_lesson_images = ll_tools_word_grid_is_lesson_context($context);
         while ($query->have_posts()) {
             $query->the_post();
+            $word_grid_render_index++;
             $word_id = get_the_ID();
             $word_status = (string) get_post_status($word_id);
             $is_draft_word = ($word_status === 'draft');
@@ -5011,11 +5086,13 @@ function ll_tools_word_grid_shortcode($atts) {
                     $image_container_classes .= ' ll-word-image-container--staff-inactive';
                 }
                 echo '<div class="' . esc_attr($image_container_classes) . '">'; // Start new container
+                $image_loading_attr = ($prioritize_initial_lesson_images && $word_grid_render_index <= 6) ? 'eager' : 'lazy';
+                $image_fetchpriority_attr = ($prioritize_initial_lesson_images && $word_grid_render_index <= 2) ? 'high' : 'low';
                 echo ll_tools_word_grid_get_post_thumbnail_html((int) get_the_ID(), $word_grid_image_size, array(
                     'class' => 'word-image',
-                    'loading' => 'lazy',
+                    'loading' => $image_loading_attr,
                     'decoding' => 'async',
-                    'fetchpriority' => 'low',
+                    'fetchpriority' => $image_fetchpriority_attr,
                 ));
                 if ($word_has_staff_inactive_image) {
                     echo '<span class="ll-word-image-staff-overlay">' . esc_html(ll_tools_word_grid_get_staff_inactive_image_note()) . '</span>';

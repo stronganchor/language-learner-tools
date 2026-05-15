@@ -670,8 +670,54 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertTrue($response['success']);
         $html = (string) (($response['data'] ?? [])['html'] ?? '');
         $this->assertStringContainsString('class="word-image', $html);
+        $this->assertStringContainsString('loading="eager"', $html);
+        $this->assertStringContainsString('fetchpriority="high"', $html);
         $this->assertStringNotContainsString('width="1"', $html);
         $this->assertStringNotContainsString('height="1"', $html);
+    }
+
+    public function test_lesson_template_shell_renders_early_word_text_recording_buttons_and_image_preview(): void
+    {
+        $wordset = wp_insert_term('Early Shell Render Wordset', 'wordset', ['slug' => 'early-shell-render-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Early Shell Render Category', 'word-category', ['slug' => 'early-shell-render-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'image');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+        $this->createRecordingType('question', 'Question');
+
+        $word_id = $this->createWordWithThumbnail('Shell Early Word', $category_id, $wordset_id, 'shell-early-word.png');
+        update_post_meta($word_id, 'word_translation', 'Early Translation');
+        $this->createAudioRecording($word_id, 'question', 'shell-early-word-question.mp3');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Early Shell Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('data-ll-vocab-lesson-grid-shell', $html);
+        $this->assertStringContainsString('data-ll-shell-word-id="' . $word_id . '"', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-shell-word-text', $html);
+        $this->assertStringContainsString('Shell Early Word', $html);
+        $this->assertStringContainsString('Early Translation', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-shell-preview-image', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-shell-recording-btn', $html);
+        $this->assertStringContainsString('ll-study-recording-btn--question', $html);
+        $this->assertStringContainsString('disabled', $html);
     }
 
     public function test_text_answer_lesson_grid_renders_images_when_every_visible_word_has_an_image(): void
@@ -1052,6 +1098,8 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         $first_word_id = $this->createWordWithThumbnail('Shell Card One', $category_id, $wordset_id, 'shell-card-one.png');
         $second_word_id = $this->createWordWithThumbnail('Shell Card Two', $category_id, $wordset_id, 'shell-card-two.png');
+        update_post_meta($first_word_id, 'word_translation', 'First Shell Translation');
+        update_post_meta($second_word_id, 'word_translation', 'Second Shell Translation');
 
         $this->createAudioRecording($first_word_id, 'question', 'shell-card-one-question.mp3');
         $this->createAudioRecording($second_word_id, 'question', 'shell-card-two-question.mp3');
@@ -1071,6 +1119,22 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         }, $cards);
         sort($recording_counts);
         $this->assertSame([1, 2], array_slice($recording_counts, 0, 2));
+
+        $cards_by_word_id = [];
+        foreach ($cards as $card) {
+            $card_word_id = (int) ($card['word_id'] ?? 0);
+            if ($card_word_id > 0) {
+                $cards_by_word_id[$card_word_id] = $card;
+            }
+        }
+
+        $this->assertArrayHasKey($first_word_id, $cards_by_word_id);
+        $this->assertArrayHasKey($second_word_id, $cards_by_word_id);
+        $this->assertSame('Shell Card One', (string) ($cards_by_word_id[$first_word_id]['word_text'] ?? ''));
+        $this->assertSame('First Shell Translation', (string) ($cards_by_word_id[$first_word_id]['translation_text'] ?? ''));
+        $this->assertSame(['question'], array_values((array) ($cards_by_word_id[$first_word_id]['recording_types'] ?? [])));
+        $this->assertSame(['question', 'isolation'], array_values((array) ($cards_by_word_id[$second_word_id]['recording_types'] ?? [])));
+        $this->assertNotSame('', (string) ($cards_by_word_id[$first_word_id]['image_preview_url'] ?? ''));
     }
 
     public function test_bulk_deepest_filter_keeps_only_words_where_the_requested_category_is_deepest(): void

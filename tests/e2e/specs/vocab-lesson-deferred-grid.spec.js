@@ -15,6 +15,9 @@ const vocabLessonScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/vocab-lesson-page.js'),
   'utf8'
 );
+const shellPreviewImage = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150"><rect width="150" height="150" fill="#38bdf8"/></svg>'
+)}`;
 
 function buildDeferredLessonMarkup() {
   return `
@@ -43,7 +46,21 @@ function buildDeferredLessonMarkup() {
             Loading lesson words...
           </div>
           <div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="99">
-            <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true"></article>
+            <article class="word-item ll-vocab-lesson-skeleton-card" data-ll-shell-word-id="11">
+              <div class="ll-vocab-lesson-skeleton-media ll-vocab-lesson-skeleton-media--preview">
+                <img class="ll-vocab-lesson-shell-preview-image" src="${shellPreviewImage}" alt="" aria-hidden="true" loading="eager" decoding="async" fetchpriority="low" width="150" height="150">
+              </div>
+              <div class="ll-vocab-lesson-shell-title">
+                <span class="ll-vocab-lesson-shell-word-text" dir="auto">Merhaba</span>
+                <span class="ll-vocab-lesson-shell-translation-text" dir="auto">Hello</span>
+              </div>
+              <div class="ll-vocab-lesson-skeleton-recordings">
+                <button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--question ll-vocab-lesson-shell-recording-btn" data-recording-type="question" disabled tabindex="-1" aria-hidden="true">
+                  <span class="ll-study-recording-icon" aria-hidden="true"></span>
+                  <span class="ll-study-recording-visualizer" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span>
+                </button>
+              </div>
+            </article>
             <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true"></article>
           </div>
           <div class="ll-vocab-lesson-grid-feedback" data-ll-vocab-lesson-grid-feedback hidden></div>
@@ -52,6 +69,35 @@ function buildDeferredLessonMarkup() {
     </div>
   `;
 }
+
+test('deferred vocab lesson shell exposes useful content before hydration', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(buildDeferredLessonMarkup());
+  await page.addStyleTag({ content: vocabLessonCssSource });
+
+  await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-word-text')).toHaveText('Merhaba');
+  await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-translation-text')).toHaveText('Hello');
+  await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-preview-image')).toHaveAttribute('fetchpriority', 'low');
+  await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-recording-btn')).toBeDisabled();
+
+  const shellMetrics = await page.locator('[data-ll-shell-word-id="11"]').evaluate((card) => {
+    const media = card.querySelector('.ll-vocab-lesson-skeleton-media');
+    const title = card.querySelector('.ll-vocab-lesson-shell-title');
+    const button = card.querySelector('.ll-vocab-lesson-shell-recording-btn');
+
+    return {
+      mediaHeight: media.getBoundingClientRect().height,
+      titleHeight: title.getBoundingClientRect().height,
+      buttonTabIndex: button.getAttribute('tabindex'),
+      cardPointerEvents: window.getComputedStyle(card).pointerEvents
+    };
+  });
+
+  expect(shellMetrics.mediaHeight).toBeGreaterThan(40);
+  expect(shellMetrics.titleHeight).toBeGreaterThan(20);
+  expect(shellMetrics.buttonTabIndex).toBe('-1');
+  expect(shellMetrics.cardPointerEvents).toBe('none');
+});
 
 test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) => {
   await page.goto('about:blank');
