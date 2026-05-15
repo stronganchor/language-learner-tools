@@ -8175,6 +8175,15 @@
                 .attr('aria-hidden', shouldShow ? 'false' : 'true');
         });
 
+        $root.find('.ll-wordset-card[data-ll-wordset-card-type="add-category"]').each(function () {
+            const $card = $(this);
+            const shouldShow = !query;
+            $card
+                .prop('hidden', !shouldShow)
+                .toggleClass('is-search-filtered-out', !shouldShow)
+                .attr('aria-hidden', shouldShow ? 'false' : 'true');
+        });
+
         const pendingMatches = false;
 
         if (selectedCategoryIds.length !== previousSelectedIds.length) {

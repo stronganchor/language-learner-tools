@@ -37,6 +37,13 @@ function buildMarkup() {
       </div>
 
       <div class="ll-wordset-grid" role="list">
+        <article class="ll-wordset-card ll-wordset-card--add-category" role="listitem" data-ll-wordset-card-type="add-category">
+          <a class="ll-wordset-add-category-card" href="/wordsets/search-wordset/?ll_wordset_tool=editor&ll_wordset_editor_action=new_category" aria-label="Add category">
+            <span class="ll-wordset-add-category-card__title">Add Category</span>
+            <span class="ll-wordset-add-category-card__meta">Create a fresh lesson category.</span>
+          </a>
+        </article>
+
         <article class="ll-wordset-card" role="listitem" data-cat-id="11" data-word-count="3">
           <div class="ll-wordset-card__top">
             <label class="ll-wordset-card__select">
@@ -341,6 +348,31 @@ test('main wordset search matches words when only diacritics differ', async ({ p
   }).toEqual([33]);
 
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+});
+
+test('main wordset search hides the add category card while filtering', async ({ page }) => {
+  await mountWordsetPage(page);
+
+  const addCategoryCard = page.locator('[data-ll-wordset-card-type="add-category"]');
+  await expect(addCategoryCard).toBeVisible();
+
+  await setSearchValue(page, 'app');
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([11]);
+  await expect(addCategoryCard).toBeHidden();
+
+  await setSearchValue(page, '');
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([11, 22, 33]);
+  await expect(addCategoryCard).toBeVisible();
 });
 
 test('main wordset search clear button appears only for active filters and resets visible cards', async ({ page }) => {
