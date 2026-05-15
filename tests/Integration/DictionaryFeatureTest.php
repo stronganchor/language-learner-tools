@@ -532,6 +532,10 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
             'has_active_query' => false,
+            'query_limits' => [
+                'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
+                'candidate_scan_limit' => ll_tools_dictionary_anonymous_live_search_candidate_scan_cap(),
+            ],
         ];
 
         $this->assertIsArray(ll_tools_dictionary_ajax_cache_get('live_search', array_merge($base_cache_args, [
@@ -540,6 +544,71 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', array_merge($base_cache_args, [
             'page' => 999,
         ])));
+    }
+
+    public function test_dictionary_live_search_caps_anonymous_candidate_scan_depth(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        foreach (['Cap Alpha', 'Cap Beta', 'Cap Gamma'] as $title) {
+            $result = ll_tools_dictionary_upsert_entry_from_rows([
+                [
+                    'entry' => $title,
+                    'definition' => strtolower($title),
+                    'entry_type' => 'noun',
+                    'entry_lang' => 'Zazaki',
+                    'def_lang' => 'English',
+                ],
+            ], [
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ]);
+            $this->assertIsArray($result);
+        }
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        wp_set_current_user(0);
+        $depth_cap_filter = static function (): int {
+            return 2;
+        };
+        $candidate_cap_filter = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_dictionary_anonymous_live_search_result_depth_cap', $depth_cap_filter);
+        add_filter('ll_tools_dictionary_anonymous_live_search_candidate_scan_cap', $candidate_cap_filter);
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_live_search',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'll_dictionary_q' => 'cap',
+            'll_dictionary_page' => '999',
+            'per_page' => '5',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_live_search();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('ll_tools_dictionary_anonymous_live_search_result_depth_cap', $depth_cap_filter);
+            remove_filter('ll_tools_dictionary_anonymous_live_search_candidate_scan_cap', $candidate_cap_filter);
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $html = (string) ($data['html'] ?? '');
+
+        $this->assertTrue((bool) ($data['is_limited'] ?? false));
+        $this->assertStringContainsString('Showing 1-2 of 2', $html);
+        $this->assertStringContainsString('Cap Alpha', $html);
+        $this->assertStringContainsString('Cap Beta', $html);
+        $this->assertStringNotContainsString('Cap Gamma', $html);
     }
 
     public function test_dictionary_ajax_rejects_private_wordset_scope_for_logged_out_users(): void
