@@ -2117,6 +2117,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     border-radius: 999px;
 }
 
+.ll-wordset-card__skeleton-line--short {
+    width: clamp(72px, 42%, 128px);
+}
+
 .ll-wordset-card--lazy-placeholder .ll-wordset-card__select-box,
 .ll-wordset-card--lazy-placeholder .ll-wordset-card__hide-spacer {
     border-color: rgba(148, 163, 184, 0.18);
@@ -2162,6 +2166,16 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     opacity: 0.84;
     transform: none !important;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.18) !important;
+}
+
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__content-open--loading-preview,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__content-open--loading-preview:hover,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__content-open--loading-preview:focus,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__content-open--loading-preview:focus-visible,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__content-open--loading-preview:active {
+    cursor: default !important;
+    opacity: 0.84;
+    transform: none !important;
 }
 
 .ll-wordset-page.is-category-search-loading .ll-wordset-card:not([hidden]) {

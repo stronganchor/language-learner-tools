@@ -531,12 +531,15 @@
     const lazyCardsToken = String(lazyCardsCfg.token || '');
     const lazyCardsWordsetId = Math.max(0, parseInt(lazyCardsCfg.wordsetId, 10) || wordsetId || 0);
     const lazyCardsPreviewLimit = Math.max(1, parseInt(lazyCardsCfg.previewLimit, 10) || 2);
+    const lazyCardsShellBaseOffset = Math.max(0, parseInt(lazyCardsCfg.shellBaseOffset, 10) || Math.max(0, parseInt(lazyCardsCfg.initialCount, 10) || lazyCardsLoadedCount));
+    const lazyCardShells = normalizeLazyCardShells(lazyCardsCfg.shells);
     let lazyCardsRequest = null;
     let lazyCardsLoadAllPromise = null;
     let lazyCardsObserver = null;
     let lazyCardsAutoLoadRaf = 0;
     let lazyCardsAutoLoadPollTimer = 0;
     let lazyCardsPlaceholderCount = 0;
+    let lazyCardsPlaceholderShellOffset = -1;
     let searchCardHydrationRequestToken = 0;
     const searchCardHydratedIds = {};
     const searchCardHydratingIds = {};
@@ -1171,10 +1174,12 @@
         return true;
     }
 
-    function buildInlineSortedMainCategoryPlaceholderMarkup(category) {
+    function buildLazyCategoryCardPlaceholderMarkup(category, options) {
         const cat = (category && typeof category === 'object') ? category : {};
         const categoryId = parseInt(cat.id, 10) || 0;
-        if (!categoryId) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const inline = !!opts.inline;
+        if (inline && !categoryId) {
             return '';
         }
         const catName = String(cat.name || cat.translation || '').trim();
@@ -1186,12 +1191,17 @@
         const titleMarkup = catName
             ? '<span class="ll-wordset-card__heading" aria-label="' + escapeHtml(catName) + '"><h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2></span>'
             : '<span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>';
+        const shellIdAttr = categoryId
+            ? (inline
+                ? ' data-cat-id="' + categoryId + '"'
+                : ' data-ll-wordset-lazy-shell-id="' + categoryId + '"')
+            : '';
 
         return ''
-            + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-card--inline-sort-placeholder" role="listitem"'
-            + ' data-cat-id="' + categoryId + '"'
+            + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder' + (inline ? ' ll-wordset-card--inline-sort-placeholder' : ' ll-wordset-card--lazy-category-shell') + '" role="listitem"'
+            + shellIdAttr
             + ' data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '"'
-            + ' data-ll-wordset-inline-placeholder="true"'
+            + (inline ? ' data-ll-wordset-inline-placeholder="true"' : ' data-ll-wordset-lazy-shell-type="category"')
             + ' aria-hidden="true">'
             + '  <div class="ll-wordset-card__top">'
             + '    <span class="ll-wordset-card__select-box" aria-hidden="true"></span>'
@@ -1208,6 +1218,10 @@
             + buildWordsetCategoryLoadingQuizActionsMarkup(cat)
             + '  </div>'
             + '</article>';
+    }
+
+    function buildInlineSortedMainCategoryPlaceholderMarkup(category) {
+        return buildLazyCategoryCardPlaceholderMarkup(category, { inline: true });
     }
 
     function createInlineSortedMainCategoryPlaceholderElement(category) {
@@ -1570,6 +1584,45 @@
                 preview: normalizeCategoryPreview(cat && cat.preview)
             };
         }).filter(Boolean);
+    }
+
+    function normalizeLazyCardShells(raw) {
+        return (Array.isArray(raw) ? raw : []).map(function (entry) {
+            const source = (entry && typeof entry === 'object') ? entry : {};
+            const type = String(source.type || 'category').toLowerCase() === 'content' ? 'content' : 'category';
+            if (type === 'content') {
+                return {
+                    type: 'content',
+                    id: Math.max(0, parseInt(source.id, 10) || 0),
+                    title: String(source.title || ''),
+                    media_type: String(source.media_type || 'audio'),
+                    media_label: String(source.media_label || ''),
+                    category_count: Math.max(0, parseInt(source.category_count, 10) || 0)
+                };
+            }
+
+            return {
+                type: 'category',
+                id: Math.max(0, parseInt(source.id, 10) || 0),
+                name: String(source.name || ''),
+                translation: String(source.translation || source.name || ''),
+                count: Math.max(0, parseInt(source.count, 10) || 0),
+                is_public: Object.prototype.hasOwnProperty.call(source, 'is_public')
+                    ? normalizeBooleanFlag(source.is_public)
+                    : true,
+                has_images: normalizeBooleanFlag(source.has_images),
+                preview_limit: Math.max(1, parseInt(source.preview_limit, 10) || 2),
+                preview_requires_images: normalizeBooleanFlag(source.preview_requires_images),
+                preview_aspect_ratio: String(source.preview_aspect_ratio || ''),
+                learning_supported: Object.prototype.hasOwnProperty.call(source, 'learning_supported')
+                    ? normalizeBooleanFlag(source.learning_supported)
+                    : true,
+                self_check_supported: Object.prototype.hasOwnProperty.call(source, 'self_check_supported')
+                    ? normalizeBooleanFlag(source.self_check_supported)
+                    : true,
+                gender_supported: normalizeBooleanFlag(source.gender_supported)
+            };
+        });
     }
 
     function normalizeCategoryPreview(raw) {
@@ -7592,32 +7645,101 @@
         return Math.max(1, columnCount);
     }
 
+    function getLazyCardShellOffset() {
+        return Math.max(0, lazyCardsLoadedCount - lazyCardsShellBaseOffset);
+    }
+
+    function getLazyCardPlaceholderShells(count) {
+        const placeholderCount = Math.max(0, parseInt(count, 10) || 0);
+        if (!placeholderCount || !lazyCardShells.length) {
+            return [];
+        }
+
+        const start = getLazyCardShellOffset();
+        return lazyCardShells.slice(start, start + placeholderCount);
+    }
+
+    function buildLazyContentCardPlaceholderMarkup(shell) {
+        const source = (shell && typeof shell === 'object') ? shell : {};
+        const title = String(source.title || '').trim();
+        const titleMarkup = title
+            ? '<span class="ll-wordset-card__heading" aria-label="' + escapeHtml(title) + '"><h2 class="ll-wordset-card__title">' + escapeHtml(title) + '</h2></span>'
+            : '<span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>';
+        const mediaLabel = String(source.media_label || '').trim();
+        const mainLessonLabel = String(i18n.mainLessonLabel || '').trim();
+        const openLessonLabel = String(i18n.openLessonLabel || '').trim();
+
+        return ''
+            + '<article class="ll-wordset-card ll-wordset-card--content ll-wordset-card--lazy-placeholder ll-wordset-card--lazy-content-shell" role="listitem" data-ll-wordset-lazy-shell-type="content" aria-hidden="true">'
+            + '  <div class="ll-wordset-card__top">'
+            + '    <span class="ll-wordset-card__content-top-spacer" aria-hidden="true"></span>'
+            + '    ' + titleMarkup
+            + '    <span class="ll-wordset-card__content-badge">' + escapeHtml(mainLessonLabel) + '</span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--content ll-wordset-card__preview--lazy-placeholder has-text" aria-hidden="true">'
+            + '    <div class="ll-wordset-card__content-stage">'
+            + '      <span class="ll-wordset-card__content-icon-wrap ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
+            + '      <div class="ll-wordset-card__content-copy">'
+            + '        <div class="ll-wordset-card__content-pills">'
+            + (mediaLabel ? '          <span class="ll-wordset-card__content-pill ll-wordset-card__content-pill--media">' + escapeHtml(mediaLabel) + '</span>' : '')
+            + '          <span class="ll-wordset-card__content-pill ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
+            + '        </div>'
+            + '        <span class="ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
+            + '        <span class="ll-wordset-card__skeleton-line ll-wordset-card__skeleton-line--short" aria-hidden="true"></span>'
+            + '      </div>'
+            + '    </div>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
+            + '    <span class="ll-wordset-card__content-open ll-wordset-card__content-open--loading-preview">' + escapeHtml(openLessonLabel) + '</span>'
+            + '  </div>'
+            + '</article>';
+    }
+
+    function buildLazyCardShellPlaceholderMarkup(shell) {
+        const source = (shell && typeof shell === 'object') ? shell : null;
+        if (!source) {
+            return '';
+        }
+        if (String(source.type || '').toLowerCase() === 'content') {
+            return buildLazyContentCardPlaceholderMarkup(source);
+        }
+
+        const category = getCategoryById(parseInt(source.id, 10) || 0);
+        const merged = Object.assign({}, category || {}, source);
+        return buildLazyCategoryCardPlaceholderMarkup(merged);
+    }
+
+    function buildGenericLazyCardPlaceholderMarkup() {
+        return ''
+            + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder" aria-hidden="true">'
+            + '  <div class="ll-wordset-card__top">'
+            + '    <span class="ll-wordset-card__select-box ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
+            + '    <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
+            + '    <span class="ll-wordset-card__hide-spacer ll-wordset-card__skeleton-block ll-wordset-card__skeleton-block--icon" aria-hidden="true"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder" aria-hidden="true">'
+            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__progress" aria-hidden="true">'
+            + '    <span class="ll-wordset-card__progress-track ll-wordset-card__progress-track--lazy-skeleton"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
+            + buildWordsetCategoryLoadingQuizActionsMarkup(null)
+            + '  </div>'
+            + '</article>';
+    }
+
     function buildLazyCardsPlaceholderMarkup(count) {
         const placeholderCount = Math.max(0, parseInt(count, 10) || 0);
         if (!placeholderCount) {
             return '';
         }
 
+        const shellPlaceholders = getLazyCardPlaceholderShells(placeholderCount);
         let html = '';
         for (let i = 0; i < placeholderCount; i += 1) {
-            html += ''
-                + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder" aria-hidden="true">'
-                + '  <div class="ll-wordset-card__top">'
-                + '    <span class="ll-wordset-card__select-box ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
-                + '    <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
-                + '    <span class="ll-wordset-card__hide-spacer ll-wordset-card__skeleton-block ll-wordset-card__skeleton-block--icon" aria-hidden="true"></span>'
-                + '  </div>'
-                + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder" aria-hidden="true">'
-                + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
-                + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
-                + '  </div>'
-                + '  <div class="ll-wordset-card__progress" aria-hidden="true">'
-                + '    <span class="ll-wordset-card__progress-track ll-wordset-card__progress-track--lazy-skeleton"></span>'
-                + '  </div>'
-                + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
-                + buildWordsetCategoryLoadingQuizActionsMarkup(null)
-                + '  </div>'
-                + '</article>';
+            html += buildLazyCardShellPlaceholderMarkup(shellPlaceholders[i]) || buildGenericLazyCardPlaceholderMarkup();
         }
 
         return html;
@@ -7636,15 +7758,18 @@
 
         if (!hasMore || hasError || searchActive || inlineSortedPlaceholders) {
             lazyCardsPlaceholderCount = 0;
+            lazyCardsPlaceholderShellOffset = -1;
             $lazyCardsPlaceholders.empty().prop('hidden', true);
             return;
         }
 
         const remaining = Math.max(0, lazyCardsTotalCount - lazyCardsLoadedCount);
         const nextCount = Math.max(1, Math.min(remaining, getLazyCardsPlaceholderColumnCount()));
-        if (nextCount !== lazyCardsPlaceholderCount) {
+        const shellOffset = getLazyCardShellOffset();
+        if (nextCount !== lazyCardsPlaceholderCount || shellOffset !== lazyCardsPlaceholderShellOffset) {
             $lazyCardsPlaceholders.html(buildLazyCardsPlaceholderMarkup(nextCount));
             lazyCardsPlaceholderCount = nextCount;
+            lazyCardsPlaceholderShellOffset = shellOffset;
         }
 
         $lazyCardsPlaceholders

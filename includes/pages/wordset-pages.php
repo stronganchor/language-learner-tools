@@ -3681,6 +3681,55 @@ function ll_tools_wordset_page_render_mixed_cards(array $cards, array $context =
     return $html;
 }
 
+function ll_tools_wordset_page_build_lazy_card_shell(array $card): array {
+    $type = sanitize_key((string) ($card['type'] ?? 'category'));
+    $data = (isset($card['data']) && is_array($card['data'])) ? $card['data'] : [];
+    if ($type === 'content') {
+        return [
+            'type' => 'content',
+            'id' => max(0, (int) ($data['id'] ?? 0)),
+            'title' => (string) ($data['title'] ?? ''),
+            'media_type' => sanitize_key((string) ($data['media_type'] ?? 'audio')),
+            'media_label' => (string) ($data['media_label'] ?? ''),
+            'category_count' => max(0, (int) ($data['category_count'] ?? 0)),
+        ];
+    }
+
+    return [
+        'type' => 'category',
+        'id' => max(0, (int) ($data['id'] ?? 0)),
+        'name' => (string) ($data['name'] ?? ($data['raw_name'] ?? '')),
+        'translation' => (string) ($data['translation'] ?? ($data['name'] ?? '')),
+        'count' => max(0, (int) ($data['count'] ?? 0)),
+        'is_public' => !array_key_exists('is_public', $data) || !empty($data['is_public']),
+        'has_images' => !empty($data['has_images']),
+        'preview_limit' => max(1, (int) ($data['preview_limit'] ?? 2)),
+        'preview_requires_images' => !empty($data['preview_requires_images']),
+        'preview_aspect_ratio' => (string) ($data['preview_aspect_ratio'] ?? ''),
+        'learning_supported' => !array_key_exists('learning_supported', $data) || !empty($data['learning_supported']),
+        'self_check_supported' => !array_key_exists('self_check_supported', $data) || !empty($data['self_check_supported']),
+        'gender_supported' => !empty($data['gender_supported']),
+    ];
+}
+
+function ll_tools_wordset_page_build_lazy_card_shells(array $cards, int $limit = 0): array {
+    $limit = $limit > 0 ? $limit : 72;
+    $limit = max(1, min(144, $limit));
+    $shells = [];
+    foreach ($cards as $card) {
+        if (!is_array($card)) {
+            continue;
+        }
+
+        $shells[] = ll_tools_wordset_page_build_lazy_card_shell($card);
+        if (count($shells) >= $limit) {
+            break;
+        }
+    }
+
+    return $shells;
+}
+
 function ll_tools_wordset_page_render_lazy_cards_controls(array $config = []): string {
     $enabled = !empty($config['enabled']);
     $remaining = isset($config['remaining']) ? max(0, (int) $config['remaining']) : 0;
@@ -14419,12 +14468,18 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'loaded' => count($mixed_lesson_cards),
         'total' => count($mixed_lesson_cards),
         'remaining' => 0,
+        'shellBaseOffset' => count($mixed_lesson_cards),
+        'shells' => [],
     ];
     if ($is_main_view && count($mixed_lesson_cards) > ll_tools_wordset_page_get_lazy_card_batch_size()) {
         $lazy_batch_size = ll_tools_wordset_page_get_lazy_card_batch_size();
         $initial_mixed_lesson_cards = array_slice($mixed_lesson_cards, 0, $lazy_batch_size);
         $initial_mixed_lesson_cards = ll_tools_wordset_page_hydrate_mixed_card_previews($initial_mixed_lesson_cards, $preview_limit);
         $remaining_lazy_cards = array_values(array_slice($mixed_lesson_cards, $lazy_batch_size));
+        $lazy_shells = ll_tools_wordset_page_build_lazy_card_shells(
+            $remaining_lazy_cards,
+            max(24, $lazy_batch_size * 3)
+        );
         $lazy_cards_user_id = get_current_user_id();
         $lazy_cards_token_hint = '';
         if ($lazy_cards_user_id <= 0) {
@@ -14469,6 +14524,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'loaded' => count($initial_mixed_lesson_cards),
             'total' => count($mixed_lesson_cards),
             'remaining' => max(0, count($mixed_lesson_cards) - count($initial_mixed_lesson_cards)),
+            'shellBaseOffset' => count($initial_mixed_lesson_cards),
+            'shells' => $lazy_shells,
         ];
     } else {
         $initial_mixed_lesson_cards = ll_tools_wordset_page_hydrate_mixed_card_previews($initial_mixed_lesson_cards, $preview_limit);
@@ -15227,6 +15284,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'modeListening' => __('Listen', 'll-tools-text-domain'),
             'modeGender' => __('Gender', 'll-tools-text-domain'),
             'modeSelfCheck' => __('Self Check', 'll-tools-text-domain'),
+            'mainLessonLabel' => __('Main lesson', 'll-tools-text-domain'),
+            'openLessonLabel' => __('Open lesson', 'll-tools-text-domain'),
             'loadMoreCards' => __('Load more', 'll-tools-text-domain'),
             'loadingMoreCards' => __('Loading more cards...', 'll-tools-text-domain'),
             'loadMoreCardsError' => __('Could not load more cards right now.', 'll-tools-text-domain'),

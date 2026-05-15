@@ -52,6 +52,16 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             $this->assertGreaterThan(0, (int) ($config['lazyCards']['loaded'] ?? 0));
             $this->assertGreaterThan((int) ($config['lazyCards']['loaded'] ?? 0), (int) ($config['lazyCards']['total'] ?? 0));
             $this->assertNotSame('', (string) ($config['lazyCards']['token'] ?? ''));
+            $this->assertSame(6, (int) ($config['lazyCards']['shellBaseOffset'] ?? 0));
+            $this->assertIsArray($config['lazyCards']['shells'] ?? null);
+            $this->assertNotEmpty($config['lazyCards']['shells']);
+
+            $shells = array_values((array) ($config['lazyCards']['shells'] ?? []));
+            $first_shell = isset($shells[0]) && is_array($shells[0]) ? $shells[0] : [];
+            $this->assertSame('category', (string) ($first_shell['type'] ?? ''));
+            $this->assertStringContainsString('Lazy Ajax Category G', (string) ($first_shell['name'] ?? ''));
+            $this->assertSame(5, (int) ($first_shell['count'] ?? 0));
+            $this->assertArrayNotHasKey('preview', $first_shell);
         } finally {
             $_GET = $original_get;
             set_query_var('ll_wordset_page', $original_wordset_page);

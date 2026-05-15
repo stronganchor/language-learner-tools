@@ -256,6 +256,24 @@ function buildMarkup(options = {}) {
   `;
 }
 
+function buildLazyShells(categories) {
+  return (Array.isArray(categories) ? categories : []).slice(1).map((category) => ({
+    type: 'category',
+    id: category.id,
+    name: category.name,
+    translation: category.translation,
+    count: category.count,
+    is_public: category.is_public !== '0',
+    has_images: !!category.has_images,
+    preview_limit: category.preview_limit || 2,
+    preview_requires_images: !!category.preview_requires_images,
+    preview_aspect_ratio: category.preview_aspect_ratio || '',
+    learning_supported: category.learning_supported !== false,
+    self_check_supported: category.self_check_supported !== false,
+    gender_supported: !!category.gender_supported
+  }));
+}
+
 function buildConfig(options = {}) {
   const categories = Array.isArray(options.categories) ? options.categories : allCategories;
   const lazyCards = Object.assign({
@@ -268,7 +286,9 @@ function buildConfig(options = {}) {
     initialCount: 1,
     loaded: 1,
     total: categories.length,
-    remaining: Math.max(0, categories.length - 1)
+    remaining: Math.max(0, categories.length - 1),
+    shellBaseOffset: 1,
+    shells: buildLazyShells(categories)
   }, options.lazyCards || {});
   const i18n = Object.assign({
     selectionLabel: 'Select categories to study together',
@@ -287,6 +307,8 @@ function buildConfig(options = {}) {
     modeListening: 'Listen',
     modeGender: 'Gender',
     modeSelfCheck: 'Self check',
+    mainLessonLabel: 'Main lesson',
+    openLessonLabel: 'Open lesson',
     modeCategoryAria: '%s: %s'
   }, options.i18n || {});
 
@@ -538,6 +560,10 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
   await expect(page.locator('[data-ll-wordset-load-more]')).toHaveCount(0);
   await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(1);
   await expect(page.locator('.ll-wordset-card--lazy-placeholder')).toHaveCount(1);
+  const lazyPlaceholder = page.locator('.ll-wordset-card--lazy-placeholder').first();
+  await expect(lazyPlaceholder).toHaveAttribute('data-ll-wordset-lazy-shell-id', '22');
+  await expect(lazyPlaceholder.locator('.ll-wordset-card__title')).toHaveText('Animals');
+  await expect(page.locator('.ll-wordset-card--lazy-placeholder[data-cat-id]')).toHaveCount(0);
   await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
   await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview')).toHaveCount(4);
 
