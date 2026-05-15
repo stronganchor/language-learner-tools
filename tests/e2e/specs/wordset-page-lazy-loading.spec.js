@@ -281,7 +281,13 @@ function buildConfig(options = {}) {
     deleteCategoryAria: 'Delete %s',
     categoryManagementAria: 'Category management for %s',
     inactiveDeleteConfirm: 'Delete this category? This cannot be undone.',
-    notPublicLabel: 'Not public'
+    notPublicLabel: 'Not public',
+    modeLearning: 'Learn',
+    modePractice: 'Practice',
+    modeListening: 'Listen',
+    modeGender: 'Gender',
+    modeSelfCheck: 'Self check',
+    modeCategoryAria: '%s: %s'
   }, options.i18n || {});
 
   return {
@@ -298,6 +304,8 @@ function buildConfig(options = {}) {
       hidden: '/wordsets/lazy-wordset/hidden-categories/',
       settings: '/wordsets/lazy-wordset/settings/'
     },
+    initialMainCategorySort: String(options.initialMainCategorySort || ''),
+    mainCategorySortCookieName: 'll_wordset_main_sort_test_77',
     progressIncludeHidden: false,
     categories,
     visibleCategoryIds: categories.map((category) => category.id),
@@ -356,16 +364,20 @@ async function mountWordsetPage(page, options = {}) {
     words: []
   };
   const lazyProgressTrackLoading = !!options.lazyProgressTrackLoading;
+  const lazyAjaxDelay = Math.max(0, Number.parseInt(options.lazyAjaxDelay, 10) || 40);
 
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.setContent(buildMarkup(options));
   await page.addScriptTag({ content: jquerySource });
 
-  await page.evaluate(({ config, remainingCards, analyticsResponse, lazyProgressTrackLoading }) => {
+  await page.evaluate(({ config, remainingCards, analyticsResponse, lazyProgressTrackLoading, lazyAjaxDelay }) => {
     window.llWordsetPageData = config;
     window.alert = function () {};
     window.confirm = function () { return true; };
+    try {
+      window.localStorage.removeItem('llToolsWordsetMainSort:77');
+    } catch (_) {}
     window.__llLazyAjaxCalls = [];
     window.__llInactiveActionAjaxCalls = [];
     window.__llInactivePreviewSubmits = [];
@@ -505,7 +517,7 @@ async function mountWordsetPage(page, options = {}) {
             hasMore: requestedCategoryIds.length ? true : (startIndex + nextCards.length) < remainingCards.length
           }
         });
-      }, 40);
+      }, lazyAjaxDelay);
 
       return deferred.promise();
     };
@@ -513,7 +525,8 @@ async function mountWordsetPage(page, options = {}) {
     config,
     remainingCards,
     analyticsResponse,
-    lazyProgressTrackLoading
+    lazyProgressTrackLoading,
+    lazyAjaxDelay
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
@@ -525,6 +538,8 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
   await expect(page.locator('[data-ll-wordset-load-more]')).toHaveCount(0);
   await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(1);
   await expect(page.locator('.ll-wordset-card--lazy-placeholder')).toHaveCount(1);
+  await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
+  await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview')).toHaveCount(4);
 
   await page.mouse.wheel(0, 2000);
 
@@ -534,6 +549,20 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
 
   await expect(page.locator('.ll-wordset-card--lazy-placeholder')).toHaveCount(0);
   await expect(page.locator('[data-ll-wordset-lazy-root]')).toBeHidden();
+});
+
+test('client-rendered deferred category cards show useful shells before previews hydrate', async ({ page }) => {
+  await mountWordsetPage(page, {
+    initialMainCategorySort: 'alpha-asc',
+    lazyAjaxDelay: 300
+  });
+
+  const animalsCard = page.locator('.ll-wordset-card[data-cat-id="22"]').first();
+  await expect(animalsCard.locator('.ll-wordset-card__title')).toHaveText('Animals');
+  await expect(animalsCard.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
+  await expect(animalsCard.locator('.ll-wordset-preview-item--empty')).toHaveCount(0);
+  await expect(animalsCard.locator('.ll-wordset-card__quiz-btn')).toHaveCount(4);
+  await expect(animalsCard).not.toHaveAttribute('data-ll-wordset-inline-placeholder', 'true');
 });
 
 test('lazy-loaded cards resolve stale deferred progress loading state', async ({ page }) => {
@@ -623,7 +652,9 @@ test('lazy-loaded cards resolve stale deferred progress loading state', async ({
 });
 
 test('wordset search hydrates matching unloaded categories with real previews', async ({ page }) => {
-  await mountWordsetPage(page);
+  await mountWordsetPage(page, {
+    lazyAjaxDelay: 300
+  });
 
   await page.fill('[data-ll-wordset-page-search]', 'hotel');
 
@@ -632,6 +663,12 @@ test('wordset search hydrates matching unloaded categories with real previews', 
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([33]);
+
+  const temporarySearchCard = page.locator('.ll-wordset-card[data-cat-id="33"][data-ll-wordset-search-rendered="true"]');
+  await expect(temporarySearchCard.locator('.ll-wordset-card__title')).toHaveText('Travel');
+  await expect(temporarySearchCard.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
+  await expect(temporarySearchCard.locator('.ll-wordset-preview-item--empty')).toHaveCount(0);
+  await expect(temporarySearchCard.locator('.ll-wordset-card__quiz-btn')).toHaveCount(4);
 
   await expect.poll(async () => {
     return page.evaluate(() => window.__llLazyAjaxCalls.map((call) => String(call.category_ids || '')));

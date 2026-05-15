@@ -2147,6 +2147,23 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     cursor: default;
 }
 
+.ll-wordset-card:not(.ll-wordset-card--lazy-placeholder) .ll-wordset-preview-item--lazy-skeleton {
+    background: linear-gradient(100deg, #e9eef4 16%, #f7fafc 34%, #e9eef4 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+}
+
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview:hover,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview:focus,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview:focus-visible,
+.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview:active {
+    cursor: default !important;
+    opacity: 0.84;
+    transform: none !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.18) !important;
+}
+
 .ll-wordset-page.is-category-search-loading .ll-wordset-card:not([hidden]) {
     opacity: 0;
     transform: translateY(10px) scale(0.98);

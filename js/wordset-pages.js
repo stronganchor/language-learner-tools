@@ -944,7 +944,12 @@
             return '';
         }
 
-        const rawCookie = String(document.cookie || '');
+        let rawCookie = '';
+        try {
+            rawCookie = String(document.cookie || '');
+        } catch (_) {
+            return '';
+        }
         if (!rawCookie) {
             return '';
         }
@@ -1172,6 +1177,15 @@
         if (!categoryId) {
             return '';
         }
+        const catName = String(cat.name || cat.translation || '').trim();
+        const previewAspectRatio = String(cat.preview_aspect_ratio || '').trim();
+        const previewStyle = previewAspectRatio
+            ? ' style="--ll-wordset-preview-aspect: ' + escapeHtml(previewAspectRatio) + ';"'
+            : '';
+        const previewClass = (cat.has_images || cat.preview_requires_images) ? 'has-images' : 'has-text';
+        const titleMarkup = catName
+            ? '<span class="ll-wordset-card__heading" aria-label="' + escapeHtml(catName) + '"><h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2></span>'
+            : '<span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>';
 
         return ''
             + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-card--inline-sort-placeholder" role="listitem"'
@@ -1180,23 +1194,18 @@
             + ' data-ll-wordset-inline-placeholder="true"'
             + ' aria-hidden="true">'
             + '  <div class="ll-wordset-card__top">'
-            + '    <span class="ll-wordset-card__select-box ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
-            + '    <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
+            + '    <span class="ll-wordset-card__select-box" aria-hidden="true"></span>'
+            + '    ' + titleMarkup
             + '    <span class="ll-wordset-card__hide-spacer ll-wordset-card__skeleton-block ll-wordset-card__skeleton-block--icon" aria-hidden="true"></span>'
             + '  </div>'
-            + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder" aria-hidden="true">'
-            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
-            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+            + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder ' + previewClass + '"' + previewStyle + ' aria-hidden="true">'
+            + buildWordsetCategoryPreviewLoadingSlotsMarkup(cat, getWordsetCategoryPreviewSlotCount(cat))
             + '  </div>'
             + '  <div class="ll-wordset-card__progress" aria-hidden="true">'
             + '    <span class="ll-wordset-card__progress-track ll-wordset-card__progress-track--lazy-skeleton"></span>'
             + '  </div>'
             + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
-            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + buildWordsetCategoryLoadingQuizActionsMarkup(cat)
             + '  </div>'
             + '</article>';
     }
@@ -6733,18 +6742,87 @@
         return lookup;
     }
 
-    function buildWordsetCategoryPreviewMarkup(category) {
+    function getWordsetCategoryPreviewSlotCount(category) {
         const cat = (category && typeof category === 'object') ? category : {};
         const previewItems = Array.isArray(cat.preview) ? cat.preview : [];
         const configuredLimit = Math.max(0, parseInt(cat.preview_limit, 10) || 0);
         const defaultSlotCount = (cat.has_images || cat.preview_requires_images) ? 2 : 4;
-        const previewSlotCount = Math.max(previewItems.length, configuredLimit || defaultSlotCount, 1);
+        return Math.max(previewItems.length, configuredLimit || defaultSlotCount, 1);
+    }
+
+    function buildWordsetCategoryPreviewLoadingSlotMarkup(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const ratio = String(cat.preview_aspect_ratio || '').trim();
+        const ratioStyle = ratio ? ' style="aspect-ratio: ' + escapeHtml(ratio) + ' !important;"' : '';
+        return '<span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"' + ratioStyle + ' aria-hidden="true"></span>';
+    }
+
+    function buildWordsetCategoryPreviewLoadingSlotsMarkup(category, count) {
+        const slotCount = Math.max(1, parseInt(count, 10) || getWordsetCategoryPreviewSlotCount(category));
+        let html = '';
+        for (let index = 0; index < slotCount; index += 1) {
+            html += buildWordsetCategoryPreviewLoadingSlotMarkup(category);
+        }
+        return html;
+    }
+
+    function getDefaultWordsetCategoryCardModes() {
+        const modes = ['learning', 'practice', 'listening'];
+        if (!!genderCfg.enabled) {
+            modes.push('gender');
+        }
+        modes.push('self-check');
+        return modes;
+    }
+
+    function getWordsetCategoryCardModes(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const cardModes = [];
+        if (!categoryIsPublic(cat)) {
+            return cardModes;
+        }
+        if (cat.learning_supported !== false) {
+            cardModes.push('learning');
+        }
+        cardModes.push('practice', 'listening');
+        if (!!genderCfg.enabled && !!cat.gender_supported) {
+            cardModes.push('gender');
+        }
+        if (cat.self_check_supported !== false) {
+            cardModes.push('self-check');
+        }
+        return cardModes;
+    }
+
+    function buildWordsetCategoryLoadingQuizActionsMarkup(category) {
+        const modes = category ? getWordsetCategoryCardModes(category) : getDefaultWordsetCategoryCardModes();
+        if (!modes.length) {
+            return ''
+                + '<span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + '<span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + '<span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>';
+        }
+
+        return modes.map(function (mode) {
+            return '<button type="button" class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--loading-preview" data-mode="' + escapeHtml(mode) + '" disabled tabindex="-1" aria-hidden="true">'
+                + getModeIconMarkup(mode, 'll-wordset-card__quiz-icon')
+                + '</button>';
+        }).join('');
+    }
+
+    function buildWordsetCategoryPreviewMarkup(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const previewItems = Array.isArray(cat.preview) ? cat.preview : [];
+        const previewSlotCount = getWordsetCategoryPreviewSlotCount(cat);
+        const useLoadingSlots = !!cat.preview_deferred;
         let html = '';
 
         for (let index = 0; index < previewSlotCount; index += 1) {
             const preview = (previewItems[index] && typeof previewItems[index] === 'object') ? previewItems[index] : null;
             if (!preview) {
-                html += '<span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>';
+                html += useLoadingSlots
+                    ? buildWordsetCategoryPreviewLoadingSlotMarkup(cat)
+                    : '<span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>';
                 continue;
             }
 
@@ -6759,6 +6837,11 @@
                     + (height > 0 ? ' height="' + height + '"' : '')
                     + ' loading="lazy" decoding="async" fetchpriority="low" />'
                     + '</span>';
+                continue;
+            }
+
+            if (useLoadingSlots && String(preview.label || '').trim() === '') {
+                html += buildWordsetCategoryPreviewLoadingSlotMarkup(cat);
                 continue;
             }
 
@@ -6889,19 +6972,7 @@
         const hideAria = formatTemplate(i18n.hideCategoryAria || '', [catName]);
         const starredAria = formatTemplate(i18n.starredWordsCategoryAria || '', [catName]);
         const quizModesAria = formatTemplate(i18n.quizModesCategoryAria || '', [catName]);
-        const cardModes = [];
-        if (isPublic) {
-            if (cat.learning_supported !== false) {
-                cardModes.push('learning');
-            }
-            cardModes.push('practice', 'listening');
-            if (!!genderCfg.enabled && !!cat.gender_supported) {
-                cardModes.push('gender');
-            }
-            if (cat.self_check_supported !== false) {
-                cardModes.push('self-check');
-            }
-        }
+        const cardModes = getWordsetCategoryCardModes(cat);
 
         let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + (canPreviewInactive ? ' ll-wordset-card--inactive-previewable' : '') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
         if (canPreviewInactive) {
@@ -7544,11 +7615,7 @@
                 + '    <span class="ll-wordset-card__progress-track ll-wordset-card__progress-track--lazy-skeleton"></span>'
                 + '  </div>'
                 + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
-                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
-                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + buildWordsetCategoryLoadingQuizActionsMarkup(null)
                 + '  </div>'
                 + '</article>';
         }

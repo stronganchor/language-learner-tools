@@ -3473,6 +3473,9 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     if ($current_preview_limit < 1) {
         $current_preview_limit = 1;
     }
+    $preview_placeholder_class = !empty($cat['preview_deferred'])
+        ? 'll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton'
+        : 'll-wordset-preview-item ll-wordset-preview-item--empty';
 
     ob_start();
     ?>
@@ -3577,11 +3580,11 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                             <?php endif; ?>
                         <?php endforeach; ?>
                         <?php for ($i = $displayed_count; $i < $current_preview_limit; $i++) : ?>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                            <span class="<?php echo esc_attr($preview_placeholder_class); ?>" aria-hidden="true"></span>
                         <?php endfor; ?>
                     <?php else : ?>
                         <?php for ($i = 0; $i < $current_preview_limit; $i++) : ?>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                            <span class="<?php echo esc_attr($preview_placeholder_class); ?>" aria-hidden="true"></span>
                         <?php endfor; ?>
                     <?php endif; ?>
                 </div>

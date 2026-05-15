@@ -101,6 +101,29 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-preview-item--text', (string) ($data['html'] ?? ''));
     }
 
+    public function test_deferred_category_card_renders_preview_loading_slots(): void
+    {
+        $html = ll_tools_wordset_page_render_category_card([
+            'id' => 12345,
+            'name' => 'Deferred Preview Category',
+            'count' => 6,
+            'url' => 'https://example.test/deferred-preview/',
+            'preview' => [],
+            'preview_limit' => 2,
+            'preview_deferred' => true,
+            'preview_requires_images' => true,
+            'has_images' => false,
+            'learning_supported' => true,
+            'self_check_supported' => true,
+            'gender_supported' => false,
+        ]);
+
+        $this->assertStringContainsString('Deferred Preview Category', $html);
+        $this->assertSame(2, substr_count($html, 'll-wordset-preview-item--lazy-skeleton'));
+        $this->assertStringNotContainsString('ll-wordset-preview-item--empty', $html);
+        $this->assertStringContainsString('ll-wordset-card__quiz-btn', $html);
+    }
+
     public function test_guest_ajax_rejects_missing_lazy_cards_payload_instead_of_rebuilding_by_wordset_id(): void
     {
         $fixture = $this->createWordsetFixture();
