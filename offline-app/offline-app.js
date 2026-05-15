@@ -1935,7 +1935,6 @@
         const selectionBarEl = documentRef.getElementById('ll-offline-selection-bar');
         const selectionTextEl = documentRef.getElementById('ll-offline-selection-text');
         const selectAllButton = documentRef.getElementById('ll-offline-select-all');
-        const selectAllWrap = selectAllButton ? selectAllButton.closest('.ll-wordset-grid-tools') : null;
         const searchInputEl = documentRef.querySelector('[data-ll-offline-category-search]');
         const sortRootEl = documentRef.querySelector('[data-ll-offline-sort-root]');
         const sortToggleEl = documentRef.querySelector('[data-ll-offline-sort-toggle]');
@@ -2553,9 +2552,6 @@
             }
 
             selectAllButton.textContent = allSelected ? launcherMessages.deselectAll : launcherMessages.selectAll;
-            if (selectAllWrap) {
-                selectAllWrap.hidden = visibleCategories.length < 2;
-            }
             selectAllButton.hidden = visibleCategories.length < 2;
             selectAllButton.disabled = visibleCategories.length < 1;
             selectAllButton.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
@@ -2570,9 +2566,6 @@
                 emptyEl.hidden = false;
                 emptyEl.textContent = launcherMessages.noCategories;
                 gridEl.innerHTML = '';
-                if (selectAllWrap) {
-                    selectAllWrap.hidden = true;
-                }
                 selectAllButton.hidden = true;
                 syncSelectionUi();
                 renderRecommendationCard();
@@ -2585,9 +2578,6 @@
                     ? launcherMessages.noMatchingCategories
                     : launcherMessages.noCategories;
                 gridEl.innerHTML = '';
-                if (selectAllWrap) {
-                    selectAllWrap.hidden = true;
-                }
                 selectAllButton.hidden = true;
                 syncSelectionUi();
                 renderRecommendationCard();
