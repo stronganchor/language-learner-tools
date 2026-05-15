@@ -24210,3 +24210,234 @@ msgstr "Korpus metni yazısı için bir kısa ad sağlayın."
 #: includes/api/automation-rest.php
 msgid "The corpus text post could not be created or updated."
 msgstr "Korpus metni yazısı oluşturulamadı veya güncellenemedi."
+
+#: includes/api/automation-rest.php
+msgid "Prompt-card category references cannot be empty."
+msgstr "Soru kartı kategori referansları boş olamaz."
+
+#: includes/api/automation-rest.php
+#, php-format
+msgid "Unable to resolve prompt-card category: %s"
+msgstr "Soru kartı kategorisi çözümlenemedi: %s"
+
+#: includes/api/automation-rest.php
+msgid "That prompt-card category belongs to a different word set."
+msgstr "Bu soru kartı kategorisi farklı bir kelime setine ait."
+
+#: includes/api/automation-rest.php
+msgid "Provide at least one word-category assignment for the prompt card."
+msgstr "Soru kartı için en az bir kelime kategorisi ataması sağla."
+
+#: includes/api/automation-rest.php
+msgid "Prompt-card word set references cannot be empty."
+msgstr "Soru kartı kelime seti referansları boş olamaz."
+
+#: includes/api/automation-rest.php
+#, php-format
+msgid "Unable to resolve prompt-card word set: %s"
+msgstr "Soru kartı kelime seti çözümlenemedi: %s"
+
+#: includes/api/automation-rest.php
+msgid "Provide at least one word set assignment for the prompt card."
+msgstr "Soru kartı için en az bir kelime seti ataması sağla."
+
+#: includes/api/automation-rest.php
+msgid "Prompt-card word set assignments must include the route word set."
+msgstr "Soru kartı kelime seti atamaları rota kelime setini içermelidir."
+
+#: includes/api/automation-rest.php
+msgid "Provide prompt_card_id, object_id, or id for the prompt card to update."
+msgstr "Güncellenecek soru kartı için prompt_card_id, object_id veya id sağla."
+
+#: includes/api/automation-rest.php
+msgid "That prompt card was not found."
+msgstr "Bu soru kartı bulunamadı."
+
+#: includes/api/automation-rest.php
+msgid "That prompt card does not belong to the selected word set."
+msgstr "Bu soru kartı seçili kelime setine ait değil."
+
+#: includes/pages/wordset-pages.php
+msgid "Word set manager access removed."
+msgstr "Kelime seti yöneticisi erişimi kaldırıldı."
+
+#: includes/pages/wordset-pages.php
+#, php-format
+msgid "Word set manager access enabled for %s."
+msgstr "%s için kelime seti yöneticisi erişimi etkinleştirildi."
+
+#: includes/pages/wordset-pages.php
+msgid "Word set manager access enabled."
+msgstr "Kelime seti yöneticisi erişimi etkinleştirildi."
+
+#: includes/pages/wordset-pages.php
+#, php-format
+msgid "Word set manager invitation sent to %s."
+msgstr "%s adresine kelime seti yöneticisi daveti gönderildi."
+
+#: includes/pages/wordset-pages.php
+msgid "Word set manager invitation sent."
+msgstr "Kelime seti yöneticisi daveti gönderildi."
+
+#: includes/pages/wordset-pages.php
+msgid "Word set manager access updated."
+msgstr "Kelime seti yöneticisi erişimi güncellendi."
+
+#: includes/pages/wordset-pages.php
+msgid "You do not have permission to manage word set managers for this word set."
+msgstr "Bu kelime seti için kelime seti yöneticilerini yönetme iznin yok."
+
+#: includes/pages/wordset-pages.php
+msgid "Enter an existing username or email address to enable manager access."
+msgstr "Yönetici erişimini etkinleştirmek için mevcut bir kullanıcı adı veya e-posta adresi gir."
+
+#: includes/pages/wordset-pages.php
+msgid "Enter a valid email address for the manager invite."
+msgstr "Yönetici daveti için geçerli bir e-posta adresi gir."
+
+#: includes/pages/wordset-pages.php
+msgid "The word set manager invitation email could not be sent."
+msgstr "Kelime seti yöneticisi davet e-postası gönderilemedi."
+
+#: includes/pages/wordset-pages.php includes/taxonomies/wordset-taxonomy.php
+msgid "Add another manager before removing the last manager for this word set."
+msgstr "Bu kelime setindeki son yöneticiyi kaldırmadan önce başka bir yönetici ekle."
+
+#: includes/pages/wordset-pages.php
+msgid "Word set manager access could not be updated."
+msgstr "Kelime seti yöneticisi erişimi güncellenemedi."
+
+#: includes/pages/wordset-pages.php
+msgid "Unable to update word set manager access right now."
+msgstr "Kelime seti yöneticisi erişimi şu anda güncellenemiyor."
+
+#: includes/pages/wordset-pages.php
+msgid "Word set manager access could not be updated right now."
+msgstr "Kelime seti yöneticisi erişimi şu anda güncellenemedi."
+
+#: includes/pages/wordset-pages.php
+msgid "This word set manager invitation link is invalid."
+msgstr "Bu kelime seti yöneticisi davet bağlantısı geçersiz."
+
+#: includes/pages/wordset-pages.php
+msgid "This word set manager invitation no longer matches an available word set."
+msgstr "Bu kelime seti yöneticisi daveti artık kullanılabilir bir kelime setiyle eşleşmiyor."
+
+#: includes/pages/wordset-pages.php
+msgid "This word set manager invitation link has expired."
+msgstr "Bu kelime seti yöneticisi davet bağlantısının süresi doldu."
+
+#: includes/pages/wordset-pages.php
+msgid "Could not create a word set manager invitation link right now."
+msgstr "Kelime seti yöneticisi davet bağlantısı şu anda oluşturulamadı."
+
+#: includes/pages/wordset-pages.php
+#, php-format
+msgid "[%1$s] Word set manager invitation for %2$s"
+msgstr "[%1$s] %2$s için kelime seti yöneticisi daveti"
+
+#: includes/pages/wordset-pages.php
+#, php-format
+msgid "You have been invited on %1$s to manage the word set \"%2$s\"."
+msgstr "%1$s üzerinde \"%2$s\" kelime setini yönetmeye davet edildin."
+
+#: includes/pages/wordset-pages.php
+#, php-format
+msgid "Invited by: %s"
+msgstr "Davet eden: %s"
+
+#: includes/pages/wordset-pages.php
+msgid "Open this link to create or connect a word set manager account for this word set:"
+msgstr "Bu kelime seti için bir kelime seti yöneticisi hesabı oluşturmak veya bağlamak üzere bu bağlantıyı aç:"
+
+#: includes/pages/wordset-pages.php
+msgid "Please sign in with a valid user account."
+msgstr "Lütfen geçerli bir kullanıcı hesabıyla giriş yap."
+
+#: includes/pages/wordset-pages.php
+msgid "Please continue with the invited word set manager email address."
+msgstr "Lütfen davet edilen kelime seti yöneticisi e-posta adresiyle devam et."
+
+#: includes/pages/wordset-pages.php
+msgid "Word set manager access could not be enabled right now."
+msgstr "Kelime seti yöneticisi erişimi şu anda etkinleştirilemedi."
+
+#: includes/pages/wordset-pages.php
+msgid "Ask another manager or administrator to remove your manager access."
+msgstr "Yönetici erişimini kaldırması için başka bir yöneticiye veya site yöneticisine sor."
+
+#: includes/pages/wordset-pages.php
+msgid "Public/private visibility and manager access for this word set."
+msgstr "Bu kelime seti için herkese açık/özel görünürlük ve yönetici erişimi."
+
+#: includes/pages/wordset-pages.php
+msgid "Private word sets are only visible to assigned managers and administrators in this first pass."
+msgstr "Bu ilk aşamada özel kelime setleri yalnızca atanmış yöneticiler ve site yöneticileri tarafından görülebilir."
+
+#: includes/pages/wordset-pages.php
+msgid "Word Set Managers"
+msgstr "Kelime Seti Yöneticileri"
+
+#: includes/pages/wordset-pages.php
+msgid "No word set managers are currently assigned. Add a manager below so this word set has a front-end owner."
+msgstr "Şu anda atanmış kelime seti yöneticisi yok. Bu kelime setinin bir ön uç sahibi olması için aşağıdan bir yönetici ekle."
+
+#: includes/pages/wordset-pages.php
+msgid "Remove Manager"
+msgstr "Yöneticiyi Kaldır"
+
+#: includes/pages/wordset-pages.php
+msgid "Add Existing User"
+msgstr "Mevcut Kullanıcı Ekle"
+
+#: includes/pages/wordset-pages.php
+msgid "Find an existing user by username or email, add the Word Set Manager role, and allow that person to manage this word set."
+msgstr "Mevcut bir kullanıcıyı kullanıcı adı veya e-posta ile bul, Kelime Seti Yöneticisi rolünü ekle ve bu kişinin bu kelime setini yönetmesine izin ver."
+
+#: includes/pages/wordset-pages.php
+msgid "Add Manager"
+msgstr "Yönetici Ekle"
+
+#: includes/pages/wordset-pages.php
+msgid "Invite Manager By Email"
+msgstr "E-postayla Yönetici Davet Et"
+
+#: includes/pages/wordset-pages.php
+msgid "Manager email"
+msgstr "Yönetici e-postası"
+
+#: includes/pages/wordset-pages.php
+msgid "This sends a signup link that creates or connects a Word Set Manager account and assigns that person to this word set."
+msgstr "Bu, Kelime Seti Yöneticisi hesabı oluşturan veya bağlayan ve bu kişiyi bu kelime setine atayan bir kayıt bağlantısı gönderir."
+
+#: includes/pages/wordset-pages.php
+msgid "Send Manager Invite"
+msgstr "Yönetici Daveti Gönder"
+
+#: includes/pages/wordset-pages.php
+msgid "Use the invited email address to manage this word set."
+msgstr "Bu kelime setini yönetmek için davet edilen e-posta adresini kullan."
+
+#: includes/pages/wordset-pages.php
+msgid "Create manager account"
+msgstr "Yönetici hesabı oluştur"
+
+#: includes/pages/wordset-pages.php
+msgid "This invite can create or connect a Word Set Manager account for this word set."
+msgstr "Bu davet, bu kelime seti için bir Kelime Seti Yöneticisi hesabı oluşturabilir veya bağlayabilir."
+
+#: includes/taxonomies/wordset-taxonomy.php
+msgid "Managers"
+msgstr "Yöneticiler"
+
+#: includes/user-roles/wordset-manager.php
+msgid "Choose the primary word set this user is allowed to manage. Additional manager assignments can be added from each word set settings page."
+msgstr "Bu kullanıcının yönetmesine izin verilen birincil kelime setini seç. Ek yönetici atamaları her kelime setinin ayarlar sayfasından eklenebilir."
+
+#: includes/user-roles/wordset-manager.php
+msgid "If this role is selected, a primary word set must be chosen."
+msgstr "Bu rol seçilirse birincil kelime seti seçilmelidir."
+
+#: includes/taxonomies/wordset-taxonomy.php includes/pages/wordset-pages.php
+msgid "Unable to find that user."
+msgstr "Bu kullanıcı bulunamadı."

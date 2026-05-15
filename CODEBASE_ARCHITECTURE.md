@@ -291,7 +291,7 @@ vendor/
   - Desired recording types: `ll_desired_recording_types` (list of slugs; sentinel `__none__` disables recording for the category).
   - Helpers: `ll_tools_get_category_display_name()`, `ll_tools_get_category_quiz_config()`, `ll_can_category_generate_quiz()`.
 - `wordset` (flat; attached to `words`)
-  - Meta: `ll_language`, `manager_user_id`.
+  - Meta: `ll_language`, `manager_user_ids` (canonical multi-manager list), legacy `manager_user_id` primary mirror.
   - Capabilities: `edit_wordsets` etc; non-admins see only managed wordsets.
   - Active wordset resolution: `ll_tools_get_active_wordset_id()`; default seeded on activation.
 - `language` (attached to `words`, populated from `data/iso-languages` on first run).
