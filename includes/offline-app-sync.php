@@ -269,6 +269,272 @@ if (!function_exists('ll_tools_offline_app_login_rate_limit_message')) {
     }
 }
 
+if (!function_exists('ll_tools_offline_app_sync_throttle_config')) {
+    function ll_tools_offline_app_sync_throttle_config(): array {
+        $defaults = [
+            'window' => 5 * MINUTE_IN_SECONDS,
+            'request_limit' => 30,
+            'resource_unit_limit' => 120,
+            'ip_request_limit' => 120,
+            'ip_resource_unit_limit' => 360,
+            'word_ids_per_unit' => 250,
+            'events_per_unit' => 50,
+        ];
+
+        $config = [
+            'window' => apply_filters('ll_tools_offline_app_sync_throttle_window', $defaults['window']),
+            'request_limit' => apply_filters('ll_tools_offline_app_sync_throttle_request_limit', $defaults['request_limit']),
+            'resource_unit_limit' => apply_filters('ll_tools_offline_app_sync_throttle_resource_unit_limit', $defaults['resource_unit_limit']),
+            'ip_request_limit' => apply_filters('ll_tools_offline_app_sync_throttle_ip_request_limit', $defaults['ip_request_limit']),
+            'ip_resource_unit_limit' => apply_filters('ll_tools_offline_app_sync_throttle_ip_resource_unit_limit', $defaults['ip_resource_unit_limit']),
+            'word_ids_per_unit' => apply_filters('ll_tools_offline_app_sync_throttle_word_ids_per_unit', $defaults['word_ids_per_unit']),
+            'events_per_unit' => apply_filters('ll_tools_offline_app_sync_throttle_events_per_unit', $defaults['events_per_unit']),
+        ];
+        $config = (array) apply_filters('ll_tools_offline_app_sync_throttle_config', $config);
+
+        return [
+            'window' => max(MINUTE_IN_SECONDS, (int) ($config['window'] ?? $defaults['window'])),
+            'request_limit' => max(0, (int) ($config['request_limit'] ?? $defaults['request_limit'])),
+            'resource_unit_limit' => max(0, (int) ($config['resource_unit_limit'] ?? $defaults['resource_unit_limit'])),
+            'ip_request_limit' => max(0, (int) ($config['ip_request_limit'] ?? $defaults['ip_request_limit'])),
+            'ip_resource_unit_limit' => max(0, (int) ($config['ip_resource_unit_limit'] ?? $defaults['ip_resource_unit_limit'])),
+            'word_ids_per_unit' => max(1, (int) ($config['word_ids_per_unit'] ?? $defaults['word_ids_per_unit'])),
+            'events_per_unit' => max(1, (int) ($config['events_per_unit'] ?? $defaults['events_per_unit'])),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_resource_units')) {
+    function ll_tools_offline_app_sync_resource_units(array $events, array $word_ids): int {
+        $config = ll_tools_offline_app_sync_throttle_config();
+        $units = 1
+            + (int) ceil(count($events) / max(1, (int) ($config['events_per_unit'] ?? 50)))
+            + (int) ceil(count($word_ids) / max(1, (int) ($config['word_ids_per_unit'] ?? 250)));
+
+        $units = (int) apply_filters('ll_tools_offline_app_sync_resource_units', $units, $events, $word_ids, $config);
+        return max(1, $units);
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_throttle_key')) {
+    function ll_tools_offline_app_sync_throttle_key(string $scope, string $identifier): string {
+        return 'll_tools_offline_sync_' . sanitize_key($scope) . '_' . substr(md5($identifier), 0, 24);
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_token_identifier')) {
+    function ll_tools_offline_app_sync_token_identifier(string $token): string {
+        $token = trim($token);
+        if ($token === '') {
+            return '';
+        }
+
+        return substr(hash('sha256', $token), 0, 32);
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_throttle_bucket')) {
+    function ll_tools_offline_app_sync_throttle_bucket(string $scope, string $identifier): array {
+        if ($identifier === '') {
+            return [
+                'requests' => 0,
+                'resource_units' => 0,
+                'expires_at' => 0,
+            ];
+        }
+
+        $stored = get_transient(ll_tools_offline_app_sync_throttle_key($scope, $identifier));
+        if (!is_array($stored)) {
+            return [
+                'requests' => max(0, (int) $stored),
+                'resource_units' => 0,
+                'expires_at' => 0,
+            ];
+        }
+
+        return [
+            'requests' => max(0, (int) ($stored['requests'] ?? 0)),
+            'resource_units' => max(0, (int) ($stored['resource_units'] ?? 0)),
+            'expires_at' => max(0, (int) ($stored['expires_at'] ?? 0)),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_bucket_status')) {
+    function ll_tools_offline_app_sync_bucket_status(
+        string $scope,
+        string $identifier,
+        int $request_limit,
+        int $resource_unit_limit,
+        int $window,
+        int $resource_units
+    ): array {
+        $bucket = ll_tools_offline_app_sync_throttle_bucket($scope, $identifier);
+        $retry_after = (!empty($bucket['expires_at']) && (int) $bucket['expires_at'] > time())
+            ? max(1, (int) $bucket['expires_at'] - time())
+            : 0;
+        $limit_type = '';
+        if ($identifier !== '' && $request_limit > 0 && (int) $bucket['requests'] >= $request_limit) {
+            $limit_type = 'requests';
+        } elseif (
+            $identifier !== ''
+            && $resource_unit_limit > 0
+            && ((int) $bucket['resource_units'] + max(1, $resource_units)) > $resource_unit_limit
+        ) {
+            $limit_type = 'resource_units';
+        }
+        if ($limit_type !== '' && $retry_after <= 0) {
+            $retry_after = max(MINUTE_IN_SECONDS, $window);
+        }
+
+        return [
+            'scope' => $scope,
+            'identifier' => $identifier,
+            'limited' => ($limit_type !== ''),
+            'limit_type' => $limit_type,
+            'requests' => (int) $bucket['requests'],
+            'request_limit' => $request_limit,
+            'resource_units' => (int) $bucket['resource_units'],
+            'resource_unit_limit' => $resource_unit_limit,
+            'request_resource_units' => max(1, $resource_units),
+            'window' => max(MINUTE_IN_SECONDS, $window),
+            'retry_after' => $retry_after,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_record_bucket_attempt')) {
+    function ll_tools_offline_app_sync_record_bucket_attempt(string $scope, string $identifier, int $window, int $resource_units): array {
+        if ($identifier === '') {
+            return [
+                'requests' => 0,
+                'resource_units' => 0,
+                'expires_at' => 0,
+            ];
+        }
+
+        $bucket = ll_tools_offline_app_sync_throttle_bucket($scope, $identifier);
+        $expires_at = time() + max(MINUTE_IN_SECONDS, $window);
+        $updated = [
+            'requests' => max(0, (int) ($bucket['requests'] ?? 0)) + 1,
+            'resource_units' => max(0, (int) ($bucket['resource_units'] ?? 0)) + max(1, $resource_units),
+            'expires_at' => $expires_at,
+        ];
+
+        set_transient(
+            ll_tools_offline_app_sync_throttle_key($scope, $identifier),
+            $updated,
+            max(MINUTE_IN_SECONDS, $window)
+        );
+
+        return $updated;
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_rate_limit_message')) {
+    function ll_tools_offline_app_sync_rate_limit_message(string $scope = '', string $limit_type = ''): string {
+        if ($scope === 'ip') {
+            return __('Too many offline sync attempts from this connection. Please wait a few minutes and try again.', 'll-tools-text-domain');
+        }
+
+        if ($limit_type === 'resource_units') {
+            return __('Offline sync is temporarily limited for this device because it requested too much data. Please wait a few minutes and try again.', 'll-tools-text-domain');
+        }
+
+        return __('Too many offline sync requests from this device. Please wait a few minutes and try again.', 'll-tools-text-domain');
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_get_sync_throttle_status')) {
+    function ll_tools_offline_app_get_sync_throttle_status(string $token = '', int $resource_units = 1, string $ip = ''): array {
+        $config = ll_tools_offline_app_sync_throttle_config();
+        $token_identifier = ll_tools_offline_app_sync_token_identifier($token);
+        $normalized_ip = ($ip !== '') ? ll_tools_offline_app_normalize_ip($ip) : ll_tools_offline_app_get_client_ip();
+
+        $token_status = ll_tools_offline_app_sync_bucket_status(
+            'token',
+            $token_identifier,
+            (int) ($config['request_limit'] ?? 0),
+            (int) ($config['resource_unit_limit'] ?? 0),
+            (int) ($config['window'] ?? MINUTE_IN_SECONDS),
+            $resource_units
+        );
+        $ip_status = ll_tools_offline_app_sync_bucket_status(
+            'ip',
+            $normalized_ip,
+            (int) ($config['ip_request_limit'] ?? 0),
+            (int) ($config['ip_resource_unit_limit'] ?? 0),
+            (int) ($config['window'] ?? MINUTE_IN_SECONDS),
+            $resource_units
+        );
+
+        $limited_status = [];
+        if (!empty($token_status['limited'])) {
+            $limited_status = $token_status;
+        } elseif (!empty($ip_status['limited'])) {
+            $limited_status = $ip_status;
+        }
+
+        return [
+            'limited' => !empty($limited_status),
+            'scope' => (string) ($limited_status['scope'] ?? ''),
+            'limit_type' => (string) ($limited_status['limit_type'] ?? ''),
+            'retry_after' => max(0, (int) ($limited_status['retry_after'] ?? 0)),
+            'message' => ll_tools_offline_app_sync_rate_limit_message(
+                (string) ($limited_status['scope'] ?? ''),
+                (string) ($limited_status['limit_type'] ?? '')
+            ),
+            'token' => $token_status,
+            'ip' => $ip_status,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_record_sync_throttle_attempt')) {
+    function ll_tools_offline_app_record_sync_throttle_attempt(string $token = '', int $resource_units = 1, string $ip = ''): void {
+        $config = ll_tools_offline_app_sync_throttle_config();
+        $window = (int) ($config['window'] ?? MINUTE_IN_SECONDS);
+        $token_identifier = ll_tools_offline_app_sync_token_identifier($token);
+        if ($token_identifier !== '' && ((int) ($config['request_limit'] ?? 0) > 0 || (int) ($config['resource_unit_limit'] ?? 0) > 0)) {
+            ll_tools_offline_app_sync_record_bucket_attempt('token', $token_identifier, $window, $resource_units);
+        }
+
+        $normalized_ip = ($ip !== '') ? ll_tools_offline_app_normalize_ip($ip) : ll_tools_offline_app_get_client_ip();
+        if ($normalized_ip !== '' && ((int) ($config['ip_request_limit'] ?? 0) > 0 || (int) ($config['ip_resource_unit_limit'] ?? 0) > 0)) {
+            ll_tools_offline_app_sync_record_bucket_attempt('ip', $normalized_ip, $window, $resource_units);
+        }
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_check_sync_throttle')) {
+    function ll_tools_offline_app_check_sync_throttle(string $token = '', int $resource_units = 1, bool $record = true, string $ip = ''): array {
+        $status = ll_tools_offline_app_get_sync_throttle_status($token, $resource_units, $ip);
+        if (!empty($status['limited'])) {
+            return $status;
+        }
+
+        if ($record) {
+            ll_tools_offline_app_record_sync_throttle_attempt($token, $resource_units, $ip);
+        }
+
+        return $status;
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_reset_sync_throttle')) {
+    function ll_tools_offline_app_reset_sync_throttle(string $token = '', string $ip = ''): void {
+        $token_identifier = ll_tools_offline_app_sync_token_identifier($token);
+        if ($token_identifier !== '') {
+            delete_transient(ll_tools_offline_app_sync_throttle_key('token', $token_identifier));
+        }
+
+        $normalized_ip = ($ip !== '') ? ll_tools_offline_app_normalize_ip($ip) : '';
+        if ($normalized_ip !== '') {
+            delete_transient(ll_tools_offline_app_sync_throttle_key('ip', $normalized_ip));
+        }
+    }
+}
+
 if (!function_exists('ll_tools_offline_app_decode_json_payload')) {
     function ll_tools_offline_app_decode_json_payload($raw): array {
         if (is_array($raw)) {
@@ -761,15 +1027,11 @@ add_action('wp_ajax_ll_tools_offline_app_logout', 'll_tools_offline_app_logout_a
 if (!function_exists('ll_tools_offline_app_sync_ajax')) {
     function ll_tools_offline_app_sync_ajax(): void {
         ll_tools_offline_app_prepare_json_response();
-        $auth = ll_tools_offline_app_require_authenticated_user();
-        $user_id = (int) ($auth['user_id'] ?? 0);
 
+        $token = ll_tools_offline_app_request_string('auth_token');
         $events_raw = $_POST['events'] ?? '[]';
         $events = ll_tools_offline_app_decode_json_payload($events_raw);
         $events = array_slice($events, 0, 200);
-
-        $state = ll_tools_offline_app_parse_state_request($user_id);
-        $stats = ll_tools_process_progress_events_batch($user_id, $events);
 
         $requested_word_ids = ll_tools_offline_app_parse_word_ids();
         if (empty($requested_word_ids)) {
@@ -777,6 +1039,31 @@ if (!function_exists('ll_tools_offline_app_sync_ajax')) {
                 return is_array($event) ? (int) ($event['word_id'] ?? 0) : 0;
             }, $events));
         }
+
+        $throttle_status = ll_tools_offline_app_check_sync_throttle(
+            $token,
+            ll_tools_offline_app_sync_resource_units($events, $requested_word_ids)
+        );
+        if (!empty($throttle_status['limited'])) {
+            $retry_after = max(0, (int) ($throttle_status['retry_after'] ?? 0));
+            if ($retry_after > 0 && !headers_sent()) {
+                header('Retry-After: ' . $retry_after);
+            }
+
+            wp_send_json_error([
+                'code' => 'rate_limited',
+                'message' => (string) ($throttle_status['message'] ?? ll_tools_offline_app_sync_rate_limit_message()),
+                'scope' => (string) ($throttle_status['scope'] ?? ''),
+                'limit_type' => (string) ($throttle_status['limit_type'] ?? ''),
+                'retry_after' => $retry_after,
+            ], 429);
+        }
+
+        $auth = ll_tools_offline_app_require_authenticated_user();
+        $user_id = (int) ($auth['user_id'] ?? 0);
+
+        $state = ll_tools_offline_app_parse_state_request($user_id);
+        $stats = ll_tools_process_progress_events_batch($user_id, $events);
 
         wp_send_json_success(ll_tools_offline_app_build_sync_response($user_id, $state, $stats, $requested_word_ids));
     }

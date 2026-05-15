@@ -302,6 +302,181 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_offline_app_sync_request_throttle_limits_repeated_valid_token_responses(): void
+    {
+        $ip = '198.51.100.20';
+        $previous_remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = $ip;
+
+        $config_filter = static function (array $config): array {
+            $config['request_limit'] = 1;
+            $config['resource_unit_limit'] = 100;
+            $config['ip_request_limit'] = 0;
+            $config['ip_resource_unit_limit'] = 0;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+
+        $token = '';
+
+        try {
+            $user_id = self::factory()->user->create();
+            $this->assertIsInt($user_id);
+            $session = ll_tools_offline_app_create_session($user_id);
+            $token = (string) ($session['token'] ?? '');
+            $this->assertNotSame('', $token);
+            $fixture = $this->createOfflineSyncFixture();
+
+            ll_tools_offline_app_reset_sync_throttle($token, $ip);
+
+            $first = $this->runOfflineSyncRequest([
+                'auth_token' => $token,
+                'events' => '[]',
+                'word_ids' => wp_json_encode([$fixture['word_id']]),
+            ]);
+            $this->assertTrue((bool) ($first['success'] ?? false));
+
+            $second = $this->runOfflineSyncRequest([
+                'auth_token' => $token,
+                'events' => '[]',
+                'word_ids' => wp_json_encode([$fixture['word_id']]),
+            ]);
+            $this->assertFalse((bool) ($second['success'] ?? true));
+            $this->assertSame('rate_limited', (string) (($second['data'] ?? [])['code'] ?? ''));
+            $this->assertSame('token', (string) (($second['data'] ?? [])['scope'] ?? ''));
+            $this->assertSame('requests', (string) (($second['data'] ?? [])['limit_type'] ?? ''));
+        } finally {
+            ll_tools_offline_app_reset_sync_throttle($token, $ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+            if ($previous_remote_addr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previous_remote_addr;
+            }
+        }
+    }
+
+    public function test_offline_app_sync_resource_throttle_limits_large_response_requests(): void
+    {
+        $ip = '198.51.100.21';
+        $previous_remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = $ip;
+
+        $config_filter = static function (array $config): array {
+            $config['request_limit'] = 10;
+            $config['resource_unit_limit'] = 3;
+            $config['ip_request_limit'] = 0;
+            $config['ip_resource_unit_limit'] = 0;
+            $config['word_ids_per_unit'] = 1;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+
+        $token = '';
+
+        try {
+            $user_id = self::factory()->user->create();
+            $this->assertIsInt($user_id);
+            $session = ll_tools_offline_app_create_session($user_id);
+            $token = (string) ($session['token'] ?? '');
+            $this->assertNotSame('', $token);
+            $fixture = $this->createOfflineSyncFixture();
+            $second_word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Offline Sync Resource Word',
+            ]);
+            wp_set_post_terms($second_word_id, [$fixture['wordset_id']], 'wordset', false);
+            wp_set_post_terms($second_word_id, [$fixture['category_id']], 'word-category', false);
+            update_post_meta($second_word_id, 'word_translation', 'Offline Sync Resource Translation');
+
+            ll_tools_offline_app_reset_sync_throttle($token, $ip);
+
+            $post = [
+                'auth_token' => $token,
+                'events' => '[]',
+                'word_ids' => wp_json_encode([$fixture['word_id'], $second_word_id]),
+            ];
+            $first = $this->runOfflineSyncRequest($post);
+            $this->assertTrue((bool) ($first['success'] ?? false));
+
+            $second = $this->runOfflineSyncRequest($post);
+            $this->assertFalse((bool) ($second['success'] ?? true));
+            $this->assertSame('rate_limited', (string) (($second['data'] ?? [])['code'] ?? ''));
+            $this->assertSame('token', (string) (($second['data'] ?? [])['scope'] ?? ''));
+            $this->assertSame('resource_units', (string) (($second['data'] ?? [])['limit_type'] ?? ''));
+        } finally {
+            ll_tools_offline_app_reset_sync_throttle($token, $ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+            if ($previous_remote_addr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previous_remote_addr;
+            }
+        }
+    }
+
+    public function test_offline_app_sync_ip_throttle_limits_repeated_bad_tokens(): void
+    {
+        $ip = '198.51.100.22';
+        $previous_remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = $ip;
+
+        $config_filter = static function (array $config): array {
+            $config['request_limit'] = 0;
+            $config['resource_unit_limit'] = 0;
+            $config['ip_request_limit'] = 1;
+            $config['ip_resource_unit_limit'] = 100;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+
+        $bad_token_one = '';
+        $bad_token_two = '';
+
+        try {
+            $user_id = self::factory()->user->create();
+            $this->assertIsInt($user_id);
+            $session = ll_tools_offline_app_create_session($user_id);
+            $token = (string) ($session['token'] ?? '');
+            $this->assertNotSame('', $token);
+            $token_parts = explode('.', $token);
+            $this->assertCount(4, $token_parts);
+            $bad_token_one = sprintf('llapp.%d.%s.badsecret1', $user_id, $token_parts[2]);
+            $bad_token_two = sprintf('llapp.%d.%s.badsecret2', $user_id, $token_parts[2]);
+
+            ll_tools_offline_app_reset_sync_throttle($bad_token_one, $ip);
+            ll_tools_offline_app_reset_sync_throttle($bad_token_two, $ip);
+
+            $first = $this->runOfflineSyncRequest([
+                'auth_token' => $bad_token_one,
+                'events' => '[]',
+                'word_ids' => '[]',
+            ]);
+            $this->assertFalse((bool) ($first['success'] ?? true));
+            $this->assertSame('Sign in required.', (string) (($first['data'] ?? [])['message'] ?? ''));
+
+            $second = $this->runOfflineSyncRequest([
+                'auth_token' => $bad_token_two,
+                'events' => '[]',
+                'word_ids' => '[]',
+            ]);
+            $this->assertFalse((bool) ($second['success'] ?? true));
+            $this->assertSame('rate_limited', (string) (($second['data'] ?? [])['code'] ?? ''));
+            $this->assertSame('ip', (string) (($second['data'] ?? [])['scope'] ?? ''));
+            $this->assertSame('requests', (string) (($second['data'] ?? [])['limit_type'] ?? ''));
+        } finally {
+            ll_tools_offline_app_reset_sync_throttle($bad_token_one, $ip);
+            ll_tools_offline_app_reset_sync_throttle($bad_token_two, $ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+            if ($previous_remote_addr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previous_remote_addr;
+            }
+        }
+    }
+
     private function createOfflineSyncFixture(): array
     {
         $wordset = wp_insert_term('Offline Sync Wordset ' . wp_generate_password(6, false), 'wordset');
@@ -338,6 +513,21 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             'effective_category_id' => $effective_category_id,
             'word_id' => $word_id,
         ];
+    }
+
+    private function runOfflineSyncRequest(array $post): array
+    {
+        $_POST = $post;
+        $_REQUEST = $post;
+
+        try {
+            return $this->run_json_endpoint(static function (): void {
+                ll_tools_offline_app_sync_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
     }
 
     private function run_json_endpoint(callable $callback): array
