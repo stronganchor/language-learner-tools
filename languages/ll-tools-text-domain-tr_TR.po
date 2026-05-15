@@ -24441,3 +24441,883 @@ msgstr "Bu rol seçilirse birincil kelime seti seçilmelidir."
 #: includes/taxonomies/wordset-taxonomy.php includes/pages/wordset-pages.php
 msgid "Unable to find that user."
 msgstr "Bu kullanıcı bulunamadı."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "%1$s: %2$d"
+msgstr "%1$s: %2$d"
+
+#: includes/admin/site-sync-admin.php
+msgid "(empty)"
+msgstr "(boş)"
+
+#: includes/admin/site-sync-admin.php
+msgid "(none)"
+msgstr "(yok)"
+
+#: includes/admin/site-sync-admin.php
+msgid "Accept the live site version locally for all conflicts."
+msgstr "Tüm çakışmalar için canlı site sürümünü yerelde kabul et."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Accepted live values locally for %1$d conflicted field(s) across %2$d recording(s)."
+msgstr "%2$d kayıt genelinde %1$d çakışan alan için canlı değerler yerelde kabul edildi."
+
+#: includes/admin/site-sync-admin.php
+msgid "After"
+msgstr "Sonra"
+
+#: includes/admin/site-sync-admin.php
+msgid "After pull"
+msgstr "Pull sonrası"
+
+#: includes/admin/site-sync-admin.php
+msgid "After push"
+msgstr "Push sonrası"
+
+#: includes/admin/site-sync-admin.php
+msgid "Apply All Push Batches"
+msgstr "Tüm Push Gruplarını Uygula"
+
+#: includes/admin/site-sync-admin.php
+msgid "Apply Push"
+msgstr "Push'u Uygula"
+
+#: includes/admin/site-sync-admin.php
+msgid "Applying push batches. Keep this tab open."
+msgstr "Push grupları uygulanıyor. Bu sekmeyi açık tut."
+
+#: includes/admin/site-sync-admin.php
+msgid "Baseline"
+msgstr "Temel sürüm"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Baseline records: %d"
+msgstr "Temel sürüm kayıtları: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Before"
+msgstr "Önce"
+
+#: includes/admin/site-sync-admin.php
+msgid "Checking local changes in the background..."
+msgstr "Yerel değişiklikler arka planda kontrol ediliyor..."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Choosing staging-values conflict handling would queue %d total remote update(s)."
+msgstr "Staging değerleriyle çakışma çözümünü seçmek toplam %d uzak güncellemeyi kuyruğa alır."
+
+#: includes/admin/site-sync-admin.php
+msgid "Clean Changes"
+msgstr "Temiz Değişiklikler"
+
+#: includes/admin/site-sync-admin.php
+msgid "Clean change"
+msgstr "Temiz değişiklik"
+
+#: includes/admin/site-sync-admin.php
+msgid "Conflict"
+msgstr "Çakışma"
+
+#: includes/admin/site-sync-admin.php
+msgid "Conflict handling"
+msgstr "Çakışma çözümü"
+
+#: includes/admin/site-sync-admin.php
+msgid "Conflicts"
+msgstr "Çakışmalar"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Conflicts: %d"
+msgstr "Çakışmalar: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Connection"
+msgstr "Bağlantı"
+
+#: includes/lib/site-sync.php
+msgid "Could not create the remote image placeholder attachment."
+msgstr "Uzak görsel yer tutucu eki oluşturulamadı."
+
+#: includes/lib/site-sync.php
+msgid "Could not create the synced recording because the local word is missing."
+msgstr "Yerel kelime eksik olduğu için senkronize kayıt oluşturulamadı."
+
+#: includes/lib/site-sync.php
+msgid "Could not create the synced recording."
+msgstr "Senkronize kayıt oluşturulamadı."
+
+#: includes/lib/site-sync.php
+msgid "Could not create the synced word image."
+msgstr "Senkronize kelime görseli oluşturulamadı."
+
+#: includes/lib/site-sync.php
+msgid "Could not create the synced word."
+msgstr "Senkronize kelime oluşturulamadı."
+
+#: includes/admin/site-sync-admin.php
+msgid "Create locally"
+msgstr "Yerelde oluştur"
+
+#: includes/admin/site-sync-admin.php
+msgid "Current version"
+msgstr "Geçerli sürüm"
+
+#: includes/admin/site-sync-admin.php
+msgid "Edit after-change state"
+msgstr "Değişiklik sonrası durumu düzenle"
+
+#: includes/admin/site-sync-admin.php
+msgid "Enter the live or remote site URL."
+msgstr "Canlı veya uzak site URL'sini gir."
+
+#: includes/admin/site-sync-admin.php
+msgid "Enter the remote WordPress password or application password for this operation."
+msgstr "Bu işlem için uzak WordPress şifresini veya uygulama şifresini gir."
+
+#: includes/admin/site-sync-admin.php
+msgid "Enter the remote WordPress username."
+msgstr "Uzak WordPress kullanıcı adını gir."
+
+#: includes/admin/site-sync-admin.php
+msgid "Enter the remote password before applying the push."
+msgstr "Push'u uygulamadan önce uzak şifreyi gir."
+
+#: includes/admin/site-sync-admin.php
+msgid "Enter the remote word set slug or ID."
+msgstr "Uzak kelime seti kısa adını veya kimliğini gir."
+
+#: includes/admin/site-sync-admin.php
+msgid "Exists in baseline"
+msgstr "Temel sürümde var"
+
+#: includes/admin/site-sync-admin.php
+msgid "Exists locally"
+msgstr "Yerelde var"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Field: %s"
+msgstr "Alan: %s"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Fields to apply: %d"
+msgstr "Uygulanacak alanlar: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Flag conflicts on the live site for transcription review."
+msgstr "Canlı sitedeki çakışmaları transkripsiyon incelemesi için işaretle."
+
+#: includes/admin/site-sync-admin.php
+msgid "LL Site Sync"
+msgstr "LL Site Sync"
+
+#: includes/lib/site-sync.php
+msgid "LL Tools automation helpers are unavailable."
+msgstr "LL Tools otomasyon yardımcıları kullanılamıyor."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Last pull baseline: %1$s, %2$d records."
+msgstr "Son pull temel sürümü: %1$s, %2$d kayıt."
+
+#: includes/admin/site-sync-admin.php
+msgid "Last pulled"
+msgstr "Son pull zamanı"
+
+#: includes/lib/site-sync.php
+msgid "Last pulled value:"
+msgstr "Son pull değeri:"
+
+#: includes/admin/site-sync-admin.php
+msgid "Live Comparison Preview"
+msgstr "Canlı Karşılaştırma Önizlemesi"
+
+#: includes/admin/site-sync-admin.php
+msgid "Live now"
+msgstr "Canlı şimdi"
+
+#: includes/lib/site-sync.php
+msgid "Live value:"
+msgstr "Canlı değer:"
+
+#: includes/admin/site-sync-admin.php
+msgid "Local"
+msgstr "Yerel"
+
+#: includes/admin/site-sync-admin.php
+msgid "Local change overview could not load."
+msgstr "Yerel değişiklik özeti yüklenemedi."
+
+#: includes/admin/site-sync-admin.php
+msgid "Local changes since baseline"
+msgstr "Temel sürümden bu yana yerel değişiklikler"
+
+#: includes/admin/site-sync-admin.php
+msgid "Local only"
+msgstr "Yalnızca yerel"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Local only: %d"
+msgstr "Yalnızca yerel: %d"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Local records: %d"
+msgstr "Yerel kayıtlar: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Local staging word set"
+msgstr "Yerel staging kelime seti"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Media refs to apply: %d"
+msgstr "Uygulanacak medya referansları: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Missing locally"
+msgstr "Yerelde eksik"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Missing locally: %d"
+msgstr "Yerelde eksik: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Modified locally"
+msgstr "Yerelde değiştirildi"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Modified locally: %d"
+msgstr "Yerelde değiştirildi: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "No changes to preview."
+msgstr "Önizlenecek değişiklik yok."
+
+#: includes/admin/site-sync-admin.php
+msgid "No changes were found for this sync direction."
+msgstr "Bu senkronizasyon yönü için değişiklik bulunamadı."
+
+#: includes/admin/site-sync-admin.php
+msgid "No editable local sync fields were submitted."
+msgstr "Düzenlenebilir yerel senkronizasyon alanı gönderilmedi."
+
+#: includes/admin/site-sync-admin.php
+msgid "No local change overview is available until a pull baseline exists."
+msgstr "Bir pull temel sürümü oluşana kadar yerel değişiklik özeti kullanılamaz."
+
+#: includes/admin/site-sync-admin.php
+msgid "No local changes were found against the saved baseline."
+msgstr "Kaydedilmiş temel sürüme göre yerel değişiklik bulunamadı."
+
+#: includes/admin/site-sync-admin.php
+msgid "No pull baseline is stored yet. Pull from live before pushing staging changes."
+msgstr "Henüz kayıtlı pull temel sürümü yok. Staging değişikliklerini push etmeden önce canlıdan pull yap."
+
+#: includes/admin/site-sync-admin.php
+msgid "Not in baseline"
+msgstr "Temel sürümde yok"
+
+#: includes/admin/site-sync-admin.php
+msgid "Preview Push to Live"
+msgstr "Canlıya Push Önizlemesi"
+
+#: includes/admin/site-sync-admin.php
+msgid "Previous version"
+msgstr "Önceki sürüm"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Processed %1$d of %2$d queued remote update(s). %3$d update(s) remain after refresh. Conflicts remaining: %4$d."
+msgstr "Kuyruktaki %2$d uzak güncellemenin %1$d tanesi işlendi. Yenilemeden sonra %3$d güncelleme kaldı. Kalan çakışmalar: %4$d."
+
+#: includes/admin/site-sync-admin.php
+msgid "Pull Live into Staging"
+msgstr "Canlıyı Staging'e Pull Et"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Pull finished. Updated %1$d local recordings, created %2$d words and %3$d recordings, moved %4$d recordings, and applied %5$d fields plus %6$d media references."
+msgstr "Pull tamamlandı. %1$d yerel kayıt güncellendi, %2$d kelime ve %3$d kayıt oluşturuldu, %4$d kayıt taşındı, %5$d alan ve %6$d medya referansı uygulandı."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Pull found %d conflicts. Conflicting fields were not overwritten locally."
+msgstr "Pull %d çakışma buldu. Çakışan alanlar yerelde üzerine yazılmadı."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Push batch finished. Processed %1$d of %2$d queued remote update(s). %3$d update(s) remain; use Apply All Push Batches to continue automatically. Conflicts remaining: %4$d."
+msgstr "Push grubu tamamlandı. Kuyruktaki %2$d uzak güncellemenin %1$d tanesi işlendi. %3$d güncelleme kaldı; otomatik devam etmek için Tüm Push Gruplarını Uygula'yı kullan. Kalan çakışmalar: %4$d."
+
+#: includes/admin/site-sync-admin.php
+msgid "Push batches finished."
+msgstr "Push grupları tamamlandı."
+
+#: includes/admin/site-sync-admin.php
+msgid "Push batches stopped before finishing."
+msgstr "Push grupları tamamlanmadan durdu."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Push finished. Applied %1$d remote updates across %2$d small request(s). Conflicts remaining: %3$d."
+msgstr "Push tamamlandı. %2$d küçük istek üzerinden %1$d uzak güncelleme uygulandı. Kalan çakışmalar: %3$d."
+
+#: includes/admin/site-sync-admin.php
+msgid "Push finished. Live comparison is up to date for pushable rows."
+msgstr "Push tamamlandı. Push edilebilir satırlar için canlı karşılaştırma güncel."
+
+#: includes/admin/site-sync-admin.php
+msgid "Push staging values to live for conflicts."
+msgstr "Çakışmalar için staging değerlerini canlıya push et."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Ready to process %1$d clean update(s), %2$d conflict(s), and %3$d skipped row(s). The browser will keep sending small live-safe batches until the pushable work is finished."
+msgstr "%1$d temiz güncelleme, %2$d çakışma ve %3$d atlanan satır işlenmeye hazır. Tarayıcı, push edilebilir iş bitene kadar canlı site için güvenli küçük gruplar göndermeye devam eder."
+
+#: includes/lib/site-sync.php
+msgid "Recording transcriptions"
+msgstr "Kayıt transkripsiyonları"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Records checked: %d"
+msgstr "Kontrol edilen kayıtlar: %d"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Records to create: %d"
+msgstr "Oluşturulacak kayıtlar: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Remote password"
+msgstr "Uzak şifre"
+
+#: includes/admin/site-sync-admin.php
+msgid "Remote password authentication is only allowed over HTTPS unless the remote host is local development."
+msgstr "Uzak şifreyle kimlik doğrulama, uzak ana makine yerel geliştirme ortamı değilse yalnızca HTTPS üzerinden izinlidir."
+
+#: includes/admin/site-sync-admin.php
+msgid "Remote password for this action"
+msgstr "Bu işlem için uzak şifre"
+
+#: includes/admin/site-sync-admin.php
+msgid "Remote site URL"
+msgstr "Uzak site URL'si"
+
+#: includes/admin/site-sync-admin.php
+msgid "Remote username"
+msgstr "Uzak kullanıcı adı"
+
+#: includes/admin/site-sync-admin.php
+msgid "Remote word set slug or ID"
+msgstr "Uzak kelime seti kısa adı veya kimliği"
+
+#: includes/admin/site-sync-admin.php
+msgid "Revert local change"
+msgstr "Yerel değişikliği geri al"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Reverted %d local field(s). Preview again when you are ready to compare against the live site."
+msgstr "%d yerel alan geri alındı. Canlı siteyle karşılaştırmaya hazır olduğunda tekrar önizle."
+
+#: includes/admin/site-sync-admin.php
+msgid "Review fields"
+msgstr "İnceleme alanları"
+
+#: includes/admin/site-sync-admin.php
+msgid "Save Connection"
+msgstr "Bağlantıyı Kaydet"
+
+#: includes/admin/site-sync-admin.php
+msgid "Save local edit"
+msgstr "Yerel düzenlemeyi kaydet"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Saved %d local after-change field(s). Preview again when you are ready to compare against the live site."
+msgstr "%d yerel değişiklik sonrası alan kaydedildi. Canlı siteyle karşılaştırmaya hazır olduğunda tekrar önizle."
+
+#: includes/lib/site-sync.php
+msgid "Select a valid word set for site sync."
+msgstr "Site senkronizasyonu için geçerli bir kelime seti seç."
+
+#: includes/admin/site-sync-admin.php
+msgid "Select and save a local staging word set to see local changes."
+msgstr "Yerel değişiklikleri görmek için yerel staging kelime seti seçip kaydet."
+
+#: includes/admin/site-sync-admin.php
+msgid "Select the local staging word set."
+msgstr "Yerel staging kelime setini seç."
+
+#: includes/lib/site-sync.php
+#, php-format
+msgid "Site sync conflict for %1$s on \"%2$s\" / \"%3$s\"."
+msgstr "\"%2$s\" / \"%3$s\" üzerinde %1$s için site senkronizasyonu çakışması."
+
+#: includes/admin/site-sync-admin.php
+msgid "Site sync connection saved. Passwords are not stored."
+msgstr "Site senkronizasyonu bağlantısı kaydedildi. Şifreler saklanmaz."
+
+#: includes/admin/site-sync-admin.php
+msgid "Skip conflicts for now."
+msgstr "Çakışmaları şimdilik atla."
+
+#: includes/lib/site-sync.php
+msgid "Skipped a pull row because the local recording ID was missing."
+msgstr "Yerel kayıt kimliği eksik olduğu için bir pull satırı atlandı."
+
+#: includes/admin/site-sync-admin.php
+msgid "Skipped conflict handling for this push. Conflicted fields were not changed locally or on the live site."
+msgstr "Bu push için çakışma çözümü atlandı. Çakışan alanlar yerelde veya canlı sitede değiştirilmedi."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Skipped rows are usually recordings that exist on only one site or rows without a previous pull baseline. Count: %d"
+msgstr "Atlanan satırlar genellikle yalnızca tek sitede bulunan kayıtlar veya önceki pull temel sürümü olmayan satırlardır. Sayı: %d"
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Skipped: %d"
+msgstr "Atlandı: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "Staging now"
+msgstr "Staging şimdi"
+
+#: includes/lib/site-sync.php
+msgid "Staging value:"
+msgstr "Staging değeri:"
+
+#: includes/admin/site-sync-admin.php
+msgid "Starting push batches..."
+msgstr "Push grupları başlatılıyor..."
+
+#: includes/admin/site-sync-admin.php
+msgid "Sync IDs"
+msgstr "Senkronizasyon kimlikleri"
+
+#: includes/admin/site-sync-admin.php
+msgid "Sync one word set at a time between this staging site and a live LL Tools site. The first supported sync surface is recording text, transcription, and transcription review state."
+msgstr "Bu staging sitesi ile canlı LL Tools sitesi arasında aynı anda tek bir kelime setini senkronize et. İlk desteklenen senkronizasyon yüzeyi kayıt metni, transkripsiyon ve transkripsiyon inceleme durumudur."
+
+#: includes/admin/site-sync-admin.php
+msgid "Sync preview pagination"
+msgstr "Senkronizasyon önizleme sayfalandırması"
+
+#: includes/lib/site-sync.php
+msgid "Synced category"
+msgstr "Senkronize kategori"
+
+#: includes/lib/site-sync.php
+msgid "Synced recording"
+msgstr "Senkronize kayıt"
+
+#: includes/lib/site-sync.php
+msgid "Synced remote image"
+msgstr "Senkronize uzak görsel"
+
+#: includes/lib/site-sync.php
+msgid "Synced word"
+msgstr "Senkronize kelime"
+
+#: includes/lib/site-sync.php
+msgid "Synced word image"
+msgstr "Senkronize kelime görseli"
+
+#: includes/lib/site-sync.php
+msgid "The remote image URL is invalid."
+msgstr "Uzak görsel URL'si geçersiz."
+
+#: includes/lib/site-sync.php
+msgid "The remote image is not a supported image type."
+msgstr "Uzak görsel desteklenen bir görsel türü değil."
+
+#: includes/admin/site-sync-admin.php
+msgid "The remote site did not return a valid JSON response."
+msgstr "Uzak site geçerli bir JSON yanıtı döndürmedi."
+
+#: includes/admin/site-sync-admin.php
+msgid "The remote site returned an error."
+msgstr "Uzak site bir hata döndürdü."
+
+#: includes/admin/site-sync-admin.php
+msgid "The saved-baseline local overview is hidden because a fresh live comparison preview is shown below for this request."
+msgstr "Bu istek için aşağıda yeni bir canlı karşılaştırma önizlemesi gösterildiğinden kaydedilmiş temel sürüm yerel özeti gizleniyor."
+
+#: includes/admin/site-sync-admin.php
+msgid "The selected local recording is not part of the configured staging word set."
+msgstr "Seçilen yerel kayıt, yapılandırılmış staging kelime setinin parçası değil."
+
+#: includes/admin/site-sync-admin.php
+msgid "These fields changed on both staging and live since the saved baseline. Review the baseline, staging, and live values before applying clean changes."
+msgstr "Bu alanlar kaydedilmiş temel sürümden beri hem staging'de hem canlıda değişti. Temiz değişiklikleri uygulamadan önce temel sürüm, staging ve canlı değerleri incele."
+
+#: includes/admin/site-sync-admin.php
+msgid "This overview compares the current staging word set to the last saved pull baseline. It does not contact the live site or require the remote password."
+msgstr "Bu özet, geçerli staging kelime setini son kaydedilmiş pull temel sürümüyle karşılaştırır. Canlı siteye bağlanmaz ve uzak şifre gerektirmez."
+
+#: includes/admin/site-sync-admin.php
+msgid "This preview uses a fresh live-site snapshot for this request and shows what would change on live if you push now."
+msgstr "Bu önizleme, bu istek için yeni bir canlı site anlık görüntüsü kullanır ve şimdi push edersen canlıda neyin değişeceğini gösterir."
+
+#: includes/admin/site-sync-admin.php
+msgid "This preview uses a fresh live-site snapshot for this request and shows what would change on staging if you pull now."
+msgstr "Bu önizleme, bu istek için yeni bir canlı site anlık görüntüsü kullanır ve şimdi pull edersen staging'de neyin değişeceğini gösterir."
+
+#: includes/admin/site-sync-admin.php
+msgid "Unknown site sync action."
+msgstr "Bilinmeyen site senkronizasyonu işlemi."
+
+#: includes/admin/site-sync-admin.php
+msgid "Waiting to start."
+msgstr "Başlamayı bekliyor."
+
+#: includes/admin/site-sync-admin.php
+#, php-format
+msgid "Words to create: %d"
+msgstr "Oluşturulacak kelimeler: %d"
+
+#: includes/admin/site-sync-admin.php
+msgid "You do not have permission to use site sync."
+msgstr "Site senkronizasyonunu kullanma iznin yok."
+
+#: includes/admin/ipa-keyboard-admin.php
+#, php-format
+msgid "%s: mark as needing review"
+msgstr "%s: inceleme gerekiyor olarak işaretle"
+
+#: includes/admin/ipa-keyboard-admin.php
+#, php-format
+msgid "%s: mark as reviewed"
+msgstr "%s: incelendi olarak işaretle"
+
+#: includes/pages/wordset-pages.php
+msgid "Add existing learner"
+msgstr "Mevcut öğrenciyi ekle"
+
+#: includes/pages/wordset-pages.php
+msgid "Add learner"
+msgstr "Öğrenci ekle"
+
+#: includes/pages/wordset-pages.php
+msgid "Allow this recorder to record new words"
+msgstr "Bu ses kaydedicinin yeni kelimeler kaydetmesine izin ver"
+
+#: includes/admin/ipa-keyboard-admin.php
+#, php-format
+msgid "Approve %1$s symbol and map it to %2$s in orthography"
+msgstr "%1$s sembolünü onayla ve yazımda %2$s ile eşle"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Approved symbol mapping."
+msgstr "Sembol eşlemesi onaylandı."
+
+#: includes/post-types/content-lesson-post-type.php
+msgid "Audio/video lesson"
+msgstr "Ses/video dersi"
+
+#: includes/pages/wordset-pages.php
+msgid "Back to categories"
+msgstr "Kategorilere dön"
+
+#: includes/pages/wordset-pages.php
+msgid "Back to queue"
+msgstr "Kuyruğa dön"
+
+#: includes/pages/wordset-editor.php
+msgid "Category splits"
+msgstr "Kategori bölmeleri"
+
+#: includes/pages/wordset-pages.php
+msgid "Change queue settings"
+msgstr "Kuyruk ayarlarını değiştir"
+
+#: includes/pages/vocab-lesson-pages.php templates/vocab-lesson-template.php
+msgid "Changes saved."
+msgstr "Değişiklikler kaydedildi."
+
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Clear pronunciation review flag"
+msgstr "Telaffuz inceleme işaretini temizle"
+
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Clear text review flag"
+msgstr "Metin inceleme işaretini temizle"
+
+#: includes/pages/wordset-editor.php
+msgid "Copy quiz, game, and recording settings"
+msgstr "Quiz, oyun ve kayıt ayarlarını kopyala"
+
+#: includes/post-types/content-lesson-post-type.php
+msgid "Corpus text"
+msgstr "Korpus metni"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Could not approve this symbol mapping."
+msgstr "Bu sembol eşlemesi onaylanamadı."
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Could not infer an orthography mapping for this symbol."
+msgstr "Bu sembol için yazım eşlemesi çıkarılamadı."
+
+#: includes/pages/wordset-pages.php
+msgid "Create a fresh lesson category."
+msgstr "Yeni bir ders kategorisi oluştur."
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Dental diacritic placement"
+msgstr "Dental aksan yerleşimi"
+
+#: includes/pages/wordset-editor.php
+msgid "Existing target"
+msgstr "Mevcut hedef"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Flags dental marks that are not attached to t or d."
+msgstr "t veya d harfine bağlı olmayan dental işaretleri işaretler."
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Flags symbols outside the approved IPA inventory for this workflow."
+msgstr "Bu iş akışı için onaylı IPA envanterinin dışındaki sembolleri işaretler."
+
+#: includes/pages/wordset-editor.php
+#, php-format
+msgid "From category: %s"
+msgstr "Kaynak kategori: %s"
+
+#: includes/pages/wordset-pages.php
+msgid "Hidden by Category"
+msgstr "Kategoriye Göre Gizli"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Invalid review field"
+msgstr "Geçersiz inceleme alanı"
+
+#: includes/pages/wordset-pages.php
+msgid "Leave all unchecked to include every recording type."
+msgstr "Her kayıt türünü dahil etmek için tümünü işaretsiz bırak."
+
+#: includes/post-types/content-lesson-post-type.php
+msgid "Lesson kind"
+msgstr "Ders türü"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Mark as needing review"
+msgstr "İnceleme gerekiyor olarak işaretle"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Mark as reviewed"
+msgstr "İncelendi olarak işaretle"
+
+#: includes/admin/export-import.php
+msgid "Mark imported transcription changes as needing review"
+msgstr "İçe aktarılan transkripsiyon değişikliklerini inceleme gerekiyor olarak işaretle"
+
+#: includes/admin/ipa-keyboard-admin.php includes/shortcodes/word-grid-shortcode.php
+msgid "Mark pronunciation for review"
+msgstr "Telaffuzu inceleme için işaretle"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Mark pronunciation reviewed"
+msgstr "Telaffuzu incelendi olarak işaretle"
+
+#: includes/admin/ipa-keyboard-admin.php includes/shortcodes/word-grid-shortcode.php
+msgid "Mark text for review"
+msgstr "Metni inceleme için işaretle"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Mark text reviewed"
+msgstr "Metni incelendi olarak işaretle"
+
+#: includes/pages/wordset-editor.php
+msgid "Move Filtered Words"
+msgstr "Filtrelenmiş Kelimeleri Taşı"
+
+#: includes/pages/wordset-editor.php
+msgid "Move all filtered words to the target category?"
+msgstr "Tüm filtrelenmiş kelimeler hedef kategoriye taşınsın mı?"
+
+#: includes/pages/wordset-editor.php
+msgid "New category"
+msgstr "Yeni kategori"
+
+#: includes/pages/wordset-pages.php
+msgid "Only include types"
+msgstr "Yalnızca bu türleri dahil et"
+
+#: includes/pages/wordset-editor.php
+msgid "Or new category"
+msgstr "Veya yeni kategori"
+
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Published but hidden. Reason: missing audio."
+msgstr "Yayınlandı ama gizli. Neden: ses kaydı eksik."
+
+#: includes/admin/admin-dashboard-menu.php
+msgid "Pull a live word set into staging, preview local transcription changes, and push clean updates back to live."
+msgstr "Canlı kelime setini staging'e pull et, yerel transkripsiyon değişikliklerini önizle ve temiz güncellemeleri canlıya geri push et."
+
+#: includes/pages/wordset-pages.php
+msgid "Queue by Category"
+msgstr "Kategoriye Göre Kuyruk"
+
+#: includes/pages/wordset-pages.php
+msgid "Recorder processes audio"
+msgstr "Ses kaydedici sesi işler"
+
+#: includes/pages/wordset-pages.php
+msgid "Recorder processes audio before saving"
+msgstr "Ses kaydedici kaydetmeden önce sesi işler"
+
+#: includes/pages/wordset-pages.php
+msgid "Recorder queue settings saved."
+msgstr "Ses kaydedici kuyruğu ayarları kaydedildi."
+
+#: includes/pages/wordset-pages.php
+msgid "Recorder queue updated. Recording prompts saved."
+msgstr "Ses kaydedici kuyruğu güncellendi. Kayıt istemleri kaydedildi."
+
+#: includes/api/automation-rest.php
+msgid "Recording not found in this word set."
+msgstr "Bu kelime setinde kayıt bulunamadı."
+
+#: includes/pages/wordset-pages.php
+msgid "Recording prompts"
+msgstr "Kayıt istemleri"
+
+#: includes/pages/wordset-pages.php
+msgid "Review each assigned recorder's queue by category, edit prompt wording, and tune their recording settings from one place."
+msgstr "Atanmış her ses kaydedicinin kuyruğunu kategoriye göre incele, istem metinlerini düzenle ve kayıt ayarlarını tek yerden ayarla."
+
+#: includes/pages/wordset-pages.php
+msgid "Review hidden recorder queue items and restore anything that should be recordable again."
+msgstr "Gizli ses kaydedici kuyruğu öğelerini incele ve yeniden kaydedilebilir olması gerekenleri geri yükle."
+
+#: includes/admin/export-import.php
+#, php-format
+msgid "Review notes to update: %d"
+msgstr "Güncellenecek inceleme notları: %d"
+
+#: includes/admin/export-import.php
+#, php-format
+msgid "Review notes updated: %d"
+msgstr "Güncellenen inceleme notları: %d"
+
+#: includes/pages/wordset-pages.php
+msgid "Save prompts"
+msgstr "İstemleri kaydet"
+
+#: includes/pages/wordset-pages.php
+msgid "Save queue settings"
+msgstr "Kuyruk ayarlarını kaydet"
+
+#: includes/pages/wordset-pages.php
+msgid "Saved!"
+msgstr "Kaydedildi!"
+
+#: templates/vocab-lesson-template.php
+msgid "Saving changes..."
+msgstr "Değişiklikler kaydediliyor..."
+
+#: includes/shortcodes/audio-recording-shortcode.php
+msgid "Say:"
+msgstr "Söyle:"
+
+#: includes/pages/wordset-pages.php
+msgid "Shows the recorder the audio processing review step for trimming, noise reduction, and loudness before the recording is saved."
+msgstr "Kayıt kaydedilmeden önce ses kaydediciye kırpma, gürültü azaltma ve ses yüksekliği için ses işleme inceleme adımını gösterir."
+
+#: includes/admin/admin-dashboard-menu.php
+msgid "Site Sync"
+msgstr "Site Sync"
+
+#: includes/pages/wordset-pages.php
+msgid "Skipped types"
+msgstr "Atlanan türler"
+
+#: includes/pages/wordset-editor.php templates/vocab-lesson-template.php
+msgid "Split Category"
+msgstr "Kategoriyi Böl"
+
+#: includes/pages/wordset-editor.php
+msgid "Split category"
+msgstr "Kategoriyi böl"
+
+#: includes/pages/wordset-pages.php
+msgid "Suggested phrasing for the recorder"
+msgstr "Ses kaydedici için önerilen ifade"
+
+#: includes/pages/wordset-pages.php
+msgid "That category is no longer in this recorder queue."
+msgstr "Bu kategori artık bu ses kaydedici kuyruğunda değil."
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "The dental diacritic should be attached to t or d in this IPA inventory."
+msgstr "Bu IPA envanterinde dental aksan t veya d harfine bağlı olmalıdır."
+
+#: includes/pages/wordset-pages.php
+msgid "These are hidden from the recorder queue unless the only-include list is set."
+msgstr "Yalnızca dahil edilecekler listesi ayarlanmadıkça bunlar ses kaydedici kuyruğundan gizlenir."
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "This IPA token contains a symbol outside the approved inventory."
+msgstr "Bu IPA belirteci onaylı envanterin dışında bir sembol içeriyor."
+
+#: includes/pages/wordset-editor.php
+#, php-format
+msgid "To category: %s"
+msgstr "Hedef kategori: %s"
+
+#: templates/vocab-lesson-template.php
+msgid "Tools"
+msgstr "Araçlar"
+
+#: includes/admin/export-import.php
+#, php-format
+msgid "Transcription review flags to set: %d"
+msgstr "Ayarlanacak transkripsiyon inceleme işaretleri: %d"
+
+#: includes/admin/export-import.php
+#, php-format
+msgid "Transcription reviews flagged: %d"
+msgstr "İşaretlenen transkripsiyon incelemeleri: %d"
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Transcriptions"
+msgstr "Transkripsiyonlar"
+
+#: templates/vocab-lesson-template.php
+msgid "Unable to save category settings right now."
+msgstr "Kategori ayarları şu anda kaydedilemiyor."
+
+#: includes/pages/wordset-pages.php
+msgid "Unable to save prompts for that queue item."
+msgstr "Bu kuyruk öğesi için istemler kaydedilemiyor."
+
+#: includes/admin/ipa-keyboard-admin.php
+msgid "Unapproved IPA symbol"
+msgstr "Onaylanmamış IPA sembolü"
+
+#: includes/post-types/content-lesson-post-type.php
+msgid "Use Corpus text for historical texts, text editions, translations, and linguist-facing interlinear payloads that are not primarily audio or video lessons."
+msgstr "Öncelikli olarak ses veya video dersi olmayan tarihsel metinler, metin edisyonları, çeviriler ve dilbilimciye yönelik satır arası yükler için Korpus metni kullan."
+
+#: includes/taxonomies/wordset-taxonomy.php
+msgid "Word set manager assignment could not be updated."
+msgstr "Kelime seti yöneticisi ataması güncellenemedi."
+
+#: includes/pages/wordset-editor.php
+msgid "You do not have permission to create categories for this word set."
+msgstr "Bu kelime seti için kategori oluşturma iznin yok."

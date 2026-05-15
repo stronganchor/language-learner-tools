@@ -16,3 +16,4 @@
 
 # Keep bash test runner scripts runnable under LF-only shells.
 /tests/bin/run-tests.sh text eol=lf
+/scripts/*.sh text eol=lf
