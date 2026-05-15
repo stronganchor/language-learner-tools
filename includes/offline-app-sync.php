@@ -280,6 +280,60 @@ if (!function_exists('ll_tools_offline_app_decode_json_payload')) {
     }
 }
 
+if (!function_exists('ll_tools_offline_app_sync_word_ids_limit')) {
+    function ll_tools_offline_app_sync_word_ids_limit(): int {
+        return max(0, (int) apply_filters('ll_tools_offline_app_sync_word_ids_limit', 5000));
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sanitize_word_ids')) {
+    function ll_tools_offline_app_sanitize_word_ids($raw): array {
+        $values = is_array($raw) ? $raw : ll_tools_offline_app_decode_json_payload($raw);
+        $clean = [];
+        foreach ((array) $values as $value) {
+            $id = (int) $value;
+            if ($id <= 0) {
+                continue;
+            }
+            $clean[$id] = $id;
+        }
+
+        $clean = array_values($clean);
+        $limit = ll_tools_offline_app_sync_word_ids_limit();
+        if ($limit <= 0) {
+            return [];
+        }
+
+        return array_slice($clean, 0, $limit);
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sanitize_state_id_array')) {
+    function ll_tools_offline_app_sanitize_state_id_array($values, string $array_key): array {
+        if (function_exists('ll_tools_user_study_sanitize_state_id_array')) {
+            return ll_tools_user_study_sanitize_state_id_array($values, $array_key);
+        }
+
+        $clean = [];
+        foreach ((array) $values as $value) {
+            $id = (int) $value;
+            if ($id <= 0) {
+                continue;
+            }
+            $clean[$id] = $id;
+        }
+
+        $clean = array_values($clean);
+        $default = ($array_key === 'starred_word_ids') ? 5000 : 1000;
+        $limit = max(0, (int) apply_filters("ll_tools_user_study_{$array_key}_limit", $default, $array_key));
+        if ($limit <= 0) {
+            return [];
+        }
+
+        return array_slice($clean, 0, $limit);
+    }
+}
+
 if (!function_exists('ll_tools_offline_app_sessions_for_user')) {
     function ll_tools_offline_app_sessions_for_user(int $user_id): array {
         if ($user_id <= 0) {
@@ -476,16 +530,15 @@ if (!function_exists('ll_tools_offline_app_normalize_state_payload')) {
             $ignored_lookup[(int) $ignored_id] = true;
         }
 
-        $category_ids = array_values(array_filter(array_map('intval', $category_ids), static function (int $id) use ($ignored_lookup): bool {
+        $category_ids = ll_tools_offline_app_sanitize_state_id_array($category_ids, 'category_ids');
+        $category_ids = array_values(array_filter($category_ids, static function (int $id) use ($ignored_lookup): bool {
             return $id > 0 && empty($ignored_lookup[$id]);
         }));
         if (function_exists('ll_tools_user_study_filter_quizzable_category_ids')) {
             $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, $wordset_id);
         }
 
-        $starred_ids = array_values(array_filter(array_map('intval', $starred_ids), static function (int $id): bool {
-            return $id > 0;
-        }));
+        $starred_ids = ll_tools_offline_app_sanitize_state_id_array($starred_ids, 'starred_word_ids');
 
         return [
             'wordset_id' => $wordset_id,
@@ -532,11 +585,7 @@ if (!function_exists('ll_tools_offline_app_parse_goals_request')) {
 if (!function_exists('ll_tools_offline_app_parse_word_ids')) {
     function ll_tools_offline_app_parse_word_ids(): array {
         $raw = $_POST['word_ids'] ?? [];
-        $word_ids = ll_tools_offline_app_decode_json_payload($raw);
-        $word_ids = array_values(array_unique(array_filter(array_map('intval', (array) $word_ids), static function (int $id): bool {
-            return $id > 0;
-        })));
-        return array_slice($word_ids, 0, 5000);
+        return ll_tools_offline_app_sanitize_word_ids($raw);
     }
 }
 
@@ -724,11 +773,9 @@ if (!function_exists('ll_tools_offline_app_sync_ajax')) {
 
         $requested_word_ids = ll_tools_offline_app_parse_word_ids();
         if (empty($requested_word_ids)) {
-            $requested_word_ids = array_values(array_unique(array_filter(array_map(static function ($event): int {
+            $requested_word_ids = ll_tools_offline_app_sanitize_word_ids(array_map(static function ($event): int {
                 return is_array($event) ? (int) ($event['word_id'] ?? 0) : 0;
-            }, $events), static function (int $word_id): bool {
-                return $word_id > 0;
-            })));
+            }, $events));
         }
 
         wp_send_json_success(ll_tools_offline_app_build_sync_response($user_id, $state, $stats, $requested_word_ids));

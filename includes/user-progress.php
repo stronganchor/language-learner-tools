@@ -871,6 +871,60 @@ function ll_tools_default_user_study_goals(): array {
     ];
 }
 
+function ll_tools_user_study_goal_array_limit(string $array_key): int {
+    $defaults = [
+        'ignored_category_ids' => 1000,
+        'preferred_wordset_ids' => 250,
+        'placement_known_category_ids' => 1000,
+    ];
+    $default = $defaults[$array_key] ?? 1000;
+    $limit = (int) apply_filters('ll_tools_user_study_goal_array_limit', $default, $array_key);
+
+    return max(0, (int) apply_filters("ll_tools_user_study_goal_{$array_key}_limit", $limit, $array_key));
+}
+
+function ll_tools_sanitize_user_study_goal_id_array($values, string $array_key): array {
+    $clean = [];
+    foreach ((array) $values as $value) {
+        $id = (int) $value;
+        if ($id <= 0) {
+            continue;
+        }
+        $clean[$id] = $id;
+    }
+
+    $clean = array_values($clean);
+    $limit = ll_tools_user_study_goal_array_limit($array_key);
+    if ($limit <= 0) {
+        return [];
+    }
+
+    return array_slice($clean, 0, $limit);
+}
+
+function ll_tools_user_progress_sync_word_ids_limit(): int {
+    return max(0, (int) apply_filters('ll_tools_user_progress_sync_word_ids_limit', 5000));
+}
+
+function ll_tools_sanitize_user_progress_sync_word_ids($values): array {
+    $clean = [];
+    foreach ((array) $values as $value) {
+        $id = (int) $value;
+        if ($id <= 0) {
+            continue;
+        }
+        $clean[$id] = $id;
+    }
+
+    $clean = array_values($clean);
+    $limit = ll_tools_user_progress_sync_word_ids_limit();
+    if ($limit <= 0) {
+        return [];
+    }
+
+    return array_slice($clean, 0, $limit);
+}
+
 function ll_tools_user_study_priority_focus_options(): array {
     return ['new', 'studied', 'learned', 'starred', 'hard'];
 }
@@ -890,29 +944,23 @@ function ll_tools_sanitize_user_study_goals(array $raw): array {
     }
 
     $ignored = isset($raw['ignored_category_ids']) ? (array) $raw['ignored_category_ids'] : [];
-    $ignored = array_values(array_unique(array_filter(array_map('intval', $ignored), function ($id) {
-        return $id > 0;
-    })));
+    $ignored = ll_tools_sanitize_user_study_goal_id_array($ignored, 'ignored_category_ids');
     if (!empty($ignored) && function_exists('ll_tools_wordset_isolation_expand_category_id_list_across_wordsets')) {
         $expanded_ignored = ll_tools_wordset_isolation_expand_category_id_list_across_wordsets($ignored);
         if (!empty($expanded_ignored)) {
-            $ignored = $expanded_ignored;
+            $ignored = ll_tools_sanitize_user_study_goal_id_array($expanded_ignored, 'ignored_category_ids');
         }
     }
 
     $preferred_wordsets = isset($raw['preferred_wordset_ids']) ? (array) $raw['preferred_wordset_ids'] : [];
-    $preferred_wordsets = array_values(array_unique(array_filter(array_map('intval', $preferred_wordsets), function ($id) {
-        return $id > 0;
-    })));
+    $preferred_wordsets = ll_tools_sanitize_user_study_goal_id_array($preferred_wordsets, 'preferred_wordset_ids');
 
     $placement = isset($raw['placement_known_category_ids']) ? (array) $raw['placement_known_category_ids'] : [];
-    $placement = array_values(array_unique(array_filter(array_map('intval', $placement), function ($id) {
-        return $id > 0;
-    })));
+    $placement = ll_tools_sanitize_user_study_goal_id_array($placement, 'placement_known_category_ids');
     if (!empty($placement) && function_exists('ll_tools_wordset_isolation_expand_category_id_list_across_wordsets')) {
         $expanded_placement = ll_tools_wordset_isolation_expand_category_id_list_across_wordsets($placement);
         if (!empty($expanded_placement)) {
-            $placement = $expanded_placement;
+            $placement = ll_tools_sanitize_user_study_goal_id_array($expanded_placement, 'placement_known_category_ids');
         }
     }
 
@@ -2225,9 +2273,7 @@ function ll_tools_build_user_progress_sync_snapshot(int $user_id, int $wordset_i
             'fast_transitions' => false,
         ];
 
-    $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function ($id): bool {
-        return $id > 0;
-    }));
+    $word_ids = ll_tools_sanitize_user_progress_sync_word_ids($word_ids);
 
     $rows = !empty($word_ids)
         ? ll_tools_get_user_word_progress_rows($user_id, $word_ids)

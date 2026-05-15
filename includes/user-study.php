@@ -15,6 +15,44 @@ if (!function_exists('ll_tools_normalize_star_mode')) {
     }
 }
 
+if (!function_exists('ll_tools_user_study_state_array_limit')) {
+    function ll_tools_user_study_state_array_limit(string $array_key): int {
+        $defaults = [
+            'category_ids' => 1000,
+            'starred_word_ids' => 5000,
+        ];
+        $default = $defaults[$array_key] ?? 1000;
+
+        /**
+         * Filter the maximum stored IDs for a user study state array.
+         *
+         * Supported keys are category_ids and starred_word_ids.
+         */
+        return max(0, (int) apply_filters("ll_tools_user_study_{$array_key}_limit", $default, $array_key));
+    }
+}
+
+if (!function_exists('ll_tools_user_study_sanitize_state_id_array')) {
+    function ll_tools_user_study_sanitize_state_id_array($values, string $array_key): array {
+        $clean = [];
+        foreach ((array) $values as $value) {
+            $id = (int) $value;
+            if ($id <= 0) {
+                continue;
+            }
+            $clean[$id] = $id;
+        }
+
+        $clean = array_values($clean);
+        $limit = ll_tools_user_study_state_array_limit($array_key);
+        if ($limit <= 0) {
+            return [];
+        }
+
+        return array_slice($clean, 0, $limit);
+    }
+}
+
 /**
  * Read the saved study state for a user.
  */
@@ -22,16 +60,16 @@ function ll_tools_get_user_study_state($user_id = 0): array {
     $uid = $user_id ?: get_current_user_id();
     $wordset_id = (int) get_user_meta($uid, LL_TOOLS_USER_WORDSET_META, true);
     $category_ids = (array) get_user_meta($uid, LL_TOOLS_USER_CATEGORY_META, true);
-    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
+    $category_ids = ll_tools_user_study_sanitize_state_id_array($category_ids, 'category_ids');
     if ($wordset_id > 0 && !empty($category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
         $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, true);
         if (!empty($repaired_category_ids) && $repaired_category_ids !== $category_ids) {
-            $category_ids = $repaired_category_ids;
+            $category_ids = ll_tools_user_study_sanitize_state_id_array($repaired_category_ids, 'category_ids');
             update_user_meta($uid, LL_TOOLS_USER_CATEGORY_META, $category_ids);
         }
     }
     $starred_word_ids = (array) get_user_meta($uid, LL_TOOLS_USER_STARRED_META, true);
-    $starred_word_ids = array_values(array_filter(array_map('intval', $starred_word_ids), function ($id) { return $id > 0; }));
+    $starred_word_ids = ll_tools_user_study_sanitize_state_id_array($starred_word_ids, 'starred_word_ids');
     if ($uid > 0 && metadata_exists('user', $uid, 'll_user_star_mode')) {
         // Star mode is no longer a remembered cross-session preference.
         delete_user_meta($uid, 'll_user_star_mode');
@@ -61,14 +99,14 @@ function ll_tools_save_user_study_state(array $state, $user_id = 0): array {
     $fast_raw     = isset($state['fast_transitions']) ? $state['fast_transitions'] : false;
     $fast_transitions = filter_var($fast_raw, FILTER_VALIDATE_BOOLEAN);
 
-    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
+    $category_ids = ll_tools_user_study_sanitize_state_id_array($category_ids, 'category_ids');
     if ($wordset_id > 0 && !empty($category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
         $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, true);
         if (!empty($repaired_category_ids)) {
-            $category_ids = $repaired_category_ids;
+            $category_ids = ll_tools_user_study_sanitize_state_id_array($repaired_category_ids, 'category_ids');
         }
     }
-    $starred_ids  = array_values(array_filter(array_map('intval', $starred_ids), function ($id) { return $id > 0; }));
+    $starred_ids  = ll_tools_user_study_sanitize_state_id_array($starred_ids, 'starred_word_ids');
 
     update_user_meta($uid, LL_TOOLS_USER_WORDSET_META, $wordset_id);
     update_user_meta($uid, LL_TOOLS_USER_CATEGORY_META, $category_ids);
@@ -199,12 +237,12 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
  * @return int[]
  */
 function ll_tools_user_study_filter_quizzable_category_ids(array $category_ids, $wordset_id): array {
-    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
+    $category_ids = ll_tools_user_study_sanitize_state_id_array($category_ids, 'category_ids');
     $wordset_id = (int) $wordset_id;
     if ($wordset_id > 0 && !empty($category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
         $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, true);
         if (!empty($repaired_category_ids)) {
-            $category_ids = $repaired_category_ids;
+            $category_ids = ll_tools_user_study_sanitize_state_id_array($repaired_category_ids, 'category_ids');
         }
     }
     if (empty($category_ids)) {
@@ -411,7 +449,8 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
     }
 
     $selected_category_ids = $requested_categories ? (array) $requested_categories : $state['category_ids'];
-    $selected_category_ids = array_values(array_filter(array_map('intval', $selected_category_ids), function ($id) use ($category_lookup, $ignored_category_lookup) {
+    $selected_category_ids = ll_tools_user_study_sanitize_state_id_array($selected_category_ids, 'category_ids');
+    $selected_category_ids = array_values(array_filter($selected_category_ids, function ($id) use ($category_lookup, $ignored_category_lookup) {
         return $id > 0 && isset($category_lookup[$id]) && empty($ignored_category_lookup[$id]);
     }));
     if (empty($selected_category_ids) && !empty($categories)) {
@@ -523,6 +562,9 @@ function ll_tools_user_study_save_ajax() {
     $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
     $starred_ids  = isset($_POST['starred_word_ids']) ? (array) $_POST['starred_word_ids'] : [];
     $fast_transitions = filter_var($_POST['fast_transitions'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+    $category_ids = ll_tools_user_study_sanitize_state_id_array($category_ids, 'category_ids');
+    $starred_ids = ll_tools_user_study_sanitize_state_id_array($starred_ids, 'starred_word_ids');
 
     if (function_exists('ll_tools_get_user_study_goals')) {
         $goals = ll_tools_get_user_study_goals(get_current_user_id());
