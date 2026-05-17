@@ -25377,3 +25377,34 @@ msgstr "Kelime seti yöneticisi ataması güncellenemedi."
 #: includes/pages/wordset-editor.php
 msgid "You do not have permission to create categories for this word set."
 msgstr "Bu kelime seti için kategori oluşturma iznin yok."
+
+#: includes/offline-app-sync.php
+msgid "Too many offline sync attempts from this connection. Please wait a few minutes and try again."
+msgstr "Bu bağlantıdan çok fazla çevrimdışı senkronizasyon denemesi yapıldı. Lütfen birkaç dakika bekleyip tekrar dene."
+
+#: includes/offline-app-sync.php
+msgid "Offline sync is temporarily limited for this device because it requested too much data. Please wait a few minutes and try again."
+msgstr "Bu cihaz çok fazla veri istediği için çevrimdışı senkronizasyon geçici olarak sınırlandırıldı. Lütfen birkaç dakika bekleyip tekrar dene."
+
+#: includes/offline-app-sync.php
+msgid "Too many offline sync requests from this device. Please wait a few minutes and try again."
+msgstr "Bu cihazdan çok fazla çevrimdışı senkronizasyon isteği geldi. Lütfen birkaç dakika bekleyip tekrar dene."
+
+#: includes/pages/wordset-editor.php
+#, php-format
+msgid "%d published recording"
+msgid_plural "%d published recordings"
+msgstr[0] "%d yayınlanmış ses kaydı"
+msgstr[1] "%d yayınlanmış ses kaydı"
+
+#: includes/pages/wordset-pages.php
+#, php-format
+msgid "That paste is too large for the frontend importer. Keep each import under %s, split the list into smaller batches, and try again."
+msgstr "Bu yapıştırılan içerik, ön uç içe aktarıcı için çok büyük. Her içe aktarmayı %s altında tut, listeyi daha küçük parçalara böl ve tekrar dene."
+
+#: includes/pages/wordset-pages.php
+#, php-format
+msgid "That paste has too many valid rows for the frontend importer. Keep each import to %d row or fewer, split the list into smaller batches, and try again."
+msgid_plural "That paste has too many valid rows for the frontend importer. Keep each import to %d rows or fewer, split the list into smaller batches, and try again."
+msgstr[0] "Bu yapıştırılan içerikte ön uç içe aktarıcı için çok fazla geçerli satır var. Her içe aktarmayı %d satır veya altında tut, listeyi daha küçük parçalara böl ve tekrar dene."
+msgstr[1] "Bu yapıştırılan içerikte ön uç içe aktarıcı için çok fazla geçerli satır var. Her içe aktarmayı %d satır veya altında tut, listeyi daha küçük parçalara böl ve tekrar dene."
