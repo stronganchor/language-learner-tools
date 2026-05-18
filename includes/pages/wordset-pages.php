@@ -2488,6 +2488,265 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
     ], $cache_ttl, $request_cache);
 }
 
+function ll_tools_wordset_page_collect_gender_supported_lookup(int $wordset_id, array $category_configs, array $gender_options, int $min_word_count): array {
+    global $wpdb;
+
+    static $request_cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    $min_word_count = max(1, (int) $min_word_count);
+    if ($wordset_id <= 0 || empty($category_configs) || !($wpdb instanceof wpdb)) {
+        return [];
+    }
+
+    $wordset_terms = [$wordset_id];
+    if (function_exists('ll_tools_filter_viewable_wordset_ids')) {
+        $wordset_terms = ll_tools_filter_viewable_wordset_ids($wordset_terms, (int) get_current_user_id());
+    }
+    $wordset_terms = array_values(array_filter(array_unique(array_map('intval', (array) $wordset_terms)), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if (empty($wordset_terms)) {
+        return [];
+    }
+
+    $gender_lookup = [];
+    foreach ((array) $gender_options as $option) {
+        $normalized = strtolower(trim((string) $option));
+        if (function_exists('ll_tools_wordset_strip_variation_selectors')) {
+            $normalized = ll_tools_wordset_strip_variation_selectors($normalized);
+        }
+        if ($normalized !== '') {
+            $gender_lookup[$normalized] = true;
+        }
+    }
+    if (empty($gender_lookup)) {
+        return [];
+    }
+
+    $requirements_by_category = [];
+    foreach ($category_configs as $category_id => $entry) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0 || !is_array($entry)) {
+            continue;
+        }
+
+        $term = isset($entry['term']) ? $entry['term'] : null;
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            continue;
+        }
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($term)) {
+            continue;
+        }
+
+        $quiz_config = (isset($entry['quiz_config']) && is_array($entry['quiz_config'])) ? $entry['quiz_config'] : [];
+        $prompt_type = isset($quiz_config['prompt_type']) ? (string) $quiz_config['prompt_type'] : 'audio';
+        $option_type = isset($quiz_config['option_type']) ? (string) $quiz_config['option_type'] : 'image';
+        $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+            ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
+        $requires_image = function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : (($prompt_type === 'image') || ($option_type === 'image'));
+
+        $requirements_by_category[$category_id] = [
+            'prompt_type' => $prompt_type,
+            'option_type' => $option_type,
+            'requires_audio' => $requires_audio ? 1 : 0,
+            'requires_image' => $requires_image ? 1 : 0,
+        ];
+    }
+    if (empty($requirements_by_category)) {
+        return [];
+    }
+
+    ksort($requirements_by_category, SORT_NUMERIC);
+    $category_ids = array_values(array_map('intval', array_keys($requirements_by_category)));
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+    $cache_key = ll_tools_wordset_page_build_cache_key('gender_supported', [
+        'wordset_terms' => $wordset_terms,
+        'requirements' => $requirements_by_category,
+        'gender_options' => array_keys($gender_lookup),
+        'min_word_count' => $min_word_count,
+        'category_epoch' => $category_epoch,
+        'wordset_epoch' => $wordset_epoch,
+        'schema' => 1,
+    ]);
+    $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
+    if (is_array($cached)) {
+        $normalized_cached = [];
+        foreach ($cached as $category_id => $supported) {
+            $category_id = (int) $category_id;
+            if ($category_id > 0) {
+                $normalized_cached[$category_id] = !empty($supported);
+            }
+        }
+        return $normalized_cached;
+    }
+
+    $supported_lookup = array_fill_keys($category_ids, false);
+    $wordset_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($wordset_terms));
+    $category_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($category_ids));
+    if ($wordset_placeholders === '' || $category_placeholders === '') {
+        return $supported_lookup;
+    }
+
+    $sql = "
+        SELECT DISTINCT
+            posts.ID AS word_id,
+            category_taxonomy.term_id AS category_id,
+            gender_meta.meta_value AS gender_value
+        FROM {$wpdb->posts} AS posts
+        INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationships.term_taxonomy_id
+            AND wordset_taxonomy.taxonomy = 'wordset'
+        INNER JOIN {$wpdb->term_relationships} AS category_relationships
+            ON category_relationships.object_id = posts.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+            AND category_taxonomy.taxonomy = 'word-category'
+        INNER JOIN {$wpdb->term_relationships} AS pos_relationships
+            ON pos_relationships.object_id = posts.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS pos_taxonomy
+            ON pos_taxonomy.term_taxonomy_id = pos_relationships.term_taxonomy_id
+            AND pos_taxonomy.taxonomy = 'part_of_speech'
+        INNER JOIN {$wpdb->terms} AS pos_terms
+            ON pos_terms.term_id = pos_taxonomy.term_id
+            AND pos_terms.slug = 'noun'
+        LEFT JOIN {$wpdb->postmeta} AS gender_meta
+            ON gender_meta.post_id = posts.ID
+            AND gender_meta.meta_key = 'll_grammatical_gender'
+        WHERE posts.post_type = 'words'
+            AND posts.post_status = 'publish'
+            AND wordset_taxonomy.term_id IN ({$wordset_placeholders})
+            AND category_taxonomy.term_id IN ({$category_placeholders})
+    ";
+
+    $prepared = $wpdb->prepare($sql, array_merge($wordset_terms, $category_ids));
+    if (!is_string($prepared) || $prepared === '') {
+        return $supported_lookup;
+    }
+
+    $rows = $wpdb->get_results($prepared, ARRAY_A);
+    if (!is_array($rows) || empty($rows)) {
+        $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_gender_supported_cache_ttl', HOUR_IN_SECONDS);
+        return ll_tools_wordset_page_store_cached_payload($cache_key, $supported_lookup, $cache_ttl, $request_cache);
+    }
+
+    $candidate_rows = [];
+    $candidate_word_ids = [];
+    $needs_audio = false;
+    $needs_image = false;
+    foreach ((array) $rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+        $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+        if ($word_id <= 0 || $category_id <= 0 || !isset($requirements_by_category[$category_id])) {
+            continue;
+        }
+
+        $gender_raw = (string) ($row['gender_value'] ?? '');
+        $gender_label = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
+            ? ll_tools_wordset_normalize_gender_value_for_options($gender_raw, $gender_options)
+            : trim($gender_raw);
+        $gender_key = strtolower(trim((string) $gender_label));
+        if ($gender_key === '' || !isset($gender_lookup[$gender_key])) {
+            continue;
+        }
+
+        $requirements = $requirements_by_category[$category_id];
+        $needs_audio = $needs_audio || !empty($requirements['requires_audio']);
+        $needs_image = $needs_image || !empty($requirements['requires_image']);
+        $candidate_rows[] = [
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+        ];
+        $candidate_word_ids[$word_id] = true;
+    }
+
+    if (empty($candidate_rows)) {
+        $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_gender_supported_cache_ttl', HOUR_IN_SECONDS);
+        return ll_tools_wordset_page_store_cached_payload($cache_key, $supported_lookup, $cache_ttl, $request_cache);
+    }
+
+    $candidate_word_ids = array_values(array_map('intval', array_keys($candidate_word_ids)));
+    if (!empty($candidate_word_ids)) {
+        update_meta_cache('post', $candidate_word_ids);
+    }
+
+    $has_audio_by_word = ($needs_audio && function_exists('ll_tools_get_word_audio_presence_map'))
+        ? ll_tools_get_word_audio_presence_map($candidate_word_ids)
+        : [];
+    $has_image_by_word = [];
+    if ($needs_image) {
+        $linked_image_ids = [];
+        foreach ($candidate_word_ids as $word_id) {
+            $linked_image_id = (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+            if ($linked_image_id > 0) {
+                $linked_image_ids[] = $linked_image_id;
+            }
+        }
+        $linked_image_ids = array_values(array_unique(array_filter(array_map('intval', $linked_image_ids), static function (int $id): bool {
+            return $id > 0;
+        })));
+        if (!empty($linked_image_ids)) {
+            if (function_exists('_prime_post_caches')) {
+                _prime_post_caches($linked_image_ids, true, true);
+            } else {
+                update_meta_cache('post', $linked_image_ids);
+            }
+        }
+
+        foreach ($candidate_word_ids as $word_id) {
+            $has_image_by_word[$word_id] = function_exists('ll_tools_word_has_effective_image')
+                ? ll_tools_word_has_effective_image($word_id, true)
+                : ((int) get_post_thumbnail_id($word_id) > 0);
+        }
+    }
+
+    $eligible_word_lookup_by_category = [];
+    foreach ($candidate_rows as $row) {
+        $word_id = (int) ($row['word_id'] ?? 0);
+        $category_id = (int) ($row['category_id'] ?? 0);
+        if ($word_id <= 0 || $category_id <= 0 || !isset($requirements_by_category[$category_id])) {
+            continue;
+        }
+
+        $requirements = $requirements_by_category[$category_id];
+        if (!empty($requirements['requires_audio']) && empty($has_audio_by_word[$word_id])) {
+            continue;
+        }
+        if (!empty($requirements['requires_image']) && empty($has_image_by_word[$word_id])) {
+            continue;
+        }
+
+        if (!isset($eligible_word_lookup_by_category[$category_id])) {
+            $eligible_word_lookup_by_category[$category_id] = [];
+        }
+        $eligible_word_lookup_by_category[$category_id][$word_id] = true;
+    }
+
+    foreach ($eligible_word_lookup_by_category as $category_id => $word_lookup) {
+        $category_id = (int) $category_id;
+        if ($category_id > 0 && count((array) $word_lookup) >= $min_word_count) {
+            $supported_lookup[$category_id] = true;
+        }
+    }
+
+    $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_gender_supported_cache_ttl', HOUR_IN_SECONDS);
+    return ll_tools_wordset_page_store_cached_payload($cache_key, $supported_lookup, $cache_ttl, $request_cache);
+}
+
 function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limit = 2, array $args = []): array {
     static $guest_request_cache = [];
 
@@ -2582,6 +2841,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         ? ll_tools_wordset_get_gender_options($wordset_id)
         : [];
     $gender_min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $gender_support_inputs = [];
 
     $items = [];
     foreach ($rows as $row) {
@@ -2618,14 +2878,11 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             $aspect_bucket = 'no-image';
         }
         $gender_supported = false;
-        if ($gender_enabled_for_wordset && function_exists('ll_tools_count_gender_eligible_words_for_category')) {
-            $gender_word_count = ll_tools_count_gender_eligible_words_for_category(
-                $category,
-                [$wordset_id],
-                array_merge($quiz_config, ['__skip_quiz_config_merge' => true]),
-                $gender_options_for_wordset
-            );
-            $gender_supported = $gender_word_count >= $gender_min_word_count;
+        if ($gender_enabled_for_wordset) {
+            $gender_support_inputs[(int) $category->term_id] = [
+                'term' => $category,
+                'quiz_config' => $quiz_config,
+            ];
         }
 
         $requires_images = true;
@@ -2694,6 +2951,22 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         }
 
         $items[] = $item;
+    }
+
+    if ($gender_enabled_for_wordset && !empty($gender_support_inputs)) {
+        $gender_supported_lookup = ll_tools_wordset_page_collect_gender_supported_lookup(
+            $wordset_id,
+            $gender_support_inputs,
+            $gender_options_for_wordset,
+            $gender_min_word_count
+        );
+        foreach ($items as &$item) {
+            $category_id = isset($item['id']) ? (int) $item['id'] : 0;
+            if ($category_id > 0 && array_key_exists($category_id, $gender_supported_lookup)) {
+                $item['gender_supported'] = !empty($gender_supported_lookup[$category_id]);
+            }
+        }
+        unset($item);
     }
 
     $items = apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);
