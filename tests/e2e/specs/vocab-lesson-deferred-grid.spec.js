@@ -46,7 +46,7 @@ function buildDeferredLessonMarkup() {
             Loading lesson words...
           </div>
           <div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="99">
-            <article class="word-item ll-vocab-lesson-skeleton-card" data-ll-shell-word-id="11">
+            <article class="word-item ll-vocab-lesson-skeleton-card ll-vocab-lesson-skeleton-card--audio-ready" data-ll-shell-word-id="11">
               <div class="ll-vocab-lesson-skeleton-media ll-vocab-lesson-skeleton-media--preview">
                 <img class="ll-vocab-lesson-shell-preview-image" src="${shellPreviewImage}" alt="" aria-hidden="true" loading="eager" decoding="async" fetchpriority="low" width="150" height="150">
               </div>
@@ -55,7 +55,7 @@ function buildDeferredLessonMarkup() {
                 <span class="ll-vocab-lesson-shell-translation-text" dir="auto">Hello</span>
               </div>
               <div class="ll-vocab-lesson-skeleton-recordings">
-                <button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--question ll-vocab-lesson-shell-recording-btn" data-recording-type="question" disabled tabindex="-1" aria-hidden="true">
+                <button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--question ll-vocab-lesson-shell-recording-btn" data-recording-type="question" data-audio-url="/wp-content/uploads/merhaba-question.mp3" aria-label="Play question recording" title="Play question recording">
                   <span class="ll-study-recording-icon" aria-hidden="true"></span>
                   <span class="ll-study-recording-visualizer" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span>
                 </button>
@@ -78,7 +78,8 @@ test('deferred vocab lesson shell exposes useful content before hydration', asyn
   await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-word-text')).toHaveText('Merhaba');
   await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-translation-text')).toHaveText('Hello');
   await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-preview-image')).toHaveAttribute('fetchpriority', 'low');
-  await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-recording-btn')).toBeDisabled();
+  await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-recording-btn')).toBeEnabled();
+  await expect(page.locator('[data-ll-shell-word-id="11"] .ll-vocab-lesson-shell-recording-btn')).toHaveAttribute('data-audio-url', /merhaba-question\.mp3$/);
 
   const shellMetrics = await page.locator('[data-ll-shell-word-id="11"]').evaluate((card) => {
     const media = card.querySelector('.ll-vocab-lesson-skeleton-media');
@@ -89,14 +90,16 @@ test('deferred vocab lesson shell exposes useful content before hydration', asyn
       mediaHeight: media.getBoundingClientRect().height,
       titleHeight: title.getBoundingClientRect().height,
       buttonTabIndex: button.getAttribute('tabindex'),
+      buttonDisabled: button.disabled,
       cardPointerEvents: window.getComputedStyle(card).pointerEvents
     };
   });
 
   expect(shellMetrics.mediaHeight).toBeGreaterThan(40);
   expect(shellMetrics.titleHeight).toBeGreaterThan(20);
-  expect(shellMetrics.buttonTabIndex).toBe('-1');
-  expect(shellMetrics.cardPointerEvents).toBe('none');
+  expect(shellMetrics.buttonTabIndex).toBeNull();
+  expect(shellMetrics.buttonDisabled).toBe(false);
+  expect(shellMetrics.cardPointerEvents).toBe('auto');
 });
 
 test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) => {

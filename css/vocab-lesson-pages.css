@@ -2679,6 +2679,16 @@ body.ll-vocab-lesson-category-settings-open {
     text-align: center;
 }
 
+.ll-vocab-lesson-skeleton-card--audio-ready {
+    pointer-events: auto;
+}
+
+.ll-vocab-lesson-skeleton-card--audio-ready .ll-vocab-lesson-skeleton-media,
+.ll-vocab-lesson-skeleton-card--audio-ready .ll-vocab-lesson-shell-title,
+.ll-vocab-lesson-skeleton-card--audio-ready .ll-vocab-lesson-skeleton-title {
+    pointer-events: none;
+}
+
 .ll-vocab-lesson-skeleton-media,
 .ll-vocab-lesson-skeleton-title,
 .ll-vocab-lesson-skeleton-line,
@@ -2787,8 +2797,12 @@ body.ll-vocab-lesson-category-settings-open {
 .word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn {
     position: relative;
     overflow: hidden;
-    cursor: wait !important;
+    cursor: pointer !important;
     opacity: 0.86;
+}
+
+.word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn:disabled {
+    cursor: wait !important;
 }
 
 .word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn::after {
@@ -2799,6 +2813,11 @@ body.ll-vocab-lesson-category-settings-open {
     background-size: 220% 100%;
     animation: ll-vocab-lesson-skeleton-shimmer 1.15s linear infinite;
     pointer-events: none;
+}
+
+.word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn:not(:disabled)::after {
+    content: none;
+    animation: none;
 }
 
 .ll-vocab-lesson-skeleton-card--prompt-card {

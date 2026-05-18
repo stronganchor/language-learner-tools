@@ -717,7 +717,10 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-vocab-lesson-shell-preview-image', $html);
         $this->assertStringContainsString('ll-vocab-lesson-shell-recording-btn', $html);
         $this->assertStringContainsString('ll-study-recording-btn--question', $html);
-        $this->assertStringContainsString('disabled', $html);
+        $this->assertMatchesRegularExpression(
+            '/<button(?=[^>]*ll-vocab-lesson-shell-recording-btn)(?=[^>]*data-audio-url="[^"]*shell-early-word-question\.mp3")(?![^>]*disabled)[^>]*>/s',
+            $html
+        );
     }
 
     public function test_lesson_template_renders_warm_public_grid_cache_without_shell(): void
@@ -1068,6 +1071,106 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $decoded = json_decode($output, true);
         $this->assertIsArray($decoded, 'Expected JSON response payload.');
         return $decoded;
+    }
+
+    public function test_shell_spec_uses_final_lesson_title_sort_for_preview_cards(): void
+    {
+        $wordset = wp_insert_term('Shell Sort Wordset', 'wordset', ['slug' => 'shell-sort-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Shell Sort Category', 'word-category', ['slug' => 'shell-sort-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        foreach (['Lesson 10', 'Lesson 2', 'Lesson 9'] as $title) {
+            $word_id = $this->createWordWithThumbnail($title, $category_id, $wordset_id, sanitize_title($title) . '.png');
+            $this->createAudioRecording($word_id, 'isolation', sanitize_title($title) . '.mp3');
+        }
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Shell Sort Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $context = ll_tools_word_grid_resolve_context([
+            'category' => 'shell-sort-category',
+            'wordset' => 'shell-sort-wordset',
+            'deepest_only' => true,
+            'lesson_id' => $lesson_id,
+        ]);
+        $spec = ll_tools_word_grid_get_shell_spec($context);
+        $cards = isset($spec['cards']) && is_array($spec['cards']) ? array_values($spec['cards']) : [];
+        $titles = array_map(static function (array $card): string {
+            return (string) ($card['word_text'] ?? '');
+        }, array_slice($cards, 0, 3));
+
+        $this->assertSame(['Lesson 2', 'Lesson 9', 'Lesson 10'], $titles);
+    }
+
+    public function test_shell_spec_represents_every_ordered_visible_word_with_later_loading_sheen_and_audio(): void
+    {
+        $wordset = wp_insert_term('Shell Full Count Wordset', 'wordset', ['slug' => 'shell-full-count-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Shell Full Count Category', 'word-category', ['slug' => 'shell-full-count-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+        $this->createRecordingType('question', 'Question');
+
+        $word_ids = [];
+        for ($index = 1; $index <= 8; $index++) {
+            $word_id = $this->createWordWithThumbnail(
+                'Shell Ordered Word ' . $index,
+                $category_id,
+                $wordset_id,
+                'shell-ordered-word-' . $index . '.png'
+            );
+            $this->createAudioRecording($word_id, 'question', 'shell-ordered-word-' . $index . '-question.mp3');
+            $word_ids[] = $word_id;
+        }
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Shell Full Count Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $manual_order = array_reverse($word_ids);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META, $manual_order);
+
+        $context = ll_tools_word_grid_resolve_context([
+            'category' => 'shell-full-count-category',
+            'wordset' => 'shell-full-count-wordset',
+            'deepest_only' => true,
+            'lesson_id' => $lesson_id,
+        ]);
+        $spec = ll_tools_word_grid_get_shell_spec($context);
+        $cards = isset($spec['cards']) && is_array($spec['cards']) ? array_values($spec['cards']) : [];
+
+        $this->assertCount(8, $cards);
+        $this->assertSame($manual_order, array_map(static function (array $card): int {
+            return (int) ($card['word_id'] ?? 0);
+        }, $cards));
+        $this->assertNotSame('', (string) ($cards[0]['image_preview_url'] ?? ''));
+        $this->assertSame('', (string) ($cards[6]['image_preview_url'] ?? ''));
+        $this->assertSame(['question'], array_values((array) ($cards[6]['recording_types'] ?? [])));
+        $recordings = isset($cards[6]['recordings']) && is_array($cards[6]['recordings']) ? array_values($cards[6]['recordings']) : [];
+        $this->assertNotEmpty($recordings);
+        $this->assertStringContainsString('shell-ordered-word-2-question.mp3', (string) ($recordings[0]['url'] ?? ''));
     }
 
     public function test_shell_spec_defaults_skeleton_media_to_square_when_no_aspect_ratio_is_known(): void

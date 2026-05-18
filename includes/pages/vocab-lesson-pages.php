@@ -3677,14 +3677,19 @@ function ll_tools_vocab_lesson_grid_public_cache_key(int $lesson_id, int $wordse
     $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
+    $manual_order_hash = '';
+    if ($lesson_id > 0 && function_exists('ll_tools_get_vocab_lesson_manual_word_order')) {
+        $manual_order_hash = md5((string) wp_json_encode(ll_tools_get_vocab_lesson_manual_word_order($lesson_id)));
+    }
 
     $payload = [
-        'schema' => 1,
+        'schema' => 2,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
         'lesson_id' => max(0, $lesson_id),
         'wordset_id' => max(0, $wordset_id),
         'category_id' => max(0, $category_id),
+        'manual_order_hash' => $manual_order_hash,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
     ];

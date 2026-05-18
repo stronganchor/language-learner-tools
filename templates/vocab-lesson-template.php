@@ -330,6 +330,9 @@ if (have_posts()) {
                 'wordset' => $wordset_slug,
                 'deepest_only' => true,
             ]);
+            if ($lesson_uses_prompt_cards) {
+                $grid_context['skip_shell_cards'] = true;
+            }
             ll_tools_word_grid_enqueue_frontend_assets_for_context($grid_context);
         }
         $lesson_page_script_deps = ['jquery'];
@@ -1321,10 +1324,30 @@ if (have_posts()) {
                             if (!$is_prompt_card_shell && isset($shell_card['recording_types']) && is_array($shell_card['recording_types'])) {
                                 $shell_recording_types = array_values(array_filter(array_map('sanitize_key', $shell_card['recording_types'])));
                             }
+                            $shell_recordings = [];
+                            if (!$is_prompt_card_shell && isset($shell_card['recordings']) && is_array($shell_card['recordings'])) {
+                                foreach ($shell_card['recordings'] as $shell_recording) {
+                                    if (!is_array($shell_recording)) {
+                                        continue;
+                                    }
+                                    $shell_recording_type = sanitize_key((string) ($shell_recording['type'] ?? ''));
+                                    $shell_recording_url = trim((string) ($shell_recording['url'] ?? ''));
+                                    if ($shell_recording_type === '' || $shell_recording_url === '') {
+                                        continue;
+                                    }
+                                    $shell_recordings[] = [
+                                        'type' => $shell_recording_type,
+                                        'url' => $shell_recording_url,
+                                        'id' => (int) ($shell_recording['id'] ?? 0),
+                                        'label' => trim((string) ($shell_recording['label'] ?? '')),
+                                        'play_label' => trim((string) ($shell_recording['play_label'] ?? '')),
+                                    ];
+                                }
+                            }
                             $card_attributes = [
-                                'class' => 'word-item ll-vocab-lesson-skeleton-card' . ($is_prompt_card_shell ? ' ll-vocab-lesson-skeleton-card--prompt-card' : ''),
+                                'class' => 'word-item ll-vocab-lesson-skeleton-card' . ($is_prompt_card_shell ? ' ll-vocab-lesson-skeleton-card--prompt-card' : '') . (!empty($shell_recordings) ? ' ll-vocab-lesson-skeleton-card--audio-ready' : ''),
                             ];
-                            if (!$shell_has_visible_text && !$shell_has_preview) {
+                            if (!$shell_has_visible_text && !$shell_has_preview && empty($shell_recordings)) {
                                 $card_attributes['aria-hidden'] = 'true';
                             }
                             $shell_word_id = (int) ($shell_card['word_id'] ?? 0);
@@ -1406,7 +1429,45 @@ if (have_posts()) {
                                 <?php endif; ?>
                                 <?php if (!$is_prompt_card_shell && $recording_count > 0) : ?>
                                     <div class="ll-vocab-lesson-skeleton-recordings">
-                                        <?php if (!empty($shell_recording_types)) : ?>
+                                        <?php if (!empty($shell_recordings)) : ?>
+                                            <?php foreach ($shell_recordings as $shell_recording) : ?>
+                                                <?php
+                                                $shell_recording_type = sanitize_key((string) ($shell_recording['type'] ?? ''));
+                                                $shell_recording_class = sanitize_html_class($shell_recording_type);
+                                                $shell_recording_label = trim((string) ($shell_recording['label'] ?? ''));
+                                                if ($shell_recording_label === '') {
+                                                    $shell_recording_label = ucwords(str_replace(['-', '_'], ' ', $shell_recording_type));
+                                                }
+                                                $shell_recording_play_label = trim((string) ($shell_recording['play_label'] ?? ''));
+                                                if ($shell_recording_play_label === '') {
+                                                    $shell_recording_play_label = sprintf(
+                                                        /* translators: %s is the recording type label. */
+                                                        __('Play %s recording', 'll-tools-text-domain'),
+                                                        $shell_recording_label
+                                                    );
+                                                }
+                                                $shell_recording_id = (int) ($shell_recording['id'] ?? 0);
+                                                ?>
+                                                <button
+                                                    type="button"
+                                                    class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--<?php echo esc_attr($shell_recording_class); ?> ll-vocab-lesson-shell-recording-btn"
+                                                    data-audio-url="<?php echo esc_url((string) ($shell_recording['url'] ?? '')); ?>"
+                                                    data-recording-type="<?php echo esc_attr($shell_recording_type); ?>"
+                                                    <?php if ($shell_recording_id > 0) : ?>
+                                                        data-recording-id="<?php echo esc_attr((string) $shell_recording_id); ?>"
+                                                    <?php endif; ?>
+                                                    aria-label="<?php echo esc_attr($shell_recording_play_label); ?>"
+                                                    title="<?php echo esc_attr($shell_recording_play_label); ?>">
+                                                    <span class="ll-study-recording-icon" aria-hidden="true"></span>
+                                                    <span class="ll-study-recording-visualizer" aria-hidden="true">
+                                                        <span class="bar"></span>
+                                                        <span class="bar"></span>
+                                                        <span class="bar"></span>
+                                                        <span class="bar"></span>
+                                                    </span>
+                                                </button>
+                                            <?php endforeach; ?>
+                                        <?php elseif (!empty($shell_recording_types)) : ?>
                                             <?php foreach ($shell_recording_types as $shell_recording_type) : ?>
                                                 <?php $shell_recording_class = sanitize_html_class($shell_recording_type); ?>
                                                 <button

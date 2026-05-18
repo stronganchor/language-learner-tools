@@ -4072,6 +4072,53 @@ function ll_tools_word_grid_get_visible_recording_types(array $audio_files, arra
     return array_values(array_unique($types));
 }
 
+function ll_tools_word_grid_get_visible_recording_shell_entries(array $audio_files, array $main_recording_types, array $recording_type_order): array {
+    if (empty($audio_files)) {
+        return [];
+    }
+
+    $preferred_speaker = ll_tools_word_grid_get_preferred_speaker($audio_files, $main_recording_types);
+    $entries = [];
+    $used_types = [];
+
+    $append_entry = static function (string $type) use (&$entries, &$used_types, $audio_files, $preferred_speaker): void {
+        $type = sanitize_key($type);
+        if ($type === '' || isset($used_types[$type])) {
+            return;
+        }
+
+        $entry = ll_tools_word_grid_select_audio_entry($audio_files, $type, $preferred_speaker);
+        $audio_url = isset($entry['url']) ? trim((string) $entry['url']) : '';
+        if ($audio_url === '') {
+            return;
+        }
+
+        $entries[] = [
+            'type' => $type,
+            'url' => $audio_url,
+            'id' => isset($entry['id']) ? (int) $entry['id'] : 0,
+        ];
+        $used_types[$type] = true;
+    };
+
+    foreach ($recording_type_order as $type) {
+        $append_entry((string) $type);
+    }
+
+    if (!empty($entries)) {
+        return $entries;
+    }
+
+    foreach ($audio_files as $audio_file_entry) {
+        $fallback_type = isset($audio_file_entry['recording_type'])
+            ? sanitize_text_field((string) $audio_file_entry['recording_type'])
+            : '';
+        $append_entry($fallback_type);
+    }
+
+    return $entries;
+}
+
 function ll_tools_word_grid_count_visible_recording_buttons(array $audio_files, array $main_recording_types, array $recording_type_order): int {
     return count(ll_tools_word_grid_get_visible_recording_types($audio_files, $main_recording_types, $recording_type_order));
 }
@@ -4142,30 +4189,209 @@ function ll_tools_word_grid_get_default_shell_cards(array $context, int $limit =
     return $cards;
 }
 
-function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): array {
+function ll_tools_word_grid_get_shell_ordered_word_ids(array $context): array {
     static $request_cache = [];
 
-    $limit = max(1, (int) $limit);
     $category_term = $context['category_term'] ?? null;
     $category_id = ($category_term instanceof WP_Term && !is_wp_error($category_term))
         ? (int) $category_term->term_id
         : 0;
     $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
+    $lesson_id = isset($context['lesson_id']) ? (int) $context['lesson_id'] : 0;
     $deepest_only = !empty($context['deepest_only']);
     $is_text_based = !empty($context['is_text_based']);
+    $requires_audio = !empty($context['category_quiz_requires_audio']) && ll_tools_word_grid_is_lesson_context($context);
 
-    $cache_key = $category_id . ':' . $wordset_id . ':' . ($deepest_only ? '1' : '0') . ':' . ($is_text_based ? '1' : '0') . ':' . $limit;
+    $cache_key = md5((string) wp_json_encode([
+        'category_id' => $category_id,
+        'wordset_id' => $wordset_id,
+        'lesson_id' => $lesson_id,
+        'deepest_only' => $deepest_only,
+        'is_text_based' => $is_text_based,
+        'requires_audio' => $requires_audio,
+        'hide_lesson_grid_text' => !empty($context['hide_lesson_grid_text']),
+    ]));
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    if ($category_id <= 0 || $wordset_id <= 0 || !($category_term instanceof WP_Term) || is_wp_error($category_term)) {
+        $request_cache[$cache_key] = [];
+        return [];
+    }
+
+    $posts = get_posts([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'no_found_rows' => true,
+        'orderby' => 'date',
+        'order' => 'ASC',
+        'suppress_filters' => true,
+        'tax_query' => [
+            'relation' => 'AND',
+            [
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+            ],
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+            ],
+        ],
+    ]);
+    $posts = array_values(array_filter((array) $posts, static function ($post_obj): bool {
+        return $post_obj instanceof WP_Post && !empty($post_obj->ID);
+    }));
+
+    if (empty($posts)) {
+        $request_cache[$cache_key] = [];
+        return [];
+    }
+
+    if ($deepest_only) {
+        $posts = ll_tools_word_grid_filter_posts_to_deepest_category($posts, $category_id);
+    }
+
+    if (!empty($posts) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+        $visible_word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, $posts));
+        $visible_lookup = array_fill_keys($visible_word_ids, true);
+        if (count($visible_lookup) !== count($posts)) {
+            $posts = array_values(array_filter($posts, static function ($post_obj) use ($visible_lookup): bool {
+                $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                return $post_id > 0 && isset($visible_lookup[$post_id]);
+            }));
+        }
+    }
+
+    if (!$is_text_based && !empty($posts) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
+        $image_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, $posts), static function (int $post_id): bool {
+            return $post_id > 0;
+        }));
+        $visible_word_ids = ll_tools_filter_word_ids_with_effective_images($image_word_ids, true);
+        $visible_lookup = array_fill_keys($visible_word_ids, true);
+        if (count($visible_lookup) !== count($posts)) {
+            $posts = array_values(array_filter($posts, static function ($post_obj) use ($visible_lookup): bool {
+                $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                return $post_id > 0 && isset($visible_lookup[$post_id]);
+            }));
+        }
+    }
+
+    if ($requires_audio && !empty($posts)) {
+        $audio_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, $posts), static function (int $post_id): bool {
+            return $post_id > 0;
+        }));
+        $audio_by_word = ll_tools_word_grid_collect_audio_files($audio_word_ids, false);
+        if (count($audio_by_word) !== count($audio_word_ids)) {
+            $posts = array_values(array_filter($posts, static function ($post_obj) use ($audio_by_word): bool {
+                $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                return $post_id > 0 && !empty($audio_by_word[$post_id]);
+            }));
+        }
+    }
+
+    if (empty($posts)) {
+        $request_cache[$cache_key] = [];
+        return [];
+    }
+
+    $manual_order_applied = false;
+    if ($lesson_id > 0 && function_exists('ll_tools_get_vocab_lesson_manual_word_order')) {
+        $allowed_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, $posts), static function (int $word_id): bool {
+            return $word_id > 0;
+        }));
+        $manual_word_order = ll_tools_get_vocab_lesson_manual_word_order($lesson_id, $allowed_word_ids);
+        if (!empty($manual_word_order) && function_exists('ll_tools_reorder_posts_by_word_id_order')) {
+            $posts = ll_tools_reorder_posts_by_word_id_order($posts, $manual_word_order);
+            $manual_order_applied = true;
+        }
+    }
+
+    if (
+        !$manual_order_applied
+        && function_exists('ll_tools_get_word_option_maps')
+        && function_exists('ll_tools_word_grid_reorder_by_option_groups')
+    ) {
+        $maps = ll_tools_get_word_option_maps($wordset_id, $category_id);
+        $groups = isset($maps['groups']) && is_array($maps['groups']) ? $maps['groups'] : [];
+        if (!empty($groups)) {
+            $posts = ll_tools_word_grid_reorder_by_option_groups($posts, $groups);
+        }
+    }
+
+    $word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+        return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+    }, $posts), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    if (!empty($word_ids)) {
+        update_meta_cache('post', $word_ids);
+    }
+
+    $display_values_cache = [];
+    if (!$manual_order_applied && function_exists('ll_tools_word_grid_group_same_name_or_image')) {
+        $posts = ll_tools_word_grid_group_same_name_or_image($posts, $display_values_cache);
+    }
+    if (!$manual_order_applied && ll_tools_word_grid_should_sort_visible_titles($context)) {
+        $posts = ll_tools_word_grid_sort_posts_by_display_title($posts, $display_values_cache);
+    }
+
+    $ordered_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+        return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+    }, $posts), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+
+    $request_cache[$cache_key] = $ordered_word_ids;
+    return $ordered_word_ids;
+}
+
+function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): array {
+    static $request_cache = [];
+
+    $preview_limit = max(1, (int) $limit);
+    $category_term = $context['category_term'] ?? null;
+    $category_id = ($category_term instanceof WP_Term && !is_wp_error($category_term))
+        ? (int) $category_term->term_id
+        : 0;
+    $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
+    $lesson_id = isset($context['lesson_id']) ? (int) $context['lesson_id'] : 0;
+    $deepest_only = !empty($context['deepest_only']);
+    $is_text_based = !empty($context['is_text_based']);
+    $manual_order_hash = '';
+    if ($lesson_id > 0 && function_exists('ll_tools_get_vocab_lesson_manual_word_order')) {
+        $manual_order_hash = md5((string) wp_json_encode(ll_tools_get_vocab_lesson_manual_word_order($lesson_id)));
+    }
+
+    $cache_key = $category_id . ':' . $wordset_id . ':' . $lesson_id . ':' . ($deepest_only ? '1' : '0') . ':' . ($is_text_based ? '1' : '0') . ':' . $preview_limit . ':' . $manual_order_hash;
     if (isset($request_cache[$cache_key])) {
         return $request_cache[$cache_key];
     }
 
     $persistent_cache_key = 'll_wg_shell_cards_' . md5(wp_json_encode([
-        'schema' => 2,
+        'schema' => 3,
         'category_id' => $category_id,
         'wordset_id' => $wordset_id,
+        'lesson_id' => $lesson_id,
         'deepest_only' => $deepest_only,
         'is_text_based' => $is_text_based,
-        'limit' => $limit,
+        'preview_limit' => $preview_limit,
+        'hide_lesson_grid_text' => !empty($context['hide_lesson_grid_text']),
+        'category_quiz_requires_audio' => !empty($context['category_quiz_requires_audio']),
+        'manual_order_hash' => $manual_order_hash,
+        'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
+        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
         'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
     ]));
@@ -4179,98 +4405,20 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
     }
 
     if ($category_id <= 0 || $wordset_id <= 0) {
-        $request_cache[$cache_key] = ll_tools_word_grid_get_default_shell_cards($context, $limit);
+        $request_cache[$cache_key] = ll_tools_word_grid_get_default_shell_cards($context, $preview_limit);
         return $request_cache[$cache_key];
     }
 
-    $query_limit = min(30, max($limit * 3, 18));
-    $query_args = [
-        'post_type' => 'words',
-        'post_status' => 'publish',
-        'posts_per_page' => $query_limit,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'orderby' => 'date',
-        'order' => 'ASC',
-        'suppress_filters' => true,
-        'tax_query' => [
-            [
-                'taxonomy' => 'word-category',
-                'field' => 'term_id',
-                'terms' => [$category_id],
-            ],
-            [
-                'taxonomy' => 'wordset',
-                'field' => 'term_id',
-                'terms' => [$wordset_id],
-            ],
-        ],
-    ];
-    $word_ids = [];
-    $seen_word_ids = [];
-    $offset = 0;
-    $max_offset = 90;
-
-    while (count($word_ids) < $limit && $offset <= $max_offset) {
-        $query_args['offset'] = $offset;
-        $batch_word_ids = array_values(array_filter(array_map('intval', (array) get_posts($query_args)), static function ($word_id): bool {
-            return $word_id > 0;
-        }));
-        if (empty($batch_word_ids)) {
-            break;
-        }
-
-        if ($deepest_only) {
-            $batch_word_ids = ll_tools_word_grid_filter_word_ids_to_deepest_category($batch_word_ids, $category_id);
-        }
-
-        if (!empty($batch_word_ids) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
-            $batch_word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($batch_word_ids);
-        }
-        if (!$is_text_based && !empty($batch_word_ids) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
-            $batch_word_ids = ll_tools_filter_word_ids_with_effective_images($batch_word_ids, true);
-        }
-
-        foreach ($batch_word_ids as $word_id) {
-            if (isset($seen_word_ids[$word_id])) {
-                continue;
-            }
-            $word_ids[] = (int) $word_id;
-            $seen_word_ids[$word_id] = true;
-            if (count($word_ids) >= $limit) {
-                break;
-            }
-        }
-
-        if (count($batch_word_ids) < $query_limit) {
-            break;
-        }
-
-        $offset += $query_limit;
+    $word_ids = ll_tools_word_grid_get_shell_ordered_word_ids($context);
+    $max_shell_cards = (int) apply_filters('ll_tools_word_grid_shell_max_cards', 0, $context, $preview_limit, count($word_ids));
+    if ($max_shell_cards > 0 && count($word_ids) > $max_shell_cards) {
+        $word_ids = array_slice($word_ids, 0, $max_shell_cards);
     }
 
     if (empty($word_ids)) {
-        $request_cache[$cache_key] = ll_tools_word_grid_get_default_shell_cards($context, $limit);
+        $request_cache[$cache_key] = ll_tools_word_grid_get_default_shell_cards($context, $preview_limit);
         return $request_cache[$cache_key];
     }
-
-    if (function_exists('ll_tools_word_grid_group_same_name_or_image')) {
-        $shell_posts = array_map(static function (int $word_id) {
-            return get_post($word_id);
-        }, $word_ids);
-        $shell_posts = array_values(array_filter($shell_posts, static function ($post_obj): bool {
-            return $post_obj instanceof WP_Post;
-        }));
-        $shell_display_values_cache = [];
-        $shell_posts = ll_tools_word_grid_group_same_name_or_image($shell_posts, $shell_display_values_cache);
-        $word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
-            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
-        }, $shell_posts), static function ($word_id): bool {
-            return $word_id > 0;
-        }));
-    }
-
-    $word_ids = array_slice($word_ids, 0, $limit);
 
     update_meta_cache('post', $word_ids);
 
@@ -4284,6 +4432,12 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
         ? ll_tools_get_main_recording_types()
         : ['isolation', 'question', 'introduction'];
     $recording_type_order = ['question', 'isolation', 'introduction'];
+    $recording_labels = [
+        'question' => __('Question', 'll-tools-text-domain'),
+        'isolation' => __('Isolation', 'll-tools-text-domain'),
+        'introduction' => __('Introduction', 'll-tools-text-domain'),
+    ];
+    $play_label_template = __('Play %s recording', 'll-tools-text-domain');
     $default_ratio = ll_tools_word_grid_get_shell_media_aspect_ratio($context);
 
     $word_grid_image_size = apply_filters('ll_tools_word_grid_image_size', 'medium_large', $wordset_id, $category_term);
@@ -4296,7 +4450,7 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
     }
 
     $cards = [];
-    foreach ($word_ids as $word_id) {
+    foreach ($word_ids as $index => $word_id) {
         $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text((int) $word_id);
         $media_aspect_ratio = $default_ratio;
         $image_preview_data = [
@@ -4304,8 +4458,9 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
             'width' => 0,
             'height' => 0,
         ];
+        $include_image_preview = !$is_text_based && $index < $preview_limit;
 
-        if (!$is_text_based) {
+        if ($include_image_preview) {
             $attachment_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
                 ? (int) ll_tools_get_effective_word_image_attachment_id_for_word((int) $word_id, true)
                 : (int) get_post_thumbnail_id((int) $word_id);
@@ -4324,11 +4479,21 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
             $image_preview_data = ll_tools_word_grid_get_shell_image_preview_data($attachment_id);
         }
 
-        $recording_types = ll_tools_word_grid_get_visible_recording_types(
+        $recordings = ll_tools_word_grid_get_visible_recording_shell_entries(
             (array) ($audio_by_word[$word_id] ?? []),
             $main_recording_types,
             $recording_type_order
         );
+        foreach ($recordings as &$recording) {
+            $recording_type = (string) ($recording['type'] ?? '');
+            $recording_label = $recording_labels[$recording_type] ?? ucwords(str_replace(['-', '_'], ' ', $recording_type));
+            $recording['label'] = $recording_label;
+            $recording['play_label'] = sprintf($play_label_template, $recording_label);
+        }
+        unset($recording);
+        $recording_types = array_values(array_filter(array_map(static function (array $recording): string {
+            return isset($recording['type']) ? (string) $recording['type'] : '';
+        }, $recordings)));
 
         $cards[] = [
             'word_id' => (int) $word_id,
@@ -4338,6 +4503,7 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
             'title_width' => ll_tools_word_grid_estimate_shell_title_width($display_values),
             'recording_count' => count($recording_types),
             'recording_types' => $recording_types,
+            'recordings' => $recordings,
             'image_preview_url' => (string) ($image_preview_data['url'] ?? ''),
             'image_preview_width' => (int) ($image_preview_data['width'] ?? 0),
             'image_preview_height' => (int) ($image_preview_data['height'] ?? 0),
@@ -4345,12 +4511,7 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
     }
 
     if (empty($cards)) {
-        $cards = ll_tools_word_grid_get_default_shell_cards($context, $limit);
-    } elseif (count($cards) < $limit) {
-        $cards = array_merge(
-            $cards,
-            array_slice(ll_tools_word_grid_get_default_shell_cards($context, $limit), 0, $limit - count($cards))
-        );
+        $cards = ll_tools_word_grid_get_default_shell_cards($context, $preview_limit);
     }
 
     wp_cache_set($persistent_cache_key, $cards, 'll_tools', 10 * MINUTE_IN_SECONDS);
@@ -4412,7 +4573,9 @@ function ll_tools_word_grid_get_shell_spec(array $context): array {
         }
     }
 
-    $shell_cards = ll_tools_word_grid_get_shell_cards($context);
+    $shell_cards = !empty($context['skip_shell_cards'])
+        ? []
+        : ll_tools_word_grid_get_shell_cards($context);
     $shell_media_aspect_ratio = ll_tools_word_grid_get_shell_media_aspect_ratio($context);
     foreach ($shell_cards as $shell_card) {
         $card_ratio = trim((string) ($shell_card['media_aspect_ratio'] ?? ''));
