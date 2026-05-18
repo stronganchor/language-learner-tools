@@ -71,7 +71,10 @@ function parseRequestDetails(request) {
 
 function getAllowedAdminAjaxActions(networkConfig) {
   const configured = normalizeList(networkConfig.allowedAdminAjaxActions);
-  const allowed = new Set(['ll_get_words_by_category']);
+  const allowed = new Set([
+    'll_get_words_by_category',
+    'll_tools_wordset_page_lazy_cards'
+  ]);
   configured.forEach((action) => allowed.add(action));
   return allowed;
 }
