@@ -159,3 +159,23 @@ test('high-confidence user-facing strings are translation-ready', async () => {
 
   expect(formatted, `Hardcoded UI strings need WordPress i18n wrappers:\n${formatted.join('\n')}`).toEqual([]);
 });
+
+test('live smoke default admin-ajax allowlist is documented', async () => {
+  const readme = fs.readFileSync(path.join(repoRoot, 'tests', 'README.md'), 'utf8');
+  const liveSmokeSpec = fs.readFileSync(
+    path.join(repoRoot, 'tests', 'e2e', 'live-smoke', 'live-sites.spec.js'),
+    'utf8'
+  );
+  const allowlistMatch = liveSmokeSpec.match(/const allowed = new Set\(\[([\s\S]*?)\]\);/);
+
+  expect(allowlistMatch, 'Could not find the live-smoke default admin-ajax allowlist.').not.toBeNull();
+
+  const documentedMissing = [...allowlistMatch[1].matchAll(/['"]([^'"]+)['"]/g)]
+    .map((match) => match[1])
+    .filter((action) => !readme.includes(`action=${action}`));
+
+  expect(
+    documentedMissing,
+    `tests/README.md is missing live-smoke allowed admin-ajax action docs for: ${documentedMissing.join(', ')}`
+  ).toEqual([]);
+});
