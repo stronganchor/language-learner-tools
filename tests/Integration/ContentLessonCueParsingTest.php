@@ -161,12 +161,25 @@ TSV;
             'post_type' => 'll_content_lesson',
             'post_status' => 'publish',
             'post_title' => 'Corpus Text',
+            'post_name' => 'corpus-text',
             'post_excerpt' => 'Historical text excerpt.',
         ]);
         update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
         update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
         update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META, 'lerch');
         update_post_meta($corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META, 'Peter Lerch');
+
+        $second_corpus_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Second Corpus Text',
+            'post_name' => 'second-corpus-text',
+            'post_excerpt' => 'Second historical text excerpt.',
+        ]);
+        update_post_meta($second_corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+        update_post_meta($second_corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($second_corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META, 'lerch');
+        update_post_meta($second_corpus_lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META, 'Peter Lerch');
 
         $wordset_lessons = ll_tools_get_content_lessons_for_wordset($wordset_id);
         $this->assertCount(1, $wordset_lessons);
@@ -185,8 +198,13 @@ TSV;
 
         $grid_html = do_shortcode('[ll_corpus_text_grid collection="lerch" title=""]');
         $this->assertStringContainsString('Corpus Text', $grid_html);
+        $this->assertStringContainsString('Second Corpus Text', $grid_html);
         $this->assertStringContainsString('Historical text excerpt.', $grid_html);
         $this->assertStringContainsString('Open text', $grid_html);
+
+        $filtered_grid_html = do_shortcode('[ll_corpus_text_grid collection="lerch" slugs="corpus-text" title=""]');
+        $this->assertStringContainsString('Corpus Text', $filtered_grid_html);
+        $this->assertStringNotContainsString('Second Corpus Text', $filtered_grid_html);
     }
 
     public function test_content_lesson_category_rows_scope_to_selected_wordset(): void

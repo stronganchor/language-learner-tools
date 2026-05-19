@@ -340,6 +340,13 @@ function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
             ? array_values(array_filter(array_map('absint', $id_parts)))
             : [];
     }
+    $slugs = [];
+    if (!empty($args['slugs'])) {
+        $slug_parts = preg_split('/[\s,]+/', (string) $args['slugs']);
+        $slugs = is_array($slug_parts)
+            ? array_values(array_filter(array_map('sanitize_title', $slug_parts)))
+            : [];
+    }
 
     $meta_query = [
         [
@@ -364,7 +371,7 @@ function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
         $meta_query['relation'] = 'AND';
     }
     $orderby = isset($args['orderby']) ? trim((string) $args['orderby']) : 'menu_order title';
-    if (!in_array($orderby, ['menu_order title', 'title', 'date', 'modified', 'post__in'], true)) {
+    if (!in_array($orderby, ['menu_order title', 'title', 'date', 'modified', 'post__in', 'post_name__in'], true)) {
         $orderby = 'menu_order title';
     }
 
@@ -380,6 +387,9 @@ function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
     if (!empty($ids)) {
         $query_args['post__in'] = $ids;
         $query_args['orderby'] = 'post__in';
+    } elseif (!empty($slugs)) {
+        $query_args['post_name__in'] = $slugs;
+        $query_args['orderby'] = 'post_name__in';
     }
 
     $posts = get_posts($query_args);
@@ -423,6 +433,7 @@ function ll_tools_corpus_text_grid_shortcode($atts = []): string {
         'collection' => '',
         'source_author' => '',
         'ids' => '',
+        'slugs' => '',
         'limit' => '-1',
         'orderby' => 'menu_order title',
         'order' => 'ASC',
