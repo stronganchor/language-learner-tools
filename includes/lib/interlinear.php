@@ -1529,7 +1529,13 @@ function ll_tools_text_document_render_linguist(array $payload, int $lesson_id =
             $title = $line_id !== '' ? $line_id : sprintf(__('Line %d', 'll-tools-text-domain'), $index + 1);
         }
         $rows = ll_tools_text_document_line_rows($line);
-        $interlinear_html = ll_tools_render_interlinear_line($line, empty($rows));
+        $line_for_interlinear = $line;
+        $hidden_rows = ll_tools_interlinear_hidden_rows($line_for_interlinear);
+        if (!in_array('POS', $hidden_rows, true)) {
+            $hidden_rows[] = 'POS';
+        }
+        $line_for_interlinear['hidden_rows'] = $hidden_rows;
+        $interlinear_html = ll_tools_render_interlinear_line($line_for_interlinear, empty($rows));
         $image_html = ll_tools_text_document_render_source_images($line);
         if ($image_html === '' && empty($rows) && $interlinear_html === '') {
             continue;

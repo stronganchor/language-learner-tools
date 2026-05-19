@@ -743,6 +743,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>LERCH<', $staff_html);
         $this->assertStringContainsString('>IPA<', $staff_html);
         $this->assertStringContainsString('class="ll-interlinear-table"', $staff_html);
+        $this->assertStringNotContainsString('>POS<', $staff_html);
+        $this->assertStringNotContainsString('>INTJ<', $staff_html);
     }
 
     public function test_vocab_word_grid_renders_staff_interlinear_under_matching_recordings(): void
