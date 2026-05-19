@@ -420,22 +420,25 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             'category_ids' => [$effective_category_id],
         ], $learner_id);
 
+        $recent_activity_at = gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS);
+        $older_activity_at = gmdate('Y-m-d H:i:s', time() - (2 * DAY_IN_SECONDS));
+
         $this->seedWordProgressRow($learner_id, $word_one_id, $category_id, $wordset_id, [
             'total_coverage' => 3,
             'correct_clean' => 3,
             'current_correct_streak' => 3,
             'mastery_unlocked' => 1,
             'stage' => 6,
-            'last_seen_at' => '2026-04-18 09:15:00',
-            'updated_at' => '2026-04-18 09:15:00',
+            'last_seen_at' => $recent_activity_at,
+            'updated_at' => $recent_activity_at,
         ]);
         $this->seedWordProgressRow($learner_id, $word_two_id, $category_id, $wordset_id, [
             'total_coverage' => 1,
             'incorrect' => 2,
             'lapse_count' => 1,
             'stage' => 0,
-            'last_seen_at' => '2026-04-17 08:00:00',
-            'updated_at' => '2026-04-17 08:00:00',
+            'last_seen_at' => $older_activity_at,
+            'updated_at' => $older_activity_at,
         ]);
 
         $events_table = ll_tools_user_progress_table_names()['events'];
@@ -453,7 +456,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
                     'is_correct' => null,
                     'had_wrong_before' => 0,
                     'payload_json' => null,
-                    'created_at' => '2026-04-18 09:15:00',
+                    'created_at' => $recent_activity_at,
                 ],
                 ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
             );
@@ -471,7 +474,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Frontend Progress Learner', $classesHtml);
         $this->assertStringContainsString('learner-progress@example.org', $classesHtml);
         $this->assertStringContainsString($wordset->name, $classesHtml);
-        $this->assertStringContainsString('2026-04-18 09:15:00', $classesHtml);
+        $this->assertStringContainsString($recent_activity_at, $classesHtml);
         $this->assertStringContainsString('>11<', $classesHtml);
         $this->assertStringContainsString('>2<', $classesHtml);
         $this->assertStringContainsString('>1<', $classesHtml);
