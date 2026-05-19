@@ -2670,6 +2670,16 @@ body.ll-vocab-lesson-category-settings-open {
     margin: 0 auto !important;
 }
 
+.ll-vocab-lesson-grid-shell--image-choice.is-loading [data-ll-word-grid] {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)) !important;
+    gap: 18px !important;
+    align-items: stretch !important;
+    width: min(100%, 980px) !important;
+    min-height: 320px;
+    margin: 0 auto !important;
+}
+
 .ll-vocab-lesson-skeleton-card {
     display: grid;
     justify-items: center;
@@ -2922,6 +2932,61 @@ body.ll-vocab-lesson-category-settings-open {
     height: 12px;
 }
 
+.ll-vocab-lesson-skeleton-card--image-choice {
+    gap: 12px;
+    align-items: stretch;
+    justify-items: stretch;
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    overflow: hidden;
+    border: 1px solid #dbe3ea;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 10px 22px rgba(46, 42, 36, 0.08);
+    box-sizing: border-box;
+}
+
+.ll-vocab-lesson-skeleton-card--image-choice .ll-vocab-lesson-skeleton-media {
+    width: 100%;
+    max-width: none;
+    aspect-ratio: 4 / 3;
+    margin: 0;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.ll-vocab-lesson-skeleton-image-choice-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.ll-vocab-lesson-skeleton-image-choice-option {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.ll-vocab-lesson-skeleton-image-choice-thumb {
+    display: block;
+    aspect-ratio: 1 / 1;
+    border-radius: 7px;
+    background: linear-gradient(100deg, #e3ebf2 16%, #f4f8fb 34%, #e3ebf2 52%);
+    background-size: 220% 100%;
+    animation: ll-vocab-lesson-skeleton-shimmer 1.15s linear infinite;
+}
+
+.ll-vocab-lesson-skeleton-line--image-choice-label {
+    width: 74%;
+    justify-self: center;
+    height: 12px;
+}
+
 .ll-vocab-lesson-grid-feedback {
     display: grid;
     gap: 10px;
@@ -3166,6 +3231,147 @@ body.ll-vocab-lesson-category-settings-open {
     color: currentColor;
 }
 
+.ll-vocab-image-choice-grid.word-grid.ll-word-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)) !important;
+    gap: 18px !important;
+    align-items: stretch !important;
+    width: min(100%, 980px) !important;
+    margin: 0 auto !important;
+}
+
+.ll-vocab-image-choice-card {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding: 12px;
+    overflow: hidden;
+    border: 1px solid #dbe3ea;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 10px 22px rgba(46, 42, 36, 0.08);
+    color: #111827;
+}
+
+.ll-vocab-image-choice-card__prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 8px;
+    background: transparent;
+}
+
+.ll-vocab-image-choice-card__prompt img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 320px;
+    object-fit: contain;
+    border-radius: inherit;
+    background: transparent;
+}
+
+.ll-vocab-image-choice-card__empty-media,
+.ll-vocab-image-choice-option__missing-media {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    background: repeating-linear-gradient(135deg, #edf0f2, #edf0f2 6px, #f7f9fa 6px, #f7f9fa 12px);
+}
+
+.ll-vocab-image-choice-card__options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    min-width: 0;
+}
+
+.ll-vocab-image-choice-option {
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.ll-vocab-image-choice-option.is-correct {
+    border-color: #86efac;
+}
+
+.ll-vocab-image-choice-option.is-wrong {
+    border-color: #fecaca;
+}
+
+.ll-vocab-image-choice-option__state {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.84);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.16);
+}
+
+.ll-vocab-image-choice-option.is-correct .ll-vocab-image-choice-option__state {
+    color: #166534;
+}
+
+.ll-vocab-image-choice-option.is-wrong .ll-vocab-image-choice-option__state {
+    color: #b91c1c;
+}
+
+.ll-vocab-image-choice-option__state svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.ll-vocab-image-choice-option__media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background: transparent;
+}
+
+.ll-vocab-image-choice-option__media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: transparent;
+}
+
+.ll-vocab-image-choice-option__label {
+    display: block;
+    min-width: 0;
+    padding: 7px 8px 8px;
+    color: #111827;
+    font-family: var(--ll-word-grid-answer-option-font-family, inherit);
+    font-size: 0.9rem;
+    font-weight: var(--ll-word-grid-answer-option-font-weight, 700);
+    line-height: var(--ll-word-grid-answer-option-line-height, 1.2);
+    text-align: center;
+    overflow-wrap: anywhere;
+    background: #ffffff;
+}
+
 @keyframes ll-vocab-lesson-skeleton-shimmer {
     0% {
         background-position: 100% 0;
@@ -3252,6 +3458,10 @@ body.ll-vocab-lesson-category-settings-open {
         grid-template-columns: 1fr;
     }
 
+    .ll-vocab-image-choice-grid.word-grid.ll-word-grid {
+        grid-template-columns: 1fr !important;
+    }
+
     .ll-vocab-lesson-skeleton-card--prompt-card {
         grid-template-columns: 1fr;
     }
@@ -3295,6 +3505,11 @@ body.ll-vocab-lesson-category-settings-open {
         grid-column: 2;
     }
 
+    .ll-vocab-image-choice-card__options,
+    .ll-vocab-lesson-skeleton-image-choice-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3313,6 +3528,7 @@ body.ll-vocab-lesson-category-settings-open {
     .ll-vocab-lesson-skeleton-pill,
     .ll-vocab-lesson-skeleton-dot,
     .ll-vocab-lesson-skeleton-title,
+    .ll-vocab-lesson-skeleton-image-choice-thumb,
     .ll-vocab-lesson-skeleton-recording-button,
     .word-grid.ll-word-grid .ll-vocab-lesson-shell-recording-btn::after {
         animation: none;

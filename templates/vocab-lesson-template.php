@@ -184,6 +184,9 @@ if (have_posts()) {
         $lesson_prompt_card_posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
     }
     $lesson_uses_prompt_cards = !empty($lesson_prompt_card_posts);
+    $lesson_uses_image_choice_prompt_cards = $lesson_uses_prompt_cards
+        && function_exists('ll_tools_vocab_lesson_prompt_cards_use_image_choice_grid')
+        && ll_tools_vocab_lesson_prompt_cards_use_image_choice_grid($wordset_id, $category);
     $can_add_lesson_word = $can_edit_words && $wordset_id > 0 && $category_id > 0 && !$lesson_uses_prompt_cards;
     $lesson_prereq_editor = [
         'show' => false,
@@ -375,17 +378,23 @@ if (have_posts()) {
             $grid_shell_spec = ll_tools_word_grid_get_shell_spec($grid_context);
             if ($lesson_uses_prompt_cards) {
                 $prompt_shell_count = max(1, min(3, count($lesson_prompt_card_posts)));
-                $grid_shell_spec['prompt_card_shell'] = true;
                 $grid_shell_spec['cards'] = array_fill(0, $prompt_shell_count, [
                     'media_aspect_ratio' => '4 / 3',
                     'title_width' => '72%',
-                    'recording_count' => 2,
+                    'recording_count' => $lesson_uses_image_choice_prompt_cards ? 0 : 2,
                 ]);
                 $grid_shell_spec['show_media'] = true;
                 $grid_shell_spec['show_title'] = false;
                 $grid_shell_attributes = (array) ($grid_shell_spec['attributes'] ?? []);
-                $grid_shell_attributes['class'] = trim((string) ($grid_shell_attributes['class'] ?? 'word-grid ll-word-grid') . ' ll-vocab-prompt-card-grid ll-vocab-prompt-card-grid--skeleton');
-                $grid_shell_attributes['data-ll-prompt-card-lesson-grid'] = '1';
+                if ($lesson_uses_image_choice_prompt_cards) {
+                    $grid_shell_spec['image_choice_shell'] = true;
+                    $grid_shell_attributes['class'] = trim((string) ($grid_shell_attributes['class'] ?? 'word-grid ll-word-grid') . ' ll-vocab-image-choice-grid ll-vocab-image-choice-grid--skeleton');
+                    $grid_shell_attributes['data-ll-image-choice-lesson-grid'] = '1';
+                } else {
+                    $grid_shell_spec['prompt_card_shell'] = true;
+                    $grid_shell_attributes['class'] = trim((string) ($grid_shell_attributes['class'] ?? 'word-grid ll-word-grid') . ' ll-vocab-prompt-card-grid ll-vocab-prompt-card-grid--skeleton');
+                    $grid_shell_attributes['data-ll-prompt-card-lesson-grid'] = '1';
+                }
                 $grid_shell_spec['attributes'] = $grid_shell_attributes;
             }
             if (function_exists('ll_tools_vocab_lesson_grid_public_cache_get')) {
@@ -1280,9 +1289,13 @@ if (have_posts()) {
             <?php elseif ($defer_grid && is_array($grid_shell_spec)) : ?>
                 <?php
                 $is_prompt_card_shell = !empty($grid_shell_spec['prompt_card_shell']);
+                $is_image_choice_shell = !empty($grid_shell_spec['image_choice_shell']);
+                $is_custom_prompt_shell = $is_prompt_card_shell || $is_image_choice_shell;
                 $grid_shell_classes = 'll-vocab-lesson-grid-shell is-loading';
                 if ($is_prompt_card_shell) {
                     $grid_shell_classes .= ' ll-vocab-lesson-grid-shell--prompt-cards';
+                } elseif ($is_image_choice_shell) {
+                    $grid_shell_classes .= ' ll-vocab-lesson-grid-shell--image-choice';
                 }
                 ?>
                 <div
@@ -1313,19 +1326,19 @@ if (have_posts()) {
                             <?php
                             $shell_word_text = trim((string) ($shell_card['word_text'] ?? ''));
                             $shell_translation_text = trim((string) ($shell_card['translation_text'] ?? ''));
-                            $shell_has_visible_text = !$is_prompt_card_shell
+                            $shell_has_visible_text = !$is_custom_prompt_shell
                                 && $show_shell_title
                                 && ($shell_word_text !== '' || $shell_translation_text !== '');
                             $shell_preview_url = trim((string) ($shell_card['image_preview_url'] ?? ''));
-                            $shell_has_preview = !$is_prompt_card_shell
+                            $shell_has_preview = !$is_custom_prompt_shell
                                 && $show_shell_media
                                 && $shell_preview_url !== '';
                             $shell_recording_types = [];
-                            if (!$is_prompt_card_shell && isset($shell_card['recording_types']) && is_array($shell_card['recording_types'])) {
+                            if (!$is_custom_prompt_shell && isset($shell_card['recording_types']) && is_array($shell_card['recording_types'])) {
                                 $shell_recording_types = array_values(array_filter(array_map('sanitize_key', $shell_card['recording_types'])));
                             }
                             $shell_recordings = [];
-                            if (!$is_prompt_card_shell && isset($shell_card['recordings']) && is_array($shell_card['recordings'])) {
+                            if (!$is_custom_prompt_shell && isset($shell_card['recordings']) && is_array($shell_card['recordings'])) {
                                 foreach ($shell_card['recordings'] as $shell_recording) {
                                     if (!is_array($shell_recording)) {
                                         continue;
@@ -1345,7 +1358,7 @@ if (have_posts()) {
                                 }
                             }
                             $card_attributes = [
-                                'class' => 'word-item ll-vocab-lesson-skeleton-card' . ($is_prompt_card_shell ? ' ll-vocab-lesson-skeleton-card--prompt-card' : '') . (!empty($shell_recordings) ? ' ll-vocab-lesson-skeleton-card--audio-ready' : ''),
+                                'class' => 'word-item ll-vocab-lesson-skeleton-card' . ($is_prompt_card_shell ? ' ll-vocab-lesson-skeleton-card--prompt-card' : '') . ($is_image_choice_shell ? ' ll-vocab-lesson-skeleton-card--image-choice' : '') . (!empty($shell_recordings) ? ' ll-vocab-lesson-skeleton-card--audio-ready' : ''),
                             ];
                             if (!$shell_has_visible_text && !$shell_has_preview && empty($shell_recordings)) {
                                 $card_attributes['aria-hidden'] = 'true';
@@ -1392,6 +1405,16 @@ if (have_posts()) {
                                             <?php endfor; ?>
                                         </div>
                                     </div>
+                                <?php elseif ($is_image_choice_shell) : ?>
+                                    <div class="ll-vocab-lesson-skeleton-media"></div>
+                                    <div class="ll-vocab-lesson-skeleton-image-choice-options">
+                                        <?php for ($answer_index = 0; $answer_index < 2; $answer_index++) : ?>
+                                            <div class="ll-vocab-lesson-skeleton-image-choice-option">
+                                                <span class="ll-vocab-lesson-skeleton-image-choice-thumb"></span>
+                                                <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--image-choice-label"></span>
+                                            </div>
+                                        <?php endfor; ?>
+                                    </div>
                                 <?php elseif ($show_shell_media) : ?>
                                     <div class="ll-vocab-lesson-skeleton-media<?php echo $shell_has_preview ? ' ll-vocab-lesson-skeleton-media--preview' : ''; ?>">
                                         <?php if ($shell_has_preview) : ?>
@@ -1413,7 +1436,7 @@ if (have_posts()) {
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
-                                <?php if (!$is_prompt_card_shell && $show_shell_title) : ?>
+                                <?php if (!$is_custom_prompt_shell && $show_shell_title) : ?>
                                     <?php if ($shell_has_visible_text) : ?>
                                         <div class="ll-vocab-lesson-shell-title">
                                             <?php if ($shell_word_text !== '') : ?>
@@ -1427,7 +1450,7 @@ if (have_posts()) {
                                         <div class="ll-vocab-lesson-skeleton-title"></div>
                                     <?php endif; ?>
                                 <?php endif; ?>
-                                <?php if (!$is_prompt_card_shell && $recording_count > 0) : ?>
+                                <?php if (!$is_custom_prompt_shell && $recording_count > 0) : ?>
                                     <div class="ll-vocab-lesson-skeleton-recordings">
                                         <?php if (!empty($shell_recordings)) : ?>
                                             <?php foreach ($shell_recordings as $shell_recording) : ?>

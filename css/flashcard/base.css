@@ -253,10 +253,10 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     justify-content: center;
     width: 80%;
     max-width: 250px;
-    border-radius: 12px;
+    border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-    background: #f8f8f8;
+    box-shadow: none;
+    background: transparent;
 }
 
 .ll-tools-prompt img {
@@ -1192,6 +1192,15 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     -webkit-user-drag: none;
 }
 
+.flashcard-container.ll-answer-option-image-card {
+    background: transparent;
+    box-shadow: none;
+}
+
+.flashcard-container.ll-answer-option-image-card .quiz-image {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.18);
+}
+
 .flashcard-container.ll-answer-option-image-caption-card {
     --ll-answer-option-image-base-size: 150px;
     --ll-answer-option-image-size: min(
@@ -1208,6 +1217,8 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     padding: 0;
     gap: 0;
     box-sizing: border-box;
+    background: #fff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .flashcard-container.flashcard-size-medium.ll-answer-option-image-caption-card {
@@ -1227,6 +1238,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    background: transparent;
 }
 
 .flashcard-container.ll-answer-option-image-caption-card .quiz-image {
@@ -1234,6 +1246,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     height: 100%;
     object-fit: cover;
     border-radius: 10px 10px 0 0;
+    box-shadow: none;
 }
 
 .flashcard-container.ll-answer-option-image-caption-card .ll-answer-option-image-caption {

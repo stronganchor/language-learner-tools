@@ -154,6 +154,50 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertSame($expected_attachment_ids, $image_attachment_ids);
     }
 
+    public function test_sign_language_image_choice_preview_uses_prompt_image_and_answer_text(): void
+    {
+        $wordset = wp_insert_term('Sign Preview Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $prompt_category = wp_insert_term('Sign Preview Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($prompt_category));
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'audio');
+
+        $asset_category = wp_insert_term('Sign Preview Assets ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($asset_category));
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        $prompt_attachment_id = $this->createImageAttachment('sign-preview-prompt.png');
+        $answer_attachment_id = $this->createImageAttachment('sign-preview-answer.png', self::ALT_PIXEL_PNG_BASE64);
+        $prompt_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $prompt_attachment_id, 'Tree Sign');
+        $answer_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $answer_attachment_id, 'Tree');
+
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Sign Preview Card',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_image_word_id' => $prompt_image_word_id,
+            'correct_answer_word_id' => $answer_word_id,
+        ]);
+
+        $preview = ll_tools_get_wordset_category_preview($wordset_id, $prompt_category_id, 2, true);
+        $this->assertIsArray($preview);
+        $this->assertTrue((bool) ($preview['has_images'] ?? false));
+
+        $items = array_values((array) ($preview['items'] ?? []));
+        $this->assertCount(2, $items);
+        $this->assertSame('image', (string) ($items[0]['type'] ?? ''));
+        $this->assertSame($prompt_attachment_id, (int) ($items[0]['attachment_id'] ?? 0));
+        $this->assertSame('text', (string) ($items[1]['type'] ?? ''));
+        $this->assertSame('Tree', (string) ($items[1]['label'] ?? ''));
+    }
+
     private function createWordWithThumbnail(int $category_id, int $wordset_id, int $attachment_id, string $title, string $post_date = ''): int
     {
         $post_data = [

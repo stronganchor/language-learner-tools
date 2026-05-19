@@ -1530,7 +1530,7 @@ function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $catego
         ? ll_tools_quiz_requires_audio($quiz_config, $option_type)
         : true;
     $requires_images = function_exists('ll_tools_vocab_lesson_category_requires_images')
-        ? ll_tools_vocab_lesson_category_requires_images($category)
+        ? ll_tools_vocab_lesson_category_requires_images($category, $wordset_id)
         : (function_exists('ll_tools_quiz_requires_image') ? ll_tools_quiz_requires_image($quiz_config, $option_type) : false);
     $status_summary = ll_tools_wordset_page_get_category_word_status_summary($category_id, $wordset_id);
     $published_words = max(0, (int) ($status_summary['publish'] ?? 0));
@@ -1634,6 +1634,7 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
         'cache_context' => $cache_context_sig,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
+        'preview_schema' => 3,
         'inactive' => $include_inactive ? 1 : 0,
     ]);
     if (!$include_inactive) {
@@ -2151,7 +2152,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
         : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
     if ($requires_images === null && function_exists('ll_tools_vocab_lesson_category_requires_images')) {
-        $use_images = ll_tools_vocab_lesson_category_requires_images($category_id);
+        $use_images = ll_tools_vocab_lesson_category_requires_images($category_id, $wordset_id);
     } elseif ($requires_images === null) {
         $use_images = function_exists('ll_tools_quiz_requires_image')
             ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
@@ -2191,7 +2192,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
         'requires_audio' => $requires_audio ? 1 : 0,
-        'prompt_card_preview_schema' => 2,
+        'prompt_card_preview_schema' => 3,
     ]);
     $cached_preview = ll_tools_wordset_page_get_cached_payload($preview_cache_key, $request_cache);
     if (is_array($cached_preview)) {
@@ -2345,7 +2346,124 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         }
     }
 
-    if ($use_images && count($items) < $limit && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids')) {
+    $prompt_card_image_text_preview = $use_images
+        && count($items) < $limit
+        && function_exists('ll_tools_quiz_prompt_type_has_image')
+        && function_exists('ll_tools_quiz_option_type_has_image')
+        && ll_tools_quiz_prompt_type_has_image($prompt_type)
+        && ll_tools_quiz_option_type_has_image($option_type)
+        && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_pairs');
+    $prompt_card_image_text_preview_added = false;
+
+    if ($prompt_card_image_text_preview) {
+        $prompt_card_image_text_start_count = count($items);
+        $preview_pairs = ll_tools_get_vocab_lesson_prompt_card_preview_pairs(
+            $wordset_id,
+            $category_id,
+            max($limit * 2, $limit)
+        );
+        $pair_word_ids = [];
+        foreach ($preview_pairs as $pair) {
+            if (!is_array($pair)) {
+                continue;
+            }
+            $pair_word_ids[] = (int) ($pair['prompt_image_word_id'] ?? 0);
+            $pair_word_ids[] = (int) ($pair['correct_answer_word_id'] ?? 0);
+        }
+        $pair_word_ids = array_values(array_filter(array_unique(array_map('intval', $pair_word_ids)), static function (int $word_id): bool {
+            return $word_id > 0;
+        }));
+        $prompt_pair_public_lookup = ll_tools_wordset_page_get_public_lesson_preview_word_lookup($pair_word_ids, $requires_audio);
+        $existing_image_urls = [];
+        $existing_attachment_ids = [];
+        foreach ($items as $item) {
+            if (!is_array($item) || ($item['type'] ?? '') !== 'image') {
+                continue;
+            }
+            $url = trim((string) ($item['url'] ?? ''));
+            if ($url !== '') {
+                $existing_image_urls[$url] = true;
+            }
+            $attachment_id = isset($item['attachment_id']) ? (int) $item['attachment_id'] : 0;
+            if ($attachment_id > 0) {
+                $existing_attachment_ids[$attachment_id] = true;
+            }
+        }
+
+        foreach ($preview_pairs as $pair) {
+            if (!is_array($pair) || count($items) >= $limit) {
+                break;
+            }
+
+            $prompt_word_id = (int) ($pair['prompt_image_word_id'] ?? 0);
+            $answer_word_id = (int) ($pair['correct_answer_word_id'] ?? 0);
+            if ($prompt_word_id > 0 && !isset($seen_preview_word_ids[$prompt_word_id]) && !empty($prompt_pair_public_lookup[$prompt_word_id])) {
+                $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                    ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($prompt_word_id, true)
+                    : (int) get_post_thumbnail_id($prompt_word_id);
+                if ($image_id > 0 && !isset($existing_attachment_ids[$image_id])) {
+                    $size_info = ll_tools_select_wordset_preview_image_size($image_id, $image_size);
+                    $resolved_image_size = (string) ($size_info['size'] ?? $image_size);
+                    if ($resolved_image_size === '') {
+                        $resolved_image_size = $image_size;
+                    }
+                    $dimensions = (array) ($size_info['dimensions'] ?? []);
+                    $image_url = function_exists('ll_tools_get_masked_image_url')
+                        ? ll_tools_get_masked_image_url($image_id, $resolved_image_size)
+                        : '';
+                    if ($image_url === '') {
+                        $image_url = wp_get_attachment_image_url($image_id, $resolved_image_size) ?: '';
+                    }
+                    if ($image_url !== '' && !isset($existing_image_urls[$image_url])) {
+                        if (empty($dimensions)) {
+                            $dimensions = ll_tools_get_image_dimensions_for_size($image_id, $resolved_image_size);
+                        }
+                        $ratio = (string) ($dimensions['ratio'] ?? '');
+                        $width = (int) ($dimensions['width'] ?? 0);
+                        $height = (int) ($dimensions['height'] ?? 0);
+                        if ($preview_aspect_ratio === '' && $ratio !== '') {
+                            $preview_aspect_ratio = $ratio;
+                        }
+                        if ($ratio === '' && $preview_aspect_ratio !== '') {
+                            $ratio = $preview_aspect_ratio;
+                        }
+
+                        $items[] = [
+                            'type' => 'image',
+                            'url' => $image_url,
+                            'alt' => get_the_title($prompt_word_id),
+                            'ratio' => $ratio,
+                            'width' => $width,
+                            'height' => $height,
+                            'attachment_id' => $image_id,
+                        ];
+                        $seen_preview_word_ids[$prompt_word_id] = true;
+                        $existing_image_urls[$image_url] = true;
+                        $existing_attachment_ids[$image_id] = true;
+                    }
+                }
+            }
+
+            if (count($items) >= $limit || $answer_word_id <= 0 || isset($seen_preview_word_ids[$answer_word_id]) || empty($prompt_pair_public_lookup[$answer_word_id])) {
+                continue;
+            }
+
+            $label = get_the_title($answer_word_id);
+            if ($label === '') {
+                continue;
+            }
+
+            $items[] = [
+                'type' => 'text',
+                'label' => $label,
+            ];
+            $seen_preview_word_ids[$answer_word_id] = true;
+        }
+
+        $prompt_card_image_text_preview_added = count($items) > $prompt_card_image_text_start_count;
+    }
+
+    if (!$prompt_card_image_text_preview_added && $use_images && count($items) < $limit && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids')) {
         $prompt_image_word_ids = ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids(
             $wordset_id,
             $category_id,
@@ -2896,7 +3014,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
 
         $requires_images = true;
         if (function_exists('ll_tools_vocab_lesson_category_requires_images')) {
-            $requires_images = ll_tools_vocab_lesson_category_requires_images($category);
+            $requires_images = ll_tools_vocab_lesson_category_requires_images($category, $wordset_id);
         } else {
             $requires_images = function_exists('ll_tools_quiz_requires_image')
                 ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)

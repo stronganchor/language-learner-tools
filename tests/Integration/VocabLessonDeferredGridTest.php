@@ -545,6 +545,150 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('No words found', $html);
     }
 
+    public function test_sign_language_image_choice_prompt_cards_render_image_choice_lesson_grid(): void
+    {
+        $wordset = wp_insert_term('Sign Image Choice Wordset', 'wordset', ['slug' => 'sign-image-choice-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $prompt_category = wp_insert_term('Sign Image Choice Category', 'word-category', ['slug' => 'sign-image-choice-category']);
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+
+        $asset_category = wp_insert_term('Sign Image Choice Assets', 'word-category', ['slug' => 'sign-image-choice-assets']);
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'audio');
+
+        $prompt_image_word_id = $this->createWordWithThumbnail('Tree ASL sign', $asset_category_id, $wordset_id, 'sign-image-choice-prompt.png');
+        $correct_word_id = $this->createWordWithThumbnail('Tree', $asset_category_id, $wordset_id, 'sign-image-choice-tree.png');
+        $wrong_word_id = $this->createWordWithThumbnail('House', $asset_category_id, $wordset_id, 'sign-image-choice-house.png');
+
+        $prompt_card_id = $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Tree sign prompt',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_audio_url' => 'https://example.com/should-not-render.mp3',
+            'prompt_image_word_id' => $prompt_image_word_id,
+            'correct_answer_word_id' => $correct_word_id,
+            'wrong_answer_word_ids' => [$wrong_word_id],
+        ]);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Sign Image Choice Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $prompt_category_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('ll-vocab-image-choice-grid', $html);
+        $this->assertStringContainsString('data-ll-image-choice-lesson-grid="1"', $html);
+        $this->assertStringContainsString('data-prompt-card-id="' . $prompt_card_id . '"', $html);
+        $this->assertStringContainsString('ll-vocab-image-choice-option is-correct', $html);
+        $this->assertStringContainsString('ll-vocab-image-choice-option is-wrong', $html);
+        $this->assertStringContainsString('Tree', $html);
+        $this->assertStringContainsString('House', $html);
+        $this->assertStringNotContainsString('ll-vocab-prompt-card__question-icon', $html);
+        $this->assertStringNotContainsString('Choose the matching ASL sign.', $html);
+        $this->assertStringNotContainsString('should-not-render.mp3', $html);
+    }
+
+    public function test_sign_language_image_to_text_prompt_cards_keep_text_grid_without_instruction_prompt(): void
+    {
+        $wordset = wp_insert_term('Sign Text Prompt Wordset', 'wordset', ['slug' => 'sign-text-prompt-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $prompt_category = wp_insert_term('Sign Text Prompt Category', 'word-category', ['slug' => 'sign-text-prompt-category']);
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+
+        $asset_category = wp_insert_term('Sign Text Prompt Assets', 'word-category', ['slug' => 'sign-text-prompt-assets']);
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'text_audio');
+        update_term_meta($prompt_category_id, 'use_word_titles_for_audio', '1');
+
+        $prompt_image_word_id = $this->createWordWithThumbnail('Airplane ASL sign', $asset_category_id, $wordset_id, 'sign-text-prompt-sign.png');
+        $correct_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Airplane',
+        ]);
+        $wrong_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Apple',
+        ]);
+        wp_set_post_terms($correct_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($wrong_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($correct_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($wrong_word_id, [$wordset_id], 'wordset', false);
+
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Airplane sign prompt',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_image_word_id' => $prompt_image_word_id,
+            'correct_answer_word_id' => $correct_word_id,
+            'wrong_answer_word_ids' => [$wrong_word_id],
+        ]);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Sign Text Prompt Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $prompt_category_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('ll-vocab-prompt-card-grid', $html);
+        $this->assertStringNotContainsString('ll-vocab-image-choice-grid', $html);
+        $this->assertStringNotContainsString('Choose the matching ASL sign.', $html);
+        $this->assertStringNotContainsString('ll-vocab-prompt-card__question-icon', $html);
+        $this->assertStringContainsString('Airplane', $html);
+        $this->assertStringContainsString('Apple', $html);
+    }
+
     public function test_prompt_card_lesson_shell_uses_full_row_loading_cards(): void
     {
         $wordset = wp_insert_term('Prompt Card Shell Wordset', 'wordset', ['slug' => 'prompt-card-shell-wordset']);
@@ -608,6 +752,61 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-vocab-lesson-skeleton-card--prompt-card', $html);
         $this->assertStringContainsString('ll-vocab-lesson-skeleton-prompt-box', $html);
         $this->assertStringContainsString('ll-vocab-lesson-skeleton-answer-list', $html);
+    }
+
+    public function test_sign_language_image_choice_lesson_shell_uses_image_choice_loading_cards(): void
+    {
+        $wordset = wp_insert_term('Sign Choice Shell Wordset', 'wordset', ['slug' => 'sign-choice-shell-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $prompt_category = wp_insert_term('Sign Choice Shell Category', 'word-category', ['slug' => 'sign-choice-shell-category']);
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+
+        $asset_category = wp_insert_term('Sign Choice Shell Assets', 'word-category', ['slug' => 'sign-choice-shell-assets']);
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'audio');
+
+        $prompt_image_word_id = $this->createWordWithThumbnail('Shell Sign Prompt', $asset_category_id, $wordset_id, 'sign-choice-shell-prompt.png');
+        $correct_word_id = $this->createWordWithThumbnail('Shell Tree', $asset_category_id, $wordset_id, 'sign-choice-shell-tree.png');
+        $wrong_word_id = $this->createWordWithThumbnail('Shell House', $asset_category_id, $wordset_id, 'sign-choice-shell-house.png');
+
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Shell Sign Prompt Card',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_audio_url' => 'https://example.com/shell-should-not-render.mp3',
+            'prompt_image_word_id' => $prompt_image_word_id,
+            'correct_answer_word_id' => $correct_word_id,
+            'wrong_answer_word_ids' => [$wrong_word_id],
+        ]);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Sign Choice Shell Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $prompt_category_id);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('ll-vocab-lesson-grid-shell--image-choice', $html);
+        $this->assertStringContainsString('ll-vocab-image-choice-grid--skeleton', $html);
+        $this->assertStringContainsString('data-ll-image-choice-lesson-grid="1"', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-skeleton-card--image-choice', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-skeleton-image-choice-options', $html);
+        $this->assertStringNotContainsString('ll-vocab-lesson-grid-shell--prompt-cards', $html);
+        $this->assertStringNotContainsString('ll-vocab-lesson-skeleton-prompt-box', $html);
     }
 
     public function test_lesson_grid_ajax_strips_broken_one_pixel_thumbnail_dimensions(): void

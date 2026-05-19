@@ -3101,6 +3101,9 @@ function ll_tools_word_grid_resolve_context($atts): array {
     }
     if (!$access_denied && $category_term && !is_wp_error($category_term) && function_exists('ll_tools_get_category_quiz_config')) {
         $quiz_config = ll_tools_get_category_quiz_config($category_term);
+        if ($wordset_id > 0 && function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+            $quiz_config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $quiz_config, [$wordset_id]);
+        }
         $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
         $option_type = (string) ($quiz_config['option_type'] ?? '');
         $requires_images = function_exists('ll_tools_quiz_requires_image')
