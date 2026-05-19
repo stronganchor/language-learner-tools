@@ -69,11 +69,23 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
                 'll_translation' => 'de',
             ], 'tr_TR')
         );
+        $this->assertNotSame(
+            $first,
+            ll_tools_public_static_cache_key($identity, [
+                'll_locale' => 'tr_TR',
+                'll_book_language' => 'de',
+                'll_book_section' => 'intro',
+            ], 'tr_TR')
+        );
         $this->assertSame([
+            'll_book_language' => 'de',
+            'll_book_section' => 'intro',
             'll_locale' => 'tr_TR',
             'll_text_view' => 'sources',
             'll_translation' => 'de',
         ], ll_tools_public_static_cache_normalize_query_args([
+            'll_book_language' => 'de',
+            'll_book_section' => 'intro',
             'll_locale' => 'tr_TR',
             'll_text_view' => 'sources',
             'll_translation' => 'de',

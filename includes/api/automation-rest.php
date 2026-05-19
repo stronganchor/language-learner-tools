@@ -3572,7 +3572,12 @@ function ll_tools_rest_corpus_text_payload_from_request(WP_REST_Request $request
     $payload = $request->get_param('payload');
     if ($payload === null) {
         $params = $request->get_json_params();
-        if (is_array($params) && (isset($params['schema']) || isset($params['source_lines']) || isset($params['reading_units']))) {
+        if (is_array($params)
+            && (isset($params['schema'])
+                || isset($params['kind'])
+                || isset($params['source_lines'])
+                || isset($params['reading_units'])
+                || isset($params['book_sections']))) {
             $payload = $params;
         }
     }

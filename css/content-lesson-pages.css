@@ -472,6 +472,174 @@
     border-right: 1px solid var(--ll-cl-border);
 }
 
+.ll-book-text__head {
+    background: #fffaf1;
+}
+
+.ll-book-text__head-actions {
+    justify-content: flex-end;
+}
+
+.ll-book-text__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ll-cl-border);
+    color: var(--ll-cl-muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.ll-book-text__meta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 9px;
+    border: 1px solid var(--ll-cl-border);
+    border-radius: 999px;
+    background: #fff;
+}
+
+.ll-book-text__section-nav {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ll-cl-border);
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.ll-book-text__section-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 7px 11px;
+    border: 1px solid var(--ll-cl-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ll-cl-muted);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.ll-book-text__section-link:hover,
+.ll-book-text__section-link:focus-visible,
+.ll-book-text__section-link.is-active {
+    border-color: var(--ll-cl-accent);
+    background: var(--ll-cl-accent-soft);
+    color: var(--ll-cl-accent);
+    outline: none;
+}
+
+.ll-book-text__section {
+    padding: clamp(18px, 3vw, 34px);
+    background: #fffdf8;
+}
+
+.ll-book-text__section-head {
+    max-width: 880px;
+    margin: 0 auto 18px;
+}
+
+.ll-book-text__section-kicker,
+.ll-book-text__section-source {
+    margin: 0 0 8px;
+    color: var(--ll-cl-muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.ll-book-text__section-title {
+    margin: 0;
+    color: var(--ll-cl-text);
+    font-size: clamp(24px, 3vw, 34px);
+    line-height: 1.18;
+}
+
+.ll-book-text__body {
+    max-width: 880px;
+    margin: 0 auto;
+    color: var(--ll-cl-text);
+    font-size: 18px;
+    line-height: 1.78;
+}
+
+.ll-book-text__body p {
+    margin: 0 0 1.15em;
+}
+
+.ll-book-text__body p:last-child {
+    margin-bottom: 0;
+}
+
+.ll-book-text__pager {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--ll-cl-border);
+    border-bottom: 1px solid var(--ll-cl-border);
+    background: #fffaf1;
+}
+
+.ll-book-text__pager-link,
+.ll-book-text__pager-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    padding: 8px 12px;
+    border: 1px solid var(--ll-cl-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ll-cl-text);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+}
+
+.ll-book-text__pager-link {
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ll-book-text__pager-link:hover,
+.ll-book-text__pager-link:focus-visible {
+    border-color: var(--ll-cl-accent);
+    color: var(--ll-cl-accent);
+    outline: none;
+}
+
+.ll-book-text__pager-link.is-disabled {
+    color: var(--ll-cl-muted);
+    opacity: 0.55;
+}
+
+.ll-book-text__pager-direction {
+    color: var(--ll-cl-muted);
+    font-size: 11px;
+}
+
+.ll-book-text__sources {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    background: #f7f2ea;
+}
+
+.ll-book-text__sources > h2 {
+    margin: 0;
+    color: var(--ll-cl-text);
+    font-size: 20px;
+    line-height: 1.25;
+}
+
 .ll-text-linguist,
 .ll-text-sources {
     display: grid;
@@ -833,6 +1001,23 @@ video.ll-content-lesson-media {
         font-weight: 700;
     }
 
+    .ll-book-text__head-actions {
+        justify-content: flex-start;
+    }
+
+    .ll-book-text__section {
+        padding: 18px 14px;
+    }
+
+    .ll-book-text__body {
+        font-size: 16px;
+        line-height: 1.68;
+    }
+
+    .ll-book-text__pager {
+        grid-template-columns: 1fr;
+    }
+
     .ll-corpus-text-grid .ll-content-lessons-grid {
         grid-template-columns: 1fr;
     }
@@ -983,6 +1168,100 @@ video.ll-content-lesson-media {
     }
 
     .ll-text-document__print-sources .ll-text-sources__item img {
+        display: none !important;
+    }
+
+    .ll-book-text__meta {
+        display: flex !important;
+        padding: 0 0 8pt !important;
+        border-bottom: 1px solid #aaa !important;
+        color: #111 !important;
+    }
+
+    .ll-book-text__meta span {
+        padding: 0 !important;
+        border: 0 !important;
+        background: #fff !important;
+    }
+
+    .ll-book-text__section-nav,
+    .ll-book-text__pager {
+        display: none !important;
+    }
+
+    .ll-book-text__section {
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .ll-book-text__section-head,
+    .ll-book-text__body {
+        max-width: none !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .ll-book-text__section-title {
+        color: #111 !important;
+        font-size: 16pt !important;
+    }
+
+    .ll-book-text__section-kicker,
+    .ll-book-text__section-source {
+        color: #333 !important;
+        font-size: 10pt !important;
+    }
+
+    .ll-book-text__body {
+        color: #111 !important;
+        font-size: 11pt !important;
+        line-height: 1.5 !important;
+    }
+
+    .ll-book-text__sources {
+        display: block !important;
+        margin-top: 18pt !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .ll-book-text__sources > h2 {
+        color: #111 !important;
+        font-size: 16pt !important;
+    }
+
+    .ll-book-text__sources .ll-text-sources {
+        display: block !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .ll-book-text__sources .ll-text-sources__item {
+        margin: 0 0 10pt !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .ll-book-text__sources .ll-text-sources__item h3,
+    .ll-book-text__sources .ll-text-sources__item p,
+    .ll-book-text__sources .ll-text-sources__links {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-left: 0 !important;
+        color: #111 !important;
+    }
+
+    .ll-book-text__sources .ll-text-sources__item h3 {
+        padding: 0 !important;
+        border: 0 !important;
+        font-size: 11pt !important;
+    }
+
+    .ll-book-text__sources .ll-text-sources__item img {
         display: none !important;
     }
 }

@@ -170,7 +170,7 @@ function ll_tools_interlinear_normalize_payload($payload) {
 
     $schema = isset($payload['schema']) && is_scalar($payload['schema']) ? (string) $payload['schema'] : '';
     $has_text_document_keys = false;
-    foreach (['source_lines', 'reading_units', 'witnesses', 'translations'] as $text_key) {
+    foreach (['source_lines', 'reading_units', 'book_sections', 'witnesses', 'translations'] as $text_key) {
         if (array_key_exists($text_key, $payload)) {
             $has_text_document_keys = true;
             break;
@@ -180,11 +180,11 @@ function ll_tools_interlinear_normalize_payload($payload) {
         $payload['kind'] = sanitize_key((string) $payload['kind']);
     }
     $is_text_document = $has_text_document_keys
-        || (isset($payload['kind']) && in_array((string) $payload['kind'], ['corpus_text', 'text_document', 'historical_text'], true))
-        || ($schema !== '' && preg_match('/(?:corpus|text_document|historical_text)/i', $schema));
+        || (isset($payload['kind']) && in_array((string) $payload['kind'], ['corpus_text', 'text_document', 'historical_text', 'book_text'], true))
+        || ($schema !== '' && preg_match('/(?:corpus|text_document|historical_text|book_text)/i', $schema));
 
     if ($is_text_document) {
-        foreach (['source_lines', 'reading_units', 'witnesses'] as $list_key) {
+        foreach (['source_lines', 'reading_units', 'book_sections', 'witnesses'] as $list_key) {
             if (!isset($payload[$list_key]) || !is_array($payload[$list_key])) {
                 $payload[$list_key] = [];
             }
@@ -218,7 +218,7 @@ function ll_tools_interlinear_get_payload(int $lesson_id): array {
 
 function ll_tools_interlinear_has_payload(int $lesson_id): bool {
     $payload = ll_tools_interlinear_get_payload($lesson_id);
-    foreach (['lines', 'source_lines', 'reading_units'] as $line_key) {
+    foreach (['lines', 'source_lines', 'reading_units', 'book_sections'] as $line_key) {
         if (!empty($payload[$line_key]) && is_array($payload[$line_key])) {
             return true;
         }
@@ -318,11 +318,13 @@ function ll_tools_interlinear_summary(array $payload): array {
     $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
     $source_lines = isset($payload['source_lines']) && is_array($payload['source_lines']) ? $payload['source_lines'] : [];
     $reading_units = isset($payload['reading_units']) && is_array($payload['reading_units']) ? $payload['reading_units'] : [];
+    $book_sections = isset($payload['book_sections']) && is_array($payload['book_sections']) ? $payload['book_sections'] : [];
 
     return [
         'lines' => max(0, (int) ($summary['lines'] ?? count(!empty($source_lines) ? $source_lines : $lines))),
         'source_lines' => max(0, (int) ($summary['source_lines'] ?? count($source_lines))),
         'reading_units' => max(0, (int) ($summary['reading_units'] ?? count($reading_units))),
+        'book_sections' => max(0, (int) ($summary['book_sections'] ?? count($book_sections))),
         'tokens' => max(0, (int) ($summary['tokens'] ?? array_sum(array_map(static function ($line): int {
             return is_array($line) && isset($line['tokens']) && is_array($line['tokens']) ? count($line['tokens']) : 0;
         }, !empty($source_lines) ? $source_lines : $lines)))),
@@ -893,16 +895,21 @@ function ll_tools_render_interlinear_lines(array $lines, bool $show_line_text = 
 
 function ll_tools_interlinear_payload_is_text_document(array $payload): bool {
     $kind = isset($payload['kind']) && is_scalar($payload['kind']) ? sanitize_key((string) $payload['kind']) : '';
-    if (in_array($kind, ['corpus_text', 'text_document', 'historical_text'], true)) {
+    if (in_array($kind, ['corpus_text', 'text_document', 'historical_text', 'book_text'], true)) {
         return true;
     }
 
     $schema = isset($payload['schema']) && is_scalar($payload['schema']) ? (string) $payload['schema'] : '';
-    if ($schema !== '' && preg_match('/(?:corpus|text_document|historical_text)/i', $schema)) {
+    if ($schema !== '' && preg_match('/(?:corpus|text_document|historical_text|book_text)/i', $schema)) {
         return true;
     }
 
-    return !empty($payload['source_lines']) || !empty($payload['reading_units']);
+    return !empty($payload['source_lines']) || !empty($payload['reading_units']) || !empty($payload['book_sections']);
+}
+
+function ll_tools_text_document_is_book_text(array $payload): bool {
+    $kind = isset($payload['kind']) && is_scalar($payload['kind']) ? sanitize_key((string) $payload['kind']) : '';
+    return $kind === 'book_text' || (!empty($payload['book_sections']) && is_array($payload['book_sections']));
 }
 
 function ll_tools_current_user_can_view_text_document(int $lesson_id): bool {
@@ -1100,6 +1107,57 @@ function ll_tools_text_document_request_arg(string $key): string {
     return $value === 'linguist' ? 'interlinear' : $value;
 }
 
+function ll_tools_text_document_language_key_from_locale(string $locale): string {
+    $locale = strtolower(str_replace('-', '_', trim($locale)));
+    if ($locale === '') {
+        return '';
+    }
+
+    $parts = explode('_', $locale);
+    $language = sanitize_key((string) ($parts[0] ?? ''));
+    $aliases = [
+        'tr' => 'tr',
+        'tur' => 'tr',
+        'turkish' => 'tr',
+        'en' => 'en',
+        'eng' => 'en',
+        'english' => 'en',
+        'de' => 'de',
+        'deu' => 'de',
+        'ger' => 'de',
+        'german' => 'de',
+    ];
+
+    return $aliases[$language] ?? $language;
+}
+
+function ll_tools_text_document_current_language_candidates(): array {
+    $locales = [];
+
+    if (function_exists('ll_tools_get_requested_switcher_locale')) {
+        $locales[] = (string) ll_tools_get_requested_switcher_locale(false);
+    }
+    if (function_exists('ll_tools_get_locale_cookie_preference')) {
+        $locales[] = (string) ll_tools_get_locale_cookie_preference();
+    }
+    if (function_exists('determine_locale')) {
+        $locales[] = (string) determine_locale();
+    }
+    if (function_exists('get_locale')) {
+        $locales[] = (string) get_locale();
+    }
+
+    $candidates = [];
+    foreach ($locales as $locale) {
+        $key = ll_tools_text_document_language_key_from_locale($locale);
+        if ($key !== '' && !in_array($key, $candidates, true)) {
+            $candidates[] = $key;
+        }
+    }
+
+    return $candidates;
+}
+
 function ll_tools_text_document_translation_label(array $payload, string $key): string {
     $translations = isset($payload['translations']) && is_array($payload['translations']) ? $payload['translations'] : [];
     if (isset($translations[$key]) && is_array($translations[$key])) {
@@ -1153,6 +1211,26 @@ function ll_tools_text_document_available_translation_keys(array $payload): arra
         }
     }
 
+    $book_sections = isset($payload['book_sections']) && is_array($payload['book_sections']) ? $payload['book_sections'] : [];
+    foreach ($book_sections as $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+        $texts = isset($section['texts']) && is_array($section['texts']) ? $section['texts'] : [];
+        foreach ($texts as $key => $value) {
+            $key = sanitize_key((string) $key);
+            if ($key !== '' && is_scalar($value) && trim((string) $value) !== '') {
+                $keys[$key] = true;
+            }
+        }
+        foreach ($section as $key => $value) {
+            $key = (string) $key;
+            if (preg_match('/^(?:text|translation)_([a-z0-9_-]+)$/i', $key, $matches) && is_scalar($value) && trim((string) $value) !== '') {
+                $keys[sanitize_key((string) $matches[1])] = true;
+            }
+        }
+    }
+
     $keys = array_keys($keys);
     usort($keys, static function (string $left, string $right): int {
         $priority = ['tr' => 0, 'en' => 1, 'de' => 2, 'ru' => 3];
@@ -1168,9 +1246,30 @@ function ll_tools_text_document_selected_translation_key(array $payload): string
         return '';
     }
 
+    $requested = ll_tools_text_document_request_arg('ll_book_language');
+    if ($requested !== '' && in_array($requested, $keys, true)) {
+        return $requested;
+    }
+
     $requested = ll_tools_text_document_request_arg('ll_translation');
     if ($requested !== '' && in_array($requested, $keys, true)) {
         return $requested;
+    }
+
+    if (ll_tools_text_document_is_book_text($payload)) {
+        foreach (ll_tools_text_document_current_language_candidates() as $candidate) {
+            if (in_array($candidate, $keys, true)) {
+                return $candidate;
+            }
+        }
+
+        $metadata = isset($payload['metadata']) && is_array($payload['metadata']) ? $payload['metadata'] : [];
+        $default_language = sanitize_key(ll_tools_interlinear_scalar($metadata, ['default_language', 'language']));
+        if ($default_language !== '' && in_array($default_language, $keys, true)) {
+            return $default_language;
+        }
+
+        return (string) $keys[0];
     }
 
     foreach (['tr', 'en', 'de'] as $preferred) {
@@ -1228,7 +1327,184 @@ function ll_tools_text_document_view_url(string $view, string $translation_key =
         $args['ll_translation'] = $translation_key;
     }
 
-    return add_query_arg($args, remove_query_arg(['ll_text_view', 'll_translation']));
+    return add_query_arg($args, remove_query_arg(['ll_text_view', 'll_translation', 'll_book_language', 'll_book_section']));
+}
+
+function ll_tools_book_text_section_id(array $section, int $index): string {
+    $section_id = ll_tools_interlinear_scalar($section, ['id', 'section_id', 'slug']);
+    $section_id = sanitize_title($section_id !== '' ? $section_id : 'section-' . ($index + 1));
+
+    return $section_id !== '' ? $section_id : 'section-' . ($index + 1);
+}
+
+function ll_tools_book_text_sections(array $payload): array {
+    $sections = isset($payload['book_sections']) && is_array($payload['book_sections']) ? $payload['book_sections'] : [];
+    return array_values(array_filter($sections, 'is_array'));
+}
+
+function ll_tools_book_text_view_url(string $language_key = '', string $section_id = ''): string {
+    $args = [];
+    if ($language_key !== '') {
+        $args['ll_book_language'] = sanitize_key($language_key);
+    }
+    if ($section_id !== '') {
+        $args['ll_book_section'] = sanitize_title($section_id);
+    }
+
+    $url = add_query_arg($args, remove_query_arg(['ll_text_view', 'll_translation', 'll_book_language', 'll_book_section']));
+    if ($section_id !== '') {
+        $url .= '#' . rawurlencode(sanitize_title($section_id));
+    }
+
+    return $url;
+}
+
+function ll_tools_book_text_selected_section_index(array $sections): int {
+    if (empty($sections)) {
+        return 0;
+    }
+
+    $requested = isset($_GET['ll_book_section'])
+        ? sanitize_title(wp_unslash((string) $_GET['ll_book_section']))
+        : '';
+    if ($requested === '') {
+        return 0;
+    }
+
+    foreach ($sections as $index => $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+        if (ll_tools_book_text_section_id($section, (int) $index) === $requested) {
+            return (int) $index;
+        }
+    }
+
+    return 0;
+}
+
+function ll_tools_book_text_section_label(array $section, int $index): string {
+    $label = ll_tools_interlinear_scalar($section, ['label', 'title', 'heading']);
+    return $label !== '' ? $label : sprintf(__('Section %d', 'll-tools-text-domain'), $index + 1);
+}
+
+function ll_tools_book_text_section_language_text(array $section, string $language_key): string {
+    if ($language_key !== '' && isset($section['texts']) && is_array($section['texts'])) {
+        $value = $section['texts'][$language_key] ?? '';
+        if (is_scalar($value) && trim((string) $value) !== '') {
+            return trim((string) $value);
+        }
+    }
+
+    if ($language_key !== '') {
+        $value = ll_tools_interlinear_scalar($section, [
+            'text_' . $language_key,
+            'translation_' . $language_key,
+            $language_key,
+        ]);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    $texts = isset($section['texts']) && is_array($section['texts']) ? $section['texts'] : [];
+    foreach ($texts as $value) {
+        if (is_scalar($value) && trim((string) $value) !== '') {
+            return trim((string) $value);
+        }
+    }
+
+    return ll_tools_interlinear_scalar($section, ['text', 'body', 'content']);
+}
+
+function ll_tools_book_text_render_language_switcher(array $payload, string $selected_key, string $section_id): string {
+    $keys = ll_tools_text_document_available_translation_keys($payload);
+    if (count($keys) < 2) {
+        return '';
+    }
+
+    $html = '<nav class="ll-text-document__translations ll-book-text__translations" aria-label="' . esc_attr__('Book language', 'll-tools-text-domain') . '">';
+    foreach ($keys as $key) {
+        $class = 'll-text-document__translation ll-book-text__translation';
+        if ($key === $selected_key) {
+            $class .= ' is-active';
+        }
+        $html .= '<a class="' . esc_attr($class) . '" href="' . esc_url(ll_tools_book_text_view_url($key, $section_id)) . '"' . ($key === $selected_key ? ' aria-current="page"' : '') . '>';
+        $html .= esc_html(ll_tools_text_document_translation_label($payload, $key));
+        $html .= '</a>';
+    }
+    $html .= '</nav>';
+
+    return $html;
+}
+
+function ll_tools_book_text_render_section_nav(array $sections, string $selected_language, int $selected_index): string {
+    if (count($sections) < 2) {
+        return '';
+    }
+
+    $html = '<nav class="ll-book-text__section-nav" aria-label="' . esc_attr__('Book sections', 'll-tools-text-domain') . '">';
+    foreach ($sections as $index => $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+        $section_id = ll_tools_book_text_section_id($section, (int) $index);
+        $class = 'll-book-text__section-link';
+        if ((int) $index === $selected_index) {
+            $class .= ' is-active';
+        }
+        $html .= '<a class="' . esc_attr($class) . '" href="' . esc_url(ll_tools_book_text_view_url($selected_language, $section_id)) . '"' . ((int) $index === $selected_index ? ' aria-current="page"' : '') . '>';
+        $html .= esc_html(ll_tools_book_text_section_label($section, (int) $index));
+        $html .= '</a>';
+    }
+    $html .= '</nav>';
+
+    return $html;
+}
+
+function ll_tools_book_text_render_pager(array $sections, string $selected_language, int $selected_index): string {
+    if (count($sections) < 2) {
+        return '';
+    }
+
+    $previous_index = $selected_index - 1;
+    $next_index = $selected_index + 1;
+    $previous = $previous_index >= 0 && isset($sections[$previous_index]) && is_array($sections[$previous_index])
+        ? $sections[$previous_index]
+        : null;
+    $next = $next_index < count($sections) && isset($sections[$next_index]) && is_array($sections[$next_index])
+        ? $sections[$next_index]
+        : null;
+
+    $html = '<nav class="ll-book-text__pager" aria-label="' . esc_attr__('Book page navigation', 'll-tools-text-domain') . '">';
+    if ($previous !== null) {
+        $previous_id = ll_tools_book_text_section_id($previous, $previous_index);
+        $html .= '<a class="ll-book-text__pager-link ll-book-text__pager-link--previous" href="' . esc_url(ll_tools_book_text_view_url($selected_language, $previous_id)) . '">';
+        $html .= '<span class="ll-book-text__pager-direction">' . esc_html__('Previous', 'll-tools-text-domain') . '</span>';
+        $html .= '<span>' . esc_html(ll_tools_book_text_section_label($previous, $previous_index)) . '</span>';
+        $html .= '</a>';
+    } else {
+        $html .= '<span class="ll-book-text__pager-link is-disabled" aria-disabled="true">' . esc_html__('Previous', 'll-tools-text-domain') . '</span>';
+    }
+
+    $html .= '<span class="ll-book-text__pager-count">' . esc_html(sprintf(
+        __('%1$d of %2$d', 'll-tools-text-domain'),
+        $selected_index + 1,
+        count($sections)
+    )) . '</span>';
+
+    if ($next !== null) {
+        $next_id = ll_tools_book_text_section_id($next, $next_index);
+        $html .= '<a class="ll-book-text__pager-link ll-book-text__pager-link--next" href="' . esc_url(ll_tools_book_text_view_url($selected_language, $next_id)) . '">';
+        $html .= '<span class="ll-book-text__pager-direction">' . esc_html__('Next', 'll-tools-text-domain') . '</span>';
+        $html .= '<span>' . esc_html(ll_tools_book_text_section_label($next, $next_index)) . '</span>';
+        $html .= '</a>';
+    } else {
+        $html .= '<span class="ll-book-text__pager-link is-disabled" aria-disabled="true">' . esc_html__('Next', 'll-tools-text-domain') . '</span>';
+    }
+    $html .= '</nav>';
+
+    return $html;
 }
 
 function ll_tools_text_document_render_tabs(string $current_view, string $translation_key, bool $can_view_linguist, array $payload): string {
@@ -1640,9 +1916,87 @@ function ll_tools_text_document_render_sources(array $payload): string {
     return $html;
 }
 
+function ll_tools_render_book_text_document_block(int $lesson_id, array $payload): string {
+    if (!ll_tools_current_user_can_view_text_document($lesson_id)) {
+        return '';
+    }
+
+    $sections = ll_tools_book_text_sections($payload);
+    if (empty($sections)) {
+        return '';
+    }
+
+    $translation_key = ll_tools_text_document_selected_translation_key($payload);
+    $selected_index = ll_tools_book_text_selected_section_index($sections);
+    $selected_section = isset($sections[$selected_index]) && is_array($sections[$selected_index])
+        ? $sections[$selected_index]
+        : $sections[0];
+    $selected_index = isset($sections[$selected_index]) ? $selected_index : 0;
+    $section_id = ll_tools_book_text_section_id($selected_section, $selected_index);
+    $section_label = ll_tools_book_text_section_label($selected_section, $selected_index);
+    $source_page = ll_tools_interlinear_scalar($selected_section, ['source_page', 'page', 'pages', 'source_ref']);
+    $section_text = ll_tools_book_text_section_language_text($selected_section, $translation_key);
+    $language_label = $translation_key !== ''
+        ? ll_tools_text_document_translation_label($payload, $translation_key)
+        : __('Text', 'll-tools-text-domain');
+    $language_switcher = ll_tools_book_text_render_language_switcher($payload, $translation_key, $section_id);
+    $section_nav = ll_tools_book_text_render_section_nav($sections, $translation_key, $selected_index);
+    $pager = ll_tools_book_text_render_pager($sections, $translation_key, $selected_index);
+    $sources = ll_tools_text_document_render_sources($payload);
+    $print_button = '<button type="button" class="ll-text-document__print-button ll-book-text__print-button" data-ll-text-document-print>' . esc_html__('Print', 'll-tools-text-domain') . '</button>';
+    $section_body = $section_text !== ''
+        ? wpautop(esc_html($section_text))
+        : '<p>' . esc_html__('No text is available for this language in this section.', 'll-tools-text-domain') . '</p>';
+
+    ob_start();
+    ?>
+    <section class="ll-text-document ll-book-text" data-ll-text-document data-ll-book-text data-language="<?php echo esc_attr($translation_key); ?>">
+        <div class="ll-text-document__head ll-book-text__head">
+            <div class="ll-text-document__head-actions ll-book-text__head-actions">
+                <?php echo $language_switcher; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <?php echo $print_button; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </div>
+        </div>
+        <div class="ll-book-text__meta">
+            <span><?php echo esc_html(sprintf(__('Section %1$d of %2$d', 'll-tools-text-domain'), $selected_index + 1, count($sections))); ?></span>
+            <span><?php echo esc_html(sprintf(__('Language: %s', 'll-tools-text-domain'), $language_label)); ?></span>
+            <?php if ($source_page !== '') : ?>
+                <span><?php echo esc_html($source_page); ?></span>
+            <?php endif; ?>
+        </div>
+        <?php echo $section_nav; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <article class="ll-book-text__section" id="<?php echo esc_attr($section_id); ?>">
+            <header class="ll-book-text__section-head">
+                <p class="ll-book-text__section-kicker"><?php echo esc_html(sprintf(__('Section %1$d of %2$d', 'll-tools-text-domain'), $selected_index + 1, count($sections))); ?></p>
+                <h2 class="ll-book-text__section-title"><?php echo esc_html($section_label); ?></h2>
+                <?php if ($source_page !== '') : ?>
+                    <p class="ll-book-text__section-source"><?php echo esc_html($source_page); ?></p>
+                <?php endif; ?>
+            </header>
+            <div class="ll-book-text__body" dir="auto">
+                <?php echo $section_body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </div>
+        </article>
+        <?php echo $pager; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <?php if ($sources !== '') : ?>
+            <section class="ll-book-text__sources" aria-label="<?php echo esc_attr__('Sources', 'll-tools-text-domain'); ?>">
+                <h2><?php echo esc_html__('Sources', 'll-tools-text-domain'); ?></h2>
+                <?php echo $sources; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </section>
+        <?php endif; ?>
+    </section>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
 function ll_tools_render_text_document_block(int $lesson_id, array $payload): string {
     if (!ll_tools_current_user_can_view_text_document($lesson_id)) {
         return '';
+    }
+
+    if (ll_tools_text_document_is_book_text($payload)) {
+        return ll_tools_render_book_text_document_block($lesson_id, $payload);
     }
 
     $can_view_linguist = ll_tools_text_document_user_can_view_linguist($lesson_id);

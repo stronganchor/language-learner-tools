@@ -961,6 +961,169 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('rest-corpus-text', (string) (ll_tools_interlinear_get_payload($post_id)['lesson_id'] ?? ''));
     }
 
+    public function test_book_text_import_route_creates_public_paginated_reader(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'schema' => 'll_tools_text_document.v1',
+            'kind' => 'book_text',
+            'lesson_id' => 'rest-book-text',
+            'title' => 'REST Book Text',
+            'metadata' => [
+                'collection' => 'lerch',
+                'collection_label' => 'Peter Lerch',
+                'source_author' => 'Peter Lerch',
+                'excerpt' => 'Short multilingual book excerpt.',
+                'default_language' => 'tr',
+            ],
+            'translations' => [
+                'tr' => ['label' => 'Turkish'],
+                'en' => ['label' => 'English'],
+                'de' => ['label' => 'German'],
+            ],
+            'book_sections' => [
+                [
+                    'id' => 'intro',
+                    'label' => 'Introduction',
+                    'source_page' => 'Book I, p. 1',
+                    'texts' => [
+                        'tr' => 'Turkish intro text.',
+                        'en' => 'English intro text.',
+                        'de' => 'German intro text.',
+                    ],
+                ],
+                [
+                    'id' => 'notes',
+                    'label' => 'Notes',
+                    'source_page' => 'Book I, p. 2',
+                    'texts' => [
+                        'tr' => 'Turkish notes text.',
+                        'en' => 'English notes text.',
+                        'de' => 'German notes text.',
+                    ],
+                ],
+            ],
+            'witnesses' => [
+                [
+                    'label' => 'Scholarly source',
+                    'citation' => 'Lerch, Peter. Research source. 1857.',
+                    'url' => 'https://example.com/lerch',
+                ],
+            ],
+        ];
+
+        $locale_filter = static fn(): string => 'en_US';
+        add_filter('locale', $locale_filter);
+
+        try {
+            $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/corpus-texts/import', [
+                'post_slug' => 'rest-book-text',
+                'payload' => $payload,
+                'source' => 'unit-test',
+            ]);
+        } finally {
+            remove_filter('locale', $locale_filter);
+        }
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame('created', (string) ($data['action'] ?? ''));
+        $this->assertSame(2, (int) ($data['summary']['book_sections'] ?? 0));
+
+        $post_id = (int) ($data['post_id'] ?? 0);
+        $this->assertGreaterThan(0, $post_id);
+        $this->assertSame('ll_content_lesson', get_post_type($post_id));
+        $this->assertSame('', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, true));
+        $this->assertSame('corpus_text', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_KIND_META, true));
+        $this->assertSame('lerch', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META, true));
+        $this->assertTrue(ll_tools_interlinear_has_payload($post_id));
+
+        $original_get = $_GET;
+        wp_set_current_user(0);
+        $locale_filter = static fn(): string => 'en_US';
+        add_filter('locale', $locale_filter);
+        try {
+            $_GET = [];
+            $reader_html = ll_tools_render_interlinear_block($post_id);
+            $this->assertStringContainsString('class="ll-text-document ll-book-text"', $reader_html);
+            $this->assertStringContainsString('Language: English', $reader_html);
+            $this->assertStringContainsString('English intro text.', $reader_html);
+            $this->assertStringContainsString('Book I, p. 1', $reader_html);
+            $this->assertStringContainsString('Lerch, Peter. Research source. 1857.', $reader_html);
+            $this->assertStringNotContainsString('Turkish intro text.', $reader_html);
+            $this->assertStringNotContainsString('ll-text-document__tabs', $reader_html);
+            $this->assertStringNotContainsString('>Interlinear<', $reader_html);
+
+            $_GET = [
+                'll_book_language' => 'de',
+                'll_book_section' => 'notes',
+            ];
+            $german_html = ll_tools_render_interlinear_block($post_id);
+            $this->assertStringContainsString('Language: German', $german_html);
+            $this->assertStringContainsString('German notes text.', $german_html);
+            $this->assertStringContainsString('Book I, p. 2', $german_html);
+            $this->assertStringContainsString('Previous', $german_html);
+            $this->assertStringNotContainsString('English intro text.', $german_html);
+        } finally {
+            $_GET = $original_get;
+            remove_filter('locale', $locale_filter);
+        }
+    }
+
+    public function test_book_text_language_resolution_prefers_url_locale_then_document_default(): void
+    {
+        $payload = [
+            'schema' => 'll_tools_text_document.v1',
+            'kind' => 'book_text',
+            'metadata' => [
+                'default_language' => 'de',
+            ],
+            'translations' => [
+                'tr' => ['label' => 'Turkish'],
+                'en' => ['label' => 'English'],
+                'de' => ['label' => 'German'],
+            ],
+            'book_sections' => [
+                [
+                    'id' => 'intro',
+                    'texts' => [
+                        'tr' => 'Turkish text.',
+                        'en' => 'English text.',
+                        'de' => 'German text.',
+                    ],
+                ],
+            ],
+        ];
+
+        $original_get = $_GET;
+        try {
+            $_GET = ['ll_book_language' => 'tr'];
+            $this->assertSame('tr', ll_tools_text_document_selected_translation_key($payload));
+
+            $_GET = [];
+            $english_locale = static fn(): string => 'en_US';
+            add_filter('locale', $english_locale);
+            try {
+                $this->assertSame('en', ll_tools_text_document_selected_translation_key($payload));
+            } finally {
+                remove_filter('locale', $english_locale);
+            }
+
+            $unsupported_locale = static fn(): string => 'fr_FR';
+            add_filter('locale', $unsupported_locale);
+            try {
+                $this->assertSame('de', ll_tools_text_document_selected_translation_key($payload));
+            } finally {
+                remove_filter('locale', $unsupported_locale);
+            }
+        } finally {
+            $_GET = $original_get;
+        }
+    }
+
     public function test_corpus_text_import_rejects_oversized_payload_without_creating_post(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
