@@ -1453,8 +1453,13 @@
         if (OptionConflicts && typeof OptionConflicts.getWordImageIdentity === 'function') {
             return OptionConflicts.getWordImageIdentity(word);
         }
-        if (!word || typeof word !== 'object' || !word.image) return '';
-        const raw = String(word.image).trim();
+        if (!word || typeof word !== 'object') return '';
+        const explicitAttachmentId = normalizeWordId(word.answer_image_attachment_id || word.option_image_attachment_id);
+        if (explicitAttachmentId > 0) {
+            return 'attachment:' + String(explicitAttachmentId);
+        }
+
+        const raw = String(word.answer_image || word.option_image || word.image || '').trim();
         if (!raw) return '';
 
         const attachmentId = extractMaskedImageAttachmentId(raw);
@@ -1632,7 +1637,10 @@
         const promptAudioUrl = (Util && typeof Util.getPromptAudioUrl === 'function')
             ? Util.getPromptAudioUrl(targetWord)
             : String((targetWord && targetWord.audio) || '').trim();
-        const hasImage = showImage && !!targetWord.image;
+        const promptImageUrl = (Util && typeof Util.getPromptImageUrl === 'function')
+            ? Util.getPromptImageUrl(targetWord)
+            : String((targetWord && targetWord.image) || '').trim();
+        const hasImage = showImage && !!promptImageUrl;
         const hasText = showText && !!labelText;
         const hasAudio = showAudio && !!promptAudioUrl;
         if (!hasImage && !hasText && !hasAudio) {
@@ -1644,7 +1652,7 @@
         const $stack = $('<div>', { class: 'll-prompt-stack' });
         if (hasImage) {
             const $wrap = $('<div>', { class: 'll-prompt-image-wrap' });
-            $('<img>', { src: targetWord.image, alt: '', 'aria-hidden': 'true' }).appendTo($wrap);
+            $('<img>', { src: promptImageUrl, alt: '', 'aria-hidden': 'true' }).appendTo($wrap);
             $stack.append($wrap);
         }
         if (hasText) {

@@ -1522,6 +1522,9 @@ function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $catego
             'prompt_type' => 'audio',
             'option_type' => 'image',
         ];
+    if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+        $quiz_config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $quiz_config, [$wordset_id]);
+    }
     $option_type = (string) ($quiz_config['option_type'] ?? '');
     $requires_audio = function_exists('ll_tools_quiz_requires_audio')
         ? ll_tools_quiz_requires_audio($quiz_config, $option_type)
@@ -2139,6 +2142,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
             'prompt_type' => 'audio',
             'option_type' => 'image',
         ];
+    if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+        $quiz_config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $quiz_config, [$wordset_id]);
+    }
     $prompt_type = isset($quiz_config['prompt_type']) ? (string) $quiz_config['prompt_type'] : 'audio';
     $option_type = isset($quiz_config['option_type']) ? (string) $quiz_config['option_type'] : 'image';
     $requires_audio = function_exists('ll_tools_quiz_requires_audio')
@@ -2867,6 +2873,9 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         $quiz_config = function_exists('ll_tools_get_category_quiz_config')
             ? ll_tools_get_category_quiz_config($category)
             : [];
+        if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+            $quiz_config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $quiz_config, [$wordset_id]);
+        }
         $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
         $option_type = (string) ($quiz_config['option_type'] ?? 'image');
         $learning_supported = !array_key_exists('learning_supported', $quiz_config) || !empty($quiz_config['learning_supported']);
@@ -5655,6 +5664,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
     $visibility = isset($_POST['ll_wordset_visibility'])
         ? ll_tools_normalize_wordset_visibility(wp_unslash((string) $_POST['ll_wordset_visibility']))
         : 'public';
+    $sign_language_mode = isset($_POST['ll_wordset_sign_language_mode']) ? 1 : 0;
     $autoplay_text_audio_answer_options = isset($_POST['ll_wordset_autoplay_text_audio_answer_options']) ? 1 : 0;
     $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
     $submitted_tool = ll_tools_get_wordset_settings_tool();
@@ -5786,6 +5796,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, $speaking_target);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY, $speaking_assemblyai_profile);
     } elseif ($submitted_tool === 'study') {
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, $sign_language_mode);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
         update_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
     } elseif ($submitted_tool === 'categories') {
@@ -11181,6 +11192,9 @@ function ll_tools_wordset_page_get_managed_category_rows(int $wordset_id, array 
                 'prompt_type' => 'audio',
                 'option_type' => 'image',
             ];
+        if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+            $quiz_config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $quiz_config, [$wordset_id]);
+        }
         $display_name = function_exists('ll_tools_get_category_display_name')
             ? ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
             : (string) $term->name;
@@ -14034,6 +14048,7 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
     $wordset_id = isset($args['wordset_id']) ? (int) $args['wordset_id'] : 0;
     $back_url = isset($args['back_url']) ? (string) $args['back_url'] : '';
     $can_manage_wordset_content = !empty($args['can_manage_wordset_content']);
+    $sign_language_mode = !empty($args['sign_language_mode']);
     $autoplay_text_audio_answer_options = !empty($args['autoplay_text_audio_answer_options']);
     $hide_lesson_text_for_non_text_quiz = !empty($args['hide_lesson_text_for_non_text_quiz']);
     $study_settings_action_url = ($can_manage_wordset_content && $wordset_term instanceof WP_Term && $wordset_id > 0)
@@ -14114,6 +14129,23 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
                 <input type="hidden" name="ll_wordset_view" value="settings" />
                 <input type="hidden" name="ll_wordset_tool" value="study" />
                 <?php wp_nonce_field('ll_wordset_manager_settings_' . $wordset_id, 'll_wordset_manager_settings_nonce'); ?>
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Sign language', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-sign-language-mode" class="ll-wordset-settings-card__checkbox-item">
+                        <input
+                            type="checkbox"
+                            id="ll-wordset-settings-sign-language-mode"
+                            name="ll_wordset_sign_language_mode"
+                            value="1"
+                            <?php checked($sign_language_mode, true); ?>
+                        />
+                        <span><?php echo esc_html__('Use sign language quiz defaults and disable audio requirements for this word set.', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Categories default to image prompts with image answer options. Category quiz settings can still use image prompts with text answers.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
                 <div class="ll-wordset-settings-card__group">
                     <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Text + audio pairs', 'll-tools-text-domain'); ?></h3>
                     <label for="ll-wordset-settings-autoplay-text-audio-options">
@@ -14366,6 +14398,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         : 'ipa';
     $autoplay_text_audio_answer_options = function_exists('ll_tools_should_autoplay_text_audio_answer_options')
         ? ll_tools_should_autoplay_text_audio_answer_options([$wordset_id])
+        : false;
+    $sign_language_mode = function_exists('ll_tools_wordset_uses_sign_language_mode')
+        ? ll_tools_wordset_uses_sign_language_mode([$wordset_id])
         : false;
     $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
     $wordset_is_private = ($wordset_visibility === 'private');
@@ -16152,6 +16187,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'wordset_id' => $wordset_id,
                     'back_url' => $back_url,
                     'can_manage_wordset_content' => $can_manage_wordset_content,
+                    'sign_language_mode' => $sign_language_mode,
                     'autoplay_text_audio_answer_options' => $autoplay_text_audio_answer_options,
                     'hide_lesson_text_for_non_text_quiz' => $hide_lesson_text_for_non_text_quiz,
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

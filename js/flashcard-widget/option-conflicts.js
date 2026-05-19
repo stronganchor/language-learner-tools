@@ -35,11 +35,16 @@
     }
 
     function getWordImageIdentity(word) {
-        if (!word || typeof word !== 'object' || !word.image) {
+        if (!word || typeof word !== 'object') {
             return '';
         }
 
-        const raw = String(word.image).trim();
+        const explicitAttachmentId = normalizeWordId(word.answer_image_attachment_id || word.option_image_attachment_id);
+        if (explicitAttachmentId > 0) {
+            return 'attachment:' + String(explicitAttachmentId);
+        }
+
+        const raw = String(word.answer_image || word.option_image || word.image || '').trim();
         if (!raw) {
             return '';
         }

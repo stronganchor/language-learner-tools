@@ -606,6 +606,9 @@
     function createImageCard(word, optionType) {
         const hasCaptionMode = String(optionType || '').trim().toLowerCase() === 'image_text_translation';
         const captionText = hasCaptionMode ? getImageCardCaptionText(word, optionType) : '';
+        const imageUrl = (Util && typeof Util.getAnswerImageUrl === 'function')
+            ? Util.getAnswerImageUrl(word)
+            : String((word && word.image) || '').trim();
         const $c = $('<div>', {
             class: 'flashcard-container ll-answer-option-image-card flashcard-size-' + root.llToolsFlashcardsData.imageSize + (hasCaptionMode ? ' ll-answer-option-image-caption-card' : ''),
             'data-word': word.title,
@@ -617,7 +620,7 @@
             ? $('<div>', { class: 'll-answer-option-image-caption-media' }).appendTo($c)
             : $c;
 
-        $('<img>', { src: word.image, alt: '', 'aria-hidden': 'true', class: 'quiz-image', draggable: false })
+        $('<img>', { src: imageUrl, alt: '', 'aria-hidden': 'true', class: 'quiz-image', draggable: false })
             .on('load', function () {
                 const fudge = 10;
                 if (this.naturalWidth > this.naturalHeight + fudge) $c.addClass('landscape');

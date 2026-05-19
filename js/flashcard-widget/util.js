@@ -89,6 +89,22 @@
             }
             return Util.getAnswerAudioUrl(word);
         },
+        getAnswerImageUrl(word) {
+            if (!word || typeof word !== 'object') {
+                return '';
+            }
+            const answerImage = String(word.answer_image || word.option_image || '').trim();
+            if (answerImage) {
+                return answerImage;
+            }
+            return String(word.image || '').trim();
+        },
+        getPromptImageUrl(word) {
+            if (!word || typeof word !== 'object') {
+                return '';
+            }
+            return String(word.prompt_image || word.image || '').trim();
+        },
         normalizeCategoryKey(value) {
             return String(value || '').trim().toLowerCase();
         },

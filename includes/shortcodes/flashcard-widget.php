@@ -956,6 +956,9 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
         ? ll_tools_resolve_word_category_term($categoryName)
         : null;
     $config = ($term instanceof WP_Term) ? ll_tools_get_category_quiz_config($term) : ['prompt_type' => 'audio', 'option_type' => 'image'];
+    if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+        $config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $config, $wordset_ids);
+    }
 
     $option_type = $config['option_type'] ?? 'image';
     $words_in_mode_count = ll_get_words_by_category_count($categoryName, $option_type, $wordset_ids, $config);
@@ -1005,6 +1008,9 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
     }
 
     $config = ll_tools_get_category_quiz_config($category);
+    if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+        $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_ids);
+    }
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
     $learning_supported = !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']);
@@ -1285,6 +1291,9 @@ function ll_get_words_by_category_ajax() {
     }
 
     $meta_config = ($term instanceof WP_Term) ? ll_tools_get_category_quiz_config($term) : [];
+    if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+        $meta_config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $meta_config, $wordset_ids);
+    }
     $normalized_prompt_type = ll_tools_normalize_quiz_prompt_type(
         $prompt_type ?: ($meta_config['prompt_type'] ?? 'audio'),
         !empty($meta_config['use_titles'])

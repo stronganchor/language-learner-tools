@@ -1353,6 +1353,58 @@ function ll_tools_quiz_requires_image(array $config, string $display_mode = ''):
     return ll_tools_quiz_prompt_type_has_image($prompt_type) || ll_tools_quiz_option_type_has_image($option_type);
 }
 
+function ll_tools_apply_wordset_quiz_presentation_overrides(array $config, $wordset_ids = []): array {
+    $ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+
+    if (
+        empty($ids)
+        || !function_exists('ll_tools_wordset_uses_sign_language_mode')
+        || !ll_tools_wordset_uses_sign_language_mode($ids)
+    ) {
+        return $config;
+    }
+
+    $prompt_type = ll_tools_normalize_quiz_prompt_type((string) ($config['prompt_type'] ?? 'audio'), !empty($config['use_titles']));
+    $option_type = ll_tools_normalize_quiz_option_type((string) ($config['option_type'] ?? 'image'), !empty($config['use_titles']), $prompt_type);
+
+    switch ($prompt_type) {
+        case 'audio':
+            $prompt_type = 'image';
+            break;
+        case 'audio_text_translation':
+            $prompt_type = 'image_text_translation';
+            break;
+        case 'audio_text_title':
+            $prompt_type = 'image_text_title';
+            break;
+        case 'image_audio':
+            $prompt_type = 'image';
+            break;
+    }
+
+    switch ($option_type) {
+        case 'audio':
+            $option_type = 'image';
+            break;
+        case 'text_audio':
+            $option_type = !empty($config['use_titles']) ? 'text_title' : 'text_translation';
+            break;
+    }
+
+    $learning_supported = !(ll_tools_quiz_prompt_type_has_image($prompt_type) && in_array($option_type, ['text_title', 'text_translation'], true));
+
+    $config['prompt_type'] = $prompt_type;
+    $config['option_type'] = $option_type;
+    $config['use_titles'] = ($option_type === 'text_title') || !empty($config['use_titles']);
+    $config['learning_supported'] = $learning_supported;
+    $config['self_check_supported'] = true;
+    $config['sign_language_mode'] = true;
+
+    return $config;
+}
+
 function ll_tools_get_category_game_definitions(): array {
     return [
         'space-shooter' => [
@@ -4099,6 +4151,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     if ($term instanceof WP_Term && !$skip_merge) {
         $config = array_merge(ll_tools_get_category_quiz_config($term), (array) $quiz_config);
     }
+    $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_terms);
 
     $use_titles  = !empty($config['use_titles']);
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
@@ -4116,7 +4169,8 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         'text_label_schema'    => 5,
-        'prompt_card_schema'   => 1,
+        'prompt_card_schema'   => 2,
+        'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
             : true,
@@ -4257,6 +4311,7 @@ function ll_tools_count_gender_eligible_words_for_category($categoryName, $words
     if ($term instanceof WP_Term && !$skip_merge) {
         $config = array_merge(ll_tools_get_category_quiz_config($term), (array) $quiz_config);
     }
+    $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_terms);
 
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
@@ -4467,6 +4522,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     if ($term instanceof WP_Term && !$skip_merge) {
         $config = array_merge(ll_tools_get_category_quiz_config($term), (array) $quiz_config);
     }
+    $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_terms);
 
     $use_titles  = !empty($config['use_titles']);
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
@@ -4487,7 +4543,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
         'text_label_schema'    => 5,
-        'prompt_card_schema'   => 1,
+        'prompt_card_schema'   => 2,
+        'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
@@ -4568,8 +4625,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $prompt_cards = [];
     $prompt_card_support_word_ids = [];
     if (
-        !$require_option_image
-        && function_exists('ll_tools_get_prompt_card_posts_for_category_context')
+        function_exists('ll_tools_get_prompt_card_posts_for_category_context')
         && function_exists('ll_tools_get_prompt_card_data')
     ) {
         foreach (ll_tools_get_prompt_card_posts_for_category_context($category_context, $wordset_terms) as $prompt_card_post) {
@@ -5037,7 +5093,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $words[] = $word_data;
     }
 
-    if (!$require_option_image && !empty($prompt_cards)) {
+    if (!empty($prompt_cards)) {
         $prompt_card_output_rows = [];
         $prompt_card_support_rows = [];
         foreach ($prompt_cards as $card) {
@@ -5101,6 +5157,10 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $prompt_row['is_prompt_card'] = true;
             $prompt_row['prompt_card_id'] = $prompt_card_id;
             $prompt_row['answer_word_id'] = $answer_word_id;
+            $prompt_row['option_image_source_word_id'] = $answer_word_id;
+            $prompt_row['answer_image'] = $answer_image;
+            $prompt_row['answer_image_attachment_id'] = (int) ($answer_row['image_attachment_id'] ?? 0);
+            $prompt_row['answer_image_is_animated_webp'] = !empty($answer_row['image_is_animated_webp']);
             $prompt_row['progress_word_id'] = !empty($card['track_answer_word_progress']) ? $answer_word_id : 0;
             $prompt_row['track_answer_word_progress'] = !empty($card['track_answer_word_progress']);
             $prompt_row['specific_wrong_answer_ids'] = array_values(array_filter(array_map('intval', (array) ($card['wrong_answer_word_ids'] ?? [])), static function ($id): bool {
@@ -5136,6 +5196,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                     continue;
                 }
                 if ($option_requires_audio && empty($wrong_row['has_audio'])) {
+                    continue;
+                }
+                if ($require_option_image && empty($wrong_row['image'])) {
                     continue;
                 }
                 if (in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true) && (string) ($wrong_row['label'] ?? '') === '') {
@@ -5854,6 +5917,9 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
     if ($category_version < 1) {
         $category_version = 1;
     }
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
 
     static $request_cache = [];
     $request_cache_key = md5(wp_json_encode([
@@ -5862,6 +5928,7 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         'min' => (int) $min_word_count,
         'wordsets' => $wordset_key_parts,
         'v' => $category_version,
+        'wordset_epoch' => $wordset_epoch,
         'user_id' => (int) get_current_user_id(),
     ]));
     if (array_key_exists($request_cache_key, $request_cache)) {
@@ -5874,6 +5941,7 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         'min' => (int) $min_word_count,
         'wordsets' => $wordset_key_parts,
         'v' => $category_version,
+        'wordset_epoch' => $wordset_epoch,
         'user_id' => (int) get_current_user_id(),
     ]));
     $persistent_cache_group = 'll_tools_quiz_category';
@@ -5887,7 +5955,10 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         return $result;
     }
 
-    $config = ll_tools_get_category_quiz_config($term);
+    $config = ll_tools_apply_wordset_quiz_presentation_overrides(
+        ll_tools_get_category_quiz_config($term),
+        $wordset_key_parts
+    );
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
     if ($option_type === '') {
         $option_type = ll_tools_default_option_type_for_category($term, $min_word_count, $wordset_ids);

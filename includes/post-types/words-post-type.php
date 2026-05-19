@@ -2056,6 +2056,15 @@ function ll_word_requires_audio_to_publish($post_id) {
         return true;
     }
 
+    $wordset_ids = wp_get_post_terms((int) $post_id, 'wordset', ['fields' => 'ids']);
+    if (
+        !is_wp_error($wordset_ids)
+        && function_exists('ll_tools_wordset_uses_sign_language_mode')
+        && ll_tools_wordset_uses_sign_language_mode((array) $wordset_ids)
+    ) {
+        return false;
+    }
+
     $has_non_audio_category = false;
     foreach ($cat_ids as $tid) {
         $cfg = ll_tools_get_category_quiz_config((int) $tid);

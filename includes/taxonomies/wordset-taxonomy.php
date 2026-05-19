@@ -5,6 +5,9 @@ if (!defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY')) {
     define('LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY', 'll_wordset_autoplay_text_audio_answer_options');
 }
+if (!defined('LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY')) {
+    define('LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY', 'll_wordset_sign_language_mode');
+}
 if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY')) {
     define('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY', 'll_wordset_answer_option_text_font_family');
 }
@@ -74,6 +77,39 @@ function ll_tools_get_wordset_visibility($wordset): string {
 
 function ll_tools_is_wordset_private($wordset): bool {
     return ll_tools_get_wordset_visibility($wordset) === 'private';
+}
+
+function ll_tools_wordset_uses_sign_language_mode($wordset_ids = []): bool {
+    $ids = function_exists('ll_tools_normalize_wordset_setting_ids')
+        ? ll_tools_normalize_wordset_setting_ids($wordset_ids)
+        : array_values(array_filter(array_map('intval', (array) $wordset_ids), static function ($id): bool {
+            return $id > 0;
+        }));
+
+    if (empty($ids)) {
+        return false;
+    }
+
+    foreach ($ids as $wordset_id) {
+        $wordset_id = (int) $wordset_id;
+        if ($wordset_id <= 0) {
+            continue;
+        }
+
+        $raw = get_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, true);
+        if (function_exists('ll_tools_normalize_wordset_boolean_setting')) {
+            if (ll_tools_normalize_wordset_boolean_setting($raw) === 1) {
+                return true;
+            }
+            continue;
+        }
+
+        if (!empty($raw)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function ll_tools_normalize_wordset_games_image_size($value): string {
@@ -2830,6 +2866,7 @@ function ll_add_wordset_language_field($term) {
         ? (string) ll_tools_get_wordset_title_language_role($wordset_context)
         : 'target';
     $wordset_visibility = 'public';
+    $sign_language_mode = false;
     $autoplay_text_audio_answer_options = false;
     $hide_lesson_text_for_non_text_quiz = false;
     $games_image_size = 'default';
@@ -2875,6 +2912,9 @@ function ll_add_wordset_language_field($term) {
         $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
             ? ll_tools_get_wordset_visibility($term_id)
             : 'public';
+        $sign_language_mode = function_exists('ll_tools_wordset_uses_sign_language_mode')
+            ? ll_tools_wordset_uses_sign_language_mode([$term_id])
+            : false;
         $autoplay_text_audio_answer_options = function_exists('ll_tools_should_autoplay_text_audio_answer_options')
             ? ll_tools_should_autoplay_text_audio_answer_options([$term_id])
             : false;
@@ -3027,6 +3067,15 @@ function ll_add_wordset_language_field($term) {
         '<label><input type="checkbox" id="ll-wordset-hide-lesson-text" name="ll_wordset_hide_lesson_text_for_non_text_quiz" value="1" ' . checked($hide_lesson_text_for_non_text_quiz, true, false) . ' /> ' . esc_html__('Hide word text on lesson pages/word grids when the category quiz shows only images/audio.', 'll-tools-text-domain') . '</label>',
         'll-wordset-hide-lesson-text',
         __('Categories can override this in their quiz settings.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-sign-language-mode-wrap',
+        __('Sign language presentation', 'll-tools-text-domain'),
+        '<label><input type="checkbox" id="ll-wordset-sign-language-mode" name="ll_wordset_sign_language_mode" value="1" ' . checked($sign_language_mode, true, false) . ' /> ' . esc_html__('Treat this as a sign language word set and disable audio requirements for quiz availability.', 'll-tools-text-domain') . '</label>',
+        'll-wordset-sign-language-mode',
+        __('Categories default to image prompts with image answer options; use a category quiz override for image prompts with text answers.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -3318,6 +3367,7 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_word_title_language_role'])
         || isset($_POST['ll_wordset_recording_transcription_mode'])
         || isset($_POST['ll_wordset_visibility'])
+        || isset($_POST['ll_wordset_sign_language_mode'])
         || isset($_POST['ll_wordset_autoplay_text_audio_answer_options'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
         || isset($_POST['ll_wordset_games_image_size'])
@@ -3414,6 +3464,9 @@ function ll_save_wordset_language($term_id) {
 
         $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
+
+        $sign_language_mode = isset($_POST['ll_wordset_sign_language_mode']) ? 1 : 0;
+        update_term_meta($term_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, $sign_language_mode);
 
         if (array_key_exists('ll_wordset_games_image_size', $_POST)) {
             $games_image_size = ll_tools_normalize_wordset_games_image_size(

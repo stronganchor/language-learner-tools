@@ -69,6 +69,66 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertSame([$fixture['is_this_horse_card_id']], $this->normalizeIds((array) ($no_support_row['specific_wrong_answer_owner_ids'] ?? [])));
     }
 
+    public function test_prompt_card_rows_support_image_prompts_with_image_answer_options(): void
+    {
+        $asset_category_id = $this->createCategory('ASL Prompt Card Assets ' . wp_generate_password(5, false), 'image', 'image');
+        $prompt_category_name = 'ASL Prompt Card Questions ' . wp_generate_password(5, false);
+        $prompt_category_id = $this->createCategory($prompt_category_name, 'image', 'image');
+        $wordset_id = $this->createWordset('ASL Prompt Card Wordset ' . wp_generate_password(5, false));
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $sign_tree_id = $this->createWord($asset_category_id, 'ASL Tree Sign');
+        $tree_id = $this->createWord($asset_category_id, 'Tree');
+        $river_id = $this->createWord($asset_category_id, 'River');
+        $mountain_id = $this->createWord($asset_category_id, 'Mountain');
+        foreach ([$sign_tree_id, $tree_id, $river_id, $mountain_id] as $word_id) {
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            $this->addImage($word_id, '-asl');
+        }
+
+        $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'ASL Tree Image Prompt',
+            'prompt_text' => '',
+            'prompt_image_word_id' => $sign_tree_id,
+            'correct_answer_word_id' => $tree_id,
+            'wrong_answer_word_ids' => [$river_id, $mountain_id],
+            'track_answer_word_progress' => true,
+        ]);
+
+        $config = [
+            'prompt_type' => 'image',
+            'option_type' => 'image',
+            'learning_supported' => true,
+            'self_check_supported' => true,
+            'use_titles' => false,
+        ];
+        $rows = ll_get_words_by_category($prompt_category_name, 'image', [$wordset_id], $config);
+        $count = ll_get_words_by_category_count($prompt_category_name, 'image', [$wordset_id], $config);
+        $prompt_row = $this->findPromptCardRow((array) $rows, $prompt_card_id);
+
+        $this->assertSame(1, $count);
+        $this->assertNotEmpty($prompt_row);
+        $this->assertSame($prompt_card_id, (int) ($prompt_row['id'] ?? 0));
+        $this->assertSame($tree_id, (int) ($prompt_row['answer_word_id'] ?? 0));
+        $this->assertSame($tree_id, (int) ($prompt_row['option_image_source_word_id'] ?? 0));
+        $this->assertNotEmpty((string) ($prompt_row['image'] ?? ''), 'Prompt image should come from the sign-media word.');
+        $this->assertNotEmpty((string) ($prompt_row['answer_image'] ?? ''), 'Answer image should come from the correct answer word.');
+        $this->assertNotSame((string) ($prompt_row['image'] ?? ''), (string) ($prompt_row['answer_image'] ?? ''));
+        $this->assertGreaterThan(0, (int) ($prompt_row['answer_image_attachment_id'] ?? 0));
+        $this->assertSame([$river_id, $mountain_id], $this->normalizeIds((array) ($prompt_row['specific_wrong_answer_ids'] ?? [])));
+
+        $support_rows = [];
+        foreach ((array) $rows as $row) {
+            if (is_array($row) && !empty($row['is_specific_wrong_answer_only'])) {
+                $support_rows[(int) ($row['id'] ?? 0)] = $row;
+            }
+        }
+        $this->assertArrayHasKey($river_id, $support_rows);
+        $this->assertArrayHasKey($mountain_id, $support_rows);
+        $this->assertNotEmpty((string) ($support_rows[$river_id]['image'] ?? ''));
+        $this->assertNotEmpty((string) ($support_rows[$mountain_id]['image'] ?? ''));
+    }
+
     public function test_prompt_card_admin_save_invalidates_cached_wrong_answer_payload(): void
     {
         $asset_category_id = $this->createCategory('Prompt Card Cache Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');

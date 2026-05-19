@@ -140,6 +140,22 @@
                 || (util.optionTypeHasImage ? util.optionTypeHasImage(opt) : (opt === 'image'));
         }
 
+        function getPromptImageUrl(word) {
+            const util = getUtil();
+            if (util && typeof util.getPromptImageUrl === 'function') {
+                return util.getPromptImageUrl(word);
+            }
+            return String((word && word.image) || '').trim();
+        }
+
+        function getAnswerImageUrl(word) {
+            const util = getUtil();
+            if (util && typeof util.getAnswerImageUrl === 'function') {
+                return util.getAnswerImageUrl(word);
+            }
+            return String((word && word.image) || '').trim();
+        }
+
         function getWordsetKey() {
             const ws = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData.wordset !== 'undefined')
                 ? window.llToolsFlashcardsData.wordset
@@ -1068,7 +1084,8 @@
                         const word = chunk[index];
                         return Promise.all([
                             (needsAudio && word && word.audio ? loadAudio(word.audio) : Promise.resolve()),
-                            (needsImage && word && word.image ? loadImage(word.image) : Promise.resolve())
+                            (needsImage && getPromptImageUrl(word) ? loadImage(getPromptImageUrl(word)) : Promise.resolve()),
+                            (needsImage && getAnswerImageUrl(word) && getAnswerImageUrl(word) !== getPromptImageUrl(word) ? loadImage(getAnswerImageUrl(word)) : Promise.resolve())
                         ]).catch(function () {
                             return [];
                         }).then(runWorker);
@@ -1180,7 +1197,8 @@
                 : ((util && typeof util.getAnswerAudioUrl === 'function')
                     ? util.getAnswerAudioUrl(word)
                     : ((typeof word.audio === 'string') ? word.audio : ''));
-            const imageURL = (typeof word.image === 'string') ? word.image : '';
+            const imageSource = String(opts.imageSource || (audioSource === 'prompt' ? 'prompt' : 'answer')).trim().toLowerCase();
+            const imageURL = imageSource === 'prompt' ? getPromptImageUrl(word) : getAnswerImageUrl(word);
             const audioPromise = shouldPreloadAudio
                 ? (audioURL
                     ? loadAudio(audioURL, {

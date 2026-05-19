@@ -342,6 +342,55 @@ test('image + translation answer options keep image-sized tiles with adaptive ca
   expect(empty.cardHeight).toBeCloseTo(imageOnly.cardHeight, 0);
 });
 
+test('prompt-card image answer options render the answer image instead of the prompt image', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-content">
+      <div id="ll-tools-flashcard"></div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: baseCssSource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      imageSize: 'small',
+      answerOptionTextStyle: {
+        fontSizePx: 42,
+        minFontSizePx: 10
+      }
+    };
+    window.LLFlashcards = {
+      State: {},
+      Dom: {},
+      Selection: {
+        getCurrentDisplayMode: function () {
+          return 'image';
+        }
+      }
+    };
+  });
+  await page.addScriptTag({ content: utilSource });
+  await page.addScriptTag({ content: cardsSource });
+
+  const src = await page.evaluate(() => {
+    const promptImage = 'https://media.test/asl-tree-sign.webp';
+    const answerImage = 'https://media.test/tree-concept.webp';
+    const card = window.LLFlashcards.Cards.appendWordToContainer({
+      id: 9001,
+      title: 'Tree',
+      is_prompt_card: true,
+      prompt_card_id: 9001,
+      image: promptImage,
+      answer_image: answerImage,
+      answer_image_attachment_id: 321
+    }, 'image', 'image', true);
+    card.css('display', 'flex');
+    return document.querySelector('#ll-tools-flashcard .flashcard-container img')?.getAttribute('src') || '';
+  });
+
+  expect(src).toBe('https://media.test/tree-concept.webp');
+});
+
 test('embedded image quiz options stay fully inside small iframe viewports', async ({ page }) => {
   const sizes = [
     { width: 320, height: 420 },
