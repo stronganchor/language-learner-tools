@@ -50,6 +50,42 @@ final class VocabLessonTitleEditTest extends LL_Tools_TestCase
         $this->assertSame('Updated Category Title', (string) ($data['category_name'] ?? ''));
     }
 
+    public function test_editor_can_update_lesson_category_name_with_literal_ampersand(): void
+    {
+        $editor_id = self::factory()->user->create(['role' => 'editor']);
+        wp_set_current_user($editor_id);
+
+        $lesson = $this->createLessonFixture('Original Amp Category', 'original-amp-category');
+        $lesson_id = $lesson['lesson_id'];
+        $category_id = $lesson['category_id'];
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_title_' . $lesson_id),
+            'title' => 'Quiz 57.1 - Leaves & Eglon',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_update_vocab_lesson_category_title_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $updated_category = get_term($category_id, 'word-category');
+
+        $this->assertInstanceOf(WP_Term::class, $updated_category);
+        $this->assertSame('Quiz 57.1 - Leaves & Eglon', (string) $updated_category->name);
+        $this->assertStringNotContainsString('&amp;', (string) $updated_category->name);
+        $this->assertSame('Quiz 57.1 - Leaves & Eglon', (string) ($data['display_name'] ?? ''));
+        $this->assertSame('Quiz 57.1 - Leaves & Eglon', (string) ($data['category_name'] ?? ''));
+    }
+
     public function test_translation_display_updates_term_translation_instead_of_raw_name(): void
     {
         $editor_id = self::factory()->user->create(['role' => 'editor']);

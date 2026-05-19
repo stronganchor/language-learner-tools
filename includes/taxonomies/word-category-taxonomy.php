@@ -916,6 +916,29 @@ function ll_save_translation_field($term_id, $taxonomy) {
     }
 }
 
+if (!function_exists('ll_tools_preserve_word_category_name_ampersands')) {
+    /**
+     * Keep literal ampersands in category names after WordPress' term-name save filters.
+     */
+    function ll_tools_preserve_word_category_name_ampersands($name): string {
+        $value = is_string($name) ? $name : (string) $name;
+        if ($value === '' || strpos($value, '&') === false) {
+            return $value;
+        }
+
+        $normalized = preg_replace_callback(
+            '/&(?:amp|#0*38|#x0*26);/i',
+            static function (): string {
+                return '&';
+            },
+            $value
+        );
+
+        return is_string($normalized) ? $normalized : $value;
+    }
+}
+add_filter('pre_word-category_name', 'll_tools_preserve_word_category_name_ampersands', 99);
+
 /**
  * Resolve the user-facing display name for a word-category term.
  *
