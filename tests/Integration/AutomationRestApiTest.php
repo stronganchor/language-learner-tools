@@ -649,6 +649,13 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'metadata' => [
                 'publication' => [
                     'places_tr' => 'Sivan/Servi; Nyêrib/Nerib/Kuyular.',
+                    'place_links' => [
+                        [
+                            'name' => 'Hyêni',
+                            'modern' => 'Hani',
+                            'url' => 'https://www.google.com/maps/search/?api=1&query=Hani%2C%20Diyarbak%C4%B1r',
+                        ],
+                    ],
                     'historical_context_tr' => 'Working historical context note.',
                     'editorial_note_tr' => 'Working editorial note.',
                 ],
@@ -712,7 +719,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>Interlinear<', $reader_html);
         $this->assertStringContainsString('Text background', $reader_html);
         $this->assertStringContainsString('Places mentioned', $reader_html);
-        $this->assertStringContainsString('Sivan/Servi', $reader_html);
+        $this->assertStringContainsString('Hyêni', $reader_html);
+        $this->assertStringContainsString('href="https://www.google.com/maps/search/?api=1&#038;query=Hani%2C%20Diyarbak%C4%B1r"', $reader_html);
+        $this->assertStringNotContainsString('Sivan/Servi', $reader_html);
         $this->assertStringContainsString('Working historical context note.', $reader_html);
         $this->assertStringContainsString('Working editorial note.', $reader_html);
         $this->assertStringNotContainsString('Russian scan', $reader_html);

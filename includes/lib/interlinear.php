@@ -1571,6 +1571,52 @@ function ll_tools_text_document_publication_value(array $publication, array $key
     return '';
 }
 
+function ll_tools_text_document_publication_place_links_html(array $publication): string {
+    $place_link_keys = ['place_links_tr', 'places_tr_links', 'place_links'];
+    $place_links = [];
+
+    foreach ($place_link_keys as $key) {
+        if (isset($publication[$key]) && is_array($publication[$key])) {
+            $place_links = $publication[$key];
+            break;
+        }
+    }
+
+    if (empty($place_links)) {
+        return '';
+    }
+
+    $parts = [];
+    foreach ($place_links as $place) {
+        if (!is_array($place)) {
+            continue;
+        }
+
+        $name = isset($place['name']) && is_scalar($place['name']) ? trim((string) $place['name']) : '';
+        $modern = isset($place['modern']) && is_scalar($place['modern']) ? trim((string) $place['modern']) : '';
+        $url = isset($place['url']) && is_scalar($place['url']) ? trim((string) $place['url']) : '';
+
+        if ($name === '' && $modern === '') {
+            continue;
+        }
+
+        $label = $name !== '' ? esc_html($name) : esc_html($modern);
+        if ($modern !== '' && $modern !== $name) {
+            $modern_html = esc_html($modern);
+            if ($url !== '') {
+                $modern_html = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . $modern_html . '</a>';
+            }
+            $label .= ' (' . $modern_html . ')';
+        } elseif ($url !== '') {
+            $label = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . $label . '</a>';
+        }
+
+        $parts[] = $label;
+    }
+
+    return implode('; ', $parts);
+}
+
 function ll_tools_text_document_publication_intro_items(array $payload): array {
     $metadata = isset($payload['metadata']) && is_array($payload['metadata']) ? $payload['metadata'] : [];
     $publication = isset($metadata['publication']) && is_array($metadata['publication']) ? $metadata['publication'] : [];
@@ -1590,6 +1636,7 @@ function ll_tools_text_document_publication_intro_items(array $payload): array {
         [
             'label' => __('Places mentioned', 'll-tools-text-domain'),
             'keys'  => ['places_tr', 'places_en', 'places'],
+            'linked_places' => true,
         ],
         [
             'label' => __('Historical context', 'll-tools-text-domain'),
@@ -1603,6 +1650,17 @@ function ll_tools_text_document_publication_intro_items(array $payload): array {
 
     $items = [];
     foreach ($field_map as $field) {
+        if (!empty($field['linked_places'])) {
+            $place_links_html = ll_tools_text_document_publication_place_links_html($publication);
+            if ($place_links_html !== '') {
+                $items[] = [
+                    'label' => $field['label'],
+                    'html'  => $place_links_html,
+                ];
+                continue;
+            }
+        }
+
         $value = ll_tools_text_document_publication_value($publication, $field['keys']);
         if ($value === '') {
             continue;
@@ -1626,7 +1684,11 @@ function ll_tools_text_document_render_publication_intro(array $payload): string
     foreach ($items as $item) {
         $html .= '<div class="ll-text-document__intro-item">';
         $html .= '<h3>' . esc_html((string) $item['label']) . '</h3>';
-        $html .= '<p>' . nl2br(esc_html((string) $item['value'])) . '</p>';
+        if (isset($item['html']) && is_string($item['html']) && $item['html'] !== '') {
+            $html .= '<p>' . $item['html'] . '</p>';
+        } else {
+            $html .= '<p>' . nl2br(esc_html((string) $item['value'])) . '</p>';
+        }
         $html .= '</div>';
     }
     $html .= '</section>';
