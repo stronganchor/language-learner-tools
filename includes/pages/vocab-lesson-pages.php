@@ -1048,14 +1048,17 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
 
     $effective_quiz_config = ll_tools_vocab_lesson_get_effective_quiz_config($wordset_id, $category);
     $effective_prompt_type = (string) ($effective_quiz_config['prompt_type'] ?? 'audio');
+    $effective_option_type = (string) ($effective_quiz_config['option_type'] ?? 'image');
     $use_image_choice_grid = ll_tools_vocab_lesson_prompt_cards_use_image_choice_grid($wordset_id, $category);
-    $suppress_sign_language_prompt_text = !$use_image_choice_grid
-        && !empty($effective_quiz_config['sign_language_mode'])
-        && (
-            function_exists('ll_tools_quiz_prompt_type_has_image')
-                ? ll_tools_quiz_prompt_type_has_image($effective_prompt_type)
-                : in_array($effective_prompt_type, ['image', 'image_audio', 'image_text_translation', 'image_text_title'], true)
-        );
+    $prompt_has_image = function_exists('ll_tools_quiz_prompt_type_has_image')
+        ? ll_tools_quiz_prompt_type_has_image($effective_prompt_type)
+        : in_array($effective_prompt_type, ['image', 'image_audio', 'image_text_translation', 'image_text_title'], true);
+    $option_has_image = function_exists('ll_tools_quiz_option_type_has_image')
+        ? ll_tools_quiz_option_type_has_image($effective_option_type)
+        : in_array($effective_option_type, ['image', 'image_text_translation'], true);
+    $option_has_text = in_array($effective_option_type, ['text_translation', 'text_title', 'text_audio'], true);
+    $use_referent_only_lesson_grid = $prompt_has_image && ($option_has_image || $option_has_text);
+    $suppress_referent_prompt_text = $use_referent_only_lesson_grid;
     $word_ids = [];
     $cards = [];
     foreach ($posts as $post) {
@@ -1068,10 +1071,14 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
         if ($prompt_image_word_id <= 0) {
             $prompt_image_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
         }
-        $answer_ids = array_values(array_filter(array_unique(array_merge(
-            [(int) ($card['correct_answer_word_id'] ?? 0)],
-            array_map('intval', (array) ($card['wrong_answer_word_ids'] ?? []))
-        )), static function (int $word_id): bool {
+        $correct_answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+        $answer_ids = $use_referent_only_lesson_grid
+            ? [$correct_answer_word_id]
+            : array_unique(array_merge(
+                [$correct_answer_word_id],
+                array_map('intval', (array) ($card['wrong_answer_word_ids'] ?? []))
+            ));
+        $answer_ids = array_values(array_filter($answer_ids, static function (int $word_id): bool {
             return $word_id > 0;
         }));
         if (empty($answer_ids)) {
@@ -1162,11 +1169,13 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
             $prompt_card_id = (int) ($card['id'] ?? 0);
             $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
             $correct_answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
-            $wrong_answer_word_ids = array_values(array_filter(array_map('intval', (array) ($card['wrong_answer_word_ids'] ?? [])), static function (int $word_id) use ($correct_answer_word_id): bool {
-                return $word_id > 0 && $word_id !== $correct_answer_word_id;
-            }));
+            $wrong_answer_word_ids = $use_referent_only_lesson_grid
+                ? []
+                : array_values(array_filter(array_map('intval', (array) ($card['wrong_answer_word_ids'] ?? [])), static function (int $word_id) use ($correct_answer_word_id): bool {
+                    return $word_id > 0 && $word_id !== $correct_answer_word_id;
+                }));
             $prompt_text = trim((string) ($card['prompt_text'] ?? ''));
-            if ($suppress_sign_language_prompt_text) {
+            if ($suppress_referent_prompt_text) {
                 $prompt_text = '';
             } elseif ($prompt_text === '') {
                 $prompt_text = trim((string) ($card['title'] ?? ''));
@@ -1213,7 +1222,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
             );
             ?>
             <?php if ($use_image_choice_grid) : ?>
-                <article class="ll-vocab-image-choice-card" data-prompt-card-id="<?php echo esc_attr((string) $prompt_card_id); ?>">
+                <article class="ll-vocab-image-choice-card<?php echo $use_referent_only_lesson_grid ? ' ll-vocab-image-choice-card--referent' : ''; ?>" data-prompt-card-id="<?php echo esc_attr((string) $prompt_card_id); ?>">
                     <div class="ll-vocab-image-choice-card__prompt">
                         <?php if ($prompt_image_url !== '') : ?>
                             <img src="<?php echo esc_url($prompt_image_url); ?>" alt="<?php echo esc_attr($prompt_image_alt); ?>" loading="lazy" decoding="async" fetchpriority="low" />
@@ -1221,14 +1230,13 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                             <span class="ll-vocab-image-choice-card__empty-media" aria-hidden="true"></span>
                         <?php endif; ?>
                     </div>
-                    <div class="ll-vocab-image-choice-card__options" aria-label="<?php echo esc_attr__('Answer options', 'll-tools-text-domain'); ?>">
+                    <?php if ($use_referent_only_lesson_grid) : ?>
                         <?php foreach ($answer_rows as $answer_row) : ?>
                             <?php
                             $answer_word_id = (int) ($answer_row['word_id'] ?? 0);
                             if ($answer_word_id <= 0) {
                                 continue;
                             }
-                            $is_correct = !empty($answer_row['is_correct']);
                             $answer_parts = ll_tools_vocab_lesson_get_word_display_parts($answer_word_id, [], $transcription_mode);
                             $answer_label = trim((string) ($answer_parts['text'] ?? ''));
                             if ($answer_label === '') {
@@ -1245,29 +1253,71 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                             if ($answer_image_alt === '') {
                                 $answer_image_alt = $answer_label;
                             }
-                            $answer_classes = 'll-vocab-image-choice-option';
-                            $answer_classes .= $is_correct ? ' is-correct' : ' is-wrong';
-                            $state_label = $is_correct
-                                ? __('Correct answer', 'll-tools-text-domain')
-                                : __('Wrong answer', 'll-tools-text-domain');
                             ?>
-                            <figure class="<?php echo esc_attr($answer_classes); ?>">
-                                <span class="ll-vocab-image-choice-option__state" aria-label="<?php echo esc_attr($state_label); ?>" title="<?php echo esc_attr($state_label); ?>">
-                                    <?php echo ll_tools_vocab_lesson_render_state_icon($is_correct); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                </span>
-                                <span class="ll-vocab-image-choice-option__media">
-                                    <?php if ($answer_image_url !== '') : ?>
-                                        <img src="<?php echo esc_url($answer_image_url); ?>" alt="<?php echo esc_attr($answer_image_alt); ?>" loading="lazy" decoding="async" fetchpriority="low" />
-                                    <?php else : ?>
-                                        <span class="ll-vocab-image-choice-option__missing-media" aria-hidden="true"></span>
+                            <div class="ll-vocab-image-choice-card__referent" aria-label="<?php echo esc_attr__('Referenced item', 'll-tools-text-domain'); ?>">
+                                <figure class="ll-vocab-image-choice-referent">
+                                    <span class="ll-vocab-image-choice-referent__media">
+                                        <?php if ($answer_image_url !== '') : ?>
+                                            <img src="<?php echo esc_url($answer_image_url); ?>" alt="<?php echo esc_attr($answer_image_alt); ?>" loading="lazy" decoding="async" fetchpriority="low" />
+                                        <?php else : ?>
+                                            <span class="ll-vocab-image-choice-referent__missing-media" aria-hidden="true"></span>
+                                        <?php endif; ?>
+                                    </span>
+                                    <?php if ($answer_label !== '') : ?>
+                                        <figcaption class="ll-vocab-image-choice-referent__label" dir="auto"><?php echo function_exists('ll_tools_esc_html_display') ? ll_tools_esc_html_display($answer_label) : esc_html($answer_label); ?></figcaption>
                                     <?php endif; ?>
-                                </span>
-                                <?php if ($answer_label !== '') : ?>
-                                    <figcaption class="ll-vocab-image-choice-option__label" dir="auto"><?php echo function_exists('ll_tools_esc_html_display') ? ll_tools_esc_html_display($answer_label) : esc_html($answer_label); ?></figcaption>
-                                <?php endif; ?>
-                            </figure>
+                                </figure>
+                            </div>
                         <?php endforeach; ?>
-                    </div>
+                    <?php else : ?>
+                        <div class="ll-vocab-image-choice-card__options" aria-label="<?php echo esc_attr__('Answer options', 'll-tools-text-domain'); ?>">
+                            <?php foreach ($answer_rows as $answer_row) : ?>
+                                <?php
+                                $answer_word_id = (int) ($answer_row['word_id'] ?? 0);
+                                if ($answer_word_id <= 0) {
+                                    continue;
+                                }
+                                $is_correct = !empty($answer_row['is_correct']);
+                                $answer_parts = ll_tools_vocab_lesson_get_word_display_parts($answer_word_id, [], $transcription_mode);
+                                $answer_label = trim((string) ($answer_parts['text'] ?? ''));
+                                if ($answer_label === '') {
+                                    $answer_label = trim((string) ($answer_parts['translation'] ?? ''));
+                                }
+                                if ($answer_label === '') {
+                                    $answer_label = trim((string) get_the_title($answer_word_id));
+                                }
+                                $answer_image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
+                                    ? ll_tools_get_effective_word_image_data_for_word($answer_word_id, 'medium_large', true)
+                                    : [];
+                                $answer_image_url = trim((string) ($answer_image_data['url'] ?? ''));
+                                $answer_image_alt = trim((string) ($answer_image_data['alt'] ?? ''));
+                                if ($answer_image_alt === '') {
+                                    $answer_image_alt = $answer_label;
+                                }
+                                $answer_classes = 'll-vocab-image-choice-option';
+                                $answer_classes .= $is_correct ? ' is-correct' : ' is-wrong';
+                                $state_label = $is_correct
+                                    ? __('Correct answer', 'll-tools-text-domain')
+                                    : __('Wrong answer', 'll-tools-text-domain');
+                                ?>
+                                <figure class="<?php echo esc_attr($answer_classes); ?>">
+                                    <span class="ll-vocab-image-choice-option__state" aria-label="<?php echo esc_attr($state_label); ?>" title="<?php echo esc_attr($state_label); ?>">
+                                        <?php echo ll_tools_vocab_lesson_render_state_icon($is_correct); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    </span>
+                                    <span class="ll-vocab-image-choice-option__media">
+                                        <?php if ($answer_image_url !== '') : ?>
+                                            <img src="<?php echo esc_url($answer_image_url); ?>" alt="<?php echo esc_attr($answer_image_alt); ?>" loading="lazy" decoding="async" fetchpriority="low" />
+                                        <?php else : ?>
+                                            <span class="ll-vocab-image-choice-option__missing-media" aria-hidden="true"></span>
+                                        <?php endif; ?>
+                                    </span>
+                                    <?php if ($answer_label !== '') : ?>
+                                        <figcaption class="ll-vocab-image-choice-option__label" dir="auto"><?php echo function_exists('ll_tools_esc_html_display') ? ll_tools_esc_html_display($answer_label) : esc_html($answer_label); ?></figcaption>
+                                    <?php endif; ?>
+                                </figure>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                     <?php if ($can_manage_internal_notes) : ?>
                         <?php echo ll_tools_render_internal_review_note_field($prompt_card_id, 'prompt_card', $wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <?php endif; ?>
@@ -1299,7 +1349,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                         </div>
                     <?php endif; ?>
 
-                    <div class="ll-vocab-prompt-card__answers" aria-label="<?php echo esc_attr__('Answer options', 'll-tools-text-domain'); ?>">
+                    <div class="ll-vocab-prompt-card__answers" aria-label="<?php echo esc_attr($use_referent_only_lesson_grid ? __('Referenced item', 'll-tools-text-domain') : __('Answer options', 'll-tools-text-domain')); ?>">
                         <?php foreach ($answer_rows as $answer_row) : ?>
                             <?php
                             $answer_word_id = (int) ($answer_row['word_id'] ?? 0);
@@ -1316,15 +1366,22 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                                 ? __('Play correct answer recording', 'll-tools-text-domain')
                                 : __('Play wrong answer recording', 'll-tools-text-domain');
                             $answer_classes = 'll-vocab-prompt-card-answer';
-                            $answer_classes .= $is_correct ? ' is-correct' : ' is-wrong';
+                            if ($use_referent_only_lesson_grid) {
+                                $answer_classes .= ' ll-vocab-prompt-card-answer--referent';
+                                $answer_label = __('Play referenced item recording', 'll-tools-text-domain');
+                            } else {
+                                $answer_classes .= $is_correct ? ' is-correct' : ' is-wrong';
+                            }
                             $state_label = $is_correct
                                 ? __('Correct answer', 'll-tools-text-domain')
                                 : __('Wrong answer', 'll-tools-text-domain');
                             ?>
                             <div class="<?php echo esc_attr($answer_classes); ?>">
-                                <span class="ll-vocab-prompt-card-answer__state" aria-label="<?php echo esc_attr($state_label); ?>" title="<?php echo esc_attr($state_label); ?>">
-                                    <?php echo ll_tools_vocab_lesson_render_state_icon($is_correct); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                </span>
+                                <?php if (!$use_referent_only_lesson_grid) : ?>
+                                    <span class="ll-vocab-prompt-card-answer__state" aria-label="<?php echo esc_attr($state_label); ?>" title="<?php echo esc_attr($state_label); ?>">
+                                        <?php echo ll_tools_vocab_lesson_render_state_icon($is_correct); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    </span>
+                                <?php endif; ?>
                                 <?php
                                 echo ll_tools_vocab_lesson_render_prompt_card_audio_button(
                                     (string) ($answer_audio['url'] ?? ''),
@@ -3847,7 +3904,7 @@ function ll_tools_vocab_lesson_grid_public_cache_key(int $lesson_id, int $wordse
     }
 
     $payload = [
-        'schema' => 3,
+        'schema' => 5,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
         'lesson_id' => max(0, $lesson_id),

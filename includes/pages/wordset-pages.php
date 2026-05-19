@@ -2192,7 +2192,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
         'requires_audio' => $requires_audio ? 1 : 0,
-        'prompt_card_preview_schema' => 3,
+        'prompt_card_preview_schema' => 4,
     ]);
     $cached_preview = ll_tools_wordset_page_get_cached_payload($preview_cache_key, $request_cache);
     if (is_array($cached_preview)) {
@@ -2346,34 +2346,33 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         }
     }
 
-    $prompt_card_image_text_preview = $use_images
-        && count($items) < $limit
-        && function_exists('ll_tools_quiz_prompt_type_has_image')
-        && function_exists('ll_tools_quiz_option_type_has_image')
-        && ll_tools_quiz_prompt_type_has_image($prompt_type)
-        && ll_tools_quiz_option_type_has_image($option_type)
+    $option_has_image = function_exists('ll_tools_quiz_option_type_has_image')
+        ? ll_tools_quiz_option_type_has_image($option_type)
+        : in_array($option_type, ['image', 'image_text_translation'], true);
+    $option_has_text_preview = in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true);
+    $prompt_card_option_preview = count($items) < $limit
+        && ($option_has_image || $option_has_text_preview)
         && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_pairs');
-    $prompt_card_image_text_preview_added = false;
+    $prompt_card_option_preview_added = false;
 
-    if ($prompt_card_image_text_preview) {
-        $prompt_card_image_text_start_count = count($items);
+    if ($prompt_card_option_preview) {
+        $prompt_card_option_preview_start_count = count($items);
         $preview_pairs = ll_tools_get_vocab_lesson_prompt_card_preview_pairs(
             $wordset_id,
             $category_id,
             max($limit * 2, $limit)
         );
-        $pair_word_ids = [];
+        $answer_word_ids = [];
         foreach ($preview_pairs as $pair) {
             if (!is_array($pair)) {
                 continue;
             }
-            $pair_word_ids[] = (int) ($pair['prompt_image_word_id'] ?? 0);
-            $pair_word_ids[] = (int) ($pair['correct_answer_word_id'] ?? 0);
+            $answer_word_ids[] = (int) ($pair['correct_answer_word_id'] ?? 0);
         }
-        $pair_word_ids = array_values(array_filter(array_unique(array_map('intval', $pair_word_ids)), static function (int $word_id): bool {
+        $answer_word_ids = array_values(array_filter(array_unique(array_map('intval', $answer_word_ids)), static function (int $word_id): bool {
             return $word_id > 0;
         }));
-        $prompt_pair_public_lookup = ll_tools_wordset_page_get_public_lesson_preview_word_lookup($pair_word_ids, $requires_audio);
+        $prompt_pair_public_lookup = ll_tools_wordset_page_get_public_lesson_preview_word_lookup($answer_word_ids, $requires_audio);
         $existing_image_urls = [];
         $existing_attachment_ids = [];
         foreach ($items as $item) {
@@ -2395,12 +2394,15 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 break;
             }
 
-            $prompt_word_id = (int) ($pair['prompt_image_word_id'] ?? 0);
             $answer_word_id = (int) ($pair['correct_answer_word_id'] ?? 0);
-            if ($prompt_word_id > 0 && !isset($seen_preview_word_ids[$prompt_word_id]) && !empty($prompt_pair_public_lookup[$prompt_word_id])) {
+            if ($answer_word_id <= 0 || isset($seen_preview_word_ids[$answer_word_id]) || empty($prompt_pair_public_lookup[$answer_word_id])) {
+                continue;
+            }
+
+            if ($option_has_image) {
                 $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
-                    ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($prompt_word_id, true)
-                    : (int) get_post_thumbnail_id($prompt_word_id);
+                    ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($answer_word_id, true)
+                    : (int) get_post_thumbnail_id($answer_word_id);
                 if ($image_id > 0 && !isset($existing_attachment_ids[$image_id])) {
                     $size_info = ll_tools_select_wordset_preview_image_size($image_id, $image_size);
                     $resolved_image_size = (string) ($size_info['size'] ?? $image_size);
@@ -2431,20 +2433,17 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                         $items[] = [
                             'type' => 'image',
                             'url' => $image_url,
-                            'alt' => get_the_title($prompt_word_id),
+                            'alt' => get_the_title($answer_word_id),
                             'ratio' => $ratio,
                             'width' => $width,
                             'height' => $height,
                             'attachment_id' => $image_id,
                         ];
-                        $seen_preview_word_ids[$prompt_word_id] = true;
+                        $seen_preview_word_ids[$answer_word_id] = true;
                         $existing_image_urls[$image_url] = true;
                         $existing_attachment_ids[$image_id] = true;
                     }
                 }
-            }
-
-            if (count($items) >= $limit || $answer_word_id <= 0 || isset($seen_preview_word_ids[$answer_word_id]) || empty($prompt_pair_public_lookup[$answer_word_id])) {
                 continue;
             }
 
@@ -2460,10 +2459,10 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
             $seen_preview_word_ids[$answer_word_id] = true;
         }
 
-        $prompt_card_image_text_preview_added = count($items) > $prompt_card_image_text_start_count;
+        $prompt_card_option_preview_added = count($items) > $prompt_card_option_preview_start_count;
     }
 
-    if (!$prompt_card_image_text_preview_added && $use_images && count($items) < $limit && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids')) {
+    if (!$prompt_card_option_preview_added && $use_images && count($items) < $limit && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids')) {
         $prompt_image_word_ids = ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids(
             $wordset_id,
             $category_id,

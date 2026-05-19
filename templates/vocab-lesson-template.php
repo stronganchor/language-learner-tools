@@ -1407,13 +1407,9 @@ if (have_posts()) {
                                     </div>
                                 <?php elseif ($is_image_choice_shell) : ?>
                                     <div class="ll-vocab-lesson-skeleton-media"></div>
-                                    <div class="ll-vocab-lesson-skeleton-image-choice-options">
-                                        <?php for ($answer_index = 0; $answer_index < 2; $answer_index++) : ?>
-                                            <div class="ll-vocab-lesson-skeleton-image-choice-option">
-                                                <span class="ll-vocab-lesson-skeleton-image-choice-thumb"></span>
-                                                <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--image-choice-label"></span>
-                                            </div>
-                                        <?php endfor; ?>
+                                    <div class="ll-vocab-lesson-skeleton-image-choice-referent">
+                                        <span class="ll-vocab-lesson-skeleton-image-choice-thumb"></span>
+                                        <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--image-choice-label"></span>
                                     </div>
                                 <?php elseif ($show_shell_media) : ?>
                                     <div class="ll-vocab-lesson-skeleton-media<?php echo $shell_has_preview ? ' ll-vocab-lesson-skeleton-media--preview' : ''; ?>">

@@ -604,10 +604,17 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-vocab-image-choice-grid', $html);
         $this->assertStringContainsString('data-ll-image-choice-lesson-grid="1"', $html);
         $this->assertStringContainsString('data-prompt-card-id="' . $prompt_card_id . '"', $html);
-        $this->assertStringContainsString('ll-vocab-image-choice-option is-correct', $html);
-        $this->assertStringContainsString('ll-vocab-image-choice-option is-wrong', $html);
+        $this->assertStringContainsString('ll-vocab-image-choice-card--referent', $html);
+        $this->assertStringContainsString('ll-vocab-image-choice-card__referent', $html);
+        $this->assertStringContainsString('ll-vocab-image-choice-referent', $html);
         $this->assertStringContainsString('Tree', $html);
-        $this->assertStringContainsString('House', $html);
+        $this->assertStringContainsString('sign-image-choice-tree', $html);
+        $this->assertStringNotContainsString('ll-vocab-image-choice-card__options', $html);
+        $this->assertStringNotContainsString('ll-vocab-image-choice-option is-correct', $html);
+        $this->assertStringNotContainsString('ll-vocab-image-choice-option is-wrong', $html);
+        $this->assertStringNotContainsString('ll-vocab-image-choice-option__state', $html);
+        $this->assertStringNotContainsString('House', $html);
+        $this->assertStringNotContainsString('sign-image-choice-house', $html);
         $this->assertStringNotContainsString('ll-vocab-prompt-card__question-icon', $html);
         $this->assertStringNotContainsString('Choose the matching ASL sign.', $html);
         $this->assertStringNotContainsString('should-not-render.mp3', $html);
@@ -685,8 +692,11 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll-vocab-image-choice-grid', $html);
         $this->assertStringNotContainsString('Choose the matching ASL sign.', $html);
         $this->assertStringNotContainsString('ll-vocab-prompt-card__question-icon', $html);
+        $this->assertStringContainsString('ll-vocab-prompt-card-answer--referent', $html);
         $this->assertStringContainsString('Airplane', $html);
-        $this->assertStringContainsString('Apple', $html);
+        $this->assertStringNotContainsString('Apple', $html);
+        $this->assertStringNotContainsString('ll-vocab-prompt-card-answer is-wrong', $html);
+        $this->assertStringNotContainsString('ll-vocab-prompt-card-answer__state', $html);
     }
 
     public function test_prompt_card_lesson_shell_uses_full_row_loading_cards(): void
@@ -804,7 +814,8 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-vocab-image-choice-grid--skeleton', $html);
         $this->assertStringContainsString('data-ll-image-choice-lesson-grid="1"', $html);
         $this->assertStringContainsString('ll-vocab-lesson-skeleton-card--image-choice', $html);
-        $this->assertStringContainsString('ll-vocab-lesson-skeleton-image-choice-options', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-skeleton-image-choice-referent', $html);
+        $this->assertStringNotContainsString('ll-vocab-lesson-skeleton-image-choice-options', $html);
         $this->assertStringNotContainsString('ll-vocab-lesson-grid-shell--prompt-cards', $html);
         $this->assertStringNotContainsString('ll-vocab-lesson-skeleton-prompt-box', $html);
     }

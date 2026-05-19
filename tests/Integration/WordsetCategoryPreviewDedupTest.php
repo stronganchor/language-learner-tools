@@ -154,7 +154,7 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertSame($expected_attachment_ids, $image_attachment_ids);
     }
 
-    public function test_sign_language_image_choice_preview_uses_prompt_image_and_answer_text(): void
+    public function test_sign_language_image_choice_preview_uses_answer_images(): void
     {
         $wordset = wp_insert_term('Sign Preview Wordset ' . wp_generate_password(6, false), 'wordset');
         $this->assertFalse(is_wp_error($wordset));
@@ -176,14 +176,24 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
 
         $prompt_attachment_id = $this->createImageAttachment('sign-preview-prompt.png');
         $answer_attachment_id = $this->createImageAttachment('sign-preview-answer.png', self::ALT_PIXEL_PNG_BASE64);
+        $second_prompt_attachment_id = $this->createImageAttachment('sign-preview-prompt-second.png');
+        $second_answer_attachment_id = $this->createImageAttachment('sign-preview-answer-second.png', self::ALT_PIXEL_PNG_BASE64);
         $prompt_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $prompt_attachment_id, 'Tree Sign');
         $answer_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $answer_attachment_id, 'Tree');
+        $second_prompt_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $second_prompt_attachment_id, 'Airplane Sign');
+        $second_answer_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $second_answer_attachment_id, 'Airplane');
 
         $this->createPromptCard($prompt_category_id, $wordset_id, [
             'title' => 'Sign Preview Card',
             'prompt_text' => 'Choose the matching ASL sign.',
             'prompt_image_word_id' => $prompt_image_word_id,
             'correct_answer_word_id' => $answer_word_id,
+        ]);
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Sign Preview Second Card',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_image_word_id' => $second_prompt_image_word_id,
+            'correct_answer_word_id' => $second_answer_word_id,
         ]);
 
         $preview = ll_tools_get_wordset_category_preview($wordset_id, $prompt_category_id, 2, true);
@@ -193,9 +203,84 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $items = array_values((array) ($preview['items'] ?? []));
         $this->assertCount(2, $items);
         $this->assertSame('image', (string) ($items[0]['type'] ?? ''));
-        $this->assertSame($prompt_attachment_id, (int) ($items[0]['attachment_id'] ?? 0));
+        $this->assertSame('image', (string) ($items[1]['type'] ?? ''));
+
+        $image_attachment_ids = $this->extractPreviewImageAttachmentIds($preview);
+        sort($image_attachment_ids, SORT_NUMERIC);
+        $expected_attachment_ids = [$answer_attachment_id, $second_answer_attachment_id];
+        sort($expected_attachment_ids, SORT_NUMERIC);
+        $this->assertSame($expected_attachment_ids, $image_attachment_ids);
+        $this->assertNotContains($prompt_attachment_id, $image_attachment_ids);
+        $this->assertNotContains($second_prompt_attachment_id, $image_attachment_ids);
+    }
+
+    public function test_sign_language_image_to_text_preview_uses_answer_text(): void
+    {
+        $wordset = wp_insert_term('Sign Text Preview Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $prompt_category = wp_insert_term('Sign Text Preview Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($prompt_category));
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'text_title');
+
+        $asset_category = wp_insert_term('Sign Text Preview Assets ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($asset_category));
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        $prompt_attachment_id = $this->createImageAttachment('sign-text-preview-prompt.png');
+        $second_prompt_attachment_id = $this->createImageAttachment('sign-text-preview-prompt-second.png', self::ALT_PIXEL_PNG_BASE64);
+        $prompt_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $prompt_attachment_id, 'Airplane Sign');
+        $second_prompt_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $second_prompt_attachment_id, 'Apple Sign');
+        $answer_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Airplane',
+        ]);
+        $second_answer_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Apple',
+        ]);
+        wp_set_post_terms($answer_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($second_answer_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($answer_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($second_answer_word_id, [$wordset_id], 'wordset', false);
+
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Sign Text Preview Card',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_image_word_id' => $prompt_image_word_id,
+            'correct_answer_word_id' => $answer_word_id,
+        ]);
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Sign Text Preview Second Card',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_image_word_id' => $second_prompt_image_word_id,
+            'correct_answer_word_id' => $second_answer_word_id,
+        ]);
+
+        $preview = ll_tools_get_wordset_category_preview($wordset_id, $prompt_category_id, 2, true);
+        $this->assertIsArray($preview);
+        $this->assertFalse((bool) ($preview['has_images'] ?? true));
+
+        $items = array_values((array) ($preview['items'] ?? []));
+        $this->assertCount(2, $items);
+        $this->assertSame('text', (string) ($items[0]['type'] ?? ''));
         $this->assertSame('text', (string) ($items[1]['type'] ?? ''));
-        $this->assertSame('Tree', (string) ($items[1]['label'] ?? ''));
+        $labels = array_map(static function (array $item): string {
+            return (string) ($item['label'] ?? '');
+        }, $items);
+        sort($labels, SORT_STRING);
+        $this->assertSame(['Airplane', 'Apple'], $labels);
+
+        $this->assertSame([], $this->extractPreviewImageAttachmentIds($preview));
     }
 
     private function createWordWithThumbnail(int $category_id, int $wordset_id, int $attachment_id, string $title, string $post_date = ''): int
