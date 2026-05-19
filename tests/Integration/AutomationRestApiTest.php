@@ -646,6 +646,13 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'kind' => 'corpus_text',
             'title' => 'Sample corpus text',
             'source_label' => 'Zazaki',
+            'metadata' => [
+                'publication' => [
+                    'places_tr' => 'Sivan/Servi; Nyêrib/Nerib/Kuyular.',
+                    'historical_context_tr' => 'Working historical context note.',
+                    'editorial_note_tr' => 'Working editorial note.',
+                ],
+            ],
             'translations' => [
                 'tr' => ['label' => 'Turkish'],
                 'en' => ['label' => 'English'],
@@ -703,6 +710,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Merheba, Dêrsim.', $reader_html);
         $this->assertStringContainsString('Merhaba, Dersim.', $reader_html);
         $this->assertStringContainsString('>Interlinear<', $reader_html);
+        $this->assertStringContainsString('Text background', $reader_html);
+        $this->assertStringContainsString('Places mentioned', $reader_html);
+        $this->assertStringContainsString('Sivan/Servi', $reader_html);
+        $this->assertStringContainsString('Working historical context note.', $reader_html);
+        $this->assertStringContainsString('Working editorial note.', $reader_html);
         $this->assertStringNotContainsString('Russian scan', $reader_html);
 
         $_GET['ll_text_view'] = 'sources';

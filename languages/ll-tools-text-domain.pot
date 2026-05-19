@@ -22501,3 +22501,27 @@ msgstr ""
 #: templates/vocab-lesson-template.php:1451
 msgid "Add word to this lesson"
 msgstr ""
+
+#: includes/lib/interlinear.php
+msgid "Content warning"
+msgstr ""
+
+#: includes/lib/interlinear.php
+msgid "People mentioned"
+msgstr ""
+
+#: includes/lib/interlinear.php
+msgid "Places mentioned"
+msgstr ""
+
+#: includes/lib/interlinear.php
+msgid "Historical context"
+msgstr ""
+
+#: includes/lib/interlinear.php
+msgid "Research note"
+msgstr ""
+
+#: includes/lib/interlinear.php
+msgid "Text background"
+msgstr ""

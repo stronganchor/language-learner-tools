@@ -418,6 +418,36 @@
     margin-left: auto;
 }
 
+.ll-text-document__intro {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    padding: 16px;
+    border-bottom: 1px solid var(--ll-cl-border);
+    background: #fffdf8;
+}
+
+.ll-text-document__intro-item {
+    min-width: 0;
+}
+
+.ll-text-document__intro-item h3 {
+    margin: 0 0 5px;
+    color: var(--ll-cl-muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.ll-text-document__intro-item p {
+    margin: 0;
+    color: var(--ll-cl-text);
+    font-size: 14px;
+    line-height: 1.55;
+}
+
 .ll-text-reader {
     display: grid;
     gap: 0;

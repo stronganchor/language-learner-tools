@@ -25408,3 +25408,27 @@ msgid "That paste has too many valid rows for the frontend importer. Keep each i
 msgid_plural "That paste has too many valid rows for the frontend importer. Keep each import to %d rows or fewer, split the list into smaller batches, and try again."
 msgstr[0] "Bu yapıştırılan içerikte ön uç içe aktarıcı için çok fazla geçerli satır var. Her içe aktarmayı %d satır veya altında tut, listeyi daha küçük parçalara böl ve tekrar dene."
 msgstr[1] "Bu yapıştırılan içerikte ön uç içe aktarıcı için çok fazla geçerli satır var. Her içe aktarmayı %d satır veya altında tut, listeyi daha küçük parçalara böl ve tekrar dene."
+
+#: includes/lib/interlinear.php
+msgid "Content warning"
+msgstr "İçerik uyarısı"
+
+#: includes/lib/interlinear.php
+msgid "People mentioned"
+msgstr "Adı geçen kişiler"
+
+#: includes/lib/interlinear.php
+msgid "Places mentioned"
+msgstr "Yer adları"
+
+#: includes/lib/interlinear.php
+msgid "Historical context"
+msgstr "Tarihî bağlam"
+
+#: includes/lib/interlinear.php
+msgid "Research note"
+msgstr "Araştırma notu"
+
+#: includes/lib/interlinear.php
+msgid "Text background"
+msgstr "Metin hakkında"

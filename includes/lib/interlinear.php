@@ -1561,6 +1561,79 @@ function ll_tools_text_document_render_translation_switcher(array $payload, stri
     return $html;
 }
 
+function ll_tools_text_document_publication_value(array $publication, array $keys): string {
+    foreach ($keys as $key) {
+        if (isset($publication[$key]) && is_scalar($publication[$key]) && trim((string) $publication[$key]) !== '') {
+            return trim((string) $publication[$key]);
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_text_document_publication_intro_items(array $payload): array {
+    $metadata = isset($payload['metadata']) && is_array($payload['metadata']) ? $payload['metadata'] : [];
+    $publication = isset($metadata['publication']) && is_array($metadata['publication']) ? $metadata['publication'] : [];
+    if (empty($publication)) {
+        return [];
+    }
+
+    $field_map = [
+        [
+            'label' => __('Content warning', 'll-tools-text-domain'),
+            'keys'  => ['content_warning_tr', 'content_warning_en', 'content_warning'],
+        ],
+        [
+            'label' => __('People mentioned', 'll-tools-text-domain'),
+            'keys'  => ['people_tr', 'people_en', 'people'],
+        ],
+        [
+            'label' => __('Places mentioned', 'll-tools-text-domain'),
+            'keys'  => ['places_tr', 'places_en', 'places'],
+        ],
+        [
+            'label' => __('Historical context', 'll-tools-text-domain'),
+            'keys'  => ['historical_context_tr', 'historical_context_en', 'historical_context'],
+        ],
+        [
+            'label' => __('Research note', 'll-tools-text-domain'),
+            'keys'  => ['editorial_note_tr', 'research_note_tr', 'editorial_note_en', 'research_note_en', 'editorial_note', 'research_note'],
+        ],
+    ];
+
+    $items = [];
+    foreach ($field_map as $field) {
+        $value = ll_tools_text_document_publication_value($publication, $field['keys']);
+        if ($value === '') {
+            continue;
+        }
+        $items[] = [
+            'label' => $field['label'],
+            'value' => $value,
+        ];
+    }
+
+    return $items;
+}
+
+function ll_tools_text_document_render_publication_intro(array $payload): string {
+    $items = ll_tools_text_document_publication_intro_items($payload);
+    if (empty($items)) {
+        return '';
+    }
+
+    $html = '<section class="ll-text-document__intro" aria-label="' . esc_attr__('Text background', 'll-tools-text-domain') . '">';
+    foreach ($items as $item) {
+        $html .= '<div class="ll-text-document__intro-item">';
+        $html .= '<h3>' . esc_html((string) $item['label']) . '</h3>';
+        $html .= '<p>' . nl2br(esc_html((string) $item['value'])) . '</p>';
+        $html .= '</div>';
+    }
+    $html .= '</section>';
+
+    return $html;
+}
+
 function ll_tools_text_document_render_reader(array $payload, string $translation_key): string {
     $units = ll_tools_text_document_reader_units($payload);
     if (empty($units)) {
@@ -2037,6 +2110,7 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
     $title = ll_tools_interlinear_scalar($payload, ['title', 'document_title']);
     $tabs = ll_tools_text_document_render_tabs($view, $translation_key, $can_view_linguist, $payload);
     $review_note_html = ll_tools_text_document_render_review_note_field($lesson_id, 'document', __('Document review note', 'll-tools-text-domain'));
+    $publication_intro_html = ll_tools_text_document_render_publication_intro($payload);
     $print_button = $view === 'reader'
         ? '<button type="button" class="ll-text-document__print-button" data-ll-text-document-print>' . esc_html__('Print', 'll-tools-text-domain') . '</button>'
         : '';
@@ -2055,6 +2129,7 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
                 </div>
             </div>
         <?php endif; ?>
+        <?php echo $publication_intro_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php echo $review_note_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     </section>
