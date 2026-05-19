@@ -3216,6 +3216,8 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'supports_superscript' => true,
             'common_chars' => ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'],
             'common_chars_label' => __('Common IPA symbols', 'll-tools-text-domain'),
+            'modifier_chars' => function_exists('ll_tools_get_secondary_text_keyboard_modifier_symbols') ? ll_tools_get_secondary_text_keyboard_modifier_symbols('ipa') : ['ʰ', 'ʲ', 'ʷ', 'ː'],
+            'modifier_chars_label' => __('Modifiers', 'll-tools-text-domain'),
             'wordset_chars_label' => __('Wordset IPA symbols', 'll-tools-text-domain'),
         ];
     $transcription_mode = (string) ($transcription_config['mode'] ?? 'ipa');
@@ -3261,6 +3263,9 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             if (function_exists('ll_tools_sort_secondary_text_symbols')) {
                 $ipa_special_chars = ll_tools_sort_secondary_text_symbols($ipa_special_chars, $transcription_mode);
             }
+            if (function_exists('ll_tools_compact_secondary_text_keyboard_symbols')) {
+                $ipa_special_chars = ll_tools_compact_secondary_text_keyboard_symbols($ipa_special_chars, $transcription_mode);
+            }
         }
 
         $letter_maps = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_maps')
@@ -3284,6 +3289,15 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
     if (function_exists('ll_tools_sort_secondary_text_symbols')) {
         $secondary_text_common_chars = ll_tools_sort_secondary_text_symbols($secondary_text_common_chars, $transcription_mode);
     }
+    if (function_exists('ll_tools_compact_secondary_text_keyboard_symbols')) {
+        $secondary_text_common_chars = ll_tools_compact_secondary_text_keyboard_symbols($secondary_text_common_chars, $transcription_mode);
+    }
+    $secondary_text_modifier_chars = $transcription_mode === 'ipa'
+        ? array_values(array_map('strval', (array) ($transcription_config['modifier_chars'] ?? [])))
+        : [];
+    if ($transcription_mode === 'ipa' && empty($secondary_text_modifier_chars) && function_exists('ll_tools_get_secondary_text_keyboard_modifier_symbols')) {
+        $secondary_text_modifier_chars = ll_tools_get_secondary_text_keyboard_modifier_symbols($transcription_mode);
+    }
 
     return [
         'ajaxUrl'    => admin_url('admin-ajax.php'),
@@ -3306,6 +3320,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         'secondaryTextMode' => $transcription_mode,
         'secondaryTextDisplayFormat' => (string) ($transcription_config['display_format'] ?? 'plain'),
         'secondaryTextCommonChars' => $secondary_text_common_chars,
+        'secondaryTextModifierChars' => $secondary_text_modifier_chars,
         'secondaryTextUsesIpaFont' => !empty($transcription_config['uses_ipa_font']),
         'secondaryTextSupportsSuperscript' => !empty($transcription_config['supports_superscript']),
         'state'      => $user_study_state,
@@ -3350,8 +3365,10 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'selectMoveTarget' => __('Choose a target word.', 'll-tools-text-domain'),
             'noMatchingWords' => __('No matching words.', 'll-tools-text-domain'),
             'ipaCommon' => (string) ($transcription_config['common_chars_label'] ?? __('Common IPA symbols', 'll-tools-text-domain')),
+            'ipaModifiers' => (string) ($transcription_config['modifier_chars_label'] ?? __('Modifiers', 'll-tools-text-domain')),
             'ipaWordset' => (string) ($transcription_config['wordset_chars_label'] ?? __('Wordset IPA symbols', 'll-tools-text-domain')),
             'secondaryTextCommon' => (string) ($transcription_config['common_chars_label'] ?? __('Common IPA symbols', 'll-tools-text-domain')),
+            'secondaryTextModifiers' => (string) ($transcription_config['modifier_chars_label'] ?? __('Modifiers', 'll-tools-text-domain')),
             'secondaryTextWordset' => (string) ($transcription_config['wordset_chars_label'] ?? __('Wordset IPA symbols', 'll-tools-text-domain')),
         ],
         'orderI18n' => [

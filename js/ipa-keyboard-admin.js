@@ -143,6 +143,8 @@
             supports_superscript: false,
             common_chars: [],
             common_chars_label: '',
+            modifier_chars: [],
+            modifier_chars_label: '',
             wordset_chars_label: '',
             keyboard_symbols: [],
             keyboard_aria_label: '',
@@ -166,6 +168,39 @@
             currentTranscription = buildDefaultTranscription();
         }
         return currentTranscription;
+    }
+
+    function getCompactModifierChars() {
+        const transcription = getTranscription();
+        if (String(transcription.mode || '') !== 'ipa') {
+            return [];
+        }
+        let modifiers = uniqueStringList(transcription.modifier_chars);
+        if (!modifiers.length) {
+            modifiers = ['ʰ', 'ʲ', 'ʷ', 'ː'];
+        }
+        return modifiers;
+    }
+
+    function symbolUsesCompactModifier(symbol, modifiers) {
+        const text = (symbol == null ? '' : String(symbol)).trim();
+        if (!text) {
+            return false;
+        }
+        return (Array.isArray(modifiers) ? modifiers : []).some(function (modifier) {
+            return !!modifier && text !== modifier && text.indexOf(modifier) !== -1;
+        });
+    }
+
+    function compactKeyboardSymbols(symbols, modifiers) {
+        const compact = [];
+        uniqueStringList(symbols).forEach(function (symbol) {
+            if (symbolUsesCompactModifier(symbol, modifiers)) {
+                return;
+            }
+            compact.push(symbol);
+        });
+        return compact;
     }
 
     function canShowIpaKeyboard() {
@@ -213,11 +248,21 @@
 
     function getIpaKeyboardGroups() {
         const transcription = getTranscription();
-        const common = uniqueStringList(transcription.common_chars);
-        const wordset = uniqueStringList(currentKeyboardSymbols).filter(function (symbol) {
-            return common.indexOf(symbol) === -1;
+        const modifiers = getCompactModifierChars();
+        const common = compactKeyboardSymbols(transcription.common_chars, modifiers).filter(function (symbol) {
+            return modifiers.indexOf(symbol) === -1;
+        });
+        const wordset = compactKeyboardSymbols(currentKeyboardSymbols, modifiers).filter(function (symbol) {
+            return modifiers.indexOf(symbol) === -1 && common.indexOf(symbol) === -1;
         });
         const groups = [];
+
+        if (modifiers.length) {
+            groups.push({
+                label: (transcription.modifier_chars_label || '').toString(),
+                symbols: modifiers
+            });
+        }
 
         if (common.length) {
             groups.push({
@@ -321,6 +366,7 @@
     function applyTranscriptionConfig(config) {
         currentTranscription = $.extend({}, buildDefaultTranscription(), config || {});
         currentTranscription.common_chars = uniqueStringList(currentTranscription.common_chars);
+        currentTranscription.modifier_chars = uniqueStringList(currentTranscription.modifier_chars);
         currentTranscription.keyboard_symbols = uniqueStringList(currentTranscription.keyboard_symbols);
         currentTranscription.supports_superscript = !!currentTranscription.supports_superscript
             && String(currentTranscription.mode || '') === 'ipa';

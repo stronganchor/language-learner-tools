@@ -33,6 +33,9 @@
         : 'ipa';
     const secondaryTextDisplayFormat = String(cfg.secondaryTextDisplayFormat || (secondaryTextMode === 'ipa' ? 'brackets' : 'plain')).trim();
     const secondaryTextCommonChars = Array.isArray(cfg.secondaryTextCommonChars) ? cfg.secondaryTextCommonChars.slice() : [];
+    const secondaryTextModifierChars = secondaryTextMode === 'ipa'
+        ? (Array.isArray(cfg.secondaryTextModifierChars) && cfg.secondaryTextModifierChars.length ? cfg.secondaryTextModifierChars.slice() : ['ʰ', 'ʲ', 'ʷ', 'ː'])
+        : [];
     const secondaryTextUsesIpaFont = !!cfg.secondaryTextUsesIpaFont;
     const secondaryTextSupportsSuperscript = !!cfg.secondaryTextSupportsSuperscript && secondaryTextMode === 'ipa';
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
@@ -1677,7 +1680,13 @@
         recordingMoved: editI18n.recordingMoved || 'Recording moved.',
         moveRecordingError: editI18n.moveRecordingError || 'Unable to move recording.',
         selectMoveTarget: editI18n.selectMoveTarget || 'Choose a target word.',
-        noMatchingWords: editI18n.noMatchingWords || 'No matching words.'
+        noMatchingWords: editI18n.noMatchingWords || 'No matching words.',
+        ipaCommon: editI18n.ipaCommon || 'Common IPA symbols',
+        ipaModifiers: editI18n.ipaModifiers || 'Modifiers',
+        ipaWordset: editI18n.ipaWordset || 'Wordset IPA symbols',
+        secondaryTextCommon: editI18n.secondaryTextCommon || editI18n.ipaCommon || 'Common symbols',
+        secondaryTextModifiers: editI18n.secondaryTextModifiers || editI18n.ipaModifiers || 'Modifiers',
+        secondaryTextWordset: editI18n.secondaryTextWordset || editI18n.ipaWordset || 'Wordset symbols'
     };
     const lessonEditTargetLufs = -18.0;
     let lessonEditAudioContext = null;
@@ -5026,10 +5035,32 @@
         return false;
     }
 
+    function symbolUsesCompactModifier(symbol) {
+        if (secondaryTextMode !== 'ipa') { return false; }
+        const text = (symbol || '').toString().trim();
+        if (!text) { return false; }
+        return secondaryTextModifierChars.some(function (modifier) {
+            return modifier && text !== modifier && text.indexOf(modifier) !== -1;
+        });
+    }
+
+    function compactIpaKeyboardChars(chars) {
+        if (!Array.isArray(chars) || !chars.length) { return []; }
+        const compact = [];
+        const seen = new Set();
+        chars.forEach(function (ch) {
+            const text = (ch || '').toString().trim();
+            if (!text || seen.has(text) || symbolUsesCompactModifier(text)) { return; }
+            seen.add(text);
+            compact.push(text);
+        });
+        return compact;
+    }
+
     function mergeIpaSpecialChars(newChars) {
         if (!Array.isArray(newChars) || !newChars.length) { return false; }
         let updated = false;
-        newChars.forEach(function (ch) {
+        compactIpaKeyboardChars(newChars).forEach(function (ch) {
             if (ipaSpecialChars.indexOf(ch) === -1) {
                 ipaSpecialChars.push(ch);
                 updated = true;
@@ -5707,39 +5738,66 @@
         return merged.length;
     }
 
-    function renderIpaKeyboard($keyboard, chars, skipChars) {
-        if (!$keyboard || !$keyboard.length) { return 0; }
-        $keyboard.empty();
-
-        const merged = [];
-        const seen = new Set();
-        const skipSet = new Set(Array.isArray(skipChars) ? skipChars : []);
-        const pushUnique = function (ch) {
-            if (!ch || seen.has(ch) || skipSet.has(ch)) { return; }
-            seen.add(ch);
-            merged.push(ch);
-        };
-
-        secondaryTextCommonChars.forEach(pushUnique);
-        if (Array.isArray(chars)) {
-            chars.forEach(pushUnique);
-        }
-
-        if (!merged.length) {
-            return 0;
-        }
-
-        sortSecondaryTextSymbols(merged).forEach(function (ch) {
+    function appendIpaKeyboardRow($keyboard, chars, label, extraClass) {
+        const rowChars = Array.isArray(chars) ? chars : [];
+        if (!rowChars.length) { return 0; }
+        const $row = $('<div>', {
+            class: 'll-word-edit-ipa-keyboard-row' + (extraClass ? ' ' + extraClass : ''),
+            'aria-label': label || ''
+        });
+        rowChars.forEach(function (ch) {
             $('<button>', {
                 type: 'button',
                 class: 'll-word-ipa-key',
                 text: ch,
                 'data-ipa-char': ch,
                 'aria-label': ch
-            }).appendTo($keyboard);
+            }).appendTo($row);
         });
+        $row.appendTo($keyboard);
+        return rowChars.length;
+    }
 
-        return merged.length;
+    function renderIpaKeyboard($keyboard, chars, skipChars) {
+        if (!$keyboard || !$keyboard.length) { return 0; }
+        $keyboard.empty();
+
+        const common = [];
+        const wordset = [];
+        const seen = new Set();
+        const skipSet = new Set(Array.isArray(skipChars) ? skipChars : []);
+        const modifierSet = new Set(secondaryTextModifierChars);
+        const pushUnique = function (target, ch) {
+            const text = (ch || '').toString().trim();
+            if (!text || seen.has(text) || skipSet.has(text) || modifierSet.has(text) || symbolUsesCompactModifier(text)) { return; }
+            seen.add(text);
+            target.push(text);
+        };
+
+        secondaryTextCommonChars.forEach(function (ch) {
+            pushUnique(common, ch);
+        });
+        if (Array.isArray(chars)) {
+            chars.forEach(function (ch) {
+                pushUnique(wordset, ch);
+            });
+        }
+
+        const modifierChars = secondaryTextModifierChars.filter(function (ch) {
+            return !!ch && !skipSet.has(ch);
+        });
+        const sortedCommon = sortSecondaryTextSymbols(common);
+        const sortedWordset = sortSecondaryTextSymbols(wordset);
+        const total = modifierChars.length + sortedCommon.length + sortedWordset.length;
+        if (!total) {
+            return 0;
+        }
+
+        appendIpaKeyboardRow($keyboard, modifierChars, editMessages.secondaryTextModifiers || editMessages.ipaModifiers || 'Modifiers', 'll-word-edit-ipa-keyboard-row--modifiers');
+        appendIpaKeyboardRow($keyboard, sortedCommon, editMessages.secondaryTextCommon || editMessages.ipaCommon || 'Common', 'll-word-edit-ipa-keyboard-row--common');
+        appendIpaKeyboardRow($keyboard, sortedWordset, editMessages.secondaryTextWordset || editMessages.ipaWordset || 'Wordset', 'll-word-edit-ipa-keyboard-row--wordset');
+
+        return total;
     }
 
     function hideIpaAudio() {

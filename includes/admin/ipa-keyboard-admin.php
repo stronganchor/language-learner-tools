@@ -560,6 +560,8 @@ function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): ar
             'supports_superscript' => true,
             'common_chars' => ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'],
             'common_chars_label' => __('Common IPA symbols', 'll-tools-text-domain'),
+            'modifier_chars' => function_exists('ll_tools_get_secondary_text_keyboard_modifier_symbols') ? ll_tools_get_secondary_text_keyboard_modifier_symbols('ipa') : ['ʰ', 'ʲ', 'ʷ', 'ː'],
+            'modifier_chars_label' => __('Modifiers', 'll-tools-text-domain'),
             'wordset_chars_label' => __('Wordset IPA symbols', 'll-tools-text-domain'),
             'special_chars_heading' => __('IPA Special Characters', 'll-tools-text-domain'),
             'special_chars_empty' => __('No IPA symbols found for this word set.', 'll-tools-text-domain'),
@@ -596,6 +598,22 @@ function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): ar
     }
     $config['common_chars'] = $common_chars;
 
+    $modifier_chars = [];
+    foreach ((array) ($config['modifier_chars'] ?? []) as $symbol) {
+        $normalized = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol, $mode);
+        if ($normalized === '' || in_array($normalized, $modifier_chars, true)) {
+            continue;
+        }
+        $modifier_chars[] = $normalized;
+    }
+    if ($mode === 'ipa' && empty($modifier_chars) && function_exists('ll_tools_get_secondary_text_keyboard_modifier_symbols')) {
+        $modifier_chars = ll_tools_get_secondary_text_keyboard_modifier_symbols($mode);
+    }
+    $config['modifier_chars'] = $mode === 'ipa' ? $modifier_chars : [];
+    if (empty($config['modifier_chars_label'])) {
+        $config['modifier_chars_label'] = __('Modifiers', 'll-tools-text-domain');
+    }
+
     if (empty($config['keyboard_aria_label'])) {
         $config['keyboard_aria_label'] = __('IPA symbols', 'll-tools-text-domain');
     }
@@ -631,6 +649,10 @@ function ll_tools_ipa_keyboard_get_keyboard_symbols(int $wordset_id = 0, string 
 
     if (function_exists('ll_tools_sort_secondary_text_symbols')) {
         $symbols = ll_tools_sort_secondary_text_symbols($symbols, $mode);
+    }
+
+    if (function_exists('ll_tools_compact_secondary_text_keyboard_symbols')) {
+        $symbols = ll_tools_compact_secondary_text_keyboard_symbols($symbols, $mode);
     }
 
     return $symbols;

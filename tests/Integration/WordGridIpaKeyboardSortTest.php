@@ -39,6 +39,25 @@ final class WordGridIpaKeyboardSortTest extends LL_Tools_TestCase
         $this->assertSame($symbols, get_term_meta($wordset_id, 'll_wordset_ipa_special_chars', true));
     }
 
+    public function test_ipa_keyboard_symbols_collapse_modifier_combinations(): void
+    {
+        $wordset_id = $this->createWordset();
+        $word_id = $this->createWord($wordset_id, 'Keyboard Modifier Word');
+        $this->createRecording($word_id, 'qʰ dʲ tʷ aː ʃ ʒ');
+
+        $stored_symbols = ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
+
+        $this->assertContains('qʰ', $stored_symbols);
+        $this->assertContains('dʲ', $stored_symbols);
+        $this->assertContains('tʷ', $stored_symbols);
+        $this->assertContains('aː', $stored_symbols);
+
+        $config = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
+
+        $this->assertSame(['ʰ', 'ʲ', 'ʷ', 'ː'], array_values((array) ($config['modifier_chars'] ?? [])));
+        $this->assertSame(['ʃ', 'ʒ'], array_values((array) ($config['keyboard_symbols'] ?? [])));
+    }
+
     private function createWordset(): int
     {
         $term = wp_insert_term('IPA Keyboard Sort ' . wp_generate_password(6, false, false), 'wordset');

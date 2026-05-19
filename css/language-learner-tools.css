@@ -1710,14 +1710,19 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 }
 
 .word-grid.ll-word-grid .ll-word-edit-ipa-keyboard {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     gap: 6px;
     margin-top: 6px;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-ipa-keyboard[aria-hidden="true"] {
     display: none;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-keyboard-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 

@@ -124,8 +124,10 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
                 symbols_column_label: 'Pronunciation',
                 common_chars: ['ʃ'],
                 common_chars_label: 'Common IPA symbols',
+                modifier_chars: ['ʰ', 'ʲ', 'ʷ', 'ː'],
+                modifier_chars_label: 'Modifiers',
                 wordset_chars_label: 'Wordset IPA symbols',
-                keyboard_symbols: ['ɬ'],
+                keyboard_symbols: ['qʰ', 'dʲ', 'tʷ', 'aː', 'ɬ'],
                 keyboard_aria_label: 'IPA symbols'
               },
               results: [clone(baseRecording)],
@@ -165,10 +167,19 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
 
   await ipaInput.click();
   await expect(page.locator('[data-ll-ipa-inline-keyboard]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label').first()).toHaveText('Modifiers');
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʲ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʷ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ː"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="qʰ"]')).toHaveCount(0);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="dʲ"]')).toHaveCount(0);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="tʷ"]')).toHaveCount(0);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="aː"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ɬ"]')).toHaveCount(1);
 
-  await page.locator('.ll-ipa-inline-key[data-ipa-char="ɬ"]').click();
-  await expect(ipaInput).toHaveValue('teɬ');
+  await page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]').click();
+  await expect(ipaInput).toHaveValue('teʰ');
 
   const actions = await page.evaluate(() => {
     return window.__llTranscriptionKeyboardMock.postCalls.map(function (call) {

@@ -34,7 +34,8 @@ function buildWordGridConfig() {
     secondaryTextUsesIpaFont: false,
     secondaryTextSupportsSuperscript: true,
     secondaryTextCommonChars: ['ə', 'ɑ', 'ʃ', 'l'],
-    ipaSpecialChars: ['ə', 'ɑ', 'ʃ', 'l', 'm'],
+    secondaryTextModifierChars: ['ʰ', 'ʲ', 'ʷ', 'ː'],
+    ipaSpecialChars: ['ə', 'ɑ', 'ʃ', 'l', 'm', 'qʰ', 'dʲ', 'tʷ', 'aː'],
     ipaLetterMap: {
       s: ['ʃ'],
       sh: ['ʃ'],
@@ -50,7 +51,11 @@ function buildWordGridConfig() {
       fast_transitions: false
     },
     i18n: {},
-    editI18n: {}
+    editI18n: {
+      secondaryTextModifiers: 'Modifiers',
+      secondaryTextCommon: 'Common IPA symbols',
+      secondaryTextWordset: 'Wordset IPA symbols'
+    }
   };
 }
 
@@ -214,6 +219,15 @@ test('focusing the IPA field recenters the modal body so the waveform and keyboa
 
   expect(after.waveformHidden).toBe('false');
   expect(after.keyboardHidden).toBe('false');
+  await expect(page.locator('[data-ll-ipa-keyboard] .ll-word-edit-ipa-keyboard-row--modifiers')).toHaveCount(1);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="ʰ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="ʲ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="ʷ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="ː"]')).toHaveCount(1);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="qʰ"]')).toHaveCount(0);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="dʲ"]')).toHaveCount(0);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="tʷ"]')).toHaveCount(0);
+  await expect(page.locator('.ll-word-ipa-key[data-ipa-char="aː"]')).toHaveCount(0);
   expect(after.scrollTop).toBeGreaterThan(before.scrollTop);
   expect(Math.abs(after.centerOffset)).toBeLessThan(Math.abs(before.centerOffset));
   expect(Math.abs(after.centerOffset)).toBeLessThanOrEqual(after.bodyHeight * 0.35);

@@ -465,3 +465,48 @@ if (!function_exists('ll_tools_sort_secondary_text_symbols')) {
         return $sorted;
     }
 }
+
+if (!function_exists('ll_tools_get_secondary_text_keyboard_modifier_symbols')) {
+    function ll_tools_get_secondary_text_keyboard_modifier_symbols(string $mode = 'ipa'): array {
+        return $mode === 'ipa' ? ['ʰ', 'ʲ', 'ʷ', 'ː'] : [];
+    }
+}
+
+if (!function_exists('ll_tools_secondary_text_keyboard_symbol_uses_compact_modifier')) {
+    function ll_tools_secondary_text_keyboard_symbol_uses_compact_modifier(string $symbol, string $mode = 'ipa'): bool {
+        if ($mode !== 'ipa') {
+            return false;
+        }
+
+        $symbol = trim($symbol);
+        if ($symbol === '') {
+            return false;
+        }
+
+        foreach (ll_tools_get_secondary_text_keyboard_modifier_symbols($mode) as $modifier) {
+            if ($symbol !== $modifier && strpos($symbol, $modifier) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('ll_tools_compact_secondary_text_keyboard_symbols')) {
+    function ll_tools_compact_secondary_text_keyboard_symbols(array $symbols, string $mode = 'ipa', bool $sort = true): array {
+        $compact = [];
+        foreach ($symbols as $symbol) {
+            $value = trim((string) $symbol);
+            if ($value === '' || in_array($value, $compact, true)) {
+                continue;
+            }
+            if (ll_tools_secondary_text_keyboard_symbol_uses_compact_modifier($value, $mode)) {
+                continue;
+            }
+            $compact[] = $value;
+        }
+
+        return $sort ? ll_tools_sort_secondary_text_symbols($compact, $mode) : $compact;
+    }
+}
