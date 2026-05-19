@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.3.2
+Version: 6.3.3
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,7 +19,7 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.3.2');
+define('LL_TOOLS_VERSION', '6.3.3');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
@@ -90,6 +90,18 @@ function ll_tools_get_release_asset_name_regex() {
     return '/^language-learner-tools(?:-[0-9][0-9A-Za-z._-]*)?\.zip$/i';
 }
 
+function ll_tools_get_release_asset_required_strategy() {
+    $constant = '\\YahnisElsts\\PluginUpdateChecker\\v5p4\\Vcs\\Api::REQUIRE_RELEASE_ASSETS';
+
+    return defined($constant) ? constant($constant) : 2;
+}
+
+function ll_tools_get_latest_release_strategy_name() {
+    $constant = '\\YahnisElsts\\PluginUpdateChecker\\v5p4\\Vcs\\Api::STRATEGY_LATEST_RELEASE';
+
+    return defined($constant) ? constant($constant) : 'latest_release';
+}
+
 /**
  * Configure the GitHub update checker for the selected channel.
  *
@@ -105,7 +117,12 @@ function ll_tools_configure_update_checker($update_checker, $branch) {
         return;
     }
 
-    $update_checker->setBranch(ll_tools_normalize_update_branch($branch));
+    $branch = ll_tools_normalize_update_branch($branch);
+    $update_checker->setBranch($branch);
+
+    if ($branch !== 'main') {
+        return;
+    }
 
     if (!method_exists($update_checker, 'getVcsApi')) {
         return;
@@ -118,7 +135,7 @@ function ll_tools_configure_update_checker($update_checker, $branch) {
 
     $vcs_api->enableReleaseAssets(
         ll_tools_get_release_asset_name_regex(),
-        \YahnisElsts\PluginUpdateChecker\v5p4\Vcs\Api::REQUIRE_RELEASE_ASSETS
+        ll_tools_get_release_asset_required_strategy()
     );
 }
 
@@ -140,7 +157,7 @@ function ll_tools_filter_update_detection_strategies($strategies) {
         return [];
     }
 
-    $release_strategy = \YahnisElsts\PluginUpdateChecker\v5p4\Vcs\Api::STRATEGY_LATEST_RELEASE;
+    $release_strategy = ll_tools_get_latest_release_strategy_name();
     if (empty($strategies[$release_strategy]) || !is_callable($strategies[$release_strategy])) {
         return [];
     }

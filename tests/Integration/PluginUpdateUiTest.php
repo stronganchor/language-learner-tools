@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-final class LL_Tools_Test_Fake_Update_Checker
+class LL_Tools_Test_Fake_Update_Checker
 {
     /** @var list<string> */
     public array $branches = [];
@@ -23,6 +23,31 @@ final class LL_Tools_Test_Fake_Update_Checker
     public function checkForUpdates(): void
     {
         $this->checkCalled = true;
+    }
+}
+
+final class LL_Tools_Test_Fake_Update_Checker_With_Api extends LL_Tools_Test_Fake_Update_Checker
+{
+    public LL_Tools_Test_Fake_Vcs_Api $api;
+
+    public function __construct()
+    {
+        $this->api = new LL_Tools_Test_Fake_Vcs_Api();
+    }
+
+    public function getVcsApi(): LL_Tools_Test_Fake_Vcs_Api
+    {
+        return $this->api;
+    }
+}
+
+final class LL_Tools_Test_Fake_Vcs_Api
+{
+    public int $releaseAssetCalls = 0;
+
+    public function enableReleaseAssets($assetNameRegex, $strategy): void
+    {
+        $this->releaseAssetCalls++;
     }
 }
 
@@ -73,6 +98,26 @@ final class PluginUpdateUiTest extends LL_Tools_TestCase
         $this->assertSame(['dev'], $fakeChecker->branches);
         $this->assertTrue($fakeChecker->resetCalled);
         $this->assertTrue($fakeChecker->checkCalled);
+    }
+
+    public function test_dev_update_channel_does_not_require_release_assets(): void
+    {
+        $fakeChecker = new LL_Tools_Test_Fake_Update_Checker_With_Api();
+
+        ll_tools_configure_update_checker($fakeChecker, 'dev');
+
+        $this->assertSame(['dev'], $fakeChecker->branches);
+        $this->assertSame(0, $fakeChecker->api->releaseAssetCalls);
+    }
+
+    public function test_main_update_channel_requires_release_assets(): void
+    {
+        $fakeChecker = new LL_Tools_Test_Fake_Update_Checker_With_Api();
+
+        ll_tools_configure_update_checker($fakeChecker, 'main');
+
+        $this->assertSame(['main'], $fakeChecker->branches);
+        $this->assertSame(1, $fakeChecker->api->releaseAssetCalls);
     }
 
     public function test_update_management_urls_require_capability_and_include_expected_params(): void
