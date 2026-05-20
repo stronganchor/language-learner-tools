@@ -343,6 +343,265 @@ test('listening sequence keeps category words grouped in contiguous blocks', asy
   });
 });
 
+test('rapid listening follows provided lesson order without weighted repeats', async ({ page }) => {
+  await page.goto('about:blank');
+
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      listeningRapidMode: true,
+      orderedWordIds: [103, 102, 101, 201]
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [102], starMode: 'weighted', star_mode: 'weighted' };
+    window.LLFlashcards = {
+      State: {
+        STATES: {},
+        categoryNames: [],
+        wordsByCategory: {},
+        wordsLinear: [],
+        listeningHistory: [],
+        listeningLoop: false,
+        starModeOverride: null
+      },
+      Dom: {},
+      Cards: {},
+      Results: {},
+      Util: {},
+      Modes: {}
+    };
+  });
+
+  await page.addScriptTag({ content: listeningSource });
+
+  const result = await page.evaluate(() => {
+    const State = window.LLFlashcards.State;
+    const Listening = window.LLFlashcards.Modes.Listening;
+
+    State.wordsByCategory = {
+      CatB: [
+        { id: 201, title: 'b1', label: 'b1', audio: 'b1.mp3' }
+      ],
+      CatA: [
+        { id: 101, title: 'a1', label: 'a1', audio: 'a1.mp3' },
+        { id: 102, title: 'a2', label: 'a2', audio: 'a2.mp3' },
+        { id: 103, title: 'a3', label: 'a3', audio: 'a3.mp3' }
+      ]
+    };
+    State.categoryNames = ['CatB', 'CatA'];
+    Listening.initialize();
+    State.lastWordShownId = 103;
+    State.listenIndex = 0;
+    const selected = Listening.selectTargetWord();
+
+    return {
+      rapidMode: !!State.listeningRapidMode,
+      ids: State.wordsLinear.map((word) => Number(word && word.id) || 0),
+      selectedId: selected ? Number(selected.id) || 0 : 0
+    };
+  });
+
+  expect(result.rapidMode).toBe(true);
+  expect(result.ids).toEqual([103, 102, 101, 201]);
+  expect(result.selectedId).toBe(103);
+});
+
+test('rapid listening plays one isolation clip and advances without countdown', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent('<div id="ll-tools-flashcard-content"><div id="ll-tools-flashcard"></div></div>');
+  await page.addScriptTag({ content: jquerySource });
+
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (fn, delay, ...args) => nativeSetTimeout(fn, delay > 20 ? 2 : delay, ...args);
+    window.__playedListeningUrls = [];
+    window.__rapidAdvanceCount = 0;
+
+    const first = {
+      id: 1,
+      title: 'one',
+      label: 'one',
+      image: 'https://example.com/one.jpg',
+      isolation_audio: 'https://example.com/one-isolation.mp3',
+      question_audio: 'https://example.com/one-question.mp3',
+      introduction_audio: 'https://example.com/one-intro.mp3',
+      __categoryName: 'Numbers'
+    };
+    const second = {
+      id: 2,
+      title: 'two',
+      label: 'two',
+      image: 'https://example.com/two.jpg',
+      isolation_audio: 'https://example.com/two-isolation.mp3',
+      __categoryName: 'Numbers'
+    };
+
+    window.llToolsFlashcardsData = {
+      listeningRapidMode: true,
+      rapidListeningGapMs: 250,
+      categories: [{
+        name: 'Numbers',
+        prompt_type: 'audio',
+        option_type: 'image'
+      }]
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', star_mode: 'normal' };
+
+    window.LLFlashcards = {
+      State: {
+        STATES: {
+          QUIZ_READY: 'quiz_ready',
+          SHOWING_QUESTION: 'showing_question',
+          SHOWING_RESULTS: 'showing_results'
+        },
+        isListeningMode: true,
+        isFirstRound: false,
+        listeningPaused: false,
+        listeningLoop: false,
+        listeningRapidMode: true,
+        categoryNames: ['Numbers'],
+        currentCategoryName: 'Numbers',
+        currentCategory: [first, second],
+        wordsByCategory: { Numbers: [first, second] },
+        wordsLinear: [first, second],
+        listeningHistory: [],
+        listenIndex: 0,
+        addTimeout() {},
+        transitionTo() { return true; },
+        forceTransitionTo() { return true; },
+        onStateChange() { return function () {}; }
+      },
+      Dom: {
+        showLoading() {},
+        hideLoading() { return Promise.resolve(); },
+        updateCategoryNameDisplay() {},
+        disableRepeatButton() {},
+        enableRepeatButton() {},
+        bindRepeatButtonAudio() {},
+        setRepeatButton() {},
+        updateSimpleProgress() {}
+      },
+      Cards: {
+        applyAnswerOptionTextStyle() {}
+      },
+      Results: {
+        showResults() {
+          window.__listeningResultsShown = true;
+        }
+      },
+      Util: {
+        isPromptCard() { return false; },
+        promptTypeHasImage(type) { return String(type || '') === 'image'; },
+        promptTypeHasAudio(type) { return String(type || '') === 'audio'; },
+        getEffectiveOptionLabel(word) { return String((word && (word.label || word.title)) || ''); }
+      },
+      Selection: {
+        getCategoryConfig() { return window.llToolsFlashcardsData.categories[0]; }
+      },
+      AudioVisualizer: {
+        prepareForListening() {},
+        followAudio() {},
+        stop() {}
+      },
+      StarManager: {
+        updateForWord() {}
+      },
+      Modes: {}
+    };
+
+    let currentAudio = null;
+    window.FlashcardLoader = {
+      loadedCategories: ['Numbers'],
+      isCategoryLoaded() { return true; },
+      isCategoryLoading() { return false; },
+      loadResourcesForWord() {
+        return Promise.resolve({ ready: true, audioReady: true, imageReady: true });
+      },
+      loadResourcesForCategory(categoryName, callback) {
+        if (typeof callback === 'function') callback();
+        return Promise.resolve({ ready: true, categoryName });
+      }
+    };
+    window.FlashcardAudio = {
+      selectBestAudio(word, preferredTypes) {
+        const preferred = Array.isArray(preferredTypes) ? preferredTypes : [];
+        if (preferred.indexOf('isolation') !== -1 && word && word.isolation_audio) {
+          return word.isolation_audio;
+        }
+        if (preferred.indexOf('question') !== -1 && word && word.question_audio) {
+          return word.question_audio;
+        }
+        if (preferred.indexOf('introduction') !== -1 && word && word.introduction_audio) {
+          return word.introduction_audio;
+        }
+        return '';
+      },
+      setTargetWordAudio(word, options) {
+        const listeners = {};
+        currentAudio = {
+          src: String((options && options.audioUrl) || ''),
+          paused: true,
+          ended: false,
+          currentTime: 0,
+          readyState: 4,
+          addEventListener(type, callback) { listeners[type] = callback; },
+          removeEventListener(type) { delete listeners[type]; },
+          __listeners: listeners
+        };
+        return Promise.resolve(currentAudio);
+      },
+      getCurrentTargetAudio() { return currentAudio; },
+      playAudio(audio) {
+        window.__playedListeningUrls.push(audio.src);
+        audio.paused = false;
+        setTimeout(() => {
+          audio.paused = true;
+          audio.ended = true;
+          if (audio.__listeners && typeof audio.__listeners.ended === 'function') {
+            audio.__listeners.ended();
+          }
+        }, 1);
+        return Promise.resolve();
+      },
+      pauseAllAudio() {}
+    };
+  });
+
+  await page.addScriptTag({ content: listeningSource });
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Modes.Listening.runRound({
+      FlashcardLoader: window.FlashcardLoader,
+      FlashcardAudio: window.FlashcardAudio,
+      Dom: window.LLFlashcards.Dom,
+      Results: window.LLFlashcards.Results,
+      flashcardContainer: window.jQuery('#ll-tools-flashcard'),
+      setGuardedTimeout: window.setTimeout.bind(window),
+      runQuizRound() {
+        window.__rapidAdvanceCount += 1;
+      }
+    });
+  });
+
+  await page.waitForFunction(() => window.__rapidAdvanceCount >= 1);
+
+  const result = await page.evaluate(() => ({
+    played: window.__playedListeningUrls.slice(),
+    advanceCount: window.__rapidAdvanceCount,
+    hasCountdown: !!document.querySelector('.ll-tools-listening-countdown'),
+    hasOverlay: !!document.querySelector('.listening-overlay'),
+    hasImage: !!document.querySelector('#ll-tools-flashcard .quiz-image')
+  }));
+
+  expect(result.played).toEqual(['https://example.com/one-isolation.mp3']);
+  expect(result.advanceCount).toBe(1);
+  expect(result.hasCountdown).toBe(false);
+  expect(result.hasOverlay).toBe(false);
+  expect(result.hasImage).toBe(true);
+});
+
 test('prompt-card listening plays question, countdown, then one answer audio', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent('<div id="ll-tools-flashcard-content"><div id="ll-tools-flashcard"></div></div>');

@@ -81,3 +81,48 @@ test('quiz trigger opens iframe fallback modal when flashcard launcher is absent
   await page.keyboard.press('Escape');
   await expect(page.locator('.ll-quiz-overlay')).toHaveCount(0);
 });
+
+test('quiz trigger passes ordered listening ids to custom flashcard launcher', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <button
+      type="button"
+      class="ll-quiz-page-trigger ll-vocab-lesson-mode-button"
+      data-category="Numbers"
+      data-url="https://example.com/embed/numbers?mode=listening"
+      data-mode="listening"
+      data-wordset-id="42"
+      data-ordered-word-ids="[3,1,2]"
+      data-preserve-word-order="1"
+    >
+      Listen
+    </button>
+  `);
+
+  await page.evaluate(() => {
+    window.llQuizPages = {
+      labels: {
+        defaultTitle: 'Quiz'
+      }
+    };
+    window.llOpenFlashcardForCategory = function (categoryName, opts) {
+      window.__llLaunch = {
+        categoryName,
+        opts: Object.assign({}, opts)
+      };
+    };
+  });
+
+  await page.addScriptTag({ content: quizPagesScriptSource });
+  await page.click('.ll-quiz-page-trigger');
+
+  const launch = await page.evaluate(() => window.__llLaunch);
+  expect(launch.categoryName).toBe('Numbers');
+  expect(launch.opts.mode).toBe('listening');
+  expect(launch.opts.wordsetId).toBe('42');
+  expect(launch.opts.launchContext).toBe('vocab_lesson');
+  expect(launch.opts.orderedWordIds).toEqual([3, 1, 2]);
+  expect(launch.opts.sessionWordIds).toEqual([3, 1, 2]);
+  expect(launch.opts.preserveWordOrder).toBe(true);
+  expect(launch.opts.preserveCategoryOrder).toBe(true);
+});

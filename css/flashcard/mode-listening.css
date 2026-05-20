@@ -242,8 +242,9 @@
     /* avoid clipping under theme svg resets */
 }
 
-/* Keep loop icon as stroked outline regardless of theme svg fill rules */
-#ll-listen-loop svg {
+/* Keep loop and rapid icons as stroked outlines regardless of theme svg fill rules */
+#ll-listen-loop svg,
+#ll-listen-rapid svg {
     fill: none !important;
     stroke: currentColor !important;
     stroke-width: 2 !important;
@@ -251,7 +252,8 @@
     stroke-linejoin: round !important;
 }
 
-.ll-listening-controls #ll-listen-loop.active {
+.ll-listening-controls #ll-listen-loop.active,
+.ll-listening-controls #ll-listen-rapid.active {
     color: #1d4d99 !important;
     /* ensure visible active color */
     border-color: #1d4d99 !important;

@@ -46,6 +46,165 @@
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
+    function parseBooleanFlag(value, fallback) {
+        if (typeof value === 'boolean') {
+            return value;
+        }
+        if (typeof value === 'number') {
+            return value !== 0;
+        }
+        if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+                return true;
+            }
+            if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+                return false;
+            }
+        }
+        return !!fallback;
+    }
+
+    function normalizeWordIdList(raw) {
+        let values = [];
+        if (Array.isArray(raw)) {
+            values = raw;
+        } else if (typeof raw === 'string' && raw.trim() !== '') {
+            const trimmed = raw.trim();
+            if (trimmed.charAt(0) === '[') {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (Array.isArray(parsed)) {
+                        values = parsed;
+                    }
+                } catch (_) {
+                    values = [];
+                }
+            }
+            if (!values.length) {
+                values = trimmed.split(/[\s,|]+/);
+            }
+        }
+
+        const seen = {};
+        const ids = [];
+        values.forEach(function (value) {
+            const id = parseInt(value, 10);
+            if (id > 0 && isFinite(id) && !seen[id]) {
+                seen[id] = true;
+                ids.push(id);
+            }
+        });
+        return ids;
+    }
+
+    function getLastLaunchPlan() {
+        const data = root.llToolsFlashcardsData || {};
+        if (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object') {
+            return data.lastLaunchPlan;
+        }
+        if (data.last_launch_plan && typeof data.last_launch_plan === 'object') {
+            return data.last_launch_plan;
+        }
+        return {};
+    }
+
+    function getOrderedListeningWordIds() {
+        const data = root.llToolsFlashcardsData || {};
+        const plan = getLastLaunchPlan();
+        const explicitOrder = normalizeWordIdList(
+            data.orderedWordIds || data.ordered_word_ids || plan.orderedWordIds || plan.ordered_word_ids
+        );
+        if (explicitOrder.length) {
+            return explicitOrder;
+        }
+
+        const preserveWordOrder = parseBooleanFlag(
+            (typeof data.preserveWordOrder !== 'undefined') ? data.preserveWordOrder : data.preserve_word_order,
+            false
+        );
+        if (preserveWordOrder || isRapidListeningMode()) {
+            return normalizeWordIdList(data.sessionWordIds || data.session_word_ids || plan.sessionWordIds || plan.session_word_ids);
+        }
+        return [];
+    }
+
+    function getOrderedListeningWordRankMap() {
+        const orderedIds = getOrderedListeningWordIds();
+        const rank = {};
+        orderedIds.forEach(function (wordId, idx) {
+            rank[wordId] = idx;
+        });
+        return rank;
+    }
+
+    function compareWordsByOrderedIds(a, b, rankMap, fallbackIndexMap) {
+        const aId = parseInt(a && a.id, 10);
+        const bId = parseInt(b && b.id, 10);
+        const aRank = aId > 0 && Object.prototype.hasOwnProperty.call(rankMap, aId) ? rankMap[aId] : Number.MAX_SAFE_INTEGER;
+        const bRank = bId > 0 && Object.prototype.hasOwnProperty.call(rankMap, bId) ? rankMap[bId] : Number.MAX_SAFE_INTEGER;
+        if (aRank !== bRank) {
+            return aRank - bRank;
+        }
+        const aFallback = fallbackIndexMap && Object.prototype.hasOwnProperty.call(fallbackIndexMap, aId) ? fallbackIndexMap[aId] : Number.MAX_SAFE_INTEGER;
+        const bFallback = fallbackIndexMap && Object.prototype.hasOwnProperty.call(fallbackIndexMap, bId) ? fallbackIndexMap[bId] : Number.MAX_SAFE_INTEGER;
+        return aFallback - bFallback;
+    }
+
+    function sortWordsByOrderedIds(words, rankMap) {
+        const list = Array.isArray(words) ? words.slice() : [];
+        const ranks = rankMap || getOrderedListeningWordRankMap();
+        if (!Object.keys(ranks).length) {
+            return list;
+        }
+        const fallbackIndexMap = {};
+        list.forEach(function (word, idx) {
+            const wordId = parseInt(word && word.id, 10);
+            if (wordId > 0 && !Object.prototype.hasOwnProperty.call(fallbackIndexMap, wordId)) {
+                fallbackIndexMap[wordId] = idx;
+            }
+        });
+        return list.sort(function (a, b) {
+            return compareWordsByOrderedIds(a, b, ranks, fallbackIndexMap);
+        });
+    }
+
+    function getRapidListeningGapMs() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = (typeof data.rapidListeningGapMs !== 'undefined')
+            ? data.rapidListeningGapMs
+            : data.rapid_listening_gap_ms;
+        const parsed = parseInt(raw, 10);
+        const fallback = 750;
+        if (!isFinite(parsed)) {
+            return fallback;
+        }
+        return Math.max(250, Math.min(2000, parsed));
+    }
+
+    function getInitialRapidListeningMode() {
+        const data = root.llToolsFlashcardsData || {};
+        const plan = getLastLaunchPlan();
+        const raw = (typeof data.listeningRapidMode !== 'undefined')
+            ? data.listeningRapidMode
+            : ((typeof data.listening_rapid_mode !== 'undefined')
+                ? data.listening_rapid_mode
+                : ((typeof plan.listeningRapidMode !== 'undefined') ? plan.listeningRapidMode : plan.listening_rapid_mode));
+        return parseBooleanFlag(raw, false);
+    }
+
+    function isRapidListeningMode() {
+        return !!(State && State.listeningRapidMode);
+    }
+
+    function storeRapidListeningMode(enabled) {
+        const data = root.llToolsFlashcardsData;
+        if (data && typeof data === 'object') {
+            data.listeningRapidMode = !!enabled;
+            data.listening_rapid_mode = !!enabled;
+        }
+    }
+
     // Match learning-mode pause between repetitions
     const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introSilenceMs
@@ -496,6 +655,11 @@
             return [];
         }
 
+        if (isRapidListeningMode()) {
+            listeningCategoryOrder = names.slice();
+            return listeningCategoryOrder.slice();
+        }
+
         if (forceReshuffle || !Array.isArray(listeningCategoryOrder) || !listeningCategoryOrder.length) {
             listeningCategoryOrder = shuffleArray(names);
             return listeningCategoryOrder.slice();
@@ -564,6 +728,8 @@
         if (State.categoryNames && State.wordsByCategory) {
             const starredLookup = getStarredLookup();
             const starMode = getStarMode();
+            const rapidMode = isRapidListeningMode();
+            const orderedRankMap = rapidMode ? getOrderedListeningWordRankMap() : {};
             const globalSeenWordIds = {};
             const categoryOrder = resolveListeningCategoryOrder(false);
 
@@ -591,10 +757,25 @@
                 if (!categoryWords.length) {
                     continue;
                 }
-                const weightedCategory = buildWeightedSequence(categoryWords, starredLookup, starMode);
+                const weightedCategory = rapidMode
+                    ? sortWordsByOrderedIds(categoryWords, orderedRankMap)
+                    : buildWeightedSequence(categoryWords, starredLookup, starMode);
                 if (weightedCategory.length) {
                     weightedCategory.forEach(function (word) { seq.push(word); });
                 }
+            }
+
+            if (rapidMode && Object.keys(orderedRankMap).length > 0 && seq.length > 1) {
+                const fallbackIndexMap = {};
+                seq.forEach(function (word, idx) {
+                    const wordId = parseInt(word && word.id, 10);
+                    if (wordId > 0 && !Object.prototype.hasOwnProperty.call(fallbackIndexMap, wordId)) {
+                        fallbackIndexMap[wordId] = idx;
+                    }
+                });
+                seq.sort(function (a, b) {
+                    return compareWordsByOrderedIds(a, b, orderedRankMap, fallbackIndexMap);
+                });
             }
         }
 
@@ -911,6 +1092,8 @@
         resetListeningPrefetchPlanner();
         try { ListeningPlayback.clear(); } catch (_) { }
         State.listeningLoop = false;
+        State.listeningRapidMode = getInitialRapidListeningMode();
+        storeRapidListeningMode(State.listeningRapidMode);
         Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
         resetListeningCategoryOrder();
         resolveListeningCategoryOrder(true);
@@ -957,6 +1140,7 @@
         let attempts = 0;
         let word = State.wordsLinear[State.listenIndex] || null;
         while (
+            !isRapidListeningMode() &&
             State.wordsLinear.length > 1 &&
             attempts < State.wordsLinear.length &&
             word &&
@@ -1080,6 +1264,12 @@
         const canFwd = total > 0; // keep next enabled even on the last item
         toggleDisabled($jq, $jq('#ll-listen-back'), !canBack);
         toggleDisabled($jq, $jq('#ll-listen-forward'), !canFwd);
+        const $rapid = $jq('#ll-listen-rapid');
+        if ($rapid && $rapid.length) {
+            $rapid
+                .toggleClass('active', isRapidListeningMode())
+                .attr('aria-pressed', isRapidListeningMode() ? 'true' : 'false');
+        }
     }
 
     function ensureControls(utils) {
@@ -1123,16 +1313,20 @@
             const pauseSVG = `<svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 32 32" fill="${color}"><rect x="8" y="6" width="6" height="20" rx="2"/><rect x="18" y="6" width="6" height="20" rx="2"/></svg>`;
             const backSVG = `<svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 32 32" fill="${color}"><path d="M18 8v16l-10-8 10-8z"/><rect x="22" y="6" width="2" height="20"/></svg>`;
             const fwdSVG = `<svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 32 32" fill="${color}"><path d="M14 8v16l10-8-10-8z"/><rect x="8" y="6" width="2" height="20"/></svg>`;
+            const rapidSVG = `<svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 20 20" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M11.5 2.5 4 11h4l-1 6.5L15.5 9h-4l0-6.5Z"/></svg>`;
             const loopSVG = `<svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>`;
 
             const $pause = makeBtn('ll-listen-toggle', getListeningControlLabel('listeningToggleAria'), pauseSVG).attr('data-state', 'playing');
             const $back = makeBtn('ll-listen-back', getListeningControlLabel('listeningBackAria'), backSVG);
             const $fwd = makeBtn('ll-listen-forward', getListeningControlLabel('listeningForwardAria'), fwdSVG);
+            const $rapid = makeBtn('ll-listen-rapid', getListeningControlLabel('listeningRapidAria'), rapidSVG)
+                .attr('aria-pressed', isRapidListeningMode() ? 'true' : 'false');
             const $loop = makeBtn('ll-listen-loop', getListeningControlLabel('listeningLoopAria'), loopSVG);
 
+            if (isRapidListeningMode()) $rapid.addClass('active');
             if (State.listeningLoop) $loop.addClass('active');
 
-            $controls.append($starSlot, $pause, $back, $fwd, $loop);
+            $controls.append($starSlot, $pause, $back, $fwd, $rapid, $loop);
             $content.append($controls);
 
             // Events
@@ -1205,6 +1399,27 @@
                 }
                 // Current listenIndex already points at next; just move on
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Listening forward');
+                if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
+                updateControlsState();
+                try { WakeLock.update(); } catch (_) { }
+            });
+
+            $rapid.on('click', function () {
+                try { utils.FlashcardAudio && utils.FlashcardAudio.pauseAllAudio(); } catch (_) {}
+                State.clearActiveTimeouts();
+                ListeningPlayback.clear();
+                State.listeningRapidMode = !isRapidListeningMode();
+                storeRapidListeningMode(State.listeningRapidMode);
+                resetListeningCategoryOrder();
+                resetListeningHistory();
+                resetListeningPrefetchPlanner();
+                State.listenIndex = 0;
+                State.lastWordShownId = null;
+                rebuildWordsLinear();
+                $jq(this)
+                    .toggleClass('active', isRapidListeningMode())
+                    .attr('aria-pressed', isRapidListeningMode() ? 'true' : 'false');
+                State.forceTransitionTo(STATES.QUIZ_READY, isRapidListeningMode() ? 'Rapid listening enabled' : 'Rapid listening disabled');
                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                 updateControlsState();
                 try { WakeLock.update(); } catch (_) { }
@@ -1316,6 +1531,7 @@
         const $jq = getJQuery();
         const roundToken = ListeningPlayback.startNewRound();
         const isStartupRound = !!State.isFirstRound;
+        const rapidMode = isRapidListeningMode();
         const setRoundResume = function (fn) { ListeningPlayback.setResume(fn, roundToken); };
         const restartRound = function (reason) {
             State.forceTransitionTo(STATES.QUIZ_READY, reason || 'Listening retry');
@@ -1519,7 +1735,7 @@
             $stack || ($container || ($jq && $jq('#ll-tools-flashcard'))),
             { textBased: !hasImage, aspectRatio: placeholderAspect }
         );
-        if ($ph && promptIsImage) {
+        if ($ph && (promptIsImage || rapidMode)) {
             try { $ph.find('.listening-overlay').remove(); } catch (_) { /* no-op */ }
         }
         if (placeholderAspect) {
@@ -1539,7 +1755,7 @@
                 if (Cards && typeof Cards.applyAnswerOptionTextStyle === 'function') {
                     Cards.applyAnswerOptionTextStyle($text, answerLabel || '');
                 }
-                $text.css('opacity', 0);
+                $text.css('opacity', rapidMode ? 1 : 0);
                 ($stack || $container || $jq('#ll-tools-flashcard')).append($text);
             }
         }
@@ -1660,7 +1876,14 @@
             const isImageAudioFlow = hasImage && (optionType === 'audio' || optionType === 'text_audio');
             const isPromptCardImageAudioFlow = isPromptCard(target) && isImageAudioFlow && !!promptIsImage;
             const isAudioPromptFlow = (!promptIsImage && (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
-            if (isPromptCardImageAudioFlow) {
+            if (rapidMode) {
+                const rapidClip = isPromptCard(target)
+                    ? (promptCardAnswerAudioUrl || isoUrl || questionUrl || introUrl || (target && target.__runtimePromptAudio) || null)
+                    : (isoUrl || questionUrl || introUrl || (target && target.__runtimePromptAudio) || promptCardAnswerAudioUrl || null);
+                if (rapidClip) {
+                    sequence = [rapidClip];
+                }
+            } else if (isPromptCardImageAudioFlow) {
                 if (promptCardAnswerAudioUrl) {
                     sequence = [promptCardAnswerAudioUrl];
                 }
@@ -1974,19 +2197,21 @@
                 if (!sequence.length || idx >= sequence.length) {
                     const finishSequence = function () {
                         Dom.setRepeatButton && Dom.setRepeatButton('play');
-                        scheduleAdvance();
+                        scheduleAdvance(rapidMode ? getRapidListeningGapMs() : undefined);
                     };
-                    const t = scheduleTimeout(utils, finishSequence, 300);
+                    const t = scheduleTimeout(utils, finishSequence, rapidMode ? 0 : 300);
                     State.addTimeout(t);
                     setRoundResume(function () {
-                        const tid = scheduleTimeout(utils, finishSequence, 200);
+                        const tid = scheduleTimeout(utils, finishSequence, rapidMode ? 0 : 200);
                         State.addTimeout && State.addTimeout(tid);
                     });
                     return;
                 }
                 setAndPlayUntilEnd(sequence[idx]).then(function () {
                     const isTwoClipImageAudio = (sequence.length === 2 && isImageAudioFlow);
-                    const delay = isTwoClipImageAudio
+                    const delay = rapidMode
+                        ? 0
+                        : isTwoClipImageAudio
                         ? INTRO_GAP_MS
                         : (isAudioPromptFlow && idx === 1) ? REPEAT_GAP_MS
                             : (idx === 1) ? INTRO_GAP_MS : 150; // default small gap
@@ -2037,7 +2262,41 @@
                 }
             };
 
-            if (isPromptCardImageAudioFlow) {
+            if (rapidMode) {
+                const $viz = $jq ? $jq('#ll-tools-listening-visualizer') : null;
+                if ($viz && $viz.length) {
+                    const $bars = $viz.find('.ll-tools-visualizer-bar');
+                    if ($bars && $bars.length) {
+                        $bars.css({ opacity: sequence.length ? 1 : 0, display: sequence.length ? '' : 'none' });
+                    }
+                    if (!sequence.length && !shouldUseVisualizerText) {
+                        $viz.css('visibility', 'hidden');
+                    }
+                }
+
+                Promise.resolve(releaseRoundLoading()).catch(function () { return; }).then(function () {
+                    if (State.listeningPaused) {
+                        setRoundResume(function () {
+                            if (sequence.length) {
+                                playSequenceFrom(0);
+                            } else {
+                                scheduleAdvance(getRapidListeningGapMs());
+                            }
+                        });
+                        return;
+                    }
+                    if (showAnswerText) {
+                        maybeShowAnswerText();
+                    }
+                    revealContent();
+                    if (sequence.length) {
+                        playSequenceFrom(0);
+                        return;
+                    }
+                    Dom.setRepeatButton && Dom.setRepeatButton('play');
+                    scheduleAdvance(getRapidListeningGapMs());
+                });
+            } else if (isPromptCardImageAudioFlow) {
                 const $viz = $jq ? $jq('#ll-tools-listening-visualizer') : null;
                 if ($viz && $viz.length) {
                     const $bars = $viz.find('.ll-tools-visualizer-bar');

@@ -233,6 +233,53 @@
         };
     }
 
+    function parseBooleanAttr(raw, fallback) {
+        if (raw === null || typeof raw === 'undefined') {
+            return !!fallback;
+        }
+        var normalized = String(raw || '').trim().toLowerCase();
+        if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+            return true;
+        }
+        if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+            return false;
+        }
+        return !!fallback;
+    }
+
+    function parseWordIdList(raw) {
+        var values = [];
+        if (Array.isArray(raw)) {
+            values = raw;
+        } else if (typeof raw === 'string' && raw.trim() !== '') {
+            var trimmed = raw.trim();
+            if (trimmed.charAt(0) === '[') {
+                try {
+                    var parsed = JSON.parse(trimmed);
+                    if (Array.isArray(parsed)) {
+                        values = parsed;
+                    }
+                } catch (_) {
+                    values = [];
+                }
+            }
+            if (!values.length) {
+                values = trimmed.split(/[\s,|]+/);
+            }
+        }
+
+        var seen = {};
+        return values.map(function (value) {
+            return parseInt(value, 10) || 0;
+        }).filter(function (id) {
+            if (id <= 0 || seen[id]) {
+                return false;
+            }
+            seen[id] = true;
+            return true;
+        });
+    }
+
     // -------------------------
     // Delegated click handler
     // -------------------------
@@ -265,9 +312,23 @@
             var mode = trigger.getAttribute('data-mode') || '';
             var wordsetId = trigger.getAttribute('data-wordset-id') || '';
             var wordset = trigger.getAttribute('data-wordset') || '';
+            var orderedWordIds = parseWordIdList(trigger.getAttribute('data-ordered-word-ids') || '');
+            var preserveWordOrderAttr = trigger.getAttribute('data-preserve-word-order');
             if (mode) opts.mode = mode;
             if (wordsetId) opts.wordsetId = wordsetId;
             else if (wordset) opts.wordset = wordset;
+            if (orderedWordIds.length) {
+                opts.orderedWordIds = orderedWordIds.slice();
+                opts.ordered_word_ids = orderedWordIds.slice();
+                opts.sessionWordIds = orderedWordIds.slice();
+                opts.session_word_ids = orderedWordIds.slice();
+            }
+            if (preserveWordOrderAttr !== null || orderedWordIds.length) {
+                opts.preserveWordOrder = parseBooleanAttr(preserveWordOrderAttr, orderedWordIds.length > 0 && mode === 'listening');
+                opts.preserve_word_order = opts.preserveWordOrder;
+                opts.preserveCategoryOrder = opts.preserveWordOrder;
+                opts.preserve_category_order = opts.preserveWordOrder;
+            }
             window.llOpenFlashcardForCategory(cat, opts);
         } catch (e) {
             // Ultimate fallback: navigate

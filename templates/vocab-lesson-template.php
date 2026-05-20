@@ -315,6 +315,7 @@ if (have_posts()) {
     $grid_shell_spec = null;
     $grid_shell_nonce = '';
     $grid_cached_html = '';
+    $lesson_listening_ordered_word_ids = [];
     $render_html_attributes = static function (array $attributes): string {
         $parts = [];
         foreach ($attributes as $name => $value) {
@@ -412,6 +413,23 @@ if (have_posts()) {
             }
             $grid_shell_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . $post_id);
         }
+    }
+    if (
+        $wordset_id > 0
+        && $category_id > 0
+        && $category_slug !== ''
+        && $wordset_slug !== ''
+        && function_exists('ll_tools_word_grid_resolve_context')
+        && function_exists('ll_tools_word_grid_get_shell_ordered_word_ids')
+    ) {
+        $lesson_launch_grid_context = (isset($grid_context) && is_array($grid_context))
+            ? $grid_context
+            : ll_tools_word_grid_resolve_context([
+                'category' => $category_slug,
+                'wordset' => $wordset_slug,
+                'deepest_only' => true,
+            ]);
+        $lesson_listening_ordered_word_ids = ll_tools_word_grid_get_shell_ordered_word_ids($lesson_launch_grid_context);
     }
     ?>
     <main class="ll-vocab-lesson-page" data-ll-vocab-lesson>
@@ -1264,7 +1282,11 @@ if (have_posts()) {
                                     data-mode="<?php echo esc_attr($mode); ?>"
                                     data-self-check-supported="<?php echo $lesson_self_check_supported ? '1' : '0'; ?>"
                                     data-wordset="<?php echo esc_attr($wordset_slug); ?>"
-                                    data-wordset-id="<?php echo esc_attr($wordset_id); ?>">
+                                    data-wordset-id="<?php echo esc_attr($wordset_id); ?>"
+                                    <?php if ($mode === 'listening' && !empty($lesson_listening_ordered_word_ids)) : ?>
+                                        data-ordered-word-ids="<?php echo esc_attr(wp_json_encode(array_values($lesson_listening_ordered_word_ids))); ?>"
+                                        data-preserve-word-order="1"
+                                    <?php endif; ?>>
                                 <?php $render_mode_icon($mode, $fallback_icons[$mode] ?? '❓'); ?>
                                 <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($mode_label); ?></span>
                             </button>

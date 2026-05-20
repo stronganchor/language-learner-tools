@@ -148,6 +148,60 @@ test('flashcard loader serializes category AJAX preloads by default to avoid req
   }).toBe(2);
 });
 
+test('flashcard loader preserves explicit listening word order when provided', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Numbers'];
+    window.getCategoryDisplayMode = function () { return 'image'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'numbers',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      sessionWordIds: [3, 1, 2],
+      session_word_ids: [3, 1, 2],
+      orderedWordIds: [3, 1, 2],
+      ordered_word_ids: [3, 1, 2],
+      preserveWordOrder: true,
+      preserve_word_order: true,
+      categories: [
+        { id: 11, name: 'Numbers', prompt_type: 'audio', option_type: 'image' }
+      ]
+    };
+
+    const $ = window.jQuery;
+    $.ajax = function (opts) {
+      setTimeout(() => {
+        opts.success({
+          success: true,
+          data: [
+            { id: 1, title: 'one', label: 'one', audio: 'one.mp3', image: '', audio_files: [], wordset_ids: [101] },
+            { id: 2, title: 'two', label: 'two', audio: 'two.mp3', image: '', audio_files: [], wordset_ids: [101] },
+            { id: 3, title: 'three', label: 'three', audio: 'three.mp3', image: '', audio_files: [], wordset_ids: [101] }
+          ]
+        });
+      }, 0);
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+
+  await page.evaluate(() => window.FlashcardLoader.loadResourcesForCategory('Numbers'));
+
+  await expect.poll(async () => {
+    return await page.evaluate(() => (window.wordsByCategory.Numbers || []).map((word) => Number(word && word.id) || 0));
+  }).toEqual([3, 1, 2]);
+
+  const optionIds = await page.evaluate(() => (window.optionWordsByCategory.Numbers || []).map((word) => Number(word && word.id) || 0));
+  expect(optionIds).toEqual([3, 1, 2]);
+});
+
 test('flashcard loader can skip current-word audio preload when requested', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });

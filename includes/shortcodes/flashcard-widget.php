@@ -379,6 +379,7 @@ function ll_flashcards_get_messages(): array {
         'listeningToggleAria'     => __('Pause / Play', 'll-tools-text-domain'),
         'listeningBackAria'       => __('Back', 'll-tools-text-domain'),
         'listeningForwardAria'    => __('Forward', 'll-tools-text-domain'),
+        'listeningRapidAria'      => __('Rapid listening', 'll-tools-text-domain'),
         'listeningLoopAria'       => __('Loop', 'll-tools-text-domain'),
         'perfect'                 => __('Perfect!', 'll-tools-text-domain'),
         'goodJob'                 => __('Good job!', 'll-tools-text-domain'),
@@ -780,6 +781,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'categoryMediaChunkDelayMs'     => max(0, min(10000, (int) ($preload_tuning['categoryMediaChunkDelayMs'] ?? $preload_tuning_defaults['categoryMediaChunkDelayMs']))),
         'categoryMediaChunkConcurrency' => max(1, min(8, (int) ($preload_tuning['categoryMediaChunkConcurrency'] ?? $preload_tuning_defaults['categoryMediaChunkConcurrency']))),
     ];
+    $rapid_listening_gap_ms = max(250, min(2000, (int) apply_filters('ll_tools_rapid_listening_gap_ms', 750, $atts, $categories, $wordset_ids)));
     $localized_data = [
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
@@ -807,8 +809,16 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'star_mode'            => $user_study_state['star_mode'] ?? 'normal',
         'fastTransitions'      => !empty($user_study_state['fast_transitions']),
         'fast_transitions'     => !empty($user_study_state['fast_transitions']),
+        'rapidListeningGapMs'  => $rapid_listening_gap_ms,
+        'rapid_listening_gap_ms' => $rapid_listening_gap_ms,
         'sessionWordIds'       => [],
         'session_word_ids'     => [],
+        'orderedWordIds'       => [],
+        'ordered_word_ids'     => [],
+        'preserveWordOrder'    => false,
+        'preserve_word_order'  => false,
+        'listeningRapidMode'   => false,
+        'listening_rapid_mode' => false,
         'userStudyState'       => $user_study_state,
         'userStudyNonce'       => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
         'genderEnabled'        => $gender_enabled,

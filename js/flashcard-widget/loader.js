@@ -85,6 +85,121 @@
             return count > 0 ? lookup : null;
         }
 
+        function parseBooleanFlag(value, fallback) {
+            if (typeof value === 'boolean') {
+                return value;
+            }
+            if (typeof value === 'number') {
+                return value !== 0;
+            }
+            if (typeof value === 'string') {
+                const normalized = value.trim().toLowerCase();
+                if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+                    return true;
+                }
+                if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+                    return false;
+                }
+            }
+            return !!fallback;
+        }
+
+        function normalizeWordIdList(raw) {
+            let values = [];
+            if (Array.isArray(raw)) {
+                values = raw;
+            } else if (typeof raw === 'string' && raw.trim() !== '') {
+                const trimmed = raw.trim();
+                if (trimmed.charAt(0) === '[') {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        if (Array.isArray(parsed)) {
+                            values = parsed;
+                        }
+                    } catch (_) {
+                        values = [];
+                    }
+                }
+                if (!values.length) {
+                    values = trimmed.split(/[\s,|]+/);
+                }
+            }
+
+            const seen = {};
+            const ids = [];
+            values.forEach(function (value) {
+                const id = parseInt(value, 10);
+                if (id > 0 && isFinite(id) && !seen[id]) {
+                    seen[id] = true;
+                    ids.push(id);
+                }
+            });
+            return ids;
+        }
+
+        function getLastLaunchPlan() {
+            const data = window.llToolsFlashcardsData || {};
+            if (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object') {
+                return data.lastLaunchPlan;
+            }
+            if (data.last_launch_plan && typeof data.last_launch_plan === 'object') {
+                return data.last_launch_plan;
+            }
+            return {};
+        }
+
+        function shouldPreserveWordOrder() {
+            const data = window.llToolsFlashcardsData || {};
+            return parseBooleanFlag(
+                (typeof data.preserveWordOrder !== 'undefined') ? data.preserveWordOrder : data.preserve_word_order,
+                false
+            ) || parseBooleanFlag(
+                (typeof data.listeningRapidMode !== 'undefined') ? data.listeningRapidMode : data.listening_rapid_mode,
+                false
+            );
+        }
+
+        function getOrderedWordIdsForCurrentLaunch() {
+            const data = window.llToolsFlashcardsData || {};
+            const plan = getLastLaunchPlan();
+            const explicitOrder = normalizeWordIdList(
+                data.orderedWordIds || data.ordered_word_ids || plan.orderedWordIds || plan.ordered_word_ids
+            );
+            if (explicitOrder.length) {
+                return explicitOrder;
+            }
+            if (shouldPreserveWordOrder()) {
+                return normalizeWordIdList(data.sessionWordIds || data.session_word_ids || plan.sessionWordIds || plan.session_word_ids);
+            }
+            return [];
+        }
+
+        function getOrderedWordIdRankMap() {
+            const rank = {};
+            getOrderedWordIdsForCurrentLaunch().forEach(function (wordId, idx) {
+                rank[wordId] = idx;
+            });
+            return rank;
+        }
+
+        function orderWordsForCurrentLaunch(words) {
+            const list = Array.isArray(words) ? words.slice() : [];
+            if (!shouldPreserveWordOrder() || list.length < 2) {
+                return list;
+            }
+            const rankMap = getOrderedWordIdRankMap();
+            if (!Object.keys(rankMap).length) {
+                return list;
+            }
+            return list.sort(function (a, b) {
+                const aId = parseInt(a && a.id, 10);
+                const bId = parseInt(b && b.id, 10);
+                const aRank = aId > 0 && Object.prototype.hasOwnProperty.call(rankMap, aId) ? rankMap[aId] : Number.MAX_SAFE_INTEGER;
+                const bRank = bId > 0 && Object.prototype.hasOwnProperty.call(rankMap, bId) ? rankMap[bId] : Number.MAX_SAFE_INTEGER;
+                return aRank - bRank;
+            });
+        }
+
         function getRuntimeMode() {
             const data = window.llToolsFlashcardsData || {};
             return String(data.runtimeMode || data.runtime_mode || 'wp').trim().toLowerCase();
@@ -173,7 +288,10 @@
                 .filter(function (id) { return id > 0; })
                 .sort(function (a, b) { return a - b; })
                 .join(',');
-            return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
+            const orderKey = shouldPreserveWordOrder()
+                ? getOrderedWordIdsForCurrentLaunch().join(',')
+                : '';
+            return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all') + '|' + (orderKey || 'random');
         }
 
         function resetCacheForNewWordset() {
@@ -776,10 +894,14 @@
             decorateOfflineWords(filteredBySession);
 
             window.optionWordsByCategory[categoryName].push(...filteredByCategory);
-            window.optionWordsByCategory[categoryName] = randomlySort(window.optionWordsByCategory[categoryName]);
+            window.optionWordsByCategory[categoryName] = shouldPreserveWordOrder()
+                ? orderWordsForCurrentLaunch(window.optionWordsByCategory[categoryName])
+                : randomlySort(window.optionWordsByCategory[categoryName]);
 
             window.wordsByCategory[categoryName].push(...filteredBySession);
-            window.wordsByCategory[categoryName] = randomlySort(window.wordsByCategory[categoryName]);
+            window.wordsByCategory[categoryName] = shouldPreserveWordOrder()
+                ? orderWordsForCurrentLaunch(window.wordsByCategory[categoryName])
+                : randomlySort(window.wordsByCategory[categoryName]);
         }
 
         /**

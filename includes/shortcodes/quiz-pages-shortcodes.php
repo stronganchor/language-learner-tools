@@ -1008,6 +1008,59 @@ function ll_qpg_print_flashcard_shell_once() {
         }
         initPlayIcon();
 
+        function normalizeWordIdList(raw) {
+            var values = [];
+            if (Array.isArray(raw)) {
+                values = raw;
+            } else if (typeof raw === 'string' && raw.trim() !== '') {
+                var trimmed = raw.trim();
+                if (trimmed.charAt(0) === '[') {
+                    try {
+                        var parsed = JSON.parse(trimmed);
+                        if (Array.isArray(parsed)) {
+                            values = parsed;
+                        }
+                    } catch (_) {
+                        values = [];
+                    }
+                }
+                if (!values.length) {
+                    values = trimmed.split(/[\s,|]+/);
+                }
+            }
+
+            var seen = {};
+            var ids = [];
+            for (var i = 0; i < values.length; i++) {
+                var id = parseInt(values[i], 10);
+                if (id > 0 && !seen[id]) {
+                    seen[id] = true;
+                    ids.push(id);
+                }
+            }
+            return ids;
+        }
+
+        function parseBooleanFlag(raw, fallback) {
+            if (typeof raw === 'boolean') {
+                return raw;
+            }
+            if (typeof raw === 'number') {
+                return raw !== 0;
+            }
+            if (raw === null || typeof raw === 'undefined') {
+                return !!fallback;
+            }
+            var normalized = String(raw || '').trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+                return true;
+            }
+            if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+                return false;
+            }
+            return !!fallback;
+        }
+
         window.llOpenFlashcardForCategory = function(catName, wordset, mode){
             if (!catName) return;
 
@@ -1063,13 +1116,60 @@ function ll_qpg_print_flashcard_shell_once() {
                 } catch (_) {}
             }
 
+            var orderedWordIds = normalizeWordIdList(opts && (opts.orderedWordIds || opts.ordered_word_ids));
+            var sessionWordIds = normalizeWordIdList(opts && (opts.sessionWordIds || opts.session_word_ids));
+            var preserveWordOrder = parseBooleanFlag(opts && (typeof opts.preserveWordOrder !== 'undefined' ? opts.preserveWordOrder : opts.preserve_word_order), orderedWordIds.length > 0 && mode === 'listening');
+            var listeningRapidMode = parseBooleanFlag(opts && (typeof opts.listeningRapidMode !== 'undefined' ? opts.listeningRapidMode : opts.listening_rapid_mode), false);
+            if (!orderedWordIds.length && opts && opts.triggerEl && opts.triggerEl.getAttribute) {
+                orderedWordIds = normalizeWordIdList(opts.triggerEl.getAttribute('data-ordered-word-ids') || '');
+            }
+            if (!sessionWordIds.length && orderedWordIds.length) {
+                sessionWordIds = orderedWordIds.slice();
+            }
+            if (opts && opts.triggerEl && opts.triggerEl.getAttribute) {
+                var preserveAttr = opts.triggerEl.getAttribute('data-preserve-word-order');
+                if (preserveAttr !== null) {
+                    preserveWordOrder = parseBooleanFlag(preserveAttr, preserveWordOrder);
+                }
+            }
+            if (orderedWordIds.length && mode === 'listening') {
+                preserveWordOrder = true;
+            }
+
             if (window.llToolsFlashcardsData) {
+                var previousSessionWordIds = normalizeWordIdList(window.llToolsFlashcardsData.sessionWordIds || window.llToolsFlashcardsData.session_word_ids);
+                var previousOrderedWordIds = normalizeWordIdList(window.llToolsFlashcardsData.orderedWordIds || window.llToolsFlashcardsData.ordered_word_ids);
                 window.llToolsFlashcardsData.wordset = currentWordset;
                 window.llToolsFlashcardsData.wordsetFallback = false;
                 window.llToolsFlashcardsData.quiz_mode = mode;
                 window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds.length ? parsedWordsetIds : [];
                 window.llToolsFlashcardsData.launchContext = launchContext;
                 window.llToolsFlashcardsData.launch_context = launchContext;
+                window.llToolsFlashcardsData.sessionWordIds = sessionWordIds.slice();
+                window.llToolsFlashcardsData.session_word_ids = sessionWordIds.slice();
+                window.llToolsFlashcardsData.orderedWordIds = orderedWordIds.slice();
+                window.llToolsFlashcardsData.ordered_word_ids = orderedWordIds.slice();
+                window.llToolsFlashcardsData.preserveWordOrder = !!preserveWordOrder;
+                window.llToolsFlashcardsData.preserve_word_order = !!preserveWordOrder;
+                window.llToolsFlashcardsData.preserveCategoryOrder = !!preserveWordOrder;
+                window.llToolsFlashcardsData.preserve_category_order = !!preserveWordOrder;
+                window.llToolsFlashcardsData.listeningRapidMode = !!listeningRapidMode;
+                window.llToolsFlashcardsData.listening_rapid_mode = !!listeningRapidMode;
+                if (!window.llToolsFlashcardsData.lastLaunchPlan || typeof window.llToolsFlashcardsData.lastLaunchPlan !== 'object') {
+                    window.llToolsFlashcardsData.lastLaunchPlan = {};
+                }
+                window.llToolsFlashcardsData.lastLaunchPlan.session_word_ids = sessionWordIds.slice();
+                window.llToolsFlashcardsData.lastLaunchPlan.ordered_word_ids = orderedWordIds.slice();
+                window.llToolsFlashcardsData.lastLaunchPlan.preserve_word_order = !!preserveWordOrder;
+                window.llToolsFlashcardsData.lastLaunchPlan.listening_rapid_mode = !!listeningRapidMode;
+                if (sessionWordIds.length) {
+                    window.llToolsFlashcardsData.lastLaunchPlan.estimated_results_total = sessionWordIds.length;
+                } else {
+                    delete window.llToolsFlashcardsData.lastLaunchPlan.estimated_results_total;
+                }
+                window.llToolsFlashcardsData.last_launch_plan = window.llToolsFlashcardsData.lastLaunchPlan;
+                var sessionScopeChanged = previousSessionWordIds.join(',') !== sessionWordIds.join(',');
+                var orderScopeChanged = previousOrderedWordIds.join(',') !== orderedWordIds.join(',');
                 if (opts && typeof opts.autoplayTextAudioAnswerOptions !== 'undefined') {
                     window.llToolsFlashcardsData.autoplayTextAudioAnswerOptions = !!opts.autoplayTextAudioAnswerOptions;
                     window.llToolsFlashcardsData.autoplay_text_audio_answer_options = !!opts.autoplayTextAudioAnswerOptions;
@@ -1179,7 +1279,7 @@ function ll_qpg_print_flashcard_shell_once() {
                 }
             }
 
-            if (wordsetChanged && window.FlashcardLoader) {
+            if ((wordsetChanged || sessionScopeChanged || orderScopeChanged) && window.FlashcardLoader) {
                 if (typeof window.FlashcardLoader.resetCacheForNewWordset === 'function') {
                     window.FlashcardLoader.resetCacheForNewWordset();
                 } else if (Array.isArray(window.FlashcardLoader.loadedCategories)) {
