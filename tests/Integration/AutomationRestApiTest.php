@@ -719,6 +719,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>Interlinear<', $reader_html);
         $this->assertStringContainsString('Text background', $reader_html);
         $this->assertStringContainsString('Places mentioned', $reader_html);
+        $this->assertStringContainsString('ll-text-document__place-list', $reader_html);
         $this->assertStringContainsString('Hyêni', $reader_html);
         $this->assertStringContainsString('href="https://www.google.com/maps/search/?api=1&#038;query=Hani%2C%20Diyarbak%C4%B1r"', $reader_html);
         $this->assertStringNotContainsString('Sivan/Servi', $reader_html);

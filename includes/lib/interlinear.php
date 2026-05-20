@@ -1586,7 +1586,7 @@ function ll_tools_text_document_publication_place_links_html(array $publication)
         return '';
     }
 
-    $parts = [];
+    $items = [];
     foreach ($place_links as $place) {
         if (!is_array($place)) {
             continue;
@@ -1606,15 +1606,22 @@ function ll_tools_text_document_publication_place_links_html(array $publication)
             if ($url !== '') {
                 $modern_html = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . $modern_html . '</a>';
             }
-            $label .= ' (' . $modern_html . ')';
+            $label = '<span class="ll-text-document__place-name">' . $label . '</span> '
+                . '<span class="ll-text-document__place-modern">(' . $modern_html . ')</span>';
         } elseif ($url !== '') {
-            $label = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . $label . '</a>';
+            $label = '<span class="ll-text-document__place-name"><a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . $label . '</a></span>';
+        } else {
+            $label = '<span class="ll-text-document__place-name">' . $label . '</span>';
         }
 
-        $parts[] = $label;
+        $items[] = '<li class="ll-text-document__place-item">' . $label . '</li>';
     }
 
-    return implode('; ', $parts);
+    if (empty($items)) {
+        return '';
+    }
+
+    return '<ul class="ll-text-document__place-list">' . implode('', $items) . '</ul>';
 }
 
 function ll_tools_text_document_publication_intro_items(array $payload): array {
@@ -1656,6 +1663,7 @@ function ll_tools_text_document_publication_intro_items(array $payload): array {
                 $items[] = [
                     'label' => $field['label'],
                     'html'  => $place_links_html,
+                    'class' => 'll-text-document__intro-item--places',
                 ];
                 continue;
             }
@@ -1682,10 +1690,14 @@ function ll_tools_text_document_render_publication_intro(array $payload): string
 
     $html = '<section class="ll-text-document__intro" aria-label="' . esc_attr__('Text background', 'll-tools-text-domain') . '">';
     foreach ($items as $item) {
-        $html .= '<div class="ll-text-document__intro-item">';
+        $item_class = 'll-text-document__intro-item';
+        if (isset($item['class']) && is_string($item['class']) && $item['class'] !== '') {
+            $item_class .= ' ' . sanitize_html_class($item['class']);
+        }
+        $html .= '<div class="' . esc_attr($item_class) . '">';
         $html .= '<h3>' . esc_html((string) $item['label']) . '</h3>';
         if (isset($item['html']) && is_string($item['html']) && $item['html'] !== '') {
-            $html .= '<p>' . $item['html'] . '</p>';
+            $html .= $item['html'];
         } else {
             $html .= '<p>' . nl2br(esc_html((string) $item['value'])) . '</p>';
         }
