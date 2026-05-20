@@ -1635,23 +1635,27 @@ function ll_tools_text_document_publication_intro_items(array $payload): array {
         [
             'label' => __('Content warning', 'll-tools-text-domain'),
             'keys'  => ['content_warning_tr', 'content_warning_en', 'content_warning'],
+            'class' => 'll-text-document__intro-item--compact',
         ],
         [
             'label' => __('People mentioned', 'll-tools-text-domain'),
             'keys'  => ['people_tr', 'people_en', 'people'],
+            'class' => 'll-text-document__intro-item--people',
+        ],
+        [
+            'label' => __('Historical context', 'll-tools-text-domain'),
+            'keys'  => ['historical_context_tr', 'historical_context_en', 'historical_context'],
+            'class' => 'll-text-document__intro-item--context',
+        ],
+        [
+            'label' => __('Research note', 'll-tools-text-domain'),
+            'keys'  => ['editorial_note_tr', 'research_note_tr', 'editorial_note_en', 'research_note_en', 'editorial_note', 'research_note'],
+            'class' => 'll-text-document__intro-item--note',
         ],
         [
             'label' => __('Places mentioned', 'll-tools-text-domain'),
             'keys'  => ['places_tr', 'places_en', 'places'],
             'linked_places' => true,
-        ],
-        [
-            'label' => __('Historical context', 'll-tools-text-domain'),
-            'keys'  => ['historical_context_tr', 'historical_context_en', 'historical_context'],
-        ],
-        [
-            'label' => __('Research note', 'll-tools-text-domain'),
-            'keys'  => ['editorial_note_tr', 'research_note_tr', 'editorial_note_en', 'research_note_en', 'editorial_note', 'research_note'],
         ],
     ];
 
@@ -1676,6 +1680,7 @@ function ll_tools_text_document_publication_intro_items(array $payload): array {
         $items[] = [
             'label' => $field['label'],
             'value' => $value,
+            'class' => isset($field['class']) && is_string($field['class']) ? $field['class'] : '',
         ];
     }
 
