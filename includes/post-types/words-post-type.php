@@ -2040,6 +2040,113 @@ function ll_enforce_word_audio_publish_requirement($post_id, $post, $update) {
 }
 
 /**
+ * Determine whether prompt-card context allows a referenced word to publish without audio.
+ *
+ * @param int $word_id Word post ID.
+ * @return bool True when a no-audio prompt-card context references the word.
+ */
+function ll_tools_word_prompt_card_reference_allows_no_audio(int $word_id): bool {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return false;
+    }
+
+    $post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
+    $prompt_image_meta_key = defined('LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY') ? LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY : '_ll_prompt_card_prompt_image_word_id';
+    $correct_answer_meta_key = defined('LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY') ? LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY : '_ll_prompt_card_correct_answer_word_id';
+    $wrong_answer_meta_key = defined('LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY') ? LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY : '_ll_prompt_card_wrong_answer_word_ids';
+
+    $prompt_card_ids = get_posts([
+        'post_type'      => $post_type,
+        'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'suppress_filters' => true,
+        'meta_query'     => [
+            'relation' => 'OR',
+            [
+                'key'     => $prompt_image_meta_key,
+                'value'   => (string) $word_id,
+                'compare' => '=',
+            ],
+            [
+                'key'     => $correct_answer_meta_key,
+                'value'   => (string) $word_id,
+                'compare' => '=',
+            ],
+            [
+                'key'     => $wrong_answer_meta_key,
+                'value'   => 'i:' . $word_id . ';',
+                'compare' => 'LIKE',
+            ],
+            [
+                'key'     => $wrong_answer_meta_key,
+                'value'   => '"' . $word_id . '"',
+                'compare' => 'LIKE',
+            ],
+        ],
+    ]);
+
+    $prompt_card_ids = array_values(array_filter(array_map('intval', (array) $prompt_card_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if (empty($prompt_card_ids)) {
+        return false;
+    }
+
+    foreach ($prompt_card_ids as $prompt_card_id) {
+        $wordset_ids = wp_get_post_terms($prompt_card_id, 'wordset', ['fields' => 'ids']);
+        $wordset_ids = is_wp_error($wordset_ids)
+            ? []
+            : array_values(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+                return $id > 0;
+            }));
+
+        if (
+            !empty($wordset_ids)
+            && function_exists('ll_tools_wordset_uses_sign_language_mode')
+            && ll_tools_wordset_uses_sign_language_mode($wordset_ids)
+        ) {
+            return true;
+        }
+
+        $category_ids = wp_get_post_terms($prompt_card_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($category_ids) || empty($category_ids)) {
+            continue;
+        }
+
+        foreach ((array) $category_ids as $category_id) {
+            $category_id = (int) $category_id;
+            if ($category_id <= 0) {
+                continue;
+            }
+
+            if (function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled($category_id)) {
+                return true;
+            }
+
+            if (!function_exists('ll_tools_get_category_quiz_config') || !function_exists('ll_tools_quiz_requires_audio')) {
+                continue;
+            }
+
+            $config = ll_tools_get_category_quiz_config($category_id);
+            if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+                $config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $config, $wordset_ids);
+            }
+
+            $option_type = isset($config['option_type']) ? (string) $config['option_type'] : '';
+            $is_text_only = get_term_meta($category_id, 'use_word_titles_for_audio', true) === '1';
+            if (!ll_tools_quiz_requires_audio((array) $config, $option_type) || $is_text_only) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
  * Determine whether the word needs audio based on its categories' quiz config.
  *
  * @param int $post_id Word post ID.
@@ -2051,11 +2158,6 @@ function ll_word_requires_audio_to_publish($post_id) {
         return true;
     }
 
-    $cat_ids = wp_get_post_terms((int) $post_id, 'word-category', ['fields' => 'ids']);
-    if (is_wp_error($cat_ids) || empty($cat_ids)) {
-        return true;
-    }
-
     $wordset_ids = wp_get_post_terms((int) $post_id, 'wordset', ['fields' => 'ids']);
     if (
         !is_wp_error($wordset_ids)
@@ -2063,6 +2165,15 @@ function ll_word_requires_audio_to_publish($post_id) {
         && ll_tools_wordset_uses_sign_language_mode((array) $wordset_ids)
     ) {
         return false;
+    }
+
+    if (ll_tools_word_prompt_card_reference_allows_no_audio((int) $post_id)) {
+        return false;
+    }
+
+    $cat_ids = wp_get_post_terms((int) $post_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($cat_ids) || empty($cat_ids)) {
+        return true;
     }
 
     $has_non_audio_category = false;

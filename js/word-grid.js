@@ -58,6 +58,7 @@
 
     const WORD_GRID_IMAGE_SELECTOR = '.word-image-container img.word-image';
     const WORD_GRID_IMAGE_WRAPPER_SELECTOR = '.word-image-container';
+    const ANIMATED_WEBP_IMAGE_SELECTOR = 'img[data-ll-animated-webp="1"]';
     const LESSON_ORDER_HANDLE_SELECTOR = '[data-ll-word-grid-order-handle]';
     const LESSON_ORDER_VIEWPORT_SCROLL_EDGE_PX = 96;
     const LESSON_ORDER_VIEWPORT_SCROLL_MIN_STEP_PX = 3;
@@ -421,6 +422,128 @@
         img.addEventListener('error', finish, { once: true });
     }
 
+    function bindAnimatedWebpControl(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        if (img.dataset.llAnimatedWebpBound === '1') { return; }
+
+        const state = {
+            originalSrc: img.getAttribute('src') || '',
+            originalSrcset: img.getAttribute('srcset') || '',
+            originalSizes: img.getAttribute('sizes') || '',
+            posterSrc: '',
+            active: false,
+            pinned: false,
+            capturing: false
+        };
+        if (!state.originalSrc) { return; }
+
+        img.dataset.llAnimatedWebpBound = '1';
+        img.classList.add('ll-animated-webp-image');
+
+        const restoreAnimatedSource = function () {
+            if (img.getAttribute('src') !== state.originalSrc) {
+                img.setAttribute('src', state.originalSrc);
+            }
+            if (state.originalSrcset) {
+                img.setAttribute('srcset', state.originalSrcset);
+            }
+            if (state.originalSizes) {
+                img.setAttribute('sizes', state.originalSizes);
+            }
+            img.classList.add('ll-animated-webp-active');
+            img.classList.remove('ll-animated-webp-paused');
+        };
+
+        const showPosterSource = function () {
+            if (!state.posterSrc) { return; }
+            img.removeAttribute('srcset');
+            img.removeAttribute('sizes');
+            if (img.getAttribute('src') !== state.posterSrc) {
+                img.setAttribute('src', state.posterSrc);
+            }
+            img.classList.add('ll-animated-webp-paused');
+            img.classList.remove('ll-animated-webp-active');
+        };
+
+        const setAnimatedActive = function (active) {
+            state.active = !!active;
+            if (state.active) {
+                restoreAnimatedSource();
+            } else {
+                showPosterSource();
+            }
+        };
+
+        const capturePoster = function () {
+            if (state.posterSrc || state.capturing || !img.complete || !img.naturalWidth || !img.naturalHeight) {
+                return;
+            }
+            if ((img.getAttribute('src') || '') === state.posterSrc) {
+                return;
+            }
+
+            state.capturing = true;
+            try {
+                const maxEdge = 720;
+                const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+                const width = Math.max(1, Math.round(img.naturalWidth * scale));
+                const height = Math.max(1, Math.round(img.naturalHeight * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) { return; }
+                ctx.drawImage(img, 0, 0, width, height);
+                state.posterSrc = canvas.toDataURL('image/webp', 0.86);
+                if (!state.active) {
+                    showPosterSource();
+                }
+            } catch (_error) {
+                state.posterSrc = '';
+            } finally {
+                state.capturing = false;
+            }
+        };
+
+        const scheduleCapture = function () {
+            if (state.posterSrc) { return; }
+            window.setTimeout(capturePoster, 0);
+        };
+
+        if (img.complete) {
+            scheduleCapture();
+        } else {
+            img.addEventListener('load', scheduleCapture, { once: true });
+        }
+
+        const activateOnPointer = function () {
+            setAnimatedActive(true);
+        };
+        const pauseOnPointerLeave = function () {
+            if (!state.pinned) {
+                setAnimatedActive(false);
+            }
+        };
+        ['mouseenter', 'pointerenter', 'mouseover'].forEach(function (eventName) {
+            img.addEventListener(eventName, activateOnPointer);
+        });
+        ['mouseleave', 'pointerleave', 'mouseout'].forEach(function (eventName) {
+            img.addEventListener(eventName, pauseOnPointerLeave);
+        });
+        img.addEventListener('focus', function () {
+            setAnimatedActive(true);
+        });
+        img.addEventListener('blur', function () {
+            if (!state.pinned) {
+                setAnimatedActive(false);
+            }
+        });
+        img.addEventListener('click', function () {
+            state.pinned = !state.pinned;
+            setAnimatedActive(state.pinned);
+        });
+    }
+
     function scanWordGridImages(rootNode) {
         if (!rootNode || rootNode.nodeType !== 1) { return; }
         if (rootNode.matches && rootNode.matches(WORD_GRID_IMAGE_SELECTOR)) {
@@ -428,6 +551,12 @@
         }
         if (rootNode.querySelectorAll) {
             rootNode.querySelectorAll(WORD_GRID_IMAGE_SELECTOR).forEach(bindWordGridImageLoadState);
+        }
+        if (rootNode.matches && rootNode.matches(ANIMATED_WEBP_IMAGE_SELECTOR)) {
+            bindAnimatedWebpControl(rootNode);
+        }
+        if (rootNode.querySelectorAll) {
+            rootNode.querySelectorAll(ANIMATED_WEBP_IMAGE_SELECTOR).forEach(bindAnimatedWebpControl);
         }
     }
 

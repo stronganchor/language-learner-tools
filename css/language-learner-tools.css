@@ -2514,6 +2514,14 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     opacity: 0;
 }
 
+.word-grid.ll-word-grid img[data-ll-animated-webp="1"] {
+    cursor: pointer;
+}
+
+.word-grid.ll-word-grid img.ll-animated-webp-paused {
+    object-position: center;
+}
+
 .word-grid.ll-word-grid .word-item {
     text-align: center !important;
 }

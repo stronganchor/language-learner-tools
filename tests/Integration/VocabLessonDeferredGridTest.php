@@ -688,11 +688,15 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         $this->assertTrue($response['success']);
         $html = (string) (($response['data'] ?? [])['html'] ?? '');
-        $this->assertStringContainsString('ll-vocab-prompt-card-grid', $html);
+        $this->assertStringContainsString('word-grid ll-word-grid', $html);
+        $this->assertStringContainsString('ll-vocab-prompt-card-word-item', $html);
+        $this->assertStringContainsString('word-image-container', $html);
+        $this->assertStringContainsString('sign-text-prompt-sign', $html);
         $this->assertStringNotContainsString('ll-vocab-image-choice-grid', $html);
+        $this->assertStringNotContainsString('ll-vocab-prompt-card-grid', $html);
         $this->assertStringNotContainsString('Choose the matching ASL sign.', $html);
         $this->assertStringNotContainsString('ll-vocab-prompt-card__question-icon', $html);
-        $this->assertStringContainsString('ll-vocab-prompt-card-answer--referent', $html);
+        $this->assertStringNotContainsString('ll-vocab-prompt-card-answer--referent', $html);
         $this->assertStringContainsString('Airplane', $html);
         $this->assertStringNotContainsString('Apple', $html);
         $this->assertStringNotContainsString('ll-vocab-prompt-card-answer is-wrong', $html);

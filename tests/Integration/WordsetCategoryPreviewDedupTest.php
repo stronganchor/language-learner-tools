@@ -283,6 +283,136 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertSame([], $this->extractPreviewImageAttachmentIds($preview));
     }
 
+    public function test_sign_language_wordset_page_category_cards_preview_answer_options(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Sign Page Preview Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $image_category = wp_insert_term('Sign Page Image Preview ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($image_category));
+        $this->assertIsArray($image_category);
+        $image_category_id = (int) $image_category['term_id'];
+        update_term_meta($image_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($image_category_id, 'll_quiz_option_type', 'audio');
+        $image_effective_category_id = $this->resolveEffectiveCategoryId($image_category_id, $wordset_id);
+        update_term_meta($image_effective_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($image_effective_category_id, 'll_quiz_option_type', 'audio');
+        $this->createVocabLesson($wordset_id, $image_effective_category_id, 'Sign Page Image Lesson');
+
+        $text_category = wp_insert_term('Sign Page Text Preview ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($text_category));
+        $this->assertIsArray($text_category);
+        $text_category_id = (int) $text_category['term_id'];
+        update_term_meta($text_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($text_category_id, 'll_quiz_option_type', 'text_title');
+        $text_effective_category_id = $this->resolveEffectiveCategoryId($text_category_id, $wordset_id);
+        update_term_meta($text_effective_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($text_effective_category_id, 'll_quiz_option_type', 'text_title');
+        $this->createVocabLesson($wordset_id, $text_effective_category_id, 'Sign Page Text Lesson');
+
+        $asset_category = wp_insert_term('Sign Page Preview Assets ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($asset_category));
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        $tree_sign_attachment_id = $this->createImageAttachment('sign-page-tree-sign.png');
+        $tree_answer_attachment_id = $this->createImageAttachment('sign-page-tree-answer.png', self::ALT_PIXEL_PNG_BASE64);
+        $plane_sign_attachment_id = $this->createImageAttachment('sign-page-plane-sign.png');
+        $plane_answer_attachment_id = $this->createImageAttachment('sign-page-plane-answer.png', self::ALT_PIXEL_PNG_BASE64);
+        $tree_sign_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $tree_sign_attachment_id, 'Tree Sign');
+        $tree_answer_id = $this->createWordWithThumbnail($image_effective_category_id, $wordset_id, $tree_answer_attachment_id, 'Tree');
+        $plane_sign_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $plane_sign_attachment_id, 'Airplane Sign');
+        $plane_answer_id = $this->createWordWithThumbnail($image_effective_category_id, $wordset_id, $plane_answer_attachment_id, 'Airplane');
+        $this->createAudioRecording($tree_answer_id, 'sign-page-tree-answer.mp3');
+        $this->createAudioRecording($plane_answer_id, 'sign-page-plane-answer.mp3');
+
+        $apple_sign_attachment_id = $this->createImageAttachment('sign-page-apple-sign.png');
+        $animal_sign_attachment_id = $this->createImageAttachment('sign-page-animal-sign.png', self::ALT_PIXEL_PNG_BASE64);
+        $apple_sign_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $apple_sign_attachment_id, 'Apple Sign');
+        $animal_sign_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $animal_sign_attachment_id, 'Animal Sign');
+        $apple_answer_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Apple',
+        ]);
+        $animal_answer_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Animal',
+        ]);
+        wp_set_post_terms($apple_answer_id, [$text_effective_category_id], 'word-category', false);
+        wp_set_post_terms($animal_answer_id, [$text_effective_category_id], 'word-category', false);
+        wp_set_post_terms($apple_answer_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($animal_answer_id, [$wordset_id], 'wordset', false);
+        $this->createAudioRecording($apple_answer_id, 'sign-page-apple-answer.mp3');
+        $this->createAudioRecording($animal_answer_id, 'sign-page-animal-answer.mp3');
+
+        $this->createPromptCard($image_effective_category_id, $wordset_id, [
+            'title' => 'Sign Page Tree Image Card',
+            'prompt_image_word_id' => $tree_sign_id,
+            'correct_answer_word_id' => $tree_answer_id,
+        ]);
+        $this->createPromptCard($image_effective_category_id, $wordset_id, [
+            'title' => 'Sign Page Airplane Image Card',
+            'prompt_image_word_id' => $plane_sign_id,
+            'correct_answer_word_id' => $plane_answer_id,
+        ]);
+        $this->createPromptCard($text_effective_category_id, $wordset_id, [
+            'title' => 'Sign Page Apple Text Card',
+            'prompt_image_word_id' => $apple_sign_id,
+            'correct_answer_word_id' => $apple_answer_id,
+        ]);
+        $this->createPromptCard($text_effective_category_id, $wordset_id, [
+            'title' => 'Sign Page Animal Text Card',
+            'prompt_image_word_id' => $animal_sign_id,
+            'correct_answer_word_id' => $animal_answer_id,
+        ]);
+
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        try {
+            $categories = ll_tools_get_wordset_page_categories($wordset_id, 2, ['defer_previews' => false]);
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+        $image_row = $this->findCategoryRow($categories, $image_effective_category_id);
+        $text_row = $this->findCategoryRow($categories, $text_effective_category_id);
+
+        $debug_category_ids = array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $categories);
+
+        $this->assertIsArray($image_row, 'Expected image preview category row. Returned category IDs: ' . implode(',', $debug_category_ids));
+        $this->assertTrue((bool) ($image_row['preview_requires_images'] ?? false));
+        $this->assertTrue((bool) ($image_row['has_images'] ?? false));
+        $this->assertSame(2, (int) ($image_row['preview_limit'] ?? 0));
+        $expected_image_attachment_ids = [$tree_answer_attachment_id, $plane_answer_attachment_id];
+        sort($expected_image_attachment_ids, SORT_NUMERIC);
+        $this->assertSame($expected_image_attachment_ids, $this->sortedPreviewAttachmentIds($image_row));
+        $this->assertNotContains($tree_sign_attachment_id, $this->sortedPreviewAttachmentIds($image_row));
+        $this->assertNotContains($plane_sign_attachment_id, $this->sortedPreviewAttachmentIds($image_row));
+
+        $this->assertIsArray($text_row);
+        $this->assertFalse((bool) ($text_row['preview_requires_images'] ?? true));
+        $this->assertFalse((bool) ($text_row['has_images'] ?? true));
+        $this->assertSame(4, (int) ($text_row['preview_limit'] ?? 0));
+        $text_items = array_values((array) ($text_row['preview'] ?? []));
+        $this->assertCount(2, $text_items);
+        $labels = array_map(static function (array $item): string {
+            return (string) ($item['label'] ?? '');
+        }, $text_items);
+        sort($labels, SORT_STRING);
+        $this->assertSame(['Animal', 'Apple'], $labels);
+    }
+
     private function createWordWithThumbnail(int $category_id, int $wordset_id, int $attachment_id, string $title, string $post_date = ''): int
     {
         $post_data = [
@@ -336,6 +466,54 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, array_values(array_map('intval', (array) ($args['wrong_answer_word_ids'] ?? []))));
 
         return (int) $post_id;
+    }
+
+    private function createVocabLesson(int $wordset_id, int $category_id, string $title): int
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => $title . ' ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+
+        return (int) $lesson_id;
+    }
+
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $resolved = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($resolved > 0) {
+                return $resolved;
+            }
+        }
+
+        return $category_id;
+    }
+
+    private function findCategoryRow(array $categories, int $category_id): ?array
+    {
+        foreach ($categories as $row) {
+            if (is_array($row) && (int) ($row['id'] ?? 0) === $category_id) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return int[]
+     */
+    private function sortedPreviewAttachmentIds(array $category_row): array
+    {
+        $ids = $this->extractPreviewImageAttachmentIds([
+            'items' => (array) ($category_row['preview'] ?? []),
+        ]);
+        sort($ids, SORT_NUMERIC);
+        return $ids;
     }
 
     private function createImageAttachment(string $filename, string $base64 = self::ONE_PIXEL_PNG_BASE64): int

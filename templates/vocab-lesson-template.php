@@ -184,7 +184,11 @@ if (have_posts()) {
         $lesson_prompt_card_posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
     }
     $lesson_uses_prompt_cards = !empty($lesson_prompt_card_posts);
-    $lesson_uses_image_choice_prompt_cards = $lesson_uses_prompt_cards
+    $lesson_uses_standard_prompt_card_word_grid = $lesson_uses_prompt_cards
+        && function_exists('ll_tools_vocab_lesson_prompt_cards_use_standard_word_grid')
+        && ll_tools_vocab_lesson_prompt_cards_use_standard_word_grid($wordset_id, $category);
+    $lesson_uses_custom_prompt_cards = $lesson_uses_prompt_cards && !$lesson_uses_standard_prompt_card_word_grid;
+    $lesson_uses_image_choice_prompt_cards = $lesson_uses_custom_prompt_cards
         && function_exists('ll_tools_vocab_lesson_prompt_cards_use_image_choice_grid')
         && ll_tools_vocab_lesson_prompt_cards_use_image_choice_grid($wordset_id, $category);
     $can_add_lesson_word = $can_edit_words && $wordset_id > 0 && $category_id > 0 && !$lesson_uses_prompt_cards;
@@ -381,19 +385,22 @@ if (have_posts()) {
                 $grid_shell_spec['cards'] = array_fill(0, $prompt_shell_count, [
                     'media_aspect_ratio' => '4 / 3',
                     'title_width' => '72%',
-                    'recording_count' => $lesson_uses_image_choice_prompt_cards ? 0 : 2,
+                    'recording_count' => ($lesson_uses_image_choice_prompt_cards || $lesson_uses_standard_prompt_card_word_grid) ? 0 : 2,
                 ]);
                 $grid_shell_spec['show_media'] = true;
-                $grid_shell_spec['show_title'] = false;
                 $grid_shell_attributes = (array) ($grid_shell_spec['attributes'] ?? []);
                 if ($lesson_uses_image_choice_prompt_cards) {
+                    $grid_shell_spec['show_title'] = false;
                     $grid_shell_spec['image_choice_shell'] = true;
                     $grid_shell_attributes['class'] = trim((string) ($grid_shell_attributes['class'] ?? 'word-grid ll-word-grid') . ' ll-vocab-image-choice-grid ll-vocab-image-choice-grid--skeleton');
                     $grid_shell_attributes['data-ll-image-choice-lesson-grid'] = '1';
-                } else {
+                } elseif ($lesson_uses_custom_prompt_cards) {
+                    $grid_shell_spec['show_title'] = false;
                     $grid_shell_spec['prompt_card_shell'] = true;
                     $grid_shell_attributes['class'] = trim((string) ($grid_shell_attributes['class'] ?? 'word-grid ll-word-grid') . ' ll-vocab-prompt-card-grid ll-vocab-prompt-card-grid--skeleton');
                     $grid_shell_attributes['data-ll-prompt-card-lesson-grid'] = '1';
+                } else {
+                    $grid_shell_spec['show_title'] = true;
                 }
                 $grid_shell_spec['attributes'] = $grid_shell_attributes;
             }

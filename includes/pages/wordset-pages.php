@@ -1113,6 +1113,14 @@ function ll_tools_wordset_page_get_category_content_summary(int $category_id, in
     return $summary;
 }
 
+function ll_tools_wordset_page_category_preview_requires_images(array $quiz_config): bool {
+    $option_type = isset($quiz_config['option_type']) ? (string) $quiz_config['option_type'] : 'image';
+
+    return function_exists('ll_tools_quiz_option_type_has_image')
+        ? ll_tools_quiz_option_type_has_image($option_type)
+        : in_array($option_type, ['image', 'image_text_translation'], true);
+}
+
 function ll_tools_wordset_page_category_delete_blocker(WP_Term $category, int $wordset_id, array $summary = []): string {
     $category_id = (int) $category->term_id;
     if ($category_id <= 0 || $wordset_id <= 0) {
@@ -2897,6 +2905,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             ? max(1, (int) ll_tools_get_wordset_cache_epoch())
             : 1;
         $guest_cache_key = ll_tools_wordset_page_build_cache_key('categories', [
+            'schema' => 2,
             'wordset_id' => $wordset_id,
             'preview_limit' => max(1, (int) $preview_limit),
             'preview_mode' => $defer_previews ? 'deferred' : 'eager',
@@ -3011,14 +3020,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             ];
         }
 
-        $requires_images = true;
-        if (function_exists('ll_tools_vocab_lesson_category_requires_images')) {
-            $requires_images = ll_tools_vocab_lesson_category_requires_images($category, $wordset_id);
-        } else {
-            $requires_images = function_exists('ll_tools_quiz_requires_image')
-                ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
-                : (($prompt_type === 'image') || ($option_type === 'image'));
-        }
+        $requires_images = ll_tools_wordset_page_category_preview_requires_images((array) $quiz_config);
 
         $image_preview_limit = max(1, (int) $preview_limit);
         $text_preview_limit = max(4, $image_preview_limit);

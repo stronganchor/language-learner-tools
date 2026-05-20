@@ -132,6 +132,101 @@ final class WordPublishAudioRequirementTest extends LL_Tools_TestCase
         $this->assertSame('publish', get_post_status($word_id));
     }
 
+    public function test_uncategorized_word_still_requires_audio_by_default(): void
+    {
+        $this->set_current_user_to_administrator();
+
+        $word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'draft',
+            'post_title'  => 'Uncategorized Audio Required',
+        ]);
+
+        $this->assertTrue(ll_word_requires_audio_to_publish($word_id));
+
+        wp_update_post([
+            'ID'          => $word_id,
+            'post_status' => 'publish',
+        ]);
+
+        $this->assertSame('draft', get_post_status($word_id));
+    }
+
+    public function test_sign_language_wordset_word_without_category_can_publish_without_audio(): void
+    {
+        $this->set_current_user_to_administrator();
+
+        $wordset = wp_insert_term('ASL No Audio Wordset', 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'draft',
+            'post_title'  => 'ASL Answer Without Category',
+        ]);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $this->assertFalse(ll_word_requires_audio_to_publish($word_id));
+
+        wp_update_post([
+            'ID'          => $word_id,
+            'post_status' => 'publish',
+        ]);
+
+        $this->assertSame('publish', get_post_status($word_id));
+    }
+
+    public function test_sign_language_prompt_card_reference_without_category_can_publish_without_audio(): void
+    {
+        $this->set_current_user_to_administrator();
+
+        $wordset = wp_insert_term('ASL Prompt Card No Audio Wordset', 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $category = wp_insert_term('ASL Prompt Card No Audio Category', 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'audio');
+
+        $prompt_word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'draft',
+            'post_title'  => 'ASL Prompt Image Word Without Category',
+        ]);
+        $answer_word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'publish',
+            'post_title'  => 'ASL Prompt Card Answer',
+        ]);
+
+        $prompt_card_id = self::factory()->post->create([
+            'post_type'   => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title'  => 'ASL No Audio Prompt Card',
+        ]);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($prompt_card_id, [$category_id], 'word-category', false);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY, $prompt_word_id);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, $answer_word_id);
+
+        $this->assertFalse(ll_word_requires_audio_to_publish($prompt_word_id));
+
+        wp_update_post([
+            'ID'          => $prompt_word_id,
+            'post_status' => 'publish',
+        ]);
+
+        $this->assertSame('publish', get_post_status($prompt_word_id));
+    }
+
     public function test_rest_publish_with_non_audio_category_assigned_in_same_request_is_allowed(): void
     {
         $this->set_current_user_to_administrator();

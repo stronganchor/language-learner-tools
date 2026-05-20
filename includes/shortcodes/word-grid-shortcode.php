@@ -5268,15 +5268,28 @@ function ll_tools_word_grid_shortcode($atts) {
                 if ($word_has_staff_inactive_image) {
                     $image_container_classes .= ' ll-word-image-container--staff-inactive';
                 }
+                $word_image_attachment_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                    ? (int) ll_tools_get_effective_word_image_attachment_id_for_word((int) get_the_ID(), true)
+                    : (int) get_post_thumbnail_id((int) get_the_ID());
+                $word_image_is_animated_webp = $word_image_attachment_id > 0
+                    && function_exists('ll_tools_is_attachment_animated_webp')
+                    && ll_tools_is_attachment_animated_webp($word_image_attachment_id);
+                if ($word_image_is_animated_webp) {
+                    $image_container_classes .= ' ll-word-image-container--animated-webp';
+                }
                 echo '<div class="' . esc_attr($image_container_classes) . '">'; // Start new container
                 $image_loading_attr = ($prioritize_initial_lesson_images && $word_grid_render_index <= 6) ? 'eager' : 'lazy';
                 $image_fetchpriority_attr = ($prioritize_initial_lesson_images && $word_grid_render_index <= 2) ? 'high' : 'low';
-                echo ll_tools_word_grid_get_post_thumbnail_html((int) get_the_ID(), $word_grid_image_size, array(
+                $word_image_attrs = array(
                     'class' => 'word-image',
                     'loading' => $image_loading_attr,
                     'decoding' => 'async',
                     'fetchpriority' => $image_fetchpriority_attr,
-                ));
+                );
+                if ($word_image_is_animated_webp) {
+                    $word_image_attrs['data-ll-animated-webp'] = '1';
+                }
+                echo ll_tools_word_grid_get_post_thumbnail_html((int) get_the_ID(), $word_grid_image_size, $word_image_attrs);
                 if ($word_has_staff_inactive_image) {
                     echo '<span class="ll-word-image-staff-overlay">' . esc_html(ll_tools_word_grid_get_staff_inactive_image_note()) . '</span>';
                 }

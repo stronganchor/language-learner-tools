@@ -5171,7 +5171,12 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $prompt_row['is_specific_wrong_answer_only'] = false;
             $prompt_row['prompt_audio'] = $card_prompt_audio;
             $prompt_row['has_prompt_audio'] = ($card_prompt_audio !== '');
-            $prompt_row['prompt_label'] = ($card_prompt_text !== '') ? $card_prompt_text : (string) ($answer_row['prompt_label'] ?? '');
+            $suppress_sign_language_prompt_instruction = !empty($config['sign_language_mode'])
+                && $require_prompt_image
+                && ($require_option_image || in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true));
+            $prompt_row['prompt_label'] = (!$suppress_sign_language_prompt_instruction && $card_prompt_text !== '')
+                ? $card_prompt_text
+                : (string) ($answer_row['prompt_label'] ?? '');
             $prompt_row['all_categories'] = !empty($card_category_names) ? $card_category_names : (array) ($answer_row['all_categories'] ?? []);
             $prompt_row['wordset_ids'] = $merged_wordset_ids;
             if (!empty($prompt_image_row['image'])) {

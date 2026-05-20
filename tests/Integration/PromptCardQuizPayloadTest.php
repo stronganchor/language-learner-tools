@@ -75,6 +75,7 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $prompt_category_name = 'ASL Prompt Card Questions ' . wp_generate_password(5, false);
         $prompt_category_id = $this->createCategory($prompt_category_name, 'image', 'image');
         $wordset_id = $this->createWordset('ASL Prompt Card Wordset ' . wp_generate_password(5, false));
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
         $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
 
         $sign_tree_id = $this->createWord($asset_category_id, 'ASL Tree Sign');
@@ -88,7 +89,7 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
 
         $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
             'title' => 'ASL Tree Image Prompt',
-            'prompt_text' => '',
+            'prompt_text' => 'Choose the matching ASL sign.',
             'prompt_image_word_id' => $sign_tree_id,
             'correct_answer_word_id' => $tree_id,
             'wrong_answer_word_ids' => [$river_id, $mountain_id],
@@ -111,6 +112,7 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertSame($prompt_card_id, (int) ($prompt_row['id'] ?? 0));
         $this->assertSame($tree_id, (int) ($prompt_row['answer_word_id'] ?? 0));
         $this->assertSame($tree_id, (int) ($prompt_row['option_image_source_word_id'] ?? 0));
+        $this->assertSame('Tree', (string) ($prompt_row['prompt_label'] ?? ''));
         $this->assertNotEmpty((string) ($prompt_row['image'] ?? ''), 'Prompt image should come from the sign-media word.');
         $this->assertNotEmpty((string) ($prompt_row['answer_image'] ?? ''), 'Answer image should come from the correct answer word.');
         $this->assertNotSame((string) ($prompt_row['image'] ?? ''), (string) ($prompt_row['answer_image'] ?? ''));
