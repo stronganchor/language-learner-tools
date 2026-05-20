@@ -25432,3 +25432,77 @@ msgstr "Araştırma notu"
 #: includes/lib/interlinear.php
 msgid "Text background"
 msgstr "Metin hakkında"
+
+#: includes/admin/ipa-keyboard-admin.php
+#: includes/lib/wordset-language-settings.php
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Modifiers"
+msgstr "Değiştiriciler"
+
+#: includes/lib/interlinear.php
+#, php-format
+msgid "Section %d"
+msgstr "Bölüm %d"
+
+#: includes/lib/interlinear.php
+msgid "Book language"
+msgstr "Kitap dili"
+
+#: includes/lib/interlinear.php
+msgid "Book sections"
+msgstr "Kitap bölümleri"
+
+#: includes/lib/interlinear.php
+msgid "Book page navigation"
+msgstr "Kitap sayfası gezinmesi"
+
+#: includes/lib/interlinear.php
+#, php-format
+msgid "%1$d of %2$d"
+msgstr "%1$d / %2$d"
+
+#: includes/lib/interlinear.php
+msgid "No text is available for this language in this section."
+msgstr "Bu bölümde bu dil için metin yok."
+
+#: includes/lib/interlinear.php
+#, php-format
+msgid "Section %1$d of %2$d"
+msgstr "Bölüm %1$d / %2$d"
+
+#: includes/lib/interlinear.php
+#, php-format
+msgid "Language: %s"
+msgstr "Dil: %s"
+
+#: includes/pages/vocab-lesson-pages.php
+msgid "Referenced item"
+msgstr "Referans öğe"
+
+#: includes/pages/vocab-lesson-pages.php
+msgid "Play referenced item recording"
+msgstr "Referans öğe kaydını oynat"
+
+#: includes/pages/wordset-pages.php
+msgid "Sign language"
+msgstr "İşaret dili"
+
+#: includes/pages/wordset-pages.php
+msgid "Use sign language quiz defaults and disable audio requirements for this word set."
+msgstr "Bu kelime seti için işaret dili quiz varsayılanlarını kullan ve ses gereksinimlerini kapat."
+
+#: includes/pages/wordset-pages.php
+msgid "Categories default to image prompts with image answer options. Category quiz settings can still use image prompts with text answers."
+msgstr "Kategoriler varsayılan olarak görsel istemleri ve görsel cevap seçeneklerini kullanır. Kategori quiz ayarlarında yine de metin cevaplı görsel istemler kullanılabilir."
+
+#: includes/taxonomies/wordset-taxonomy.php
+msgid "Sign language presentation"
+msgstr "İşaret dili sunumu"
+
+#: includes/taxonomies/wordset-taxonomy.php
+msgid "Treat this as a sign language word set and disable audio requirements for quiz availability."
+msgstr "Bunu işaret dili kelime seti olarak ele al ve quiz kullanılabilirliği için ses gereksinimlerini kapat."
+
+#: includes/taxonomies/wordset-taxonomy.php
+msgid "Categories default to image prompts with image answer options; use a category quiz override for image prompts with text answers."
+msgstr "Kategoriler varsayılan olarak görsel istemleri ve görsel cevap seçeneklerini kullanır; metin cevaplı görsel istemler için kategori quiz ayarında geçersiz kılma kullan."
