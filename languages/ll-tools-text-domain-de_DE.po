@@ -3147,8 +3147,8 @@ msgid ""
 "Estimated media size is %1$s (warning threshold: %2$s). Large exports can "
 "hit server time or memory limits."
 msgstr ""
-"Die geschätzte Mediengröße ist %1$s (Warnschwelle: %2$s). Große Exporte "
-"können an Zeit- oder Speichergrenzen des Servers stoßen."
+"Die geschätzte Mediengröße liegt bei %1$s (Warnschwelle: %2$s). Große "
+"Exporte können an Zeit- oder Speichergrenzen des Servers stoßen."
 
 #. translators: 1: media file count, 2: advisory file-count safeguard
 #: includes/admin/export-import.php:263
@@ -3168,7 +3168,8 @@ msgid ""
 msgstr ""
 "Die geschätzte Mediengröße liegt bei %1$s und damit über der "
 "Schutzeinstellung für große Exporte (%2$s). Der Export kann trotzdem "
-"versucht werden, aber langsamere Hosts könnten einen Timeout erleiden."
+"versucht werden, aber bei langsameren Hosts kann es zu einer "
+"Zeitüberschreitung kommen."
 
 #. translators: 1: estimated media size, 2: advisory reliability safeguard
 #: includes/admin/export-import.php:283
@@ -3740,10 +3741,9 @@ msgid ""
 "recording_slug + word_id/word_slug, or with recording_type + "
 "word_id/word_slug when that word has exactly one recording of that type."
 msgstr ""
-"Wenn recording_id nicht verfügbar ist, kannst du eine Vokabel mit "
-"recording_slug + word_id/word_slug oder mit recording_type + "
-"word_id/word_slug identifizieren, wenn es für die Vokabel genau einen "
-"Aufnahmetyp gibt."
+"Wenn recording_id nicht verfügbar ist, kannst du eine Aufnahme mit "
+"recording_slug + word_id/word_slug identifizieren oder mit recording_type + "
+"word_id/word_slug, wenn diese Vokabel genau eine Aufnahme dieses Typs hat."
 
 #. translators: %s: comma-separated field names
 #: includes/admin/export-import.php:2835
@@ -4384,9 +4384,9 @@ msgid ""
 "word set template bundles, or from a zip with top-level CSV files plus media"
 " folders such as /images and /audio."
 msgstr ""
-"Importiere Vokabelkategorien aus einer Zip-Datei, die von LL Tools "
-"exportiert wurde, einschließlich Vokabelset-Vorlagen, oder aus einer Zip-"
-"Datei mit Top-Level CSV-Dateien und Medienordnern wie /images und /audio."
+"Importiere Vokabelkategorien aus einer von LL Tools exportierten Zip-Datei, "
+"einschließlich Vokabelset-Vorlagen, oder aus einer Zip-Datei mit CSV-Dateien"
+" auf oberster Ebene und Medienordnern wie /images und /audio."
 
 #: includes/admin/export-import.php:3767
 msgid "Preview an import first, then confirm to apply it."
@@ -4412,10 +4412,10 @@ msgid ""
 "text->image, text->text, and audio->text mappings."
 msgstr ""
 "Unterstützte Zip-Formate: (1) LL Tools-Exportpakete, einschließlich "
-"Vokabelset-Vorlagen, und (2) Top-Level CSV-Dateien mit einer \"Quiz\"-Spalte"
-" sowie externen Medienordnern (/images und/oder /audio). der CSV-Modus "
-"unterstützt die Zuordnungen Bild->Text, Text->Bild, Text->Text und "
-"Audio->Text."
+"Vokabelset-Vorlagen, und (2) CSV-Dateien auf oberster Ebene mit einer "
+"\"Quiz\"-Spalte sowie externen Medienordnern (/images und/oder /audio). der "
+"CSV-Modus unterstützt die Zuordnungen Bild->Text, Text->Bild, Text->Text und"
+" Audio->Text."
 
 #: includes/admin/export-import.php:3787
 msgid "Or select a zip already on the server"
@@ -4859,32 +4859,32 @@ msgid_plural ""
 "CSV parsing skipped %d files before import. Review the warnings below for "
 "details."
 msgstr[0] ""
-"CSV Parsing hat die %d Datei vor dem Import übersprungen. Lies die Warnungen"
-" unten für weitere Details."
+"CSV-Parsing hat vor dem Import %d Datei übersprungen. Lies die Warnungen "
+"unten für Details."
 msgstr[1] ""
-"CSV Parsing hat %d Dateien vor dem Import übersprungen. Lies die Warnungen "
-"unten für weitere Details."
+"CSV-Parsing hat vor dem Import %d Dateien übersprungen. Lies die Warnungen "
+"unten für Details."
 
 #: includes/admin/export-import.php:4922
 #: includes/admin/export-import.php:12773
 msgid ""
 "CSV parsing used %1$d of %2$d non-empty rows before import (%3$d skipped)."
 msgstr ""
-"CSV Parsing verwendet %1$d von %2$d nicht leere Zeilen vor dem Import (%3$d "
+"CSV-Parsing verwendet %1$d von %2$d nicht leere Zeilen vor dem Import (%3$d "
 "übersprungen)."
 
 #: includes/admin/export-import.php:4929
 #: includes/admin/export-import.php:12780
 msgid "CSV parsing skipped %d row before import."
 msgid_plural "CSV parsing skipped %d rows before import."
-msgstr[0] "CSV Parsing hat %d Zeile vor dem Import übersprungen."
-msgstr[1] "CSV Parsing hat %d Zeilen vor dem Import übersprungen."
+msgstr[0] "CSV-Parsing hat vor dem Import %d Zeile übersprungen."
+msgstr[1] "CSV-Parsing hat vor dem Import %d Zeilen übersprungen."
 
 #: includes/admin/export-import.php:5842
 msgid "Import failed: no top-level CSV files were found in the zip."
 msgstr ""
-"Import fehlgeschlagen: Es wurden keine Top-Level CSV-Dateien in der Zip-"
-"Datei gefunden."
+"Import fehlgeschlagen: In der Zip-Datei wurden keine CSV-Dateien auf "
+"oberster Ebene gefunden."
 
 #: includes/admin/export-import.php:6013 includes/admin/export-import.php:6024
 msgid "Could not read CSV file \"%s\"."
@@ -4987,8 +4987,8 @@ msgstr ""
 #: includes/admin/export-import.php:6569
 msgid "%d additional CSV issue was not shown."
 msgid_plural "%d additional CSV issues were not shown."
-msgstr[0] "%d zusätzliche CSV-Problem wurde nicht angezeigt."
-msgstr[1] "%d zusätzliche CSV-Problemn wurden nicht angezeigt."
+msgstr[0] "%d zusätzliches CSV-Problem wurde nicht angezeigt."
+msgstr[1] "%d zusätzliche CSV-Probleme wurden nicht angezeigt."
 
 #: includes/admin/export-import.php:6580
 msgid "Import failed: no valid quiz rows were found in the CSV files."
@@ -9748,7 +9748,8 @@ msgid ""
 "references."
 msgstr ""
 "Pull beendet. %1$d lokale Aufnahmen aktualisiert, %2$d Vokabeln und %3$d "
-"Aufnahmen erstellt, %4$d Aufnahmen verschoben, %5$d lokale Werte akzeptiert."
+"Aufnahmen erstellt, %4$d Aufnahmen verschoben sowie %5$d Felder und %6$d "
+"Medienverweise angewendet."
 
 #. translators: %d conflict count
 #: includes/admin/site-sync-admin.php:1015
@@ -16419,7 +16420,9 @@ msgstr ""
 msgid ""
 "Speaking games are hidden because this word set speaking setup is not "
 "available right now."
-msgstr "weil die Sprecheinrichtung dieses Vokabelsets nicht verfügbar ist."
+msgstr ""
+"Sprechspiele sind ausgeblendet, weil die Sprecheinrichtung dieses "
+"Vokabelsets derzeit nicht verfügbar ist."
 
 #: includes/pages/wordset-pages.php:9342
 #: includes/pages/wordset-pages.php:16389
@@ -17867,7 +17870,7 @@ msgid ""
 "the Games page."
 msgstr ""
 "Nutzer/innen, die diese Zugriffseinstellung nicht erfüllen, sehen keine "
-"sprechenden Spiele auf der Seite Spiele."
+"Sprechspiele auf der Seite Spiele."
 
 #: includes/pages/wordset-pages.php:12167
 msgid "Speaking Game STT Provider"
@@ -17920,10 +17923,10 @@ msgid ""
 "saved reference recording, then cache the saved transcript on the audio post"
 " for later attempts."
 msgstr ""
-"Dies gilt nur, wenn der Anbieter des sprechenden Spiels AssemblyAI ist. LL "
-"Tools verwendet denselben AssemblyAI-Modus für die Audioaufnahme des "
-"Lernenden und die gespeicherte Referenzaufnahme und speichert die "
-"gespeicherte Abschrift für spätere Versuche im Audio-Post."
+"Dies gilt nur, wenn der Anbieter des Sprechspiels AssemblyAI ist. LL Tools "
+"verwendet denselben AssemblyAI-Modus für die Audioaufnahme des Lernenden und"
+" die gespeicherte Referenzaufnahme und speichert die gespeicherte Abschrift "
+"für spätere Versuche im Audio-Post."
 
 #: includes/pages/wordset-pages.php:12213
 msgid ""
@@ -19835,7 +19838,7 @@ msgstr "Ohne verknüpfte Vokabeln"
 
 #: includes/post-types/dictionary-entry-post-type.php:2214
 msgid "No words are linked to this dictionary entry yet."
-msgstr "Mit diesem Vokabeleintrag sind noch keine Vokabeln verlinkt."
+msgstr "Mit diesem Wörterbucheintrag sind noch keine Vokabeln verknüpft."
 
 #: includes/post-types/dictionary-entry-post-type.php:2227
 msgid "View all linked words"
@@ -20879,7 +20882,8 @@ msgid ""
 "No recording word set is assigned for this account. Ask the word set manager"
 " to assign a private word set."
 msgstr ""
-"Bitte den Vokabelset-Manager darum, ein privates Vokabelset zuzuweisen."
+"Diesem Konto ist kein Aufnahme-Vokabelset zugewiesen. Bitte den Vokabelset-"
+"Manager darum, ein privates Vokabelset zuzuweisen."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1263
 msgid ""
@@ -21336,7 +21340,8 @@ msgstr "Ein Vokabelbild erstellen"
 
 #: includes/shortcodes/audio-recording-shortcode.php:2368
 msgid "You have %d word image(s), but none have a featured image set."
-msgstr "bei keinem ist ein Beitragsbild festgelegt."
+msgstr ""
+"Du hast %d Vokabelbild(er), aber bei keinem ist ein Beitragsbild festgelegt."
 
 #: includes/shortcodes/audio-recording-shortcode.php:2371
 msgid ""
@@ -21423,7 +21428,7 @@ msgstr "Fehlende Parameter."
 
 #: includes/shortcodes/audio-recording-shortcode.php:2475
 msgid "No recording word set is assigned for this account."
-msgstr "Für dieses Konto ist kein Vokabelset für die Aufnahme zugewiesen."
+msgstr "Diesem Konto ist kein Aufnahme-Vokabelset zugewiesen."
 
 #: includes/shortcodes/audio-recording-shortcode.php:2532
 #: includes/shortcodes/audio-recording-shortcode.php:2585
@@ -22608,8 +22613,8 @@ msgid ""
 "Flushed quiz caches. Deleted %1$d transient rows, bumped %2$d categories, "
 "object cache flushed: %3$s."
 msgstr ""
-"Quiz-Caches geleert. Gelöschte %1$d transiente Zeilen, gepumpte %2$d "
-"Kategorien, Objekt-Cache geleert: %3$s."
+"Quiz-Caches geleert. %1$d transiente Zeilen gelöscht, Cache-Versionen für "
+"%2$d Kategorien erhöht, Objekt-Cache geleert: %3$s."
 
 #. translators: 1: deleted rows, 2: total rows found
 #: includes/shortcodes/site-tools-shortcode.php:352
@@ -23110,7 +23115,7 @@ msgstr "Leer lassen, um den aktuellen Schlüssel zu behalten"
 #: includes/shortcodes/site-tools-shortcode.php:1404
 #: includes/shortcodes/site-tools-shortcode.php:1415
 msgid "Paste API key"
-msgstr "Schlüssel API einfügen"
+msgstr "API-Schlüssel einfügen"
 
 #: includes/shortcodes/site-tools-shortcode.php:1409
 msgid "Clear saved DeepL key"
