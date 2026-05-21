@@ -698,6 +698,122 @@
     margin-bottom: 0;
 }
 
+.ll-book-text__body h3,
+.ll-book-text__body h4,
+.ll-book-text__body h5,
+.ll-book-text__body h6 {
+    margin: 1.45em 0 0.65em;
+    color: var(--ll-cl-text);
+    line-height: 1.25;
+}
+
+.ll-book-text__body h3 {
+    font-size: 1.32em;
+}
+
+.ll-book-text__body h4 {
+    font-size: 1.12em;
+}
+
+.ll-book-text__body blockquote {
+    margin: 0 0 1.2em;
+    padding: 12px 16px;
+    border-left: 4px solid var(--ll-cl-accent);
+    background: #fff7eb;
+    color: var(--ll-cl-text);
+}
+
+.ll-book-text__body ol,
+.ll-book-text__body ul {
+    margin: 0 0 1.15em 1.35em;
+    padding: 0;
+}
+
+.ll-book-text__body li + li {
+    margin-top: 0.25em;
+}
+
+.ll-book-text__term {
+    display: inline-block;
+    padding: 0 0.22em;
+    border: 1px solid rgba(16, 93, 83, 0.22);
+    border-radius: 4px;
+    background: rgba(16, 93, 83, 0.06);
+    color: var(--ll-cl-text);
+    font-family: inherit;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.ll-book-text__table-wrap {
+    margin: 0 0 1.25em;
+    overflow-x: auto;
+    border: 1px solid var(--ll-cl-border);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.ll-book-text__table {
+    width: 100%;
+    min-width: 620px;
+    border-collapse: collapse;
+    font-size: 0.9em;
+    line-height: 1.45;
+}
+
+.ll-book-text__table th,
+.ll-book-text__table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--ll-cl-border);
+    border-right: 1px solid var(--ll-cl-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.ll-book-text__table th:last-child,
+.ll-book-text__table td:last-child {
+    border-right: 0;
+}
+
+.ll-book-text__table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.ll-book-text__table th {
+    background: #fff7eb;
+    color: var(--ll-cl-muted);
+    font-size: 0.82em;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.ll-book-text__footnote-ref {
+    font-size: 0.72em;
+    line-height: 0;
+}
+
+.ll-book-text__footnote-ref a,
+.ll-book-text__footnote-back {
+    color: var(--ll-cl-accent);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.ll-book-text__footnotes {
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid var(--ll-cl-border);
+    color: var(--ll-cl-muted);
+    font-size: 0.9em;
+    line-height: 1.55;
+}
+
+.ll-book-text__footnotes h3 {
+    margin-top: 0;
+    color: var(--ll-cl-text);
+    font-size: 1em;
+}
+
 .ll-book-text__pager {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);

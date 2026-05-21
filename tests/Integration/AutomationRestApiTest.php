@@ -1144,6 +1144,57 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_book_text_explicit_html_body_is_rendered_safely(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'schema' => 'll_tools_text_document.v1',
+            'kind' => 'book_text',
+            'text_format' => 'html',
+            'lesson_id' => 'rest-book-html-text',
+            'title' => 'REST Book HTML Text',
+            'metadata' => [
+                'collection' => 'lerch',
+                'collection_label' => 'Peter Lerch',
+                'default_language' => 'en',
+            ],
+            'translations' => [
+                'en' => ['label' => 'English'],
+            ],
+            'book_sections' => [
+                [
+                    'id' => 'alphabet',
+                    'label' => 'Alphabet',
+                    'texts' => [
+                        'en' => '<h3>Sound Count</h3><p>Symbol <span class="ll-book-text__term">e̱</span>.</p><table><thead><tr><th>Class</th></tr></thead><tbody><tr><td>Gutturals</td></tr></tbody></table><script>alert(1)</script>',
+                    ],
+                ],
+            ],
+        ];
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/corpus-texts/import', [
+            'post_slug' => 'rest-book-html-text',
+            'payload' => $payload,
+            'source' => 'unit-test',
+        ]);
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $post_id = (int) ($data['post_id'] ?? 0);
+        $this->assertGreaterThan(0, $post_id);
+
+        wp_set_current_user(0);
+        $reader_html = ll_tools_render_interlinear_block($post_id);
+        $this->assertStringContainsString('<h3>Sound Count</h3>', $reader_html);
+        $this->assertStringContainsString('class="ll-book-text__term"', $reader_html);
+        $this->assertStringContainsString('<table>', $reader_html);
+        $this->assertStringNotContainsString('<script>', $reader_html);
+        $this->assertStringNotContainsString('alert(1)', $reader_html);
+    }
+
     public function test_book_text_language_resolution_prefers_url_locale_then_document_default(): void
     {
         $payload = [

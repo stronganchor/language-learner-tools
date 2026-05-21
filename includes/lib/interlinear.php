@@ -1417,6 +1417,27 @@ function ll_tools_book_text_section_language_text(array $section, string $langua
     return ll_tools_interlinear_scalar($section, ['text', 'body', 'content']);
 }
 
+function ll_tools_book_text_section_format(array $payload, array $section): string {
+    $section_format = ll_tools_interlinear_scalar($section, ['text_format', 'format', 'body_format']);
+    $payload_format = ll_tools_interlinear_scalar($payload, ['text_format', 'format', 'body_format']);
+    $format = sanitize_key($section_format !== '' ? $section_format : $payload_format);
+
+    return $format === 'html' ? 'html' : 'plain';
+}
+
+function ll_tools_book_text_render_section_body(string $section_text, string $format): string {
+    if ($section_text === '') {
+        return '<p>' . esc_html__('No text is available for this language in this section.', 'll-tools-text-domain') . '</p>';
+    }
+
+    if ($format === 'html') {
+        $section_text = preg_replace('#<(script|style)\b[^>]*>.*?</\1>#is', '', $section_text);
+        return wp_kses_post(is_string($section_text) ? $section_text : '');
+    }
+
+    return wpautop(esc_html($section_text));
+}
+
 function ll_tools_book_text_render_language_switcher(array $payload, string $selected_key, string $section_id): string {
     $keys = ll_tools_text_document_available_translation_keys($payload);
     if (count($keys) < 2) {
@@ -2088,6 +2109,7 @@ function ll_tools_render_book_text_document_block(int $lesson_id, array $payload
     $section_label = ll_tools_book_text_section_label($selected_section, $selected_index);
     $source_page = ll_tools_interlinear_scalar($selected_section, ['source_page', 'page', 'pages', 'source_ref']);
     $section_text = ll_tools_book_text_section_language_text($selected_section, $translation_key);
+    $section_format = ll_tools_book_text_section_format($payload, $selected_section);
     $language_label = $translation_key !== ''
         ? ll_tools_text_document_translation_label($payload, $translation_key)
         : __('Text', 'll-tools-text-domain');
@@ -2096,9 +2118,7 @@ function ll_tools_render_book_text_document_block(int $lesson_id, array $payload
     $pager = ll_tools_book_text_render_pager($sections, $translation_key, $selected_index);
     $sources = ll_tools_text_document_render_sources($payload);
     $print_button = '<button type="button" class="ll-text-document__print-button ll-book-text__print-button" data-ll-text-document-print>' . esc_html__('Print', 'll-tools-text-domain') . '</button>';
-    $section_body = $section_text !== ''
-        ? wpautop(esc_html($section_text))
-        : '<p>' . esc_html__('No text is available for this language in this section.', 'll-tools-text-domain') . '</p>';
+    $section_body = ll_tools_book_text_render_section_body($section_text, $section_format);
 
     ob_start();
     ?>
