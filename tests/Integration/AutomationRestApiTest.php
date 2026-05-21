@@ -1031,6 +1031,13 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Peter Lerch', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META, true));
         $this->assertSame('unit-test', (string) get_post_meta($post_id, LL_TOOLS_INTERLINEAR_SOURCE_META, true));
         $this->assertSame('rest-corpus-text', (string) (ll_tools_interlinear_get_payload($post_id)['lesson_id'] ?? ''));
+
+        $export = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/corpus-texts/rest-corpus-text');
+        $this->assertSame(200, $export->get_status());
+        $export_data = $export->get_data();
+        $this->assertIsArray($export_data);
+        $this->assertSame($post_id, (int) ($export_data['post_id'] ?? 0));
+        $this->assertSame('rest-corpus-text', (string) ($export_data['payload']['lesson_id'] ?? ''));
     }
 
     public function test_book_text_import_route_creates_public_paginated_reader(): void

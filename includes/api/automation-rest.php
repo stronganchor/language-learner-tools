@@ -3894,6 +3894,34 @@ function ll_tools_rest_import_corpus_text(WP_REST_Request $request) {
     ]);
 }
 
+function ll_tools_rest_get_corpus_text(WP_REST_Request $request) {
+    $post = ll_tools_rest_corpus_text_find_post_by_slug(ll_tools_rest_automation_request_string($request, 'slug'));
+    if (!($post instanceof WP_Post)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_not_found',
+            __('Could not find a matching corpus text post.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    if (
+        defined('LL_TOOLS_CONTENT_LESSON_KIND_META')
+        && get_post_meta((int) $post->ID, LL_TOOLS_CONTENT_LESSON_KIND_META, true) !== 'corpus_text'
+    ) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_wrong_kind',
+            __('The matching content lesson is not a corpus text.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    $include_payload = $request->has_param('include_payload')
+        ? (bool) rest_sanitize_boolean($request->get_param('include_payload'))
+        : true;
+
+    return rest_ensure_response(ll_tools_interlinear_payload_for_rest((int) $post->ID, $include_payload));
+}
+
 function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/automation/status', [
         'methods' => WP_REST_Server::READABLE,
@@ -4148,6 +4176,23 @@ function ll_tools_rest_register_automation_routes(): void {
             'source' => [
                 'required' => false,
                 'type' => 'string',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/corpus-texts/(?P<slug>[A-Za-z0-9_-]+)', [
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => 'll_tools_rest_get_corpus_text',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'args' => [
+            'slug' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+            'include_payload' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
             ],
         ],
     ]);
