@@ -571,7 +571,7 @@ function ll_tools_render_header_language_switcher(): void {
     }
 
     $markup = ll_language_switcher_shortcode([
-        'show_flags' => '0',
+        'show_flags' => '1',
         'style' => 'native',
         'class' => 'll-lang-switcher--header',
     ]);

@@ -97,6 +97,16 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertSame('de_DE', ll_tools_filter_locale('en_US'));
     }
 
+    public function test_header_language_switcher_includes_flags(): void
+    {
+        ob_start();
+        ll_tools_render_header_language_switcher();
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('ll-tools-header-language-switcher', $html);
+        $this->assertStringContainsString('ll-flag', $html);
+    }
+
     public function test_browser_locale_preference_skips_saved_logged_in_user_locale(): void
     {
         $user_id = self::factory()->user->create();
