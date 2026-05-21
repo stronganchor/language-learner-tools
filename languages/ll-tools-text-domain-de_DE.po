@@ -70,7 +70,7 @@ msgstr "Tools zum Sprachenlernen"
 #: includes/admin/admin-dashboard-menu.php:803 includes/admin/settings.php:23
 #: includes/admin/settings.php:320
 msgid "Language Learning Tools Settings"
-msgstr "Einstellungen der Sprachlerntools"
+msgstr "Einstellungen für Sprachlerntools"
 
 #: includes/admin/admin-dashboard-menu.php:154
 #: includes/admin/admin-dashboard-menu.php:454
@@ -161,7 +161,7 @@ msgstr "Bildseitenverhältnis-Normalisierung"
 #: includes/admin/audio-processor-admin.php:1419
 #: includes/admin/image-webp-optimizer-admin.php:1539
 msgid "WebP Image Optimizer"
-msgstr "WebP Bildoptimierer"
+msgstr "WebP-Bildoptimierer"
 
 #: includes/admin/admin-dashboard-menu.php:169
 #: includes/admin/orphan-media-admin.php:1242
@@ -177,7 +177,7 @@ msgstr "Vokabelbilder reparieren"
 #: includes/admin/admin-dashboard-menu.php:636
 #: includes/admin/recording-types-admin.php:12
 msgid "LL Recording Types"
-msgstr "LL Aufnahmetypen"
+msgstr "LL-Aufnahmetypen"
 
 #: includes/admin/admin-dashboard-menu.php:172
 #: includes/admin/admin-dashboard-menu.php:517
@@ -194,7 +194,7 @@ msgstr "Lernfortschritt"
 #: includes/admin/bulk-translation-admin.php:49
 #: includes/admin/bulk-translation-admin.php:67
 msgid "DeepL API Key"
-msgstr "DeepL API Schlüssel"
+msgstr "DeepL-API-Schlüssel"
 
 #: includes/admin/admin-dashboard-menu.php:174
 #: includes/admin/admin-dashboard-menu.php:656
@@ -202,13 +202,13 @@ msgstr "DeepL API Schlüssel"
 #: includes/admin/api/assemblyai-api.php:20
 #: includes/admin/api/assemblyai-api.php:46
 msgid "AssemblyAI API Key"
-msgstr "AssemblyAI API Schlüssel"
+msgstr "AssemblyAI-API-Schlüssel"
 
 #: includes/admin/admin-dashboard-menu.php:175
 #: includes/admin/admin-dashboard-menu.php:665
 #: includes/taxonomies/language-taxonomy.php:238
 msgid "LL Tools Languages"
-msgstr "LL Tools Sprachen"
+msgstr "LL Tools-Sprachen"
 
 #: includes/admin/admin-dashboard-menu.php:179
 #: includes/admin/admin-dashboard-menu.php:374
@@ -335,8 +335,7 @@ msgid ""
 "Open the utilities menu for import/export, processing, and maintenance "
 "workflows."
 msgstr ""
-"Öffne das Dienstprogramme-Menü für Import/Export, Bearbeitung und "
-"Wartungsworkflows."
+"Öffne das Werkzeugmenü für Import/Export, Verarbeitung und Wartungsabläufe."
 
 #: includes/admin/admin-dashboard-menu.php:392
 #: includes/admin/admin-dashboard-menu.php:804
@@ -348,7 +347,7 @@ msgstr "Einstellungen"
 msgid "Configure global plugin behavior, languages, and operational defaults."
 msgstr ""
 "Konfiguriere das globale Plugin-Verhalten, die Sprachen und die "
-"Betriebsvorgaben."
+"Standardeinstellungen."
 
 #: includes/admin/admin-dashboard-menu.php:402
 msgid ""
@@ -367,8 +366,7 @@ msgstr "Inhalt"
 #: includes/admin/admin-dashboard-menu.php:406
 msgid ""
 "Primary content management pages for vocabulary, media, and dictionary data."
-msgstr ""
-"Primäre Content-Management-Seiten für Vokabel-, Medien- und Wörterbuchdaten."
+msgstr "Zentrale Verwaltungsseiten für Vokabel-, Medien- und Wörterbuchdaten."
 
 #: includes/admin/admin-dashboard-menu.php:411
 msgid "Administration"
@@ -430,39 +428,40 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:527
 msgid "Download category bundles and CSV text exports for transfer or backup."
 msgstr ""
-"Lade Kategoriebündel und CSV Textexporte zur Übertragung oder Sicherung "
+"Lade Kategoriebündel und CSV-Textexporte zur Übertragung oder Sicherung "
 "herunter."
 
 #: includes/admin/admin-dashboard-menu.php:536
 msgid ""
 "Preview and import zip bundles into local categories, words, and audio."
 msgstr ""
-"Vorschau und Import von Zip-Bündeln in lokale Vokabelkategorien, Vokabeln "
-"und Audios."
+"Zeige eine Vorschau von Zip-Bündeln an und importiere sie in lokale "
+"Vokabelkategorien, Vokabeln und Audiodaten."
 
 #: includes/admin/admin-dashboard-menu.php:545
 msgid ""
 "Pull a live word set into staging, preview local transcription changes, and "
 "push clean updates back to live."
 msgstr ""
-"Ziehe ein Vokabelset ins Staging, prüfe lokale Transkriptionsänderungen und "
-"schiebe saubere Aktualisierungen zurück in den Live-Modus."
+"Ziehe ein Live-Vokabelset in die Staging-Umgebung, prüfe lokale "
+"Transkriptionsänderungen und spiele saubere Aktualisierungen zurück auf die "
+"Live-Site."
 
 #: includes/admin/admin-dashboard-menu.php:554
 msgid ""
 "Build a one-wordset offline quiz bundle that can be turned into an Android "
 "APK."
 msgstr ""
-"Erstelle ein Offline-Quiz-Bündel mit einem Vokabelset, das in eine Android "
-"APK umgewandelt werden kann."
+"Erstelle ein Offline-Quiz-Bündel für ein einzelnes Vokabelset, das in eine "
+"Android-APK umgewandelt werden kann."
 
 #: includes/admin/admin-dashboard-menu.php:563
 msgid ""
 "Review transcriptions by word set, search recordings, and catch likely IPA "
 "issues."
 msgstr ""
-"Überprüfe Transkriptionen nach Vokabelsets, durchsuche Aufnahmen und finde "
-"mögliche IPA Probleme."
+"Überprüfe Transkriptionen nach Vokabelset, durchsuche Aufnahmen und finde "
+"mögliche IPA-Probleme."
 
 #: includes/admin/admin-dashboard-menu.php:572
 msgid "Control grouped options and blocked pairs for quiz wrong answers."
@@ -490,8 +489,8 @@ msgid ""
 "Flag oversized or non-WebP word images and batch-optimize them with progress"
 " tracking."
 msgstr ""
-"Markiere übergroße oder Nicht-WebP Vokabelbilder und optimiere sie im "
-"Stapelverfahren mit Fortschrittskontrolle."
+"Markiere übergroße oder Nicht-WebP-Vokabelbilder und optimiere sie "
+"stapelweise mit Fortschrittsanzeige."
 
 #: includes/admin/admin-dashboard-menu.php:599
 msgid "Repair legacy image links and recreate missing word image posts."
@@ -533,8 +532,8 @@ msgstr "Wortarten"
 #: includes/admin/admin-dashboard-menu.php:628
 msgid "Maintain part-of-speech taxonomy values used on word entries."
 msgstr ""
-"Behalte die Werte der Part-of-Speech-Taxonomie bei, die für "
-"Wörterbucheinträge verwendet werden."
+"Pflege die Wortart-Taxonomieeinträge, die für Vokabeleinträge verwendet "
+"werden."
 
 #: includes/admin/admin-dashboard-menu.php:637
 msgid "Define recording type labels used by recording and export workflows."
@@ -545,20 +544,18 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:648
 msgid "Set and update DeepL credentials for automated translation tasks."
 msgstr ""
-"Setze und aktualisiere DeepL Anmeldeinformationen für automatisierte "
-"Übersetzungsaufgaben."
+"Lege DeepL-Zugangsdaten für automatisierte Übersetzungsaufgaben fest und "
+"aktualisiere sie."
 
 #: includes/admin/admin-dashboard-menu.php:657
 msgid "Set and update AssemblyAI credentials for transcription workflows."
 msgstr ""
-"Setze und aktualisiere AssemblyAI-Anmeldeinformationen für Transkriptions-"
-"Workflows."
+"Lege AssemblyAI-Zugangsdaten für Transkriptionsabläufe fest und aktualisiere"
+" sie."
 
 #: includes/admin/admin-dashboard-menu.php:666
 msgid "Manage language taxonomy options and plugin language metadata."
-msgstr ""
-"Verwalte die Optionen der Sprachtaxonomie und die Metadaten der Plugin-"
-"Sprachen."
+msgstr "Verwalte Sprachtaxonomie-Optionen und Sprachmetadaten des Plugins."
 
 #: includes/admin/admin-dashboard-menu.php:747
 #: includes/admin/admin-dashboard-menu.php:750
@@ -592,7 +589,7 @@ msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:915
 msgid "Content Admin"
-msgstr "Inhalt Verwaltung"
+msgstr "Inhaltsverwaltung"
 
 #: includes/admin/admin-dashboard-menu.php:916
 msgid "Lower-frequency admin pages for lesson and taxonomy maintenance."
@@ -603,13 +600,11 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:921
 #: includes/pages/wordset-pages.php:10129
 msgid "Advanced"
-msgstr "Erweiterte"
+msgstr "Erweitert"
 
 #: includes/admin/admin-dashboard-menu.php:922
 msgid "Configuration and taxonomy pages used for setup and maintenance."
-msgstr ""
-"Konfigurations- und Taxonomieseiten werden für die Einrichtung und Wartung "
-"verwendet."
+msgstr "Konfigurations- und Taxonomieseiten für Einrichtung und Wartung."
 
 #. translators: 1: Admin page title, 2: Site name
 #: includes/admin/admin-dashboard-menu.php:1115
@@ -623,13 +618,13 @@ msgstr "Du hast keine Berechtigung, diese Seite zu sehen."
 
 #: includes/admin/api/assemblyai-api.php:38
 msgid "Enter Your AssemblyAI API Key"
-msgstr "Gib deinen AssemblyAI API Schlüssel ein"
+msgstr "Gib deinen AssemblyAI-API-Schlüssel ein"
 
 #: includes/admin/api/assemblyai-api.php:88
 #: includes/admin/api/assemblyai-api.php:134
 #: includes/admin/api/assemblyai-api.php:206
 msgid "AssemblyAI API key not configured."
-msgstr "AssemblyAI API Schlüssel nicht konfiguriert."
+msgstr "AssemblyAI-API-Schlüssel nicht konfiguriert."
 
 #: includes/admin/api/assemblyai-api.php:92
 msgid "Audio file is missing or unreadable."
@@ -664,7 +659,7 @@ msgstr "Die AssemblyAI-Transkription wird noch bearbeitet."
 
 #: includes/admin/api/deepl-api.php:42
 msgid "Enter Your DeepL API Key"
-msgstr "Gib deinen DeepL API Schlüssel ein"
+msgstr "Gib deinen DeepL-API-Schlüssel ein"
 
 #: includes/admin/api/deepl-api.php:228
 msgid "Failed to retrieve language names."
@@ -676,7 +671,7 @@ msgstr "Verfügbare Sprachen: %s"
 
 #: includes/admin/api/deepl-api.php:238
 msgid "Translation failed. Please check your API key."
-msgstr "Übersetzung fehlgeschlagen. Bitte überprüfe deinen API Schlüssel."
+msgstr "Übersetzung fehlgeschlagen. Bitte überprüfe deinen API-Schlüssel."
 
 #: includes/admin/api/deepl-api.php:241
 msgid "Translated text from Turkish: %s"
@@ -1386,8 +1381,8 @@ msgstr[1] "%d Bilder müssen WebP-optimiert werden"
 #: includes/admin/audio-processor-admin.php:1451
 msgid "%d word is not in any quizzable category"
 msgid_plural "%d words are not in any quizzable category"
-msgstr[0] "%d Vokabel ist in keiner quizbaren Kategorie"
-msgstr[1] "%d Vokabeln sind in keiner Vokabelkategorie, die man abfragen kann"
+msgstr[0] "%d Vokabel ist keiner abfragbaren Vokabelkategorie zugeordnet"
+msgstr[1] "%d Vokabeln sind keiner abfragbaren Vokabelkategorie zugeordnet"
 
 #. translators: %s: wordset name
 #: includes/admin/audio-processor-admin.php:1489
@@ -1414,11 +1409,11 @@ msgstr[1] ""
 
 #: includes/admin/audio-processor-admin.php:1608
 msgid "LL Tools Admin Tasks"
-msgstr "LL Tools Admin-Aufgaben"
+msgstr "LL Tools-Admin-Aufgaben"
 
 #: includes/admin/audio-processor-admin.php:1609
 msgid "The following maintenance tasks need attention."
-msgstr "Die folgenden Wartungsaufgaben müssen beachtet werden."
+msgstr "Die folgenden Wartungsaufgaben erfordern Aufmerksamkeit."
 
 #: includes/admin/bulk-translation-admin.php:15
 #: includes/admin/bulk-translation-admin.php:16
@@ -3622,7 +3617,7 @@ msgstr "Bild -> Text"
 
 #: includes/admin/export-import.php:2658
 msgid "Use image files from the zip /images folder."
-msgstr "Verwende Bilddateien aus dem Ordner zip /images."
+msgstr "Verwende Bilddateien aus dem Ordner /images in der Zip-Datei."
 
 #: includes/admin/export-import.php:2662
 msgid "Image -> text + audio"
@@ -3661,7 +3656,7 @@ msgstr "Audio -> Text"
 
 #: includes/admin/export-import.php:2678
 msgid "Use audio files from the zip /audio folder."
-msgstr "Verwende die Audiodateien aus dem Ordner zip /audio."
+msgstr "Verwende Audiodateien aus dem Ordner /audio in der Zip-Datei."
 
 #: includes/admin/export-import.php:2682
 msgid "Audio + text -> text"
@@ -3673,7 +3668,7 @@ msgstr "Kombiniert einen Audio-Prompt mit sichtbarem Prompt-Text."
 
 #: includes/admin/export-import.php:2696
 msgid "CSV Column Reference"
-msgstr "CSV Spaltenreferenz"
+msgstr "CSV-Spaltenreferenz"
 
 #: includes/admin/export-import.php:2697
 msgid ""
@@ -3833,7 +3828,7 @@ msgstr "Unterstützte editierbare Felder"
 
 #: includes/admin/export-import.php:2935
 msgid "CSV Template"
-msgstr "CSV Vorlage"
+msgstr "CSV-Vorlage"
 
 #: includes/admin/export-import.php:2938
 msgid ""
@@ -3846,15 +3841,15 @@ msgstr ""
 
 #: includes/admin/export-import.php:2950
 msgid "JSON / JSONL Example"
-msgstr "JSON / JSONL Beispiel"
+msgstr "JSON-/JSONL-Beispiel"
 
 #: includes/admin/export-import.php:2953
 msgid ""
 "JSON accepts an array of row objects. JSONL accepts one JSON object per line"
 " with the same keys."
 msgstr ""
-"JSON akzeptiert ein Array von Zeilenobjekten. JSONL akzeptiert ein JSON "
-"Objekt pro Zeile mit den gleichen Schlüsseln."
+"JSON akzeptiert ein Array aus Zeilenobjekten. JSONL akzeptiert ein JSON-"
+"Objekt pro Zeile mit denselben Schlüsseln."
 
 #: includes/admin/export-import.php:2970 includes/admin/export-import.php:3850
 msgid "Categories: %d"
@@ -4448,7 +4443,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3810
 msgid "Preview Import"
-msgstr "Vorschau Import"
+msgstr "Importvorschau"
 
 #: includes/admin/export-import.php:3836
 msgid "Import Preview"
@@ -8182,8 +8177,8 @@ msgid ""
 "an Android APK on an admin machine or CI."
 msgstr ""
 "Erstelle ein eigenständiges Offline-Quiz-Bündel für ein Vokabelset. Das "
-"Bündel enthält eine eigenständige Web-App plus exportierte Inhalte und kann "
-"auf einem Admin-Rechner oder einer CI in eine Android-APK verwandelt werden."
+"Bündel enthält eine eigenständige Web-App sowie exportierte Inhalte und kann"
+" auf einem Admin-Rechner oder in CI in eine Android-APK umgewandelt werden."
 
 #: includes/admin/offline-app-export.php:599
 msgid "Create at least one word set before exporting an offline app."
@@ -8779,7 +8774,7 @@ msgstr "Verfolgte verwaiste Bildanhänge"
 msgid "%d orphaned media item can be reviewed and cleaned up"
 msgid_plural "%d orphaned media items can be reviewed and cleaned up"
 msgstr[0] "%d verwaistes Medienelement kann überprüft und bereinigt werden"
-msgstr[1] "%d Verwaiste Medienelemente können überprüft und bereinigt werden"
+msgstr[1] "%d verwaiste Medienelemente können überprüft und bereinigt werden"
 
 #: includes/admin/orphan-media-admin.php:1262
 msgid "LL Tools - Orphaned Media"
@@ -9293,7 +9288,7 @@ msgstr "Quiz-Caches geleert und die Cache-Versionen der Kategorien erhöht."
 
 #: includes/admin/settings.php:334
 msgid "Word set language settings:"
-msgstr "Vokabelset Spracheinstellungen:"
+msgstr "Vokabelset-Spracheinstellungen:"
 
 #: includes/admin/settings.php:337
 msgid ""
@@ -9317,9 +9312,9 @@ msgid ""
 "choose a different language. Logged-in user locale preferences and the "
 "language switcher still take priority."
 msgstr ""
-"Verwende die Browsersprache eines Besuchers im Frontend, bis er explizit "
-"eine andere Sprache auswählt. Die Gebietsschema-Einstellungen des "
-"angemeldeten Benutzers und der Sprachumschalter haben weiterhin Vorrang."
+"Verwende im Frontend die Browsersprache eines Besuchers, bis er ausdrücklich"
+" eine andere Sprache auswählt. Locale-Einstellungen angemeldeter Benutzer "
+"und der Sprachumschalter haben weiterhin Vorrang."
 
 #: includes/admin/settings.php:357
 msgid "Max Number of Options:"
@@ -9332,7 +9327,7 @@ msgstr ""
 
 #: includes/admin/settings.php:364
 msgid "Flashcard Image Size:"
-msgstr "Lernkarte Bildgröße:"
+msgstr "Lernkarten-Bildgröße:"
 
 #: includes/admin/settings.php:370
 #: includes/shortcodes/site-tools-shortcode.php:1089
@@ -9351,7 +9346,7 @@ msgstr "Groß (250×250)"
 
 #: includes/admin/settings.php:377
 msgid "Hide Word Titles in Recording Interface:"
-msgstr "Vokabeln in der Aufnahmeoberfläche ausblenden:"
+msgstr "Vokabeltitel in der Aufnahmeoberfläche ausblenden:"
 
 #: includes/admin/settings.php:380
 msgid ""
@@ -9364,7 +9359,7 @@ msgstr ""
 
 #: includes/admin/settings.php:384
 msgid "Allow Learner Registration:"
-msgstr "Erlaube Lernenden die Registrierung:"
+msgstr "Registrierung für Lernende erlauben:"
 
 #: includes/admin/settings.php:392
 msgid ""
@@ -9372,9 +9367,9 @@ msgid ""
 "sign-in screens. This also turns WordPress user registration on or off for "
 "the site."
 msgstr ""
-"Erlaube neuen Nutzern, Lernende über die Anmeldebildschirme für den "
-"Lernenden zu erstellen. Damit schaltest du auch die WordPress-"
-"Benutzerregistrierung für die Site ein oder aus."
+"Erlaube neuen Benutzern, über die Lernenden-Anmeldebildschirme für den "
+"Fortschritt Lernendenkonten zu erstellen. Dadurch wird auch die WordPress-"
+"Benutzerregistrierung für die Website ein- oder ausgeschaltet."
 
 #: includes/admin/settings.php:396
 msgid "Show Generated Registration Password:"
@@ -9392,7 +9387,7 @@ msgstr ""
 
 #: includes/admin/settings.php:408
 msgid "Quiz Font (for text mode):"
-msgstr "Quiz Schriftart (für Textmodus):"
+msgstr "Quiz-Schriftart (für Textmodus):"
 
 #: includes/admin/settings.php:415
 msgid "-- Select a Font --"
@@ -9418,7 +9413,7 @@ msgstr ""
 
 #: includes/admin/settings.php:428
 msgid "Font stylesheet URL (Google Fonts or local CSS)"
-msgstr "Schriftart-Stylesheet-URL (Google Fonts oder lokale CSS)"
+msgstr "Schriftart-Stylesheet-URL (Google Fonts oder lokales CSS)"
 
 #: includes/admin/settings.php:440
 msgid ""
@@ -9426,9 +9421,9 @@ msgid ""
 "font available to LL Tools admin previews, quizzes, and wordset font "
 "overrides."
 msgstr ""
-"Füge ein Google Fonts CSS-URL (oder ein anderes Font Stylesheet-URL) ein, um"
-" diese Schriftart für LL Tools Admin-Vorschauen, Quizze und Vokabelsets "
-"verfügbar zu machen."
+"Füge eine Google-Fonts-CSS-URL (oder eine andere Schriftart-Stylesheet-URL) "
+"ein, um diese Schriftart für LL-Tools-Adminvorschauen, Quizze und "
+"Vokabelset-Schriftüberschreibungen verfügbar zu machen."
 
 #: includes/admin/settings.php:443
 msgid ""
@@ -9440,7 +9435,7 @@ msgstr ""
 
 #: includes/admin/settings.php:448
 msgid "Update Branch:"
-msgstr "Zweig aktualisieren:"
+msgstr "Update-Zweig:"
 
 #: includes/admin/settings.php:451
 msgid "Main (stable)"
@@ -9448,15 +9443,15 @@ msgstr "Main (stabil)"
 
 #: includes/admin/settings.php:452
 msgid "Dev (testing)"
-msgstr "Dev (Testen)"
+msgstr "Dev (Test)"
 
 #: includes/admin/settings.php:454
 msgid ""
 "Use Main for packaged production releases. Switch to Dev only to pull the "
 "GitHub dev branch for testing."
 msgstr ""
-"Verwende Main für gepackte Produktionsversionen. Wechsle nur zu Dev, um den "
-"GitHub Dev-Zweig zum Testen zu nutzen."
+"Nutze Main für gepackte Produktionsversionen. Wechsle nur zu Dev, wenn du "
+"den GitHub-Dev-Zweig zum Testen abrufen willst."
 
 #: includes/admin/settings.php:466
 #: includes/shortcodes/site-tools-shortcode.php:1445
@@ -9507,9 +9502,9 @@ msgid ""
 "Removes word_audio_file meta from words posts now that audio is stored in "
 "word_audio children. This is irreversible. Make a backup first."
 msgstr ""
-"Entfernt word_audio_file meta aus Vokabeln, da Vokabel-Audio jetzt in "
-"word_audio children gespeichert wird. Dies ist unumkehrbar. Mache zuerst ein"
-" Backup."
+"Entfernt word_audio_file-Metadaten aus Vokabelbeiträgen, da Audio jetzt in "
+"untergeordneten word_audio-Beiträgen gespeichert wird. Dies ist unumkehrbar."
+" Erstelle zuerst ein Backup."
 
 #: includes/admin/settings.php:496
 msgid "Purge Legacy Meta"
@@ -13566,9 +13561,9 @@ msgid ""
 "Tools or standard WordPress registration flows. Uses the Admin Notification "
 "Email setting below."
 msgstr ""
-"Sende eine Admin-Benachrichtigung, wenn ein neues Benutzerkonto über die LL "
-"Tools oder die Standard-WordPress-Registrierungsabläufe erstellt wird. "
-"Verwendet die Einstellung Admin Notification Email unten."
+"Sende eine Admin-Benachrichtigung, wenn ein neues Benutzerkonto über LL "
+"Tools oder Standard-WordPress-Registrierungsabläufe erstellt wird. Verwendet"
+" die unten angegebene Admin-Benachrichtigungs-E-Mail."
 
 #: includes/login-window.php:746
 msgid ""
@@ -13948,7 +13943,7 @@ msgstr "Eine Standard-Editor-Hub-Seite wurde erstellt unter %s"
 
 #: includes/pages/editor-hub-page.php:22
 msgid "Default Editor Hub Page"
-msgstr "Standard Editor-Hub Seite"
+msgstr "Standard-Editor-Hub-Seite"
 
 #: includes/pages/editor-hub-page.php:23
 msgid "No editor hub page found."
@@ -21523,7 +21518,7 @@ msgstr "Fehlender Text."
 
 #: includes/shortcodes/audio-recording-shortcode.php:3557
 msgid "DeepL API key not configured."
-msgstr "DeepL API Schlüssel nicht konfiguriert."
+msgstr "DeepL-API-Schlüssel nicht konfiguriert."
 
 #: includes/shortcodes/audio-recording-shortcode.php:3565
 msgid "Translation language is not configured."
@@ -21632,24 +21627,23 @@ msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:5793
 msgid "Recording Notification First Email Delay (minutes)"
-msgstr "Aufnahmebenachrichtigung Erste E-Mail-Verzögerung (Minuten)"
+msgstr "Verzögerung der ersten Aufnahmebenachrichtigungs-E-Mail (Minuten)"
 
 #: includes/shortcodes/audio-recording-shortcode.php:5805
 msgid ""
 "For the first recording email sent each day, wait this many quiet minutes "
 "after the most recent upload."
 msgstr ""
-"Für die erste Aufnahme-E-Mail, die jeden Tag verschickt wird, warte so viele"
-" ruhige Minuten nach dem letzten Upload."
+"Warte für die erste Aufnahme-E-Mail des Tages so viele ruhige Minuten nach "
+"dem letzten Upload."
 
 #: includes/shortcodes/audio-recording-shortcode.php:5808
 msgid ""
 "After the first email is sent that day, follow-up summaries wait about 2 "
 "hours after recording activity stops."
 msgstr ""
-"Nachdem die erste E-Mail an diesem Tag verschickt wurde, warten die "
-"Folgezusammenfassungen etwa 2 Stunden, nachdem die Aufzeichnungsaktivität "
-"beendet wurde."
+"Nachdem die erste E-Mail des Tages verschickt wurde, warten die "
+"Folgezusammenfassungen etwa 2 Stunden nach Ende der Aufnahmeaktivität."
 
 #. translators: %d: term ID
 #: includes/shortcodes/audio-recording-shortcode.php:5855
@@ -22602,7 +22596,7 @@ msgstr "Plugin-Update-Einstellungen gespeichert."
 
 #: includes/shortcodes/site-tools-shortcode.php:297
 msgid "API provider keys saved."
-msgstr "API Anbieterschlüssel gespeichert."
+msgstr "API-Anbieterschlüssel gespeichert."
 
 #. translators: %s: managed page label
 #: includes/shortcodes/site-tools-shortcode.php:311
@@ -22652,7 +22646,7 @@ msgstr ""
 
 #: includes/shortcodes/site-tools-shortcode.php:409
 msgid "You do not have permission to manage API provider keys."
-msgstr "Du hast nicht die Berechtigung, API Anbieterschlüssel zu verwalten."
+msgstr "Du hast keine Berechtigung, API-Anbieterschlüssel zu verwalten."
 
 #: includes/shortcodes/site-tools-shortcode.php:433
 msgid "That site tools section is not available."
@@ -23087,8 +23081,8 @@ msgid ""
 "Move the dashboard-only DeepL and AssemblyAI key screens into the custom "
 "admin workspace."
 msgstr ""
-"Verschiebe die Dashboard-Bildschirme DeepL und AssemblyAI Key in den Custom "
-"Admin Workspace."
+"Verschiebe die reinen Dashboard-Bildschirme für DeepL- und AssemblyAI-"
+"Schlüssel in den benutzerdefinierten Admin-Arbeitsbereich."
 
 #: includes/shortcodes/site-tools-shortcode.php:1391
 msgid "DeepL configured"
@@ -23108,7 +23102,7 @@ msgstr "AssemblyAI fehlt"
 
 #: includes/shortcodes/site-tools-shortcode.php:1403
 msgid "New DeepL API key"
-msgstr "Neu DeepL API Schlüssel"
+msgstr "Neuer DeepL-API-Schlüssel"
 
 #: includes/shortcodes/site-tools-shortcode.php:1404
 #: includes/shortcodes/site-tools-shortcode.php:1415
@@ -23122,11 +23116,11 @@ msgstr "API-Schlüssel einfügen"
 
 #: includes/shortcodes/site-tools-shortcode.php:1409
 msgid "Clear saved DeepL key"
-msgstr "Gespeicherten DeepL Schlüssel löschen"
+msgstr "Gespeicherten DeepL-Schlüssel löschen"
 
 #: includes/shortcodes/site-tools-shortcode.php:1414
 msgid "New AssemblyAI API key"
-msgstr "Neue AssemblyAI API Schlüssel"
+msgstr "Neuer AssemblyAI-API-Schlüssel"
 
 #: includes/shortcodes/site-tools-shortcode.php:1420
 msgid "Clear saved AssemblyAI key"
@@ -23134,11 +23128,11 @@ msgstr "Gespeicherten AssemblyAI-Schlüssel löschen"
 
 #: includes/shortcodes/site-tools-shortcode.php:1424
 msgid "Save API Keys"
-msgstr "Speichern API Schlüssel"
+msgstr "API-Schlüssel speichern"
 
 #: includes/shortcodes/site-tools-shortcode.php:1427
 msgid "The current account cannot manage API provider keys."
-msgstr "Das aktuelle Konto kann keine API Anbieterschlüssel verwalten."
+msgstr "Das aktuelle Konto kann keine API-Anbieterschlüssel verwalten."
 
 #: includes/shortcodes/site-tools-shortcode.php:1433
 msgid "Maintenance"
@@ -23167,7 +23161,9 @@ msgstr "Ausführen"
 msgid ""
 "Remove old word_audio_file meta from words posts now that audio lives in "
 "child recordings."
-msgstr "da Audio jetzt in untergeordneten Aufnahmen gespeichert ist."
+msgstr ""
+"Entferne alte word_audio_file-Metadaten aus Vokabelbeiträgen, da Audio jetzt"
+" in untergeordneten Aufnahmen gespeichert wird."
 
 #: includes/shortcodes/site-tools-shortcode.php:1469
 msgid "Refresh language list"
@@ -25140,17 +25136,16 @@ msgstr "Gespeicherte Migrationsversion ist %1$d, erwartet wird %2$d."
 #: includes/wordset-isolation.php:2458
 msgid "%d word has suspicious category isolation state."
 msgid_plural "%d words have suspicious category isolation state."
-msgstr[0] "%d Vokabel hat verdächtigen Kategorie-Isolationsstatus."
-msgstr[1] ""
-"%d Vokabeln haben den verdächtigen Zustand der Kategorienisolierung."
+msgstr[0] "%d Vokabel hat einen verdächtigen Kategorie-Isolationsstatus."
+msgstr[1] "%d Vokabeln haben einen verdächtigen Kategorie-Isolationsstatus."
 
 #: includes/wordset-isolation.php:2471
 msgid "%d word image has suspicious category isolation state."
 msgid_plural "%d word images have suspicious category isolation state."
-msgstr[0] "%d Vokabelbild hat verdächtige Vokabelkategorie Isolationsstatus."
+msgstr[0] ""
+"%d Vokabelbild hat einen verdächtigen Vokabelkategorie-Isolationsstatus."
 msgstr[1] ""
-"%d Vokabelbilder haben den verdächtigen Status der "
-"Vokabelkategorienisolierung."
+"%d Vokabelbilder haben einen verdächtigen Vokabelkategorie-Isolationsstatus."
 
 #: includes/wordset-isolation.php:2484
 msgid "%d vocab lesson points at a non-owned category."
@@ -25174,7 +25169,7 @@ msgstr[1] ""
 
 #: includes/wordset-isolation.php:2508
 msgid "LL Tools Maintenance Alert"
-msgstr "LL Tools Wartungsalarm"
+msgstr "LL Tools-Wartungsalarm"
 
 #: includes/wordset-isolation.php:2509
 msgid "Wordset isolation health checks found data that may need repair."
