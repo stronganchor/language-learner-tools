@@ -248,6 +248,71 @@ function ll_tools_get_prompt_card_ids_for_category_context(array $category_conte
     }));
 }
 
+function ll_tools_prompt_card_get_category_ids_for_word_references(array $word_ids): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $meta_query = [
+        'relation' => 'OR',
+        [
+            'key'     => LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY,
+            'value'   => array_map('strval', $word_ids),
+            'compare' => 'IN',
+        ],
+        [
+            'key'     => LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY,
+            'value'   => array_map('strval', $word_ids),
+            'compare' => 'IN',
+        ],
+    ];
+
+    foreach ($word_ids as $word_id) {
+        $meta_query[] = [
+            'key'     => LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY,
+            'value'   => 'i:' . $word_id . ';',
+            'compare' => 'LIKE',
+        ];
+        $meta_query[] = [
+            'key'     => LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY,
+            'value'   => '"' . $word_id . '"',
+            'compare' => 'LIKE',
+        ];
+    }
+
+    $prompt_card_ids = get_posts([
+        'post_type'              => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+        'post_status'            => 'publish',
+        'posts_per_page'         => -1,
+        'fields'                 => 'ids',
+        'no_found_rows'          => true,
+        'suppress_filters'       => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_query'             => $meta_query,
+    ]);
+    $prompt_card_ids = array_values(array_filter(array_map('intval', (array) $prompt_card_ids), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+    if (empty($prompt_card_ids)) {
+        return [];
+    }
+
+    $terms = wp_get_object_terms($prompt_card_ids, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($terms)) {
+        return [];
+    }
+
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', (array) $terms), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+    sort($category_ids, SORT_NUMERIC);
+    return $category_ids;
+}
+
 function ll_tools_prompt_card_get_word_category_term_ids(int $post_id): array {
     $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (is_wp_error($term_ids)) {

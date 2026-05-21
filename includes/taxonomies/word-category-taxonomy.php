@@ -4169,7 +4169,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         'text_label_schema'    => 5,
-        'prompt_card_schema'   => 2,
+        'prompt_card_schema'   => 3,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
@@ -4543,7 +4543,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
         'text_label_schema'    => 5,
-        'prompt_card_schema'   => 2,
+        'prompt_card_schema'   => 3,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')

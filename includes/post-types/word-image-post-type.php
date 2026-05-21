@@ -363,6 +363,10 @@ function ll_tools_sync_words_for_word_image_thumbnail_change($word_image_id, $ol
         $updated++;
     }
 
+    if ($updated > 0 && function_exists('ll_tools_bump_word_quiz_cache_for_words')) {
+        ll_tools_bump_word_quiz_cache_for_words($word_ids);
+    }
+
     return $updated;
 }
 

@@ -582,6 +582,50 @@ function ll_tools_collect_specific_wrong_answer_related_category_ids($owner_word
     return array_map('intval', array_keys($category_lookup));
 }
 
+function ll_tools_collect_word_quiz_cache_category_ids(array $word_ids): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $category_lookup = [];
+    foreach ($word_ids as $word_id) {
+        $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+        if (!is_wp_error($term_ids)) {
+            foreach ((array) $term_ids as $term_id_raw) {
+                $term_id = (int) $term_id_raw;
+                if ($term_id > 0) {
+                    $category_lookup[$term_id] = true;
+                }
+            }
+        }
+    }
+
+    if (function_exists('ll_tools_prompt_card_get_category_ids_for_word_references')) {
+        foreach (ll_tools_prompt_card_get_category_ids_for_word_references($word_ids) as $term_id_raw) {
+            $term_id = (int) $term_id_raw;
+            if ($term_id > 0) {
+                $category_lookup[$term_id] = true;
+            }
+        }
+    }
+
+    $category_ids = array_map('intval', array_keys($category_lookup));
+    sort($category_ids, SORT_NUMERIC);
+    return $category_ids;
+}
+
+function ll_tools_bump_word_quiz_cache_for_words(array $word_ids): array {
+    $category_ids = ll_tools_collect_word_quiz_cache_category_ids($word_ids);
+    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+        ll_tools_bump_category_cache_version($category_ids);
+    }
+
+    return $category_ids;
+}
+
 /**
  * Add metabox for configuring per-word specific wrong answers.
  */

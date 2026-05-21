@@ -131,6 +131,80 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertNotEmpty((string) ($support_rows[$mountain_id]['image'] ?? ''));
     }
 
+    public function test_imported_support_word_image_link_bumps_prompt_card_category_cache(): void
+    {
+        $prompt_category_name = 'ASL Text Prompt Cards ' . wp_generate_password(5, false);
+        $prompt_category_id = $this->createCategory($prompt_category_name, 'image', 'text_title');
+        $wordset_id = $this->createWordset('ASL Prompt Media Wordset ' . wp_generate_password(5, false));
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $prompt_word_id = $this->createWordWithoutCategory('ASL Have To Sign', 'asl-have-to-sign');
+        $answer_word_id = $this->createWordWithoutCategory('have to', 'asl-have-to-answer');
+        wp_set_post_terms($prompt_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($answer_word_id, [$wordset_id], 'wordset', false);
+
+        $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'ASL Have To Text Prompt',
+            'prompt_text' => 'Choose the matching text.',
+            'prompt_image_word_id' => $prompt_word_id,
+            'correct_answer_word_id' => $answer_word_id,
+            'track_answer_word_progress' => true,
+        ]);
+
+        $config = [
+            'prompt_type' => 'image',
+            'option_type' => 'text_title',
+            'sign_language_mode' => true,
+            'use_titles' => true,
+        ];
+        $primed_rows = ll_get_words_by_category($prompt_category_name, 'text_title', [$wordset_id], $config);
+        $primed_count = ll_get_words_by_category_count($prompt_category_name, 'text_title', [$wordset_id], $config);
+
+        $this->assertSame(0, $primed_count);
+        $this->assertSame([], $this->findPromptCardRow((array) $primed_rows, $prompt_card_id));
+
+        $before_version = ll_tools_get_category_cache_version($effective_prompt_category_id);
+        $word_image_id = $this->createWordImage('asl-have-to-sign-image', $wordset_id);
+        $result = ll_tools_import_job_default_result();
+        $word_state = ll_tools_import_default_word_import_state();
+
+        ll_tools_import_upsert_words_chunk(
+            [[
+                'slug' => 'asl-have-to-sign',
+                'title' => 'ASL Have To Sign',
+                'status' => 'publish',
+                'categories' => [],
+                'linked_word_image_slug' => 'asl-have-to-sign-image',
+            ]],
+            '',
+            [],
+            [
+                'wordset_mode' => 'assign_existing',
+                'target_wordset_id' => $wordset_id,
+                'word_image_slug_to_id' => [
+                    'asl-have-to-sign-image' => $word_image_id,
+                ],
+            ],
+            $word_state,
+            $result
+        );
+
+        $this->assertGreaterThan($before_version, ll_tools_get_category_cache_version($effective_prompt_category_id));
+
+        $updated_rows = ll_get_words_by_category($prompt_category_name, 'text_title', [$wordset_id], $config);
+        $updated_count = ll_get_words_by_category_count($prompt_category_name, 'text_title', [$wordset_id], $config);
+        $prompt_row = $this->findPromptCardRow((array) $updated_rows, $prompt_card_id);
+
+        $this->assertSame(1, $updated_count);
+        $this->assertNotEmpty($prompt_row);
+        $this->assertSame($prompt_card_id, (int) ($prompt_row['id'] ?? 0));
+        $this->assertSame($answer_word_id, (int) ($prompt_row['answer_word_id'] ?? 0));
+        $this->assertSame($answer_word_id, (int) ($prompt_row['progress_word_id'] ?? 0));
+        $this->assertNotEmpty((string) ($prompt_row['image'] ?? ''), 'Prompt image should resolve from the linked support-word image.');
+        $this->assertTrue(ll_tools_word_has_effective_image($prompt_word_id, true));
+    }
+
     public function test_prompt_card_admin_save_invalidates_cached_wrong_answer_payload(): void
     {
         $asset_category_id = $this->createCategory('Prompt Card Cache Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
@@ -428,6 +502,16 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         return (int) $word_id;
     }
 
+    private function createWordWithoutCategory(string $title, string $slug): int
+    {
+        return (int) self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+            'post_name' => $slug,
+        ]);
+    }
+
     private function addAudio(int $word_id, string $suffix = ''): void
     {
         $audio_id = self::factory()->post->create([
@@ -449,6 +533,30 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         ]);
         update_post_meta($attachment_id, '_wp_attached_file', '2026/04/prompt-card-' . $word_id . $suffix . '.jpg');
         set_post_thumbnail($word_id, $attachment_id);
+    }
+
+    private function createWordImage(string $slug, int $wordset_id): int
+    {
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Image ' . $slug,
+            'post_mime_type' => 'image/webp',
+        ]);
+        update_post_meta($attachment_id, '_wp_attached_file', '2026/05/' . $slug . '.webp');
+
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Word Image ' . $slug,
+            'post_name' => $slug,
+        ]);
+        set_post_thumbnail($word_image_id, $attachment_id);
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($word_image_id, $wordset_id, $word_image_id);
+        }
+
+        return (int) $word_image_id;
     }
 
     /**
