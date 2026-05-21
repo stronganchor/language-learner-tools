@@ -107,6 +107,7 @@ function ll_tools_get_public_assets_shortcode_tags(): array {
         'audio_upload_form',
         'image_upload_form',
         'll_language_switcher',
+        'll_locale_block',
     ]);
 
     return array_values(array_unique(array_filter(array_map('strval', (array) $shortcodes))));

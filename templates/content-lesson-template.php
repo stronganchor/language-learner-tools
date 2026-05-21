@@ -75,7 +75,16 @@ $cues = function_exists('ll_tools_get_content_lesson_cues')
 $related_vocab_items = function_exists('ll_tools_get_content_lesson_related_vocab_items')
     ? ll_tools_get_content_lesson_related_vocab_items($lesson_id)
     : [];
+$lesson_title = get_the_title();
 $lesson_excerpt = has_excerpt() ? get_the_excerpt() : '';
+if ($is_corpus_text) {
+    if (function_exists('ll_tools_get_content_lesson_localized_title')) {
+        $lesson_title = ll_tools_get_content_lesson_localized_title($lesson_id, (string) $lesson_title);
+    }
+    if (function_exists('ll_tools_get_content_lesson_localized_excerpt')) {
+        $lesson_excerpt = ll_tools_get_content_lesson_localized_excerpt($lesson_id, (string) $lesson_excerpt);
+    }
+}
 $media_label = function_exists('ll_tools_content_lesson_media_label')
     ? ll_tools_content_lesson_media_label($is_corpus_text ? 'text' : $media_type, $lesson_kind)
     : (($media_type === 'video') ? __('Video lesson', 'll-tools-text-domain') : __('Audio lesson', 'll-tools-text-domain'));
@@ -122,7 +131,7 @@ $format_ms = static function (int $ms): string {
             <?php endif; ?>
         </div>
         <div class="ll-content-lesson-hero__content">
-            <h1 class="ll-content-lesson-title"><?php the_title(); ?></h1>
+            <h1 class="ll-content-lesson-title"><?php echo esc_html($lesson_title); ?></h1>
             <?php if ($lesson_excerpt !== '') : ?>
                 <p class="ll-content-lesson-summary"><?php echo esc_html($lesson_excerpt); ?></p>
             <?php endif; ?>

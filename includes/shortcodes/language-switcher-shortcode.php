@@ -61,8 +61,15 @@ function ll_tools_get_plugin_locales() {
     $site_default = get_option('WPLANG');
     $locales[] = $site_default ? $site_default : 'en_US';
     $locales[] = 'en_US';
+    $locales[] = 'tr_TR';
+    $locales[] = 'de_DE';
 
     $cache = array_values(array_unique($locales));
+    $preferred_order = ['tr_TR' => 0, 'en_US' => 1, 'de_DE' => 2];
+    usort($cache, static function (string $left, string $right) use ($preferred_order): int {
+        return (($preferred_order[$left] ?? 50) <=> ($preferred_order[$right] ?? 50)) ?: strcmp($left, $right);
+    });
+
     return $cache;
 }
 
@@ -480,3 +487,103 @@ function ll_language_switcher_shortcode($atts) {
     return ob_get_clean();
 }
 add_shortcode('ll_language_switcher', 'll_language_switcher_shortcode');
+
+function ll_tools_language_switcher_current_language_key(): string {
+    if (function_exists('ll_tools_text_document_current_language_candidates')) {
+        $candidates = ll_tools_text_document_current_language_candidates();
+        if (!empty($candidates)) {
+            return (string) $candidates[0];
+        }
+    }
+
+    $locale = function_exists('get_locale') ? (string) get_locale() : '';
+    $locale = strtolower(str_replace('-', '_', $locale));
+    if (strpos($locale, 'tr') === 0) {
+        return 'tr';
+    }
+    if (strpos($locale, 'de') === 0) {
+        return 'de';
+    }
+    if (strpos($locale, 'en') === 0) {
+        return 'en';
+    }
+
+    return 'tr';
+}
+
+function ll_locale_block_shortcode($atts, $content = ''): string {
+    $atts = shortcode_atts([
+        'lang' => '',
+        'language' => '',
+    ], is_array($atts) ? $atts : [], 'll_locale_block');
+
+    $raw_languages = trim((string) ($atts['lang'] !== '' ? $atts['lang'] : $atts['language']));
+    if ($raw_languages === '') {
+        return '';
+    }
+
+    $current = ll_tools_language_switcher_current_language_key();
+    $languages = preg_split('/[\s,|]+/', strtolower($raw_languages));
+    $languages = is_array($languages) ? array_filter($languages) : [];
+    foreach ($languages as $language) {
+        $language = sanitize_key((string) $language);
+        if (function_exists('ll_tools_text_document_language_key_from_locale')) {
+            $language = ll_tools_text_document_language_key_from_locale($language);
+        }
+        if ($language === $current) {
+            return do_shortcode((string) $content);
+        }
+    }
+
+    return '';
+}
+add_shortcode('ll_locale_block', 'll_locale_block_shortcode');
+
+function ll_tools_should_render_header_language_switcher(): bool {
+    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
+        return false;
+    }
+
+    return (bool) apply_filters('ll_tools_header_language_switcher_enabled', true);
+}
+
+function ll_tools_header_language_switcher_styles(): string {
+    static $printed = false;
+    if ($printed) {
+        return '';
+    }
+    $printed = true;
+
+    return '<style id="ll-tools-header-language-switcher-css">'
+        . '.ll-tools-header-language-switcher{box-sizing:border-box;width:100%;display:flex;justify-content:flex-end;padding:8px 16px;background:#fffdf8;border-bottom:1px solid rgba(28,68,60,.12);position:relative;z-index:20;}'
+        . '.ll-tools-header-language-switcher .ll-lang-switcher{display:block;}'
+        . '.ll-tools-header-language-switcher .ll-lang-switcher ul{justify-content:flex-end;flex-wrap:wrap;}'
+        . '.ll-tools-header-language-switcher .ll-lang-switcher .ll-lang-link,.ll-tools-header-language-switcher .ll-lang-switcher .ll-lang-current{border-color:#d7c5a9;background:#fff;color:#26463f;}'
+        . '.ll-tools-header-language-switcher .ll-lang-switcher .is-current .ll-lang-current{background:#e6f3ef;border-color:#1f6b5c;color:#0f5d52;}'
+        . '@media(max-width:600px){.ll-tools-header-language-switcher{justify-content:center;padding:8px 12px;}}'
+        . '</style>';
+}
+
+function ll_tools_render_header_language_switcher(): void {
+    static $printed = false;
+    if ($printed || !ll_tools_should_render_header_language_switcher()) {
+        return;
+    }
+
+    $markup = ll_language_switcher_shortcode([
+        'show_flags' => '0',
+        'style' => 'native',
+        'class' => 'll-lang-switcher--header',
+    ]);
+    if (trim((string) $markup) === '') {
+        return;
+    }
+
+    $printed = true;
+    echo ll_tools_header_language_switcher_styles(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    echo '<div class="ll-tools-header-language-switcher" role="region" aria-label="' . esc_attr__('Language', 'll-tools-text-domain') . '">';
+    echo $markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    echo '</div>';
+}
+add_action('wp_body_open', 'll_tools_render_header_language_switcher', 20);
+add_action('wp_footer', 'll_tools_render_header_language_switcher', 1);

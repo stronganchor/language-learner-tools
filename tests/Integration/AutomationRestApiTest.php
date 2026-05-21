@@ -764,7 +764,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>Text<', $reader_html);
         $this->assertStringContainsString('>Sources<', $reader_html);
         $this->assertStringContainsString('Merheba, Dêrsim.', $reader_html);
-        $this->assertStringContainsString('Merhaba, Dersim.', $reader_html);
+        $this->assertStringContainsString('Hello, Dersim.', $reader_html);
+        $this->assertStringNotContainsString('Merhaba, Dersim.', $reader_html);
         $this->assertStringContainsString('>Interlinear<', $reader_html);
         $this->assertStringContainsString('Text background', $reader_html);
         $this->assertStringContainsString('Places mentioned', $reader_html);
@@ -1120,7 +1121,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $_GET = [];
             $reader_html = ll_tools_render_interlinear_block($post_id);
             $this->assertStringContainsString('class="ll-text-document ll-book-text"', $reader_html);
-            $this->assertStringContainsString('Language: English', $reader_html);
+            $this->assertStringNotContainsString('Language: English', $reader_html);
+            $this->assertStringNotContainsString('ll-book-text__translations', $reader_html);
             $this->assertStringContainsString('English intro text.', $reader_html);
             $this->assertStringContainsString('Book I, p. 1', $reader_html);
             $this->assertStringContainsString('Lerch, Peter. Research source. 1857.', $reader_html);
@@ -1133,8 +1135,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                 'll_book_section' => 'notes',
             ];
             $german_html = ll_tools_render_interlinear_block($post_id);
-            $this->assertStringContainsString('Language: German', $german_html);
-            $this->assertStringContainsString('German notes text.', $german_html);
+            $this->assertStringNotContainsString('Language: German', $german_html);
+            $this->assertStringContainsString('English notes text.', $german_html);
             $this->assertStringContainsString('Book I, p. 2', $german_html);
             $this->assertStringContainsString('Previous', $german_html);
             $this->assertStringNotContainsString('English intro text.', $german_html);
@@ -1195,7 +1197,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('alert(1)', $reader_html);
     }
 
-    public function test_book_text_language_resolution_prefers_url_locale_then_document_default(): void
+    public function test_book_text_language_resolution_prefers_site_locale_then_document_default(): void
     {
         $payload = [
             'schema' => 'll_tools_text_document.v1',
@@ -1223,15 +1225,21 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $original_get = $_GET;
         try {
             $_GET = ['ll_book_language' => 'tr'];
-            $this->assertSame('tr', ll_tools_text_document_selected_translation_key($payload));
-
-            $_GET = [];
             $english_locale = static fn(): string => 'en_US';
             add_filter('locale', $english_locale);
             try {
                 $this->assertSame('en', ll_tools_text_document_selected_translation_key($payload));
             } finally {
                 remove_filter('locale', $english_locale);
+            }
+
+            $_GET = [];
+            $turkish_locale = static fn(): string => 'tr_TR';
+            add_filter('locale', $turkish_locale);
+            try {
+                $this->assertSame('tr', ll_tools_text_document_selected_translation_key($payload));
+            } finally {
+                remove_filter('locale', $turkish_locale);
             }
 
             $unsupported_locale = static fn(): string => 'fr_FR';

@@ -34,6 +34,34 @@ function ll_tools_get_content_lesson_excerpt(WP_Post $lesson): string {
     return $excerpt;
 }
 
+function ll_tools_content_lesson_shortcode_localized_attribute(array $atts, string $base_key, string $fallback = ''): string {
+    $values = [];
+    foreach (['tr', 'en', 'de'] as $language_key) {
+        $localized_key = $base_key . '_' . $language_key;
+        if (isset($atts[$localized_key]) && is_scalar($atts[$localized_key]) && trim((string) $atts[$localized_key]) !== '') {
+            $values[$language_key] = trim((string) $atts[$localized_key]);
+        }
+    }
+    if (isset($atts[$base_key]) && is_scalar($atts[$base_key]) && trim((string) $atts[$base_key]) !== '') {
+        $values[$base_key] = trim((string) $atts[$base_key]);
+    }
+
+    if (function_exists('ll_tools_text_document_localized_map_value')) {
+        $value = ll_tools_text_document_localized_map_value($values);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    foreach (['tr', 'en', 'de', $base_key] as $language_key) {
+        if (isset($values[$language_key]) && $values[$language_key] !== '') {
+            return $values[$language_key];
+        }
+    }
+
+    return $fallback;
+}
+
 function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
     $wordset_id = function_exists('ll_tools_get_content_lesson_wordset_id')
         ? ll_tools_get_content_lesson_wordset_id((int) $lesson->ID)
@@ -48,12 +76,24 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
         ? ll_tools_get_content_lesson_kind((int) $lesson->ID)
         : 'standard';
     $display_media_type = $lesson_kind === 'corpus_text' ? 'text' : $media_type;
+    $fallback_title = (string) get_the_title($lesson);
+    $fallback_excerpt = ll_tools_get_content_lesson_excerpt($lesson);
+    $localized_title = $fallback_title;
+    $localized_excerpt = $fallback_excerpt;
+    if ($lesson_kind === 'corpus_text') {
+        if (function_exists('ll_tools_get_content_lesson_localized_title')) {
+            $localized_title = ll_tools_get_content_lesson_localized_title((int) $lesson->ID, $fallback_title);
+        }
+        if (function_exists('ll_tools_get_content_lesson_localized_excerpt')) {
+            $localized_excerpt = ll_tools_get_content_lesson_localized_excerpt((int) $lesson->ID, $fallback_excerpt);
+        }
+    }
 
     return [
         'id' => (int) $lesson->ID,
-        'title' => (string) get_the_title($lesson),
+        'title' => $localized_title,
         'url' => (string) get_permalink($lesson),
-        'excerpt' => ll_tools_get_content_lesson_excerpt($lesson),
+        'excerpt' => $localized_excerpt,
         'lesson_kind' => $lesson_kind,
         'media_type' => $display_media_type,
         'media_label' => ll_tools_content_lesson_media_label($display_media_type, $lesson_kind),
@@ -89,6 +129,9 @@ function ll_tools_get_corpus_text_collection_link(int $lesson_id): array {
     if ($label === '') {
         $label = __('Texts', 'll-tools-text-domain');
     }
+    if (function_exists('ll_tools_get_content_lesson_localized_collection_label')) {
+        $label = ll_tools_get_content_lesson_localized_collection_label($lesson_id, $label);
+    }
     if ($collection === '') {
         return ['url' => '', 'label' => $label];
     }
@@ -115,7 +158,7 @@ function ll_tools_get_corpus_text_collection_link(int $lesson_id): array {
             continue;
         }
         $url = get_permalink($page);
-        return ['url' => is_string($url) ? $url : '', 'label' => get_the_title($page) ?: $label];
+        return ['url' => is_string($url) ? $url : '', 'label' => $label];
     }
 
     return ['url' => '', 'label' => $label];
@@ -438,8 +481,17 @@ function ll_tools_corpus_text_grid_shortcode($atts = []): string {
         'orderby' => 'menu_order title',
         'order' => 'ASC',
         'title' => __('Texts', 'll-tools-text-domain'),
+        'title_tr' => '',
+        'title_en' => '',
+        'title_de' => '',
         'description' => '',
+        'description_tr' => '',
+        'description_en' => '',
+        'description_de' => '',
         'open_label' => __('Open text', 'll-tools-text-domain'),
+        'open_label_tr' => '',
+        'open_label_en' => '',
+        'open_label_de' => '',
     ], is_array($atts) ? $atts : [], 'll_corpus_text_grid');
 
     if (function_exists('ll_enqueue_asset_by_timestamp')) {
@@ -454,10 +506,10 @@ function ll_tools_corpus_text_grid_shortcode($atts = []): string {
     return ll_tools_corpus_text_grid_inline_styles()
         . '<div class="ll-corpus-text-grid">'
         . ll_tools_render_content_lesson_cards($lessons, [
-            'title' => (string) $atts['title'],
-            'description' => (string) $atts['description'],
+            'title' => ll_tools_content_lesson_shortcode_localized_attribute($atts, 'title', (string) $atts['title']),
+            'description' => ll_tools_content_lesson_shortcode_localized_attribute($atts, 'description', (string) $atts['description']),
             'context' => 'corpus-text-grid',
-            'open_label' => (string) $atts['open_label'],
+            'open_label' => ll_tools_content_lesson_shortcode_localized_attribute($atts, 'open_label', (string) $atts['open_label']),
         ])
         . '</div>';
 }
