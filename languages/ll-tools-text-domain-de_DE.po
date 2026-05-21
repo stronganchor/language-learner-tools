@@ -5,7 +5,7 @@ msgstr ""
 "Project-Id-Version: Language Learner Tools 6.3.8\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "POT-Creation-Date: 2026-05-21T04:35:08+00:00\n"
-"PO-Revision-Date: 2026-05-21 10:05+0300\n"
+"PO-Revision-Date: 2026-05-21 00:00+0300\n"
 "Last-Translator: LL Tools German machine translation pass\n"
 "Language-Team: German\n"
 "Language: de_DE\n"
@@ -57,7 +57,7 @@ msgstr "LL Tools"
 #: includes/admin/admin-dashboard-menu.php:812
 #: includes/admin/admin-dashboard-menu.php:905
 msgid "LL Tools Utilities"
-msgstr "LL Tools Dienstprogramme"
+msgstr "LL Tools-Werkzeuge"
 
 #: includes/admin/admin-dashboard-menu.php:151
 #: includes/admin/admin-dashboard-menu.php:318
@@ -82,7 +82,7 @@ msgstr "Audioprozessor"
 #: includes/admin/admin-dashboard-menu.php:155
 #: includes/admin/admin-dashboard-menu.php:463
 msgid "Audio/Image Matcher"
-msgstr "Audio/Image Matcher"
+msgstr "Audio-/Bild-Abgleich"
 
 #: includes/admin/admin-dashboard-menu.php:156
 #: includes/admin/admin-dashboard-menu.php:472
@@ -92,7 +92,7 @@ msgstr "Fehlendes Audio"
 #: includes/admin/admin-dashboard-menu.php:157
 #: includes/admin/admin-dashboard-menu.php:481
 msgid "Bulk Word Import"
-msgstr "Bulk Vokabel Import"
+msgstr "Vokabel-Massenimport"
 
 #: includes/admin/admin-dashboard-menu.php:158
 #: includes/admin/admin-dashboard-menu.php:490
@@ -108,7 +108,7 @@ msgstr "Wörterbuch-Quellen"
 #: includes/admin/admin-dashboard-menu.php:160
 #: includes/admin/admin-dashboard-menu.php:508
 msgid "Bulk Translations"
-msgstr "Bulk-Übersetzungen"
+msgstr "Massenübersetzungen"
 
 #: includes/admin/admin-dashboard-menu.php:161
 #: includes/admin/admin-dashboard-menu.php:526
@@ -134,7 +134,7 @@ msgstr "Site-Sync"
 #: includes/admin/admin-dashboard-menu.php:553
 #: includes/pages/wordset-pages.php:10195
 msgid "Offline App Export"
-msgstr "Offline App Export"
+msgstr "Offline-App-Export"
 
 #: includes/admin/admin-dashboard-menu.php:165
 #: includes/admin/admin-dashboard-menu.php:562
@@ -155,7 +155,7 @@ msgstr "Regeln für Antwortoptionen"
 #: includes/admin/audio-processor-admin.php:1388
 #: includes/admin/image-aspect-normalizer-admin.php:120
 msgid "Image Aspect Normalizer"
-msgstr "Image Aspect Normalizer"
+msgstr "Bildseitenverhältnis-Normalisierung"
 
 #: includes/admin/admin-dashboard-menu.php:168
 #: includes/admin/audio-processor-admin.php:1419
@@ -185,7 +185,7 @@ msgstr "LL Aufnahmetypen"
 #: includes/admin/user-progress-report.php:31
 #: includes/admin/user-progress-report.php:656
 msgid "Learner Progress"
-msgstr "Lernende Fortschritte"
+msgstr "Lernfortschritt"
 
 #: includes/admin/admin-dashboard-menu.php:173
 #: includes/admin/admin-dashboard-menu.php:647
@@ -296,7 +296,7 @@ msgstr "Vokabelbilder"
 
 #: includes/admin/admin-dashboard-menu.php:351
 msgid "Manage image records linked to vocabulary words."
-msgstr "Verwalte die mit den Vokabeln verknüpften Vokabeldatensätze."
+msgstr "Verwalte Bilddatensätze, die mit Vokabeln verknüpft sind."
 
 #: includes/admin/admin-dashboard-menu.php:357
 #: includes/admin/admin-dashboard-menu.php:787
@@ -376,8 +376,7 @@ msgstr "Verwaltung"
 
 #: includes/admin/admin-dashboard-menu.php:412
 msgid "Utility and configuration pages used less frequently."
-msgstr ""
-"Dienstleistungs- und Konfigurationsseiten werden weniger häufig verwendet."
+msgstr "Seltener genutzte Dienstprogramm- und Konfigurationsseiten."
 
 #: includes/admin/admin-dashboard-menu.php:455
 msgid "Review queued recordings, clean audio, and publish approved files."
@@ -505,7 +504,7 @@ msgstr ""
 #: includes/post-types/content-lesson-post-type.php:68
 #: includes/post-types/content-lesson-post-type.php:72
 msgid "Content Lessons"
-msgstr "Inhalt Lektionen"
+msgstr "Inhaltslektionen"
 
 #: includes/admin/admin-dashboard-menu.php:610
 msgid "Edit main audio/video lessons and synced transcript content."
@@ -529,7 +528,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:627
 #: includes/taxonomies/part-of-speech-taxonomy.php:8
 msgid "Parts of Speech"
-msgstr "Redeteile"
+msgstr "Wortarten"
 
 #: includes/admin/admin-dashboard-menu.php:628
 msgid "Maintain part-of-speech taxonomy values used on word entries."
@@ -685,24 +684,24 @@ msgstr "Übersetzter Text aus dem Türkischen: %s"
 
 #: includes/admin/audio-image-matcher.php:12
 msgid "Language Learner Tools - Audio/Image Matcher"
-msgstr "Tools für Lernende - Audio/Image Matcher"
+msgstr "Language Learner Tools - Audio-/Bild-Abgleich"
 
 #: includes/admin/audio-image-matcher.php:13
 msgid "LL Tools Audio/Image Matcher"
-msgstr "LL Tools Audio/Image Matcher"
+msgstr "LL Tools Audio-/Bild-Abgleich"
 
 #: includes/admin/audio-image-matcher.php:82
 #: includes/shortcodes/editor-hub-shortcode.php:1066
 msgid "Loading…"
-msgstr "Laden.."
+msgstr "Wird geladen …"
 
 #: includes/admin/audio-image-matcher.php:83
 msgid "Loading images…"
-msgstr "Bilder laden.."
+msgstr "Bilder laden..."
 
 #: includes/admin/audio-image-matcher.php:84
 msgid "Loading next audio…"
-msgstr "Nächstes Audio laden.."
+msgstr "Nächstes Audio laden..."
 
 #: includes/admin/audio-image-matcher.php:85
 msgid "All done in this category."
@@ -801,7 +800,7 @@ msgstr "Fehlende Parameter"
 #: includes/admin/audio-image-matcher.php:396
 #: includes/admin/ipa-keyboard-admin.php:5224
 msgid "Invalid word"
-msgstr "Ungültiges Vokabel"
+msgstr "Ungültige Vokabel"
 
 #: includes/admin/audio-image-matcher.php:404
 msgid "Invalid image"
@@ -813,7 +812,7 @@ msgstr "Bild hat kein Vorschaubild"
 
 #: includes/admin/audio-processor-admin.php:11
 msgid "Audio Processor - Language Learner Tools"
-msgstr "Audioprozessor - Tools für Lernende"
+msgstr "Audioprozessor - Language Learner Tools"
 
 #: includes/admin/audio-processor-admin.php:12
 msgid "LL Audio Processor"
@@ -1047,7 +1046,7 @@ msgstr ""
 
 #: includes/admin/audio-processor-admin.php:187
 msgid "Trim"
-msgstr "Trim"
+msgstr "Kürzen"
 
 #: includes/admin/audio-processor-admin.php:188
 msgid "Noise Reduction"
@@ -1192,7 +1191,7 @@ msgstr "Alle abwählen"
 
 #: includes/admin/audio-processor-admin.php:800
 msgid "Process Selected"
-msgstr "Prozess ausgewählt"
+msgstr "Ausgewählte verarbeiten"
 
 #: includes/admin/audio-processor-admin.php:811
 #: includes/shortcodes/audio-recording-shortcode.php:1403
@@ -1289,11 +1288,11 @@ msgstr "Unzureichende Berechtigungen, um diese Aufnahme zu bearbeiten."
 
 #: includes/admin/audio-processor-admin.php:1043
 msgid "No parent word post found"
-msgstr "Kein übergeordneter Vokabel-Beitrag gefunden"
+msgstr "Kein übergeordneter Vokabelbeitrag gefunden"
 
 #: includes/admin/audio-processor-admin.php:1048
 msgid "Invalid parent word post"
-msgstr "Ungültiges übergeordnetes Vokabel-Beitrag"
+msgstr "Ungültiger übergeordneter Vokabelbeitrag"
 
 #: includes/admin/audio-processor-admin.php:1051
 msgid "Insufficient permissions to edit the parent word."
@@ -1338,7 +1337,7 @@ msgstr "Audio verarbeitet und erfolgreich veröffentlicht"
 
 #: includes/admin/audio-processor-admin.php:1197
 msgid "Invalid word post"
-msgstr "Ungültiges Vokabel-Beitrag"
+msgstr "Ungültiger Vokabelbeitrag"
 
 #: includes/admin/audio-processor-admin.php:1201
 msgid "Insufficient permissions to edit this word."
@@ -1346,7 +1345,7 @@ msgstr "Unzureichende Berechtigungen zum Bearbeiten dieser Vokabel."
 
 #: includes/admin/audio-processor-admin.php:1263
 msgid "Invalid post ID"
-msgstr "Ungültiger Beitrag ID"
+msgstr "Ungültige Beitrags-ID"
 
 #: includes/admin/audio-processor-admin.php:1271
 msgid "Insufficient permissions to delete this recording."
@@ -1372,14 +1371,15 @@ msgstr[1] "%d Audioaufnahmen müssen bearbeitet werden"
 msgid "Images need aspect ratio normalization in %d category"
 msgid_plural "Images need aspect ratio normalization in %d categories"
 msgstr[0] ""
-"Bilder müssen im Seitenverhältnis normalisiert werden in der Kategorie %d"
-msgstr[1] "Bilder brauchen Seitenverhältnis-Normalisierung in %d Kategorien"
+"In %d Kategorie müssen Bilder im Seitenverhältnis normalisiert werden"
+msgstr[1] ""
+"In %d Kategorien müssen Bilder im Seitenverhältnis normalisiert werden"
 
 #. translators: %d: number of word images
 #: includes/admin/audio-processor-admin.php:1422
 msgid "%d image needs WebP optimization"
 msgid_plural "%d images need WebP optimization"
-msgstr[0] "%d Bild braucht WebP Optimierung"
+msgstr[0] "%d Bild braucht WebP-Optimierung"
 msgstr[1] "%d Bilder müssen WebP-optimiert werden"
 
 #. translators: %d: number of words
@@ -1393,7 +1393,7 @@ msgstr[1] "%d Vokabeln sind in keiner Vokabelkategorie, die man abfragen kann"
 #: includes/admin/audio-processor-admin.php:1489
 #: includes/admin/audio-processor-admin.php:1533
 msgid "Transcription Manager: %s"
-msgstr "Transcription Manager: %s"
+msgstr "Transkriptionsmanager: %s"
 
 #. translators: 1: number of recordings, 2: wordset name
 #: includes/admin/audio-processor-admin.php:1494
@@ -1423,11 +1423,11 @@ msgstr "Die folgenden Wartungsaufgaben müssen beachtet werden."
 #: includes/admin/bulk-translation-admin.php:15
 #: includes/admin/bulk-translation-admin.php:16
 msgid "LL Bulk Translations"
-msgstr "LL Bulk-Übersetzungen"
+msgstr "LL-Massenübersetzungen"
 
 #: includes/admin/bulk-translation-admin.php:41
 msgid "LL Tools - Bulk Translations"
-msgstr "LL Tools - Bulk-Übersetzungen"
+msgstr "LL Tools - Massenübersetzungen"
 
 #: includes/admin/bulk-translation-admin.php:53
 #: includes/admin/bulk-translation-admin.php:71
@@ -1537,7 +1537,7 @@ msgstr "Vokabel-Titel"
 
 #: includes/admin/bulk-translation-admin.php:149
 msgid "Order"
-msgstr "Bestellung"
+msgstr "Reihenfolge"
 
 #: includes/admin/bulk-translation-admin.php:151
 #: includes/admin/bulk-translation-admin.php:175
@@ -1662,7 +1662,7 @@ msgstr "Nichts zu speichern."
 
 #: includes/admin/bulk-translation-admin.php:293
 msgid "saving…"
-msgstr "speichern.."
+msgstr "speichern..."
 
 #: includes/admin/bulk-translation-admin.php:294
 msgid "saved"
@@ -1674,7 +1674,7 @@ msgstr "fehler"
 
 #: includes/admin/bulk-translation-admin.php:296
 msgid "fetching…"
-msgstr "holen.."
+msgstr "holen..."
 
 #: includes/admin/bulk-translation-admin.php:297
 msgid "suggested"
@@ -1713,7 +1713,7 @@ msgstr "Nicht kategorisiert lassen"
 #: includes/admin/bulk-word-import-admin.php:258
 #: includes/admin/bulk-word-import-admin.php:259
 msgid "LL Bulk Word Import"
-msgstr "LL Bulk Vokabel Import"
+msgstr "LL-Vokabel-Massenimport"
 
 #. translators: 1: category name, 2: error message
 #: includes/admin/bulk-word-import-admin.php:418
@@ -1794,7 +1794,7 @@ msgstr[1] ""
 
 #: includes/admin/bulk-word-import-admin.php:611
 msgid "LL Tools — Bulk Word Import"
-msgstr "LL Tools - Bulk Vokabel Import"
+msgstr "LL Tools - Vokabel-Massenimport"
 
 #: includes/admin/bulk-word-import-admin.php:632
 msgid "Words to import"
@@ -1812,7 +1812,7 @@ msgid ""
 "Each row creates a new draft word post with the title automatically "
 "capitalized."
 msgstr ""
-"Jede Zeile erstellt einen neuen Entwurf für eine Vokabel-Beitrag, wobei der "
+"Jede Zeile erstellt einen neuen Entwurf für einen Vokabelbeitrag, wobei der "
 "Titel automatisch groß geschrieben wird."
 
 #: includes/admin/bulk-word-import-admin.php:636
@@ -1967,7 +1967,7 @@ msgstr "Das Snapshot-Manifest des Wörterbuchs konnte nicht kodiert werden."
 #: includes/admin/dictionary-import-admin.php:743
 msgid "Could not write the dictionary snapshot manifest."
 msgstr ""
-"Das Manifest des Wörterbuch-Schnappschusses konnte nicht geschrieben werden."
+"Das Manifest des Wörterbuch-Snapshots konnte nicht geschrieben werden."
 
 #: includes/admin/dictionary-import-admin.php:756
 msgid "The dictionary snapshot manifest could not be found."
@@ -2043,12 +2043,12 @@ msgstr "Wörterbuch-Snapshot-Überschreibung abgeschlossen."
 
 #: includes/admin/dictionary-import-admin.php:1171
 msgid "Dictionary snapshot import completed."
-msgstr "Import des Wörterbuch-Schnappschusses abgeschlossen."
+msgstr "Wörterbuch-Snapshot-Import abgeschlossen."
 
 #: includes/admin/dictionary-import-admin.php:1174
 #: includes/admin/dictionary-import-admin.php:1771
 msgid "Dictionary TSV import completed."
-msgstr "Dictionary TSV import completed."
+msgstr "Wörterbuch-TSV-Import abgeschlossen."
 
 #. translators: 1: processed entries, 2: created entries, 3: updated entries,
 #. 4: deleted entries
@@ -2083,7 +2083,7 @@ msgstr "Legacy-Wörterbuch-Tabelle"
 
 #: includes/admin/dictionary-import-admin.php:1252
 msgid "Dictionary snapshot"
-msgstr "Wörterbuch-Schnappschuss"
+msgstr "Wörterbuch-Snapshot"
 
 #: includes/admin/dictionary-import-admin.php:1254
 msgid "Dictionary TSV"
@@ -2150,7 +2150,7 @@ msgstr "Legacy-Migration"
 
 #: includes/admin/dictionary-import-admin.php:1364
 msgid "Snapshot import"
-msgstr "Schnappschuss-Import"
+msgstr "Snapshot-Import"
 
 #: includes/admin/dictionary-import-admin.php:1364
 msgid "TSV import"
@@ -2286,7 +2286,7 @@ msgstr "Wörterbuch Snapshot Override"
 
 #: includes/admin/dictionary-import-admin.php:1505
 msgid "Dictionary Snapshot Import"
-msgstr "Wörterbuch-Schnappschuss-Import"
+msgstr "Wörterbuch-Snapshot-Import"
 
 #: includes/admin/dictionary-import-admin.php:1506
 msgid "Dictionary TSV Import"
@@ -2294,11 +2294,11 @@ msgstr "Wörterbuch TSV Import"
 
 #: includes/admin/dictionary-import-admin.php:1559
 msgid "Preparing the dictionary job…"
-msgstr "Den Wörterbuchauftrag vorbereiten.."
+msgstr "Wörterbuchauftrag wird vorbereitet..."
 
 #: includes/admin/dictionary-import-admin.php:1560
 msgid "Dictionary job in progress…"
-msgstr "Wörterbuch-Job in Arbeit.."
+msgstr "Wörterbuchauftrag wird ausgeführt..."
 
 #: includes/admin/dictionary-import-admin.php:1561
 msgid "The dictionary job request failed. Reopen this page to resume."
@@ -2310,7 +2310,7 @@ msgstr ""
 msgid "The dictionary job connection dropped. Checking whether it can resume…"
 msgstr ""
 "Die Verbindung zum Wörterbuchjob wurde unterbrochen. Überprüfe, ob sie "
-"wieder aufgenommen werden kann.."
+"wieder aufgenommen werden kann..."
 
 #: includes/admin/dictionary-import-admin.php:1563
 msgid ""
@@ -2396,7 +2396,7 @@ msgid ""
 "when editing so override imports update the existing entry instead of "
 "creating a new one."
 msgstr ""
-"Exportiert jeden LL-Tools-Wörterbucheintrag auf dieser Website sowie das "
+"Exportiert jeden LL Tools-Wörterbucheintrag auf dieser Website sowie das "
 "Wörterbuch-Quellenregister als JSON-Snapshot. Lasse den import_key jedes "
 "Eintrags beim Bearbeiten unverändert, damit Überschreibungsimporte den "
 "vorhandenen Eintrag aktualisieren, statt einen neuen zu erstellen."
@@ -2511,7 +2511,7 @@ msgstr ""
 
 #: includes/admin/dictionary-import-admin.php:1917
 msgid "Snapshot File"
-msgstr "Schnappschuss-Datei"
+msgstr "Snapshot-Datei"
 
 #: includes/admin/dictionary-import-admin.php:1920
 msgid ""
@@ -2563,7 +2563,7 @@ msgid ""
 msgstr ""
 "Definiere wiederverwendbare Quellendatensätze für importierte Wörterbücher. "
 "Jede Quelle kann ein kurzes öffentliches Attributionsstatement, eine "
-"öffentliche Quellinformationsseite URL für die Wörterbuchabzeichen und "
+"öffentliche Quellinformationsseite-URL für die Wörterbuchabzeichen und "
 "Standard-Dialekt-Tags enthalten, die angewendet werden, wenn eine "
 "Importzeile kein eigenes Dialektfeld bereitstellt."
 
@@ -2592,8 +2592,8 @@ msgid ""
 "archive\". Leave both the ID and label blank to remove a row. Separate "
 "multiple default dialects with commas."
 msgstr ""
-"Verwende eine stabile Quelle ID wie z.B. \"regional-dictionary\" oder "
-"\"community-archive\". Lass sowohl den ID als auch das Label leer, um eine "
+"Verwende eine stabile Quellen-ID wie z.B. \"regional-dictionary\" oder "
+"\"community-archive\". Lass sowohl den-ID als auch das Label leer, um eine "
 "Zeile zu entfernen. Trenne mehrere Standarddialekte mit Kommas."
 
 #. translators: %d: 1-based source row number
@@ -2604,17 +2604,17 @@ msgstr "Quelle Zeile %d"
 #. translators: %s: source ID
 #: includes/admin/dictionary-sources-admin.php:130
 msgid "Source ID: %s"
-msgstr "Quelle ID: %s"
+msgstr "Quellen-ID: %s"
 
 #: includes/admin/dictionary-sources-admin.php:133
 msgid "Leave both the source ID and label blank to remove this row."
 msgstr ""
-"Lass sowohl die Quelle ID als auch das Label leer, um diese Zeile zu "
+"Lass sowohl die Quellen-ID als auch das Label leer, um diese Zeile zu "
 "entfernen."
 
 #: includes/admin/dictionary-sources-admin.php:150
 msgid "Source ID"
-msgstr "Quelle ID"
+msgstr "Quellen-ID"
 
 #: includes/admin/dictionary-sources-admin.php:157
 msgid "regional-dictionary"
@@ -2629,7 +2629,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:333
 #: includes/admin/missing-audio-admin-page.php:341
 msgid "Label"
-msgstr "Label"
+msgstr "Bezeichnung"
 
 #: includes/admin/dictionary-sources-admin.php:170
 msgid "Regional Dictionary"
@@ -2637,11 +2637,11 @@ msgstr "Regionales Wörterbuch"
 
 #: includes/admin/dictionary-sources-admin.php:175
 msgid "Attribution Text"
-msgstr "Zuschreibung Text"
+msgstr "Attributionstext"
 
 #: includes/admin/dictionary-sources-admin.php:185
 msgid "Source Page / Details URL"
-msgstr "Quellseite / Details URL"
+msgstr "Quellseite / Details-URL"
 
 #: includes/admin/dictionary-sources-admin.php:192
 msgid "https://example.com/dictionary-source/regional-dictionary"
@@ -2666,7 +2666,7 @@ msgstr "Wörterbuch-Quellen speichern"
 #: includes/admin/duplicate-category-words-admin.php:24
 #: includes/admin/duplicate-category-words-admin.php:628
 msgid "Duplicate Category Words"
-msgstr "Doppelte Vokabelkategorie Vokabeln"
+msgstr "Vokabeln einer Kategorie duplizieren"
 
 #: includes/admin/duplicate-category-words-admin.php:25
 msgid "Duplicate Category"
@@ -2775,8 +2775,8 @@ msgid ""
 "Use overrides to bulk-change grammatical flags such as tense, mood, and "
 "plurality on the cloned words."
 msgstr ""
-"Verwende Überschreibungen, um grammatikalische Flags wie Zeitform, Stimmung "
-"und Pluralität in den geklonten Vokabeln zu ändern."
+"Verwende Überschreibungen, um grammatische Merkmale wie Zeitform, Modus und "
+"Pluralität bei den geklonten Vokabeln massenhaft zu ändern."
 
 #: includes/admin/duplicate-category-words-admin.php:651
 msgid "%d word duplicated."
@@ -2891,7 +2891,7 @@ msgstr "Zielkategorie auswählen"
 
 #: includes/admin/duplicate-category-words-admin.php:839
 msgid "Gender Override"
-msgstr "Gender Override"
+msgstr "Genus überschreiben"
 
 #: includes/admin/duplicate-category-words-admin.php:845
 msgid "Enable grammatical gender for this word set"
@@ -2919,7 +2919,7 @@ msgstr "Die Pluralität ist für dieses Vokabelset nicht aktiviert."
 
 #: includes/admin/duplicate-category-words-admin.php:887
 msgid "Verb Tense Override"
-msgstr "Verb Tense Override"
+msgstr "Verbzeitform überschreiben"
 
 #: includes/admin/duplicate-category-words-admin.php:893
 msgid "Enable verb tense for this word set"
@@ -2931,7 +2931,7 @@ msgstr "Verb-Tense-Tags sind für dieses Vokabelset nicht aktiviert."
 
 #: includes/admin/duplicate-category-words-admin.php:911
 msgid "Verb Mood Override"
-msgstr "Verb Mood Override"
+msgstr "Verbmodus überschreiben"
 
 #: includes/admin/duplicate-category-words-admin.php:917
 msgid "Enable verb mood for this word set"
@@ -2939,7 +2939,7 @@ msgstr "Verbstimmung für dieses Vokabelset einschalten"
 
 #: includes/admin/duplicate-category-words-admin.php:928
 msgid "Verb mood tags are not enabled for this word set."
-msgstr "Verb-Stimmungs-Tags sind für dieses Vokabelset nicht aktiviert."
+msgstr "Verbmodus-Tags sind für dieses Vokabelset nicht aktiviert."
 
 #: includes/admin/duplicate-category-words-admin.php:937
 msgid "Duplicate Words"
@@ -2953,7 +2953,7 @@ msgstr "Du hast keine Berechtigung, diese Aktion durchzuführen."
 #: includes/admin/export-import.php:48 includes/admin/export-import.php:49
 #: includes/admin/export-import.php:75
 msgid "LL Export"
-msgstr "LL Export"
+msgstr "LL-Export"
 
 #: includes/admin/export-import.php:59 includes/admin/export-import.php:60
 #: includes/admin/export-import.php:82
@@ -2980,11 +2980,11 @@ msgstr ""
 
 #: includes/admin/export-import.php:150
 msgid "Processing import bundle..."
-msgstr "Verarbeitung importieren bundle..."
+msgstr "Import-Bündel wird verarbeitet..."
 
 #: includes/admin/export-import.php:151
 msgid "Import finished. Loading results..."
-msgstr "Import beendet. Ergebnisse werden geladen..."
+msgstr "Import abgeschlossen. Ergebnisse werden geladen..."
 
 #: includes/admin/export-import.php:152
 msgid ""
@@ -3007,11 +3007,11 @@ msgstr "Zurück zur Import-Seite"
 
 #: includes/admin/export-import.php:155
 msgid "Resume import"
-msgstr "Lebenslauf importieren"
+msgstr "Import fortsetzen"
 
 #: includes/admin/export-import.php:156
 msgid "Resuming import…"
-msgstr "Import fortsetzen.."
+msgstr "Import fortsetzen..."
 
 #: includes/admin/export-import.php:157
 msgid "Discard partial import"
@@ -3019,7 +3019,7 @@ msgstr "Teilimport verwerfen"
 
 #: includes/admin/export-import.php:158
 msgid "Discarding partial import…"
-msgstr "Teilimport verwerfen.."
+msgstr "Teilimport verwerfen..."
 
 #: includes/admin/export-import.php:159
 msgid "Discard this partial import and remove the content it created?"
@@ -3048,11 +3048,11 @@ msgstr ""
 
 #: includes/admin/export-import.php:163
 msgid "Uploading import bundle..."
-msgstr "Import-Bundle hochladen..."
+msgstr "Import-Bündel hochladen..."
 
 #: includes/admin/export-import.php:164
 msgid "Uploading import bundle... %s%%"
-msgstr "Import-Bundle hochladen... %s%%"
+msgstr "Import-Bündel hochladen... %s%%"
 
 #: includes/admin/export-import.php:165
 msgid "Upload complete. Preparing import preview..."
@@ -3092,7 +3092,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:171 includes/admin/export-import.php:2008
 msgid "Preparing export bundle..."
-msgstr "Exportbündel vorbereiten..."
+msgstr "Export-Bündel vorbereiten..."
 
 #: includes/admin/export-import.php:172 includes/admin/export-import.php:1997
 msgid "Export ready. Starting download..."
@@ -3431,11 +3431,11 @@ msgstr "Pausiert"
 
 #: includes/admin/export-import.php:1590
 msgid "Extracting bundle files: %1$d of %2$d"
-msgstr "Entpacken der Bundle-Dateien: %1$d von %2$d"
+msgstr "Entpacken der Bündel-Dateien: %1$d von %2$d"
 
 #: includes/admin/export-import.php:1596
 msgid "Preparing import batches…"
-msgstr "Importstapel vorbereiten.."
+msgstr "Importstapel vorbereiten..."
 
 #: includes/admin/export-import.php:1600
 msgid "Creating categories: %1$d of %2$d"
@@ -3451,7 +3451,7 @@ msgstr "Vokabelbilder importieren: %1$d von %2$d"
 
 #: includes/admin/export-import.php:1620
 msgid "Preparing word sets…"
-msgstr "Vokabelsets vorbereiten.."
+msgstr "Vokabelsets vorbereiten..."
 
 #: includes/admin/export-import.php:1624
 msgid "Importing words: %1$d of %2$d"
@@ -3459,15 +3459,15 @@ msgstr "Vokabeln importieren: %1$d von %2$d"
 
 #: includes/admin/export-import.php:1630
 msgid "Importing word set template…"
-msgstr "Vokabelset-Vorlage importieren.."
+msgstr "Vokabelset-Vorlage importieren..."
 
 #: includes/admin/export-import.php:1633
 msgid "Finalizing import…"
-msgstr "Import abschließen.."
+msgstr "Import abschließen..."
 
 #: includes/admin/export-import.php:1636
 msgid "Processing import bundle…"
-msgstr "Verarbeitung importieren bundle.."
+msgstr "Import-Bündel wird verarbeitet..."
 
 #: includes/admin/export-import.php:1714
 msgid "The import job could not be identified."
@@ -3525,7 +3525,7 @@ msgstr "Das Export-Batch-Manifest ist ungültig."
 
 #: includes/admin/export-import.php:2007
 msgid "Finalizing export bundle..."
-msgstr "Exportbündel abschließen..."
+msgstr "Export-Bündel abschließen..."
 
 #. translators: 1: processed file count, 2: total file count, 3: processed
 #. media size, 4: total media size
@@ -4043,11 +4043,11 @@ msgstr "LL Tools Export/Import"
 
 #: includes/admin/export-import.php:3477
 msgid "LL Tools Export"
-msgstr "LL Tools Export"
+msgstr "LL Tools-Export"
 
 #: includes/admin/export-import.php:3479
 msgid "LL Tools Import"
-msgstr "LL Tools Import"
+msgstr "LL Tools-Import"
 
 #: includes/admin/export-import.php:3486
 msgid ""
@@ -4056,7 +4056,7 @@ msgid ""
 " mode exports one word set's isolated categories, images, and template-safe "
 "settings for reuse on another site."
 msgstr ""
-"Exportiere LL-Tools-Bundles als Zip-Datei. Der Bildmodus enthält "
+"Exportiere LL Tools-Bündel als Zip-Datei. Der Bildmodus enthält "
 "Vokabelkategorien und Vokabelbilder; der Vollmodus enthält auch Vokabeln, "
 "Vokabelbilder und Vokabelsets zur Wiederverwendung auf einer anderen Site."
 
@@ -4073,7 +4073,7 @@ msgid ""
 "When JavaScript is available, bundle exports are prepared in multiple server"
 " requests before the final download starts."
 msgstr ""
-"Wenn JavaScript verfügbar ist, werden Bundle-Exporte in mehreren "
+"Wenn JavaScript verfügbar ist, werden Bündel-Exporte in mehreren "
 "Serveranfragen vorbereitet, bevor der endgültige Download beginnt."
 
 #: includes/admin/export-import.php:3495
@@ -4133,8 +4133,8 @@ msgid ""
 "Required when full bundle mode is enabled. Full exports are scoped to one "
 "word set."
 msgstr ""
-"Erforderlich, wenn der Full-Bundle-Modus aktiviert ist. Vollexporte sind auf"
-" ein Vokabelset beschränkt."
+"Erforderlich, wenn der Vollbündelmodus aktiviert ist. Vollexporte sind auf "
+"ein Vokabelset beschränkt."
 
 #: includes/admin/export-import.php:3535
 msgid "Full export categories (optional multi-select)"
@@ -4146,10 +4146,10 @@ msgid ""
 " export those categories (and their child categories). Leave empty to use "
 "the single Category scope dropdown above."
 msgstr ""
-"Wird nur verwendet, wenn der vollständige Bundle-Modus aktiviert ist. Wähle "
-"eine oder mehrere Kategorien aus, um diese Kategorien (und ihre "
-"Unterkategorien) zu exportieren. Lass sie leer, um das obige Dropdown-Menü "
-"für einen einzelnen Kategoriebereich zu verwenden."
+"Wird nur verwendet, wenn der Vollbündelmodus aktiviert ist. Wähle eine oder "
+"mehrere Kategorien aus, um diese Kategorien (und ihre Unterkategorien) zu "
+"exportieren. Lass sie leer, um das obige Dropdown-Menü für einen einzelnen "
+"Kategoriebereich zu verwenden."
 
 #: includes/admin/export-import.php:3563
 msgid ""
@@ -4205,7 +4205,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3598
 msgid "Large bundle safeguards"
-msgstr "Große Bundle-Sicherungen"
+msgstr "Große Bündel-Sicherungen"
 
 #: includes/admin/export-import.php:3602
 msgid "Force large export and run it anyway"
@@ -4366,7 +4366,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3753
 msgid "Download STT Bundle (.zip)"
-msgstr "Download STT Bundle (.zip)"
+msgstr "STT-Bündel herunterladen (.zip)"
 
 #: includes/admin/export-import.php:3754
 msgid ""
@@ -4409,7 +4409,7 @@ msgid ""
 "media folders (/images and/or /audio). CSV mode supports image->text, "
 "text->image, text->text, and audio->text mappings."
 msgstr ""
-"Unterstützte Zip-Formate: (1) LL-Tools-Exportpakete, einschließlich "
+"Unterstützte Zip-Formate: (1) LL Tools-Exportpakete, einschließlich "
 "Vokabelset-Vorlagen, und (2) Top-Level CSV-Dateien mit einer \"Quiz\"-Spalte"
 " sowie externen Medienordnern (/images und/oder /audio). der CSV-Modus "
 "unterstützt die Zuordnungen Bild->Text, Text->Bild, Text->Text und "
@@ -4454,7 +4454,7 @@ msgstr "Vorschau importieren"
 
 #: includes/admin/export-import.php:3838
 msgid "Bundle type:"
-msgstr "Bundle-Typ:"
+msgstr "Bündel-Typ:"
 
 #: includes/admin/export-import.php:3841
 msgid "Import warnings:"
@@ -4609,7 +4609,7 @@ msgid ""
 "Enabled by default so Transcription Manager shows the review notification "
 "and opens the filtered review list for these updated recordings."
 msgstr ""
-"Standardmäßig aktiviert, damit der Transcription Manager die "
+"Standardmäßig aktiviert, damit der Transkriptionsmanager die "
 "Überprüfungsbenachrichtigung anzeigt und die gefilterte Überprüfungsliste "
 "für diese aktualisierten Aufnahmen öffnet."
 
@@ -4667,7 +4667,7 @@ msgstr "Zu löschende Felder: %d"
 
 #: includes/admin/export-import.php:4153
 msgid "Transcription review flags to set: %d"
-msgstr "Transkriptionsüberprüfungs-Flags zum Setzen: %d"
+msgstr "Zu setzende Transkriptionsprüfmarkierungen: %d"
 
 #: includes/admin/export-import.php:4155
 msgid "IPA review flags to set: %d"
@@ -5097,7 +5097,7 @@ msgid ""
 "again."
 msgstr ""
 "Import fehlgeschlagen: Die Vorschau fehlt oder ist abgelaufen. Bitte prüfe "
-"das Bundle erneut."
+"das Bündel erneut."
 
 #: includes/admin/export-import.php:7146
 msgid "Import failed: could not resolve zip file."
@@ -5295,8 +5295,7 @@ msgstr "Die Vorschau für das Metadaten-Update ist fertig."
 #. translators: 1 row number, 2 error message
 #: includes/admin/export-import.php:8513
 msgid "Row %1$d: failed to update the word post: %2$s"
-msgstr ""
-"Zeile %1$d: Die Vokabel-Beitrag konnte nicht aktualisiert werden: %2$s"
+msgstr "Zeile %1$d: Der Vokabelbeitrag konnte nicht aktualisiert werden: %2$s"
 
 #: includes/admin/export-import.php:8755
 msgid "Metadata update import completed, but no changes were needed."
@@ -5379,8 +5378,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:9112
 msgid "Failed to delete word post %d during undo."
-msgstr ""
-"Vokabel-Beitrag %d konnte beim Rückgängigmachen nicht gelöscht werden."
+msgstr "Vokabelbeitrag %d konnte beim Rückgängigmachen nicht gelöscht werden."
 
 #: includes/admin/export-import.php:9124
 msgid "Skipped post %d during undo because it is not a word image."
@@ -5507,7 +5505,7 @@ msgid ""
 "before importing."
 msgstr ""
 "Import fehlgeschlagen: Die Vorschau fehlt oder ist abgelaufen. Sieh dir das "
-"Bundle vor dem Importieren noch einmal in der Vorschau an."
+"Bündel vor dem Importieren noch einmal in der Vorschau an."
 
 #: includes/admin/export-import.php:10084
 msgid "The import job entered an unknown phase."
@@ -5639,7 +5637,7 @@ msgstr "STT export zip konnte nicht abgeschlossen werden."
 msgid ""
 "Only %1$d of %2$d categories from the import bundle were created or updated."
 msgstr ""
-"Es wurden nur %1$d von %2$d Kategorien aus dem Import-Bundle erstellt oder "
+"Es wurden nur %1$d von %2$d Kategorien aus dem Import-Bündel erstellt oder "
 "aktualisiert."
 
 #: includes/admin/export-import.php:12488
@@ -5836,11 +5834,11 @@ msgstr ""
 
 #: includes/admin/export-import.php:14565
 msgid "The external image URL is invalid."
-msgstr "Das externe Bild URL ist ungültig."
+msgstr "Die externe Bild-URL ist ungültig."
 
 #: includes/admin/export-import.php:14584
 msgid "The external image URL is not a supported image type."
-msgstr "Das externe Bild URL ist kein unterstützter Bildtyp."
+msgstr "Die externe Bild-URL ist kein unterstützter Bildtyp."
 
 #: includes/admin/export-import.php:14591
 msgid "Imported remote image"
@@ -5864,7 +5862,7 @@ msgstr "Importierte Bildtypen sind auf dieser Seite nicht erlaubt."
 
 #: includes/admin/image-aspect-normalizer-admin.php:30
 msgid "LL Tools - Image Aspect Normalizer"
-msgstr "LL Tools - Image Aspect Normalizer"
+msgstr "LL Tools - Bildseitenverhältnis-Normalisierung"
 
 #: includes/admin/image-aspect-normalizer-admin.php:31
 msgid "LL Normalize Images"
@@ -5931,12 +5929,12 @@ msgstr "Gewächse anwenden"
 #: includes/admin/image-aspect-normalizer-admin.php:90
 msgid "Apply these crops and update affected posts in this category?"
 msgstr ""
-"Diese Kulturen anwenden und betroffene Beiträge in dieser Kategorie "
+"Diese Zuschnitte anwenden und betroffene Beiträge in dieser Kategorie "
 "aktualisieren?"
 
 #: includes/admin/image-aspect-normalizer-admin.php:91
 msgid "Applying crops..."
-msgstr "Kulturen anwenden..."
+msgstr "Zuschnitte werden angewendet..."
 
 #: includes/admin/image-aspect-normalizer-admin.php:92
 msgid "Applied %1$d crop(s), updated %2$d post thumbnail(s)."
@@ -6089,7 +6087,7 @@ msgstr "Kann ein kanonisches Verhältnis nicht auflösen."
 #. translators: %d attachment ID
 #: includes/admin/image-aspect-normalizer-admin.php:924
 msgid "Skipped attachment %d because crop data was invalid."
-msgstr "Der Anhang %d wurde übersprungen, weil die Erntedaten ungültig waren."
+msgstr "Anhang %d übersprungen, weil die Zuschnittdaten ungültig waren."
 
 #. translators: 1: attachment ID, 2: error message
 #: includes/admin/image-aspect-normalizer-admin.php:940
@@ -6106,7 +6104,7 @@ msgstr "Benötigt Fix"
 
 #: includes/admin/image-webp-optimizer-admin.php:300
 msgid "Invalid attachment ID."
-msgstr "Ungültiger Anhang ID."
+msgstr "Ungültige Anhang-ID."
 
 #: includes/admin/image-webp-optimizer-admin.php:316
 #: includes/admin/image-webp-optimizer-admin.php:1128
@@ -6116,7 +6114,8 @@ msgstr "Die Quellbilddatei fehlt oder ist unlesbar."
 #. translators: %s error message
 #: includes/admin/image-webp-optimizer-admin.php:329
 msgid "Could not download the remote image for optimization: %s"
-msgstr "Konnte das Remote-Image für die Optimierung nicht herunterladen: %s"
+msgstr ""
+"Das Remote-Bild konnte nicht zur Optimierung heruntergeladen werden: %s"
 
 #: includes/admin/image-webp-optimizer-admin.php:340
 msgid "The remote image was downloaded but the temporary file is unreadable."
@@ -6152,7 +6151,7 @@ msgstr "Das Beitragsbild Attachment ist kein unterstütztes Bild."
 #: includes/admin/image-webp-optimizer-admin.php:497
 #: includes/admin/image-webp-optimizer-admin.php:567
 msgid "Unsupported"
-msgstr "Nicht unterstützte"
+msgstr "Nicht unterstützt"
 
 #: includes/admin/image-webp-optimizer-admin.php:527
 #: includes/admin/orphan-media-admin.php:1021
@@ -6202,7 +6201,7 @@ msgid ""
 "Animated WebP optimization requires Imagick with WebP animation support on "
 "this server."
 msgstr ""
-"Animierte WebP Optimierung erfordert Imagick mit WebP "
+"Animierte WebP-Optimierung erfordert Imagick mit WebP "
 "Animationsunterstützung auf diesem Server."
 
 #: includes/admin/image-webp-optimizer-admin.php:628
@@ -6227,8 +6226,8 @@ msgid ""
 "Animated WebP optimization is not fully supported by this server "
 "ImageMagick/Imagick build."
 msgstr ""
-"Animierte WebP Optimierung wird von diesem Server nicht vollständig "
-"unterstützt ImageMagick/Imagick build."
+"Die Optimierung animierter WebP-Dateien wird von der ImageMagick/Imagick-"
+"Version dieses Servers nicht vollständig unterstützt."
 
 #: includes/admin/image-webp-optimizer-admin.php:984
 #: includes/admin/image-webp-optimizer-admin.php:1014
@@ -6327,7 +6326,7 @@ msgstr "Nicht verfügbar"
 
 #: includes/admin/image-webp-optimizer-admin.php:1417
 msgid "Open Bulk Tool"
-msgstr "Bulk-Tool öffnen"
+msgstr "Massenwerkzeug öffnen"
 
 #: includes/admin/image-webp-optimizer-admin.php:1430
 msgid "LL Tools - WebP Image Optimizer"
@@ -6343,7 +6342,7 @@ msgstr "Bild-Warteschlange laden..."
 
 #: includes/admin/image-webp-optimizer-admin.php:1479
 msgid "Building optimization queue..."
-msgstr "Gebäudeoptimierung Warteschlange..."
+msgstr "Optimierungswarteschlange wird aufgebaut..."
 
 #: includes/admin/image-webp-optimizer-admin.php:1480
 msgid "No word images currently need WebP optimization."
@@ -6403,8 +6402,7 @@ msgstr "Gespeichert %s"
 
 #: includes/admin/image-webp-optimizer-admin.php:1494
 msgid "Optimized %1$d image(s); %2$d failed; saved %3$s total."
-msgstr ""
-"Optimiert %1$d Bild(er); %2$d fehlgeschlagen; gespeichert %3$s insgesamt."
+msgstr "%1$d Bild(er) optimiert; %2$d fehlgeschlagen; insgesamt %3$s gespart."
 
 #: includes/admin/image-webp-optimizer-admin.php:1495
 msgid "%d image(s) are still flagged and remain in the queue."
@@ -6551,7 +6549,7 @@ msgstr "WebP Optimieren"
 
 #: includes/admin/ipa-keyboard-admin.php:11
 msgid "Language Learner Tools - Transcription Manager"
-msgstr "Tools für Lernende - Transcription Manager"
+msgstr "Language Learner Tools - Transkriptionsmanager"
 
 #: includes/admin/ipa-keyboard-admin.php:252
 msgid "Loading transcription data..."
@@ -6606,7 +6604,7 @@ msgstr "Buchstabe(n)"
 
 #: includes/admin/ipa-keyboard-admin.php:266
 msgid "Auto map"
-msgstr "Auto-Karte"
+msgstr "Automatische Zuordnung"
 
 #: includes/admin/ipa-keyboard-admin.php:267
 msgid "Manual override"
@@ -6686,7 +6684,7 @@ msgstr "Manuelles Mapping hinzufügen"
 
 #: includes/admin/ipa-keyboard-admin.php:285
 msgid "Letters"
-msgstr "Briefe"
+msgstr "Buchstaben"
 
 #: includes/admin/ipa-keyboard-admin.php:286
 msgid "Letters (e.g. ll)"
@@ -6718,7 +6716,7 @@ msgstr "Aufnahme herunterladen"
 #: includes/admin/ipa-keyboard-admin.php:572
 #: includes/lib/wordset-language-settings.php:1166
 msgid "Letter to IPA Map"
-msgstr "Brief an IPA Karte"
+msgstr "Buchstaben-zu-IPA-Zuordnung"
 
 #: includes/admin/ipa-keyboard-admin.php:293
 #: includes/admin/ipa-keyboard-admin.php:469
@@ -6793,7 +6791,7 @@ msgstr "Suchergebnisseiten"
 
 #: includes/admin/ipa-keyboard-admin.php:311
 msgid "Go to page %1$d"
-msgstr "Gehe zu Seite %1$d"
+msgstr "Zu Seite %1$d"
 
 #: includes/admin/ipa-keyboard-admin.php:312
 msgid "Current page %1$d"
@@ -6829,7 +6827,7 @@ msgstr "Kategorien"
 
 #: includes/admin/ipa-keyboard-admin.php:319
 msgid "Checks"
-msgstr "Checks"
+msgstr "Prüfungen"
 
 #: includes/admin/ipa-keyboard-admin.php:320
 #: includes/admin/site-sync-admin.php:1776
@@ -6898,7 +6896,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:334
 msgid "Sound"
-msgstr "Sound"
+msgstr "Laut"
 
 #: includes/admin/ipa-keyboard-admin.php:337
 msgid "Optional note"
@@ -6910,7 +6908,7 @@ msgstr "z.B. t"
 
 #: includes/admin/ipa-keyboard-admin.php:339
 msgid "Previous sound(s)"
-msgstr "Vorherige(r) Sound(s)"
+msgstr "Vorherige(r) Laut(e)"
 
 #: includes/admin/ipa-keyboard-admin.php:340
 msgid "Next sound(s)"
@@ -6921,8 +6919,8 @@ msgid ""
 "Leave Previous and Next empty to ban a sound everywhere. Separate multiple "
 "sounds with spaces."
 msgstr ""
-"Lass Previous und Next leer, um einen Sound überall zu verbieten. Trenne "
-"mehrere Sounds mit Leerzeichen."
+"Lass „Vorherige Laute“ und „Nachfolgende Laute“ leer, um einen Laut überall "
+"zu verbieten. Trenne mehrere Laute mit Leerzeichen."
 
 #: includes/admin/ipa-keyboard-admin.php:342
 msgid "Add check"
@@ -6930,7 +6928,7 @@ msgstr "Prüfung hinzufügen"
 
 #: includes/admin/ipa-keyboard-admin.php:344
 msgid "Enter a sound to check."
-msgstr "Gib einen Sound zur Überprüfung ein."
+msgstr "Gib einen Laut zur Prüfung ein."
 
 #: includes/admin/ipa-keyboard-admin.php:345
 msgid "Save checks"
@@ -6959,7 +6957,7 @@ msgstr "Kategorie öffnen"
 #: includes/admin/ipa-keyboard-admin.php:351
 #: includes/admin/ipa-keyboard-admin.php:513
 msgid "Only needs review"
-msgstr "Muss nur noch überarbeitet werden"
+msgstr "Nur mit Prüfbedarf"
 
 #: includes/admin/ipa-keyboard-admin.php:352
 #: includes/admin/ipa-keyboard-admin.php:358
@@ -6977,7 +6975,7 @@ msgstr "Diese Transkription ist für eine erneute Überprüfung markiert."
 
 #: includes/admin/ipa-keyboard-admin.php:354
 msgid "Mark reviewed"
-msgstr "Markierung überprüft"
+msgstr "Als geprüft markieren"
 
 #: includes/admin/ipa-keyboard-admin.php:355
 #: includes/shortcodes/dictionary-shortcode.php:828
@@ -7050,7 +7048,7 @@ msgstr "Ausnahme rückgängig machen"
 
 #: includes/admin/ipa-keyboard-admin.php:372
 msgid "Approve %1$s symbol and map it to %2$s in orthography"
-msgstr "Genehmige das Symbol %1$s und ordne es in der Rechtschreibung %2$s zu"
+msgstr "Symbol %1$s genehmigen und in der Orthografie %2$s zuordnen"
 
 #: includes/admin/ipa-keyboard-admin.php:373
 msgid "Approved symbol mapping."
@@ -7069,7 +7067,7 @@ msgid ""
 "IPA-to-orthography conversion is only available when this word set uses IPA "
 "transcription mode."
 msgstr ""
-"die IPA-Umwandlung in Orthografie ist nur verfügbar, wenn dieses Vokabelset "
+"Die IPA-zu-Orthografie-Umwandlung ist nur verfügbar, wenn dieses Vokabelset "
 "den IPA-Transkriptionsmodus verwendet."
 
 #: includes/admin/ipa-keyboard-admin.php:377
@@ -7202,7 +7200,7 @@ msgstr "Genehmigte Ausnahme"
 
 #: includes/admin/ipa-keyboard-admin.php:410
 msgid "Words missing written text"
-msgstr "Vokabeln, die im geschriebenen Text fehlen"
+msgstr "Vokabeln ohne geschriebenen Text"
 
 #: includes/admin/ipa-keyboard-admin.php:411
 msgid ""
@@ -7296,7 +7294,7 @@ msgstr "Keine Vokabelsets verfügbar"
 
 #: includes/admin/ipa-keyboard-admin.php:467
 msgid "Transcription Manager sections"
-msgstr "Transcription Manager Abschnitte"
+msgstr "Transkriptionsmanager-Abschnitte"
 
 #: includes/admin/ipa-keyboard-admin.php:480
 msgid ""
@@ -7437,7 +7435,7 @@ msgstr "IPA"
 #: includes/shortcodes/word-grid-shortcode.php:3370
 #: includes/shortcodes/word-grid-shortcode.php:3373
 msgid "Common IPA symbols"
-msgstr "Gemeinsame IPA Symbole"
+msgstr "Häufige IPA-Symbole"
 
 #: includes/admin/ipa-keyboard-admin.php:564
 #: includes/admin/ipa-keyboard-admin.php:614
@@ -7523,14 +7521,14 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:1853
 msgid "Tie bar without a pair"
-msgstr "Krawattenhalter ohne Paar"
+msgstr "Verbindungsbogen ohne Paar"
 
 #: includes/admin/ipa-keyboard-admin.php:1854
 msgid ""
 "Flags tie bars that do not join two sounds into a single affricate-style "
 "token."
 msgstr ""
-"Flaggen binden Balken, die nicht zwei Laute zu einem einzigen Affrikaten-"
+"Markiert Verbindungsbögen, die nicht zwei Laute zu einem affrikatenartigen "
 "Token verbinden."
 
 #: includes/admin/ipa-keyboard-admin.php:1857
@@ -7549,23 +7547,26 @@ msgstr "Platzierung der Stressmarker"
 #: includes/admin/ipa-keyboard-admin.php:1862
 msgid "Flags stress markers left at the end or doubled together."
 msgstr ""
-"Fahnen Betonungsmarker am Ende stehen lassen oder zusammen verdoppeln."
+"Markiert Betonungszeichen, die am Ende stehen oder doppelt "
+"aufeinanderfolgen."
 
 #: includes/admin/ipa-keyboard-admin.php:1865
 msgid "Aspiration placement"
-msgstr "Anstreben der Platzierung"
+msgstr "Platzierung der Aspiration"
 
 #: includes/admin/ipa-keyboard-admin.php:1866
 msgid "Flags ʰ unless it follows a voiceless stop or affricate."
-msgstr "Markiert ʰ, es sei denn, es folgt ein stimmloser Stopp oder Affrikat."
+msgstr ""
+"Markiert ʰ, wenn es nicht auf einen stimmlosen Plosiv oder eine Affrikate "
+"folgt."
 
 #: includes/admin/ipa-keyboard-admin.php:1869
 msgid "Dental diacritic placement"
-msgstr "Platzierung von diakritischen Zeichen"
+msgstr "Platzierung des dentalen Diakritikums"
 
 #: includes/admin/ipa-keyboard-admin.php:1870
 msgid "Flags dental marks that are not attached to t or d."
-msgstr "Flaggen Zahnmarkierungen, die nicht mit t oder d verbunden sind."
+msgstr "Markiert dentale Diakritika, die nicht an t oder d angefügt sind."
 
 #: includes/admin/ipa-keyboard-admin.php:1873
 msgid "Unapproved IPA symbol"
@@ -7599,7 +7600,7 @@ msgstr "Erlaube %s nirgendwo in diesem Vokabelset."
 
 #: includes/admin/ipa-keyboard-admin.php:3373
 msgid "Invalid word for this word set."
-msgstr "Ungültiges Vokabel für dieses Vokabelset."
+msgstr "Ungültige Vokabel für dieses Vokabelset."
 
 #: includes/admin/ipa-keyboard-admin.php:3378
 msgid "This word already has written text."
@@ -7786,8 +7787,8 @@ msgstr "Ungültige übergeordnete Referenz"
 #: includes/admin/metabox-word-audio-parent.php:49
 msgid "Set the parent Word by numeric post ID. Use 0 to detach."
 msgstr ""
-"Setze das übergeordnete Vokabel durch den numerischen Beitrag ID. Verwende 0"
-" zum Lösen."
+"Setze die übergeordnete Vokabel über die numerische Beitrags-ID. Verwende 0,"
+" um die Verknüpfung zu lösen."
 
 #: includes/admin/metabox-word-audio-parent.php:53
 #: includes/pages/default-shortcode-page-helper.php:297
@@ -7799,7 +7800,7 @@ msgstr "Aktuell:"
 
 #: includes/admin/metabox-word-audio-parent.php:58
 msgid "New Parent Word ID"
-msgstr "Neues übergeordnetes Vokabel ID"
+msgstr "Neues übergeordnetes Vokabel-ID"
 
 #: includes/admin/metabox-word-audio-parent.php:71
 msgid "Open current parent"
@@ -7819,9 +7820,9 @@ msgid "Scan complete. Found %1$d missing audio entry across %2$d post."
 msgid_plural ""
 "Scan complete. Found %1$d missing audio entries across %2$d posts."
 msgstr[0] ""
-"Scan abgeschlossen. Fand %1$d fehlenden Audioeintrag über %2$d Beitrag."
+"Scan abgeschlossen. %1$d fehlender Audioeintrag in %2$d Beitrag gefunden."
 msgstr[1] ""
-"Scan abgeschlossen. Fand %1$d fehlende Audio-Einträge in %2$d Beiträgen."
+"Scan abgeschlossen. %1$d fehlende Audioeinträge in %2$d Beiträgen gefunden."
 
 #: includes/admin/missing-audio-admin-page.php:90
 msgid "Please provide both a label and a regex pattern."
@@ -7857,8 +7858,8 @@ msgstr[1] ""
 #: includes/admin/missing-audio-admin-page.php:236
 msgid "Inserted %1$d shortcode across %2$d post."
 msgid_plural "Inserted %1$d shortcodes across %2$d posts."
-msgstr[0] "Füge den %1$d Shortcode in den %2$d Beitrag ein."
-msgstr[1] "Einfügen von %1$d Shortcodes in %2$d Beiträgen."
+msgstr[0] "%1$d Shortcode in %2$d Beitrag eingefügt."
+msgstr[1] "%1$d Shortcodes in %2$d Beiträgen eingefügt."
 
 #: includes/admin/missing-audio-admin-page.php:189
 msgid "Please choose at least one header to target."
@@ -7872,7 +7873,7 @@ msgstr[1] "Nur Vorschau. Gefunden %1$d Zellen über %2$d Beiträge hinweg."
 
 #: includes/admin/missing-audio-admin-page.php:256
 msgid "Invalid word provided."
-msgstr "Ungültiges Vokabel angegeben."
+msgstr "Ungültige Vokabel angegeben."
 
 #: includes/admin/missing-audio-admin-page.php:288
 msgid "Removed word from missing audio list"
@@ -7890,7 +7891,7 @@ msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:308
 msgid "Language Learner Tools - Missing Audio"
-msgstr "Tools für Lernende - Fehlendes Audio"
+msgstr "Language Learner Tools - Fehlendes Audio"
 
 #: includes/admin/missing-audio-admin-page.php:312
 msgid "Scan All Posts for Missing Audio"
@@ -8121,7 +8122,7 @@ msgstr "N/A"
 
 #: includes/admin/missing-audio-admin-page.php:658
 msgid "Remove & strip shortcode"
-msgstr "Shortcode entfernen & entfernen"
+msgstr "Entfernen und Shortcode löschen"
 
 #: includes/admin/missing-audio-admin-page.php:667
 msgid "No missing audio instances found."
@@ -8130,7 +8131,7 @@ msgstr "Keine fehlenden Audio-Instanzen gefunden."
 #: includes/admin/missing-audio-admin-page.php:1038
 #: includes/admin/missing-audio-admin-page.php:1133
 msgid "Failed to run regex on post ID %d"
-msgstr "Regex für Beitrag ID %d konnte nicht ausgeführt werden"
+msgstr "Regex für Beitrags-ID %d konnte nicht ausgeführt werden"
 
 #: includes/admin/missing-audio-admin-page.php:1492
 #: includes/admin/missing-audio-admin-page.php:1624
@@ -8142,12 +8143,12 @@ msgstr "Keine Überschriften für den Abgleich ausgewählt."
 #: includes/admin/offline-app-export.php:36
 #: includes/admin/offline-app-export.php:595
 msgid "LL Offline App Export"
-msgstr "LL Offline App Export"
+msgstr "LL-Offline-App-Export"
 
 #. translators: %s: source path
 #: includes/admin/offline-app-export.php:346
 msgid "The configured offline STT bundle path does not exist: %s"
-msgstr "Der konfigurierte Offline STT Bundle-Pfad existiert nicht: %s"
+msgstr "Der konfigurierte Offline-STT-Bündelpfad existiert nicht: %s"
 
 #: includes/admin/offline-app-export.php:424
 msgid "Speaking Practice is temporarily disabled in offline app exports."
@@ -8170,7 +8171,7 @@ msgstr ""
 #: includes/admin/offline-app-export.php:567
 #: includes/admin/offline-app-export.php:1272
 msgid "You do not have permission to export offline app bundles."
-msgstr "Du hast nicht die Berechtigung, Offline-App-Bundles zu exportieren."
+msgstr "Du hast nicht die Berechtigung, Offline-App-Bündel zu exportieren."
 
 #: includes/admin/offline-app-export.php:596
 msgid ""
@@ -8179,7 +8180,7 @@ msgid ""
 "an Android APK on an admin machine or CI."
 msgstr ""
 "Erstelle ein eigenständiges Offline-Quiz-Bündel für ein Vokabelset. Das "
-"Bundle enthält eine eigenständige Web-App plus exportierte Inhalte und kann "
+"Bündel enthält eine eigenständige Web-App plus exportierte Inhalte und kann "
 "auf einem Admin-Rechner oder einer CI in eine Android-APK verwandelt werden."
 
 #: includes/admin/offline-app-export.php:599
@@ -8189,11 +8190,11 @@ msgstr ""
 
 #: includes/admin/offline-app-export.php:698
 msgid "Exactly one word set is exported per offline app bundle."
-msgstr "Es wird genau ein Vokabelset pro Offline-App-Bundle exportiert."
+msgstr "Es wird genau ein Vokabelset pro Offline-App-Bündel exportiert."
 
 #: includes/admin/offline-app-export.php:709
 msgid "Include all categories in this word set"
-msgstr "Alle Vokabelkategorien in dieses Vokabelset einbeziehen"
+msgstr "Alle Kategorien aus diesem Vokabelset einbeziehen"
 
 #: includes/admin/offline-app-export.php:713
 #: includes/admin/offline-app-export.php:839
@@ -8214,7 +8215,7 @@ msgstr ""
 
 #: includes/admin/offline-app-export.php:728
 msgid "App Name"
-msgstr "App Name"
+msgstr "App-Name"
 
 #: includes/admin/offline-app-export.php:732
 #: includes/pages/wordset-pages.php:13901
@@ -8264,7 +8265,7 @@ msgid ""
 "The bundle uses this site's icon by default. Choose another image to "
 "override it for this export only. Square images around 512x512 work best."
 msgstr ""
-"Das Bundle verwendet standardmäßig das Symbol dieser Site. Wähle ein anderes"
+"Das Bündel verwendet standardmäßig das Symbol dieser Site. Wähle ein anderes"
 " Bild, um es nur für diesen Export zu überschreiben. Quadratische Bilder mit"
 " einer Größe von 512x512 sind am besten geeignet."
 
@@ -8279,24 +8280,24 @@ msgstr ""
 
 #: includes/admin/offline-app-export.php:795
 msgid "Android App ID Suffix"
-msgstr "Android App ID Suffix"
+msgstr "Android-App-ID-Suffix"
 
 #: includes/admin/offline-app-export.php:799
 msgid ""
 "Used to build the Android application ID. Letters, numbers, underscores, and"
 " dots are allowed; the plugin will sanitize it."
 msgstr ""
-"Wird verwendet, um die Android-Anwendung ID zu erstellen. Buchstaben, "
+"Wird verwendet, um die Android-Anwendung-ID zu erstellen. Buchstaben, "
 "Zahlen, Unterstriche und Punkte sind erlaubt; das Plugin wird sie "
 "bereinigen."
 
 #: includes/admin/offline-app-export.php:804
 msgid "Version Name"
-msgstr "Version Name"
+msgstr "Versionsname"
 
 #: includes/admin/offline-app-export.php:812
 msgid "Version Code"
-msgstr "Version Code"
+msgstr "Versionscode"
 
 #: includes/admin/offline-app-export.php:816
 msgid ""
@@ -8313,14 +8314,14 @@ msgid ""
 "optionally link a site account later to sync study state and progress when "
 "they reconnect."
 msgstr ""
-"Das Offline-Bundle exportiert die eigenständige APK-Shell sowie gebündelte "
+"Das Offline-Bündel exportiert die eigenständige APK-Shell sowie gebündelte "
 "Medien für die unterstützten Quiz-Modi. Lernende können die App lokal nutzen"
 " und später optional ein Site-Konto verknüpfen, um den Lernstatus und "
 "-fortschritt zu synchronisieren, wenn sie sich wieder einloggen."
 
 #: includes/admin/offline-app-export.php:825
 msgid "Download Offline App Bundle (.zip)"
-msgstr "Offline App Bundle herunterladen (.zip)"
+msgstr "Offline-App-Bündel herunterladen (.zip)"
 
 #: includes/admin/offline-app-export.php:840
 msgid ""
@@ -8469,7 +8470,7 @@ msgstr "Getrennt. Die App speichert den Fortschritt weiterhin lokal."
 
 #: includes/admin/offline-app-export.php:1598
 msgid "Syncing…"
-msgstr "Synchronisieren.."
+msgstr "Synchronisieren..."
 
 #: includes/admin/offline-app-export.php:1599
 #: templates/offline-app-shell-template.php:689
@@ -8496,7 +8497,7 @@ msgstr "Das Manifest des Offline-Bündels konnte nicht kodiert werden."
 
 #: includes/admin/offline-app-export.php:1634
 msgid "LL Tools Offline App Bundle"
-msgstr "LL Tools Offline App Bundle"
+msgstr "LL Tools-Offline-App-Bündel"
 
 #. translators: %s: word set name
 #: includes/admin/offline-app-export.php:1639
@@ -8512,7 +8513,7 @@ msgstr "App-Name: %s"
 #. translators: %s: Android app id
 #: includes/admin/offline-app-export.php:1649
 msgid "Android app id: %s"
-msgstr "Android app id: %s"
+msgstr "Android-App-ID: %s"
 
 #. translators: %s: icon source
 #: includes/admin/offline-app-export.php:1655
@@ -8542,7 +8543,7 @@ msgid ""
 " from this plugin repository against the bundle zip or extracted folder."
 msgstr ""
 "Um eine APK zu erstellen, entpacke diese Zip-Datei und führe die Skripte im "
-"offline-app-builder aus diesem Plugin-Repository gegen die Bundle-Zip-Datei "
+"offline-app-builder aus diesem Plugin-Repository gegen die Bündel-Zip-Datei "
 "oder den extrahierten Ordner aus."
 
 #: includes/admin/offline-app-export.php:1669
@@ -8596,7 +8597,7 @@ msgstr "Das Inhaltsverzeichnis der Offline-App konnte nicht erstellt werden."
 #: includes/admin/offline-app-export.php:1814
 msgid "Could not copy exported media into the offline app bundle."
 msgstr ""
-"Exportierte Medien konnten nicht in das Offline-App-Bundle kopiert werden."
+"Exportierte Medien konnten nicht in das Offline-App-Bündel kopiert werden."
 
 #: includes/admin/offline-app-export.php:1908
 msgid "Could not render the offline app shell template."
@@ -8638,7 +8639,7 @@ msgstr ""
 #. translators: %s: relative plugin path
 #: includes/admin/offline-app-export.php:2250
 msgid "The offline app bundle is missing required asset \"%s\"."
-msgstr "Dem Offline-App-Bundle fehlt das erforderliche Asset \"%s\"."
+msgstr "Dem Offline-App-Bündel fehlt das erforderliche Asset \"%s\"."
 
 #: includes/admin/offline-app-export.php:2259
 msgid "Could not create the offline app asset directory."
@@ -8657,15 +8658,15 @@ msgstr ""
 #: includes/admin/offline-app-export.php:2290
 msgid "Could not copy the offline STT model file into the app bundle."
 msgstr ""
-"Die Offline-Modelldatei STT konnte nicht in das App-Bundle kopiert werden."
+"Die Offline-Modelldatei STT konnte nicht in das App-Bündel kopiert werden."
 
 #: includes/admin/offline-app-export.php:2296
 msgid "The offline STT bundle source could not be found."
-msgstr "Die offline STT Bundle-Quelle konnte nicht gefunden werden."
+msgstr "Die Offline-STT-Bündelquelle konnte nicht gefunden werden."
 
 #: includes/admin/offline-app-export.php:2300
 msgid "Could not create the offline STT bundle directory."
-msgstr "Das Offline-Bundle-Verzeichnis STT konnte nicht erstellt werden."
+msgstr "Das Offline-STT-Bündelverzeichnis konnte nicht erstellt werden."
 
 #: includes/admin/offline-app-export.php:2315
 msgid "Could not create a nested offline STT directory."
@@ -8678,7 +8679,7 @@ msgstr "Konnte das Offline-Bündel STT nicht in die App kopieren."
 #. translators: %s: relative plugin directory
 #: includes/admin/offline-app-export.php:2335
 msgid "The offline app bundle is missing required directory \"%s\"."
-msgstr "Dem Offline-App-Bundle fehlt das erforderliche Verzeichnis \"%s\"."
+msgstr "Dem Offline-App-Bündel fehlt das erforderliche Verzeichnis \"%s\"."
 
 #: includes/admin/offline-app-export.php:2343
 msgid "Could not create the offline app directory."
@@ -8693,7 +8694,7 @@ msgstr ""
 #: includes/admin/offline-app-export.php:2368
 msgid "Could not copy files from \"%s\" into the offline app bundle."
 msgstr ""
-"Es konnten keine Dateien aus \"%s\" in das Offline-App-Bundle kopiert "
+"Es konnten keine Dateien aus \"%s\" in das Offline-App-Bündel kopiert "
 "werden."
 
 #: includes/admin/offline-app-export.php:2381
@@ -8720,7 +8721,7 @@ msgstr "Vokabelbild"
 
 #: includes/admin/orphan-media-admin.php:856
 msgid "Attachment"
-msgstr "Attachment"
+msgstr "Anhang"
 
 #: includes/admin/orphan-media-admin.php:884
 msgid "recording save"
@@ -8736,7 +8737,7 @@ msgstr "aufnahme entfernen"
 
 #: includes/admin/orphan-media-admin.php:887
 msgid "featured image set"
-msgstr "featured Image Set"
+msgstr "Beitragsbild festgelegt"
 
 #: includes/admin/orphan-media-admin.php:888
 msgid "featured image replace"
@@ -8744,7 +8745,7 @@ msgstr "angezeigtes Bild ersetzen"
 
 #: includes/admin/orphan-media-admin.php:889
 msgid "featured image removal"
-msgstr "featured Image entfernen"
+msgstr "Beitragsbild entfernt"
 
 #: includes/admin/orphan-media-admin.php:890
 msgid "attachment parent"
@@ -8765,7 +8766,7 @@ msgstr "Unreferenzierter Audio-Upload"
 #: includes/admin/orphan-media-admin.php:1010
 msgid "Tracked LL image attachment is no longer used as a featured image."
 msgstr ""
-"Tracked LL image attachment wird nicht mehr als Beitragsbild verwendet."
+"Der nachverfolgte LL-Bildanhang wird nicht mehr als Beitragsbild verwendet."
 
 #: includes/admin/orphan-media-admin.php:1026
 msgid "Tracked orphan image attachment"
@@ -8818,7 +8819,7 @@ msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1319
 msgid "Bulk download requires ZipArchive on this server."
-msgstr "Der Bulk-Download erfordert ZipArchive auf diesem Server."
+msgstr "Der Massen-Download erfordert ZipArchive auf diesem Server."
 
 #: includes/admin/orphan-media-admin.php:1323
 msgid "The orphaned media action could not be completed."
@@ -8854,7 +8855,7 @@ msgid ""
 "Review orphaned LL Tools media, preview it, download it, and remove it "
 "safely when it is no longer referenced."
 msgstr ""
-"Überprüfe verwaiste LL-Tools-Medien, sieh sie in der Vorschau an, lade sie "
+"Überprüfe verwaiste LL Tools-Medien, sieh sie in der Vorschau an, lade sie "
 "herunter und entferne sie sicher, wenn sie nicht mehr referenziert werden."
 
 #. translators: 1: visible item count, 2: total orphaned media item count
@@ -8970,17 +8971,17 @@ msgstr ""
 #: includes/admin/prompt-audio-import-admin.php:23
 #: includes/admin/prompt-audio-import-admin.php:24
 msgid "LL Prompt Audio Queue"
-msgstr "LL Prompt Audio-Warteschlange"
+msgstr "LL-Prompt-Audio-Warteschlange"
 
 #: includes/admin/prompt-audio-import-admin.php:116 includes/privacy.php:473
 #: includes/privacy.php:558
 msgid "Prompt card"
-msgstr "Aufforderungskarte"
+msgstr "Prompt-Karte"
 
 #: includes/admin/prompt-audio-import-admin.php:135
 #: templates/vocab-lesson-template.php:993
 msgid "Prompt"
-msgstr "Eingabeaufforderung"
+msgstr "Aufgabe"
 
 #: includes/admin/prompt-audio-import-admin.php:258
 msgid "Please provide at least one prompt to import."
@@ -8988,7 +8989,7 @@ msgstr "Bitte gib mindestens eine Aufforderung zum Importieren an."
 
 #: includes/admin/prompt-audio-import-admin.php:261
 msgid "Prompt cards are not available in this installation."
-msgstr "Aufforderungskarten sind in dieser Installation nicht verfügbar."
+msgstr "Prompt-Karten sind in dieser Installation nicht verfügbar."
 
 #. translators: 1: prompt title, 2: error message
 #: includes/admin/prompt-audio-import-admin.php:310
@@ -9019,9 +9020,7 @@ msgstr[1] ""
 #: includes/admin/prompt-audio-import-admin.php:345
 msgid "%1$d prompt was skipped because it already exists: %2$s"
 msgid_plural "%1$d prompts were skipped because they already exist: %2$s"
-msgstr[0] ""
-"die Eingabeaufforderung %1$d wurde übersprungen, weil sie bereits existiert:"
-" %2$s"
+msgstr[0] "%1$d Prompt wurde übersprungen, weil er bereits existiert: %2$s"
 msgstr[1] ""
 "%1$d Prompts wurden übersprungen, weil sie bereits existieren: %2$s"
 
@@ -9033,15 +9032,15 @@ msgid_plural ""
 "Ignored extra columns on %d rows. Only the prompt text and optional title "
 "were imported."
 msgstr[0] ""
-"Ignorierte zusätzliche Spalten in der Zeile %d. Es wurden nur der Prompt-"
-"Text und der optionale Titel importiert."
+"Zusätzliche Spalten in %d Zeile ignoriert. Nur der Prompt-Text und der "
+"optionale Titel wurden importiert."
 msgstr[1] ""
-"Ignorierte zusätzliche Spalten in %d-Zeilen. Es wurden nur der Prompt-Text "
-"und der optionale Titel importiert."
+"Zusätzliche Spalten in %d Zeilen ignoriert. Nur der Prompt-Text und der "
+"optionale Titel wurden importiert."
 
 #: includes/admin/prompt-audio-import-admin.php:398
 msgid "LL Tools - Prompt Audio Queue"
-msgstr "LL Tools - Prompt Audio Queue"
+msgstr "LL Tools - Prompt-Audio-Warteschlange"
 
 #: includes/admin/prompt-audio-import-admin.php:419
 msgid "Prompts to record"
@@ -9061,9 +9060,9 @@ msgid ""
 " the recorder as a text-only prompt item until a recorder uploads audio for "
 "it."
 msgstr ""
-"Jede Zeile erstellt einen Entwurf einer Lernkarte ohne Vokabel-Audio. Sie "
-"wird im Rekorder als reiner Text-Prompt angezeigt, bis ein Rekorder Audio "
-"für sie hochlädt."
+"Jede Zeile erstellt eine Prompt-Karte als Entwurf ohne Prompt-Audio. Sie "
+"erscheint in der Audio-Recorder-Warteschlange als reiner Text-Prompt, bis "
+"ein Audio-Recorder Audio dafür hochlädt."
 
 #: includes/admin/prompt-audio-import-admin.php:423
 msgid "Prompt only: %s"
@@ -9076,13 +9075,13 @@ msgstr "Aufforderung + Titel mit einem Tab: %s"
 #: includes/admin/prompt-audio-import-admin.php:436
 msgid "Choose the word set whose recorder should see these prompt cards."
 msgstr ""
-"Wähle das Vokabelset aus, dessen Recorder diese Aufforderungskarten sehen "
+"Wähle das Vokabelset aus, dessen Audio-Recorder diese Prompt-Karten sehen "
 "soll."
 
 #: includes/admin/prompt-audio-import-admin.php:448
 msgid "Use the same category structure as the normal recorder queue."
 msgstr ""
-"Verwende die gleiche Kategoriestruktur wie bei der normalen Recorder-"
+"Verwende die gleiche Kategoriestruktur wie bei der normalen Audio-Recorder-"
 "Warteschlange."
 
 #: includes/admin/prompt-audio-import-admin.php:455
@@ -9181,7 +9180,7 @@ msgstr "Vorhandene Aufnahmetypen"
 
 #: includes/admin/recording-types-admin.php:139
 msgid "Count"
-msgstr "Zählen"
+msgstr "Anzahl"
 
 #. translators: %d: recording count
 #: includes/admin/recording-types-admin.php:152
@@ -9207,7 +9206,7 @@ msgstr ""
 #: includes/admin/recording-types-admin.php:175
 #: includes/shortcodes/site-tools-shortcode.php:1270
 msgid "Uncategorized Defaults"
-msgstr "Uncategorized Voreinstellungen"
+msgstr "Standardwerte für „Nicht kategorisiert“"
 
 #: includes/admin/recording-types-admin.php:177
 msgid ""
@@ -9278,12 +9277,12 @@ msgstr "Gelöschte %d Legacy-Meta-Zeilen."
 #. translators: %d: number of word categories
 #: includes/admin/settings.php:286
 msgid "Cache bumped for %d word categories."
-msgstr "Cache für %d Vokabelkategorien gepuffert."
+msgstr "Cache-Versionen für %d Vokabelkategorien erhöht."
 
 #: includes/admin/settings.php:298
 msgid "Cache flush failed security check. Please try again."
 msgstr ""
-"Cache flush fehlgeschlagene Sicherheitsüberprüfung. Bitte versuche es "
+"Sicherheitsprüfung zum Leeren des Caches fehlgeschlagen. Bitte versuche es "
 "erneut."
 
 #: includes/admin/settings.php:301
@@ -9341,7 +9340,7 @@ msgstr "Klein (150×150)"
 #: includes/admin/settings.php:371
 #: includes/shortcodes/site-tools-shortcode.php:1090
 msgid "Medium (200×200)"
-msgstr "Medium (200×200)"
+msgstr "Mittel (200×200)"
 
 #: includes/admin/settings.php:372
 #: includes/shortcodes/site-tools-shortcode.php:1091
@@ -9417,7 +9416,7 @@ msgstr ""
 
 #: includes/admin/settings.php:428
 msgid "Font stylesheet URL (Google Fonts or local CSS)"
-msgstr "Schriftart-Stylesheet URL (Google Fonts oder lokale CSS)"
+msgstr "Schriftart-Stylesheet-URL (Google Fonts oder lokale CSS)"
 
 #: includes/admin/settings.php:440
 msgid ""
@@ -9425,7 +9424,7 @@ msgid ""
 "font available to LL Tools admin previews, quizzes, and wordset font "
 "overrides."
 msgstr ""
-"Füge ein Google Fonts CSS URL (oder ein anderes Font Stylesheet URL) ein, um"
+"Füge ein Google Fonts CSS-URL (oder ein anderes Font Stylesheet-URL) ein, um"
 " diese Schriftart für LL Tools Admin-Vorschauen, Quizze und Vokabelsets "
 "verfügbar zu machen."
 
@@ -9494,7 +9493,7 @@ msgstr "ja"
 #: includes/admin/settings.php:481
 #: includes/shortcodes/site-tools-shortcode.php:335
 msgid "no"
-msgstr "keine"
+msgstr "nein"
 
 #: includes/admin/settings.php:487
 #: includes/shortcodes/site-tools-shortcode.php:1457
@@ -9561,15 +9560,15 @@ msgstr "Übersetzungsfehler:"
 
 #: includes/admin/site-sync-admin.php:97
 msgid "Select the local staging word set."
-msgstr "Wähle das lokale Vokabelset für die Inszenierung aus."
+msgstr "Wähle das lokale Staging-Vokabelset aus."
 
 #: includes/admin/site-sync-admin.php:101
 msgid "Enter the live or remote site URL."
-msgstr "Gib die Live- oder Remote-Site URL ein."
+msgstr "Gib die Live- oder Remote-Site-URL ein."
 
 #: includes/admin/site-sync-admin.php:105
 msgid "Enter the remote word set slug or ID."
-msgstr "Gib den Slug des Vokabelsets oder ID ein."
+msgstr "Gib den Slug des Vokabelsets oder-ID ein."
 
 #: includes/admin/site-sync-admin.php:109
 msgid "Enter the remote WordPress username."
@@ -9774,7 +9773,7 @@ msgstr "Anmerkung zur Überprüfung"
 
 #: includes/admin/site-sync-admin.php:1052
 msgid "Sync IDs"
-msgstr "Sync IDs"
+msgstr "Sync-IDs"
 
 #: includes/admin/site-sync-admin.php:1053
 #: includes/shortcodes/audio-recording-shortcode.php:1612
@@ -9858,7 +9857,7 @@ msgstr "Aktuelle Version"
 #: includes/admin/site-sync-admin.php:1489
 #: includes/admin/site-sync-admin.php:1557
 msgid "Staging now"
-msgstr "Jetzt inszenieren"
+msgstr "Aktueller Staging-Stand"
 
 #: includes/admin/site-sync-admin.php:1490
 #: includes/admin/site-sync-admin.php:1558
@@ -9996,11 +9995,11 @@ msgstr "Lokales Vokabel Vokabelset"
 
 #: includes/admin/site-sync-admin.php:1962
 msgid "Remote site URL"
-msgstr "Entfernte Site URL"
+msgstr "Entfernte Site-URL"
 
 #: includes/admin/site-sync-admin.php:1966
 msgid "Remote word set slug or ID"
-msgstr "Remote Vokabelset slug oder ID"
+msgstr "Remote Vokabelset slug oder-ID"
 
 #: includes/admin/site-sync-admin.php:1970
 msgid "Remote username"
@@ -10175,7 +10174,7 @@ msgstr "Live ins Staging ziehen"
 
 #: includes/admin/site-sync-admin.php:2186
 msgid "Preview Push to Live"
-msgstr "Vorschau Push to Live"
+msgstr "Push auf Live vorschauen"
 
 #: includes/admin/site-sync-admin.php:2194
 msgid "Last pull baseline: %1$s, %2$d records."
@@ -10248,8 +10247,8 @@ msgstr "Du hast nicht die Erlaubnis, diese Vokabel zu teilen."
 #: includes/admin/split-word-admin.php:274
 msgid "Could not create the new word post. Please try again."
 msgstr ""
-"Das neue Vokabel-Beitrag konnte nicht erstellt werden. Bitte versuche es "
-"noch einmal."
+"Der neue Vokabelbeitrag konnte nicht erstellt werden. Bitte versuche es noch"
+" einmal."
 
 #: includes/admin/split-word-admin.php:276
 msgid "Some recordings could not be moved. Review both word posts."
@@ -10259,7 +10258,7 @@ msgstr ""
 
 #: includes/admin/split-word-admin.php:296
 msgid "Invalid word post."
-msgstr "Ungültiges Vokabel-Beitrag."
+msgstr "Ungültiger Vokabelbeitrag."
 
 #. translators: %s: source word title
 #: includes/admin/split-word-admin.php:315
@@ -10468,7 +10467,7 @@ msgid ""
 "Create classes, invite learners, and review progress for students you teach."
 msgstr ""
 "Erstelle Klassen, lade Lernende ein und überprüfe den Fortschritt der "
-"Schüler/innen, die du unterrichtest."
+"Lernenden, die du unterrichtest."
 
 #: includes/admin/teacher-classes-page.php:544
 msgid "Create a class"
@@ -10532,7 +10531,7 @@ msgstr "Klasse"
 #: includes/admin/teacher-classes-page.php:699
 #: includes/pages/wordset-pages.php:8954
 msgid "Students"
-msgstr "Schülerinnen und Schüler"
+msgstr "Lernende"
 
 #: includes/admin/teacher-classes-page.php:642
 #: includes/admin/teacher-classes-page.php:665
@@ -10569,7 +10568,7 @@ msgstr "Beherrschte Vokabeln"
 #: includes/pages/wordset-pages.php:15617
 #: includes/pages/wordset-pages.php:15675
 msgid "Hard words"
-msgstr "Harte Vokabeln"
+msgstr "Schwierige Vokabeln"
 
 #: includes/admin/teacher-classes-page.php:713
 #: includes/pages/wordset-pages.php:9037
@@ -10687,7 +10686,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:806
 #: includes/pages/wordset-pages.php:9062
 msgid "Student progress"
-msgstr "Schülerfortschritt"
+msgstr "Lernfortschritt der Lernenden"
 
 #: includes/admin/teacher-classes-page.php:810
 #: includes/admin/user-progress-report.php:756
@@ -10976,7 +10975,7 @@ msgstr "Antwort-Optionen"
 #: includes/taxonomies/word-category-taxonomy.php:1936
 #: includes/taxonomies/word-category-taxonomy.php:2042
 msgid "Text (opposite prompt)"
-msgstr "Text (gegenüber Prompt)"
+msgstr "Text (gegenüberliegender Prompt)"
 
 #: includes/admin/uploads/audio-upload-form.php:521
 #: includes/admin/uploads/image-upload-form.php:699
@@ -11024,11 +11023,11 @@ msgstr "Upload-Ziel"
 
 #: includes/admin/uploads/audio-upload-form.php:561
 msgid "Bulk Add Audio"
-msgstr "Bulk Audio hinzufügen"
+msgstr "Audio massenhaft hinzufügen"
 
 #: includes/admin/uploads/audio-upload-form.php:577
 msgid "Bulk Audio Upload for Words"
-msgstr "Bulk Audio Upload für Vokabeln"
+msgstr "Massen-Audio-Upload für Vokabeln"
 
 #: includes/admin/uploads/audio-upload-form.php:598
 #: includes/admin/uploads/image-upload-form.php:816
@@ -11056,7 +11055,7 @@ msgstr "%1$s (%2$s)"
 #. translators: 1: Uploaded file name, 2: Existing post ID.
 #: includes/admin/uploads/audio-upload-form.php:680
 msgid "%1$s -> Post ID: %2$d"
-msgstr "%1$s -> Beitrag ID: %2$d"
+msgstr "%1$s -> Beitrags-ID: %2$d"
 
 #. translators: %s: Uploaded file name.
 #: includes/admin/uploads/audio-upload-form.php:687
@@ -11066,7 +11065,7 @@ msgstr "%s (Kein passender Beitrag gefunden)"
 #. translators: 1: Uploaded file name, 2: New post ID.
 #: includes/admin/uploads/audio-upload-form.php:696
 msgid "%1$s -> New Post ID: %2$d"
-msgstr "%1$s -> Neuer Beitrag ID: %2$d"
+msgstr "%1$s -> Neue Beitrags-ID: %2$d"
 
 #. translators: %s: Uploaded file name.
 #: includes/admin/uploads/audio-upload-form.php:703
@@ -11182,7 +11181,7 @@ msgstr ""
 
 #: includes/admin/uploads/image-upload-form.php:742
 msgid "Bulk Add Images"
-msgstr "Bulk-Bilder hinzufügen"
+msgstr "Bilder massenhaft hinzufügen"
 
 #: includes/admin/uploads/image-upload-form.php:758
 msgid "Bulk Image Upload for Word Images"
@@ -11208,7 +11207,7 @@ msgstr "Kategorie konnte nicht erstellt werden."
 
 #: includes/admin/uploads/image-upload-form.php:1393
 msgid "Failed to create word post."
-msgstr "Vokabel-Beitrag konnte nicht erstellt werden."
+msgstr "Vokabelbeitrag konnte nicht erstellt werden."
 
 #: includes/admin/user-progress-report.php:147
 msgid "Learner account deleted."
@@ -11352,7 +11351,7 @@ msgid ""
 "Delete this learner account permanently? This also removes its LL Tools "
 "progress data."
 msgstr ""
-"Dieses Lernende Konto dauerhaft löschen? Dadurch werden auch seine LL-Tools "
+"Dieses Lernende Konto dauerhaft löschen? Dadurch werden auch seine LL Tools "
 "Fortschrittsdaten entfernt."
 
 #: includes/admin/user-progress-report.php:657
@@ -11511,7 +11510,7 @@ msgstr "Erstellt %d Vokabelbild Beiträge."
 
 #: includes/admin/word-images-fixer.php:71
 msgid "%d items failed."
-msgstr "%d items failed."
+msgstr "%d Elemente fehlgeschlagen."
 
 #: includes/admin/word-images-fixer.php:78
 msgid "Fix Word Images (Legacy Cleanup)"
@@ -11777,7 +11776,7 @@ msgstr "Paar hinzufügen"
 
 #: includes/admin/word-option-rules-admin.php:1794
 msgid "Manual pair"
-msgstr "Handbuch-Paar"
+msgstr "Manuelles Paar"
 
 #: includes/admin/word-option-rules-admin.php:1795
 msgid "Similar word"
@@ -12000,11 +11999,11 @@ msgstr "Du kannst keine interlinearen Daten für dieses Vokabelset verwalten."
 #: includes/api/automation-rest.php:344
 msgid "You cannot create word sets through LL Tools automation."
 msgstr ""
-"Du kannst Vokabelsets nicht über die LL-Tools-Automatisierung erstellen."
+"Du kannst Vokabelsets nicht über die LL Tools-Automatisierung erstellen."
 
 #: includes/api/automation-rest.php:362
 msgid "You cannot import LL Tools bundles through automation."
-msgstr "Du kannst LL-Tools-Bundles nicht durch Automatisierung importieren."
+msgstr "Du kannst LL Tools-Bündel nicht durch Automatisierung importieren."
 
 #: includes/api/automation-rest.php:414
 msgid "Missing set.field in the REST update payload."
@@ -12092,12 +12091,12 @@ msgstr ""
 
 #: includes/api/automation-rest.php:2290
 msgid "Prompt-card category references cannot be empty."
-msgstr "Prompt-Card-Kategorie-Referenzen können nicht leer sein."
+msgstr "Prompt-Karten-Kategorieverweise dürfen nicht leer sein."
 
 #. translators: %s: category identifier
 #: includes/api/automation-rest.php:2314
 msgid "Unable to resolve prompt-card category: %s"
-msgstr "Unable to resolve prompt-card category: %s"
+msgstr "Prompt-Karten-Kategorie kann nicht aufgelöst werden: %s"
 
 #: includes/api/automation-rest.php:2336
 msgid "That prompt-card category belongs to a different word set."
@@ -12109,12 +12108,12 @@ msgstr "Gib mindestens eine Vokabelkategorie für die Lernkarte an."
 
 #: includes/api/automation-rest.php:2373
 msgid "Prompt-card word set references cannot be empty."
-msgstr "Die Vokabelsets der Prompt-Cards dürfen nicht leer sein."
+msgstr "Prompt-Karten-Vokabelsetverweise dürfen nicht leer sein."
 
 #. translators: %s: word set identifier
 #: includes/api/automation-rest.php:2393
 msgid "Unable to resolve prompt-card word set: %s"
-msgstr "Vokabelset für Prompt-Cards kann nicht aufgelöst werden: %s"
+msgstr "Prompt-Karten-Vokabelset kann nicht aufgelöst werden: %s"
 
 #: includes/api/automation-rest.php:2418
 msgid "Provide at least one word set assignment for the prompt card."
@@ -12123,7 +12122,7 @@ msgstr "Gib mindestens ein Vokabelset-Zuordnung für die Lernkarte vor."
 #: includes/api/automation-rest.php:2425
 msgid "Prompt-card word set assignments must include the route word set."
 msgstr ""
-"Vokabelsets für Prompt-Karten müssen das Vokabelset für die Route enthalten."
+"Prompt-Karten-Vokabelset-Zuweisungen müssen das Routen-Vokabelset enthalten."
 
 #: includes/api/automation-rest.php:2476
 msgid ""
@@ -12138,7 +12137,7 @@ msgstr "Diese Lernkarte wurde nicht gefunden."
 
 #: includes/api/automation-rest.php:2493
 msgid "That prompt card does not belong to the selected word set."
-msgstr "Diese Promptkarte gehört nicht zum ausgewählten Vokabelset."
+msgstr "Diese Prompt-Karte gehört nicht zum ausgewählten Vokabelset."
 
 #: includes/api/automation-rest.php:2664
 msgid "Provide a note value. Send an empty string to clear the note."
@@ -12317,7 +12316,7 @@ msgstr "Fehlende Benutzerkennung."
 #. translators: %s: user identifier
 #: includes/cli/cli-support.php:225
 msgid "Unable to resolve user: %s"
-msgstr "Unable to resolve user: %s"
+msgstr "Benutzer kann nicht aufgelöst werden: %s"
 
 #. translators: %s: category identifier
 #: includes/cli/cli-support.php:283
@@ -12335,7 +12334,7 @@ msgstr "Vokabel in diesem Vokabelset kann nicht aufgelöst werden: %s"
 
 #: includes/cli/cli-support.php:345
 msgid "Missing word set ID."
-msgstr "Fehlendes Vokabelset ID."
+msgstr "Fehlendes Vokabelset-ID."
 
 #: includes/cli/cli-support.php:363
 msgid "Editor Hub helpers are not available."
@@ -12361,7 +12360,7 @@ msgstr "Editor-Hub-Hilfsmittel sind nicht verfügbar."
 #: includes/shortcodes/editor-hub-shortcode.php:742
 #: includes/shortcodes/editor-hub-shortcode.php:776
 msgid "Uncategorized"
-msgstr "Uncategorized"
+msgstr "Nicht kategorisiert"
 
 #: includes/cli/cli-support.php:629
 msgid "Missing word or word set for update."
@@ -12387,7 +12386,7 @@ msgstr "Das Geschlecht kann nur bei Vokabeln festgelegt werden."
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:725
 msgid "Invalid gender value. Allowed values: %s"
-msgstr "Ungültiger Gender-Wert. Erlaubte Werte: %s"
+msgstr "Ungültiger Genus-Wert. Erlaubte Werte: %s"
 
 #: includes/cli/cli-support.php:737
 msgid "Plurality can only be set on noun words."
@@ -12437,7 +12436,7 @@ msgstr "Der aktualisierte Vokabel-Status kann nicht geladen werden."
 
 #: includes/lib/custom-stt-endpoint.php:149
 msgid "STT endpoint URL is not configured."
-msgstr "STT Endpunkt URL ist nicht konfiguriert."
+msgstr "STT Endpunkt-URL ist nicht konfiguriert."
 
 #: includes/lib/custom-stt-endpoint.php:167
 msgid "STT audio file is missing."
@@ -12462,8 +12461,9 @@ msgid ""
 "Runpod endpoint returned Not Found. Use the public load-balancer URL and "
 "make sure it ends with /transcribe."
 msgstr ""
-"Der Runpod-Endpunkt wurde nicht gefunden. Verwende den öffentlichen Load-"
-"Balancer URL und stelle sicher, dass er mit /transcribe endet."
+"Der Runpod-Endpunkt hat „Nicht gefunden“ zurückgegeben. Verwende die "
+"öffentliche Load-Balancer-URL und stelle sicher, dass sie mit /transcribe "
+"endet."
 
 #: includes/lib/custom-stt-endpoint.php:277
 msgid ""
@@ -12483,7 +12483,7 @@ msgstr "DE"
 
 #: includes/lib/dictionary-browser.php:750
 msgid "EN"
-msgstr "DE"
+msgstr "EN"
 
 #: includes/lib/dictionary-browser.php:751
 msgid "ZZA"
@@ -12582,7 +12582,7 @@ msgstr "Der Wörterbuch-Snapshot ist nicht gültig JSON."
 
 #: includes/lib/dictionary-snapshot.php:289
 msgid "This file is not an LL Tools dictionary snapshot."
-msgstr "Diese Datei ist kein LL-Tools-Wörterbuch-Snapshot."
+msgstr "Diese Datei ist kein LL Tools-Wörterbuch-Snapshot."
 
 #: includes/lib/dictionary-snapshot.php:316
 msgid "Could not read the uploaded dictionary snapshot."
@@ -12611,7 +12611,7 @@ msgstr "Die interlineare Nutzlast muss ein Objekt sein."
 #: includes/lib/interlinear.php:234
 msgid "Interlinear payloads can only be attached to LL Tools lesson posts."
 msgstr ""
-"Interlineare Payloads können nur an LL-Tools-Lektionsbeiträge angehängt "
+"Interlineare Payloads können nur an LL Tools-Lektionsbeiträge angehängt "
 "werden."
 
 #: includes/lib/interlinear.php:532
@@ -12656,7 +12656,7 @@ msgstr "maskuliner Singular"
 
 #: includes/lib/interlinear.php:542
 msgid "plural"
-msgstr "plural"
+msgstr "Plural"
 
 #: includes/lib/interlinear.php:543
 msgid "plural oblique"
@@ -12668,7 +12668,7 @@ msgstr "direktfall"
 
 #: includes/lib/interlinear.php:545
 msgid "oblique case"
-msgstr "schrägstrich"
+msgstr "obliquer Kasus"
 
 #: includes/lib/interlinear.php:546
 msgid "possessive"
@@ -12720,7 +12720,7 @@ msgstr "progressiv"
 
 #: includes/lib/interlinear.php:558
 msgid "ezafe"
-msgstr "ezafe"
+msgstr "Ezafe"
 
 #: includes/lib/interlinear.php:559
 msgid "agreement"
@@ -12744,11 +12744,11 @@ msgstr "fall"
 
 #: includes/lib/interlinear.php:564
 msgid "clitic"
-msgstr "clitic"
+msgstr "Klitikon"
 
 #: includes/lib/interlinear.php:565
 msgid "number"
-msgstr "nummer"
+msgstr "Numerus"
 
 #: includes/lib/interlinear.php:566
 msgid "phonological process"
@@ -12768,7 +12768,7 @@ msgstr "substantiv"
 
 #: includes/lib/interlinear.php:570
 msgid "verb"
-msgstr "verb"
+msgstr "Verb"
 
 #: includes/lib/interlinear.php:571
 msgid "pronoun"
@@ -12780,7 +12780,7 @@ msgstr "bestimmungswort"
 
 #: includes/lib/interlinear.php:573
 msgid "postposition"
-msgstr "nachsatz"
+msgstr "Postposition"
 
 #: includes/lib/interlinear.php:574
 msgid "particle"
@@ -12788,7 +12788,7 @@ msgstr "partikel"
 
 #: includes/lib/interlinear.php:575
 msgid "adverb"
-msgstr "adverb"
+msgstr "Adverb"
 
 #: includes/lib/interlinear.php:576
 msgid "adjective"
@@ -12804,7 +12804,7 @@ msgstr "konjunktion"
 
 #: includes/lib/interlinear.php:579
 msgid "phrase"
-msgstr "phrase"
+msgstr "Phrase"
 
 #: includes/lib/interlinear.php:580
 msgid "lexical item"
@@ -12894,7 +12894,7 @@ msgstr "Textansicht"
 #: includes/lib/interlinear.php:1549 includes/pages/wordset-pages.php:10511
 #: includes/taxonomies/wordset-taxonomy.php:2999
 msgid "Translation language"
-msgstr "Übersetzung Sprache"
+msgstr "Übersetzungssprache"
 
 #: includes/lib/interlinear.php:1636
 msgid "Content warning"
@@ -13047,7 +13047,7 @@ msgstr "Synchrone Kategorie"
 
 #: includes/lib/site-sync.php:1287
 msgid "Synced word"
-msgstr "Synchronisiertes Vokabel"
+msgstr "Synchronisierte Vokabel"
 
 #: includes/lib/site-sync.php:1312
 msgid "Could not create the synced word."
@@ -13055,7 +13055,7 @@ msgstr "Konnte das synchronisierte Vokabel nicht erstellen."
 
 #: includes/lib/site-sync.php:1376
 msgid "The remote image URL is invalid."
-msgstr "Das Remote-Bild URL ist ungültig."
+msgstr "Die Remote-Bild-URL ist ungültig."
 
 #: includes/lib/site-sync.php:1397
 msgid "The remote image is not a supported image type."
@@ -13095,7 +13095,7 @@ msgstr "Konnte die synchronisierte Aufnahme nicht erstellen."
 #: includes/lib/site-sync.php:2183
 msgid "Skipped a pull row because the local recording ID was missing."
 msgstr ""
-"Eine Pull-Zeile wurde übersprungen, weil die lokale Aufnahme ID fehlte."
+"Eine Pull-Zeile wurde übersprungen, weil die lokale Aufnahme-ID fehlte."
 
 #: includes/lib/site-sync.php:2254 includes/lib/site-sync.php:2291
 msgid "LL Tools automation helpers are unavailable."
@@ -13275,7 +13275,7 @@ msgstr "%s (Universal-2)"
 #: includes/lib/wordset-language-settings.php:350
 #: includes/pages/wordset-pages.php:5884
 msgid "Hosted STT API requires an HTTPS endpoint URL."
-msgstr "Hosted STT API erfordert einen HTTPS-Endpunkt URL."
+msgstr "Hosted STT API erfordert einen HTTPS-Endpunkt-URL."
 
 #: includes/lib/wordset-language-settings.php:358
 msgid "Hosted STT API endpoint must use HTTPS."
@@ -13454,7 +13454,7 @@ msgstr "Transliteration Zeichen"
 
 #: includes/lib/wordset-language-settings.php:1191
 msgid "Letter to Transliteration Map"
-msgstr "Brief an Transliteration Map"
+msgstr "Buchstaben-zu-Transliteration-Zuordnung"
 
 #: includes/lib/wordset-language-settings.php:1192
 msgid ""
@@ -13524,7 +13524,7 @@ msgstr "Transkriptionszeichen"
 
 #: includes/lib/wordset-language-settings.php:1216
 msgid "Letter to Transcription Map"
-msgstr "Brief an die Transkriptionskarte"
+msgstr "Buchstaben-zu-Transkriptions-Zuordnung"
 
 #: includes/lib/wordset-language-settings.php:1217
 msgid ""
@@ -13546,7 +13546,7 @@ msgstr "Gib Buchstaben und Transkriptionszeichen ein, um sie hinzuzufügen."
 #. translators: 1: category ID, 2: category name
 #: includes/lib/wordset-language-settings.php:1435
 msgid "Translation failed for category ID %1$d (%2$s)."
-msgstr "Übersetzung fehlgeschlagen für Kategorie ID %1$d (%2$s)."
+msgstr "Übersetzung fehlgeschlagen für Kategorie-ID %1$d (%2$s)."
 
 #: includes/login-window.php:147
 #: includes/shortcodes/site-tools-shortcode.php:427
@@ -13563,7 +13563,7 @@ msgid ""
 "Tools or standard WordPress registration flows. Uses the Admin Notification "
 "Email setting below."
 msgstr ""
-"Sende eine Admin-Benachrichtigung, wenn ein neues Benutzerkonto über die LL-"
+"Sende eine Admin-Benachrichtigung, wenn ein neues Benutzerkonto über die LL "
 "Tools oder die Standard-WordPress-Registrierungsabläufe erstellt wird. "
 "Verwendet die Einstellung Admin Notification Email unten."
 
@@ -13660,8 +13660,8 @@ msgstr ""
 #: includes/login-window.php:1325
 msgid "Please use the invited recorder email address for this signup link."
 msgstr ""
-"Bitte verwende die E-Mail-Adresse des eingeladenen Recorders für diesen "
-"Anmeldelink."
+"Bitte verwende für diesen Anmeldelink die E-Mail-Adresse des eingeladenen "
+"Audio-Recorders."
 
 #: includes/login-window.php:1339
 msgid "Please choose a username."
@@ -13707,16 +13707,16 @@ msgstr "Konto erstellen"
 #: includes/shortcodes/audio-recording-shortcode.php:1110
 #: includes/shortcodes/audio-recording-shortcode.php:1112
 msgid "Create recorder account"
-msgstr "Recorder-Konto erstellen"
+msgstr "Audio-Recorder-Konto erstellen"
 
 #. translators: %s: word set name
 #: includes/login-window.php:1652
 msgid "Create a recorder account to record for %s."
-msgstr "Erstelle ein Recorder-Konto, um für %s aufzuzeichnen."
+msgstr "Erstelle ein Audio-Recorder-Konto, um für %s aufzuzeichnen."
 
 #: includes/login-window.php:1655
 msgid "Create a recorder account for this word set."
-msgstr "Erstelle ein Recorder-Konto für dieses Vokabelset."
+msgstr "Erstelle ein Audio-Recorder-Konto für dieses Vokabelset."
 
 #: includes/login-window.php:1729
 msgid "Create a new account"
@@ -13856,7 +13856,7 @@ msgstr "Verwandte Vokabellektion-Lektionen"
 #: includes/pages/content-lesson-pages.php:592
 #: includes/shortcodes/word-grid-shortcode.php:3317
 msgid "Saving review note..."
-msgstr "Review-Notiz wird gespeichert..."
+msgstr "Überprüfungsnotiz wird gespeichert..."
 
 #: includes/pages/content-lesson-pages.php:593
 #: includes/shortcodes/word-grid-shortcode.php:3318
@@ -14079,7 +14079,7 @@ msgstr "Eine neue Aufnahmeseite erstellen?"
 #: includes/shortcodes/site-tools-shortcode.php:887
 #: includes/shortcodes/site-tools-shortcode.php:1029
 msgid "Site Tools"
-msgstr "Site Tools"
+msgstr "Website-Werkzeuge"
 
 #: includes/pages/site-tools-page.php:19
 msgid "Site Tools Page Created!"
@@ -14177,7 +14177,7 @@ msgstr "Vokabel-Optionen öffnen..."
 
 #: includes/pages/vocab-lesson-pages.php:2716
 msgid "Lesson word option rules"
-msgstr "Lektion Vokabel Antwortoptionen-Regeln"
+msgstr "Regeln für Antwortoptionen dieser Lektion"
 
 #: includes/pages/vocab-lesson-pages.php:3028
 msgid "Category settings saved."
@@ -14292,7 +14292,7 @@ msgstr "Du hast nicht die Erlaubnis, diesen Kategorietitel zu bearbeiten."
 #: includes/pages/vocab-lesson-pages.php:3231
 #: templates/vocab-lesson-template.php:366
 msgid "Enter a category title."
-msgstr "Gib einen Kategorie-Titel ein."
+msgstr "Gib einen Kategorietitel ein."
 
 #: includes/pages/vocab-lesson-pages.php:3258
 #: templates/vocab-lesson-template.php:369
@@ -14302,7 +14302,7 @@ msgstr "Dieser Kategorietitel kann im Moment nicht gespeichert werden."
 #: includes/pages/vocab-lesson-pages.php:3281
 #: templates/vocab-lesson-template.php:368
 msgid "Category title saved."
-msgstr "Kategorie-Titel gespeichert."
+msgstr "Kategorietitel gespeichert."
 
 #: includes/pages/vocab-lesson-pages.php:3518
 #: includes/pages/vocab-lesson-pages.php:3593
@@ -14429,7 +14429,7 @@ msgstr "Vokabel-Papierkorb"
 
 #: includes/pages/wordset-editor.php:86
 msgid "Bulk Trash"
-msgstr "Bulk Trash"
+msgstr "Massenlöschungen"
 
 #: includes/pages/wordset-editor.php:87
 msgid "Recording Trash"
@@ -14480,7 +14480,7 @@ msgstr "An: %s"
 
 #: includes/pages/wordset-editor.php:180
 msgid "Recording ID: %d"
-msgstr "Aufnahme ID: %d"
+msgstr "Aufnahme-ID: %d"
 
 #: includes/pages/wordset-editor.php:183
 msgid "New status: %s"
@@ -14563,7 +14563,7 @@ msgstr "Wörterbucheintrag"
 #: includes/pages/wordset-pages.php:15641
 #: includes/pages/wordset-pages.php:16018
 msgid "POS"
-msgstr "POS"
+msgstr "Wortart"
 
 #: includes/pages/wordset-editor.php:753 includes/pages/wordset-pages.php:3405
 #: includes/pages/wordset-pages.php:14553
@@ -14685,14 +14685,14 @@ msgstr[1] "Markierte %d Vokabeln für fehlendes Audio."
 msgid ""
 "Missing image review: this word needs an image before it is learner-ready."
 msgstr ""
-"Fehlende Bildüberprüfung: Diese Vokabel braucht ein Bild, bevor es lernfähig"
-" ist."
+"Prüfung auf fehlendes Bild: Diese Vokabel braucht ein Bild, bevor sie für "
+"Lernende bereit ist."
 
 #: includes/pages/wordset-editor.php:2303
 msgid "Flagged %d word for missing images."
 msgid_plural "Flagged %d words for missing images."
-msgstr[0] "Markiert %d Vokabel für fehlende Vokabeln."
-msgstr[1] "Markierte %d Vokabeln für fehlende Vokabeln."
+msgstr[0] "Für %d Vokabel wurde ein fehlendes Bild markiert."
+msgstr[1] "Für %d Vokabeln wurden fehlende Bilder markiert."
 
 #: includes/pages/wordset-editor.php:2329
 #: includes/pages/wordset-editor.php:2376
@@ -14779,7 +14779,7 @@ msgstr "Entwurf"
 #: includes/pages/wordset-editor.php:2409
 #: includes/pages/wordset-editor.php:2870
 msgid "Pending"
-msgstr "Pending"
+msgstr "Ausstehend"
 
 #: includes/pages/wordset-editor.php:2412
 #: includes/pages/wordset-editor.php:2871
@@ -14992,11 +14992,11 @@ msgstr "Zur Kategorie verschieben"
 
 #: includes/pages/wordset-editor.php:2979
 msgid "Missing-audio review"
-msgstr "Missing-Audio-Review"
+msgstr "Prüfung auf fehlendes Audio"
 
 #: includes/pages/wordset-editor.php:2980
 msgid "Missing-image review"
-msgstr "Missing-Image-Review"
+msgstr "Prüfung auf fehlende Bilder"
 
 #: includes/pages/wordset-editor.php:2981
 msgid "Move to Trash"
@@ -15124,16 +15124,16 @@ msgstr "Weltraum-Shooter"
 
 #: includes/pages/wordset-games.php:210
 msgid "Hear the word. Blast the matching picture."
-msgstr "Höre die Vokabel. Löse das passende Bild aus."
+msgstr "Höre die Vokabel. Schieße auf das passende Bild."
 
 #: includes/pages/wordset-games.php:214
 #: includes/taxonomies/word-category-taxonomy.php:1416
 msgid "Bubble Pop"
-msgstr "Bubble Pop"
+msgstr "Blasen-Platzen"
 
 #: includes/pages/wordset-games.php:215
 msgid "Hear the word. Pop the matching bubble."
-msgstr "Höre die Vokabel. Löse die passende Sprechblase auf."
+msgstr "Höre die Vokabel. Lass die passende Blase platzen."
 
 #: includes/pages/wordset-games.php:263 includes/pages/wordset-pages.php:9341
 #: includes/pages/wordset-pages.php:17052
@@ -15145,8 +15145,8 @@ msgid ""
 "Speaking games are hidden because speaking practice is turned off for this "
 "word set."
 msgstr ""
-"Sprechende Spiele sind ausgeblendet, weil die Sprechübungen für dieses "
-"Vokabelset ausgeschaltet sind."
+"Sprechspiele sind ausgeblendet, weil die Sprechübungen für dieses Vokabelset"
+" ausgeschaltet sind."
 
 #. translators: %s: speaking configuration compatibility problem
 #: includes/pages/wordset-games.php:280
@@ -15154,29 +15154,29 @@ msgid ""
 "Speaking games are hidden because the current speaking configuration is "
 "incompatible: %s"
 msgstr ""
-"Sprechende Spiele werden ausgeblendet, weil die aktuelle sprechende "
-"Konfiguration nicht kompatibel ist: %s"
+"Sprechspiele werden ausgeblendet, weil die aktuelle sprechende Konfiguration"
+" nicht kompatibel ist: %s"
 
 #: includes/pages/wordset-games.php:283
 msgid ""
 "Speaking games are hidden because the current speaking configuration is "
 "incompatible."
 msgstr ""
-"Sprechende Spiele sind ausgeblendet, weil die aktuelle Sprechkonfiguration "
-"nicht kompatibel ist."
+"Sprechspiele sind ausgeblendet, weil die aktuelle Sprechkonfiguration nicht "
+"kompatibel ist."
 
 #: includes/pages/wordset-games.php:286
 msgid ""
 "Speaking games are hidden because the current speaking configuration is "
 "incomplete for this word set."
 msgstr ""
-"Sprechende Spiele sind ausgeblendet, weil die aktuelle Sprechkonfiguration "
-"für dieses Vokabelset unvollständig ist."
+"Sprechspiele sind ausgeblendet, weil die aktuelle Sprechkonfiguration für "
+"dieses Vokabelset unvollständig ist."
 
 #: includes/pages/wordset-games.php:2071 includes/pages/wordset-games.php:4143
 #: includes/taxonomies/word-category-taxonomy.php:1420
 msgid "Unscramble"
-msgstr "Entschlüsseln"
+msgstr "Buchstabensalat"
 
 #: includes/pages/wordset-games.php:2072 includes/pages/wordset-games.php:4144
 msgid "See the clue. Put the letters back in order."
@@ -15212,7 +15212,7 @@ msgstr "Vokabel-Stapel"
 
 #: includes/pages/wordset-games.php:2155 includes/pages/wordset-games.php:4243
 msgid "Say the picture before the stack reaches the top."
-msgstr "Sag das Bild, bevor der Stapel die Spitze erreicht."
+msgstr "Sag die Vokabel zum Bild, bevor der Stapel oben ankommt."
 
 #: includes/pages/wordset-games.php:3120 includes/pages/wordset-games.php:3213
 msgid ""
@@ -15245,7 +15245,7 @@ msgstr ""
 
 #: includes/pages/wordset-games.php:3298
 msgid "Invalid word or word set."
-msgstr "Ungültiges Vokabel oder Vokabelset."
+msgstr "Ungültige Vokabel oder Vokabelset."
 
 #: includes/pages/wordset-games.php:3303 includes/pages/wordset-games.php:3856
 #: includes/pages/wordset-games.php:4090 includes/pages/wordset-pages.php:9787
@@ -15264,7 +15264,7 @@ msgstr "Vokabel gehört nicht zum ausgewählten Vokabelset."
 
 #: includes/pages/wordset-games.php:3317
 msgid "Transcript is empty."
-msgstr "Transcript ist leer."
+msgstr "Transkript ist leer."
 
 #: includes/pages/wordset-games.php:3329
 msgid "Invalid speaking target."
@@ -15536,7 +15536,7 @@ msgstr "Lektionsaktionen für %s"
 #: templates/offline-app-shell-template.php:830
 #: templates/vocab-lesson-template.php:166
 msgid "Practice"
-msgstr "Praxis"
+msgstr "Üben"
 
 #: includes/pages/wordset-pages.php:3402
 #: includes/pages/wordset-pages.php:14550
@@ -15596,8 +15596,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:3950
 msgid "%1$d starred word in %2$s"
 msgid_plural "%1$d starred words in %2$s"
-msgstr[0] "%1$d mit Sternchen versehenes Vokabel in %2$s"
-msgstr[1] "%1$d mit Sternchen versehene Vokabeln in %2$s"
+msgstr[0] "%1$d mit Stern versehenes Vokabel in %2$s"
+msgstr[1] "%1$d mit Stern versehene Vokabeln in %2$s"
 
 #: includes/pages/wordset-pages.php:3999
 #: includes/pages/wordset-pages.php:15582
@@ -15982,25 +15982,27 @@ msgstr ""
 #: includes/pages/wordset-pages.php:6959 includes/pages/wordset-pages.php:6964
 #: includes/pages/wordset-pages.php:6975
 msgid "This recorder invitation link is invalid."
-msgstr "Dieser Recorder-Einladungslink ist ungültig."
+msgstr "Dieser Audio-Recorder-Einladungslink ist ungültig."
 
 #: includes/pages/wordset-pages.php:6972 includes/pages/wordset-pages.php:7152
 msgid "This recorder invitation no longer matches an available word set."
 msgstr ""
-"Diese Recorder-Einladung passt nicht mehr zu einem verfügbaren Vokabelset."
+"Diese Audio-Recorder-Einladung passt nicht mehr zu einem verfügbaren "
+"Vokabelset."
 
 #: includes/pages/wordset-pages.php:6978
 msgid "This recorder invitation link has expired."
-msgstr "Dieser Einladungslink für den Rekorder ist abgelaufen."
+msgstr "Dieser Einladungslink für den Audio-Recorder ist abgelaufen."
 
 #: includes/pages/wordset-pages.php:7068
 msgid "Could not create a recorder invitation link right now."
-msgstr "Konnte im Moment keinen Einladungslink für einen Rekorder erstellen."
+msgstr ""
+"Konnte im Moment keinen Einladungslink für einen Audio-Recorder erstellen."
 
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:7085
 msgid "[%1$s] Recorder invitation for %2$s"
-msgstr "[%1$s] Recorder Einladung für %2$s"
+msgstr "[%1$s] Audio-Recorder-Einladung für %2$s"
 
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:7093
@@ -16018,12 +16020,13 @@ msgstr "Vokabelset-Manager: %s"
 msgid ""
 "Open this link to create or connect a recorder account for this word set:"
 msgstr ""
-"Öffne diesen Link, um ein Recorder-Konto für dieses Vokabelset zu erstellen "
-"oder zu verbinden:"
+"Öffne diesen Link, um ein Audio-Recorder-Konto für dieses Vokabelset zu "
+"erstellen oder zu verbinden:"
 
 #: includes/pages/wordset-pages.php:7125 includes/pages/wordset-pages.php:7767
 msgid "The recorder invitation email could not be sent."
-msgstr "Die Einladungs-E-Mail für den Recorder konnte nicht gesendet werden."
+msgstr ""
+"Die Einladungs-E-Mail für den Audio-Recorder konnte nicht gesendet werden."
 
 #: includes/pages/wordset-pages.php:7142 includes/pages/wordset-pages.php:7449
 msgid "Please sign in with a valid user account."
@@ -16031,16 +16034,18 @@ msgstr "Bitte melde dich mit einem gültigen Benutzerkonto an."
 
 #: includes/pages/wordset-pages.php:7147
 msgid "Please continue with the invited recorder email address."
-msgstr "Bitte fahre mit der eingeladenen Recorder-E-Mail-Adresse fort."
+msgstr "Bitte fahre mit der eingeladenen Audio-Recorder-E-Mail-Adresse fort."
 
 #: includes/pages/wordset-pages.php:7157
 msgid "Recorder access could not be enabled right now."
-msgstr "Der Zugriff auf den Rekorder konnte im Moment nicht aktiviert werden."
+msgstr ""
+"Der Zugriff auf den Audio-Recorder konnte im Moment nicht aktiviert werden."
 
 #: includes/pages/wordset-pages.php:7199
 msgid "Word set manager access could not be updated right now."
 msgstr ""
-"Das Vokabelset-Manager-Zugang konnte im Moment nicht aktualisiert werden."
+"Der Zugriff für Vokabelset-Manager konnte im Moment nicht aktualisiert "
+"werden."
 
 #: includes/pages/wordset-pages.php:7262 includes/pages/wordset-pages.php:7268
 #: includes/pages/wordset-pages.php:7273 includes/pages/wordset-pages.php:7278
@@ -16099,92 +16104,98 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:7689
 msgid "Recorder assignment removed for this word set."
-msgstr "Blockflötenzuweisung für dieses Vokabelset entfernt."
+msgstr "Audio-Recorder-Zuweisung für dieses Vokabelset entfernt."
 
 #: includes/pages/wordset-pages.php:7696
 msgid "Recorder access enabled for %s and assigned to this word set."
-msgstr "Recorder-Zugriff für %s aktiviert und diesem Vokabelset zugewiesen."
+msgstr ""
+"Audio-Recorder-Zugriff für %s aktiviert und diesem Vokabelset zugewiesen."
 
 #: includes/pages/wordset-pages.php:7697
 msgid "Recorder access enabled and assigned to this word set."
-msgstr "Recorder-Zugriff aktiviert und diesem Vokabelset zugewiesen."
+msgstr "Audio-Recorder-Zugriff aktiviert und diesem Vokabelset zugewiesen."
 
 #: includes/pages/wordset-pages.php:7704
 msgid "Recorder invitation sent to %s."
-msgstr "Recorder-Einladung gesendet an %s."
+msgstr "Audio-Recorder-Einladung gesendet an %s."
 
 #: includes/pages/wordset-pages.php:7705
 msgid "Recorder invitation sent."
-msgstr "Recorder-Einladung gesendet."
+msgstr "Audio-Recorder-Einladung gesendet."
 
 #: includes/pages/wordset-pages.php:7711
 msgid "Recorder assignment updated for this word set."
-msgstr "Rekorderzuweisung für dieses Vokabelset aktualisiert."
+msgstr "Audio-Recorder-Zuweisung für dieses Vokabelset aktualisiert."
 
 #: includes/pages/wordset-pages.php:7725
 msgid ""
 "You do not have permission to manage recorder access for this word set."
 msgstr ""
-"Du hast nicht die Berechtigung, den Rekorder-Zugriff für dieses Vokabelset "
-"zu verwalten."
+"Du hast nicht die Berechtigung, den Audio-Recorder-Zugriff für dieses "
+"Vokabelset zu verwalten."
 
 #: includes/pages/wordset-pages.php:7743 includes/pages/wordset-pages.php:7843
 msgid "Unable to find that recorder user."
-msgstr "Der Benutzer des Rekorders konnte nicht gefunden werden."
+msgstr "Der Benutzer des Audio-Recorders konnte nicht gefunden werden."
 
 #: includes/pages/wordset-pages.php:7749 includes/pages/wordset-pages.php:7846
 msgid "The selected user does not have the Audio Recorder role."
-msgstr "Der ausgewählte Benutzer hat nicht die Rolle Audioaufnahme."
+msgstr "Der ausgewählte Benutzer hat nicht die Rolle „Audio-Recorder“."
 
 #: includes/pages/wordset-pages.php:7755
 msgid "Enter an existing username or email address to enable recorder access."
 msgstr ""
 "Gib einen bestehenden Benutzernamen oder eine E-Mail-Adresse ein, um den "
-"Zugang zum Recorder zu aktivieren."
+"Zugang zum Audio-Recorder zu aktivieren."
 
 #: includes/pages/wordset-pages.php:7761
 msgid "Enter a valid email address for the recorder invite."
-msgstr "Gib eine gültige E-Mail-Adresse für die Einladung des Rekorders ein."
+msgstr ""
+"Gib eine gültige E-Mail-Adresse für die Einladung des Audio-Recorders ein."
 
 #: includes/pages/wordset-pages.php:7773
 msgid "Recorder access could not be updated for this word set."
 msgstr ""
-"Der Recorder-Zugang konnte für dieses Vokabelset nicht aktualisiert werden."
+"Der Audio-Recorder-Zugang konnte für dieses Vokabelset nicht aktualisiert "
+"werden."
 
 #: includes/pages/wordset-pages.php:7785
 msgid "Unable to update recorder access right now."
 msgstr ""
-"Der Zugriff auf den Rekorder kann im Moment nicht aktualisiert werden."
+"Der Zugriff auf den Audio-Recorder kann im Moment nicht aktualisiert werden."
 
 #: includes/pages/wordset-pages.php:7820
 msgid "Recorder queue updated. Recording prompts saved."
-msgstr "Recorder-Warteschlange aktualisiert. Aufnahme-Prompts gespeichert."
+msgstr ""
+"Audio-Recorder-Warteschlange aktualisiert. Aufnahmeaufforderungen "
+"gespeichert."
 
 #: includes/pages/wordset-pages.php:7823
 msgid "Recorder queue settings saved."
-msgstr "Einstellungen der Recorder-Warteschlange gespeichert."
+msgstr "Einstellungen der Audio-Recorder-Warteschlange gespeichert."
 
 #: includes/pages/wordset-pages.php:7826
 msgid "Recorder queue updated. Hidden word restored."
 msgstr ""
-"Recorder-Warteschlange aktualisiert. Verstecktes Vokabel wiederhergestellt."
+"Audio-Recorder-Warteschlange aktualisiert. Versteckte Vokabel "
+"wiederhergestellt."
 
 #: includes/pages/wordset-pages.php:7829
 msgid "Recorder queue updated. Word hidden for that recorder."
 msgstr ""
-"Recorder-Warteschlange aktualisiert. Vokabel für diesen Rekorder "
-"ausgeblendet."
+"Audio-Recorder-Warteschlange aktualisiert. Vokabel für diesen Audio-Recorder"
+" ausgeblendet."
 
 #: includes/pages/wordset-pages.php:7834
 msgid ""
 "You do not have permission to update recorder queues for this word set."
 msgstr ""
-"Du hast keine Berechtigung, die Recorder-Warteschlangen für dieses "
+"Du hast keine Berechtigung, die Audio-Recorder-Warteschlangen für dieses "
 "Vokabelset zu aktualisieren."
 
 #: includes/pages/wordset-pages.php:7849
 msgid "That recorder is not assigned to this word set."
-msgstr "Der Recorder ist diesem Vokabelset nicht zugewiesen."
+msgstr "Der Audio-Recorder ist diesem Vokabelset nicht zugewiesen."
 
 #: includes/pages/wordset-pages.php:7852
 msgid "Unable to identify that queue item."
@@ -16193,12 +16204,12 @@ msgstr "Dieses Element der Warteschlange kann nicht identifiziert werden."
 #: includes/pages/wordset-pages.php:7855
 msgid "Unable to save prompts for that queue item."
 msgstr ""
-"Die Prompts für dieses Warteschlangenelement können nicht gespeichert "
-"werden."
+"Prompts für dieses Warteschlangenelement können nicht gespeichert werden."
 
 #: includes/pages/wordset-pages.php:7858
 msgid "Unable to update the recorder queue right now."
-msgstr "Die Recorder-Warteschlange kann im Moment nicht aktualisiert werden."
+msgstr ""
+"Die Audio-Recorder-Warteschlange kann im Moment nicht aktualisiert werden."
 
 #: includes/pages/wordset-pages.php:7897
 msgid "Audio upload (match existing words)"
@@ -16402,7 +16413,7 @@ msgid ""
 "Speaking games are hidden because the speaking service for this word set is "
 "not responding on this device."
 msgstr ""
-"Sprechende Spiele sind ausgeblendet, weil der sprechende Dienst für dieses "
+"Sprechspiele sind ausgeblendet, weil der sprechende Dienst für dieses "
 "Vokabelset auf diesem Gerät nicht antwortet."
 
 #: includes/pages/wordset-pages.php:9340
@@ -16410,7 +16421,7 @@ msgid ""
 "Speaking games are hidden because this word set speaking setup is not "
 "available right now."
 msgstr ""
-"Sprechende Spiele sind ausgeblendet, weil dieses Vokabelset im Moment nicht "
+"Sprechspiele sind ausgeblendet, weil dieses Vokabelset im Moment nicht "
 "verfügbar ist."
 
 #: includes/pages/wordset-pages.php:9342
@@ -16424,16 +16435,16 @@ msgstr "Spiele"
 #: includes/pages/wordset-pages.php:9343
 #: includes/pages/wordset-pages.php:17209
 msgid "Replay prompt"
-msgstr "Wiederholungsaufforderung"
+msgstr "Hinweis erneut abspielen"
 
 #: includes/pages/wordset-pages.php:9344
 #: includes/pages/wordset-pages.php:17232
 msgid "Pause run"
-msgstr "Pausenlauf"
+msgstr "Durchlauf pausieren"
 
 #: includes/pages/wordset-pages.php:9345
 msgid "Resume"
-msgstr "Lebenslauf"
+msgstr "Fortsetzen"
 
 #: includes/pages/wordset-pages.php:9347
 msgid "Paused after %d rounds without input."
@@ -16447,7 +16458,7 @@ msgstr "Münzen"
 #: includes/pages/wordset-pages.php:9349
 #: includes/pages/wordset-pages.php:17199
 msgid "Lives"
-msgstr "Lebt"
+msgstr "Leben"
 
 #: includes/pages/wordset-pages.php:9350
 #: includes/pages/wordset-pages.php:17421
@@ -16461,7 +16472,7 @@ msgstr "Nach rechts bewegen"
 
 #: includes/pages/wordset-pages.php:9352
 msgid "Fire"
-msgstr "Feuer"
+msgstr "Schießen"
 
 #: includes/pages/wordset-pages.php:9353
 #: includes/pages/wordset-pages.php:17081
@@ -16477,11 +16488,11 @@ msgstr "Alle verfügbaren Vokabeln"
 
 #: includes/pages/wordset-pages.php:9356
 msgid "Run Complete"
-msgstr "Vollständig ausführen"
+msgstr "Durchlauf abgeschlossen"
 
 #: includes/pages/wordset-pages.php:9357
 msgid "Coins: %1$d · Prompts: %2$d"
-msgstr "Münzen: %1$d - Prompts: %2$d"
+msgstr "Münzen: %1$d · Aufgaben: %2$d"
 
 #: includes/pages/wordset-pages.php:9358
 msgid "You win"
@@ -16489,12 +16500,12 @@ msgstr "Du gewinnst"
 
 #: includes/pages/wordset-pages.php:9359
 msgid "Completed: %1$d of %2$d · Coins: %3$d"
-msgstr "Abgeschlossen: %1$d von %2$d - Coins: %3$d"
+msgstr "Abgeschlossen: %1$d von %2$d · Münzen: %3$d"
 
 #: includes/pages/wordset-pages.php:9360
 #: includes/pages/wordset-pages.php:17457
 msgid "Replay"
-msgstr "Replay"
+msgstr "Erneut spielen"
 
 #: includes/pages/wordset-pages.php:9361
 msgid "New game"
@@ -16503,7 +16514,7 @@ msgstr "Neues Spiel"
 #: includes/pages/wordset-pages.php:9362
 #: includes/pages/wordset-pages.php:17458
 msgid "Back to games"
-msgstr "Zurück zu Spiele"
+msgstr "Zurück zu den Spielen"
 
 #: includes/pages/wordset-pages.php:9363
 msgid "Leave this game? Your current run will be lost."
@@ -16524,11 +16535,11 @@ msgstr "Bubble Pop Spielbrett"
 
 #: includes/pages/wordset-pages.php:9367
 msgid "Line-Up sequence board"
-msgstr "Line-Up Sequenztafel"
+msgstr "Line-Up-Sequenztafel"
 
 #: includes/pages/wordset-pages.php:9368
 msgid "Unscramble game board"
-msgstr "Spielbrett enträtseln"
+msgstr "Buchstabensalat-Spielbrett"
 
 #: includes/pages/wordset-pages.php:9369
 msgid "Speaking practice panel"
@@ -16549,16 +16560,16 @@ msgstr "Karte Audio abspielen"
 #: includes/pages/wordset-pages.php:9376
 #: includes/pages/wordset-pages.php:17278
 msgid "Shuffle"
-msgstr "Shuffle"
+msgstr "Mischen"
 
 #: includes/pages/wordset-pages.php:9377
 #: includes/pages/wordset-pages.php:17280
 msgid "Check"
-msgstr "Überprüfe"
+msgstr "Prüfen"
 
 #: includes/pages/wordset-pages.php:9379
 msgid "Finish"
-msgstr "Beende"
+msgstr "Abschließen"
 
 #: includes/pages/wordset-pages.php:9380
 msgid "Correct order."
@@ -16570,7 +16581,7 @@ msgstr "Noch nicht ganz. %1$d von %2$d sind an der richtigen Stelle."
 
 #: includes/pages/wordset-pages.php:9382
 msgid "Line-Up complete"
-msgstr "Line-Up komplett"
+msgstr "Line-Up abgeschlossen"
 
 #: includes/pages/wordset-pages.php:9383
 msgid "Perfect: %1$d of %2$d · Retries: %3$d"
@@ -16587,7 +16598,7 @@ msgstr "Vokabel %1$d von %2$d"
 #: includes/pages/wordset-pages.php:9386
 #: includes/pages/wordset-pages.php:17271
 msgid "Clue"
-msgstr "Clue"
+msgstr "Hinweis"
 
 #: includes/pages/wordset-pages.php:9387
 msgid "%1$d of %2$d letters are in the right place."
@@ -16612,11 +16623,11 @@ msgstr "Feste Kachel"
 
 #: includes/pages/wordset-pages.php:9391
 msgid "Unscramble complete"
-msgstr "Vollständig entschlüsseln"
+msgstr "Buchstabensalat abgeschlossen"
 
 #: includes/pages/wordset-pages.php:9392
 msgid "Solved: %1$d of %2$d · Moves: %3$d"
-msgstr "Gelöst: %1$d von %2$d - Verschiebt: %3$d"
+msgstr "Gelöst: %1$d von %2$d · Züge: %3$d"
 
 #: includes/pages/wordset-pages.php:9393
 msgid "Checking speaking game connection..."
@@ -16641,7 +16652,7 @@ msgstr "Mach dich bereit..."
 
 #: includes/pages/wordset-pages.php:9399
 msgid "Listening..."
-msgstr "Zuhören..."
+msgstr "Hören..."
 
 #: includes/pages/wordset-pages.php:9400
 #: includes/shortcodes/audio-recording-shortcode.php:1368
@@ -16651,7 +16662,7 @@ msgstr "Transkribieren..."
 
 #: includes/pages/wordset-pages.php:9401 includes/pages/wordset-pages.php:9424
 msgid "Matching your audio..."
-msgstr "Passend zu deinem Audio..."
+msgstr "Dein Audio wird abgeglichen..."
 
 #: includes/pages/wordset-pages.php:9402
 #: templates/flashcard-widget-template.php:40
@@ -16702,7 +16713,7 @@ msgstr "Dieser Browser kann keine Audioaufnahmen für Sprechübungen machen."
 
 #: includes/pages/wordset-pages.php:9418
 msgid "Speaking round complete"
-msgstr "Speaking round complete"
+msgstr "Sprechrunde abgeschlossen"
 
 #: includes/pages/wordset-pages.php:9419
 msgid "Right: %1$d · Close: %2$d · Wrong: %3$d"
@@ -16710,7 +16721,7 @@ msgstr "Richtig: %1$d · Knapp: %2$d · Falsch: %3$d"
 
 #: includes/pages/wordset-pages.php:9420
 msgid "%1$d left"
-msgstr "%1$d links"
+msgstr "%1$d übrig"
 
 #: includes/pages/wordset-pages.php:9421
 #: includes/pages/wordset-pages.php:17248
@@ -16719,15 +16730,15 @@ msgstr "Mikrofon bereit"
 
 #: includes/pages/wordset-pages.php:9422
 msgid "Listening for the next word..."
-msgstr "Lauschen auf das nächste Vokabel..."
+msgstr "Warte auf die nächste Vokabel..."
 
 #: includes/pages/wordset-pages.php:9423
 msgid "Checking your word..."
-msgstr "Überprüfe dein Vokabel..."
+msgstr "Prüfe deine Vokabel..."
 
 #: includes/pages/wordset-pages.php:9425
 msgid "No clear word detected."
-msgstr "Kein eindeutiges Vokabel erkannt."
+msgstr "Keine eindeutige Vokabel erkannt."
 
 #: includes/pages/wordset-pages.php:9426
 msgid "No match yet."
@@ -16752,7 +16763,7 @@ msgstr "Die Zeit ist abgelaufen"
 
 #: includes/pages/wordset-pages.php:9432
 msgid "Cleared: %1$d of %2$d"
-msgstr "Gelöscht: %1$d von %2$d"
+msgstr "Abgeräumt: %1$d von %2$d"
 
 #: includes/pages/wordset-pages.php:9486
 #: includes/pages/wordset-pages.php:15644
@@ -16825,7 +16836,7 @@ msgstr "Bild verwenden"
 #: includes/pages/wordset-pages.php:14478
 #: includes/shortcodes/site-tools-shortcode.php:909
 msgid "Recorder"
-msgstr "Recorder"
+msgstr "Audio-Recorder"
 
 #. translators: %s: word set name
 #: includes/pages/wordset-pages.php:9983
@@ -16872,11 +16883,11 @@ msgstr "Vorlage"
 #: includes/pages/wordset-pages.php:10189
 #: includes/pages/wordset-pages.php:13401
 msgid "Recorder Queues"
-msgstr "Recorder-Warteschlangen"
+msgstr "Audio-Recorder-Warteschlangen"
 
 #: includes/pages/wordset-pages.php:10147
 msgid "Offline App"
-msgstr "Offline App"
+msgstr "Offline-App"
 
 #: includes/pages/wordset-pages.php:10162
 msgid "Study Settings"
@@ -16916,7 +16927,7 @@ msgstr "Vokabelset aus Vorlage erstellen"
 #: includes/pages/wordset-pages.php:10186
 #: includes/pages/wordset-pages.php:13621
 msgid "Recorder Access"
-msgstr "Recorder Zugang"
+msgstr "Audio-Recorder-Zugang"
 
 #: includes/pages/wordset-pages.php:10192
 msgid "Transcription Settings"
@@ -16995,7 +17006,7 @@ msgid ""
 "Review each recorder's live queue and manage hidden words without leaving "
 "the front end."
 msgstr ""
-"Überprüfe die Live-Warteschlange der einzelnen Rekorder und verwalte "
+"Überprüfe die Live-Warteschlange der einzelnen Audio-Recorder und verwalte "
 "versteckte Vokabeln, ohne das Frontend zu verlassen."
 
 #: includes/pages/wordset-pages.php:10240
@@ -17009,7 +17020,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:10243
 msgid "Export this word set as a standalone offline learner app bundle."
 msgstr ""
-"Exportiere dieses Vokabelset als eigenständiges Offline-Lernende-App-Bundle."
+"Exportiere dieses Vokabelset als eigenständiges Offline-Lern-App-Bündel."
 
 #: includes/pages/wordset-pages.php:10246
 msgid "Upload images and optionally create draft words here."
@@ -17255,7 +17266,7 @@ msgstr "Manager-Einladung senden"
 #: includes/pages/wordset-pages.php:15194
 #: includes/taxonomies/wordset-taxonomy.php:2257
 msgid "Manual order"
-msgstr "Manuelle Bestellung"
+msgstr "Manuelle Reihenfolge"
 
 #: includes/pages/wordset-pages.php:10872
 #: includes/pages/wordset-pages.php:15196
@@ -17282,7 +17293,7 @@ msgstr "Original-Audio beibehalten"
 
 #: includes/pages/wordset-pages.php:10917
 msgid "Category Ordering"
-msgstr "Kategorie-Bestellung"
+msgstr "Kategoriereihenfolge"
 
 #: includes/pages/wordset-pages.php:10919
 msgid ""
@@ -17335,8 +17346,8 @@ msgid ""
 "so the Audio Processor can rerun trimming, noise reduction, and loudness "
 "from the original source later."
 msgstr ""
-"Speichert die unbearbeitete Quelle für neue Recorder- und Audio-Upload-"
-"Aufnahmen, damit der Audioprozessor später das Trimmen, die "
+"Speichert die unbearbeitete Quelle für neue Audio-Recorder- und Audio-"
+"Upload-Aufnahmen, damit der Audioprozessor später das Trimmen, die "
 "Rauschunterdrückung und die Lautstärke aus der Originalquelle erneut "
 "durchführen kann."
 
@@ -17385,7 +17396,7 @@ msgid ""
 msgstr ""
 "Auf diesem Bildschirm wurden noch keine Site-Schriftarten erkannt. Füge eine"
 " Schriftart über Theme/Use Any Font hinzu oder setze das LL Tools-"
-"Schriftstylesheet URL in den Einstellungen und lade diese Seite neu."
+"Schriftstylesheet-URL in den Einstellungen und lade diese Seite neu."
 
 #: includes/pages/wordset-pages.php:11008
 #: includes/taxonomies/wordset-taxonomy.php:3116
@@ -17449,7 +17460,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:11066
 #: includes/taxonomies/wordset-taxonomy.php:3180
 msgid "Gender options"
-msgstr "Gender-Optionen"
+msgstr "Genusoptionen"
 
 #: includes/pages/wordset-pages.php:11069
 msgid "One option per line, for example: masculine, feminine, neuter."
@@ -17480,8 +17491,8 @@ msgstr "Verbzweitstellung aktivieren"
 #: includes/pages/wordset-pages.php:11090
 msgid "Adds tense tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
-"Fügt Zeitform-Tags und Bulk-Edit-Hilfen für Verben in diesem Vokabelset "
-"hinzu."
+"Fügt Zeitform-Tags und Massenbearbeitungshilfen für Verben in diesem "
+"Vokabelset hinzu."
 
 #: includes/pages/wordset-pages.php:11092
 #: includes/taxonomies/wordset-taxonomy.php:3259
@@ -17500,7 +17511,8 @@ msgstr "Verbstimmung einschalten"
 #: includes/pages/wordset-pages.php:11103
 msgid "Adds mood tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
-"Fügt Mood-Tags und Bulk-Edit-Hilfen für Verben in diesem Vokabelset hinzu."
+"Fügt Modus-Tags und Massenbearbeitungshilfen für Verben in diesem Vokabelset"
+" hinzu."
 
 #: includes/pages/wordset-pages.php:11105
 #: includes/taxonomies/wordset-taxonomy.php:3276
@@ -17752,7 +17764,7 @@ msgstr "Benutzerdefinierter STT Endpunkt"
 
 #: includes/pages/wordset-pages.php:12076
 msgid "Local transcription endpoint URL"
-msgstr "Lokaler Transkriptionsendpunkt URL"
+msgstr "Lokaler Transkriptionsendpunkt-URL"
 
 #: includes/pages/wordset-pages.php:12090
 msgid ""
@@ -17770,8 +17782,8 @@ msgid ""
 "calls this URL from WordPress server-side, which keeps any API token off the"
 " page."
 msgstr ""
-"Im lokalen Browser-Modus wird dieses URL vom Browser aus aufgerufen. Der "
-"gehostete STT API Modus ruft dieses URL von der WordPress Serverseite auf, "
+"Im lokalen Browser-Modus wird dieses-URL vom Browser aus aufgerufen. Der "
+"gehostete STT API Modus ruft dieses-URL von der WordPress Serverseite auf, "
 "was jedes API Token von der Seite fernhält."
 
 #: includes/pages/wordset-pages.php:12098
@@ -17792,7 +17804,7 @@ msgid ""
 "token to your endpoint as both Authorization: Bearer and X-LL-Tools-Token."
 msgstr ""
 "Optional, aber empfohlen für den Hosted STT API Modus. WordPress sendet "
-"dieses Token an deinen Endpunkt sowohl als Authorization: Bearer und X-LL-"
+"dieses Token an deinen Endpunkt sowohl als Authorization: Bearer und X-LL "
 "Tools-Token."
 
 #: includes/pages/wordset-pages.php:12115
@@ -17802,11 +17814,11 @@ msgstr "Transkriptionseinstellungen speichern"
 
 #: includes/pages/wordset-pages.php:12120
 msgid "Offline App STT Bundle"
-msgstr "Offline App STT Bundle"
+msgstr "Offline-App-STT-Bündel"
 
 #: includes/pages/wordset-pages.php:12121
 msgid "Offline app STT bundle path"
-msgstr "Offline-App STT Bundle-Pfad"
+msgstr "Offline-App-STT-Bündelpfad"
 
 #: includes/pages/wordset-pages.php:12129
 msgid "Absolute path to the mobile-ready STT model folder or file"
@@ -17818,7 +17830,7 @@ msgid ""
 " copy or enable this bundle."
 msgstr ""
 "Reserviert für zukünftige mobile STT Unterstützung. Offline-App-Exporte "
-"kopieren oder aktivieren dieses Bundle derzeit nicht."
+"kopieren oder aktivieren dieses Bündel derzeit nicht."
 
 #: includes/pages/wordset-pages.php:12137
 msgid ""
@@ -17830,7 +17842,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:12142
 msgid "Speaking Practice Game"
-msgstr "Speaking Practice Game"
+msgstr "Sprechübungsspiel"
 
 #: includes/pages/wordset-pages.php:12145
 msgid "Enable speaking practice in Games"
@@ -17895,7 +17907,7 @@ msgid ""
 "defaults to the built-in audio matcher."
 msgstr ""
 "Wenn die Sprechübungen aktiviert sind und kein Anbieter ausgewählt wurde, "
-"verwenden die LL-Tools jetzt standardmäßig den integrierten Audio-Matcher."
+"verwenden die LL Tools jetzt standardmäßig den integrierten Audio-Matcher."
 
 #: includes/pages/wordset-pages.php:12185
 msgid "Speaking Game AssemblyAI Language"
@@ -18099,20 +18111,20 @@ msgstr "Kann neue Vokabeln hinzufügen"
 
 #: includes/pages/wordset-pages.php:12951
 msgid "Recorder processes audio"
-msgstr "Recorder verarbeitet Audio"
+msgstr "Audio-Recorder verarbeitet Audio"
 
 #: includes/pages/wordset-pages.php:13017
 #: includes/shortcodes/audio-recording-shortcode.php:1397
 msgid "Unhide"
-msgstr "Unhide"
+msgstr "Einblenden"
 
 #: includes/pages/wordset-pages.php:13080
 msgid "Recording prompts"
-msgstr "Aufnahme von Prompts"
+msgstr "Aufnahmeaufforderungen"
 
 #: includes/pages/wordset-pages.php:13108
 msgid "Suggested phrasing for the recorder"
-msgstr "Vorgeschlagene Formulierungen für den Recorder"
+msgstr "Vorgeschlagene Formulierungen für den Audio-Recorder"
 
 #: includes/pages/wordset-pages.php:13114
 msgid "Save prompts"
@@ -18151,25 +18163,25 @@ msgid ""
 "These are hidden from the recorder queue unless the only-include list is "
 "set."
 msgstr ""
-"Diese werden aus der Recorder-Warteschlange ausgeblendet, es sei denn, die "
-"Liste only-include ist eingestellt."
+"Diese werden aus der Audio-Recorder-Warteschlange ausgeblendet, es sei denn,"
+" die Liste only-include ist eingestellt."
 
 #: includes/pages/wordset-pages.php:13341
 msgid "Allow this recorder to record new words"
-msgstr "Erlaube diesem Rekorder, neue Vokabeln aufzunehmen"
+msgstr "Erlaube diesem Audio-Recorder, neue Vokabeln aufzunehmen"
 
 #: includes/pages/wordset-pages.php:13346
 msgid "Recorder processes audio before saving"
-msgstr "Recorder verarbeitet Audioaufnahmen vor dem Speichern"
+msgstr "Audio-Recorder verarbeitet Audioaufnahmen vor dem Speichern"
 
 #: includes/pages/wordset-pages.php:13349
 msgid ""
 "Shows the recorder the audio processing review step for trimming, noise "
 "reduction, and loudness before the recording is saved."
 msgstr ""
-"Zeigt dem Rekorder den Schritt der Audiobearbeitung zur Überprüfung des "
-"Trimmens, der Rauschunterdrückung und der Lautstärke an, bevor die Aufnahme "
-"gespeichert wird."
+"Zeigt dem Audio-Recorder den Schritt der Audiobearbeitung zur Überprüfung "
+"des Trimmens, der Rauschunterdrückung und der Lautstärke an, bevor die "
+"Aufnahme gespeichert wird."
 
 #: includes/pages/wordset-pages.php:13354
 msgid "Save queue settings"
@@ -18180,23 +18192,23 @@ msgid ""
 "Review hidden recorder queue items and restore anything that should be "
 "recordable again."
 msgstr ""
-"Überprüfe versteckte Einträge in der Recorder-Warteschlange und stelle alles"
-" wieder her, was wieder aufgenommen werden kann."
+"Überprüfe versteckte Einträge in der Audio-Recorder-Warteschlange und stelle"
+" alles wieder her, was wieder aufgenommen werden kann."
 
 #: includes/pages/wordset-pages.php:13406
 msgid ""
 "Review each assigned recorder's queue by category, edit prompt wording, and "
 "tune their recording settings from one place."
 msgstr ""
-"Überprüfe die Warteschlange jedes zugewiesenen Recorders nach Kategorie, "
-"bearbeite den Wortlaut der Aufforderungen und stimme die "
+"Überprüfe die Warteschlange jedes zugewiesenen Audio-Recorder nach "
+"Kategorie, bearbeite den Wortlaut der Aufforderungen und stimme die "
 "Aufnahmeeinstellungen an einem Ort ab."
 
 #: includes/pages/wordset-pages.php:13413
 msgid "%d recorder"
 msgid_plural "%d recorders"
-msgstr[0] "%d Rekorder"
-msgstr[1] "%d Rekorder"
+msgstr[0] "%d Audio-Recorder"
+msgstr[1] "%d Audio-Recorder"
 
 #: includes/pages/wordset-pages.php:13421
 #: includes/pages/wordset-pages.php:13495
@@ -18223,7 +18235,7 @@ msgstr "Diesem Vokabelset sind noch keine Vokabel-Audio-Benutzer zugewiesen."
 
 #: includes/pages/wordset-pages.php:13445
 msgid "Open Recorder Access"
-msgstr "Open Recorder Zugang"
+msgstr "Audio-Recorder-Zugang öffnen"
 
 #: includes/pages/wordset-pages.php:13527
 msgid "Back to categories"
@@ -18232,7 +18244,8 @@ msgstr "Zurück zu den Kategorien"
 #: includes/pages/wordset-pages.php:13544
 msgid "That category is no longer in this recorder queue."
 msgstr ""
-"Diese Kategorie befindet sich nicht mehr in dieser Rekorder-Warteschlange."
+"Diese Kategorie befindet sich nicht mehr in dieser Audio-Recorder-"
+"Warteschlange."
 
 #: includes/pages/wordset-pages.php:13560
 msgid "Queue by Category"
@@ -18240,7 +18253,8 @@ msgstr "Warteschlange nach Kategorie"
 
 #: includes/pages/wordset-pages.php:13562
 msgid "No words currently need recordings for this recorder."
-msgstr "Für diesen Rekorder müssen derzeit keine Vokabeln aufgenommen werden."
+msgstr ""
+"Für diesen Audio-Recorder müssen derzeit keine Vokabeln aufgenommen werden."
 
 #: includes/pages/wordset-pages.php:13581
 msgid "Hidden by Category"
@@ -18248,11 +18262,11 @@ msgstr "Versteckt nach Kategorie"
 
 #: includes/pages/wordset-pages.php:13583
 msgid "No hidden words for this recorder."
-msgstr "Keine versteckten Vokabeln für diesen Rekorder."
+msgstr "Keine versteckten Vokabeln für diesen Audio-Recorder."
 
 #: includes/pages/wordset-pages.php:13624
 msgid "Assigned Tutors / Recorders"
-msgstr "Zugewiesene Tutoren / Recorder"
+msgstr "Zugewiesene Tutoren / Audio-Recorder"
 
 #: includes/pages/wordset-pages.php:13627
 msgid "No audio recorder users are currently assigned to this word set."
@@ -18261,20 +18275,20 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:13658
 msgid "Unassign"
-msgstr "Unassign"
+msgstr "Zuweisung entfernen"
 
 #: includes/pages/wordset-pages.php:13667
 msgid "Assign Existing Recorder"
-msgstr "Vorhandenen Recorder zuweisen"
+msgstr "Vorhandenen Audio-Recorder zuweisen"
 
 #: includes/pages/wordset-pages.php:13670
 msgid ""
 "No users currently have the Audio Recorder role. Use the options below to "
 "upgrade an existing account or invite a new recorder."
 msgstr ""
-"Derzeit haben keine Benutzer die Rolle Audioaufnahme. Verwende die unten "
-"stehenden Optionen, um ein bestehendes Konto zu aktualisieren oder einen "
-"neuen Recorder einzuladen."
+"Derzeit haben keine Benutzer die Rolle „Audio-Recorder“. Verwende die "
+"Optionen unten, um ein bestehendes Konto hochzustufen oder einen neuen "
+"Audio-Recorder einzuladen."
 
 #: includes/pages/wordset-pages.php:13681
 msgid "Audio recorder user"
@@ -18289,12 +18303,12 @@ msgid ""
 "Assigning a recorder locks their recording interface to this word set and "
 "resets any stale category filter."
 msgstr ""
-"Wenn du einem Recorder eine Aufnahmeschnittstelle zuweist, wird sein "
+"Wenn du einem Audio-Recorder eine Aufnahmeschnittstelle zuweist, wird sein "
 "Vokabelset gesperrt und ein veralteter Kategorienfilter zurückgesetzt."
 
 #: includes/pages/wordset-pages.php:13705
 msgid "Assign Recorder"
-msgstr "Recorder zuweisen"
+msgstr "Audio-Recorder zuweisen"
 
 #: includes/pages/wordset-pages.php:13712
 msgid "Upgrade Existing User"
@@ -18311,27 +18325,27 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:13736
 msgid "Enable Recorder Access"
-msgstr "Rekorderzugriff aktivieren"
+msgstr "Audio-Recorder-Zugriff aktivieren"
 
 #: includes/pages/wordset-pages.php:13742
 msgid "Invite Recorder By Email"
-msgstr "Recorder per E-Mail einladen"
+msgstr "Audio-Recorder per E-Mail einladen"
 
 #: includes/pages/wordset-pages.php:13753
 msgid "Recorder email"
-msgstr "Recorder E-Mail"
+msgstr "Audio-Recorder E-Mail"
 
 #: includes/pages/wordset-pages.php:13763
 msgid ""
 "This sends a special signup link that creates or connects a recorder account"
 " and assigns that person to this word set."
 msgstr ""
-"Dies sendet einen speziellen Anmeldelink, der ein Recorder-Konto erstellt "
-"oder verbindet und diese Person diesem Vokabelset zuweist."
+"Dies sendet einen speziellen Anmeldelink, der ein Audio-Recorder-Konto "
+"erstellt oder verbindet und diese Person diesem Vokabelset zuweist."
 
 #: includes/pages/wordset-pages.php:13766
 msgid "Send Recorder Invite"
-msgstr "Recorder-Einladung senden"
+msgstr "Audio-Recorder-Einladung senden"
 
 #: includes/pages/wordset-pages.php:13791
 msgid "This upload tool is unavailable right now."
@@ -18346,8 +18360,8 @@ msgid ""
 "Export this word set as a standalone learner app bundle with local study "
 "content, games, and local-first progress sync."
 msgstr ""
-"Exportiere dieses Vokabelset als eigenständiges Lernende-App-Bundle mit "
-"lokalen Lerninhalten, Spielen und lokaler Fortschrittssynchronisation."
+"Exportiere dieses Vokabelset als eigenständiges Lern-App-Bündel mit lokalen "
+"Lerninhalten, Spielen und lokaler Fortschrittssynchronisation."
 
 #: includes/pages/wordset-pages.php:13842
 msgid ""
@@ -18379,7 +18393,7 @@ msgstr "Offline-Export-Kategorien"
 
 #: includes/pages/wordset-pages.php:13887
 msgid "Bundle details"
-msgstr "Bundle-Details"
+msgstr "Bündel-Details"
 
 #: includes/pages/wordset-pages.php:13891
 msgid "App name"
@@ -18387,7 +18401,7 @@ msgstr "App-Name"
 
 #: includes/pages/wordset-pages.php:13906
 msgid "Android app ID suffix"
-msgstr "Android-App ID Suffix"
+msgstr "Android-App-ID Suffix"
 
 #: includes/pages/wordset-pages.php:13915
 msgid ""
@@ -18482,7 +18496,7 @@ msgstr "Gelernte Vokabeln"
 #: includes/pages/wordset-pages.php:15588
 #: includes/pages/wordset-pages.php:15616
 msgid "Starred words"
-msgstr "Vokabeln mit Sternchen"
+msgstr "Vokabeln mit Stern"
 
 #: includes/pages/wordset-pages.php:14034
 msgid "Upcoming activities"
@@ -18583,8 +18597,8 @@ msgid ""
 "Hide word text on lesson pages and word grids when the category quiz uses "
 "only images or audio."
 msgstr ""
-"Blende den Worttext auf den Lektionsseiten und Wortrastern aus, wenn das "
-"Kategorie-Quiz nur Vokabeln oder Vokabel-Audio verwendet."
+"Blende den Vokabeltext auf Lektionsseiten und in Vokabelrastern aus, wenn "
+"das Kategorie-Quiz nur Bilder oder Audio verwendet."
 
 #: includes/pages/wordset-pages.php:14298
 #: includes/taxonomies/wordset-taxonomy.php:3069
@@ -18685,18 +18699,18 @@ msgstr "Noch kein Vorlageninhalt"
 #: includes/pages/wordset-pages.php:15275
 msgid "%d recorder assigned"
 msgid_plural "%d recorders assigned"
-msgstr[0] "%d Rekorder zugewiesen"
-msgstr[1] "%d Rekorder zugewiesen"
+msgstr[0] "%d Audio-Recorder zugewiesen"
+msgstr[1] "%d Audio-Recorder zugewiesen"
 
 #: includes/pages/wordset-pages.php:15278
 #: includes/pages/wordset-pages.php:15292
 msgid "No recorders assigned"
-msgstr "Keine Rekorder zugewiesen"
+msgstr "Keine Audio-Recorder zugewiesen"
 
 #: includes/pages/wordset-pages.php:15289
 msgid "%d recorder ready"
 msgid_plural "%d recorders ready"
-msgstr[0] "%d Rekorder bereit"
+msgstr[0] "%d Audio-Recorder bereit"
 msgstr[1] "%d Aufnahmegeräte bereit"
 
 #: includes/pages/wordset-pages.php:15306
@@ -18790,13 +18804,13 @@ msgstr "%d Vokabeln"
 #: includes/pages/wordset-pages.php:16660
 #: includes/pages/wordset-pages.php:16663
 msgid "Starred only"
-msgstr "Nur mit Sternchen"
+msgstr "Nur mit Stern"
 
 #: includes/pages/wordset-pages.php:15601
 #: includes/pages/wordset-pages.php:16665
 #: includes/pages/wordset-pages.php:16668
 msgid "Hard words only"
-msgstr "Nur harte Vokabeln"
+msgstr "Nur schwierige Vokabeln"
 
 #: includes/pages/wordset-pages.php:15606
 #: includes/pages/wordset-pages.php:15685
@@ -18805,7 +18819,7 @@ msgstr "Alle abwählen"
 
 #: includes/pages/wordset-pages.php:15610
 msgid "Starred words in %s"
-msgstr "Vokabeln mit Sternchen in %s"
+msgstr "Vokabeln mit Stern in %s"
 
 #: includes/pages/wordset-pages.php:15619
 #: includes/pages/wordset-pages.php:15721
@@ -18822,7 +18836,7 @@ msgstr "Für diese Auswahl sind keine Vokabeln für Quiz verfügbar."
 
 #: includes/pages/wordset-pages.php:15622
 msgid "No starred words are available for this selection."
-msgstr "Für diese Auswahl sind keine Vokabeln mit Sternchen verfügbar."
+msgstr "Für diese Auswahl sind keine Vokabeln mit Stern verfügbar."
 
 #: includes/pages/wordset-pages.php:15623
 msgid "No hard words are available for this selection."
@@ -18843,8 +18857,7 @@ msgstr "Für diese Auswahl sind keine gelernten Vokabeln verfügbar."
 #: includes/pages/wordset-pages.php:15627
 msgid "No starred hard words are available for this selection."
 msgstr ""
-"Für diese Auswahl sind keine mit Sternchen versehenen harten Vokabeln "
-"verfügbar."
+"Für diese Auswahl sind keine mit Stern versehenen harten Vokabeln verfügbar."
 
 #: includes/pages/wordset-pages.php:15628
 #: includes/pages/wordset-pages.php:16222
@@ -18905,7 +18918,7 @@ msgstr "Vokabelfortschritt"
 #: includes/pages/wordset-pages.php:15666
 #: includes/pages/wordset-pages.php:15984
 msgid "Starred"
-msgstr "Starred"
+msgstr "Mit Stern"
 
 #: includes/pages/wordset-pages.php:15649
 #: includes/pages/wordset-pages.php:15825
@@ -18943,13 +18956,13 @@ msgstr "Audio abspielen"
 #: includes/shortcodes/word-grid-shortcode.php:3331
 #: includes/shortcodes/word-grid-shortcode.php:5468
 msgid "Star word"
-msgstr "Star Vokabel"
+msgstr "Vokabel mit Stern markieren"
 
 #: includes/pages/wordset-pages.php:15664
 #: includes/shortcodes/word-grid-shortcode.php:3332
 #: includes/shortcodes/word-grid-shortcode.php:5467
 msgid "Unstar word"
-msgstr "Unstar Vokabel"
+msgstr "Stern entfernen"
 
 #: includes/pages/wordset-pages.php:15665
 msgid "Any"
@@ -19063,13 +19076,13 @@ msgstr "Zuletzt praktiziert"
 #: includes/pages/wordset-pages.php:15702 includes/privacy.php:411
 #: includes/shortcodes/flashcard-widget.php:432
 msgid "Gender progress"
-msgstr "Gender-Fortschritt"
+msgstr "Genusfortschritt"
 
 #: includes/pages/wordset-pages.php:15704
 #: includes/taxonomies/wordset-taxonomy.php:2323
 #: templates/vocab-lesson-template.php:950
 msgid "Level"
-msgstr "Level"
+msgstr "Stufe"
 
 #: includes/pages/wordset-pages.php:15705
 msgid "Show gender progress in the tables"
@@ -19236,7 +19249,7 @@ msgstr "Melde dich an, um versteckte Kategorien zu verwalten."
 
 #: includes/pages/wordset-pages.php:16229
 msgid "Unhide %s"
-msgstr "Unhide %s"
+msgstr "%s einblenden"
 
 #: includes/pages/wordset-pages.php:16243
 msgid "Back to word set tools"
@@ -19389,7 +19402,7 @@ msgstr "Vokabelset-Spiel"
 
 #: includes/pages/wordset-pages.php:17247
 msgid "0 left"
-msgstr "0 links"
+msgstr "0 übrig"
 
 #: includes/pages/wordset-pages.php:17262
 msgid "Sequence 0 of 0"
@@ -19414,19 +19427,19 @@ msgstr "Richtiges Audio abspielen"
 
 #: includes/pages/wordset-pages.php:17429
 msgid "Fire or press space bar"
-msgstr "Feuer oder Leertaste drücken"
+msgstr "Schießen oder Leertaste drücken"
 
 #: includes/post-types/content-lesson-post-type.php:60
 msgid "Content Lesson"
-msgstr "Inhalt Lektion"
+msgstr "Inhaltslektion"
 
 #: includes/post-types/content-lesson-post-type.php:61
 msgid "Add New Content Lesson"
-msgstr "Neue Inhalte hinzufügen Lektion"
+msgstr "Neue Inhaltslektion hinzufügen"
 
 #: includes/post-types/content-lesson-post-type.php:62
 msgid "Edit Content Lesson"
-msgstr "Inhalt bearbeiten Lektion"
+msgstr "Inhaltslektion bearbeiten"
 
 #: includes/post-types/content-lesson-post-type.php:63
 msgid "New Content Lesson"
@@ -19434,11 +19447,11 @@ msgstr "Neuer Inhalt Lektion"
 
 #: includes/post-types/content-lesson-post-type.php:64
 msgid "View Content Lesson"
-msgstr "Inhalt Lektion anzeigen"
+msgstr "Inhaltslektion anzeigen"
 
 #: includes/post-types/content-lesson-post-type.php:65
 msgid "Search Content Lessons"
-msgstr "Suche Inhalt Lektionen"
+msgstr "Inhaltslektionen suchen"
 
 #: includes/post-types/content-lesson-post-type.php:66
 msgid "No content lessons found"
@@ -19508,18 +19521,18 @@ msgstr "Video"
 
 #: includes/post-types/content-lesson-post-type.php:1226
 msgid "Media URL"
-msgstr "Medien URL"
+msgstr "Medien-URL"
 
 #: includes/post-types/content-lesson-post-type.php:1235
 msgid "Paste the direct media URL here."
-msgstr "Füge die direkten Medien URL hier ein."
+msgstr "Füge die direkten Medien-URL hier ein."
 
 #: includes/post-types/content-lesson-post-type.php:1238
 msgid ""
 "Use a direct file URL for the audio or video you want to play on the lesson "
 "page."
 msgstr ""
-"Verwende eine direkte Datei URL für das Audio oder Video, das du auf der "
+"Verwende eine direkte Datei-URL für das Audio oder Video, das du auf der "
 "Lektionsseite abspielen möchtest."
 
 #: includes/post-types/content-lesson-post-type.php:1244
@@ -19566,8 +19579,8 @@ msgstr ""
 #: includes/post-types/content-lesson-post-type.php:1277
 msgid "%d cue parsed and ready for playback."
 msgid_plural "%d cues parsed and ready for playback."
-msgstr[0] "%d cue geparst und bereit zum Abspielen."
-msgstr[1] "%d Cues geparst und bereit zum Abspielen."
+msgstr[0] "%d Zeitsegment geparst und für die Wiedergabe bereit."
+msgstr[1] "%d Zeitsegmente geparst und für die Wiedergabe bereit."
 
 #: includes/post-types/content-lesson-post-type.php:1292
 msgid "Related vocab categories"
@@ -19579,9 +19592,9 @@ msgid ""
 "page and backlinks on drill pages. Use Ctrl/Command + click to select "
 "multiple."
 msgstr ""
-"Diese Kategorien werden zu Links zu verwandten Vokabellektionen auf der "
-"Seite mit den Lerninhalten und zu Backlinks auf den Übungsseiten. Verwende "
-"Strg/Befehl + Klick, um mehrere auszuwählen."
+"Diese Kategorien werden auf der Inhaltslektionsseite zu Links auf verwandte "
+"Vokabellektionen und auf Übungsseiten zu Backlinks. Verwende Strg/Befehl + "
+"Klick, um mehrere auszuwählen."
 
 #: includes/post-types/content-lesson-post-type.php:1317
 msgid "Show in lesson grid"
@@ -19635,7 +19648,7 @@ msgstr ""
 #. translators: %d number of additional linked words.
 #: includes/post-types/dictionary-entry-post-type.php:602
 msgid "View %d more"
-msgstr "Ansicht %d mehr"
+msgstr "%d weitere anzeigen"
 
 #: includes/post-types/dictionary-entry-post-type.php:617
 #: includes/post-types/dictionary-entry-post-type.php:1054
@@ -19682,7 +19695,7 @@ msgstr "Du hast keine Berechtigung, auf Wörterbucheinträge zuzugreifen."
 #: includes/shortcodes/audio-recording-shortcode.php:3649
 #: includes/shortcodes/audio-recording-shortcode.php:5592
 msgid "Invalid word ID."
-msgstr "Ungültiges Vokabel ID."
+msgstr "Ungültige Vokabel-ID."
 
 #: includes/post-types/dictionary-entry-post-type.php:889
 msgid "Dictionary entries can only be linked to words."
@@ -19704,11 +19717,11 @@ msgstr "Wörterbucheintrag kann nicht erstellt werden."
 
 #: includes/post-types/dictionary-entry-post-type.php:1084
 msgid "Link this word to an umbrella dictionary entry."
-msgstr "Verbinde diese Vokabel mit einem Wörterbucheintrag im Vokabular."
+msgstr "Verknüpfe diese Vokabel mit einem übergeordneten Wörterbucheintrag."
 
 #: includes/post-types/dictionary-entry-post-type.php:1103
 msgid "Dictionary entry ID"
-msgstr "Wörterbucheintrag ID"
+msgstr "Wörterbucheintrag-ID"
 
 #: includes/post-types/dictionary-entry-post-type.php:1115
 msgid "Enter 0 to unlink."
@@ -19724,7 +19737,7 @@ msgstr "Optionaler Titel"
 
 #: includes/post-types/dictionary-entry-post-type.php:1132
 msgid "If an ID is set above, the ID takes priority."
-msgstr "Wenn oben ein ID eingestellt ist, hat das ID Vorrang."
+msgstr "Wenn oben ein-ID eingestellt ist, hat das-ID Vorrang."
 
 #: includes/post-types/dictionary-entry-post-type.php:1220
 msgid "Dictionary entry translation"
@@ -19755,7 +19768,7 @@ msgstr "Dialekte"
 #: templates/vocab-lesson-template.php:596
 #: templates/vocab-lesson-template.php:615
 msgid "Part of Speech"
-msgstr "Part of Speech"
+msgstr "Wortart"
 
 #: includes/post-types/dictionary-entry-post-type.php:1785
 #: includes/post-types/dictionary-entry-post-type.php:2189
@@ -19840,16 +19853,16 @@ msgstr "Alle verlinkten Vokabeln anzeigen"
 #: includes/post-types/prompt-card-post-type.php:42
 #: includes/post-types/prompt-card-post-type.php:52
 msgid "Prompt Cards"
-msgstr "Aufforderungskarten"
+msgstr "Prompt-Karten"
 
 #: includes/post-types/prompt-card-post-type.php:41
 #: includes/post-types/prompt-card-post-type.php:43
 msgid "Prompt Card"
-msgstr "Aufforderungskarte"
+msgstr "Prompt-Karte"
 
 #: includes/post-types/prompt-card-post-type.php:44
 msgid "Add Prompt Card"
-msgstr "Aufforderungskarte hinzufügen"
+msgstr "Prompt-Karte hinzufügen"
 
 #: includes/post-types/prompt-card-post-type.php:45
 msgid "Add New Prompt Card"
@@ -19869,7 +19882,7 @@ msgstr "Prompt-Karte anzeigen"
 
 #: includes/post-types/prompt-card-post-type.php:49
 msgid "Search Prompt Cards"
-msgstr "Suchaufforderungskarten"
+msgstr "Prompt-Karten suchen"
 
 #: includes/post-types/prompt-card-post-type.php:50
 msgid "No prompt cards found."
@@ -19885,11 +19898,11 @@ msgstr "Prompt-Karte veröffentlicht."
 
 #: includes/post-types/prompt-card-post-type.php:54
 msgid "Prompt card updated."
-msgstr "Aufforderungskarte aktualisiert."
+msgstr "Prompt-Karte aktualisiert."
 
 #: includes/post-types/prompt-card-post-type.php:509
 msgid "Prompt Card Setup"
-msgstr "Prompt Card Setup"
+msgstr "Prompt-Karte einrichten"
 
 #: includes/post-types/prompt-card-post-type.php:532
 msgid ""
@@ -19923,12 +19936,12 @@ msgid ""
 "Use a media-library audio attachment when possible. The URL field below is a"
 " fallback."
 msgstr ""
-"Verwende, wenn möglich, einen Mediathek-Audio-Anhang. Das Feld URL unten ist"
+"Verwende, wenn möglich, einen Mediathek-Audio-Anhang. Das Feld-URL unten ist"
 " ein Fallback."
 
 #: includes/post-types/prompt-card-post-type.php:560
 msgid "Prompt image word ID"
-msgstr "Aufforderung Vokabel-Bild ID"
+msgstr "Aufforderung Vokabel-Bild-ID"
 
 #: includes/post-types/prompt-card-post-type.php:563
 msgid ""
@@ -19941,7 +19954,7 @@ msgstr ""
 
 #: includes/post-types/prompt-card-post-type.php:572 includes/privacy.php:475
 msgid "Correct answer word ID"
-msgstr "Richtige Antwort Vokabel ID"
+msgstr "Richtige Antwort Vokabel-ID"
 
 #: includes/post-types/prompt-card-post-type.php:575
 msgid "This word provides the correct answer label and answer audio."
@@ -19976,10 +19989,9 @@ msgid ""
 "vocabulary word. Turn it off for yes/no grammar cards so only prompt-card "
 "progress is tracked."
 msgstr ""
-"Lass dies für Karten wie \"Pferd oder Kuh?\" eingeschaltet, bei denen die "
-"Antwort immer noch ein Vokabelwort ist. Schalte es für Ja/Nein-"
-"Grammatikkarten aus, damit nur der Fortschritt der Prompt-Cards verfolgt "
-"wird."
+"Lass dies für Karten wie „Pferd oder Kuh?“ eingeschaltet, bei denen die "
+"Antwort weiterhin eine Vokabel ist. Schalte es für Ja/Nein-Grammatikkarten "
+"aus, damit nur der Fortschritt der Prompt-Karten verfolgt wird."
 
 #: includes/post-types/prompt-card-post-type.php:683
 msgid "Select prompt audio"
@@ -20039,7 +20051,7 @@ msgstr "Keine Vokabellektionen im Papierkorb gefunden"
 
 #: includes/post-types/word-audio-post-type.php:12
 msgid "Audio Recording"
-msgstr "Audioaufnahmen"
+msgstr "Audioaufnahme"
 
 #: includes/post-types/word-audio-post-type.php:13
 msgid "Add New Recording"
@@ -20087,7 +20099,7 @@ msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:54
 msgid "Audio credit"
-msgstr "Audio Kredit"
+msgstr "Audio-Quellenangabe"
 
 #: includes/post-types/word-audio-post-type.php:57
 msgid ""
@@ -20109,7 +20121,7 @@ msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:66
 msgid "Source page URL"
-msgstr "Quellseite URL"
+msgstr "Quellseite-URL"
 
 #: includes/post-types/word-audio-post-type.php:69
 msgid "Link to the original source page for this audio when available."
@@ -20127,7 +20139,7 @@ msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:78
 msgid "License URL"
-msgstr "Lizenz URL"
+msgstr "Lizenz-URL"
 
 #: includes/post-types/word-audio-post-type.php:81
 msgid "Link to the license terms when available."
@@ -20170,7 +20182,7 @@ msgstr "Alle Aufnahmetypen"
 #: includes/post-types/word-audio-post-type.php:341
 #: includes/post-types/word-audio-post-type.php:388
 msgid "Open Bulk Edit to load shared recording types."
-msgstr "Öffne Bulk Edit, um gemeinsame Aufnahmetypen zu laden."
+msgstr "Öffne die Massenbearbeitung, um gemeinsame Aufnahmetypen zu laden."
 
 #: includes/post-types/word-audio-post-type.php:342
 msgid "Loading shared recording types..."
@@ -20253,7 +20265,7 @@ msgstr "Aufnahmedatum"
 #: includes/post-types/word-image-post-type.php:662
 #: includes/shortcodes/word-grid-shortcode.php:7750
 msgid "Invalid word."
-msgstr "Ungültiges Vokabel."
+msgstr "Ungültige Vokabel."
 
 #: includes/post-types/word-image-post-type.php:674
 msgid "Untitled image"
@@ -20269,7 +20281,7 @@ msgstr "Vokabelbild-Metadaten"
 
 #: includes/post-types/word-image-post-type.php:815
 msgid "Copyright Info:"
-msgstr "Copyright Info:"
+msgstr "Urheberrechtsinfo:"
 
 #: includes/post-types/word-image-post-type.php:819
 #: includes/shortcodes/word-grid-shortcode.php:4977
@@ -20289,7 +20301,7 @@ msgstr ""
 #: includes/post-types/word-image-post-type.php:955
 #: includes/shortcodes/word-grid-shortcode.php:4976
 msgid "Copyright Info"
-msgstr "Copyright Info"
+msgstr "Urheberrechtsinfo"
 
 #: includes/post-types/word-image-post-type.php:956
 #: includes/post-types/words-post-type.php:985
@@ -20302,12 +20314,12 @@ msgstr "Ähnliche Vokabeln"
 
 #: includes/post-types/words-post-type.php:95
 msgid "Enter the Post ID of a word that looks similar:"
-msgstr "Gib den Post ID eines Vokabels ein, das ähnlich aussieht:"
+msgstr "Gib den Post-ID eines Vokabels ein, das ähnlich aussieht:"
 
 #: includes/post-types/words-post-type.php:97
 msgid "Find the Post ID in the list of words. Use numerical ID only."
 msgstr ""
-"Finde den Beitrag ID in der Liste der Vokabeln. Verwende nur die Zahlen ID."
+"Finde die Beitrags-ID in der Liste der Vokabeln. Verwende nur die Zahlen-ID."
 
 #: includes/post-types/words-post-type.php:127
 msgid "Linked Image"
@@ -20331,8 +20343,8 @@ msgid ""
 "word post. Update the linked image record to finish migrating it."
 msgstr ""
 "Diese Vorschau greift immer noch auf die alte gespiegelte Miniaturansicht "
-"für die Vokabel-Beitrag zurück. Aktualisiere den verlinkten Bilddatensatz, "
-"um die Migration abzuschließen."
+"für den Vokabelbeitrag zurück. Aktualisiere den verlinkten Bilddatensatz, um"
+" die Migration abzuschließen."
 
 #: includes/post-types/words-post-type.php:169
 msgid ""
@@ -20429,7 +20441,7 @@ msgstr[1] "%d Vokabeln übersprungen (keine Audiodatei)."
 
 #: includes/post-types/words-post-type.php:1706
 msgid "Go to Audio Processor"
-msgstr "Gehe zu Audioprozessor"
+msgstr "Audioprozessor öffnen"
 
 #: includes/post-types/words-post-type.php:1714
 msgid "%d word skipped (no audio recordings)."
@@ -20466,7 +20478,7 @@ msgstr "Veröffentlichung blockiert:"
 
 #: includes/privacy.php:58
 msgid "Learner Progress Privacy:"
-msgstr "Lernende Progress Privacy:"
+msgstr "Datenschutz für Lernfortschritt:"
 
 #: includes/privacy.php:61
 msgid ""
@@ -20518,7 +20530,7 @@ msgstr "LL Tools Offline-Sitzungen"
 
 #: includes/privacy.php:288
 msgid "Selected word set ID"
-msgstr "Ausgewähltes Vokabelset ID"
+msgstr "Ausgewähltes Vokabelset-ID"
 
 #: includes/privacy.php:289
 msgid "Selected word set"
@@ -20526,11 +20538,11 @@ msgstr "Ausgewähltes Vokabelset"
 
 #: includes/privacy.php:290
 msgid "Selected category IDs"
-msgstr "Ausgewählte Kategorie IDs"
+msgstr "Ausgewählte Kategorie-IDs"
 
 #: includes/privacy.php:291
 msgid "Starred word IDs"
-msgstr "Vokabel mit Sternchen IDs"
+msgstr "IDs der Vokabeln mit Stern"
 
 #: includes/privacy.php:292
 msgid "Fast transitions enabled"
@@ -20542,15 +20554,15 @@ msgstr "LL Tools Lernziele"
 
 #: includes/privacy.php:304
 msgid "Ignored category IDs"
-msgstr "Ignorierte Kategorie IDs"
+msgstr "Ignorierte Kategorie-IDs"
 
 #: includes/privacy.php:305
 msgid "Preferred word set IDs"
-msgstr "Bevorzugtes Vokabelset IDs"
+msgstr "Bevorzugtes Vokabelset-IDs"
 
 #: includes/privacy.php:306
 msgid "Placement-known category IDs"
-msgstr "Ortsbekannte Kategorie IDs"
+msgstr "Ortsbekannte Kategorie-IDs"
 
 #: includes/privacy.php:307
 msgid "Daily new-word target"
@@ -20590,15 +20602,15 @@ msgstr "Empfehlungsaufschübe"
 
 #: includes/privacy.php:386 includes/privacy.php:555
 msgid "Word ID"
-msgstr "Vokabeln ID"
+msgstr "Vokabel-ID"
 
 #: includes/privacy.php:388 includes/privacy.php:477 includes/privacy.php:559
 msgid "Category ID"
-msgstr "Kategorie ID"
+msgstr "Kategorie-ID"
 
 #: includes/privacy.php:390 includes/privacy.php:479 includes/privacy.php:561
 msgid "Word set ID"
-msgstr "Vokabelset ID"
+msgstr "Vokabelset-ID"
 
 #: includes/privacy.php:392 includes/privacy.php:481
 msgid "First seen at (UTC)"
@@ -20626,15 +20638,15 @@ msgstr "Lernende Abdeckung"
 
 #: includes/privacy.php:399
 msgid "Practice coverage"
-msgstr "Praxisbezug"
+msgstr "Übungsabdeckung"
 
 #: includes/privacy.php:400
 msgid "Listening coverage"
-msgstr "Abdeckung des Zuhörens"
+msgstr "Abdeckung des Hörens"
 
 #: includes/privacy.php:401
 msgid "Gender coverage"
-msgstr "Gender-Abdeckung"
+msgstr "Genusabdeckung"
 
 #: includes/privacy.php:402
 msgid "Self-check coverage"
@@ -20654,11 +20666,11 @@ msgstr "Falsche Antworten"
 
 #: includes/privacy.php:406
 msgid "Lapse count"
-msgstr "Zeitspanne zählen"
+msgstr "Anzahl der Rückfälle"
 
 #: includes/privacy.php:407 includes/privacy.php:489
 msgid "Current streak"
-msgstr "Aktueller Streifzug"
+msgstr "Aktuelle Serie"
 
 #: includes/privacy.php:408
 msgid "Stage"
@@ -20674,15 +20686,15 @@ msgstr "Mastery freigeschaltet"
 
 #: includes/privacy.php:412
 msgid "Required practice recording types"
-msgstr "Erforderliche Aufnahmetypen für die Praxis"
+msgstr "Erforderliche Aufnahmetypen zum Üben"
 
 #: includes/privacy.php:413
 msgid "Correct practice recording types"
-msgstr "Korrekte Aufnahmetypen für die Praxis"
+msgstr "Richtige Aufnahmetypen zum Üben"
 
 #: includes/privacy.php:472 includes/privacy.php:557
 msgid "Prompt card ID"
-msgstr "Aufforderungskarte ID"
+msgstr "Prompt-Karte-ID"
 
 #: includes/privacy.php:476
 msgid "Correct answer word"
@@ -20690,7 +20702,7 @@ msgstr "Richtige Antwort Vokabel"
 
 #: includes/privacy.php:485
 msgid "Exposure total"
-msgstr "Exposition gesamt"
+msgstr "Einblendungen gesamt"
 
 #: includes/privacy.php:552
 msgid "Recorded at (UTC)"
@@ -20747,7 +20759,7 @@ msgstr "LL Tools Lerndaten"
 #: includes/privacy.php:724
 msgid "Suggested text for sites that use LL Tools learner progress features."
 msgstr ""
-"Vorgeschlagener Text für Websites, die die Lernenden-Funktionen der LL-Tools"
+"Vorgeschlagener Text für Websites, die die Lernenden-Funktionen der LL Tools"
 " nutzen."
 
 #: includes/privacy.php:726
@@ -20771,44 +20783,43 @@ msgid ""
 "personal data. You can request an export or erasure of this data through the"
 " site’s privacy request tools."
 msgstr ""
-"Wenn du die LL-Tools benutzt, während du angemeldet bist, speichert diese "
-"Seite deinen Lernfortschritt, deine Lernpräferenzen, die ausgewählten "
-"Vokabelkategorien, die mit Sternen versehenen Vokabeln, Zusammenfassungen "
-"des Lernfortschritts für die gelernten Vokabeln und den detaillierten "
-"Verlauf deiner Aktivitäten, wie z.B. Quiz-Aufgaben und -Ergebnisse. Wenn du "
-"die Offline-Synchronisierungsfunktion nutzt, speichert die Seite auch eine "
-"begrenzte Anzahl von Geräte-/Profilkennungen, die für die Synchronisierung "
-"benötigt werden. Diese Informationen werden verwendet, um deinen "
-"Lernfortschritt zu speichern, Empfehlungen für das nächste Lernen zu "
-"personalisieren, deinen Lernstatus über mehrere Sitzungen hinweg "
+"Wenn du die LL Tools benutzt, während du angemeldet bist, speichert diese "
+"Seite deinen Lernfortschritt, deine Lernpräferenzen, das ausgewählte "
+"Vokabelset und die ausgewählten Kategorien, die Vokabeln mit Stern, "
+"Zusammenfassungen des Lernfortschritts für die gelernten Vokabeln und den "
+"detaillierten Verlauf deiner Aktivitäten, wie z.B. Quiz-Einblendungen und "
+"-Ergebnisse. Wenn du die Offline-Synchronisierungsfunktion nutzt, speichert "
+"die Seite auch eine begrenzte Anzahl von Geräte-/Profilkennungen, die für "
+"die Synchronisierung benötigt werden. Diese Informationen werden verwendet, "
+"um deinen Lernfortschritt zu speichern, Empfehlungen für das nächste Lernen "
+"zu personalisieren, deinen Lernstatus über mehrere Sitzungen hinweg "
 "wiederherzustellen, die Offline-Lernaktivitäten mit deinem Konto zu "
 "synchronisieren und es den Administratoren der Website zu ermöglichen, den "
 "Fortschritt der Lernenden zu überprüfen, wenn dies für den Betrieb der "
 "Website erforderlich ist. Detaillierte Aktivitätsprotokolleinträge werden %d"
 " Tage lang aufbewahrt. Die zusammenfassenden Fortschrittsdaten bleiben "
 "erhalten, bis dein Konto gelöscht wird oder die Website deine persönlichen "
-"LL-Tools-Daten löscht. Du kannst den Export oder die Löschung dieser Daten "
+"LL Tools-Daten löscht. Du kannst den Export oder die Löschung dieser Daten "
 "über die Datenschutzanforderungstools der Website beantragen."
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:287
 msgid "Credit"
-msgstr "Kredit"
+msgstr "Namensnennung"
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:320
 #: includes/shortcodes/image-copyright-grid-shortcode.php:424
 msgid "« Prev"
-msgstr "\" Prev"
+msgstr "« Zurück"
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:321
 #: includes/shortcodes/image-copyright-grid-shortcode.php:425
 msgid "Next »"
-msgstr "Nächste \""
+msgstr "Weiter »"
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:327
 msgid "No audio recordings found with public credit information."
 msgstr ""
-"Es wurden keine Audioaufnahmen mit öffentlichen Kreditinformationen "
-"gefunden."
+"Es wurden keine Audioaufnahmen mit öffentlichen Quellenangaben gefunden."
 
 #: includes/shortcodes/audio-recording-shortcode.php:32
 #: includes/taxonomies/recording-type-taxonomy.php:44
@@ -20865,8 +20876,9 @@ msgid ""
 "This invite can create a recorder account for this word set or connect an "
 "existing account with the invited email address."
 msgstr ""
-"Diese Einladung kann ein Recorder-Konto für dieses Vokabelset erstellen oder"
-" ein bestehendes Konto mit der eingeladenen E-Mail-Adresse verbinden."
+"Diese Einladung kann ein Audio-Recorder-Konto für dieses Vokabelset "
+"erstellen oder ein bestehendes Konto mit der eingeladenen E-Mail-Adresse "
+"verbinden."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1118
 msgid ""
@@ -20923,7 +20935,7 @@ msgstr "Diesen Typ übersprungen. Nächster Typ ausgewählt."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1339
 msgid "Word skipped. Moving to next item."
-msgstr "Vokabel übersprungen. Gehe zum nächsten Punkt über."
+msgstr "Vokabel übersprungen. Weiter zum nächsten Element."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1340
 msgid "All recordings completed for the selected set. Thank you!"
@@ -21079,7 +21091,7 @@ msgstr "Übersetzung bereit."
 msgid ""
 "Microphone requires a secure connection. Please use HTTPS or localhost."
 msgstr ""
-"Microphone erfordert eine sichere Verbindung. Bitte verwende HTTPS oder "
+"Das Mikrofon erfordert eine sichere Verbindung. Bitte verwende HTTPS oder "
 "localhost."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1378
@@ -21104,8 +21116,8 @@ msgid ""
 "Microphone requires a secure connection. Open this page over HTTPS or "
 "localhost and try again."
 msgstr ""
-"Microphone erfordert eine sichere Verbindung. Öffne diese Seite über HTTPS "
-"oder localhost und versuche es erneut."
+"Das Mikrofon erfordert eine sichere Verbindung. Öffne diese Seite über HTTPS"
+" oder localhost und versuche es erneut."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1381
 msgid ""
@@ -21121,10 +21133,9 @@ msgid ""
 "Microphone access was not granted. If no browser prompt appears, open Site "
 "settings from the lock icon and allow Microphone for this site, then reload."
 msgstr ""
-"Der Zugriff auf das Mikrofon wurde nicht gewährt. Wenn keine Browser-"
-"Eingabeaufforderung erscheint, öffne die Site-Einstellungen über das "
-"Schloss-Symbol und erlaube den Mikrofon-Zugriff für diese Site und lade sie "
-"dann neu."
+"Der Zugriff auf das Mikrofon wurde nicht gewährt. Wenn keine Browser-Prompt "
+"erscheint, öffne die Site-Einstellungen über das Schloss-Symbol und erlaube "
+"den Mikrofon-Zugriff für diese Site und lade sie dann neu."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1383
 msgid ""
@@ -21179,8 +21190,8 @@ msgid ""
 "default input."
 msgstr ""
 "Es wurden keine Eingabegeräte erkannt: Windows-Einstellungen → Datenschutz &"
-" Sicherheit → Mikrofon → Apps und Desktop-Apps zulassen; dann Sound-"
-"Einstellungen für die Standardeingabe überprüfen."
+" Sicherheit → Mikrofon → Apps und Desktop-Apps zulassen; dann die Sound-"
+"Einstellungen für die Standardeingabe prüfen."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1390
 msgid "Browser does not support required audio formats for recording"
@@ -21217,11 +21228,11 @@ msgstr "Noch keine versteckten Vokabeln."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1398
 msgid "Unhide failed:"
-msgstr "Unhide ist fehlgeschlagen:"
+msgstr "Einblenden fehlgeschlagen:"
 
 #: includes/shortcodes/audio-recording-shortcode.php:1399
 msgid "Word unhidden."
-msgstr "Vokabel unhidden."
+msgstr "Vokabel wieder eingeblendet."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1400
 msgid "HTTP 500 (no recording found)"
@@ -21495,11 +21506,11 @@ msgstr "Verboten."
 #: includes/shortcodes/audio-recording-shortcode.php:3164
 #: includes/shortcodes/word-grid-shortcode.php:7745
 msgid "Missing word ID."
-msgstr "Fehlendes Vokabel ID."
+msgstr "Fehlendes Vokabel-ID."
 
 #: includes/shortcodes/audio-recording-shortcode.php:3349
 msgid "Unknown recorder error."
-msgstr "Unbekannter Recorder-Fehler."
+msgstr "Unbekannter Audio-Recorder-Fehler."
 
 #: includes/shortcodes/audio-recording-shortcode.php:3369
 msgid "No transcript text returned."
@@ -21512,7 +21523,7 @@ msgstr "AssemblyAI-Integration nicht verfügbar."
 
 #: includes/shortcodes/audio-recording-shortcode.php:3491
 msgid "Missing transcript ID."
-msgstr "Fehlendes Transkript ID."
+msgstr "Fehlendes Transkript-ID."
 
 #: includes/shortcodes/audio-recording-shortcode.php:3550
 msgid "Missing text."
@@ -21551,7 +21562,7 @@ msgstr "Fehlt image_id oder word_id."
 #: includes/shortcodes/audio-recording-shortcode.php:3634
 #: includes/shortcodes/audio-recording-shortcode.php:5577
 msgid "Invalid image ID."
-msgstr "Ungültiges Bild ID."
+msgstr "Ungültiges Bild-ID."
 
 #. translators: %s: word creation error
 #: includes/shortcodes/audio-recording-shortcode.php:3640
@@ -21562,7 +21573,7 @@ msgstr "Vokabel konnte nicht gefunden/erstellt werden: %s"
 #: includes/shortcodes/audio-recording-shortcode.php:3950
 #: includes/shortcodes/audio-recording-shortcode.php:5407
 msgid "Prompt card #%d"
-msgstr "Aufforderungskarte #%d"
+msgstr "Prompt-Karte #%d"
 
 #: includes/shortcodes/audio-recording-shortcode.php:5396
 #: includes/shortcodes/audio-recording-shortcode.php:6369
@@ -21604,7 +21615,7 @@ msgstr "Vokabel-Post konnte nicht gefunden/erstellt werden: %s"
 #: includes/shortcodes/audio-recording-shortcode.php:5599
 #: includes/shortcodes/audio-recording-shortcode.php:6333
 msgid "Failed to create word post: %s"
-msgstr "Vokabel-Beitrag konnte nicht erstellt werden: %s"
+msgstr "Vokabelbeitrag konnte nicht erstellt werden: %s"
 
 #: includes/shortcodes/audio-recording-shortcode.php:5755
 msgid "Admin Notification Email"
@@ -21670,8 +21681,8 @@ msgstr "Kategorien (%1$d insgesamt): %2$s"
 #: includes/shortcodes/audio-recording-shortcode.php:5945
 msgid "Uncategorized recording: %d"
 msgid_plural "Uncategorized recordings: %d"
-msgstr[0] "Uncategorized-Aufnahme: %d"
-msgstr[1] "Uncategorized-Aufnahmen: %d"
+msgstr[0] "Nicht kategorisierte Aufnahme: %d"
+msgstr[1] "Nicht kategorisierte Aufnahmen: %d"
 
 #. translators: %d: user ID
 #: includes/shortcodes/audio-recording-shortcode.php:6018
@@ -21697,7 +21708,7 @@ msgstr[1] ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:6105
 msgid "Recorders:"
-msgstr "Aufnahmegeräte:"
+msgstr "Audio-Recorder:"
 
 #. translators: 1: display name, 2: recording count
 #: includes/shortcodes/audio-recording-shortcode.php:6111
@@ -21748,12 +21759,12 @@ msgstr "Fehlt image_id oder word_id"
 
 #: includes/shortcodes/audio-recording-shortcode.php:6296
 msgid "Invalid image ID"
-msgstr "Ungültiges Bild ID"
+msgstr "Ungültiges Bild-ID"
 
 #: includes/shortcodes/audio-recording-shortcode.php:6319
 #: includes/shortcodes/word-grid-shortcode.php:7111
 msgid "Invalid word ID"
-msgstr "Ungültiges Vokabel ID"
+msgstr "Ungültige Vokabel-ID"
 
 #: includes/shortcodes/audio-recording-shortcode.php:6415
 msgid "Original audio source was not included with the processed upload."
@@ -22012,7 +22023,7 @@ msgstr "Suchumfang"
 #: templates/vocab-lesson-template.php:744
 #: templates/vocab-lesson-template.php:746
 msgid "Verb tense"
-msgstr "Verb Zeitform"
+msgstr "Verbzeitform"
 
 #: includes/shortcodes/editor-hub-shortcode.php:518
 #: includes/shortcodes/editor-hub-shortcode.php:1062
@@ -22022,7 +22033,7 @@ msgstr "Verb Zeitform"
 #: templates/vocab-lesson-template.php:788
 #: templates/vocab-lesson-template.php:790
 msgid "Verb mood"
-msgstr "Verb-Stimmung"
+msgstr "Verbmodus"
 
 #. translators: 1: recording type label, 2: field label
 #: includes/shortcodes/editor-hub-shortcode.php:658
@@ -22107,7 +22118,7 @@ msgstr "Kein Bild verfügbar"
 
 #: includes/shortcodes/flashcard-widget.php:374
 msgid "Learning Complete!"
-msgstr "Lernen komplett!"
+msgstr "Lernen abgeschlossen!"
 
 #: includes/shortcodes/flashcard-widget.php:375
 msgid "✓"
@@ -22123,7 +22134,7 @@ msgstr "Lernen fortsetzen"
 
 #: includes/shortcodes/flashcard-widget.php:378
 msgid "Listening Complete"
-msgstr "Zuhören komplett"
+msgstr "Hörübung abgeschlossen"
 
 #: includes/shortcodes/flashcard-widget.php:379
 msgid "Pause / Play"
@@ -22135,11 +22146,11 @@ msgstr "Zurück"
 
 #: includes/shortcodes/flashcard-widget.php:381
 msgid "Forward"
-msgstr "Weiterleiten"
+msgstr "Vorwärts"
 
 #: includes/shortcodes/flashcard-widget.php:382
 msgid "Rapid listening"
-msgstr "Schnelles Zuhören"
+msgstr "Schnelles Hören"
 
 #: includes/shortcodes/flashcard-widget.php:383
 msgid "Loop"
@@ -22183,7 +22194,7 @@ msgstr "Ich glaube, ich weiß es"
 
 #: includes/shortcodes/flashcard-widget.php:395
 msgid "I got it wrong"
-msgstr "Ich habe es falsch verstanden"
+msgstr "Ich lag falsch"
 
 #: includes/shortcodes/flashcard-widget.php:396
 msgid "I got close"
@@ -22258,7 +22269,7 @@ msgstr "In den Hörmodus wechseln"
 #: includes/shortcodes/flashcard-widget.php:569
 #: includes/shortcodes/quiz-pages-shortcodes.php:910
 msgid "Switch to Gender"
-msgstr "Zu Geschlecht wechseln"
+msgstr "Zum Genusmodus wechseln"
 
 #: includes/shortcodes/flashcard-widget.php:413
 #: includes/shortcodes/flashcard-widget.php:544
@@ -22282,7 +22293,7 @@ msgstr "Lernen"
 
 #: includes/shortcodes/flashcard-widget.php:421
 msgid "Listening"
-msgstr "Zuhören"
+msgstr "Hören"
 
 #: includes/shortcodes/flashcard-widget.php:427
 msgid "I don't know"
@@ -22290,19 +22301,18 @@ msgstr "Ich weiß es nicht"
 
 #: includes/shortcodes/flashcard-widget.php:428
 msgid "Gender Round Complete"
-msgstr "Gender-Runde abgeschlossen"
+msgstr "Genusrunde abgeschlossen"
 
 #: includes/shortcodes/flashcard-widget.php:429
 msgid "Keep training noun gender with the next activity."
-msgstr ""
-"Trainiere das Substantiv Geschlecht weiter mit der nächsten Aktivität."
+msgstr "Übe weiter das Genus der Nomen mit der nächsten Aktivität."
 
 #: includes/shortcodes/flashcard-widget.php:430
 #: includes/shortcodes/quiz-pages-shortcodes.php:974
 #: templates/flashcard-widget-template.php:157
 #: templates/offline-app-shell-template.php:958
 msgid "Next Gender Activity"
-msgstr "Nächste Gender-Aktivität"
+msgstr "Nächste Genusaktivität"
 
 #: includes/shortcodes/flashcard-widget.php:431
 #: includes/shortcodes/quiz-pages-shortcodes.php:977
@@ -22319,11 +22329,11 @@ msgstr "Dieses Level wiederholen"
 
 #: includes/shortcodes/flashcard-widget.php:439
 msgid "Start Level 2"
-msgstr "Start Level 2"
+msgstr "Stufe 2 starten"
 
 #: includes/shortcodes/flashcard-widget.php:440
 msgid "Start Level 3"
-msgstr "Start Level 3"
+msgstr "Stufe 3 starten"
 
 #: includes/shortcodes/flashcard-widget.php:441
 msgid "Go Back to Level 1"
@@ -22347,7 +22357,8 @@ msgstr "Level 1: Weiterbauen"
 
 #: includes/shortcodes/flashcard-widget.php:446
 msgid "Repeat this level to reinforce word-gender memory."
-msgstr "Wiederhole diese Stufe, um die Vokabel-Gedächtnis zu stärken."
+msgstr ""
+"Wiederhole diese Stufe, um dir das Genus der Wörter besser einzuprägen."
 
 #: includes/shortcodes/flashcard-widget.php:447
 msgid "Level 2 Complete"
@@ -22460,7 +22471,7 @@ msgstr "Auswahl löschen"
 
 #: includes/shortcodes/flashcard-widget.php:483
 msgid "Practice Selected"
-msgstr "Praxis ausgewählt"
+msgstr "Ausgewählte üben"
 
 #: includes/shortcodes/flashcard-widget.php:484
 msgid "Learn Selected"
@@ -22487,7 +22498,7 @@ msgstr "Der Lernmodus ist für diese Auswahl nicht verfügbar."
 
 #: includes/shortcodes/flashcard-widget.php:494
 msgid "Gender mode is not available for this selection."
-msgstr "Der Gender-Modus ist für diese Auswahl nicht verfügbar."
+msgstr "Der Genusmodus ist für diese Auswahl nicht verfügbar."
 
 #: includes/shortcodes/flashcard-widget.php:524
 msgid "Female and male symbols icon"
@@ -22499,7 +22510,7 @@ msgstr "Ungültige Kategorie."
 
 #: includes/shortcodes/image-copyright-grid-shortcode.php:168
 msgid "Image, credit, source"
-msgstr "Bild, Kredit, Quelle"
+msgstr "Bild, Namensnennung, Quelle"
 
 #. translators: %d is the source link number.
 #: includes/shortcodes/image-copyright-grid-shortcode.php:217
@@ -22542,16 +22553,16 @@ msgstr "Quiz neu starten"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1350
 msgid "No quizzes found."
-msgstr "Keine Quizzes gefunden."
+msgstr "Keine Quizze gefunden."
 
 #. translators: %s: quiz card title
 #: includes/shortcodes/quiz-pages-shortcodes.php:1403
 msgid "Start %s"
-msgstr "Start %s"
+msgstr "%s starten"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1444
 msgid "Select a quiz…"
-msgstr "Wähle ein Quiz aus.."
+msgstr "Quiz auswählen…"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1463
 msgid "No quiz pages are available yet."
@@ -22563,7 +22574,7 @@ msgstr "Quiz-Auswahl"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1487
 msgid "Go"
-msgstr "Gehe zu"
+msgstr "Öffnen"
 
 #: includes/shortcodes/site-tools-shortcode.php:163
 msgid "Create"
@@ -22717,7 +22728,7 @@ msgid ""
 "Use an administrator account to manage sitewide LL Tools settings without "
 "opening the WordPress dashboard."
 msgstr ""
-"Verwende ein Administratorkonto, um seitenweite LL-Tools-Einstellungen zu "
+"Verwende ein Administratorkonto, um seitenweite LL Tools-Einstellungen zu "
 "verwalten, ohne das WordPress-Dashboard zu öffnen."
 
 #: includes/shortcodes/site-tools-shortcode.php:952
@@ -22746,7 +22757,7 @@ msgid ""
 "This page starts moving sitewide LL Tools settings and maintenance out of "
 "the WordPress dashboard into the plugin’s own front-end workspace."
 msgstr ""
-"Auf dieser Seite werden die seitenweiten LL-Tools-Einstellungen und "
+"Auf dieser Seite werden die seitenweiten LL Tools-Einstellungen und "
 "-Wartungen aus dem WordPress-Dashboard in den eigenen Front-End-"
 "Arbeitsbereich des Plugins verschoben."
 
@@ -22757,12 +22768,12 @@ msgstr "Arbeitsbereich-Seiten"
 #: includes/shortcodes/site-tools-shortcode.php:1040
 msgid "Open the existing custom LL Tools pages directly from here."
 msgstr ""
-"Öffne die bestehenden benutzerdefinierten LL-Tools-Seiten direkt von hier "
+"Öffne die bestehenden benutzerdefinierten LL Tools-Seiten direkt von hier "
 "aus."
 
 #: includes/shortcodes/site-tools-shortcode.php:1044
 msgid "No custom LL Tools pages are available yet."
-msgstr "Es sind noch keine benutzerdefinierten LL-Tools-Seiten verfügbar."
+msgstr "Es sind noch keine benutzerdefinierten LL Tools-Seiten verfügbar."
 
 #: includes/shortcodes/site-tools-shortcode.php:1059
 msgid "Study Defaults"
@@ -22877,7 +22888,7 @@ msgid ""
 "Move recorder-facing defaults and summary email timing into the custom "
 "interface."
 msgstr ""
-"Verschiebe die Voreinstellungen für den Rekorder und die E-Mail-"
+"Verschiebe die Voreinstellungen für den Audio-Recorder und die E-Mail-"
 "Zusammenfassung in die benutzerdefinierte Oberfläche."
 
 #: includes/shortcodes/site-tools-shortcode.php:1149
@@ -22928,9 +22939,8 @@ msgid ""
 "Manage recording type labels and the fallback prompts used when a word has "
 "no category without opening wp-admin."
 msgstr ""
-"Verwalte die Aufnahmetypen-Bezeichnungen und die Fallback-Prompts, die "
-"verwendet werden, wenn eine Vokabel keine Kategorie hat, ohne wp-admin zu "
-"öffnen."
+"Verwalte Aufnahmetyp-Bezeichnungen und die Fallback-Prompts, die verwendet "
+"werden, wenn eine Vokabel keine Kategorie hat, ohne wp-admin zu öffnen."
 
 #. translators: %d: number of recording types
 #. translators: %d is the number of enabled recording types for the category.
@@ -22964,7 +22974,7 @@ msgstr ""
 
 #: includes/shortcodes/site-tools-shortcode.php:1274
 msgid "Create a recording type before selecting fallback prompts."
-msgstr "Erstelle einen Aufnahmetypen, bevor du Fallback-Prompts auswählst."
+msgstr "Erstelle einen Aufnahmetyp, bevor du Fallback-Prompts auswählst."
 
 #: includes/shortcodes/site-tools-shortcode.php:1285
 msgid "Save Uncategorized Defaults"
@@ -23049,7 +23059,7 @@ msgstr "Stabile Release-Pakete"
 
 #: includes/shortcodes/site-tools-shortcode.php:1354
 msgid "Dev branch builds"
-msgstr "Dev-Zweig baut auf"
+msgstr "Builds aus dem Dev-Zweig"
 
 #: includes/shortcodes/site-tools-shortcode.php:1359
 msgid "Save Update Channel"
@@ -23201,7 +23211,7 @@ msgstr ""
 
 #: includes/shortcodes/site-tools-shortcode.php:1487
 msgid "No managed LL Tools pages are configured yet."
-msgstr "Es sind noch keine verwalteten LL-Tools-Seiten konfiguriert."
+msgstr "Es sind noch keine verwalteten LL Tools-Seiten konfiguriert."
 
 #. translators: %s: page title
 #: includes/shortcodes/site-tools-shortcode.php:1505
@@ -23223,7 +23233,7 @@ msgstr "Nimm fehlende Audioaufnahmen für %s auf"
 
 #: includes/shortcodes/word-grid-shortcode.php:306
 msgid "Opening recorder..."
-msgstr "Recorder öffnen..."
+msgstr "Audio-Recorder öffnen..."
 
 #: includes/shortcodes/word-grid-shortcode.php:2083
 #: includes/shortcodes/word-grid-shortcode.php:2084
@@ -23234,7 +23244,7 @@ msgstr "Bearbeitung abbrechen"
 
 #: includes/shortcodes/word-grid-shortcode.php:2885
 msgid "Missing word set category scope."
-msgstr "Fehlende Vokabelkategorie Vokabelset scope."
+msgstr "Fehlender Geltungsbereich für Vokabelset-Kategorie."
 
 #: includes/shortcodes/word-grid-shortcode.php:2979
 msgid "No audio recording yet."
@@ -23267,7 +23277,7 @@ msgstr "Nicht öffentlich: Quiz verwendet keine Bilder."
 #: includes/shortcodes/word-grid-shortcode.php:3333
 #: templates/vocab-lesson-template.php:452
 msgid "Star all"
-msgstr "Alle Sterne"
+msgstr "Alle mit Stern markieren"
 
 #: includes/shortcodes/word-grid-shortcode.php:3334
 msgid "Unstar all"
@@ -23374,7 +23384,7 @@ msgstr "Aufnahme kann nicht gelöscht werden."
 
 #: includes/shortcodes/word-grid-shortcode.php:3365
 msgid "Moving recording..."
-msgstr "Bewegte Aufnahme..."
+msgstr "Aufnahme wird verschoben..."
 
 #: includes/shortcodes/word-grid-shortcode.php:3367
 #: includes/shortcodes/word-grid-shortcode.php:7940
@@ -23395,7 +23405,7 @@ msgstr "Reihenfolge wird gespeichert..."
 
 #: includes/shortcodes/word-grid-shortcode.php:3379
 msgid "Order saved."
-msgstr "Bestellung gespeichert."
+msgstr "Reihenfolge gespeichert."
 
 #: includes/shortcodes/word-grid-shortcode.php:3380
 msgid "Unable to save the lesson order."
@@ -23413,7 +23423,7 @@ msgstr "Letzte Massenänderung rückgängig machen"
 #: includes/shortcodes/word-grid-shortcode.php:3386
 #: includes/shortcodes/word-grid-shortcode.php:9253
 msgid "Bulk changes undone."
-msgstr "Bulk-Änderungen rückgängig machen."
+msgstr "Massenänderungen rückgängig gemacht."
 
 #: includes/shortcodes/word-grid-shortcode.php:3387
 msgid "Unable to undo bulk changes."
@@ -23514,7 +23524,7 @@ msgstr "Transkription für diese Lektion ersetzen?"
 
 #: includes/shortcodes/word-grid-shortcode.php:3417
 msgid "Clear transcription for this lesson?"
-msgstr "Klare Transkription für diese Lektion?"
+msgstr "Transkription für diese Lektion löschen?"
 
 #: includes/shortcodes/word-grid-shortcode.php:3419
 msgid "Transcribing %1$d of %2$d..."
@@ -23530,11 +23540,11 @@ msgstr "Keine Aufnahmen müssen transkribiert werden."
 
 #: includes/shortcodes/word-grid-shortcode.php:3422
 msgid "Clearing transcription..."
-msgstr "Löschen der Transkription..."
+msgstr "Transkription wird gelöscht..."
 
 #: includes/shortcodes/word-grid-shortcode.php:3423
 msgid "Transcription cleared."
-msgstr "Transkription geklärt."
+msgstr "Transkription gelöscht."
 
 #: includes/shortcodes/word-grid-shortcode.php:3424
 msgid "Transcription cancelled."
@@ -23613,7 +23623,7 @@ msgstr "Vorhandenes Bild"
 
 #: includes/shortcodes/word-grid-shortcode.php:4973
 msgid "Search word set images"
-msgstr "Suche Vokabelbilder Vokabelsets"
+msgstr "Vokabelbilder im Vokabelset suchen"
 
 #: includes/shortcodes/word-grid-shortcode.php:4974
 msgid "Upload a new image or select an existing word image."
@@ -23789,7 +23799,7 @@ msgstr "Vokabel erstellt."
 
 #: includes/shortcodes/word-grid-shortcode.php:7106
 msgid "Missing word ID"
-msgstr "Fehlendes Vokabel ID"
+msgstr "Fehlendes Vokabel-ID"
 
 #: includes/shortcodes/word-grid-shortcode.php:7177
 msgid "You do not have permission to upload images."
@@ -23821,7 +23831,7 @@ msgstr "Hat \"%s\" in den Papierkorb verschoben."
 
 #: includes/shortcodes/word-grid-shortcode.php:7815
 msgid "Missing recording ID."
-msgstr "Fehlende Aufnahme ID."
+msgstr "Fehlende Aufnahme-ID."
 
 #: includes/shortcodes/word-grid-shortcode.php:7825
 msgid "Invalid recording parent."
@@ -23873,7 +23883,7 @@ msgstr "Das Bearbeiten von Voraussetzungen ist im Moment nicht verfügbar."
 #: includes/shortcodes/word-grid-shortcode.php:8193
 msgid "This lesson category is not available for prerequisite ordering."
 msgstr ""
-"Diese Lektionskategorie ist nicht für die Bestellung von Voraussetzungen "
+"Diese Lektionskategorie ist für die Reihenfolge nach Voraussetzungen nicht "
 "verfügbar."
 
 #: includes/shortcodes/word-grid-shortcode.php:8284
@@ -23941,7 +23951,7 @@ msgstr "Ungültige Zeitform des Verbs"
 
 #: includes/shortcodes/word-grid-shortcode.php:8905
 msgid "Verb mood not enabled"
-msgstr "Verb-Stimmung nicht aktiviert"
+msgstr "Verbmodus nicht aktiviert"
 
 #: includes/shortcodes/word-grid-shortcode.php:8911
 msgid "Missing verb mood"
@@ -23971,7 +23981,7 @@ msgstr "Es war nichts zum Rückgängigmachen verfügbar."
 
 #: includes/shortcodes/word-grid-shortcode.php:9103
 msgid "Gender is not enabled for this word set."
-msgstr "Gender ist für dieses Vokabelset nicht aktiviert."
+msgstr "Genus ist für dieses Vokabelset nicht aktiviert."
 
 #: includes/shortcodes/word-grid-shortcode.php:9293
 #: includes/shortcodes/word-grid-shortcode.php:9618
@@ -24027,7 +24037,7 @@ msgstr "Sprachen"
 #: includes/taxonomies/language-taxonomy.php:237
 #: includes/taxonomies/language-taxonomy.php:261
 msgid "Language Learner Tools - Languages"
-msgstr "Tools für Lernende - Sprachen"
+msgstr "Language Learner Tools - Sprachen"
 
 #: includes/taxonomies/language-taxonomy.php:265
 msgid "Refresh Language List"
@@ -24035,7 +24045,7 @@ msgstr "Sprachliste aktualisieren"
 
 #: includes/taxonomies/language-taxonomy.php:271
 msgid "Language ID"
-msgstr "Sprache ID"
+msgstr "Sprache-ID"
 
 #: includes/taxonomies/language-taxonomy.php:272
 msgid "Language Name"
@@ -24138,7 +24148,7 @@ msgstr "Lektion/Raster Textsichtbarkeit"
 #: includes/taxonomies/word-category-taxonomy.php:2057
 #: templates/vocab-lesson-template.php:1017
 msgid "Use word set default"
-msgstr "Vokabelset Standard verwenden"
+msgstr "Vokabelset-Standard verwenden"
 
 #: includes/taxonomies/word-category-taxonomy.php:1948
 #: includes/taxonomies/word-category-taxonomy.php:2058
@@ -24160,7 +24170,7 @@ msgid ""
 "text quiz categories."
 msgstr ""
 "Steuert die Lektionsseiten und [word_grid]-Anzeigen. \"Ausblenden\" zeigt "
-"nur Bilder/Audio-Buttons an. \"Vokabelset Standard verwenden\" folgt des "
+"nur Bilder/Audio-Buttons an. \"Vokabelset-Standard verwenden\" folgt des "
 "Vokabelsets-Einstellung für Nicht-Text-Quizkategorien."
 
 #: includes/taxonomies/word-category-taxonomy.php:2031
@@ -24247,13 +24257,13 @@ msgstr ""
 #: includes/taxonomies/wordset-taxonomy.php:2306
 #: templates/vocab-lesson-template.php:1089
 msgid "Up"
-msgstr "Up"
+msgstr "Nach oben"
 
 #: includes/taxonomies/word-category-taxonomy.php:2206
 #: includes/taxonomies/wordset-taxonomy.php:2307
 #: templates/vocab-lesson-template.php:1090
 msgid "Down"
-msgstr "Unten"
+msgstr "Nach unten"
 
 #: includes/taxonomies/word-category-taxonomy.php:2215
 msgid ""
@@ -24336,12 +24346,12 @@ msgstr[1] "%d Einträge sind fehlgeschlagen."
 #: includes/taxonomies/word-category-taxonomy.php:5615
 #: includes/taxonomies/word-category-taxonomy.php:5621
 msgid "Bulk Add Categories"
-msgstr "Bulk Kategorien hinzufügen"
+msgstr "Kategorien massenhaft hinzufügen"
 
 #: includes/taxonomies/word-category-taxonomy.php:5619
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr ""
-"Gib die Namen durch Kommas, Tabulatoren oder neue Zeilen getrennt ein.."
+"Gib die Namen durch Kommas, Tabulatoren oder neue Zeilen getrennt ein..."
 
 #: includes/taxonomies/word-category-taxonomy.php:5633
 msgid "Permission denied or invalid nonce."
@@ -24359,7 +24369,7 @@ msgstr "Normal (400)"
 
 #: includes/taxonomies/wordset-taxonomy.php:202
 msgid "Medium (500)"
-msgstr "Medium (500)"
+msgstr "Mittel (500)"
 
 #: includes/taxonomies/wordset-taxonomy.php:203
 msgid "Semi-bold (600)"
@@ -24562,7 +24572,7 @@ msgstr "Zyklus erkannt"
 
 #: includes/taxonomies/wordset-taxonomy.php:2362
 msgid "%1$s (manual #%2$d)"
-msgstr "%1$s (Handbuch #%2$d)"
+msgstr "%1$s (manuell #%2$d)"
 
 #: includes/taxonomies/wordset-taxonomy.php:2646
 msgid "Random sample 1"
@@ -24740,7 +24750,7 @@ msgid ""
 msgstr ""
 "Auf diesem Bildschirm wurden noch keine Site-Schriftarten erkannt. Füge eine"
 " Schriftart über Thema/Beliebige Schriftart verwenden hinzu oder setze in "
-"den Einstellungen das Stylesheet URL für die LL-Tools-Schriftart und lade "
+"den Einstellungen das Stylesheet-URL für die LL Tools-Schriftart und lade "
 "dann diese Seite neu."
 
 #: includes/taxonomies/wordset-taxonomy.php:3128
@@ -24788,7 +24798,7 @@ msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:3164
 msgid "Category ordering"
-msgstr "Kategorie-Bestellung"
+msgstr "Kategoriereihenfolge"
 
 #: includes/taxonomies/wordset-taxonomy.php:3172
 msgid "Grammatical gender"
@@ -24821,7 +24831,7 @@ msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:3269
 msgid "Enable verb mood tags for this word set."
-msgstr "Aktiviere die Verb-Stimmungs-Tags für dieses Vokabelset."
+msgstr "Aktiviere die Verbmodus-Tags für dieses Vokabelset."
 
 #: includes/taxonomies/wordset-taxonomy.php:3279
 msgid ""
@@ -24953,7 +24963,7 @@ msgstr "Du bist %s beigetreten."
 
 #: includes/user-roles/audio-recorder-role.php:24
 msgid "Audio Recorder"
-msgstr "Audioaufnahme = Audio Recorder"
+msgstr "Audio-Recorder"
 
 #: includes/user-roles/audio-recorder-role.php:122
 #: includes/user-roles/audio-recorder-role.php:256
@@ -25058,7 +25068,7 @@ msgid ""
 "before saving."
 msgstr ""
 "Wendet Trimmen, Rauschunterdrückung und Lautheitsnormalisierung in der "
-"Aufnahmeschnittstelle an, damit der Rekorder die Trimmgrenzen vor dem "
+"Aufnahmeschnittstelle an, damit der Audio-Recorder die Trimmgrenzen vor dem "
 "Speichern überprüfen und anpassen kann."
 
 #: includes/user-roles/teacher-role.php:86
@@ -25249,7 +25259,7 @@ msgstr "Metadaten-Beispiele für Vokabelsets"
 
 #: includes/wordset-isolation.php:2633
 msgid "Manual order refs: %s."
-msgstr "Manuelle Bestellungsreferenzen: %s."
+msgstr "Manuelle Reihenfolge-Referenzen: %s."
 
 #: includes/wordset-isolation.php:2636
 msgid "Prerequisite keys: %s."
@@ -25288,13 +25298,13 @@ msgstr "Language Learner Tools Update verfügbar: Version %s."
 
 #: templates/audio-image-matcher-template.php:14
 msgid "Audio ↔ Image Matcher"
-msgstr "Audio ↔ Image Matcher"
+msgstr "Audio ↔ Bild-Abgleich"
 
 #: templates/audio-image-matcher-template.php:16
 msgid "Select a word set and category, then click Start Matching."
 msgstr ""
-"Wähle ein Vokabelset und eine Vokabelkategorie aus und klicke dann auf "
-"Abgleich starten."
+"Wähle ein Vokabelset und eine Kategorie aus und klicke dann auf „Abgleich "
+"starten“."
 
 #: templates/audio-image-matcher-template.php:17
 msgid ""
@@ -25322,7 +25332,7 @@ msgstr "Bereits zugeordnete Bilder ausblenden"
 
 #: templates/audio-image-matcher-template.php:51
 msgid "Start Matching"
-msgstr "Start Matching"
+msgstr "Abgleich starten"
 
 #: templates/content-lesson-template.php:102
 msgid "Back to text collection"
@@ -25336,12 +25346,12 @@ msgstr "Zurück zum Vokabelset"
 #: templates/content-lesson-template.php:153
 msgid "Add a media URL in the lesson editor to play this lesson here."
 msgstr ""
-"Füge im Lektionseditor ein Medium URL hinzu, um diese Lektion hier "
+"Füge im Lektionseditor ein Medium-URL hinzu, um diese Lektion hier "
 "abzuspielen."
 
 #: templates/content-lesson-template.php:160
 msgid "Transcript"
-msgstr "Transcript"
+msgstr "Transkript"
 
 #: templates/content-lesson-template.php:165
 msgid "%d cue"
@@ -25383,7 +25393,7 @@ msgstr "Alle abwählen"
 #: templates/flashcard-widget-template.php:48
 #: templates/offline-app-shell-template.php:861
 msgid "Check All"
-msgstr "Alles prüfen"
+msgstr "Alle auswählen"
 
 #: templates/flashcard-widget-template.php:53
 #: templates/offline-app-shell-template.php:866
@@ -25397,20 +25407,20 @@ msgstr "Quiz laden..."
 #: templates/flashcard-widget-template.php:91
 #: templates/offline-app-shell-template.php:893
 msgid "Switch to Gender Mode"
-msgstr "Zum Gender-Modus wechseln"
+msgstr "Zum Genusmodus wechseln"
 
 #: templates/flashcard-widget-template.php:131
 msgid "Replay Listening"
-msgstr "Replay Listening"
+msgstr "Hörübung wiederholen"
 
 #: templates/flashcard-widget-template.php:132
 msgid "Gender Mode"
-msgstr "Gender-Modus"
+msgstr "Genusmodus"
 
 #: templates/flashcard-widget-template.php:160
 #: templates/offline-app-shell-template.php:961
 msgid "Next Set"
-msgstr "Nächster Satz"
+msgstr "Nächstes Set"
 
 #: templates/offline-app-shell-template.php:4
 msgid "Offline Quiz"
@@ -25520,7 +25530,7 @@ msgstr "Ersetze"
 
 #: templates/vocab-lesson-template.php:506
 msgid "Clear transcription for this lesson"
-msgstr "Klare Transkription für diese Lektion"
+msgstr "Transkription für diese Lektion löschen"
 
 #: templates/vocab-lesson-template.php:519
 msgid "Cancel transcription"
@@ -25542,7 +25552,7 @@ msgstr "Wortart auswählen"
 
 #: templates/vocab-lesson-template.php:651
 msgid "Noun gender"
-msgstr "Substantiv Geschlecht"
+msgstr "Substantivgenus"
 
 #: templates/vocab-lesson-template.php:652
 msgid "Select gender"
@@ -25574,7 +25584,7 @@ msgstr "Text standardmäßig ausgeblendet"
 
 #: templates/vocab-lesson-template.php:838
 msgid "Text uses word set default"
-msgstr "Text verwendet Vokabelset Standard"
+msgstr "Text verwendet den Vokabelset-Standard"
 
 #: templates/vocab-lesson-template.php:852
 msgid "Recording off"
@@ -25591,11 +25601,11 @@ msgstr "Kategorieeinstellungen schließen"
 
 #: templates/vocab-lesson-template.php:916
 msgid "Tools"
-msgstr "Tools"
+msgstr "Werkzeuge"
 
 #: templates/vocab-lesson-template.php:942
 msgid "Prerequisite level"
-msgstr "Voraussetzung Level"
+msgstr "Voraussetzungsstufe"
 
 #: templates/vocab-lesson-template.php:959
 msgid "Search prerequisite categories"
@@ -25652,11 +25662,11 @@ msgstr "Druckansicht öffnen"
 #: templates/vocab-lesson-template.php:1187
 #: templates/vocab-lesson-template.php:1188
 msgid "Edit category title"
-msgstr "Kategorie-Titel bearbeiten"
+msgstr "Kategorietitel bearbeiten"
 
 #: templates/vocab-lesson-template.php:1210
 msgid "Category title"
-msgstr "Kategorie-Titel"
+msgstr "Kategorietitel"
 
 #: templates/vocab-lesson-template.php:1217
 #: templates/vocab-lesson-template.php:1218
