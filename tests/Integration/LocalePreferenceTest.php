@@ -88,6 +88,15 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertSame('tr_TR', ll_tools_filter_locale('en_US'));
     }
 
+    public function test_filter_locale_matches_available_german_plugin_locale(): void
+    {
+        $this->assertContains('de_DE', ll_tools_get_plugin_locales());
+
+        $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7';
+
+        $this->assertSame('de_DE', ll_tools_filter_locale('en_US'));
+    }
+
     public function test_browser_locale_preference_skips_saved_logged_in_user_locale(): void
     {
         $user_id = self::factory()->user->create();
