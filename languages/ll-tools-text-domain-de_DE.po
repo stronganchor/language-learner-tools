@@ -1834,10 +1834,10 @@ msgid ""
 " tab-separated rows and works as-is. If a word or translation contains a "
 "comma, wrap that value in double quotes."
 msgstr ""
-"Wenn du zwei Tabellenkalkulationsspalten aus Excel oder Google Sheets "
-"kopierst, erhältst du in der Regel tabulatorgetrennte Zeilen und "
-"funktionierst so. Wenn eine Vokabel oder eine Übersetzung ein Komma enthält,"
-" schließe diesen Wert in Anführungszeichen ein."
+"Wenn du zwei Tabellenspalten aus Excel oder Google Sheets kopierst, "
+"entstehen normalerweise tabulatorgetrennte Zeilen, die unverändert "
+"funktionieren. Wenn eine Vokabel oder Übersetzung ein Komma enthält, setze "
+"diesen Wert in doppelte Anführungszeichen."
 
 #: includes/admin/bulk-word-import-admin.php:643
 #: includes/admin/prompt-audio-import-admin.php:428
@@ -2610,7 +2610,7 @@ msgstr "Quellen-ID: %s"
 #: includes/admin/dictionary-sources-admin.php:133
 msgid "Leave both the source ID and label blank to remove this row."
 msgstr ""
-"Lass sowohl die Quellen-ID als auch das Label leer, um diese Zeile zu "
+"Lass sowohl die Quellen-ID als auch die Bezeichnung leer, um diese Zeile zu "
 "entfernen."
 
 #: includes/admin/dictionary-sources-admin.php:150
@@ -3792,8 +3792,8 @@ msgid ""
 "For full export zips, word IDs come from words[].origin_id and recording IDs"
 " come from words[].audio_entries[].origin_id inside data.json."
 msgstr ""
-"Für vollständige Export-Zips kommen Vokabel IDs aus words[].origin_id und "
-"Aufnahme IDs aus words[].audio_entries[].origin_id in data.json."
+"Bei vollständigen Export-Zips stammen Vokabel-IDs aus words[].origin_id und "
+"Aufnahme-IDs aus words[].audio_entries[].origin_id in data.json."
 
 #: includes/admin/export-import.php:2843
 msgid ""
@@ -4322,7 +4322,7 @@ msgstr "CSV herunterladen"
 
 #: includes/admin/export-import.php:3706
 msgid "Export STT Training Data"
-msgstr "Export STT Trainingsdaten"
+msgstr "STT-Trainingsdaten exportieren"
 
 #: includes/admin/export-import.php:3712
 msgid ""
@@ -4351,7 +4351,7 @@ msgstr "Das ausgewählte Feld wird zum Lernzieltext im Exportmanifest."
 
 #: includes/admin/export-import.php:3743
 msgid "Review filter"
-msgstr "Review-Filter"
+msgstr "Prüffilter"
 
 #: includes/admin/export-import.php:3747
 msgid "Only export reviewed transcriptions"
@@ -4411,11 +4411,11 @@ msgid ""
 "media folders (/images and/or /audio). CSV mode supports image->text, "
 "text->image, text->text, and audio->text mappings."
 msgstr ""
-"Unterstützte Zip-Formate: (1) LL Tools-Exportpakete, einschließlich "
-"Vokabelset-Vorlagen, und (2) CSV-Dateien auf oberster Ebene mit einer "
-"\"Quiz\"-Spalte sowie externen Medienordnern (/images und/oder /audio). der "
-"CSV-Modus unterstützt die Zuordnungen Bild->Text, Text->Bild, Text->Text und"
-" Audio->Text."
+"Unterstützte Zip-Formate: (1) LL Tools-Exportbündel einschließlich "
+"Vokabelset-Vorlagen und (2) CSV-Dateien auf oberster Ebene mit einer "
+"\"quiz\"-Spalte plus externen Medienordnern (/images und/oder /audio). Der "
+"CSV-Modus unterstützt Zuordnungen Bild->Text, Text->Bild, Text->Text und "
+"Audio->Text."
 
 #: includes/admin/export-import.php:3787
 msgid "Or select a zip already on the server"
@@ -4587,7 +4587,7 @@ msgid ""
 "Best starting point: export STT Training Data, edit metadata.csv or "
 "metadata.jsonl offline, then upload the edited file here."
 msgstr ""
-"Bester Ausgangspunkt: Exportiere STT Trainingsdaten, bearbeite metadata.csv "
+"Bester Ausgangspunkt: Exportiere STT-Trainingsdaten, bearbeite metadata.csv "
 "oder metadata.jsonl offline und lade die bearbeitete Datei dann hier hoch."
 
 #: includes/admin/export-import.php:4080
@@ -5606,7 +5606,7 @@ msgstr "Übergeordnete Vokabel-Übersetzung"
 #: includes/admin/export-import.php:12194
 #: includes/admin/export-import.php:12348
 msgid "No STT training samples were available to export."
-msgstr "Es waren keine STT Trainingsbeispiele zum Exportieren verfügbar."
+msgstr "Es waren keine STT-Trainingsbeispiele zum Exportieren verfügbar."
 
 #: includes/admin/export-import.php:12235
 msgid "Could not create STT export zip."
@@ -7750,7 +7750,7 @@ msgstr "Diese Symbolzuordnung konnte nicht genehmigt werden."
 
 #: includes/admin/ipa-keyboard-admin.php:5567
 msgid "Invalid review field"
-msgstr "Ungültiges Review-Feld"
+msgstr "Ungültiges Prüffeld"
 
 #: includes/admin/ipa-keyboard-admin.php:5619
 msgid "No symbols found"
@@ -7828,7 +7828,7 @@ msgstr[1] ""
 
 #: includes/admin/missing-audio-admin-page.php:90
 msgid "Please provide both a label and a regex pattern."
-msgstr "Bitte gib sowohl ein Label als auch ein Regex-Muster an."
+msgstr "Bitte gib sowohl eine Bezeichnung als auch ein Regex-Muster an."
 
 #: includes/admin/missing-audio-admin-page.php:93
 #: includes/admin/missing-audio-admin-page.php:122
@@ -7921,7 +7921,7 @@ msgstr "Gespeicherte Regex-Muster"
 
 #: includes/admin/missing-audio-admin-page.php:325
 msgid "Label / comment"
-msgstr "Label / Kommentar"
+msgstr "Bezeichnung / Kommentar"
 
 #: includes/admin/missing-audio-admin-page.php:326
 msgid "e.g., Words in bold tags"
@@ -8317,9 +8317,9 @@ msgid ""
 "they reconnect."
 msgstr ""
 "Das Offline-Bündel exportiert die eigenständige APK-Shell sowie gebündelte "
-"Medien für dieses Vokabelset. Es enthält lokale-first Fortschrittsdaten, "
-"damit Lernende Lernstatus und Fortschritt synchronisieren können, wenn sie "
-"wieder online sind."
+"Medien für unterstützte Quizmodi. Lernende können die App lokal weiter "
+"nutzen und später optional ein Website-Konto verknüpfen, um Lernstatus und "
+"Fortschritt zu synchronisieren, wenn sie wieder online sind."
 
 #: includes/admin/offline-app-export.php:825
 msgid "Download Offline App Bundle (.zip)"
@@ -8924,7 +8924,7 @@ msgstr ""
 #: includes/admin/orphan-media-admin.php:1805
 #: includes/admin/orphan-media-admin.php:1877
 msgid "Download Selected"
-msgstr "Download Ausgewählt"
+msgstr "Ausgewählte herunterladen"
 
 #: includes/admin/orphan-media-admin.php:1806
 #: includes/admin/orphan-media-admin.php:1878
@@ -9358,9 +9358,9 @@ msgid ""
 "Check this box to hide word titles from audio recorders by default. This "
 "helps prevent pronunciation bias from reading the word."
 msgstr ""
-"Aktiviere dieses Kontrollkästchen, um Vokabeln bei Audioaufnahmen "
-"standardmäßig auszublenden. So kannst du verhindern, dass du beim Lesen des "
-"Vokabels die Aussprache verfälschst."
+"Aktiviere dieses Kontrollkästchen, um Vokabeltitel bei Audioaufnahmen "
+"standardmäßig auszublenden. So wird vermieden, dass das Lesen der Vokabel "
+"die Aussprache beeinflusst."
 
 #: includes/admin/settings.php:384
 msgid "Allow Learner Registration:"
@@ -9765,7 +9765,7 @@ msgstr "Unbekannte Site-Sync-Aktion."
 
 #: includes/admin/site-sync-admin.php:1048
 msgid "Review fields"
-msgstr "Review-Felder"
+msgstr "Prüffelder"
 
 #: includes/admin/site-sync-admin.php:1049
 #: includes/pages/wordset-editor.php:705
@@ -11687,9 +11687,9 @@ msgid ""
 "Use the same label for words that should be used together for wrong answers."
 " Leave blank to keep a word ungrouped."
 msgstr ""
-"Verwende das gleiche Label für Vokabeln, die bei falschen Antworten zusammen"
-" verwendet werden sollen. Lass das Feld leer, um eine Vokabel nicht zu "
-"gruppieren."
+"Verwende dieselbe Bezeichnung für Vokabeln, die bei falschen Antworten "
+"zusammen verwendet werden sollen. Lass das Feld leer, damit eine Vokabel "
+"keiner Gruppe zugeordnet wird."
 
 #: includes/admin/word-option-rules-admin.php:1617
 msgid ""
@@ -12067,7 +12067,7 @@ msgstr "Jede Vokabel-Optionsgruppe braucht eine Bezeichnung."
 #: includes/api/automation-rest.php:2011
 msgid "Word-option groups must contain at least one resolved word."
 msgstr ""
-"Vokabel-Optionsgruppen müssen mindestens ein aufgelöstes Vokabel enthalten."
+"Antwortoptionsgruppen müssen mindestens eine aufgelöste Vokabel enthalten."
 
 #: includes/api/automation-rest.php:2031
 msgid "Word-option pairs must be an array."
@@ -12075,7 +12075,7 @@ msgstr "Vokabel-Optionspaare müssen ein Array sein."
 
 #: includes/api/automation-rest.php:2049
 msgid "Word-option pairs must contain two resolved words."
-msgstr "Vokabel-Optionspaare müssen zwei aufgelöste Vokabeln enthalten."
+msgstr "Antwortoptionspaare müssen zwei aufgelöste Vokabeln enthalten."
 
 #: includes/api/automation-rest.php:2187
 msgid ""
@@ -12336,7 +12336,7 @@ msgstr "Vokabel in diesem Vokabelset kann nicht aufgelöst werden: %s"
 
 #: includes/cli/cli-support.php:345
 msgid "Missing word set ID."
-msgstr "Fehlendes Vokabelset-ID."
+msgstr "Fehlende Vokabelset-ID."
 
 #: includes/cli/cli-support.php:363
 msgid "Editor Hub helpers are not available."
@@ -12370,7 +12370,7 @@ msgstr "Fehlendes Vokabel oder Vokabelset zur Aktualisierung."
 
 #: includes/cli/cli-support.php:635
 msgid "Unable to load the current word state."
-msgstr "Der aktuelle Zustand des Vokabels kann nicht geladen werden."
+msgstr "Der aktuelle Vokabelstatus kann nicht geladen werden."
 
 #: includes/cli/cli-support.php:655
 msgid "Dictionary entry helpers are not available."
@@ -13011,7 +13011,7 @@ msgstr ""
 
 #: includes/lib/internal-review-notes.php:301
 msgid "Missing review-note object."
-msgstr "Fehlendes Review-Note-Objekt."
+msgstr "Fehlendes Prüfnotiz-Objekt."
 
 #: includes/lib/internal-review-notes.php:314
 msgid "You cannot edit internal review notes for this lesson."
@@ -13277,22 +13277,23 @@ msgstr "%s (Universal-2)"
 #: includes/lib/wordset-language-settings.php:350
 #: includes/pages/wordset-pages.php:5884
 msgid "Hosted STT API requires an HTTPS endpoint URL."
-msgstr "Hosted STT API erfordert einen HTTPS-Endpunkt-URL."
+msgstr "Die gehostete STT-API erfordert eine HTTPS-Endpunkt-URL."
 
 #: includes/lib/wordset-language-settings.php:358
 msgid "Hosted STT API endpoint must use HTTPS."
-msgstr "Gehostete STT API Endpunkte müssen HTTPS verwenden."
+msgstr "Der Endpunkt der gehosteten STT-API muss HTTPS verwenden."
 
 #: includes/lib/wordset-language-settings.php:366
 #: includes/lib/wordset-language-settings.php:398
 msgid "Hosted STT API endpoint must include a valid host."
-msgstr "Hosted STT API endpoint muss einen gültigen Host enthalten."
+msgstr ""
+"Der Endpunkt der gehosteten STT-API muss einen gültigen Host enthalten."
 
 #: includes/lib/wordset-language-settings.php:373
 msgid "Hosted STT API endpoint URLs cannot include embedded credentials."
 msgstr ""
-"Gehostete STT API Endpunkt-URLs können keine eingebetteten Anmeldedaten "
-"enthalten."
+"Endpunkt-URLs der gehosteten STT-API dürfen keine eingebetteten Anmeldedaten"
+" enthalten."
 
 #: includes/lib/wordset-language-settings.php:381
 #: includes/lib/wordset-language-settings.php:406
@@ -13300,14 +13301,14 @@ msgid ""
 "Hosted STT API endpoint must use a public host, not localhost or a private "
 "network address."
 msgstr ""
-"Der gehostete STT API Endpunkt muss einen öffentlichen Host verwenden, nicht"
-" localhost oder eine private Netzwerkadresse."
+"Der Endpunkt der gehosteten STT-API muss einen öffentlichen Host verwenden, "
+"nicht localhost oder eine private Netzwerkadresse."
 
 #: includes/lib/wordset-language-settings.php:731
 #: includes/lib/wordset-language-settings.php:773
 #: includes/pages/wordset-games.php:3062
 msgid "Cached reference STT"
-msgstr "Gecachte Referenz STT"
+msgstr "Zwischengespeicherte Referenz-STT"
 
 #: includes/lib/wordset-language-settings.php:737
 #: includes/lib/wordset-language-settings.php:767
@@ -13333,8 +13334,8 @@ msgid ""
 "Cached reference STT requires a server-side speaking provider such as "
 "AssemblyAI or Hosted STT API."
 msgstr ""
-"Die Cache-Referenz STT erfordert einen serverseitigen Speaking Provider wie "
-"AssemblyAI oder Hosted STT API."
+"Die zwischengespeicherte Referenz-STT erfordert einen serverseitigen "
+"Sprechspiel-Anbieter wie AssemblyAI oder die gehostete STT-API."
 
 #: includes/lib/wordset-language-settings.php:891
 msgid ""
@@ -14455,7 +14456,7 @@ msgstr "Kategorie-Splits"
 
 #: includes/pages/wordset-editor.php:92
 msgid "Audio review"
-msgstr "Audio-Review"
+msgstr "Audio-Prüfung"
 
 #: includes/pages/wordset-editor.php:93
 msgid "Image review"
@@ -15242,7 +15243,7 @@ msgstr ""
 #: includes/pages/wordset-games.php:3218
 msgid "Hosted STT API is not configured for reference transcript scoring."
 msgstr ""
-"Hosted STT API ist nicht für die Bewertung von Referenztranskripten "
+"Die gehostete STT-API ist nicht für die Bewertung von Referenztranskripten "
 "konfiguriert."
 
 #: includes/pages/wordset-games.php:3298
@@ -15280,8 +15281,8 @@ msgstr "Für diese Vokabel fehlt der Zieltext."
 msgid ""
 "Cached reference STT is only available with server-side speaking providers."
 msgstr ""
-"Die Cache-Referenz STT ist nur bei serverseitigen Sprachdienstleistern "
-"verfügbar."
+"Die zwischengespeicherte Referenz-STT ist nur mit serverseitigen "
+"Sprechspiel-Anbietern verfügbar."
 
 #: includes/pages/wordset-games.php:3417
 msgid "Transcript could not be normalized."
@@ -15701,15 +15702,15 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:5143
 msgid "Word set manager access removed."
-msgstr "Vokabelset-Manager Zugriff entfernt."
+msgstr "Zugriff für Vokabelset-Manager entfernt."
 
 #: includes/pages/wordset-pages.php:5150
 msgid "Word set manager access enabled for %s."
-msgstr "Vokabelset-Manager-Zugriff aktiviert für %s."
+msgstr "Zugriff für Vokabelset-Manager für %s aktiviert."
 
 #: includes/pages/wordset-pages.php:5151 includes/pages/wordset-pages.php:7568
 msgid "Word set manager access enabled."
-msgstr "Vokabelset-Manager Zugriff aktiviert."
+msgstr "Zugriff für Vokabelset-Manager aktiviert."
 
 #: includes/pages/wordset-pages.php:5158
 msgid "Word set manager invitation sent to %s."
@@ -15721,12 +15722,14 @@ msgstr "Einladung für Vokabelset-Manager gesendet."
 
 #: includes/pages/wordset-pages.php:5165
 msgid "Word set manager access updated."
-msgstr "Vokabelset-Manager Zugriff aktualisiert."
+msgstr "Zugriff für Vokabelset-Manager aktualisiert."
 
 #: includes/pages/wordset-pages.php:5179
 msgid ""
 "You do not have permission to manage word set managers for this word set."
-msgstr "Vokabelset-Manager verwalten"
+msgstr ""
+"Du hast keine Berechtigung, Vokabelset-Manager für dieses Vokabelset zu "
+"verwalten."
 
 #: includes/pages/wordset-pages.php:5197 includes/pages/wordset-pages.php:7206
 #: includes/taxonomies/wordset-taxonomy.php:527
@@ -15736,12 +15739,12 @@ msgstr "Dieser Benutzer kann nicht gefunden werden."
 #: includes/pages/wordset-pages.php:5203
 msgid "Enter an existing username or email address to enable manager access."
 msgstr ""
-"Gib einen bestehenden Benutzernamen oder eine E-Mail-Adresse ein, um den "
-"Managerzugang zu aktivieren."
+"Gib einen bestehenden Benutzernamen oder eine E-Mail-Adresse ein, um "
+"Manager-Zugriff zu aktivieren."
 
 #: includes/pages/wordset-pages.php:5209
 msgid "Enter a valid email address for the manager invite."
-msgstr "Gib eine gültige E-Mail-Adresse für die Einladung des Managers ein."
+msgstr "Gib eine gültige E-Mail-Adresse für die Manager-Einladung ein."
 
 #: includes/pages/wordset-pages.php:5215 includes/pages/wordset-pages.php:7432
 msgid "The word set manager invitation email could not be sent."
@@ -15758,11 +15761,12 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:5227
 msgid "Word set manager access could not be updated."
-msgstr "Das Vokabelset-Manager-Zugang konnte nicht aktualisiert werden."
+msgstr "Der Zugriff für Vokabelset-Manager konnte nicht aktualisiert werden."
 
 #: includes/pages/wordset-pages.php:5239
 msgid "Unable to update word set manager access right now."
-msgstr "Das Vokabelset-Manager kann im Moment nicht aktualisiert werden."
+msgstr ""
+"Der Zugriff für Vokabelset-Manager kann im Moment nicht aktualisiert werden."
 
 #: includes/pages/wordset-pages.php:5254
 msgid "Offline app export is ready to download."
@@ -16071,7 +16075,7 @@ msgstr "Konnte gerade keinen Vokabelset-Manager-Einladungslink erstellen."
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:7392
 msgid "[%1$s] Word set manager invitation for %2$s"
-msgstr "[%1$s] Vokabelset-Manager Einladung für %2$s"
+msgstr "[%1$s] Einladung für Vokabelset-Manager für %2$s"
 
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:7400
@@ -16249,7 +16253,7 @@ msgstr "Bild-Upload ohne verarbeitete Dateien abgeschlossen."
 #: includes/pages/wordset-pages.php:8251
 msgid "Ask another manager or administrator to remove your manager access."
 msgstr ""
-"Bitte einen anderen Manager oder Administrator, deinen Managerzugang zu "
+"Bitte einen anderen Manager oder Administrator, deinen Manager-Zugriff zu "
 "entfernen."
 
 #: includes/pages/wordset-pages.php:8792
@@ -17056,7 +17060,7 @@ msgstr "%1$s bis %2$s"
 
 #: includes/pages/wordset-pages.php:10481
 msgid "Language and labels"
-msgstr "Sprache und Labels"
+msgstr "Sprache und Bezeichnungen"
 
 #: includes/pages/wordset-pages.php:10492
 msgid "Word set languages"
@@ -17394,9 +17398,10 @@ msgid ""
 " Font, or set the LL Tools font stylesheet URL in settings, then reload this"
 " page."
 msgstr ""
-"Auf diesem Bildschirm wurden noch keine Site-Schriftarten erkannt. Füge eine"
-" Schriftart über Theme/Use Any Font hinzu oder setze das LL Tools-"
-"Schriftstylesheet-URL in den Einstellungen und lade diese Seite neu."
+"Auf diesem Bildschirm wurden noch keine Website-Schriftarten erkannt. Füge "
+"über das Theme oder das Plugin Use Any Font eine Schriftart hinzu oder lege "
+"in den Einstellungen die Stylesheet-URL für LL Tools-Schriftarten fest und "
+"lade diese Seite dann neu."
 
 #: includes/pages/wordset-pages.php:11008
 #: includes/taxonomies/wordset-taxonomy.php:3116
@@ -17734,10 +17739,10 @@ msgid ""
 "computer you are using right now. Hosted STT API sends lesson audio from "
 "WordPress to your own model endpoint."
 msgstr ""
-"AssemblyAI behält den aktuellen serverseitigen Untertitel-Workflow bei. "
-"Lokales Browsermodell sendet die Audiodaten der Lektion von diesem Browser "
-"an einen Localhost-Dienst auf dem Computer, den du gerade benutzt. Hosted "
-"STT API sendet die Audiodaten der Lektion von WordPress an deinen eigenen "
+"AssemblyAI behält den aktuellen serverseitigen Untertitel-Workflow bei. Das "
+"lokale Browsermodell sendet die Audiodaten der Lektion von diesem Browser an"
+" einen Localhost-Dienst auf dem aktuell verwendeten Computer. Die gehostete "
+"STT-API sendet die Audiodaten der Lektion von WordPress an deinen eigenen "
 "Modell-Endpunkt."
 
 #: includes/pages/wordset-pages.php:12063
@@ -17782,17 +17787,17 @@ msgid ""
 "calls this URL from WordPress server-side, which keeps any API token off the"
 " page."
 msgstr ""
-"Im lokalen Browser-Modus wird dieses-URL vom Browser aus aufgerufen. Der "
-"gehostete STT API Modus ruft dieses-URL von der WordPress Serverseite auf, "
-"was jedes API Token von der Seite fernhält."
+"Der lokale Browser-Modus ruft diese URL aus dem Browser auf. Der Modus der "
+"gehosteten STT-API ruft diese URL serverseitig aus WordPress auf, sodass "
+"kein API-Token auf der Seite landet."
 
 #: includes/pages/wordset-pages.php:12098
 msgid "Hosted API Token"
-msgstr "Gehosteter API Token"
+msgstr "Gehostetes API-Token"
 
 #: includes/pages/wordset-pages.php:12099
 msgid "Hosted STT API token"
-msgstr "Gehostete STT-API Token"
+msgstr "Token für gehostete STT-API"
 
 #: includes/pages/wordset-pages.php:12107
 msgid "Optional bearer token for your hosted STT endpoint"
@@ -17803,9 +17808,9 @@ msgid ""
 "Optional but recommended for Hosted STT API mode. WordPress will send this "
 "token to your endpoint as both Authorization: Bearer and X-LL-Tools-Token."
 msgstr ""
-"Optional, aber empfohlen für den Hosted STT API Modus. WordPress sendet "
-"dieses Token an deinen Endpunkt sowohl als Authorization: Bearer und X-LL "
-"Tools-Token."
+"Optional, aber für den Modus der gehosteten STT-API empfohlen. WordPress "
+"sendet dieses Token an deinen Endpunkt sowohl als Authorization: Bearer als "
+"auch als X-LL-Tools-Token."
 
 #: includes/pages/wordset-pages.php:12115
 #: includes/pages/wordset-pages.php:12235
@@ -17890,15 +17895,14 @@ msgid ""
 "endpoint, output format, and token, but routes the audio through WordPress "
 "server-side."
 msgstr ""
-"Der eingebaute Audio-Matcher vergleicht die Vokabel-Audios der Lernenden "
-"direkt mit den Isolationsaufnahmen der einzelnen Vokabeln (keine STT-"
-"Abschrift erforderlich). AssemblyAI transkribiert sowohl die Vokabel-Audio "
-"der Lernenden als auch die gespeicherte Isolationsaufnahme jedes Vokabels "
-"und speichert die gespeicherte Abschrift zur Wiederverwendung. Das lokale "
-"Browsermodell verwendet den Endpunkt und das Ausgabeformat wie oben "
-"beschrieben. Hosted STT API verwendet denselben Endpunkt, dasselbe "
-"Ausgabeformat und dasselbe Token, leitet die Audiodaten aber serverseitig "
-"über WordPress."
+"Der integrierte Audio-Abgleich vergleicht das Audio der Lernenden direkt mit"
+" der Isolationsaufnahme jeder Vokabel (kein STT-Transkript erforderlich). "
+"AssemblyAI transkribiert sowohl das Audio der Lernenden als auch die "
+"gespeicherte Isolationsaufnahme jeder Vokabel und speichert das "
+"Referenztranskript zur Wiederverwendung im Cache. Das lokale Browsermodell "
+"verwendet den oben angegebenen Endpunkt und das Ausgabeformat erneut. Die "
+"gehostete STT-API verwendet denselben Endpunkt, dasselbe Ausgabeformat und "
+"dasselbe Token, leitet das Audio aber serverseitig über WordPress."
 
 #: includes/pages/wordset-pages.php:12180
 msgid ""
@@ -17910,7 +17914,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:12185
 msgid "Speaking Game AssemblyAI Language"
-msgstr "Speaking Game AssemblyAI Sprache"
+msgstr "AssemblyAI-Sprache für Sprechspiele"
 
 #: includes/pages/wordset-pages.php:12186
 msgid "Speaking game AssemblyAI language or model profile"
@@ -17952,12 +17956,12 @@ msgid ""
 "generated from the saved isolation audio with the same server-side STT "
 "provider."
 msgstr ""
-"Der geschriebene Text stimmt mit dem gespeicherten Text auf der "
-"Isolationsaufnahme des Vokabels überein. IPA arbeitet mit einem Modell, das "
-"das sekundäre Transkriptionsfeld zurückgibt. Cached reference STT vergleicht"
-" das Transkript des Lernenden mit einem zwischengespeicherten Transkript, "
-"das aus der gespeicherten Isolationsaufnahme mit demselben serverseitigen "
-"STT-Anbieter erstellt wurde."
+"Geschriebener Text wird mit dem gespeicherten Text der Isolationsaufnahme "
+"der Vokabel abgeglichen. IPA funktioniert mit einem Modell, das das "
+"sekundäre Transkriptionsfeld zurückgibt. Die zwischengespeicherte Referenz-"
+"STT vergleicht das Transkript der Lernenden mit einem zwischengespeicherten "
+"Transkript, das aus dem gespeicherten Isolationsaudio mit demselben "
+"serverseitigen STT-Anbieter erstellt wurde."
 
 #: includes/pages/wordset-pages.php:12253
 msgid "Bulk Import"
@@ -19218,7 +19222,7 @@ msgstr "Schwierigkeitsgrad filtern"
 #: includes/pages/wordset-pages.php:16087
 #: includes/pages/wordset-pages.php:16103
 msgid "Filter seen count"
-msgstr "Filter gesehen Anzahl"
+msgstr "Nach Anzahl der Sichtungen filtern"
 
 #: includes/pages/wordset-pages.php:16113
 #: includes/pages/wordset-pages.php:16129
@@ -19228,7 +19232,7 @@ msgstr "Falsche Anzahl filtern"
 #: includes/pages/wordset-pages.php:16136
 #: includes/pages/wordset-pages.php:16148
 msgid "Filter last seen"
-msgstr "Filter zuletzt gesehen"
+msgstr "Nach letzter Sichtung filtern"
 
 #: includes/pages/wordset-pages.php:16163
 msgid "0 selected words"
@@ -19489,8 +19493,8 @@ msgid ""
 "Used for front-end access checks and to surface this lesson on the word set "
 "page."
 msgstr ""
-"Wird für Front-End-Zugangskontrollen und zur Anzeige dieser Lektion auf des "
-"Vokabelsets-Seite verwendet."
+"Wird für Frontend-Zugriffskontrollen verwendet und um diese Lektion auf der "
+"Vokabelset-Seite anzuzeigen."
 
 #: includes/post-types/content-lesson-post-type.php:1198
 msgid "Lesson kind"
@@ -19607,7 +19611,7 @@ msgid ""
 "section."
 msgstr ""
 "Wenn diese Option aktiviert ist, kann diese Lektion zwischen den Vokabel-"
-"Lernkarten auf des Vokabelsets-Seite platziert werden, anstatt nur im "
+"Lernkarten auf der Vokabelset-Seite platziert werden, anstatt nur im "
 "separaten Abschnitt für die Hauptlektionen zu erscheinen."
 
 #: includes/post-types/content-lesson-post-type.php:1337
@@ -19818,7 +19822,7 @@ msgstr "Alle Typen"
 
 #: includes/post-types/dictionary-entry-post-type.php:2069
 msgid "Any Review Status"
-msgstr "Jeder Review-Status"
+msgstr "Jeder Prüfstatus"
 
 #: includes/post-types/dictionary-entry-post-type.php:2070
 msgid "Needs Review"
@@ -19905,10 +19909,9 @@ msgid ""
 " in the sidebar. The prompt side lives here; the answer options still come "
 "from normal words and their recordings."
 msgstr ""
-"Ordne diese Karte der Unterrichtskategorie und dem Vokabelset zu, indem du "
-"die Taxonomiefelder in der Seitenleiste benutzt. Die Aufforderungsseite "
-"befindet sich hier; die Antwortoptionen stammen nach wie vor von normalen "
-"Vokabeln und ihren Aufnahmen."
+"Ordne diese Karte über die Taxonomie-Boxen in der Seitenleiste der "
+"Lektionskategorie und dem Vokabelset zu. Die Prompt-Seite liegt hier; die "
+"Antwortoptionen stammen weiterhin aus normalen Vokabeln und ihren Aufnahmen."
 
 #: includes/post-types/prompt-card-post-type.php:538 includes/privacy.php:474
 msgid "Prompt text"
@@ -19965,8 +19968,8 @@ msgid ""
 "Comma-separated word IDs for the answer options that should be offered as "
 "distractors."
 msgstr ""
-"Kommagetrenntes Vokabel IDs für die Antwortmöglichkeiten, die als "
-"Distraktoren angeboten werden sollen."
+"Kommagetrennte Vokabel-IDs für die Antwortoptionen, die als Distraktoren "
+"angeboten werden sollen."
 
 #: includes/post-types/prompt-card-post-type.php:596
 msgid "Word mastery tracking"
@@ -20673,7 +20676,7 @@ msgstr "Fällig um (UTC)"
 
 #: includes/privacy.php:410 includes/privacy.php:490
 msgid "Mastery unlocked"
-msgstr "Mastery freigeschaltet"
+msgstr "Fortschritt freigeschaltet"
 
 #: includes/privacy.php:412
 msgid "Required practice recording types"
@@ -21839,7 +21842,7 @@ msgstr "Definition bearbeiten"
 
 #: includes/shortcodes/dictionary-shortcode.php:824
 msgid "Clear review flag"
-msgstr "Review-Flag löschen"
+msgstr "Prüfmarkierung löschen"
 
 #: includes/shortcodes/dictionary-shortcode.php:848
 msgid "Open in admin"
@@ -23619,7 +23622,7 @@ msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4983
 msgid "Clear text review flag"
-msgstr "Klartext-Review-Flagge"
+msgstr "Text-Prüfmarkierung löschen"
 
 #: includes/shortcodes/word-grid-shortcode.php:4985
 msgid "Clear pronunciation review flag"
@@ -24732,10 +24735,10 @@ msgid ""
 " Font, or set LL Tools Font stylesheet URL in settings, then reload this "
 "page."
 msgstr ""
-"Auf diesem Bildschirm wurden noch keine Site-Schriftarten erkannt. Füge eine"
-" Schriftart über Thema/Beliebige Schriftart verwenden hinzu oder setze in "
-"den Einstellungen das Stylesheet-URL für die LL Tools-Schriftart und lade "
-"dann diese Seite neu."
+"Auf diesem Bildschirm wurden noch keine Website-Schriftarten erkannt. Füge "
+"über das Theme oder das Plugin Use Any Font eine Schriftart hinzu oder lege "
+"in den Einstellungen die Stylesheet-URL für LL Tools-Schriftarten fest und "
+"lade diese Seite dann neu."
 
 #: includes/taxonomies/wordset-taxonomy.php:3128
 msgid "Answer option text preview"
@@ -24759,8 +24762,9 @@ msgid ""
 "lesson/word-grid word text where supported."
 msgstr ""
 "Wähle aus den derzeit auf dieser Website verfügbaren Schriftarten. Leer "
-"lassen für das Thema/Gerätestandard. Diese Schriftart wird auch für die "
-"Vokabeln des Vokabelsets verwendet, sofern sie unterstützt werden."
+"lassen, um den Theme- oder Gerätestandard zu verwenden. Diese Schriftart "
+"wird auch für den Vokabeltext dieses Vokabelsets verwendet, sofern "
+"unterstützt."
 
 #: includes/taxonomies/wordset-taxonomy.php:3149
 msgid ""
