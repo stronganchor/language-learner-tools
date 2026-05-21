@@ -1235,12 +1235,12 @@ function ll_tools_text_document_localized_excerpt(array $payload, string $fallba
     $metadata = isset($payload['metadata']) && is_array($payload['metadata']) ? $payload['metadata'] : [];
     $publication = isset($metadata['publication']) && is_array($metadata['publication']) ? $metadata['publication'] : [];
 
-    $value = ll_tools_text_document_localized_field($payload, ['excerpts', 'excerpt', 'summary', 'description']);
+    $value = ll_tools_text_document_localized_field($payload, ['excerpts', 'excerpt', 'summary_text', 'description']);
     if ($value !== '') {
         return $value;
     }
 
-    $value = ll_tools_text_document_localized_field($metadata, ['excerpts', 'excerpt', 'summary', 'description']);
+    $value = ll_tools_text_document_localized_field($metadata, ['excerpts', 'excerpt', 'summary_text', 'description']);
     if ($value !== '') {
         return $value;
     }

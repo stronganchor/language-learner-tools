@@ -989,6 +989,10 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'kind' => 'corpus_text',
             'lesson_id' => 'rest-corpus-text',
             'title' => 'REST Corpus Text',
+            'summary' => [
+                'lines' => 51,
+                'source_lines' => 51,
+            ],
             'metadata' => [
                 'collection' => 'lerch',
                 'collection_label' => 'Peter Lerch',
@@ -1031,6 +1035,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Peter Lerch', (string) get_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META, true));
         $this->assertSame('unit-test', (string) get_post_meta($post_id, LL_TOOLS_INTERLINEAR_SOURCE_META, true));
         $this->assertSame('rest-corpus-text', (string) (ll_tools_interlinear_get_payload($post_id)['lesson_id'] ?? ''));
+        $this->assertSame('Kısa Türkçe özet.', ll_tools_get_content_lesson_localized_excerpt($post_id, ''));
 
         $export = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/corpus-texts/rest-corpus-text');
         $this->assertSame(200, $export->get_status());
