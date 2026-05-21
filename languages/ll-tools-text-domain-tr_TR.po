@@ -24035,6 +24035,10 @@ msgstr "Geri"
 msgid "Forward"
 msgstr "İleri"
 
+#: includes/shortcodes/flashcard-widget.php:382
+msgid "Rapid listening"
+msgstr "Hızlı dinleme"
+
 #: includes/shortcodes/flashcard-widget.php:380
 msgid "Loop"
 msgstr "Döngü"
