@@ -46,6 +46,55 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('basic_password', (string) ($data['auth_mode'] ?? ''));
         $this->assertSame($admin_id, (int) (($data['user']['id'] ?? 0)));
         $this->assertTrue(!empty($data['capabilities']['view_ll_tools']));
+        $this->assertTrue(!empty($data['capabilities']['purge_static_cache']));
+        $this->assertSame('/ll-tools/v1/cache/static/purge', (string) ($data['routes']['static_cache_purge'] ?? ''));
+    }
+
+    public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void
+    {
+        $dictionary_dir = ll_tools_dictionary_static_cache_dir();
+        $public_dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dictionary_dir);
+        $this->assertNotSame('', $public_dir);
+        $this->assertTrue(wp_mkdir_p($dictionary_dir));
+        $this->assertTrue(wp_mkdir_p($public_dir));
+        ll_tools_purge_static_caches();
+
+        $dictionary_file = trailingslashit($dictionary_dir) . 'dictionary-rest-test.html';
+        $public_file = trailingslashit($public_dir) . 'public-rest-test.html';
+        file_put_contents($dictionary_file, '<!doctype html><html><body>dictionary rest</body></html>');
+        file_put_contents($public_file, '<!doctype html><html><body>public rest</body></html>');
+        ll_tools_public_static_cache_write_meta($public_file, 'rest-test', [
+            'type' => 'wordset_main',
+            'id' => 17,
+            'path' => '/rest-test',
+            'wordset_id' => 17,
+        ]);
+
+        $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
+        $viewer = get_user_by('id', $viewer_id);
+        $this->assertInstanceOf(WP_User::class, $viewer);
+        $viewer->add_cap('view_ll_tools');
+        clean_user_cache($viewer_id);
+        wp_set_current_user($viewer_id);
+
+        $blocked = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/cache/static/purge');
+        $this->assertSame(403, $blocked->get_status());
+        $this->assertFileExists($dictionary_file);
+        $this->assertFileExists($public_file);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $purged = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/cache/static/purge');
+        $this->assertSame(200, $purged->get_status());
+        $data = $purged->get_data();
+        $this->assertIsArray($data);
+        $this->assertTrue((bool) ($data['purged'] ?? false));
+        $this->assertSame('all', (string) ($data['target'] ?? ''));
+        $this->assertSame(2, (int) ($data['deleted'] ?? 0));
+        $this->assertFileDoesNotExist($dictionary_file);
+        $this->assertFileDoesNotExist($public_file);
     }
 
     public function test_wordset_scoped_endpoints_allow_assigned_manager_and_block_other_wordsets(): void

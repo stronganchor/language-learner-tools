@@ -367,6 +367,23 @@ function ll_tools_rest_automation_require_import_access() {
     return true;
 }
 
+function ll_tools_rest_automation_require_static_cache_purge_access() {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    if (!function_exists('ll_tools_current_user_can_purge_static_cache') || !ll_tools_current_user_can_purge_static_cache()) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_static_cache_purge_forbidden',
+            __('You are not allowed to clear LL Tools caches on this site.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return true;
+}
+
 function ll_tools_rest_automation_request_string(WP_REST_Request $request, string $key): string {
     $value = $request->get_param($key);
     if (!is_scalar($value)) {
@@ -792,9 +809,11 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'edit_posts' => current_user_can('edit_posts'),
             'edit_wordsets' => current_user_can('edit_wordsets'),
             'manage_options' => current_user_can('manage_options'),
+            'purge_static_cache' => function_exists('ll_tools_current_user_can_purge_static_cache') ? ll_tools_current_user_can_purge_static_cache() : current_user_can('manage_options'),
         ],
         'routes' => [
             'status' => '/ll-tools/v1/automation/status',
+            'static_cache_purge' => '/ll-tools/v1/cache/static/purge',
             'create_wordset' => '/ll-tools/v1/wordsets',
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
             'bulk_update' => '/ll-tools/v1/wordsets/{wordset}/bulk-update',
@@ -832,6 +851,35 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             ],
             'rest_import_word_image_chunk_size' => (int) apply_filters('ll_tools_rest_import_word_image_chunk_size', 8),
         ],
+    ]);
+}
+
+function ll_tools_rest_automation_purge_static_cache(WP_REST_Request $request) {
+    $target = function_exists('ll_tools_normalize_static_cache_purge_target')
+        ? ll_tools_normalize_static_cache_purge_target($request->get_param('cache'))
+        : sanitize_key((string) $request->get_param('cache'));
+
+    if ($target === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_static_cache_invalid_target',
+            __('Use cache=all, cache=dictionary, or cache=public.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $result = function_exists('ll_tools_purge_static_caches')
+        ? ll_tools_purge_static_caches($target)
+        : [
+            'target' => $target,
+            'deleted' => 0,
+            'caches' => [],
+        ];
+
+    return rest_ensure_response([
+        'purged' => true,
+        'target' => (string) ($result['target'] ?? $target),
+        'deleted' => max(0, (int) ($result['deleted'] ?? 0)),
+        'caches' => is_array($result['caches'] ?? null) ? $result['caches'] : [],
     ]);
 }
 
@@ -3851,6 +3899,19 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::READABLE,
         'callback' => 'll_tools_rest_automation_status',
         'permission_callback' => 'll_tools_rest_automation_require_view_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/cache/static/purge', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_purge_static_cache',
+        'permission_callback' => 'll_tools_rest_automation_require_static_cache_purge_access',
+        'args' => [
+            'cache' => [
+                'required' => false,
+                'type' => 'string',
+                'default' => 'all',
+            ],
+        ],
     ]);
 
     register_rest_route('ll-tools/v1', '/wordsets', [

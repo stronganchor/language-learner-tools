@@ -9,6 +9,12 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_public_static_cache_reset_purge_once_state')) {
             ll_tools_public_static_cache_reset_purge_once_state();
         }
+        if (function_exists('ll_tools_purge_dictionary_static_cache')) {
+            ll_tools_purge_dictionary_static_cache();
+        }
+        if (function_exists('ll_tools_purge_public_static_cache')) {
+            ll_tools_purge_public_static_cache();
+        }
     }
 
     protected function tearDown(): void
@@ -19,6 +25,9 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         set_query_var('ll_wordset_view', '');
         if (function_exists('ll_tools_purge_public_static_cache')) {
             ll_tools_purge_public_static_cache();
+        }
+        if (function_exists('ll_tools_purge_dictionary_static_cache')) {
+            ll_tools_purge_dictionary_static_cache();
         }
         if (function_exists('ll_tools_public_static_cache_reset_purge_once_state')) {
             ll_tools_public_static_cache_reset_purge_once_state();
@@ -171,6 +180,35 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         ]));
     }
 
+    public function test_static_caches_do_not_cache_front_page_requests(): void
+    {
+        $old_show_on_front = get_option('show_on_front');
+        $old_page_on_front = get_option('page_on_front');
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Static Cache Front Page',
+            'post_content' => '[ll_dictionary]',
+        ]);
+
+        update_option('show_on_front', 'page');
+        update_option('page_on_front', $page_id);
+        wp_set_current_user(0);
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/';
+
+        try {
+            $this->go_to('/');
+
+            $this->assertTrue(is_front_page());
+            $this->assertFalse(ll_tools_is_cacheable_dictionary_request());
+            $this->assertFalse(ll_tools_public_static_cache_has_safe_request_shape());
+        } finally {
+            update_option('show_on_front', $old_show_on_front);
+            update_option('page_on_front', $old_page_on_front);
+        }
+    }
+
     public function test_public_static_cache_store_writes_when_php_status_is_unset(): void
     {
         $dir = ll_tools_public_static_cache_dir();
@@ -231,6 +269,54 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
 
         $this->assertFileDoesNotExist($file);
         $this->assertFileDoesNotExist($tmp);
+    }
+
+    public function test_static_cache_purge_helper_clears_dictionary_and_public_files(): void
+    {
+        $dictionary_dir = ll_tools_dictionary_static_cache_dir();
+        $public_dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dictionary_dir);
+        $this->assertNotSame('', $public_dir);
+        $this->assertTrue(wp_mkdir_p($dictionary_dir));
+        $this->assertTrue(wp_mkdir_p($public_dir));
+
+        $dictionary_file = trailingslashit($dictionary_dir) . 'dictionary-helper-test.html';
+        $public_file = trailingslashit($public_dir) . 'public-helper-test.html';
+        file_put_contents($dictionary_file, '<!doctype html><html><body>dictionary</body></html>');
+        file_put_contents($public_file, '<!doctype html><html><body>public</body></html>');
+        ll_tools_public_static_cache_write_meta($public_file, 'helper-test', [
+            'type' => 'wordset_main',
+            'id' => 17,
+            'path' => '/helper-test',
+            'wordset_id' => 17,
+        ]);
+
+        $result = ll_tools_purge_static_caches();
+
+        $this->assertSame('all', $result['target']);
+        $this->assertSame(2, (int) $result['deleted']);
+        $this->assertSame(1, (int) $result['caches']['dictionary']['deleted']);
+        $this->assertSame(1, (int) $result['caches']['public']['deleted']);
+        $this->assertFileDoesNotExist($dictionary_file);
+        $this->assertFileDoesNotExist($public_file);
+        $this->assertFileDoesNotExist(ll_tools_public_static_cache_meta_file_path($public_file));
+    }
+
+    public function test_static_cache_purge_capability_defaults_to_manage_options(): void
+    {
+        $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
+        $viewer = get_user_by('id', $viewer_id);
+        $this->assertInstanceOf(WP_User::class, $viewer);
+        $viewer->add_cap('view_ll_tools');
+        clean_user_cache($viewer_id);
+        wp_set_current_user($viewer_id);
+
+        $this->assertFalse(ll_tools_current_user_can_purge_static_cache());
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->assertTrue(ll_tools_current_user_can_purge_static_cache());
     }
 
     public function test_public_static_cache_targeted_purge_keeps_unrelated_wordset_files(): void

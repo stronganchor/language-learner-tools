@@ -215,6 +215,9 @@ function ll_tools_public_static_cache_has_safe_request_shape(): bool {
     if (is_user_logged_in()) {
         return false;
     }
+    if (is_front_page() || is_home()) {
+        return false;
+    }
     if (is_preview() || (function_exists('is_customize_preview') && is_customize_preview())) {
         return false;
     }
@@ -1092,3 +1095,171 @@ add_action('delete_wordset', 'll_tools_public_static_cache_purge_on_term_change'
 add_action('created_word-category', 'll_tools_public_static_cache_purge_on_term_change', 30, 1);
 add_action('edited_word-category', 'll_tools_public_static_cache_purge_on_term_change', 30, 1);
 add_action('delete_word-category', 'll_tools_public_static_cache_purge_on_term_change', 30, 1);
+
+function ll_tools_static_cache_purge_capability(): string {
+    return (string) apply_filters('ll_tools_static_cache_purge_capability', 'manage_options');
+}
+
+function ll_tools_current_user_can_purge_static_cache(): bool {
+    return current_user_can(ll_tools_static_cache_purge_capability());
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_static_cache_purge_targets(): array {
+    return ['all', 'dictionary', 'public'];
+}
+
+function ll_tools_normalize_static_cache_purge_target($target): string {
+    $target = sanitize_key((string) $target);
+    if ($target === '') {
+        return 'all';
+    }
+
+    return in_array($target, ll_tools_static_cache_purge_targets(), true) ? $target : '';
+}
+
+function ll_tools_purge_static_caches($target = 'all'): array {
+    $target = ll_tools_normalize_static_cache_purge_target($target);
+    if ($target === '') {
+        $target = 'all';
+    }
+
+    $result = [
+        'target' => $target,
+        'deleted' => 0,
+        'caches' => [
+            'dictionary' => [
+                'available' => function_exists('ll_tools_purge_dictionary_static_cache'),
+                'deleted' => 0,
+            ],
+            'public' => [
+                'available' => function_exists('ll_tools_purge_public_static_cache'),
+                'deleted' => 0,
+            ],
+        ],
+    ];
+
+    if (($target === 'all' || $target === 'dictionary') && function_exists('ll_tools_purge_dictionary_static_cache')) {
+        $result['caches']['dictionary']['deleted'] = ll_tools_purge_dictionary_static_cache();
+    }
+
+    if (($target === 'all' || $target === 'public') && function_exists('ll_tools_purge_public_static_cache')) {
+        $result['caches']['public']['deleted'] = ll_tools_purge_public_static_cache();
+    }
+
+    $result['deleted'] = (int) $result['caches']['dictionary']['deleted'] + (int) $result['caches']['public']['deleted'];
+
+    return $result;
+}
+
+function ll_tools_static_cache_current_url(): string {
+    $request_uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
+    if ($request_uri === '') {
+        $request_uri = '/';
+    }
+
+    return home_url($request_uri);
+}
+
+function ll_tools_static_cache_strip_notice_args(string $url): string {
+    return remove_query_arg(
+        [
+            'll_tools_static_cache_purged',
+            'll_tools_static_cache_deleted',
+        ],
+        $url
+    );
+}
+
+function ll_tools_static_cache_admin_bar_purge_url(): string {
+    $redirect_to = ll_tools_static_cache_strip_notice_args(ll_tools_static_cache_current_url());
+    $url = add_query_arg(
+        [
+            'action' => 'll_tools_purge_static_cache',
+            'redirect_to' => $redirect_to,
+        ],
+        admin_url('admin-post.php')
+    );
+
+    return wp_nonce_url($url, 'll_tools_purge_static_cache');
+}
+
+function ll_tools_add_static_cache_admin_bar_node(WP_Admin_Bar $wp_admin_bar): void {
+    if (!is_user_logged_in() || !ll_tools_current_user_can_purge_static_cache()) {
+        return;
+    }
+
+    $title = __('Clear LL cache', 'll-tools-text-domain');
+    if (isset($_GET['ll_tools_static_cache_purged'])) {
+        $deleted = isset($_GET['ll_tools_static_cache_deleted']) ? max(0, (int) $_GET['ll_tools_static_cache_deleted']) : 0;
+        $title = sprintf(
+            /* translators: %d: number of deleted cache files */
+            __('LL cache cleared (%d)', 'll-tools-text-domain'),
+            $deleted
+        );
+    }
+
+    $wp_admin_bar->add_node([
+        'id' => 'll-tools-clear-static-cache',
+        'title' => esc_html($title),
+        'href' => ll_tools_static_cache_admin_bar_purge_url(),
+        'meta' => [
+            'class' => 'll-tools-clear-static-cache',
+        ],
+    ]);
+}
+add_action('admin_bar_menu', 'll_tools_add_static_cache_admin_bar_node', 100);
+
+function ll_tools_handle_static_cache_admin_bar_purge(): void {
+    if (!ll_tools_current_user_can_purge_static_cache()) {
+        wp_die(
+            esc_html__('You are not allowed to clear LL Tools caches.', 'll-tools-text-domain'),
+            '',
+            ['response' => 403]
+        );
+    }
+
+    check_admin_referer('ll_tools_purge_static_cache');
+
+    $redirect_to = '';
+    if (isset($_GET['redirect_to']) && is_scalar($_GET['redirect_to'])) {
+        $redirect_to = rawurldecode((string) wp_unslash($_GET['redirect_to']));
+    }
+    if ($redirect_to === '') {
+        $redirect_to = (string) wp_get_referer();
+    }
+    $redirect_to = ll_tools_static_cache_strip_notice_args($redirect_to !== '' ? $redirect_to : admin_url());
+    $redirect_to = wp_validate_redirect($redirect_to, admin_url());
+
+    $result = ll_tools_purge_static_caches('all');
+
+    wp_safe_redirect(add_query_arg([
+        'll_tools_static_cache_purged' => '1',
+        'll_tools_static_cache_deleted' => max(0, (int) ($result['deleted'] ?? 0)),
+    ], $redirect_to));
+    exit;
+}
+add_action('admin_post_ll_tools_purge_static_cache', 'll_tools_handle_static_cache_admin_bar_purge');
+
+function ll_tools_static_cache_admin_notice(): void {
+    if (!is_admin() || !ll_tools_current_user_can_purge_static_cache() || !isset($_GET['ll_tools_static_cache_purged'])) {
+        return;
+    }
+
+    $deleted = isset($_GET['ll_tools_static_cache_deleted']) ? max(0, (int) $_GET['ll_tools_static_cache_deleted']) : 0;
+    $message = sprintf(
+        /* translators: %d: number of deleted cache files */
+        _n(
+            'Cleared LL Tools static caches. %d cache file was removed.',
+            'Cleared LL Tools static caches. %d cache files were removed.',
+            $deleted,
+            'll-tools-text-domain'
+        ),
+        $deleted
+    );
+
+    echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
+}
+add_action('admin_notices', 'll_tools_static_cache_admin_notice');

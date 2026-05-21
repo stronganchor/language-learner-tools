@@ -523,6 +523,9 @@ function ll_tools_is_cacheable_dictionary_request(): bool {
     if (is_user_logged_in()) {
         return false;
     }
+    if (is_front_page() || is_home()) {
+        return false;
+    }
     if (is_preview() || (function_exists('is_customize_preview') && is_customize_preview())) {
         return false;
     }

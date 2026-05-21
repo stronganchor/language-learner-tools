@@ -20,23 +20,25 @@ For a normal Codex session against a live LL Tools site:
 5. Give Codex the site URL plus the temporary username and password.
 6. First call `GET /automation/status` to confirm authentication and capability
    scope.
-7. Then call `GET /wordsets/{wordset}/report-summary` to confirm the exact
+7. If public anonymous HTML is stale after a site edit, call
+   `POST /cache/static/purge` to clear the LL dictionary/public static caches.
+8. Then call `GET /wordsets/{wordset}/report-summary` to confirm the exact
    target wordset and current coverage without running the heavier full report.
-8. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
-9. Use `POST /wordsets/{wordset}/bulk-update` with `dry_run=true` before any
+9. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
+10. Use `POST /wordsets/{wordset}/bulk-update` with `dry_run=true` before any
    write operation.
-10. Re-run the same request without `dry_run` to apply changes. The server
+11. Re-run the same request without `dry_run` to apply changes. The server
     applies write batches in small chunks by default, so keep the returned
     `resume_state` and repeat until `batch.has_more` is false.
-11. For word-option groups, call
+12. For word-option groups, call
     `POST /wordsets/{wordset}/word-option-rules` with `dry_run=true` before
     applying the same payload without `dry_run`.
-12. For bundle imports, preview with `POST /imports/preview`, start with
+13. For bundle imports, preview with `POST /imports/preview`, start with
     `POST /imports/start`, then poll `POST /imports/{job_id}/process` until the
     job is completed.
-13. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
+14. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
     undo availability, and the import history entry ID.
-14. Delete or downgrade the temporary user when the session is complete.
+15. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -113,6 +115,7 @@ Base namespace:
 Routes:
 
 - `GET /automation/status`
+- `POST /cache/static/purge`
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
 - `POST /wordsets/{wordset}/bulk-update`
@@ -163,6 +166,22 @@ Check auth and route availability:
 ```bash
 curl -u codex-temp:YOUR_PASSWORD \
   https://example.com/wp-json/ll-tools/v1/automation/status
+```
+
+Clear stale LL dictionary/public static HTML caches:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  https://example.com/wp-json/ll-tools/v1/cache/static/purge
+```
+
+Clear only one static cache:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  "https://example.com/wp-json/ll-tools/v1/cache/static/purge?cache=dictionary"
 ```
 
 Dump a live report:
