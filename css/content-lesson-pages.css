@@ -1118,6 +1118,8 @@
     margin: 12px;
 }
 
+.ll-content-lesson-print-source-url,
+.ll-text-document-print-root,
 .ll-text-document__print-sources {
     display: none;
 }
@@ -1272,10 +1274,42 @@ video.ll-content-lesson-media {
         background: #fff !important;
     }
 
+    body.ll-text-document-print-active > *:not(.ll-text-document-print-root) {
+        display: none !important;
+    }
+
+    body.ll-text-document-print-active .ll-text-document-print-root {
+        display: block !important;
+    }
+
     body > header,
     body > footer,
+    body > .site > header,
+    body > .site > footer,
+    body > #page > header,
+    body > #page > footer,
+    .wp-site-blocks > header,
+    .wp-site-blocks > footer,
+    .wp-site-blocks > .wp-block-template-part:first-child,
+    .wp-site-blocks > .wp-block-template-part:last-child,
+    header.site-header,
+    footer.site-footer,
+    #masthead,
+    #colophon,
+    [role="banner"],
+    [role="contentinfo"],
+    .elementor-location-header,
+    .elementor-location-footer,
+    .site-branding,
+    .site-title,
     .site-header,
     .site-footer,
+    .main-navigation,
+    .main-header-bar,
+    .ast-desktop-header,
+    .ast-mobile-header-wrap,
+    .ast-primary-header-bar,
+    .ast-site-title-wrap,
     #wpadminbar,
     .ll-content-lesson-hero__top,
     .ll-text-document__head,
@@ -1312,6 +1346,25 @@ video.ll-content-lesson-media {
         color: #333 !important;
         font-size: 11pt !important;
         line-height: 1.45 !important;
+    }
+
+    .ll-content-lesson-print-source-url {
+        display: block !important;
+        margin: 6pt 0 0 !important;
+        color: #444 !important;
+        font-size: 8pt !important;
+        line-height: 1.3 !important;
+        word-break: break-word;
+    }
+
+    .ll-content-lesson-print-source-url span {
+        font-weight: 700 !important;
+    }
+
+    .ll-content-lesson-print-source-url a {
+        color: inherit !important;
+        text-decoration: none !important;
+        word-break: break-all;
     }
 
     .ll-text-document,
@@ -1501,5 +1554,74 @@ video.ll-content-lesson-media {
 
     .ll-book-text__sources .ll-text-sources__item img {
         display: none !important;
+    }
+
+    .ll-text-document__print-sources,
+    .ll-book-text__sources {
+        margin-top: 10pt !important;
+        padding-top: 6pt !important;
+        border-top: 1px solid #aaa !important;
+        background: #fff !important;
+        break-before: avoid;
+        page-break-before: auto;
+    }
+
+    .ll-text-document__print-sources > h2,
+    .ll-book-text__sources > h2 {
+        margin: 0 0 4pt !important;
+        color: #111 !important;
+        font-size: 10pt !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0 !important;
+    }
+
+    .ll-text-document__print-sources .ll-text-sources,
+    .ll-book-text__sources .ll-text-sources {
+        display: block !important;
+        column-count: 2;
+        column-gap: 12pt;
+        padding: 0 !important;
+        background: #fff !important;
+        color: #111 !important;
+        font-size: 7.8pt !important;
+        line-height: 1.25 !important;
+    }
+
+    .ll-text-document__print-sources .ll-text-sources__item,
+    .ll-book-text__sources .ll-text-sources__item {
+        margin: 0 0 5pt !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        break-inside: auto !important;
+        page-break-inside: auto !important;
+    }
+
+    .ll-text-document__print-sources .ll-text-sources__item h3,
+    .ll-book-text__sources .ll-text-sources__item h3 {
+        margin: 0 0 1.5pt !important;
+        padding: 0 !important;
+        border: 0 !important;
+        color: #111 !important;
+        font-size: 8.2pt !important;
+        line-height: 1.2 !important;
+    }
+
+    .ll-text-document__print-sources .ll-text-sources__item p,
+    .ll-book-text__sources .ll-text-sources__item p,
+    .ll-text-document__print-sources .ll-text-sources__links,
+    .ll-book-text__sources .ll-text-sources__links {
+        margin: 0 0 1.5pt !important;
+        padding-left: 0 !important;
+        color: #111 !important;
+        font-size: 7.8pt !important;
+        line-height: 1.25 !important;
+    }
+
+    .ll-text-document__print-sources .ll-text-sources__links,
+    .ll-book-text__sources .ll-text-sources__links {
+        padding-left: 10pt !important;
+        word-break: break-all;
     }
 }

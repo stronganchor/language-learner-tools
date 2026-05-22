@@ -85,6 +85,9 @@ if ($is_corpus_text) {
         $lesson_excerpt = ll_tools_get_content_lesson_localized_excerpt($lesson_id, (string) $lesson_excerpt);
     }
 }
+$print_source_url = ($is_corpus_text && function_exists('ll_tools_get_content_lesson_print_source_url'))
+    ? ll_tools_get_content_lesson_print_source_url($lesson_id)
+    : '';
 $media_label = function_exists('ll_tools_content_lesson_media_label')
     ? ll_tools_content_lesson_media_label($is_corpus_text ? 'text' : $media_type, $lesson_kind)
     : (($media_type === 'video') ? __('Video lesson', 'll-tools-text-domain') : __('Audio lesson', 'll-tools-text-domain'));
@@ -134,6 +137,12 @@ $format_ms = static function (int $ms): string {
             <h1 class="ll-content-lesson-title"><?php echo esc_html($lesson_title); ?></h1>
             <?php if ($lesson_excerpt !== '') : ?>
                 <p class="ll-content-lesson-summary"><?php echo esc_html($lesson_excerpt); ?></p>
+            <?php endif; ?>
+            <?php if ($print_source_url !== '') : ?>
+                <p class="ll-content-lesson-print-source-url">
+                    <span><?php echo esc_html__('URL:', 'll-tools-text-domain'); ?></span>
+                    <a href="<?php echo esc_url($print_source_url); ?>"><?php echo esc_html($print_source_url); ?></a>
+                </p>
             <?php endif; ?>
         </div>
     </header>

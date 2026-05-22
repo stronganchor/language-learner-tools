@@ -1148,7 +1148,13 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $_GET = [
                 'll_book_language' => 'de',
                 'll_book_section' => 'notes',
+                'unused' => 'drop-me',
             ];
+            $print_url = ll_tools_get_content_lesson_print_source_url($post_id);
+            $this->assertStringContainsString('ll_book_language=de', $print_url);
+            $this->assertStringContainsString('ll_book_section=notes', $print_url);
+            $this->assertStringNotContainsString('drop-me', $print_url);
+
             $german_html = ll_tools_render_interlinear_block($post_id);
             $this->assertStringNotContainsString('Language: German', $german_html);
             $this->assertStringContainsString('English notes text.', $german_html);

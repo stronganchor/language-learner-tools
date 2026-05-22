@@ -34,6 +34,43 @@ function ll_tools_get_content_lesson_excerpt(WP_Post $lesson): string {
     return $excerpt;
 }
 
+function ll_tools_get_content_lesson_print_source_url(int $lesson_id, ?array $request_query = null): string {
+    if ($lesson_id <= 0) {
+        return '';
+    }
+
+    $permalink = get_permalink($lesson_id);
+    if (!is_string($permalink) || $permalink === '') {
+        return '';
+    }
+
+    $request_query = $request_query ?? $_GET;
+    $allowed_query_keys = [
+        'll_locale',
+        'll_text_view',
+        'll_translation',
+        'll_book_language',
+        'll_book_section',
+    ];
+    $query_args = [];
+    foreach ($allowed_query_keys as $query_key) {
+        if (!isset($request_query[$query_key]) || !is_scalar($request_query[$query_key])) {
+            continue;
+        }
+
+        $value = trim(sanitize_text_field(wp_unslash((string) $request_query[$query_key])));
+        if ($value !== '') {
+            $query_args[$query_key] = $value;
+        }
+    }
+
+    if (!empty($query_args)) {
+        $permalink = add_query_arg($query_args, $permalink);
+    }
+
+    return $permalink;
+}
+
 function ll_tools_content_lesson_shortcode_localized_attribute(array $atts, string $base_key, string $fallback = ''): string {
     $values = [];
     foreach (['tr', 'en', 'de'] as $language_key) {
