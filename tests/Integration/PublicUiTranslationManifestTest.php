@@ -30,7 +30,7 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertSame(count($selected_entries), count($manifest_entries));
         $this->assertGreaterThan(500, count($manifest_entries));
         $this->assertArrayHasKey('ru_RU', $config['tier2_locales']);
-        $this->assertSame('planned', $config['tier2_locales']['ru_RU']['status']);
+        $this->assertSame('active', $config['tier2_locales']['ru_RU']['status']);
     }
 
     public function test_turkish_covers_every_public_manifest_entry(): void

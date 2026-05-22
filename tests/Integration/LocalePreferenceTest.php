@@ -68,11 +68,11 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $user_id = self::factory()->user->create();
         wp_set_current_user($user_id);
 
-        $this->assertFalse(ll_tools_persist_locale_preference('ru_RU'));
+        $this->assertFalse(ll_tools_persist_locale_preference('zh_CN'));
         $this->assertSame('', (string) get_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, true));
-        update_user_meta($user_id, 'locale', 'ru_RU');
+        update_user_meta($user_id, 'locale', 'zh_CN');
         $this->assertSame('', ll_tools_get_user_locale_preference($user_id, false));
-        $this->assertNotContains('ru_RU', ll_tools_get_plugin_locales());
+        $this->assertNotContains('zh_CN', ll_tools_get_plugin_locales());
     }
 
     public function test_frontend_locale_filter_allows_public_only_preference_for_elevated_user(): void
@@ -193,8 +193,8 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
 
     public function test_recorder_ajax_locale_preference_rejects_inactive_tier2_request(): void
     {
-        $_REQUEST['ll_locale'] = 'ru_RU';
-        $_GET['ll_locale'] = 'ru_RU';
+        $_REQUEST['ll_locale'] = 'zh_CN';
+        $_GET['ll_locale'] = 'zh_CN';
 
         $this->assertSame('', ll_tools_get_recorder_ajax_locale_preference());
     }
