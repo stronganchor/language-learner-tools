@@ -66,6 +66,16 @@ function ll_tools_public_i18n_parse_po_file(string $path): array
             continue;
         }
 
+        if (preg_match('/^#,\s+(.+)$/', $line, $matches)) {
+            foreach (preg_split('/,\s*/', trim($matches[1])) ?: [] as $flag) {
+                $flag = trim((string) $flag);
+                if ($flag !== '') {
+                    $entry['flags'][] = $flag;
+                }
+            }
+            continue;
+        }
+
         if (preg_match('/^msgctxt\s+"(.*)"$/', $line, $matches)) {
             $entry['context'] = ll_tools_public_i18n_decode_po_string($matches[1]);
             $field = 'context';
@@ -111,7 +121,7 @@ function ll_tools_public_i18n_parse_po_file(string $path): array
 }
 
 /**
- * @return array{context:?string,msgid:?string,msgid_plural:?string,msgstr:array<int,string>,references:array<int,string>}
+ * @return array{context:?string,msgid:?string,msgid_plural:?string,msgstr:array<int,string>,references:array<int,string>,flags:array<int,string>}
  */
 function ll_tools_public_i18n_empty_entry(): array
 {
@@ -121,6 +131,7 @@ function ll_tools_public_i18n_empty_entry(): array
         'msgid_plural' => null,
         'msgstr' => [],
         'references' => [],
+        'flags' => [],
     ];
 }
 
@@ -395,6 +406,22 @@ function ll_tools_public_i18n_entries_by_key(array $entries): array
     return $by_key;
 }
 
+function ll_tools_public_i18n_plural_count_from_entries(array $entries): int
+{
+    foreach ($entries as $entry) {
+        if (($entry['msgid'] ?? null) !== '') {
+            continue;
+        }
+
+        $header = (string) (($entry['msgstr'][0] ?? ''));
+        if (preg_match('/Plural-Forms:\s*nplurals\s*=\s*(\d+)/i', $header, $matches)) {
+            return max(1, (int) $matches[1]);
+        }
+    }
+
+    return 0;
+}
+
 /**
  * @return array<string, mixed>
  */
@@ -416,6 +443,7 @@ function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manif
     }
 
     $po_entries = ll_tools_public_i18n_parse_po_file($po_path);
+    $plural_count = ll_tools_public_i18n_plural_count_from_entries($po_entries);
     $po_by_key = [];
     foreach ($po_entries as $entry) {
         $msgid = (string) ($entry['msgid'] ?? '');
@@ -437,13 +465,20 @@ function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manif
         }
 
         $po_entry = $po_by_key[$key];
+        if (in_array('fuzzy', (array) ($po_entry['flags'] ?? []), true)) {
+            $untranslated[] = $key;
+            continue;
+        }
+
         $msgstr = (array) ($po_entry['msgstr'] ?? []);
         $has_plural = isset($manifest_entry['msgid_plural']) && $manifest_entry['msgid_plural'] !== null;
         $translated = false;
 
         if ($has_plural) {
-            $translated = $msgstr !== [];
-            foreach ($msgstr as $translation) {
+            $required_plural_count = $plural_count > 0 ? $plural_count : count($msgstr);
+            $translated = $required_plural_count > 0;
+            for ($index = 0; $index < $required_plural_count; $index++) {
+                $translation = $msgstr[$index] ?? '';
                 if (trim((string) $translation) === '') {
                     $translated = false;
                     break;

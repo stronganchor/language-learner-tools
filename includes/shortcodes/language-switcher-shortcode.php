@@ -5,6 +5,147 @@ if (!defined('ABSPATH')) exit;
 
 define('LL_TOOLS_I18N_COOKIE', 'll_locale');
 define('LL_TOOLS_TEXTDOMAIN', 'll-tools-text-domain');
+define('LL_TOOLS_PUBLIC_LOCALE_META', 'll_tools_public_locale');
+
+/**
+ * Return locale tier configuration for the public UI translation system.
+ */
+function ll_tools_get_public_i18n_locale_config(): array {
+    static $config = null;
+    if (is_array($config)) {
+        return $config;
+    }
+
+    $path = trailingslashit(LL_TOOLS_BASE_PATH) . 'languages/tier2-public-ui-sources.php';
+    $loaded = is_file($path) ? require $path : [];
+    $config = is_array($loaded) ? $loaded : [];
+
+    return $config;
+}
+
+/**
+ * Locales with full plugin coverage, suitable for staff/admin UI.
+ *
+ * @return string[]
+ */
+function ll_tools_get_core_full_locales(): array {
+    $config = ll_tools_get_public_i18n_locale_config();
+    $locales = ['en_US'];
+
+    foreach (array_keys((array) ($config['core_full_locales'] ?? [])) as $locale) {
+        if (ll_tools_is_valid_switcher_locale($locale)) {
+            $locales[] = (string) $locale;
+        }
+    }
+
+    return array_values(array_unique($locales));
+}
+
+/**
+ * Tier-2 locales configured for public UI translation.
+ *
+ * @return string[]
+ */
+function ll_tools_get_tier2_public_locales(bool $active_only = false): array {
+    $config = ll_tools_get_public_i18n_locale_config();
+    $locales = [];
+
+    foreach ((array) ($config['tier2_locales'] ?? []) as $locale => $locale_config) {
+        if (!ll_tools_is_valid_switcher_locale($locale)) {
+            continue;
+        }
+
+        $status = is_array($locale_config) ? (string) ($locale_config['status'] ?? '') : '';
+        if ($active_only && !in_array($status, ['active', 'complete'], true)) {
+            continue;
+        }
+        $locales[] = (string) $locale;
+    }
+
+    $locales = array_values(array_unique($locales));
+
+    return (array) apply_filters('ll_tools_tier2_public_locales', $locales, $active_only);
+}
+
+/**
+ * Public-only tier-2 locales configured as ready for the language switcher.
+ *
+ * @return string[]
+ */
+function ll_tools_get_active_tier2_public_locales(): array {
+    return ll_tools_get_tier2_public_locales(true);
+}
+
+function ll_tools_locale_has_full_translation($locale): bool {
+    $normalized = ll_tools_normalize_switcher_locale_code($locale);
+    if ($normalized === '') {
+        return false;
+    }
+
+    return in_array($normalized, ll_tools_get_core_full_locales(), true);
+}
+
+function ll_tools_is_public_only_locale($locale): bool {
+    $normalized = ll_tools_normalize_switcher_locale_code($locale);
+    if ($normalized === '') {
+        return false;
+    }
+
+    return in_array($normalized, ll_tools_get_tier2_public_locales(false), true)
+        && !ll_tools_locale_has_full_translation($normalized);
+}
+
+function ll_tools_is_available_public_locale($locale): bool {
+    $normalized = ll_tools_normalize_switcher_locale_code($locale);
+    if ($normalized === '') {
+        return false;
+    }
+
+    return ll_tools_locale_has_full_translation($normalized)
+        || in_array($normalized, ll_tools_get_active_tier2_public_locales(), true);
+}
+
+function ll_tools_get_staff_locale_fallback(): string {
+    $site_default = ll_tools_get_site_default_locale_preference();
+    if (ll_tools_locale_has_full_translation($site_default)) {
+        return $site_default;
+    }
+
+    return 'en_US';
+}
+
+function ll_tools_user_has_elevated_locale_context($user_id = 0): bool {
+    $user_id = (int) $user_id;
+    if ($user_id <= 0 && function_exists('get_current_user_id')) {
+        $user_id = (int) get_current_user_id();
+    }
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    return user_can($user_id, 'view_ll_tools') || user_can($user_id, 'manage_options');
+}
+
+function ll_tools_repair_elevated_public_only_wp_locale($user_id = 0): void {
+    $user_id = (int) $user_id;
+    if ($user_id <= 0 && function_exists('get_current_user_id')) {
+        $user_id = (int) get_current_user_id();
+    }
+    if ($user_id <= 0 || !ll_tools_user_has_elevated_locale_context($user_id) || !function_exists('get_user_meta')) {
+        return;
+    }
+
+    $wp_locale = (string) get_user_meta($user_id, 'locale', true);
+    if (!ll_tools_is_public_only_locale($wp_locale)) {
+        return;
+    }
+
+    $public_locale = (string) get_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, true);
+    if (!ll_tools_is_valid_switcher_locale($public_locale)) {
+        update_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, $wp_locale);
+    }
+    update_user_meta($user_id, 'locale', ll_tools_get_staff_locale_fallback());
+}
 
 /**
  * Build the locale list for the language switcher.
@@ -61,10 +202,12 @@ function ll_tools_get_plugin_locales() {
     $site_default = get_option('WPLANG');
     $locales[] = $site_default ? $site_default : 'en_US';
     $locales[] = 'en_US';
-    $locales[] = 'tr_TR';
-    $locales[] = 'de_DE';
+    $locales = array_merge($locales, ll_tools_get_core_full_locales(), ll_tools_get_active_tier2_public_locales());
 
-    $cache = array_values(array_unique($locales));
+    $cache = array_values(array_filter(
+        array_unique($locales),
+        static fn (string $locale): bool => ll_tools_is_available_public_locale($locale)
+    ));
     $preferred_order = ['tr_TR' => 0, 'en_US' => 1, 'de_DE' => 2];
     usort($cache, static function (string $left, string $right) use ($preferred_order): int {
         return (($preferred_order[$left] ?? 50) <=> ($preferred_order[$right] ?? 50)) ?: strcmp($left, $right);
@@ -107,7 +250,7 @@ function ll_tools_get_locale_cookie_preference() {
     }
 
     $chosen = sanitize_text_field(wp_unslash((string) $_COOKIE[LL_TOOLS_I18N_COOKIE]));
-    return ll_tools_is_valid_switcher_locale($chosen) ? $chosen : '';
+    return ll_tools_is_available_public_locale($chosen) ? $chosen : '';
 }
 
 /**
@@ -136,6 +279,11 @@ function ll_tools_get_user_locale_preference($user_id = 0, $fallback_to_site_def
 
     $user_locale = '';
     if (function_exists('get_user_meta')) {
+        $public_locale = (string) get_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, true);
+        if (ll_tools_is_available_public_locale($public_locale)) {
+            return $public_locale;
+        }
+
         $user_locale = (string) get_user_meta($user_id, 'locale', true);
     } else {
         $user = get_userdata($user_id);
@@ -144,7 +292,7 @@ function ll_tools_get_user_locale_preference($user_id = 0, $fallback_to_site_def
         }
     }
 
-    if (ll_tools_is_valid_switcher_locale($user_locale)) {
+    if (ll_tools_is_available_public_locale($user_locale)) {
         return $user_locale;
     }
 
@@ -155,7 +303,7 @@ function ll_tools_get_user_locale_preference($user_id = 0, $fallback_to_site_def
  * Persist a locale preference to the cookie and, for logged-in users, their account.
  */
 function ll_tools_persist_locale_preference($locale, $user_id = 0) {
-    if (!ll_tools_is_valid_switcher_locale($locale)) {
+    if (!ll_tools_is_available_public_locale($locale)) {
         return false;
     }
 
@@ -170,7 +318,10 @@ function ll_tools_persist_locale_preference($locale, $user_id = 0) {
         $user_id = (int) get_current_user_id();
     }
     if ($user_id > 0 && function_exists('update_user_meta')) {
-        update_user_meta($user_id, 'locale', $locale);
+        update_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, $locale);
+        if (ll_tools_locale_has_full_translation($locale)) {
+            update_user_meta($user_id, 'locale', $locale);
+        }
         $updated = true;
     }
 
@@ -422,15 +573,43 @@ function ll_tools_filter_locale($locale) {
 add_filter('locale', 'll_tools_filter_locale');
 
 /**
- * Shortcode: [ll_language_switcher show_flags="1" style="native" class=""]
+ * Keep public-only tier-2 preferences out of wp-admin/staff locale selection.
+ */
+function ll_tools_pre_determine_locale_for_staff_public_only_preference($locale) {
+    if ($locale !== null) {
+        return $locale;
+    }
+    if (!is_admin() || !ll_tools_user_has_elevated_locale_context()) {
+        return $locale;
+    }
+
+    $user_id = (int) get_current_user_id();
+    ll_tools_repair_elevated_public_only_wp_locale($user_id);
+    $public_locale = (string) get_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, true);
+    $wp_locale = (string) get_user_meta($user_id, 'locale', true);
+
+    if (ll_tools_is_public_only_locale($public_locale) || ll_tools_is_public_only_locale($wp_locale)) {
+        return ll_tools_get_staff_locale_fallback();
+    }
+
+    return $locale;
+}
+add_filter('pre_determine_locale', 'll_tools_pre_determine_locale_for_staff_public_only_preference', 20);
+
+/**
+ * Shortcode: [ll_language_switcher show_flags="1" style="native" display="list" class=""]
  *  - show_flags: 1 or 0 (default 1)
  *  - style: 'native' | 'english' | 'code' (default 'native')
+ *  - display: 'list' | 'dropdown' | 'button' (default 'list')
  *  - class: extra CSS class to add to wrapper
  */
 function ll_language_switcher_shortcode($atts) {
     $atts = shortcode_atts([
         'show_flags' => '1',
         'style'      => 'native',
+        'display'    => 'list',
+        'button_label' => '',
+        'show_current' => '1',
         'class'      => '',
     ], $atts, 'll_language_switcher');
 
@@ -440,11 +619,29 @@ function ll_language_switcher_shortcode($atts) {
     $current = get_locale();
     $show_flags = $atts['show_flags'] !== '0';
     $style = in_array($atts['style'], ['native','english','code'], true) ? $atts['style'] : 'native';
+    $display = in_array($atts['display'], ['list', 'dropdown', 'button'], true) ? $atts['display'] : 'list';
+    $show_current = $atts['show_current'] !== '0';
+    $button_label = trim((string) $atts['button_label']);
+    if ($button_label === '') {
+        $button_label = __('Language', 'll-tools-text-domain');
+    }
     $extra_class = sanitize_html_class($atts['class']);
+    $current_label = ll_tools_locale_label($current, $style);
+    $wrapper_classes = trim('ll-lang-switcher ll-lang-switcher--' . $display . ' ' . $extra_class);
 
     ob_start();
     ?>
-    <nav class="ll-lang-switcher <?php echo esc_attr($extra_class); ?>">
+    <nav class="<?php echo esc_attr($wrapper_classes); ?>" aria-label="<?php echo esc_attr__('Language', 'll-tools-text-domain'); ?>">
+        <?php if ($display !== 'list') : ?>
+            <details class="ll-lang-switcher__details">
+                <summary class="ll-lang-switcher__summary">
+                    <span class="ll-lang-switcher__summary-icon" aria-hidden="true">A/あ</span>
+                    <span class="ll-lang-switcher__summary-label"><?php echo esc_html($button_label); ?></span>
+                    <?php if ($show_current) : ?>
+                        <span class="ll-lang-switcher__summary-current"><?php echo esc_html($current_label); ?></span>
+                    <?php endif; ?>
+                </summary>
+        <?php endif; ?>
         <ul>
             <?php foreach ($available as $loc):
                 $is_current = ($loc === $current);
@@ -470,6 +667,9 @@ function ll_language_switcher_shortcode($atts) {
                 </li>
             <?php endforeach; ?>
         </ul>
+        <?php if ($display !== 'list') : ?>
+            </details>
+        <?php endif; ?>
     </nav>
     <style>
         .ll-lang-switcher { display:inline-block; font-size:14px; }
@@ -482,6 +682,27 @@ function ll_language_switcher_shortcode($atts) {
         .ll-lang-switcher .ll-lang-link:hover { background:rgba(0,0,0,.05); }
         .ll-lang-switcher .is-current .ll-lang-current { background:rgba(0,0,0,.08); font-weight:600; }
         .ll-lang-switcher .ll-flag { line-height:1; }
+        .ll-lang-switcher--dropdown, .ll-lang-switcher--button { position:relative; }
+        .ll-lang-switcher__details { position:relative; }
+        .ll-lang-switcher__summary {
+            list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:.4rem;
+            padding:.4rem .65rem; border-radius:.4rem; border:1px solid rgba(0,0,0,.12);
+            background:#fff; color:inherit; line-height:1.2; user-select:none;
+        }
+        .ll-lang-switcher__summary::-webkit-details-marker { display:none; }
+        .ll-lang-switcher__summary-icon { font-weight:700; letter-spacing:0; line-height:1; }
+        .ll-lang-switcher__summary-current { color:rgba(0,0,0,.62); font-size:.92em; }
+        .ll-lang-switcher--button .ll-lang-switcher__summary-current { display:none; }
+        .ll-lang-switcher--dropdown ul, .ll-lang-switcher--button ul {
+            position:absolute; z-index:200; right:0; top:calc(100% + 6px);
+            min-width:14rem; max-height:min(70vh, 24rem); overflow:auto;
+            display:grid; gap:.25rem; padding:.35rem; border:1px solid rgba(0,0,0,.12);
+            border-radius:.45rem; background:#fff; box-shadow:0 12px 28px rgba(0,0,0,.16);
+        }
+        .ll-lang-switcher--dropdown .ll-lang-link, .ll-lang-switcher--dropdown .ll-lang-current,
+        .ll-lang-switcher--button .ll-lang-link, .ll-lang-switcher--button .ll-lang-current {
+            width:100%; justify-content:flex-start; border-color:transparent; border-radius:.35rem;
+        }
     </style>
     <?php
     return ob_get_clean();
@@ -573,6 +794,8 @@ function ll_tools_render_header_language_switcher(): void {
     $markup = ll_language_switcher_shortcode([
         'show_flags' => '1',
         'style' => 'native',
+        'display' => 'dropdown',
+        'button_label' => __('Language', 'll-tools-text-domain'),
         'class' => 'll-lang-switcher--header',
     ]);
     if (trim((string) $markup) === '') {
