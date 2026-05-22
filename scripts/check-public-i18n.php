@@ -348,6 +348,142 @@ function ll_tools_public_i18n_write_manifest(string $manifest_path, array $manif
     }
 }
 
+function ll_tools_public_i18n_escape_po_string(string $value): string
+{
+    return str_replace(
+        ["\\", "\"", "\t", "\r", "\n"],
+        ["\\\\", "\\\"", "\\t", "\\r", "\\n"],
+        $value
+    );
+}
+
+function ll_tools_public_i18n_po_line(string $keyword, string $value): string
+{
+    return $keyword . ' "' . ll_tools_public_i18n_escape_po_string($value) . '"';
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_public_i18n_po_header_lines(string $locale, array $config): array
+{
+    $locale_config = is_array($config['tier2_locales'][$locale] ?? null) ? $config['tier2_locales'][$locale] : [];
+    $plural_forms = trim((string) ($locale_config['plural_forms'] ?? ''));
+    if ($plural_forms === '') {
+        $plural_forms = 'nplurals=2; plural=(n != 1);';
+    }
+    if (!str_ends_with($plural_forms, ';')) {
+        $plural_forms .= ';';
+    }
+
+    return [
+        'Project-Id-Version: Language Learner Tools Public UI',
+        'Report-Msgid-Bugs-To: ',
+        'POT-Creation-Date: ',
+        'PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE',
+        'Last-Translator: ',
+        'Language-Team: ',
+        'Language: ' . $locale,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=UTF-8',
+        'Content-Transfer-Encoding: 8bit',
+        'Plural-Forms: ' . $plural_forms,
+        'X-Generator: LL Tools public i18n manifest',
+    ];
+}
+
+function ll_tools_public_i18n_build_po_header(string $locale, array $config): string
+{
+    $lines = [
+        '# LL Tools tier-2 public UI translations.',
+        '# This file is generated from languages/tier2-public-ui-strings.json.',
+        'msgid ""',
+        'msgstr ""',
+    ];
+
+    foreach (ll_tools_public_i18n_po_header_lines($locale, $config) as $header_line) {
+        $lines[] = '"' . ll_tools_public_i18n_escape_po_string($header_line . "\n") . '"';
+    }
+
+    return implode("\n", $lines);
+}
+
+function ll_tools_public_i18n_plural_count_from_plural_forms(string $plural_forms): int
+{
+    if (preg_match('/nplurals\s*=\s*(\d+)/i', $plural_forms, $matches)) {
+        return max(1, (int) $matches[1]);
+    }
+
+    return 2;
+}
+
+function ll_tools_public_i18n_plural_count_for_locale(string $locale, array $config): int
+{
+    $locale_config = is_array($config['tier2_locales'][$locale] ?? null) ? $config['tier2_locales'][$locale] : [];
+    $plural_forms = trim((string) ($locale_config['plural_forms'] ?? ''));
+    if ($plural_forms === '') {
+        $plural_forms = 'nplurals=2; plural=(n != 1);';
+    }
+
+    return ll_tools_public_i18n_plural_count_from_plural_forms($plural_forms);
+}
+
+function ll_tools_public_i18n_build_po_for_locale(string $locale, array $manifest_entries, array $config): string
+{
+    $chunks = [ll_tools_public_i18n_build_po_header($locale, $config)];
+    $plural_count = ll_tools_public_i18n_plural_count_for_locale($locale, $config);
+
+    foreach ($manifest_entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $lines = [];
+        $key = (string) ($entry['key'] ?? '');
+        if ($key !== '') {
+            $lines[] = '#. ll-tools-public-key: ' . $key;
+        }
+
+        $references = (array) ($entry['public_references'] ?? ($entry['references'] ?? []));
+        $references = array_values(array_unique(array_filter(array_map('strval', $references))));
+        sort($references, SORT_STRING);
+        if ($references !== []) {
+            $lines[] = '#: ' . implode(' ', $references);
+        }
+
+        $context = (string) ($entry['context'] ?? '');
+        if ($context !== '') {
+            $lines[] = ll_tools_public_i18n_po_line('msgctxt', $context);
+        }
+
+        $lines[] = ll_tools_public_i18n_po_line('msgid', (string) ($entry['msgid'] ?? ''));
+        if (array_key_exists('msgid_plural', $entry) && $entry['msgid_plural'] !== null) {
+            $lines[] = ll_tools_public_i18n_po_line('msgid_plural', (string) $entry['msgid_plural']);
+            for ($index = 0; $index < $plural_count; $index++) {
+                $lines[] = 'msgstr[' . $index . '] ""';
+            }
+        } else {
+            $lines[] = 'msgstr ""';
+        }
+
+        $chunks[] = implode("\n", $lines);
+    }
+
+    return implode("\n\n", $chunks) . "\n";
+}
+
+function ll_tools_public_i18n_write_po_for_locale(string $po_path, string $locale, array $manifest_entries, array $config, bool $force = false): void
+{
+    if (is_file($po_path) && !$force) {
+        throw new RuntimeException("PO file already exists: {$po_path}. Use --force to overwrite.");
+    }
+
+    $po = ll_tools_public_i18n_build_po_for_locale($locale, $manifest_entries, $config);
+    if (file_put_contents($po_path, $po) === false) {
+        throw new RuntimeException("Unable to write PO file: {$po_path}");
+    }
+}
+
 /**
  * @return array{ok:bool,missing_from_manifest:array<int,string>,stale_in_manifest:array<int,string>,changed_entries:array<int,string>}
  */
@@ -423,6 +559,126 @@ function ll_tools_public_i18n_plural_count_from_entries(array $entries): int
 }
 
 /**
+ * @return string[]
+ */
+function ll_tools_public_i18n_extract_printf_placeholders(string $text): array
+{
+    preg_match_all('/(?<!%)%(?:\d+\$)?[+\-0# ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[bcdeEfFgGosuxX]/', $text, $matches);
+    return $matches[0] ?? [];
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_public_i18n_extract_urls(string $text): array
+{
+    preg_match_all('#https?://[^\s"\'<>)\]]+#', $text, $matches);
+    return $matches[0] ?? [];
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_public_i18n_extract_shortcode_tokens(string $text): array
+{
+    preg_match_all('/\[(?:\/)?[A-Za-z][A-Za-z0-9_-]*(?:\s+[^\]]*)?\]/', $text, $matches);
+    return $matches[0] ?? [];
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_public_i18n_extract_html_tag_tokens(string $text): array
+{
+    preg_match_all('/<\s*(\/)?\s*([A-Za-z][A-Za-z0-9:-]*)\b[^>]*(\/)?\s*>/', $text, $matches, PREG_SET_ORDER);
+    $tokens = [];
+    foreach ($matches as $match) {
+        $tag = strtolower((string) ($match[2] ?? ''));
+        if ($tag === '') {
+            continue;
+        }
+
+        $type = !empty($match[1]) ? 'close' : (!empty($match[3]) ? 'self' : 'open');
+        $tokens[] = $type . ':' . $tag;
+    }
+
+    return $tokens;
+}
+
+/**
+ * @return array<string, int>
+ */
+function ll_tools_public_i18n_token_counts(array $tokens): array
+{
+    $counts = array_count_values(array_map('strval', $tokens));
+    ksort($counts, SORT_STRING);
+    return $counts;
+}
+
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function ll_tools_public_i18n_validate_translation_string(array $manifest_entry, string $translation, int $plural_index = 0): array
+{
+    $msgid = (string) ($manifest_entry['msgid'] ?? '');
+    $msgid_plural = array_key_exists('msgid_plural', $manifest_entry) && $manifest_entry['msgid_plural'] !== null
+        ? (string) $manifest_entry['msgid_plural']
+        : null;
+    $source = ($msgid_plural !== null && $plural_index > 0) ? $msgid_plural : $msgid;
+    $key = (string) ($manifest_entry['key'] ?? ll_tools_public_i18n_entry_key([
+        'context' => (string) ($manifest_entry['context'] ?? ''),
+        'msgid' => $msgid,
+        'msgid_plural' => $msgid_plural,
+    ]));
+
+    $checks = [
+        'printf_placeholders' => [
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_printf_placeholders($source)),
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_printf_placeholders($translation)),
+        ],
+        'urls' => [
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_urls($source)),
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_urls($translation)),
+        ],
+        'shortcodes' => [
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_shortcode_tokens($source)),
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_shortcode_tokens($translation)),
+        ],
+        'html_tags' => [
+            ll_tools_public_i18n_extract_html_tag_tokens($source),
+            ll_tools_public_i18n_extract_html_tag_tokens($translation),
+        ],
+    ];
+
+    $errors = [];
+    foreach ($checks as $type => [$expected, $actual]) {
+        if ($expected === $actual) {
+            continue;
+        }
+
+        $errors[] = [
+            'key' => $key,
+            'type' => $type,
+            'plural_index' => $plural_index,
+            'expected' => $expected,
+            'actual' => $actual,
+        ];
+    }
+
+    if (substr_count($source, "\n") !== substr_count($translation, "\n")) {
+        $errors[] = [
+            'key' => $key,
+            'type' => 'newline_count',
+            'plural_index' => $plural_index,
+            'expected' => substr_count($source, "\n"),
+            'actual' => substr_count($translation, "\n"),
+        ];
+    }
+
+    return $errors;
+}
+
+/**
  * @return array<string, mixed>
  */
 function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manifest_entries, string $po_path): array
@@ -439,6 +695,8 @@ function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manif
             'complete' => false,
             'missing_keys' => array_values(array_map(static fn (array $entry): string => (string) $entry['key'], $manifest_entries)),
             'untranslated_keys' => [],
+            'validation_error_count' => 0,
+            'validation_errors' => [],
         ];
     }
 
@@ -455,6 +713,7 @@ function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manif
 
     $missing = [];
     $untranslated = [];
+    $validation_errors = [];
     $covered = 0;
 
     foreach ($manifest_entries as $manifest_entry) {
@@ -489,7 +748,25 @@ function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manif
         }
 
         if ($translated) {
-            $covered++;
+            $entry_validation_errors = [];
+            if ($has_plural) {
+                $required_plural_count = $plural_count > 0 ? $plural_count : count($msgstr);
+                for ($index = 0; $index < $required_plural_count; $index++) {
+                    $entry_validation_errors = array_merge(
+                        $entry_validation_errors,
+                        ll_tools_public_i18n_validate_translation_string($manifest_entry, (string) ($msgstr[$index] ?? ''), $index)
+                    );
+                }
+            } else {
+                $entry_validation_errors = ll_tools_public_i18n_validate_translation_string($manifest_entry, (string) ($msgstr[0] ?? ''), 0);
+            }
+
+            if ($entry_validation_errors === []) {
+                $covered++;
+            } else {
+                $validation_errors = array_merge($validation_errors, $entry_validation_errors);
+                $untranslated[] = $key;
+            }
         } else {
             $untranslated[] = $key;
         }
@@ -503,9 +780,11 @@ function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manif
         'missing' => count($missing),
         'untranslated' => count($untranslated),
         'total' => count($manifest_entries),
-        'complete' => $missing === [] && $untranslated === [],
+        'complete' => $missing === [] && $untranslated === [] && $validation_errors === [],
         'missing_keys' => $missing,
         'untranslated_keys' => $untranslated,
+        'validation_error_count' => count($validation_errors),
+        'validation_errors' => $validation_errors,
     ];
 }
 
@@ -521,6 +800,8 @@ function ll_tools_public_i18n_parse_cli_args(array $argv): array
         'details' => false,
         'format' => 'text',
         'locales' => [],
+        'generate_po' => '',
+        'force' => false,
         'pot' => '',
         'manifest' => '',
     ];
@@ -537,6 +818,12 @@ function ll_tools_public_i18n_parse_cli_args(array $argv): array
             $args['details'] = true;
         } elseif ($arg === '--json' || $arg === '--format=json') {
             $args['format'] = 'json';
+        } elseif ($arg === '--force') {
+            $args['force'] = true;
+        } elseif (str_starts_with($arg, '--generate-po=')) {
+            $args['generate_po'] = substr($arg, strlen('--generate-po='));
+        } elseif ($arg === '--generate-po' && isset($argv[$i + 1])) {
+            $args['generate_po'] = (string) $argv[++$i];
         } elseif (str_starts_with($arg, '--locale=')) {
             $args['locales'][] = substr($arg, strlen('--locale='));
         } elseif ($arg === '--locale' && isset($argv[$i + 1])) {
@@ -553,6 +840,7 @@ function ll_tools_public_i18n_parse_cli_args(array $argv): array
     }
 
     $args['locales'] = array_values(array_unique(array_filter(array_map('strval', $args['locales']))));
+    $args['generate_po'] = preg_replace('/[^A-Za-z0-9_]/', '', (string) $args['generate_po']);
 
     return $args;
 }
@@ -564,6 +852,8 @@ function ll_tools_public_i18n_usage(): string
         '',
         'Options:',
         '  --update-manifest      Regenerate languages/tier2-public-ui-strings.json from the current POT.',
+        '  --generate-po=LOCALE   Generate an untranslated tier-2 PO scaffold from the public manifest.',
+        '  --force                Allow --generate-po to overwrite an existing PO file.',
         '  --locale=LOCALE        Check public-string coverage for one locale PO file.',
         '  --all-tier2            Check every planned tier-2 locale from the source config.',
         '  --fail-on-missing      Exit non-zero when requested locale coverage is incomplete.',
@@ -579,6 +869,25 @@ function ll_tools_public_i18n_display_path(string $root_dir, string $path): stri
     $root = rtrim(ll_tools_public_i18n_normalize_path($root_dir), '/') . '/';
     $path = ll_tools_public_i18n_normalize_path($path);
     return str_starts_with($path, $root) ? substr($path, strlen($root)) : $path;
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function ll_tools_public_i18n_compiled_asset_status(string $root_dir, string $locale, array $config): array
+{
+    $domain = (string) ($config['text_domain'] ?? 'll-tools-text-domain');
+    $base = $root_dir . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . $domain . '-' . $locale;
+    $mo_path = $base . '.mo';
+    $php_path = $base . '.l10n.php';
+
+    return [
+        'mo_file' => ll_tools_public_i18n_display_path($root_dir, $mo_path),
+        'php_file' => ll_tools_public_i18n_display_path($root_dir, $php_path),
+        'mo_exists' => is_file($mo_path),
+        'php_exists' => is_file($php_path),
+        'complete' => is_file($mo_path) && is_file($php_path),
+    ];
 }
 
 function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
@@ -606,6 +915,17 @@ function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
     $manifest_entries = is_array($manifest['entries'] ?? null) ? $manifest['entries'] : [];
     $comparison = ll_tools_public_i18n_compare_manifest_entries($manifest_entries, $selected_entries);
 
+    if (!empty($args['generate_po'])) {
+        $generated_locale = (string) $args['generate_po'];
+        if (!isset($config['tier2_locales'][$generated_locale])) {
+            throw new InvalidArgumentException("Locale is not configured as a tier-2 locale: {$generated_locale}");
+        }
+
+        $po_path = $root_dir . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $generated_locale . '.po';
+        ll_tools_public_i18n_write_po_for_locale($po_path, $generated_locale, $manifest_entries, $config, (bool) $args['force']);
+        $args['locales'][] = $generated_locale;
+    }
+
     $locales = (array) $args['locales'];
     if (!empty($args['all_tier2'])) {
         $locales = array_values(array_unique(array_merge(
@@ -622,11 +942,13 @@ function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
         }
         $po_path = $root_dir . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $locale . '.po';
         $coverage[$locale] = ll_tools_public_i18n_check_locale_coverage($locale, $manifest_entries, $po_path);
+        $coverage[$locale]['compiled_assets'] = ll_tools_public_i18n_compiled_asset_status($root_dir, $locale, $config);
     }
 
     if (empty($args['details'])) {
         foreach ($coverage as &$coverage_row) {
             unset($coverage_row['missing_keys'], $coverage_row['untranslated_keys']);
+            unset($coverage_row['validation_errors']);
         }
         unset($coverage_row);
     }
@@ -674,7 +996,11 @@ function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
             if (!empty($row['complete'])) {
                 echo " complete\n";
             } else {
-                echo '; missing ' . (int) $row['missing'] . ', untranslated ' . (int) $row['untranslated'] . "\n";
+                echo '; missing ' . (int) $row['missing'] . ', untranslated ' . (int) $row['untranslated'];
+                if (!empty($row['validation_error_count'])) {
+                    echo ', validation errors ' . (int) $row['validation_error_count'];
+                }
+                echo "\n";
             }
         }
     }

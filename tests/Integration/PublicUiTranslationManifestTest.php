@@ -116,6 +116,90 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertNotContains('Add a media URL in the lesson editor to play this lesson here.', $msgids);
     }
 
+    public function test_tier2_po_generator_preserves_manifest_fields_and_plural_slots(): void
+    {
+        $entry = [
+            'key' => ll_tools_public_i18n_entry_key([
+                'context' => 'button',
+                'msgid' => '%d apple',
+                'msgid_plural' => '%d apples',
+            ]),
+            'context' => 'button',
+            'msgid' => '%d apple',
+            'msgid_plural' => '%d apples',
+            'public_references' => ['includes/example.php:12'],
+        ];
+        $config = [
+            'tier2_locales' => [
+                'ru_RU' => [
+                    'plural_forms' => 'nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);',
+                ],
+            ],
+        ];
+
+        $po = ll_tools_public_i18n_build_po_for_locale('ru_RU', [$entry], $config);
+
+        $this->assertStringContainsString('"Language: ru_RU\n"', $po);
+        $this->assertStringContainsString('Plural-Forms: nplurals=3;', $po);
+        $this->assertStringContainsString('#. ll-tools-public-key: ' . $entry['key'], $po);
+        $this->assertStringContainsString('#: includes/example.php:12', $po);
+        $this->assertStringContainsString('msgctxt "button"', $po);
+        $this->assertStringContainsString('msgid_plural "%d apples"', $po);
+        $this->assertStringContainsString('msgstr[2] ""', $po);
+    }
+
+    public function test_locale_coverage_rejects_translations_that_drop_markup_or_placeholders(): void
+    {
+        $msgid = "Open <strong>%s</strong> at https://example.com [word_audio]\nNow";
+        $entry = [
+            'key' => ll_tools_public_i18n_entry_key([
+                'context' => null,
+                'msgid' => $msgid,
+                'msgid_plural' => null,
+            ]),
+            'context' => '',
+            'msgid' => $msgid,
+            'msgid_plural' => null,
+            'public_references' => ['includes/example.php:12'],
+        ];
+
+        $po_path = tempnam(sys_get_temp_dir(), 'll-public-i18n-');
+        $this->assertIsString($po_path);
+        file_put_contents(
+            $po_path,
+            implode("\n", [
+                'msgid ""',
+                'msgstr ""',
+                '"Language: xx_XX\n"',
+                '"Plural-Forms: nplurals=2; plural=(n != 1);\n"',
+                '',
+                ll_tools_public_i18n_po_line('msgid', $msgid),
+                'msgstr "Open"',
+                '',
+            ])
+        );
+
+        try {
+            $coverage = ll_tools_public_i18n_check_locale_coverage('xx_XX', [$entry], $po_path);
+        } finally {
+            @unlink($po_path);
+        }
+
+        $this->assertFalse($coverage['complete']);
+        $this->assertSame(0, $coverage['covered']);
+        $this->assertSame(1, $coverage['untranslated']);
+        $types = array_values(array_unique(array_map(
+            static fn (array $error): string => (string) $error['type'],
+            (array) $coverage['validation_errors']
+        )));
+
+        $this->assertContains('printf_placeholders', $types);
+        $this->assertContains('urls', $types);
+        $this->assertContains('shortcodes', $types);
+        $this->assertContains('html_tags', $types);
+        $this->assertContains('newline_count', $types);
+    }
+
     private function pluginRoot(): string
     {
         return rtrim(defined('LL_TOOLS_BASE_PATH') ? (string) LL_TOOLS_BASE_PATH : dirname(__DIR__, 2), "\\/");
