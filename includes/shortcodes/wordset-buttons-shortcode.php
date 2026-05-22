@@ -307,6 +307,7 @@ function ll_tools_get_wordset_button_items(bool $hide_empty = false): array {
         $items[] = [
             'term' => $term,
             'lesson_count' => $lesson_count,
+            'is_private' => function_exists('ll_tools_is_wordset_private') && ll_tools_is_wordset_private($term),
         ];
     }
 
@@ -376,6 +377,7 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                 <?php
                 $term = $item['term'] ?? null;
                 $lesson_count = isset($item['lesson_count']) ? (int) $item['lesson_count'] : 0;
+                $is_private = !empty($item['is_private']);
                 if (!$term instanceof WP_Term || $lesson_count <= 0) {
                     continue;
                 }
@@ -398,21 +400,45 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                     _n('%d lesson', '%d lessons', $lesson_count, 'll-tools-text-domain'),
                     $lesson_count
                 );
-                $link_aria_label = sprintf(
-                    /* translators: 1: word set name, 2: lesson count label. */
-                    __('%1$s, %2$s', 'll-tools-text-domain'),
-                    $term->name,
-                    $count_label
-                );
+                $privacy_label = __('Private word set', 'll-tools-text-domain');
+                $link_aria_label = $is_private
+                    ? sprintf(
+                        /* translators: 1: word set name, 2: lesson count label. */
+                        __('%1$s, private word set, %2$s', 'll-tools-text-domain'),
+                        $term->name,
+                        $count_label
+                    )
+                    : sprintf(
+                        /* translators: 1: word set name, 2: lesson count label. */
+                        __('%1$s, %2$s', 'll-tools-text-domain'),
+                        $term->name,
+                        $count_label
+                    );
+                $button_classes = [
+                    'll-study-btn',
+                    'll-vocab-lesson-mode-button',
+                    'll-wordset-buttons-shortcode__button',
+                ];
+                if ($has_button_image) {
+                    $button_classes[] = 'll-wordset-buttons-shortcode__button--has-image';
+                }
+                if ($is_private) {
+                    $button_classes[] = 'll-wordset-buttons-shortcode__button--private';
+                }
                 ?>
                 <li class="ll-wordset-buttons-shortcode__item">
-                    <a class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-buttons-shortcode__button<?php echo $has_button_image ? ' ll-wordset-buttons-shortcode__button--has-image' : ''; ?>" href="<?php echo esc_url($url); ?>" aria-label="<?php echo esc_attr($link_aria_label); ?>">
+                    <a class="<?php echo esc_attr(implode(' ', $button_classes)); ?>" href="<?php echo esc_url($url); ?>" aria-label="<?php echo esc_attr($link_aria_label); ?>">
                         <?php if ($has_button_image) : ?>
                             <span class="ll-wordset-buttons-shortcode__media" aria-hidden="true">
                                 <img class="ll-wordset-buttons-shortcode__image" src="<?php echo esc_url($button_image_url); ?>" alt="" loading="lazy" decoding="async" />
                             </span>
                         <?php endif; ?>
-                        <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term->name); ?></span>
+                        <span class="ll-wordset-buttons-shortcode__label-wrap">
+                            <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term->name); ?></span>
+                            <?php if ($is_private) : ?>
+                                <span class="ll-wordset-buttons-shortcode__privacy-badge" aria-hidden="true" title="<?php echo esc_attr($privacy_label); ?>"></span>
+                            <?php endif; ?>
+                        </span>
                         <span class="ll-wordset-buttons-shortcode__count"><?php echo esc_html($count_label); ?></span>
                     </a>
                 </li>

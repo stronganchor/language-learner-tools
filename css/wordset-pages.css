@@ -736,6 +736,12 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-height: 90px !important;
 }
 
+.ll-wordset-page .ll-wordset-buttons-shortcode__button--private {
+    border-color: rgba(146, 64, 14, 0.32) !important;
+    background:
+        linear-gradient(135deg, rgba(255, 247, 237, 0.88), rgba(255, 255, 255, 0.98)) !important;
+}
+
 .ll-wordset-buttons-shortcode__media {
     flex: 0 0 84px;
     width: 84px;
@@ -757,13 +763,62 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     object-fit: cover;
 }
 
-.ll-wordset-buttons-shortcode__label {
+.ll-wordset-buttons-shortcode__label-wrap {
     flex: 1 1 auto;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ll-wordset-buttons-shortcode__label {
+    flex: 0 1 auto;
     min-width: 0;
     display: block;
     font-size: 1rem;
     font-weight: 700;
     line-height: 1.25;
+}
+
+.ll-wordset-buttons-shortcode__privacy-badge {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(146, 64, 14, 0.32);
+    background: #fff7ed;
+    color: #9a3412;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.ll-wordset-buttons-shortcode__privacy-badge::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    width: 10px;
+    height: 8px;
+    transform: translateX(-50%);
+    border: 2px solid currentColor;
+    border-radius: 2px;
+    background: currentColor;
+}
+
+.ll-wordset-buttons-shortcode__privacy-badge::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 7px;
+    width: 8px;
+    height: 8px;
+    transform: translateX(-50%);
+    border: 2px solid currentColor;
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
 }
 
 .ll-wordset-buttons-shortcode__count {
