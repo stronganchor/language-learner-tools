@@ -68,6 +68,9 @@ function ll_tools_enqueue_public_assets() {
     ll_enqueue_asset_by_timestamp('/js/public-viewport-guard.js', 'll-tools-public-viewport-guard');
     ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
     ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style', ['ll-ipa-fonts']);
+    if (function_exists('ll_tools_enqueue_language_switcher_assets')) {
+        ll_tools_enqueue_language_switcher_assets();
+    }
     if (function_exists('ll_tools_enqueue_login_window_assets')) {
         ll_tools_enqueue_login_window_assets();
     }

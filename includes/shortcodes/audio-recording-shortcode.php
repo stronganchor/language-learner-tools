@@ -68,8 +68,17 @@ function ll_get_recording_type_name($slug, $term_name = '') {
  */
 function ll_tools_get_recorder_ajax_locale_preference(): string {
     if (function_exists('ll_tools_get_requested_switcher_locale')) {
-        $requested = ll_tools_get_requested_switcher_locale(false);
+        $requested = ll_tools_get_requested_switcher_locale(true);
         if ($requested !== '') {
+            if (function_exists('ll_tools_user_has_elevated_locale_context')
+                && function_exists('ll_tools_is_public_only_locale')
+                && ll_tools_user_has_elevated_locale_context()
+                && ll_tools_is_public_only_locale($requested)
+                && function_exists('ll_tools_get_staff_locale_preference')
+            ) {
+                return ll_tools_get_staff_locale_preference();
+            }
+
             return $requested;
         }
     }
@@ -77,6 +86,15 @@ function ll_tools_get_recorder_ajax_locale_preference(): string {
     if (function_exists('ll_tools_get_logged_in_user_locale_preference')) {
         $user_locale = ll_tools_get_logged_in_user_locale_preference();
         if ($user_locale !== '') {
+            if (function_exists('ll_tools_user_has_elevated_locale_context')
+                && function_exists('ll_tools_is_public_only_locale')
+                && ll_tools_user_has_elevated_locale_context()
+                && ll_tools_is_public_only_locale($user_locale)
+                && function_exists('ll_tools_get_staff_locale_preference')
+            ) {
+                return ll_tools_get_staff_locale_preference();
+            }
+
             return $user_locale;
         }
     }
@@ -84,6 +102,15 @@ function ll_tools_get_recorder_ajax_locale_preference(): string {
     if (function_exists('ll_tools_get_locale_cookie_preference')) {
         $cookie_locale = ll_tools_get_locale_cookie_preference();
         if ($cookie_locale !== '') {
+            if (function_exists('ll_tools_user_has_elevated_locale_context')
+                && function_exists('ll_tools_is_public_only_locale')
+                && ll_tools_user_has_elevated_locale_context()
+                && ll_tools_is_public_only_locale($cookie_locale)
+                && function_exists('ll_tools_get_staff_locale_preference')
+            ) {
+                return ll_tools_get_staff_locale_preference();
+            }
+
             return $cookie_locale;
         }
     } elseif (defined('LL_TOOLS_I18N_COOKIE') && !empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) {
@@ -91,6 +118,9 @@ function ll_tools_get_recorder_ajax_locale_preference(): string {
         $is_valid = function_exists('ll_tools_is_valid_switcher_locale')
             ? ll_tools_is_valid_switcher_locale($requested)
             : (bool) preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/', $requested);
+        if ($is_valid && function_exists('ll_tools_is_available_public_locale')) {
+            $is_valid = ll_tools_is_available_public_locale($requested);
+        }
         if ($is_valid) {
             return $requested;
         }

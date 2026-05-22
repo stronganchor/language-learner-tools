@@ -15,6 +15,69 @@ return [
         'tr_TR' => 'Turkish',
         'de_DE' => 'German',
     ],
+    'locale_display' => [
+        'en_US' => [
+            'native' => 'English',
+            'english' => 'English',
+            'flag' => '🇺🇸',
+        ],
+        'tr_TR' => [
+            'native' => 'Türkçe',
+            'english' => 'Turkish',
+            'flag' => '🇹🇷',
+        ],
+        'de_DE' => [
+            'native' => 'Deutsch',
+            'english' => 'German',
+            'flag' => '🇩🇪',
+        ],
+        'ru_RU' => [
+            'native' => 'Русский',
+            'english' => 'Russian',
+            'flag' => '🇷🇺',
+        ],
+        'zh_CN' => [
+            'native' => '中文（简体）',
+            'english' => 'Chinese (Simplified)',
+            'flag' => '🇨🇳',
+        ],
+        'hi_IN' => [
+            'native' => 'हिन्दी',
+            'english' => 'Hindi',
+            'flag' => '🇮🇳',
+        ],
+        'es_ES' => [
+            'native' => 'Español',
+            'english' => 'Spanish',
+            'flag' => '🇪🇸',
+        ],
+        'ar' => [
+            'native' => 'العربية',
+            'english' => 'Arabic',
+            'flag' => '',
+            'dir' => 'rtl',
+        ],
+        'fr_FR' => [
+            'native' => 'Français',
+            'english' => 'French',
+            'flag' => '🇫🇷',
+        ],
+        'bn_BD' => [
+            'native' => 'বাংলা',
+            'english' => 'Bengali',
+            'flag' => '🇧🇩',
+        ],
+        'pt_BR' => [
+            'native' => 'Português (Brasil)',
+            'english' => 'Portuguese (Brazil)',
+            'flag' => '🇧🇷',
+        ],
+        'id_ID' => [
+            'native' => 'Bahasa Indonesia',
+            'english' => 'Indonesian',
+            'flag' => '🇮🇩',
+        ],
+    ],
     'tier2_locales' => [
         'ru_RU' => [
             'label' => 'Russian',

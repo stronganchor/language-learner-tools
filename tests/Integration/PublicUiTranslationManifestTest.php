@@ -72,8 +72,13 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
             }
 
             $po_path = $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $locale . '.po';
+            $mo_path = $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $locale . '.mo';
+            $l10n_path = $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $locale . '.l10n.php';
             $coverage = ll_tools_public_i18n_check_locale_coverage((string) $locale, $manifest_entries, $po_path);
 
+            $this->assertFileExists($po_path, sprintf('%s is marked %s but the PO file is missing.', (string) $locale, $status));
+            $this->assertFileExists($mo_path, sprintf('%s is marked %s but the MO file is missing.', (string) $locale, $status));
+            $this->assertFileExists($l10n_path, sprintf('%s is marked %s but the PHP translation file is missing.', (string) $locale, $status));
             $this->assertTrue(
                 $coverage['complete'],
                 sprintf(

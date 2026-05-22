@@ -9,6 +9,13 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         unset($_SERVER['HTTP_ACCEPT_LANGUAGE']);
         delete_option('ll_enable_browser_language_autoswitch');
         remove_all_filters('ll_tools_tier2_public_locales');
+        if (function_exists('ll_tools_get_plugin_locales')) {
+            ll_tools_get_plugin_locales(true);
+        }
+        wp_dequeue_style('ll-tools-language-switcher');
+        wp_deregister_style('ll-tools-language-switcher');
+        wp_dequeue_script('ll-tools-language-switcher-js');
+        wp_deregister_script('ll-tools-language-switcher-js');
         if (function_exists('set_current_screen')) {
             set_current_screen('front');
         }
@@ -42,6 +49,7 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
             $locales[] = 'ru_RU';
             return array_values(array_unique($locales));
         }, 10, 2);
+        ll_tools_get_plugin_locales(true);
         $user_id = self::factory()->user->create();
         $user = get_user_by('id', $user_id);
         $user->add_cap('view_ll_tools');
@@ -73,6 +81,7 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
             $locales[] = 'ru_RU';
             return array_values(array_unique($locales));
         }, 10, 2);
+        ll_tools_get_plugin_locales(true);
         $user_id = self::factory()->user->create();
         $user = get_user_by('id', $user_id);
         $user->add_cap('view_ll_tools');
@@ -92,6 +101,7 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
             $locales[] = 'ru_RU';
             return array_values(array_unique($locales));
         }, 10, 2);
+        ll_tools_get_plugin_locales(true);
         $user_id = self::factory()->user->create();
         $user = get_user_by('id', $user_id);
         $user->add_cap('view_ll_tools');
@@ -105,6 +115,27 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertSame('en_US', ll_tools_pre_determine_locale_for_staff_public_only_preference(null));
         $this->assertSame('en_US', (string) get_user_meta($user_id, 'locale', true));
         $this->assertSame('ru_RU', (string) get_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, true));
+    }
+
+    public function test_admin_locale_prefers_full_wp_locale_over_public_only_preference(): void
+    {
+        add_filter('ll_tools_tier2_public_locales', static function (array $locales, bool $active_only): array {
+            $locales[] = 'ru_RU';
+            return array_values(array_unique($locales));
+        }, 10, 2);
+        ll_tools_get_plugin_locales(true);
+        $user_id = self::factory()->user->create();
+        $user = get_user_by('id', $user_id);
+        $user->add_cap('view_ll_tools');
+        wp_set_current_user($user_id);
+        update_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, 'ru_RU');
+        update_user_meta($user_id, 'locale', 'de_DE');
+        if (function_exists('set_current_screen')) {
+            set_current_screen('dashboard');
+        }
+
+        $this->assertSame('de_DE', ll_tools_pre_determine_locale_for_staff_public_only_preference(null));
+        $this->assertSame('de_DE', (string) get_user_meta($user_id, 'locale', true));
     }
 
     public function test_append_preferred_locale_to_url_uses_saved_user_locale(): void
@@ -137,6 +168,35 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $_GET['ll_locale'] = 'en_US';
 
         $this->assertSame('en_US', ll_tools_get_recorder_ajax_locale_preference());
+    }
+
+    public function test_recorder_ajax_locale_preference_uses_staff_locale_for_elevated_public_only_locale(): void
+    {
+        add_filter('ll_tools_tier2_public_locales', static function (array $locales, bool $active_only): array {
+            $locales[] = 'ru_RU';
+            return array_values(array_unique($locales));
+        }, 10, 2);
+        ll_tools_get_plugin_locales(true);
+        $user_id = self::factory()->user->create();
+        $user = get_user_by('id', $user_id);
+        $user->add_cap('view_ll_tools');
+        wp_set_current_user($user_id);
+        update_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, 'ru_RU');
+        update_user_meta($user_id, 'locale', 'de_DE');
+        $_REQUEST['ll_locale'] = 'ru_RU';
+        $_GET['ll_locale'] = 'ru_RU';
+        $_REQUEST['ll_locale_nonce'] = wp_create_nonce(ll_tools_get_locale_switch_nonce_action());
+        $_GET['ll_locale_nonce'] = $_REQUEST['ll_locale_nonce'];
+
+        $this->assertSame('de_DE', ll_tools_get_recorder_ajax_locale_preference());
+    }
+
+    public function test_recorder_ajax_locale_preference_rejects_inactive_tier2_request(): void
+    {
+        $_REQUEST['ll_locale'] = 'ru_RU';
+        $_GET['ll_locale'] = 'ru_RU';
+
+        $this->assertSame('', ll_tools_get_recorder_ajax_locale_preference());
     }
 
     public function test_filter_locale_ignores_unsigned_locale_switch_requests(): void
@@ -195,6 +255,35 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-lang-switcher__summary', $html);
         $this->assertStringContainsString('A/あ', $html);
         $this->assertStringContainsString('ll_locale_nonce', $html);
+    }
+
+    public function test_language_switcher_modal_display_renders_dialog_controls(): void
+    {
+        $html = ll_language_switcher_shortcode([
+            'display' => 'modal',
+            'button_label' => 'Language',
+        ]);
+
+        $this->assertStringContainsString('ll-lang-switcher--modal', $html);
+        $this->assertStringContainsString('data-ll-language-switcher-open', $html);
+        $this->assertStringContainsString('role="dialog"', $html);
+        $this->assertStringContainsString('data-ll-language-switcher-close', $html);
+        $this->assertStringContainsString('ll_locale_nonce', $html);
+    }
+
+    public function test_language_switcher_uses_configured_locale_display_metadata(): void
+    {
+        $this->assertSame('Russian', ll_tools_locale_label('ru_RU', 'english'));
+        $this->assertNotSame('ru_RU', ll_tools_locale_label('ru_RU', 'native'));
+        $this->assertNotSame('', ll_tools_locale_flag('ru_RU'));
+    }
+
+    public function test_header_language_switcher_enqueues_assets(): void
+    {
+        ll_tools_maybe_enqueue_header_language_switcher_assets();
+
+        $this->assertTrue(wp_style_is('ll-tools-language-switcher', 'enqueued'));
+        $this->assertTrue(wp_script_is('ll-tools-language-switcher-js', 'enqueued'));
     }
 
     public function test_browser_locale_preference_skips_saved_logged_in_user_locale(): void
