@@ -4,7 +4,7 @@ msgstr ""
 "Project-Id-Version: Language Learner Tools 6.2.9\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-01T08:50:50+00:00\n"
-"PO-Revision-Date: 2026-05-01 11:55+0300\n"
+"PO-Revision-Date: 2026-05-22 07:34+0300\n"
 "Last-Translator: \n"
 "Language-Team: Türkçe\n"
 "Language: tr_TR\n"
@@ -25510,3 +25510,39 @@ msgstr "Bunu işaret dili kelime seti olarak ele al ve quiz kullanılabilirliği
 #: includes/taxonomies/wordset-taxonomy.php
 msgid "Categories default to image prompts with image answer options; use a category quiz override for image prompts with text answers."
 msgstr "Kategoriler varsayılan olarak görsel istemleri ve görsel cevap seçeneklerini kullanır; metin cevaplı görsel istemler için kategori quiz ayarında geçersiz kılma kullan."
+
+#: includes/api/automation-rest.php:379
+msgid "You are not allowed to clear LL Tools caches on this site."
+msgstr "Bu sitede LL Tools önbelleklerini temizleme iznin yok."
+
+#: includes/api/automation-rest.php:865
+msgid "Use cache=all, cache=dictionary, or cache=public."
+msgstr "cache=all, cache=dictionary veya cache=public kullan."
+
+#: includes/api/automation-rest.php:3902
+msgid "Could not find a matching corpus text post."
+msgstr "Eşleşen corpus text yazısı bulunamadı."
+
+#: includes/api/automation-rest.php:3913
+msgid "The matching content lesson is not a corpus text."
+msgstr "Eşleşen içerik dersi bir corpus text değil."
+
+#: includes/lib/public-static-cache.php:1194
+msgid "Clear LL cache"
+msgstr "LL önbelleğini temizle"
+
+#: includes/lib/public-static-cache.php:1199
+#, php-format
+msgid "LL cache cleared (%d)"
+msgstr "LL önbelleği temizlendi (%d)"
+
+#: includes/lib/public-static-cache.php:1218
+msgid "You are not allowed to clear LL Tools caches."
+msgstr "LL Tools önbelleklerini temizleme iznin yok."
+
+#: includes/lib/public-static-cache.php:1254
+#, php-format
+msgid "Cleared LL Tools static caches. %d cache file was removed."
+msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
+msgstr[0] "LL Tools statik önbellekleri temizlendi. %d önbellek dosyası kaldırıldı."
+msgstr[1] "LL Tools statik önbellekleri temizlendi. %d önbellek dosyası kaldırıldı."

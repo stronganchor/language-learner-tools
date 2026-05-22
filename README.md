@@ -42,6 +42,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `[editor_hub]` – editor-facing workflow for filling missing word metadata and recording details.
   - `[wordset_page]` / `[ll_wordset_page]` – front-end wordset hub with study, progress, and manager views.
   - `[ll_language_switcher]` – front-end locale switcher for the plugin’s available translations.
+  - `[ll_locale_block]` - conditionally renders enclosed content for matching locale language keys.
   - `[image_copyright_grid posts_per_page="12"]` – paginated grid of `word_images`.
   - Quiz listings: `[quiz_pages_grid]` and `[quiz_pages_dropdown]`, both support wordset filtering and popup mode.
 
@@ -126,6 +127,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 10. Optional front-end locale switcher:
    ```text
    [ll_language_switcher]
+   [ll_locale_block lang="tr"]Turkish-only content[/ll_locale_block]
    ```
 
 ---
@@ -218,6 +220,11 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
   - `show_flags`: `1|0` to show or hide locale flags.
   - `style`: `native`, `english`, or `code`.
   - `class`: extra CSS class for wrapper styling.
+
+### `[ll_locale_block]`
+- Renders enclosed content only when the current plugin locale language key matches.
+- **Attributes**:
+  - `lang` / `language`: language keys or locale codes, separated by commas, spaces, or pipes.
 
 ### `[ll_dictionary]` / `[dictionary_search]` / `[dictionary_browser]`
 - Front-end dictionary browser/search surface.

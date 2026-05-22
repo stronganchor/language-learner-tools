@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.3.8\n"
+"Project-Id-Version: Language Learner Tools 6.3.14\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-05-21T04:35:08+00:00\n"
+"POT-Creation-Date: 2026-05-22T04:33:32+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -847,7 +847,7 @@ msgstr ""
 #: includes/admin/export-import.php:11310
 #: includes/admin/export-import.php:11345
 #: includes/admin/user-progress-report.php:991
-#: includes/lib/interlinear.php:1724
+#: includes/lib/interlinear.php:1871
 #: includes/pages/wordset-editor.php:658
 #: includes/pages/wordset-editor.php:3017
 #: includes/pages/wordset-editor.php:3163
@@ -2120,7 +2120,7 @@ msgstr ""
 #: includes/admin/dictionary-import-admin.php:1663
 #: includes/admin/export-import.php:10240
 #: includes/admin/export-import.php:10280
-#: includes/api/automation-rest.php:3331
+#: includes/api/automation-rest.php:3379
 msgid "The requested import job could not be found."
 msgstr ""
 
@@ -2180,7 +2180,7 @@ msgstr ""
 #: includes/taxonomies/wordset-taxonomy.php:1225
 #: includes/user-roles/audio-recorder-role.php:129
 #: includes/user-roles/audio-recorder-role.php:263
-#: templates/content-lesson-template.php:117
+#: templates/content-lesson-template.php:126
 #: templates/vocab-lesson-template.php:445
 msgid "Word Set"
 msgstr ""
@@ -3116,7 +3116,7 @@ msgstr ""
 #: includes/admin/export-import.php:12190
 #: includes/admin/offline-app-export.php:1278
 #: includes/admin/orphan-media-admin.php:1476
-#: includes/api/automation-rest.php:3270
+#: includes/api/automation-rest.php:3318
 #: includes/pages/wordset-pages.php:5293
 msgid "ZipArchive is not available on this server."
 msgstr ""
@@ -4142,7 +4142,7 @@ msgid "Import failed: please choose a zip file to import."
 msgstr ""
 
 #: includes/admin/export-import.php:4689
-#: includes/api/automation-rest.php:3209
+#: includes/api/automation-rest.php:3257
 msgid "Import failed: server import folder is not available."
 msgstr ""
 
@@ -4693,7 +4693,7 @@ msgid "Could not create the import extraction directory."
 msgstr ""
 
 #: includes/admin/export-import.php:10194
-#: includes/api/automation-rest.php:3348
+#: includes/api/automation-rest.php:3396
 msgid "Another import job is already active. Resume or finish it before starting a new one."
 msgstr ""
 
@@ -4751,9 +4751,8 @@ msgstr ""
 
 #: includes/admin/export-import.php:11342
 #: includes/admin/ipa-keyboard-admin.php:275
-#: includes/lib/interlinear.php:1512
-#: includes/lib/interlinear.php:1727
-#: includes/lib/interlinear.php:2093
+#: includes/lib/interlinear.php:1656
+#: includes/lib/interlinear.php:1874
 #: includes/pages/wordset-editor.php:3162
 #: includes/shortcodes/editor-hub-shortcode.php:660
 #: includes/shortcodes/editor-hub-shortcode.php:1079
@@ -5495,8 +5494,8 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:313
 #: includes/admin/ipa-keyboard-admin.php:335
 #: includes/admin/site-sync-admin.php:1119
-#: includes/lib/interlinear.php:1483
-#: includes/lib/interlinear.php:1487
+#: includes/lib/interlinear.php:1627
+#: includes/lib/interlinear.php:1631
 #: includes/shortcodes/dictionary-shortcode.php:1968
 msgid "Previous"
 msgstr ""
@@ -5505,8 +5504,8 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:314
 #: includes/admin/ipa-keyboard-admin.php:336
 #: includes/admin/site-sync-admin.php:1122
-#: includes/lib/interlinear.php:1499
-#: includes/lib/interlinear.php:1503
+#: includes/lib/interlinear.php:1643
+#: includes/lib/interlinear.php:1647
 #: includes/pages/wordset-pages.php:9378
 #: includes/pages/wordset-pages.php:9412
 #: includes/pages/wordset-pages.php:17281
@@ -10358,218 +10357,234 @@ msgstr ""
 msgid "You cannot import LL Tools bundles through automation."
 msgstr ""
 
-#: includes/api/automation-rest.php:414
+#: includes/api/automation-rest.php:379
+msgid "You are not allowed to clear LL Tools caches on this site."
+msgstr ""
+
+#: includes/api/automation-rest.php:431
 msgid "Missing set.field in the REST update payload."
 msgstr ""
 
 #. translators: 1: field name, 2: comma-separated field list
-#: includes/api/automation-rest.php:424
+#: includes/api/automation-rest.php:441
 #: includes/cli/cli-support.php:124
 msgid "Unsupported update field \"%1$s\". Allowed fields: %2$s"
 msgstr ""
 
-#: includes/api/automation-rest.php:441
+#: includes/api/automation-rest.php:458
 msgid "Provide set as either \"field=value\" or an object with field/value."
 msgstr ""
 
-#: includes/api/automation-rest.php:600
-#: includes/api/automation-rest.php:620
+#: includes/api/automation-rest.php:617
+#: includes/api/automation-rest.php:637
 msgid "LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates."
 msgstr ""
 
-#: includes/api/automation-rest.php:843
+#: includes/api/automation-rest.php:865
+msgid "Use cache=all, cache=dictionary, or cache=public."
+msgstr ""
+
+#: includes/api/automation-rest.php:891
 msgid "Provide a name for the new word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:1528
+#: includes/api/automation-rest.php:1576
 msgid "Recording not found in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:1797
+#: includes/api/automation-rest.php:1845
 msgid "Provide category, category_id, or category_slug for the word-option rules update."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:1816
+#: includes/api/automation-rest.php:1864
 msgid "Unable to resolve word category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:1839
+#: includes/api/automation-rest.php:1887
 msgid "That word category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:1978
+#: includes/api/automation-rest.php:2026
 msgid "Groups must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:1996
+#: includes/api/automation-rest.php:2044
 msgid "Every word-option group needs a label."
 msgstr ""
 
-#: includes/api/automation-rest.php:2011
+#: includes/api/automation-rest.php:2059
 msgid "Word-option groups must contain at least one resolved word."
 msgstr ""
 
-#: includes/api/automation-rest.php:2031
+#: includes/api/automation-rest.php:2079
 msgid "Word-option pairs must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:2049
+#: includes/api/automation-rest.php:2097
 msgid "Word-option pairs must contain two resolved words."
 msgstr ""
 
-#: includes/api/automation-rest.php:2187
+#: includes/api/automation-rest.php:2235
 msgid "Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data."
 msgstr ""
 
-#: includes/api/automation-rest.php:2205
+#: includes/api/automation-rest.php:2253
 msgid "Word-option rules could not be saved for this word set and category."
 msgstr ""
 
-#: includes/api/automation-rest.php:2290
+#: includes/api/automation-rest.php:2338
 msgid "Prompt-card category references cannot be empty."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:2314
+#: includes/api/automation-rest.php:2362
 msgid "Unable to resolve prompt-card category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:2336
+#: includes/api/automation-rest.php:2384
 msgid "That prompt-card category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:2360
+#: includes/api/automation-rest.php:2408
 msgid "Provide at least one word-category assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:2373
+#: includes/api/automation-rest.php:2421
 msgid "Prompt-card word set references cannot be empty."
 msgstr ""
 
 #. translators: %s: word set identifier
-#: includes/api/automation-rest.php:2393
+#: includes/api/automation-rest.php:2441
 msgid "Unable to resolve prompt-card word set: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:2418
+#: includes/api/automation-rest.php:2466
 msgid "Provide at least one word set assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:2425
+#: includes/api/automation-rest.php:2473
 msgid "Prompt-card word set assignments must include the route word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:2476
+#: includes/api/automation-rest.php:2524
 msgid "Provide prompt_card_id, object_id, or id for the prompt card to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:2485
+#: includes/api/automation-rest.php:2533
 msgid "That prompt card was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:2493
+#: includes/api/automation-rest.php:2541
 msgid "That prompt card does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:2664
+#: includes/api/automation-rest.php:2712
 msgid "Provide a note value. Send an empty string to clear the note."
 msgstr ""
 
-#: includes/api/automation-rest.php:2671
+#: includes/api/automation-rest.php:2719
 msgid "Provide the word or prompt card object_id to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:2682
+#: includes/api/automation-rest.php:2730
 #: includes/lib/internal-review-notes.php:308
 msgid "This item cannot store an internal review note."
 msgstr ""
 
-#: includes/api/automation-rest.php:2689
+#: includes/api/automation-rest.php:2737
 #: includes/lib/internal-review-notes.php:320
 msgid "This item does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:2969
-#: includes/api/automation-rest.php:3066
+#: includes/api/automation-rest.php:3017
+#: includes/api/automation-rest.php:3114
 msgid "Could not find a matching content or vocab lesson in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:2996
+#: includes/api/automation-rest.php:3044
 msgid "Provide an interlinear payload object, or send delete=true to clear one."
 msgstr ""
 
-#: includes/api/automation-rest.php:3112
+#: includes/api/automation-rest.php:3160
 msgid "Each interlinear import item must be an object."
 msgstr ""
 
-#: includes/api/automation-rest.php:3204
+#: includes/api/automation-rest.php:3252
 msgid "Import failed: provide an uploaded zip file or a server import filename."
 msgstr ""
 
-#: includes/api/automation-rest.php:3322
+#: includes/api/automation-rest.php:3370
 msgid "The requested import job could not be identified."
 msgstr ""
 
-#: includes/api/automation-rest.php:3546
-#: includes/api/automation-rest.php:3590
+#: includes/api/automation-rest.php:3594
+#: includes/api/automation-rest.php:3638
 msgid "Corpus text payload is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:3555
+#: includes/api/automation-rest.php:3603
 msgid "Corpus text payload is too deeply nested for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:3563
+#: includes/api/automation-rest.php:3611
 msgid "Corpus text payload contains too many rows for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:3598
+#: includes/api/automation-rest.php:3646
 msgid "Corpus text payload must be a valid JSON object."
 msgstr ""
 
-#: includes/api/automation-rest.php:3610
+#: includes/api/automation-rest.php:3658
 msgid "Provide a corpus text payload object."
 msgstr ""
 
-#: includes/api/automation-rest.php:3634
+#: includes/api/automation-rest.php:3682
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
 msgstr ""
 
-#: includes/api/automation-rest.php:3641
+#: includes/api/automation-rest.php:3689
 msgid "You cannot upload corpus text assets."
 msgstr ""
 
-#: includes/api/automation-rest.php:3650
+#: includes/api/automation-rest.php:3698
 msgid "Provide a source key for the corpus text asset."
 msgstr ""
 
-#: includes/api/automation-rest.php:3677
+#: includes/api/automation-rest.php:3725
 msgid "Provide a corpus text asset file."
 msgstr ""
 
-#: includes/api/automation-rest.php:3690
+#: includes/api/automation-rest.php:3738
 msgid "Corpus text asset file is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:3702
+#: includes/api/automation-rest.php:3750
 msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:3723
+#: includes/api/automation-rest.php:3771
 msgid "The corpus text asset could not be uploaded."
 msgstr ""
 
-#: includes/api/automation-rest.php:3742
+#: includes/api/automation-rest.php:3790
 msgid "The corpus text asset could not be added to the media library."
 msgstr ""
 
-#: includes/api/automation-rest.php:3778
+#: includes/api/automation-rest.php:3826
 msgid "Provide a corpus text post slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:3817
+#: includes/api/automation-rest.php:3865
 msgid "The corpus text post could not be created or updated."
+msgstr ""
+
+#: includes/api/automation-rest.php:3902
+msgid "Could not find a matching corpus text post."
+msgstr ""
+
+#: includes/api/automation-rest.php:3913
+msgid "The matching content lesson is not a corpus text."
 msgstr ""
 
 #: includes/cli/class-ll-tools-cli-command.php:281
@@ -11130,174 +11145,170 @@ msgstr ""
 msgid "You do not have permission to save this review note."
 msgstr ""
 
-#: includes/lib/interlinear.php:1171
+#: includes/lib/interlinear.php:1305
 #: includes/lib/wordset-language-settings.php:143
 #: includes/shortcodes/dictionary-shortcode.php:299
 msgid "English"
 msgstr ""
 
-#: includes/lib/interlinear.php:1172
+#: includes/lib/interlinear.php:1306
 #: includes/lib/wordset-language-settings.php:178
 msgid "Turkish"
 msgstr ""
 
-#: includes/lib/interlinear.php:1173
+#: includes/lib/interlinear.php:1307
 #: includes/lib/wordset-language-settings.php:145
 msgid "German"
 msgstr ""
 
-#: includes/lib/interlinear.php:1174
+#: includes/lib/interlinear.php:1308
 #: includes/lib/wordset-language-settings.php:173
 msgid "Russian"
 msgstr ""
 
-#: includes/lib/interlinear.php:1388
+#: includes/lib/interlinear.php:1511
 msgid "Section %d"
 msgstr ""
 
-#: includes/lib/interlinear.php:1426
+#: includes/lib/interlinear.php:1553
+msgid "No text is available for this language in this section."
+msgstr ""
+
+#: includes/lib/interlinear.php:1570
 msgid "Book language"
 msgstr ""
 
-#: includes/lib/interlinear.php:1446
+#: includes/lib/interlinear.php:1590
 msgid "Book sections"
 msgstr ""
 
-#: includes/lib/interlinear.php:1479
+#: includes/lib/interlinear.php:1623
 msgid "Book page navigation"
 msgstr ""
 
-#: includes/lib/interlinear.php:1491
+#: includes/lib/interlinear.php:1635
 msgid "%1$d of %2$d"
 msgstr ""
 
-#: includes/lib/interlinear.php:1518
-#: includes/lib/interlinear.php:2420
-#: includes/lib/interlinear.php:2423
+#: includes/lib/interlinear.php:1662
+#: includes/lib/interlinear.php:2559
+#: includes/lib/interlinear.php:2562
 msgid "Interlinear"
 msgstr ""
 
-#: includes/lib/interlinear.php:1521
-#: includes/lib/interlinear.php:1768
-#: includes/lib/interlinear.php:2134
-#: includes/lib/interlinear.php:2135
+#: includes/lib/interlinear.php:1665
+#: includes/lib/interlinear.php:1912
+#: includes/lib/interlinear.php:2273
+#: includes/lib/interlinear.php:2274
 #: includes/post-types/dictionary-entry-post-type.php:1775
 #: includes/shortcodes/dictionary-shortcode.php:1866
 msgid "Sources"
 msgstr ""
 
-#: includes/lib/interlinear.php:1528
+#: includes/lib/interlinear.php:1672
 msgid "Text view"
 msgstr ""
 
-#: includes/lib/interlinear.php:1549
+#: includes/lib/interlinear.php:1693
 #: includes/pages/wordset-pages.php:10511
 #: includes/taxonomies/wordset-taxonomy.php:2999
 msgid "Translation language"
 msgstr ""
 
-#: includes/lib/interlinear.php:1636
+#: includes/lib/interlinear.php:1783
 msgid "Content warning"
 msgstr ""
 
-#: includes/lib/interlinear.php:1641
+#: includes/lib/interlinear.php:1788
 msgid "People mentioned"
 msgstr ""
 
-#: includes/lib/interlinear.php:1646
+#: includes/lib/interlinear.php:1793
 msgid "Historical context"
 msgstr ""
 
-#: includes/lib/interlinear.php:1651
+#: includes/lib/interlinear.php:1798
 msgid "Research note"
 msgstr ""
 
-#: includes/lib/interlinear.php:1656
+#: includes/lib/interlinear.php:1803
 msgid "Places mentioned"
 msgstr ""
 
-#: includes/lib/interlinear.php:1696
+#: includes/lib/interlinear.php:1843
 msgid "Text background"
 msgstr ""
 
-#: includes/lib/interlinear.php:1755
+#: includes/lib/interlinear.php:1899
 msgid "Reader text"
 msgstr ""
 
-#: includes/lib/interlinear.php:1767
+#: includes/lib/interlinear.php:1911
 msgid "Print sources"
 msgstr ""
 
-#: includes/lib/interlinear.php:1927
+#: includes/lib/interlinear.php:2071
 msgid "Source scan"
 msgstr ""
 
-#: includes/lib/interlinear.php:1949
+#: includes/lib/interlinear.php:2093
 msgid "Linguistic edition"
 msgstr ""
 
-#: includes/lib/interlinear.php:1957
+#: includes/lib/interlinear.php:2101
 msgid "Line %d"
 msgstr ""
 
-#: includes/lib/interlinear.php:1973
+#: includes/lib/interlinear.php:2117
 msgid "Line review note"
 msgstr ""
 
-#: includes/lib/interlinear.php:2004
+#: includes/lib/interlinear.php:2148
 msgid "Source witnesses"
 msgstr ""
 
-#: includes/lib/interlinear.php:2046
+#: includes/lib/interlinear.php:2190
 msgid "Pages:"
 msgstr ""
 
-#: includes/lib/interlinear.php:2052
+#: includes/lib/interlinear.php:2196
 msgid "Rights:"
 msgstr ""
 
-#: includes/lib/interlinear.php:2062
+#: includes/lib/interlinear.php:2206
 msgid "Source witness"
 msgstr ""
 
-#: includes/lib/interlinear.php:2098
-#: includes/lib/interlinear.php:2194
+#: includes/lib/interlinear.php:2240
+#: includes/lib/interlinear.php:2333
 #: templates/vocab-lesson-print-template.php:143
 #: templates/vocab-lesson-template.php:1134
 msgid "Print"
 msgstr ""
 
-#: includes/lib/interlinear.php:2101
-msgid "No text is available for this language in this section."
-msgstr ""
-
-#: includes/lib/interlinear.php:2113
-#: includes/lib/interlinear.php:2122
+#: includes/lib/interlinear.php:2252
+#: includes/lib/interlinear.php:2261
 msgid "Section %1$d of %2$d"
 msgstr ""
 
-#: includes/lib/interlinear.php:2114
-msgid "Language: %s"
-msgstr ""
-
-#: includes/lib/interlinear.php:2191
+#: includes/lib/interlinear.php:2330
 msgid "Document review note"
 msgstr ""
 
-#: includes/lib/interlinear.php:2371
-#: includes/lib/interlinear.php:2389
+#: includes/lib/interlinear.php:2510
+#: includes/lib/interlinear.php:2528
 msgid "Interlinear analysis"
 msgstr ""
 
-#: includes/lib/interlinear.php:2421
+#: includes/lib/interlinear.php:2560
 msgid "Show interlinear"
 msgstr ""
 
-#: includes/lib/interlinear.php:2424
+#: includes/lib/interlinear.php:2563
 msgid "Hide interlinear"
 msgstr ""
 
-#: includes/lib/interlinear.php:2439
+#: includes/lib/interlinear.php:2578
 msgid "Staff"
 msgstr ""
 
@@ -11312,6 +11323,26 @@ msgstr ""
 #: includes/lib/internal-review-notes.php:314
 msgid "You cannot edit internal review notes for this lesson."
 msgstr ""
+
+#: includes/lib/public-static-cache.php:1194
+msgid "Clear LL cache"
+msgstr ""
+
+#. translators: %d: number of deleted cache files
+#: includes/lib/public-static-cache.php:1199
+msgid "LL cache cleared (%d)"
+msgstr ""
+
+#: includes/lib/public-static-cache.php:1218
+msgid "You are not allowed to clear LL Tools caches."
+msgstr ""
+
+#. translators: %d: number of deleted cache files
+#: includes/lib/public-static-cache.php:1254
+msgid "Cleared LL Tools static caches. %d cache file was removed."
+msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
+msgstr[0] ""
+msgstr[1] ""
 
 #: includes/lib/site-sync.php:19
 msgid "Recording transcriptions"
@@ -12047,68 +12078,68 @@ msgid "Text document"
 msgstr ""
 
 #: includes/pages/content-lesson-pages.php:11
-#: templates/content-lesson-template.php:81
+#: templates/content-lesson-template.php:90
 msgid "Video lesson"
 msgstr ""
 
 #: includes/pages/content-lesson-pages.php:12
-#: templates/content-lesson-template.php:81
+#: templates/content-lesson-template.php:90
 msgid "Audio lesson"
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:90
-#: includes/pages/content-lesson-pages.php:440
-#: templates/content-lesson-template.php:108
+#: includes/pages/content-lesson-pages.php:130
+#: includes/pages/content-lesson-pages.php:483
+#: templates/content-lesson-template.php:117
 msgid "Texts"
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:260
+#: includes/pages/content-lesson-pages.php:303
 #: includes/pages/wordset-pages.php:16506
 msgid "Main Lessons"
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:263
+#: includes/pages/content-lesson-pages.php:306
 #: includes/pages/wordset-pages.php:3140
 #: includes/pages/wordset-pages.php:15715
 msgid "Open lesson"
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:298
+#: includes/pages/content-lesson-pages.php:341
 #: includes/pages/wordset-pages.php:3174
 msgid "%d vocab lesson"
 msgid_plural "%d vocab lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/content-lesson-pages.php:442
+#: includes/pages/content-lesson-pages.php:491
 msgid "Open text"
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:476
+#: includes/pages/content-lesson-pages.php:528
 msgid "Related Vocab Lessons"
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:592
+#: includes/pages/content-lesson-pages.php:644
 #: includes/shortcodes/word-grid-shortcode.php:3317
 msgid "Saving review note..."
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:593
+#: includes/pages/content-lesson-pages.php:645
 #: includes/shortcodes/word-grid-shortcode.php:3318
 msgid "Review note saved."
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:594
+#: includes/pages/content-lesson-pages.php:646
 #: includes/shortcodes/word-grid-shortcode.php:3319
 msgid "Unable to save the review note."
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:614
+#: includes/pages/content-lesson-pages.php:666
 msgid "Current transcript line"
 msgstr ""
 
-#: includes/pages/content-lesson-pages.php:615
-#: templates/content-lesson-template.php:174
+#: includes/pages/content-lesson-pages.php:667
+#: templates/content-lesson-template.php:183
 msgid "Lesson transcript"
 msgstr ""
 
@@ -14324,8 +14355,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:16204
 #: includes/pages/wordset-pages.php:16244
 #: includes/pages/wordset-pages.php:17066
-#: templates/content-lesson-template.php:102
 #: templates/content-lesson-template.php:111
+#: templates/content-lesson-template.php:120
 #: templates/vocab-lesson-template.php:439
 msgid "Back to %s"
 msgstr ""
@@ -14920,6 +14951,7 @@ msgid "Study"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:10117
+#: includes/shortcodes/language-switcher-shortcode.php:584
 #: includes/taxonomies/language-taxonomy.php:11
 #: includes/taxonomies/wordset-taxonomy.php:1299
 msgid "Language"
@@ -22286,42 +22318,42 @@ msgstr ""
 msgid "Start Matching"
 msgstr ""
 
-#: templates/content-lesson-template.php:102
+#: templates/content-lesson-template.php:111
 msgid "Back to text collection"
 msgstr ""
 
-#: templates/content-lesson-template.php:111
+#: templates/content-lesson-template.php:120
 #: templates/vocab-lesson-template.php:439
 msgid "Back to Word Set"
 msgstr ""
 
-#: templates/content-lesson-template.php:153
+#: templates/content-lesson-template.php:162
 msgid "Add a media URL in the lesson editor to play this lesson here."
 msgstr ""
 
-#: templates/content-lesson-template.php:160
+#: templates/content-lesson-template.php:169
 msgid "Transcript"
 msgstr ""
 
-#: templates/content-lesson-template.php:165
+#: templates/content-lesson-template.php:174
 msgid "%d cue"
 msgid_plural "%d cues"
 msgstr[0] ""
 msgstr[1] ""
 
-#: templates/content-lesson-template.php:202
+#: templates/content-lesson-template.php:211
 msgid "Add parsed transcript timing data to highlight the text during playback."
 msgstr ""
 
-#: templates/content-lesson-template.php:212
+#: templates/content-lesson-template.php:221
 msgid "Practice This Lesson"
 msgstr ""
 
-#: templates/content-lesson-template.php:213
+#: templates/content-lesson-template.php:222
 msgid "Open the related vocab drills for the words from this main lesson."
 msgstr ""
 
-#: templates/content-lesson-template.php:220
+#: templates/content-lesson-template.php:229
 msgid "Notes"
 msgstr ""
 
