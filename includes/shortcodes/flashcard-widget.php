@@ -1172,6 +1172,34 @@ function ll_tools_flashcards_public_ajax_cache_epoch_args(): array {
     ];
 }
 
+function ll_tools_flashcards_public_ajax_request_value($value, int $max_length = 120): string {
+    $value = is_scalar($value) ? (string) wp_unslash($value) : '';
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    $value = sanitize_text_field($value);
+    if (function_exists('mb_substr')) {
+        return mb_substr($value, 0, $max_length);
+    }
+
+    return substr($value, 0, $max_length);
+}
+
+function ll_tools_flashcards_public_ajax_slug_value($value, int $max_length = 120): string {
+    $slug = sanitize_title(is_scalar($value) ? wp_unslash((string) $value) : '');
+    if ($slug === '') {
+        return '';
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($slug, 0, $max_length);
+    }
+
+    return substr($slug, 0, $max_length);
+}
+
 function ll_tools_flashcards_normalize_public_ajax_cache_value($value) {
     if (is_array($value)) {
         $normalized = [];
@@ -1244,13 +1272,16 @@ function ll_tools_flashcards_send_public_ajax_cache_header(string $status): void
 }
 
 function ll_get_words_by_category_ajax() {
-    $category = isset($_POST['category']) ? sanitize_text_field(wp_unslash((string) $_POST['category'])) : '';
-    $category_slug = isset($_POST['category_slug']) ? sanitize_title(wp_unslash((string) $_POST['category_slug'])) : '';
-    $display_mode = isset($_POST['display_mode']) ? sanitize_text_field(wp_unslash((string) $_POST['display_mode'])) : 'image';
-    $wordset_spec = isset($_POST['wordset']) ? sanitize_text_field(wp_unslash((string) $_POST['wordset'])) : '';
+    $category = isset($_POST['category']) ? ll_tools_flashcards_public_ajax_request_value($_POST['category']) : '';
+    $category_slug = isset($_POST['category_slug']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['category_slug']) : '';
+    $display_mode = isset($_POST['display_mode']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['display_mode'], 60) : 'image';
+    if ($display_mode === '') {
+        $display_mode = 'image';
+    }
+    $wordset_spec = isset($_POST['wordset']) ? ll_tools_flashcards_public_ajax_request_value($_POST['wordset'], 120) : '';
     $wordset_fallback = isset($_POST['wordset_fallback']) ? (wp_unslash((string) $_POST['wordset_fallback']) !== '0') : true;
-    $prompt_type = isset($_POST['prompt_type']) ? sanitize_text_field(wp_unslash((string) $_POST['prompt_type'])) : '';
-    $option_type = isset($_POST['option_type']) ? sanitize_text_field(wp_unslash((string) $_POST['option_type'])) : '';
+    $prompt_type = isset($_POST['prompt_type']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['prompt_type'], 60) : '';
+    $option_type = isset($_POST['option_type']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['option_type'], 60) : '';
 
     if (!$category && !$category_slug) { wp_send_json_error(__('Invalid category.', 'll-tools-text-domain')); }
 
@@ -1279,24 +1310,7 @@ function ll_get_words_by_category_ajax() {
     sort($public_wordset_ids, SORT_NUMERIC);
 
     if (!($term instanceof WP_Term)) {
-        $invalid_cache_args = [
-            'category' => $category,
-            'category_slug' => $category_slug,
-            'display_mode' => $display_mode,
-            'wordset_ids' => $public_wordset_ids,
-            'wordset_fallback' => $wordset_fallback,
-            'prompt_type' => $prompt_type,
-            'option_type' => $option_type,
-            'invalid_category' => true,
-        ];
-        $cached_words = ll_tools_flashcards_public_ajax_cache_get($invalid_cache_args);
-        if (is_array($cached_words)) {
-            ll_tools_flashcards_send_public_ajax_cache_header('HIT');
-            wp_send_json_success($cached_words);
-        }
-
-        ll_tools_flashcards_public_ajax_cache_set($invalid_cache_args, []);
-        ll_tools_flashcards_send_public_ajax_cache_header('MISS');
+        ll_tools_flashcards_send_public_ajax_cache_header('BYPASS');
         wp_send_json_success([]);
     }
 
@@ -1321,9 +1335,6 @@ function ll_get_words_by_category_ajax() {
     }
 
     $public_cache_args = [
-        'category' => $category,
-        'category_slug' => $category_slug,
-        'display_mode' => $display_mode,
         'wordset_ids' => $public_wordset_ids,
         'wordset_fallback' => $wordset_fallback,
         'prompt_type' => (string) ($base_config['prompt_type'] ?? ''),

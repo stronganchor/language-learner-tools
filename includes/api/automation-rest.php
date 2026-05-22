@@ -831,6 +831,9 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'import_process' => '/ll-tools/v1/imports/{job_id}/process',
             'import_discard' => '/ll-tools/v1/imports/{job_id}/discard',
             'import_result' => '/ll-tools/v1/imports/{job_id}/result',
+            'corpus_text_asset' => '/ll-tools/v1/corpus-texts/asset',
+            'corpus_text_import' => '/ll-tools/v1/corpus-texts/import',
+            'corpus_text' => '/ll-tools/v1/corpus-texts/{slug}',
         ],
         'resource_guard' => [
             'retry_status' => 429,

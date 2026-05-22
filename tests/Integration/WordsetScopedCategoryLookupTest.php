@@ -135,6 +135,28 @@ final class WordsetScopedCategoryLookupTest extends LL_Tools_TestCase
         $this->assertSame('Shared Trees', (string) $options[(string) $fixture['isolated_one_id']]);
     }
 
+    public function test_audio_image_matcher_limits_recorder_view_to_assigned_wordset(): void
+    {
+        $fixture = $this->createScopedCategoryFixture();
+        $this->setCurrentRecorderForWordset((string) $fixture['wordset_one_slug']);
+
+        $_GET = [
+            'page' => 'll-audio-image-matcher',
+        ];
+
+        ob_start();
+        ll_render_audio_image_matcher_page();
+        $html = (string) ob_get_clean();
+
+        $category_options = $this->extractSelectOptions($html, 'll-aim-category');
+        $wordset_options = $this->extractSelectOptions($html, 'll-aim-wordset');
+
+        $this->assertArrayHasKey((string) $fixture['isolated_one_id'], $category_options);
+        $this->assertArrayNotHasKey((string) $fixture['isolated_two_id'], $category_options);
+        $this->assertArrayHasKey((string) $fixture['wordset_one_id'], $wordset_options);
+        $this->assertArrayNotHasKey((string) $fixture['wordset_two_id'], $wordset_options);
+    }
+
     /**
      * @return array<string,int|string>
      */
@@ -161,6 +183,7 @@ final class WordsetScopedCategoryLookupTest extends LL_Tools_TestCase
             'isolated_one_id' => $isolated_one_id,
             'isolated_one_slug' => (string) $isolated_one->slug,
             'wordset_two_id' => $wordset_two_id,
+            'wordset_two_slug' => 'scope-two',
             'isolated_two_id' => $isolated_two_id,
             'source_category_slug' => 'shared-trees',
             'word_one_id' => $word_one_id,
@@ -204,6 +227,18 @@ final class WordsetScopedCategoryLookupTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_User::class, $user);
         $user->add_cap('view_ll_tools');
         clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+    }
+
+    private function setCurrentRecorderForWordset(string $wordsetSlug): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($user_id, 'll_recording_config', [
+            'wordset' => $wordsetSlug,
+            'category' => '',
+        ]);
         wp_set_current_user($user_id);
     }
 

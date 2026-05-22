@@ -342,6 +342,69 @@ function ll_audio_processor_get_processing_source_path(int $audio_post_id, strin
     return trim($fallback_path);
 }
 
+function ll_audio_processor_current_user_has_unrestricted_queue_access(): bool {
+    if (current_user_can('manage_options')) {
+        return true;
+    }
+
+    $user = wp_get_current_user();
+    return ($user instanceof WP_User) && in_array('ll_tools_editor', (array) $user->roles, true);
+}
+
+function ll_audio_processor_current_user_queue_wordset_ids(): array {
+    if (ll_audio_processor_current_user_has_unrestricted_queue_access()) {
+        return [];
+    }
+
+    $user_id = (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return [];
+    }
+
+    $ids = [];
+    if (function_exists('ll_tools_get_user_managed_wordset_ids')) {
+        $ids = array_merge($ids, (array) ll_tools_get_user_managed_wordset_ids($user_id));
+    }
+    if (function_exists('ll_tools_get_assigned_recorder_wordset_ids_for_user')) {
+        $ids = array_merge($ids, (array) ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id));
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    sort($ids, SORT_NUMERIC);
+
+    return $ids;
+}
+
+function ll_audio_processor_current_user_can_view_parent_word(int $parent_word_id): bool {
+    if ($parent_word_id <= 0) {
+        return false;
+    }
+
+    // Internal test/CLI calls may build queue payloads without an active user.
+    // Web access to the queue is still gated by the admin page/AJAX capability checks.
+    if ((int) get_current_user_id() <= 0) {
+        return true;
+    }
+
+    if (ll_audio_processor_current_user_has_unrestricted_queue_access()) {
+        return true;
+    }
+
+    $allowed_wordset_ids = ll_audio_processor_current_user_queue_wordset_ids();
+    if (empty($allowed_wordset_ids)) {
+        return false;
+    }
+
+    $wordset_ids = wp_get_post_terms($parent_word_id, 'wordset', ['fields' => 'ids']);
+    if (!is_array($wordset_ids) || empty($wordset_ids)) {
+        return false;
+    }
+
+    return !empty(array_intersect(array_map('intval', $wordset_ids), $allowed_wordset_ids));
+}
+
 function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $prefer_original_source = false) {
     $audio_post_id = (int) $audio_post_id;
     if ($audio_post_id <= 0) {
@@ -351,6 +414,9 @@ function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $pr
     $audio_file = trim((string) get_post_meta($audio_post_id, 'audio_file_path', true));
     $parent_word_id = (int) wp_get_post_parent_id($audio_post_id);
     if ($audio_file === '' || $parent_word_id <= 0) {
+        return null;
+    }
+    if (!ll_audio_processor_current_user_can_view_parent_word($parent_word_id)) {
         return null;
     }
 

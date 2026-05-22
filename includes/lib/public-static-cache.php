@@ -603,19 +603,29 @@ function ll_tools_public_static_cache_vocab_grid_nonce_placeholder(int $lesson_i
 }
 
 /**
+ * Build the browser/downstream cache policy for static-cache responses.
+ */
+function ll_tools_public_static_cache_cache_control_value(bool $public): string {
+    if (!$public) {
+        return 'no-cache, must-revalidate';
+    }
+
+    return 'public, max-age=' . ll_tools_public_static_cache_ttl();
+}
+
+/**
  * Send public/debug headers for the anonymous public static cache.
  */
-function ll_tools_public_static_cache_send_headers(string $cache_status, string $reason = ''): void {
+function ll_tools_public_static_cache_send_headers(string $cache_status, string $reason = '', bool $public_cache = true): void {
     if (headers_sent()) {
         return;
     }
 
-    $ttl = ll_tools_public_static_cache_ttl();
     header('X-LL-Public-Static-Cache: ' . strtoupper($cache_status));
     if ($reason !== '') {
         header('X-LL-Public-Static-Cache-Reason: ' . sanitize_key($reason));
     }
-    header('Cache-Control: public, max-age=' . $ttl);
+    header('Cache-Control: ' . ll_tools_public_static_cache_cache_control_value($public_cache));
     header('Vary: Accept-Language, Cookie', false);
 }
 
@@ -657,7 +667,7 @@ function ll_tools_serve_public_static_cache(): void {
     }
 
     $miss_reason = ll_tools_public_static_cache_miss_reason($file, $ttl);
-    ll_tools_public_static_cache_send_headers('MISS', $miss_reason);
+    ll_tools_public_static_cache_send_headers('MISS', $miss_reason, false);
     ll_tools_public_static_cache_debug_log('miss', [
         'key' => $key,
         'reason' => $miss_reason,
@@ -784,6 +794,9 @@ function ll_tools_store_public_static_cache(): void {
                 'file' => basename($file),
             ]);
         } else {
+            if (!headers_sent()) {
+                header('Cache-Control: ' . ll_tools_public_static_cache_cache_control_value(true));
+            }
             ll_tools_public_static_cache_write_meta($file, (string) ($context['key'] ?? ''), $identity);
             ll_tools_public_static_cache_debug_log('stored', [
                 'file' => basename($file),

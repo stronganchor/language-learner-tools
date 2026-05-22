@@ -741,6 +741,81 @@ if (!function_exists('ll_tools_login_window_reset_registration_attempts')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_username_suggestion_attempt_limit_config')) {
+    function ll_tools_login_window_username_suggestion_attempt_limit_config(): array {
+        return [
+            'limit' => max(0, (int) apply_filters('ll_tools_username_suggestion_ip_attempt_limit', 30)),
+            'window' => max(MINUTE_IN_SECONDS, (int) apply_filters('ll_tools_username_suggestion_ip_attempt_window', 15 * MINUTE_IN_SECONDS)),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_login_window_username_suggestion_attempt_key')) {
+    function ll_tools_login_window_username_suggestion_attempt_key(string $ip): string {
+        return 'll_tools_user_suggest_' . substr(md5($ip), 0, 24);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_username_suggestion_rate_limit_status')) {
+    function ll_tools_login_window_get_username_suggestion_rate_limit_status(string $ip = ''): array {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        $config = ll_tools_login_window_username_suggestion_attempt_limit_config();
+        if ($ip === '' || $config['limit'] <= 0) {
+            return [
+                'limited' => false,
+                'attempts' => 0,
+                'limit' => $config['limit'],
+                'window' => $config['window'],
+                'ip' => $ip,
+            ];
+        }
+
+        $attempts = (int) get_transient(ll_tools_login_window_username_suggestion_attempt_key($ip));
+
+        return [
+            'limited' => ($attempts >= $config['limit']),
+            'attempts' => $attempts,
+            'limit' => $config['limit'],
+            'window' => $config['window'],
+            'ip' => $ip,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_login_window_record_username_suggestion_attempt')) {
+    function ll_tools_login_window_record_username_suggestion_attempt(string $ip = ''): void {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        $config = ll_tools_login_window_username_suggestion_attempt_limit_config();
+        if ($ip === '' || $config['limit'] <= 0) {
+            return;
+        }
+
+        $key = ll_tools_login_window_username_suggestion_attempt_key($ip);
+        $attempts = (int) get_transient($key);
+        set_transient($key, $attempts + 1, $config['window']);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_reset_username_suggestion_attempts')) {
+    function ll_tools_login_window_reset_username_suggestion_attempts(string $ip = ''): void {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        if ($ip === '') {
+            return;
+        }
+
+        delete_transient(ll_tools_login_window_username_suggestion_attempt_key($ip));
+    }
+}
+
 if (!function_exists('ll_tools_login_window_registration_rate_limit_message')) {
     function ll_tools_login_window_registration_rate_limit_message(): string {
         return __('Too many sign-up attempts from this connection. Please try again in a few minutes.', 'll-tools-text-domain');
@@ -1467,6 +1542,12 @@ if (!function_exists('ll_tools_login_window_username_suggestion_ajax')) {
         if (!ll_tools_is_learner_self_registration_available()) {
             wp_send_json_error(['message' => __('New account registration is currently disabled.', 'll-tools-text-domain')], 403);
         }
+
+        $request_ip = ll_tools_login_window_get_client_ip();
+        if (!empty(ll_tools_login_window_get_username_suggestion_rate_limit_status($request_ip)['limited'])) {
+            wp_send_json_error(['message' => ll_tools_login_window_registration_rate_limit_message()], 429);
+        }
+        ll_tools_login_window_record_username_suggestion_attempt($request_ip);
 
         $email_validation = ll_tools_login_window_validate_registration_email($_POST['email'] ?? '', false);
         if (!empty($email_validation['errors'])) {

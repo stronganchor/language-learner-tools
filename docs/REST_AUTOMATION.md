@@ -133,6 +133,9 @@ Routes:
 - `POST /imports/{job_id}/process`
 - `POST /imports/{job_id}/discard`
 - `GET /imports/{job_id}/result`
+- `POST /corpus-texts/asset`
+- `POST /corpus-texts/import`
+- `GET /corpus-texts/{slug}`
 
 Word-option-rule updates should use `POST
 /wordsets/{wordset}/word-option-rules` instead of wp-admin form replay around
@@ -147,15 +150,15 @@ array. Each item can identify the target lesson by post ID, slug, lesson value,
 interlinear lesson ID, or vocab category. Send `dry_run=true` first, and send
 `delete=true` or `clear=true` to remove an existing payload.
 
-For historical or corpus-text publishing, set the target `ll_content_lesson`
-kind to `corpus_text` in the lesson editor and import a text-document payload
-through the same interlinear route. Use `kind=corpus_text`, `reading_units` for
-public side-by-side text/translation rows, `source_lines` for the public
-Interlinear view, and optional document-level `witnesses` plus line-level source
-images for scan evidence and source citations. Regular interlinear `tokens` may
-be included on each `source_lines` row. Rows listed in `hidden_rows` are skipped;
-empty POS rows and lemma rows that only duplicate the word/morph row are hidden
-automatically.
+For historical or corpus-text publishing, use `POST /corpus-texts/import` with a
+text-document payload. Use `kind=corpus_text`, `reading_units` for public
+side-by-side text/translation rows, `source_lines` for the public Interlinear
+view, and optional document-level `witnesses` plus line-level source images for
+scan evidence and source citations. Upload or attach referenced corpus assets
+through `POST /corpus-texts/asset`, and read the saved corpus text through `GET
+/corpus-texts/{slug}`. Regular interlinear `tokens` may be included on each
+`source_lines` row. Rows listed in `hidden_rows` are skipped; empty POS rows and
+lemma rows that only duplicate the word/morph row are hidden automatically.
 
 `{wordset}` can be a stable wordset slug such as `spanish` or `genc-palu`.
 

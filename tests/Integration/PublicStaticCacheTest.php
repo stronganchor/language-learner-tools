@@ -180,6 +180,12 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         ]));
     }
 
+    public function test_public_static_cache_miss_uses_no_cache_until_response_is_known(): void
+    {
+        $this->assertSame('no-cache, must-revalidate', ll_tools_public_static_cache_cache_control_value(false));
+        $this->assertStringStartsWith('public, max-age=', ll_tools_public_static_cache_cache_control_value(true));
+    }
+
     public function test_static_caches_do_not_cache_front_page_requests(): void
     {
         $old_show_on_front = get_option('show_on_front');

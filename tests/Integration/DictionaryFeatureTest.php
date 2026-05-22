@@ -227,6 +227,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ]));
     }
 
+    public function test_dictionary_static_cache_miss_uses_no_cache_until_response_is_known(): void
+    {
+        $this->assertSame('no-cache, must-revalidate', ll_tools_dictionary_static_cache_cache_control_value(false));
+        $this->assertStringStartsWith('public, max-age=', ll_tools_dictionary_static_cache_cache_control_value(true));
+    }
+
     public function test_dictionary_static_cache_store_writes_when_php_status_is_unset(): void
     {
         $dir = ll_tools_dictionary_static_cache_dir();

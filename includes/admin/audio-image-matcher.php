@@ -67,9 +67,7 @@ function ll_aim_enqueue_admin_assets($hook) {
     );
 
     $preselected_wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
-    $active_wordset_id = function_exists('ll_tools_get_active_wordset_id')
-        ? ll_tools_get_active_wordset_id($preselected_wordset_id)
-        : ( $preselected_wordset_id ?: 0 );
+    $active_wordset_id = ll_aim_resolve_accessible_wordset_id($preselected_wordset_id);
     $initial_category_rows = ll_aim_get_category_options_for_wordset($active_wordset_id);
 
     wp_localize_script('ll-audio-image-matcher', 'llAimData', [
@@ -119,9 +117,10 @@ function ll_aim_get_category_options_for_wordset(int $wordset_id): array {
 function ll_aim_get_category_options_handler() {
     ll_aim_verify_ajax_request();
 
-    $wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
-    if (function_exists('ll_tools_get_active_wordset_id')) {
-        $wordset_id = ll_tools_get_active_wordset_id($wordset_id);
+    $explicit_wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    $wordset_id = ll_aim_resolve_accessible_wordset_id($explicit_wordset_id);
+    if ($explicit_wordset_id > 0 && $wordset_id <= 0) {
+        ll_aim_send_wordset_forbidden();
     }
 
     wp_send_json_success([
@@ -142,13 +141,17 @@ function ll_render_audio_image_matcher_page() {
     if (is_wp_error($wordsets)) {
         $wordsets = [];
     }
+    if (!ll_aim_current_user_has_unrestricted_queue_access()) {
+        $allowed_wordset_ids = ll_aim_current_user_scoped_wordset_ids();
+        $wordsets = array_values(array_filter((array) $wordsets, static function ($wordset) use ($allowed_wordset_ids): bool {
+            return ($wordset instanceof WP_Term) && in_array((int) $wordset->term_id, $allowed_wordset_ids, true);
+        }));
+    }
 
     // Preselects (allow URL override for auto-launch use cases)
     $pre_term_id      = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
     $explicit_ws_id   = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
-    $pre_wordset_id   = function_exists('ll_tools_get_active_wordset_id')
-        ? ll_tools_get_active_wordset_id($explicit_ws_id)
-        : ( $explicit_ws_id ?: 0 );
+    $pre_wordset_id   = ll_aim_resolve_accessible_wordset_id($explicit_ws_id);
 
     if ($pre_term_id > 0 && $pre_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
         $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($pre_term_id, $pre_wordset_id, true);
@@ -186,12 +189,82 @@ function ll_aim_verify_ajax_request() {
     check_ajax_referer('ll_aim_admin', 'nonce');
 }
 
+function ll_aim_current_user_has_unrestricted_queue_access(): bool {
+    if (current_user_can('manage_options')) {
+        return true;
+    }
+
+    $user = wp_get_current_user();
+    return ($user instanceof WP_User) && in_array('ll_tools_editor', (array) $user->roles, true);
+}
+
+function ll_aim_current_user_scoped_wordset_ids(): array {
+    if (ll_aim_current_user_has_unrestricted_queue_access()) {
+        return [];
+    }
+
+    $user_id = (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return [];
+    }
+
+    $ids = [];
+    if (function_exists('ll_tools_get_user_managed_wordset_ids')) {
+        $ids = array_merge($ids, (array) ll_tools_get_user_managed_wordset_ids($user_id));
+    }
+    if (function_exists('ll_tools_get_assigned_recorder_wordset_ids_for_user')) {
+        $ids = array_merge($ids, (array) ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id));
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    sort($ids, SORT_NUMERIC);
+
+    return $ids;
+}
+
+function ll_aim_resolve_accessible_wordset_id(int $explicit_wordset_id): int {
+    $resolved_wordset_id = function_exists('ll_tools_get_active_wordset_id')
+        ? (int) ll_tools_get_active_wordset_id($explicit_wordset_id)
+        : max(0, $explicit_wordset_id);
+
+    if (ll_aim_current_user_has_unrestricted_queue_access()) {
+        return $resolved_wordset_id;
+    }
+
+    $allowed_ids = ll_aim_current_user_scoped_wordset_ids();
+    if (empty($allowed_ids)) {
+        return 0;
+    }
+
+    if ($resolved_wordset_id > 0 && in_array($resolved_wordset_id, $allowed_ids, true)) {
+        return $resolved_wordset_id;
+    }
+
+    if ($explicit_wordset_id > 0) {
+        return 0;
+    }
+
+    return (int) $allowed_ids[0];
+}
+
+function ll_aim_send_wordset_forbidden(): void {
+    wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+}
+
 // AJAX: Fetch candidate images for a category (word_images posts)
 function ll_aim_get_images_handler() {
     ll_aim_verify_ajax_request();
 
     $term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
-    $wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    $explicit_wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    $wordset_id = ($explicit_wordset_id <= 0 && ll_aim_current_user_has_unrestricted_queue_access())
+        ? 0
+        : ll_aim_resolve_accessible_wordset_id($explicit_wordset_id);
+    if ($explicit_wordset_id > 0 && $wordset_id <= 0) {
+        ll_aim_send_wordset_forbidden();
+    }
     $hide_used = isset($_GET['hide_used']) ? (intval($_GET['hide_used']) === 1) : false;
     if ($term_id > 0 && $wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
         $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, true);
@@ -315,11 +388,11 @@ function ll_aim_get_next_handler() {
     $term_id    = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
     $rematch    = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
 
-    // NEW: capture/resolve wordset
     $explicit_ws_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
-    $wordset_id = function_exists('ll_tools_get_active_wordset_id')
-        ? ll_tools_get_active_wordset_id($explicit_ws_id) // uses default if 0, else respects explicit
-        : ( $explicit_ws_id ?: 0 );
+    $wordset_id = ll_aim_resolve_accessible_wordset_id($explicit_ws_id);
+    if ($explicit_ws_id > 0 && $wordset_id <= 0) {
+        ll_aim_send_wordset_forbidden();
+    }
     if ($term_id > 0 && $wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
         $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, true);
         if ($effective_category_id > 0) {

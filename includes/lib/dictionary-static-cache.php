@@ -665,16 +665,26 @@ function ll_tools_dictionary_static_cache_prepare_html_for_output(string $html):
 }
 
 /**
+ * Build the browser/downstream cache policy for dictionary static-cache responses.
+ */
+function ll_tools_dictionary_static_cache_cache_control_value(bool $public): string {
+    if (!$public) {
+        return 'no-cache, must-revalidate';
+    }
+
+    return 'public, max-age=' . ll_tools_dictionary_static_cache_ttl();
+}
+
+/**
  * Send public/debug headers for the anonymous dictionary static cache.
  */
-function ll_tools_dictionary_static_cache_send_headers(string $cache_status): void {
+function ll_tools_dictionary_static_cache_send_headers(string $cache_status, bool $public_cache = true): void {
     if (headers_sent()) {
         return;
     }
 
-    $ttl = ll_tools_dictionary_static_cache_ttl();
     header('X-LL-Dictionary-Cache: ' . strtoupper($cache_status));
-    header('Cache-Control: public, max-age=' . $ttl);
+    header('Cache-Control: ' . ll_tools_dictionary_static_cache_cache_control_value($public_cache));
     header('Vary: Accept-Language, Cookie', false);
 }
 
@@ -717,7 +727,7 @@ function ll_tools_serve_dictionary_static_cache(): void {
         }
     }
 
-    ll_tools_dictionary_static_cache_send_headers('MISS');
+    ll_tools_dictionary_static_cache_send_headers('MISS', false);
     ll_tools_dictionary_static_cache_debug_log('miss', [
         'key' => $key,
         'args' => ll_tools_dictionary_static_cache_normalize_query_args(),
@@ -843,6 +853,9 @@ function ll_tools_store_dictionary_static_cache(): void {
                 'file' => basename($file),
             ]);
         } else {
+            if (!headers_sent()) {
+                header('Cache-Control: ' . ll_tools_dictionary_static_cache_cache_control_value(true));
+            }
             ll_tools_dictionary_static_cache_debug_log('stored', [
                 'file' => basename($file),
                 'bytes' => (int) $written,

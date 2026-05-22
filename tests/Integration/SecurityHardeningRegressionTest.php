@@ -213,7 +213,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertNull(ll_tools_flashcards_public_ajax_cache_get($args));
     }
 
-    public function test_public_flashcard_ajax_caches_invalid_category_as_empty_result(): void
+    public function test_public_flashcard_ajax_does_not_persist_invalid_category_misses(): void
     {
         wp_set_current_user(0);
 
@@ -237,7 +237,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($response['success'] ?? false));
         $this->assertSame([], $response['data'] ?? null);
-        $this->assertSame([], ll_tools_flashcards_public_ajax_cache_get([
+        $this->assertNull(ll_tools_flashcards_public_ajax_cache_get([
             'category' => 'Missing Public Bot Category',
             'category_slug' => 'missing-public-bot-category',
             'display_mode' => 'text_title',
@@ -247,6 +247,54 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             'option_type' => 'text_title',
             'invalid_category' => true,
         ]));
+    }
+
+    public function test_public_flashcard_ajax_valid_cache_key_uses_resolved_term_not_raw_category_text(): void
+    {
+        $fixture = $this->create_flashcard_word_with_audio(42);
+        $term = get_term_by('name', $fixture['category_name'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        wp_set_current_user(0);
+        $_POST = [
+            'category' => str_repeat('Raw Category Noise ', 20),
+            'category_slug' => (string) $term->slug,
+            'display_mode' => str_repeat('text_title', 20),
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $cached = ll_tools_flashcards_public_ajax_cache_get([
+            'wordset_ids' => [],
+            'wordset_fallback' => true,
+            'prompt_type' => 'audio',
+            'option_type' => 'text_translation',
+            'use_titles' => false,
+            'term_id' => (int) $term->term_id,
+            'term_slug' => (string) $term->slug,
+            'quiz_config' => [
+                'prompt_type' => 'audio',
+                'option_type' => 'text_translation',
+                'use_titles' => false,
+                'learning_supported' => true,
+                'self_check_supported' => true,
+            ],
+        ]);
+
+        $this->assertIsArray($cached);
+        $row = $this->find_row_by_word_id($cached, $fixture['word_id']);
+        $this->assertIsArray($row);
     }
 
     public function test_wordset_speaking_transcribe_attempt_rejects_invalid_audio_before_external_calls(): void
@@ -374,6 +422,31 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertWPError($result);
         $this->assertSame('ll_tools_hosted_stt_private_endpoint', $result->get_error_code());
         $this->assertSame([], $http_requests);
+    }
+
+    public function test_media_proxy_fallback_rejects_private_hosts(): void
+    {
+        $this->assertFalse(ll_tools_media_proxy_fallback_url_is_safe('http://127.0.0.1/image.jpg'));
+        $this->assertFalse(ll_tools_media_proxy_fallback_url_is_safe('http://localhost/image.jpg'));
+        $this->assertTrue(ll_tools_media_proxy_fallback_url_is_safe('https://example.com/image.jpg'));
+    }
+
+    public function test_media_proxy_fallback_rejects_public_hostname_that_resolves_private(): void
+    {
+        $resolve_filter = static function ($ips, string $host) {
+            if ($host === 'example.com') {
+                return ['10.0.0.8'];
+            }
+
+            return $ips;
+        };
+        add_filter('ll_tools_hosted_stt_endpoint_resolved_ips', $resolve_filter, 10, 2);
+
+        try {
+            $this->assertFalse(ll_tools_media_proxy_fallback_url_is_safe('https://example.com/photo.jpg'));
+        } finally {
+            remove_filter('ll_tools_hosted_stt_endpoint_resolved_ips', $resolve_filter, 10);
+        }
     }
 
     public function test_speaking_game_public_endpoint_payload_only_exposes_local_browser_endpoints(): void
@@ -863,6 +936,46 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Post::class, get_post($audio_id));
     }
 
+    public function test_audio_processor_queue_scopes_recorder_to_assigned_wordset(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $allowed_wordset_id = $this->ensure_term('wordset', 'Processor Scope One', 'processor-scope-one');
+        $blocked_wordset_id = $this->ensure_term('wordset', 'Processor Scope Two', 'processor-scope-two');
+
+        $allowed_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Allowed Processor Word',
+        ]);
+        wp_set_object_terms($allowed_word_id, [$allowed_wordset_id], 'wordset', false);
+
+        $blocked_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Blocked Processor Word',
+        ]);
+        wp_set_object_terms($blocked_word_id, [$blocked_wordset_id], 'wordset', false);
+
+        $allowed_audio_id = $this->create_queued_audio_recording($allowed_word_id, 'Allowed Processor Audio');
+        $blocked_audio_id = $this->create_queued_audio_recording($blocked_word_id, 'Blocked Processor Audio');
+
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => 'processor-scope-one',
+            'category' => '',
+        ]);
+        wp_set_current_user($recorder_id);
+
+        $recordings = ll_get_unprocessed_recordings();
+        $ids = array_map(static function ($recording): int {
+            return (int) ($recording['id'] ?? 0);
+        }, (array) ($recordings['all'] ?? []));
+
+        $this->assertContains($allowed_audio_id, $ids);
+        $this->assertNotContains($blocked_audio_id, $ids);
+    }
+
     /**
      * @param array<int, array<string, mixed>> $rows
      * @return array<string, mixed>|null
@@ -964,6 +1077,22 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertIsArray($created);
 
         return (int) $created['term_id'];
+    }
+
+    private function create_queued_audio_recording(int $parent_word_id, string $title): int
+    {
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'draft',
+            'post_parent' => $parent_word_id,
+            'post_title' => $title,
+        ]);
+
+        update_post_meta($audio_id, '_ll_needs_audio_processing', '1');
+        update_post_meta($audio_id, 'audio_file_path', '/wp-content/uploads/' . sanitize_title($title) . '.mp3');
+        update_post_meta($audio_id, 'recording_date', '2026-05-22 09:00:00');
+
+        return (int) $audio_id;
     }
 
     private function create_temp_file_with_suffix(string $suffix): string

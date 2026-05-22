@@ -252,6 +252,46 @@ function ll_tools_guess_proxy_image_mime_from_url($url): string {
     return '';
 }
 
+function ll_tools_media_proxy_fallback_url_is_safe($url): bool {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return false;
+    }
+
+    if (function_exists('wp_http_validate_url') && !wp_http_validate_url($url)) {
+        return false;
+    }
+
+    $parts = wp_parse_url($url);
+    if (!is_array($parts)) {
+        return false;
+    }
+
+    $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+    $host = (string) ($parts['host'] ?? '');
+    if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+        return false;
+    }
+
+    $allow_private = (bool) apply_filters('ll_tools_media_proxy_allow_private_fallback_url', false, $url, $parts);
+    if ($allow_private) {
+        return true;
+    }
+
+    if (function_exists('ll_tools_remote_stt_host_is_restricted') && ll_tools_remote_stt_host_is_restricted($host)) {
+        return false;
+    }
+    if (function_exists('ll_tools_remote_stt_host_resolves_to_restricted_ip') && ll_tools_remote_stt_host_resolves_to_restricted_ip($host)) {
+        return false;
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP) && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+        return false;
+    }
+
+    return true;
+}
+
 /**
  * Resolve current request origin in a proxy-safe way.
  *
@@ -599,10 +639,12 @@ function ll_tools_maybe_serve_masked_image() {
         exit;
     }
 
-    if (!empty($fallback_url)) {
+    if (!empty($fallback_url) && ll_tools_media_proxy_fallback_url_is_safe($fallback_url)) {
         $response = wp_remote_get($fallback_url, [
             'timeout' => 10,
             'decompress' => true,
+            'reject_unsafe_urls' => true,
+            'limit_response_size' => (int) apply_filters('ll_tools_media_proxy_fallback_max_bytes', 8 * MB_IN_BYTES),
         ]);
         if (!is_wp_error($response) && (int) wp_remote_retrieve_response_code($response) === 200) {
             $body = wp_remote_retrieve_body($response);
@@ -612,6 +654,10 @@ function ll_tools_maybe_serve_masked_image() {
             }
             if ($mime === '') {
                 $mime = ll_tools_guess_proxy_image_mime_from_url($fallback_url);
+            }
+            if ($mime === '' || strpos($mime, 'image/') !== 0) {
+                status_header(404);
+                exit;
             }
             $mime = ll_tools_detect_proxy_image_mime('', $mime);
 

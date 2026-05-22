@@ -48,6 +48,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertTrue(!empty($data['capabilities']['view_ll_tools']));
         $this->assertTrue(!empty($data['capabilities']['purge_static_cache']));
         $this->assertSame('/ll-tools/v1/cache/static/purge', (string) ($data['routes']['static_cache_purge'] ?? ''));
+        $this->assertSame('/ll-tools/v1/corpus-texts/asset', (string) ($data['routes']['corpus_text_asset'] ?? ''));
+        $this->assertSame('/ll-tools/v1/corpus-texts/import', (string) ($data['routes']['corpus_text_import'] ?? ''));
+        $this->assertSame('/ll-tools/v1/corpus-texts/{slug}', (string) ($data['routes']['corpus_text'] ?? ''));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void

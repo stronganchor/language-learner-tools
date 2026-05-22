@@ -179,3 +179,18 @@ test('live smoke default admin-ajax allowlist is documented', async () => {
     `tests/README.md is missing live-smoke allowed admin-ajax action docs for: ${documentedMissing.join(', ')}`
   ).toEqual([]);
 });
+
+test('REST automation docs cover corpus text routes exposed by status', async () => {
+  const docs = fs.readFileSync(path.join(repoRoot, 'docs', 'REST_AUTOMATION.md'), 'utf8');
+  const source = fs.readFileSync(path.join(repoRoot, 'includes', 'api', 'automation-rest.php'), 'utf8');
+  const routePairs = [
+    ['corpus_text_asset', 'POST /corpus-texts/asset'],
+    ['corpus_text_import', 'POST /corpus-texts/import'],
+    ['corpus_text', 'GET /corpus-texts/{slug}']
+  ];
+
+  for (const [statusKey, docRoute] of routePairs) {
+    expect(source).toContain(`'${statusKey}'`);
+    expect(docs).toContain(docRoute);
+  }
+});
