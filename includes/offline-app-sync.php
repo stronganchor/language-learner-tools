@@ -546,6 +546,49 @@ if (!function_exists('ll_tools_offline_app_decode_json_payload')) {
     }
 }
 
+if (!function_exists('ll_tools_offline_app_sync_payload_max_bytes')) {
+    function ll_tools_offline_app_sync_payload_max_bytes(): int {
+        return max(0, (int) apply_filters('ll_tools_offline_app_sync_payload_max_bytes', 512 * 1024));
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_payload_size')) {
+    function ll_tools_offline_app_payload_size($value): int {
+        if (is_array($value)) {
+            $total = 0;
+            foreach ($value as $key => $item) {
+                $total += strlen((string) $key) + ll_tools_offline_app_payload_size($item);
+            }
+            return $total;
+        }
+
+        return strlen((string) wp_unslash($value));
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sync_payload_exceeds_limit')) {
+    function ll_tools_offline_app_sync_payload_exceeds_limit(array $keys = ['events', 'word_ids', 'state', 'goals']): bool {
+        $max_bytes = ll_tools_offline_app_sync_payload_max_bytes();
+        if ($max_bytes <= 0) {
+            return false;
+        }
+
+        $total = 0;
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $_POST)) {
+                continue;
+            }
+
+            $total += ll_tools_offline_app_payload_size($_POST[$key]);
+            if ($total > $max_bytes) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
 if (!function_exists('ll_tools_offline_app_sync_word_ids_limit')) {
     function ll_tools_offline_app_sync_word_ids_limit(): int {
         return max(0, (int) apply_filters('ll_tools_offline_app_sync_word_ids_limit', 5000));
@@ -1029,6 +1072,13 @@ if (!function_exists('ll_tools_offline_app_sync_ajax')) {
         ll_tools_offline_app_prepare_json_response();
 
         $token = ll_tools_offline_app_request_string('auth_token');
+        if (ll_tools_offline_app_sync_payload_exceeds_limit()) {
+            wp_send_json_error([
+                'code' => 'payload_too_large',
+                'message' => ll_tools_offline_app_sync_rate_limit_message('', 'resource_units'),
+            ], 413);
+        }
+
         $events_raw = $_POST['events'] ?? '[]';
         $events = ll_tools_offline_app_decode_json_payload($events_raw);
         $events = array_slice($events, 0, 200);

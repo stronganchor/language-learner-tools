@@ -477,6 +477,28 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_offline_app_sync_rejects_oversized_payload_before_authentication(): void
+    {
+        $max_payload_filter = static function (): int {
+            return 64;
+        };
+        add_filter('ll_tools_offline_app_sync_payload_max_bytes', $max_payload_filter);
+
+        try {
+            $response = $this->runOfflineSyncRequest([
+                'auth_token' => 'not-a-valid-token',
+                'events' => str_repeat('x', 128),
+                'word_ids' => '[]',
+            ]);
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertSame('payload_too_large', (string) (($response['data'] ?? [])['code'] ?? ''));
+            $this->assertNotSame('Sign in required.', (string) (($response['data'] ?? [])['message'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_offline_app_sync_payload_max_bytes', $max_payload_filter);
+        }
+    }
+
     private function createOfflineSyncFixture(): array
     {
         $wordset = wp_insert_term('Offline Sync Wordset ' . wp_generate_password(6, false), 'wordset');
