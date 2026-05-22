@@ -190,6 +190,70 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertSame(1, preg_match_all('/<option[^>]*>\s*Recorder Shared Trees\s*<\/option>/', $select_markup));
     }
 
+    public function test_admin_can_switch_recording_wordset_from_recorder_interface(): void
+    {
+        $admin_id = self::factory()->user->create([
+            'role' => 'administrator',
+        ]);
+        wp_set_current_user($admin_id);
+
+        $wordset_one_id = $this->ensure_term('wordset', 'Recorder Admin Switch One', 'recorder-admin-switch-one');
+        $wordset_two_id = $this->ensure_term('wordset', 'Recorder Admin Switch Two', 'recorder-admin-switch-two');
+        $wordset_one = get_term($wordset_one_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_one);
+
+        $output = do_shortcode('[audio_recording_interface wordset="' . $wordset_one->slug . '" allow_new_words="1"]');
+        $select_markup = $this->extract_select_markup($output, 'll-wordset-select');
+
+        $this->assertMatchesRegularExpression('/value="' . preg_quote((string) $wordset_one_id, '/') . '"\s+selected=/', $select_markup);
+        $this->assertStringContainsString('value="' . $wordset_two_id . '"', $select_markup);
+        $this->assertStringContainsString('Recorder Admin Switch One', $select_markup);
+        $this->assertStringContainsString('Recorder Admin Switch Two', $select_markup);
+    }
+
+    public function test_wordset_manager_switcher_is_limited_to_managed_wordsets(): void
+    {
+        if (function_exists('ll_create_wordset_manager_role')) {
+            ll_create_wordset_manager_role();
+        }
+        if (function_exists('ll_ensure_wordset_manager_has_view_ll_tools_cap')) {
+            ll_ensure_wordset_manager_has_view_ll_tools_cap();
+        }
+
+        $manager_id = self::factory()->user->create([
+            'role' => 'wordset_manager',
+        ]);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        $manager->add_cap('upload_files');
+        clean_user_cache($manager_id);
+
+        $managed_one_id = $this->ensure_term('wordset', 'Recorder Managed Switch One', 'recorder-managed-switch-one');
+        $managed_two_id = $this->ensure_term('wordset', 'Recorder Managed Switch Two', 'recorder-managed-switch-two');
+        $unmanaged_id = $this->ensure_term('wordset', 'Recorder Unmanaged Switch', 'recorder-unmanaged-switch');
+
+        $this->assertTrue((bool) ll_tools_set_wordset_manager_user_ids($managed_one_id, [$manager_id], $manager_id));
+        $this->assertTrue((bool) ll_tools_set_wordset_manager_user_ids($managed_two_id, [$manager_id], $manager_id));
+        update_user_meta($manager_id, 'll_primary_managed_wordset_id', $managed_two_id);
+
+        wp_set_current_user($manager_id);
+
+        $output = do_shortcode('[audio_recording_interface allow_new_words="1"]');
+        $select_markup = $this->extract_select_markup($output, 'll-wordset-select');
+
+        $this->assertStringContainsString('value="' . $managed_one_id . '"', $select_markup);
+        $this->assertMatchesRegularExpression('/value="' . preg_quote((string) $managed_two_id, '/') . '"\s+selected=/', $select_markup);
+        $this->assertStringNotContainsString('value="' . $unmanaged_id . '"', $select_markup);
+        $this->assertStringContainsString('Recorder Managed Switch One', $select_markup);
+        $this->assertStringContainsString('Recorder Managed Switch Two', $select_markup);
+        $this->assertStringNotContainsString('Recorder Unmanaged Switch', $select_markup);
+
+        $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
+        $this->assertIsString($localized);
+        $this->assertStringContainsString('"wordset_ids":[' . $managed_two_id . ']', $localized);
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

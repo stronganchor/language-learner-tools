@@ -1144,9 +1144,22 @@ function ll_audio_recording_interface_shortcode($atts) {
     $start_word_id = absint($atts['start_word'] ?? 0);
 
     // Resolve wordset term IDs
+    $requested_wordset_spec = trim((string) ($atts['wordset'] ?? ''));
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
     if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
         $wordset_term_ids = ll_tools_filter_recording_wordset_ids_for_user($wordset_term_ids, $current_user_id);
+    }
+    if (function_exists('ll_tools_select_recording_wordset_ids_for_user')) {
+        $wordset_term_ids = ll_tools_select_recording_wordset_ids_for_user($wordset_term_ids, $current_user_id);
+    }
+    if ($requested_wordset_spec === '' && function_exists('ll_tools_get_recording_switchable_wordset_ids_for_user')) {
+        $switchable_ids = ll_tools_get_recording_switchable_wordset_ids_for_user($current_user_id);
+        if (!empty($switchable_ids)) {
+            $primary_wordset_id = ll_tools_get_primary_recording_wordset_id_for_user($switchable_ids, $current_user_id);
+            if ($primary_wordset_id > 0) {
+                $wordset_term_ids = [$primary_wordset_id];
+            }
+        }
     }
     if (empty($wordset_term_ids)) {
         return $utility_nav_base . '<div class="ll-recording-interface"><p>' .
@@ -1296,13 +1309,29 @@ function ll_audio_recording_interface_shortcode($atts) {
         }
     }
 
+    // Get wordset name and switchable options for display.
+    $current_wordset_id = !empty($wordset_term_ids) ? (int) $wordset_term_ids[0] : 0;
+    $current_wordset_term = $current_wordset_id > 0 ? get_term($current_wordset_id, 'wordset') : null;
+    $wordset_name = '';
+    $current_wordset_slug = '';
+    if ($current_wordset_term instanceof WP_Term && !is_wp_error($current_wordset_term)) {
+        $wordset_name = (string) $current_wordset_term->name;
+        $current_wordset_slug = (string) $current_wordset_term->slug;
+    }
+    if ($current_wordset_slug === '') {
+        $current_wordset_slug = (string) $atts['wordset'];
+    }
+    $switchable_wordsets = function_exists('ll_tools_get_recording_switchable_wordsets_for_user')
+        ? ll_tools_get_recording_switchable_wordsets_for_user($current_user_id)
+        : [];
+
     wp_localize_script('ll-audio-recorder', 'll_recorder_data', [
         'ajax_url'        => admin_url('admin-ajax.php'),
         'nonce'           => wp_create_nonce('ll_upload_recording'),
         'images'          => $images_needing_audio,
         'available_categories' => $available_categories,
         'language'        => $atts['language'],
-        'wordset'         => $atts['wordset'],
+        'wordset'         => $current_wordset_slug,
         'wordset_ids'     => $wordset_term_ids,
         'sort_locale'     => get_locale(),
         'hide_name'       => (bool) get_option('ll_hide_recording_titles', 0),
@@ -1409,14 +1438,6 @@ function ll_audio_recording_interface_shortcode($atts) {
             'recording_prompt_label' => __('Say:', 'll-tools-text-domain'),
         ],
     ]);
-    // Get wordset name for display
-    $wordset_name = '';
-    if (!empty($wordset_term_ids)) {
-        $wordset_term = get_term($wordset_term_ids[0], 'wordset');
-        if ($wordset_term && !is_wp_error($wordset_term)) {
-            $wordset_name = $wordset_term->name;
-        }
-    }
     $utility_nav = $utility_nav_context;
 
     ob_start();
@@ -1446,7 +1467,23 @@ function ll_audio_recording_interface_shortcode($atts) {
                 </select>
             </div>
 
-            <?php if ($wordset_name): ?>
+            <?php if (count($switchable_wordsets) > 1): ?>
+            <div class="ll-wordset-selector">
+                <label for="ll-wordset-select"><?php esc_html_e('Set', 'll-tools-text-domain'); ?></label>
+                <select id="ll-wordset-select" aria-label="<?php esc_attr_e('Word set', 'll-tools-text-domain'); ?>">
+                    <?php foreach ($switchable_wordsets as $switchable_wordset): ?>
+                        <?php
+                        if (!($switchable_wordset instanceof WP_Term) || is_wp_error($switchable_wordset)) {
+                            continue;
+                        }
+                        ?>
+                        <option value="<?php echo esc_attr((string) $switchable_wordset->term_id); ?>" <?php selected($current_wordset_id, (int) $switchable_wordset->term_id); ?>>
+                            <?php echo esc_html($switchable_wordset->name); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php elseif ($wordset_name): ?>
             <div class="ll-wordset-display">
                 <span><?php _e('Set:', 'll-tools-text-domain'); ?></span>
                 <strong><?php echo esc_html($wordset_name); ?></strong>
@@ -1967,6 +2004,116 @@ function ll_tools_recorder_apply_launch_request_overrides(array $atts): array {
     }
 
     return $atts;
+}
+
+function ll_tools_get_recording_switchable_wordsets_for_user(int $user_id = 0): array {
+    $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return [];
+    }
+
+    $user = get_userdata($user_id);
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return [];
+    }
+
+    $term_args = [
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
+    ];
+
+    if (!user_can($user, 'manage_options')) {
+        if (!function_exists('ll_tools_get_user_managed_wordset_ids')) {
+            return [];
+        }
+
+        $managed_ids = array_values(array_filter(array_map('intval', ll_tools_get_user_managed_wordset_ids($user_id)), static function (int $id): bool {
+            return $id > 0;
+        }));
+        if (empty($managed_ids)) {
+            return [];
+        }
+
+        if (function_exists('ll_tools_user_can_manage_wordset_content')) {
+            $managed_ids = array_values(array_filter($managed_ids, static function (int $wordset_id) use ($user_id): bool {
+                return ll_tools_user_can_manage_wordset_content($wordset_id, $user_id);
+            }));
+        }
+        if (empty($managed_ids)) {
+            return [];
+        }
+
+        $term_args['include'] = $managed_ids;
+    }
+
+    $wordsets = get_terms($term_args);
+    if (is_wp_error($wordsets) || !is_array($wordsets)) {
+        return [];
+    }
+
+    return array_values(array_filter($wordsets, static function ($wordset): bool {
+        return $wordset instanceof WP_Term && !is_wp_error($wordset) && $wordset->taxonomy === 'wordset';
+    }));
+}
+
+function ll_tools_get_recording_switchable_wordset_ids_for_user(int $user_id = 0): array {
+    $ids = [];
+    foreach (ll_tools_get_recording_switchable_wordsets_for_user($user_id) as $wordset) {
+        $ids[] = (int) $wordset->term_id;
+    }
+    $ids = array_values(array_unique(array_filter($ids, static function (int $id): bool {
+        return $id > 0;
+    })));
+    sort($ids, SORT_NUMERIC);
+    return $ids;
+}
+
+function ll_tools_get_primary_recording_wordset_id_for_user(array $allowed_wordset_ids, int $user_id = 0): int {
+    $allowed_wordset_ids = ll_tools_recorder_normalize_wordset_ids($allowed_wordset_ids);
+    if (empty($allowed_wordset_ids)) {
+        return 0;
+    }
+
+    $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
+    if ($user_id > 0) {
+        $assigned_ids = ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id);
+        foreach ($assigned_ids as $assigned_id) {
+            $assigned_id = (int) $assigned_id;
+            if ($assigned_id > 0 && in_array($assigned_id, $allowed_wordset_ids, true)) {
+                return $assigned_id;
+            }
+        }
+
+        $primary_managed_id = (int) get_user_meta($user_id, 'll_primary_managed_wordset_id', true);
+        if ($primary_managed_id > 0 && in_array($primary_managed_id, $allowed_wordset_ids, true)) {
+            return $primary_managed_id;
+        }
+    }
+
+    $default_id = function_exists('ll_get_default_wordset_term_id') ? (int) ll_get_default_wordset_term_id() : 0;
+    if ($default_id > 0 && in_array($default_id, $allowed_wordset_ids, true)) {
+        return $default_id;
+    }
+
+    return (int) $allowed_wordset_ids[0];
+}
+
+function ll_tools_select_recording_wordset_ids_for_user($wordset_ids, int $user_id = 0): array {
+    $wordset_ids = ll_tools_recorder_normalize_wordset_ids((array) $wordset_ids);
+    $switchable_ids = ll_tools_get_recording_switchable_wordset_ids_for_user($user_id);
+    if (empty($switchable_ids)) {
+        return $wordset_ids;
+    }
+
+    $selected_ids = array_values(array_intersect($wordset_ids, $switchable_ids));
+    if (!empty($selected_ids)) {
+        return [(int) $selected_ids[0]];
+    }
+
+    $fallback_id = ll_tools_get_primary_recording_wordset_id_for_user($switchable_ids, $user_id);
+    return $fallback_id > 0 ? [$fallback_id] : [];
 }
 
 function ll_tools_get_recording_item_for_word_id(array $items, int $word_id): ?array {
@@ -3283,6 +3430,24 @@ function ll_tools_filter_recording_wordset_ids_for_user($wordset_ids, $user_id =
     }
     if ($user_id <= 0) {
         return $filtered_ids;
+    }
+
+    if (function_exists('ll_tools_get_recording_switchable_wordset_ids_for_user')) {
+        $switchable_ids = ll_tools_get_recording_switchable_wordset_ids_for_user($user_id);
+        if (!empty($switchable_ids)) {
+            if (empty($filtered_ids)) {
+                $primary_id = ll_tools_get_primary_recording_wordset_id_for_user($switchable_ids, $user_id);
+                return $primary_id > 0 ? [$primary_id] : [];
+            }
+
+            $clamped = array_values(array_intersect($filtered_ids, $switchable_ids));
+            if (empty($clamped)) {
+                $primary_id = ll_tools_get_primary_recording_wordset_id_for_user($switchable_ids, $user_id);
+                return $primary_id > 0 ? [$primary_id] : [];
+            }
+
+            return array_map('intval', $clamped);
+        }
     }
 
     $assigned_ids = ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id);

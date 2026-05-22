@@ -172,6 +172,7 @@
         hiddenWords = normalizeHiddenWords(hiddenWords);
         renderHiddenWordsList();
         setupRecordingTypeChoices();
+        setupWordsetSelector();
         setupCategorySelector();
         setupNewWordMode();
         if (images.length > 0) {
@@ -238,6 +239,7 @@
             completedCount: document.querySelector('.ll-completed-count'),
             mainScreen: document.querySelector('.ll-recording-main'),
             categorySelect: document.getElementById('ll-category-select'),
+            wordsetSelect: document.getElementById('ll-wordset-select'),
             recordingTypeSelector: document.querySelector('.ll-recording-type-selector'),
             recordingTypeSelect: document.getElementById('ll-recording-type'),
             recordingTypeChoices: null,
@@ -863,6 +865,33 @@
         }
     }
 
+    function setupWordsetSelector() {
+        const el = window.llRecorder;
+        if (!el.wordsetSelect) return;
+
+        el.wordsetSelect.addEventListener('change', function () {
+            const selectedWordset = String(el.wordsetSelect.value || '').trim();
+            if (!selectedWordset) return;
+
+            const currentWordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids)
+                ? window.ll_recorder_data.wordset_ids.map(id => String(id))
+                : [];
+            if (currentWordsetIds.length === 1 && currentWordsetIds[0] === selectedWordset) {
+                return;
+            }
+
+            try {
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set('ll_record_wordset', selectedWordset);
+                nextUrl.searchParams.delete('ll_record_category');
+                nextUrl.searchParams.delete('ll_record_word');
+                window.location.assign(nextUrl.toString());
+            } catch (_) {
+                window.location.href = '?ll_record_wordset=' + encodeURIComponent(selectedWordset);
+            }
+        });
+    }
+
     function setupNewWordMode() {
         if (!allowNewWords) return;
         const el = window.llRecorder;
@@ -1479,6 +1508,7 @@
         if (el.newWordPanel) el.newWordPanel.style.display = 'none';
         if (el.newWordToggle) el.newWordToggle.disabled = false;
         if (el.categorySelect) el.categorySelect.disabled = false;
+        if (el.wordsetSelect) el.wordsetSelect.disabled = false;
         syncOverlayScrollLock();
 
         if (!savedExistingState) {
@@ -1533,6 +1563,7 @@
         if (el.newWordOverlay) el.newWordOverlay.removeAttribute('hidden');
         if (el.newWordPanel) el.newWordPanel.style.display = 'block';
         if (el.categorySelect) el.categorySelect.disabled = true;
+        if (el.wordsetSelect) el.wordsetSelect.disabled = true;
         if (el.newWordToggle) el.newWordToggle.disabled = true;
         resetNewWordForm();
         syncProcessingReviewSlot();
@@ -2670,6 +2701,7 @@
             newWordLastSaved = { target: targetText, translation: translationText };
 
             if (el.categorySelect) el.categorySelect.disabled = true;
+            if (el.wordsetSelect) el.wordsetSelect.disabled = true;
             if (el.newWordToggle) el.newWordToggle.disabled = true;
 
             if (keepPanel) {
@@ -2901,6 +2933,7 @@
 
         const controls = [
             el.categorySelect,
+            el.wordsetSelect,
             el.recordingTypeSelect,
             el.recordBtn,
             el.skipBtn,
@@ -4899,6 +4932,7 @@
         showStatus(i18n.switching_category || 'Switching category...', 'info');
         beginDisplayLoading();
         el.categorySelect.disabled = true;
+        if (el.wordsetSelect) el.wordsetSelect.disabled = true;
         if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = true;
         renderRecordingTypeChoices();
         el.recordBtn.disabled = true;
@@ -4988,6 +5022,7 @@
             showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + err.message, 'error');
         } finally {
             el.categorySelect.disabled = false;
+            if (el.wordsetSelect) el.wordsetSelect.disabled = false;
             if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
             renderRecordingTypeChoices();
             el.recordBtn.disabled = false;
