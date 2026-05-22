@@ -29,6 +29,7 @@ final class WordsetTemplateBundleImportExportTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey('ll_language', $wordsetMeta);
         $this->assertSame(['private'], (array) ($wordsetMeta[LL_TOOLS_WORDSET_VISIBILITY_META_KEY] ?? []));
         $this->assertSame(['1'], (array) ($wordsetMeta['ll_wordset_hide_lesson_text_for_non_text_quiz'] ?? []));
+        $this->assertSame(['hide'], (array) ($wordsetMeta[LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY] ?? []));
         $this->assertSame([(string) $fixture['category_b_slug'], (string) $fixture['category_a_slug']], (array) ($wordsetPayload['template_category_manual_order'] ?? []));
         $this->assertSame(
             [(string) $fixture['category_b_slug'] => [(string) $fixture['category_a_slug']]],
@@ -84,6 +85,7 @@ final class WordsetTemplateBundleImportExportTest extends LL_Tools_TestCase
 
             $this->assertSame('private', (string) get_term_meta($targetWordsetId, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, true));
             $this->assertSame('1', (string) get_term_meta($targetWordsetId, 'll_wordset_hide_lesson_text_for_non_text_quiz', true));
+            $this->assertSame('hide', (string) get_term_meta($targetWordsetId, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, true));
             $this->assertSame('', (string) get_term_meta($targetWordsetId, 'll_language', true));
             $this->assertSame((string) $adminId, (string) get_term_meta($targetWordsetId, 'manager_user_id', true));
 
@@ -168,6 +170,7 @@ final class WordsetTemplateBundleImportExportTest extends LL_Tools_TestCase
         update_term_meta($wordsetId, 'll_language', 'Spanish');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
         update_term_meta($wordsetId, 'll_wordset_hide_lesson_text_for_non_text_quiz', '1');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, 'hide');
         update_term_meta($wordsetId, 'll_wordset_category_ordering_mode', 'manual');
 
         $categoryAName = 'Template Export Category A ' . wp_generate_password(4, false);

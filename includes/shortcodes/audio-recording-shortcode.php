@@ -1324,6 +1324,9 @@ function ll_audio_recording_interface_shortcode($atts) {
     $switchable_wordsets = function_exists('ll_tools_get_recording_switchable_wordsets_for_user')
         ? ll_tools_get_recording_switchable_wordsets_for_user($current_user_id)
         : [];
+    $hide_recorder_text = function_exists('ll_tools_wordset_should_hide_recorder_text')
+        ? ll_tools_wordset_should_hide_recorder_text($wordset_term_ids)
+        : (bool) get_option('ll_hide_recording_titles', 0);
 
     wp_localize_script('ll-audio-recorder', 'll_recorder_data', [
         'ajax_url'        => admin_url('admin-ajax.php'),
@@ -1334,7 +1337,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'wordset'         => $current_wordset_slug,
         'wordset_ids'     => $wordset_term_ids,
         'sort_locale'     => get_locale(),
-        'hide_name'       => (bool) get_option('ll_hide_recording_titles', 0),
+        'hide_name'       => $hide_recorder_text,
+        'hide_recorder_text' => $hide_recorder_text,
         'recording_types' => $dropdown_types,
         'recording_type_order' => ll_get_recording_type_prompt_order(),
         'recording_type_icons' => ll_get_recording_type_icons_map(),
@@ -2803,6 +2807,9 @@ function ll_get_images_for_recording_handler() {
     }
     $include_types = isset($_POST['include_types']) ? sanitize_text_field($_POST['include_types']) : '';
     $exclude_types = isset($_POST['exclude_types']) ? sanitize_text_field($_POST['exclude_types']) : '';
+    $hide_recorder_text = function_exists('ll_tools_wordset_should_hide_recorder_text')
+        ? ll_tools_wordset_should_hide_recorder_text($wordset_term_ids)
+        : (bool) get_option('ll_hide_recording_titles', 0);
 
     $images = ll_tools_get_recording_queue_items($category, $wordset_term_ids, $include_types, $exclude_types);
 
@@ -2810,6 +2817,8 @@ function ll_get_images_for_recording_handler() {
         wp_send_json_success([
             'images' => [],
             'recording_types' => [],
+            'hide_name' => $hide_recorder_text,
+            'hide_recorder_text' => $hide_recorder_text,
         ]);
     }
 
@@ -2827,6 +2836,8 @@ function ll_get_images_for_recording_handler() {
     wp_send_json_success([
         'images' => $images,
         'recording_types' => $dropdown_types,
+        'hide_name' => $hide_recorder_text,
+        'hide_recorder_text' => $hide_recorder_text,
     ]);
 }
 

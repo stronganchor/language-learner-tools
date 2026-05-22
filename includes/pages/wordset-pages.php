@@ -5786,6 +5786,10 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
     $sign_language_mode = isset($_POST['ll_wordset_sign_language_mode']) ? 1 : 0;
     $autoplay_text_audio_answer_options = isset($_POST['ll_wordset_autoplay_text_audio_answer_options']) ? 1 : 0;
     $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
+    $recorder_text_visibility_submitted = array_key_exists('ll_wordset_recorder_text_visibility', $_POST);
+    $recorder_text_visibility = $recorder_text_visibility_submitted
+        ? ll_tools_normalize_wordset_recorder_text_visibility(wp_unslash((string) $_POST['ll_wordset_recorder_text_visibility']))
+        : 'inherit';
     $submitted_tool = ll_tools_get_wordset_settings_tool();
 
     $base_redirect = ll_tools_get_wordset_settings_tool_url(
@@ -5918,6 +5922,13 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, $sign_language_mode);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
         update_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
+        if ($recorder_text_visibility_submitted) {
+            if ($recorder_text_visibility === 'inherit') {
+                delete_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY);
+            } else {
+                update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, $recorder_text_visibility);
+            }
+        }
     } elseif ($submitted_tool === 'categories') {
         $categories_result = ll_tools_wordset_page_save_categories_settings($wordset_id);
         if (is_wp_error($categories_result)) {
@@ -14168,6 +14179,10 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
     $sign_language_mode = !empty($args['sign_language_mode']);
     $autoplay_text_audio_answer_options = !empty($args['autoplay_text_audio_answer_options']);
     $hide_lesson_text_for_non_text_quiz = !empty($args['hide_lesson_text_for_non_text_quiz']);
+    $recorder_text_visibility = isset($args['recorder_text_visibility'])
+        ? ll_tools_normalize_wordset_recorder_text_visibility((string) $args['recorder_text_visibility'])
+        : 'inherit';
+    $hide_recorder_text_effective = !empty($args['hide_recorder_text_effective']);
     $study_settings_action_url = ($can_manage_wordset_content && $wordset_term instanceof WP_Term && $wordset_id > 0)
         ? ll_tools_get_wordset_settings_tool_url($wordset_term, 'study', $back_url)
         : '';
@@ -14294,6 +14309,29 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
                     </label>
                     <p class="description" style="margin-top:8px;">
                         <?php echo esc_html__('Categories can override this in their quiz settings.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Recorder text', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-recorder-text-visibility">
+                        <span class="screen-reader-text"><?php echo esc_html__('Recorder text visibility', 'll-tools-text-domain'); ?></span>
+                        <select
+                            id="ll-wordset-settings-recorder-text-visibility"
+                            name="ll_wordset_recorder_text_visibility">
+                            <option value="inherit" <?php selected($recorder_text_visibility, 'inherit'); ?>><?php echo esc_html__('Follow lesson/grid text setting', 'll-tools-text-domain'); ?></option>
+                            <option value="show" <?php selected($recorder_text_visibility, 'show'); ?>><?php echo esc_html__('Show word text in recorder', 'll-tools-text-domain'); ?></option>
+                            <option value="hide" <?php selected($recorder_text_visibility, 'hide'); ?>><?php echo esc_html__('Hide word text in recorder', 'll-tools-text-domain'); ?></option>
+                        </select>
+                    </label>
+                    <p class="description" style="margin-top:8px;">
+                        <?php
+                        echo esc_html(sprintf(
+                            /* translators: %s: effective recorder text state. */
+                            __('Current effective recorder state: %s.', 'll-tools-text-domain'),
+                            $hide_recorder_text_effective ? __('hidden', 'll-tools-text-domain') : __('shown', 'll-tools-text-domain')
+                        ));
+                        ?>
                     </p>
                 </div>
 
@@ -14520,6 +14558,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ? ll_tools_wordset_uses_sign_language_mode([$wordset_id])
         : false;
     $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
+    $recorder_text_visibility = function_exists('ll_tools_get_wordset_recorder_text_visibility')
+        ? ll_tools_get_wordset_recorder_text_visibility($wordset_id)
+        : 'inherit';
+    $hide_recorder_text_effective = function_exists('ll_tools_wordset_should_hide_recorder_text')
+        ? ll_tools_wordset_should_hide_recorder_text([$wordset_id])
+        : (bool) get_option('ll_hide_recording_titles', 0);
     $wordset_is_private = ($wordset_visibility === 'private');
     $plugin_update_status = function_exists('ll_tools_get_plugin_update_status_details')
         ? ll_tools_get_plugin_update_status_details()
@@ -16304,6 +16348,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'sign_language_mode' => $sign_language_mode,
                     'autoplay_text_audio_answer_options' => $autoplay_text_audio_answer_options,
                     'hide_lesson_text_for_non_text_quiz' => $hide_lesson_text_for_non_text_quiz,
+                    'recorder_text_visibility' => $recorder_text_visibility,
+                    'hide_recorder_text_effective' => $hide_recorder_text_effective,
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 ?>
             <?php elseif ($settings_tool === 'language' && $can_manage_wordset_content) : ?>

@@ -63,6 +63,7 @@ final class WordsetTemplateCreationActionTest extends LL_Tools_TestCase
         $this->assertSame((string) $adminId, (string) get_term_meta($targetWordsetId, 'manager_user_id', true));
         $this->assertSame('private', (string) get_term_meta($targetWordsetId, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, true));
         $this->assertSame('1', (string) get_term_meta($targetWordsetId, 'll_wordset_hide_lesson_text_for_non_text_quiz', true));
+        $this->assertSame('hide', (string) get_term_meta($targetWordsetId, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, true));
         $this->assertSame('', (string) get_term_meta($targetWordsetId, 'll_language', true));
 
         $sourceCategoryAId = (int) $fixture['category_a_id'];
@@ -166,6 +167,7 @@ final class WordsetTemplateCreationActionTest extends LL_Tools_TestCase
         update_term_meta($wordsetId, 'll_language', 'Spanish');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
         update_term_meta($wordsetId, 'll_wordset_hide_lesson_text_for_non_text_quiz', '1');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, 'hide');
         update_term_meta($wordsetId, 'll_wordset_category_ordering_mode', 'manual');
 
         $categoryAId = (int) ll_tools_create_or_get_wordset_category('Template Category A ' . wp_generate_password(4, false), $wordsetId);

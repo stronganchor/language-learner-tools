@@ -161,6 +161,36 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         }, $prioritized));
     }
 
+    public function test_wordset_recorder_text_visibility_defaults_to_lesson_setting_and_allows_override(): void
+    {
+        $original_hide_recording_titles = get_option('ll_hide_recording_titles', null);
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Text Visibility', 'recorder-text-visibility');
+
+        try {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY);
+            update_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', '1');
+
+            $this->assertSame('inherit', ll_tools_get_wordset_recorder_text_visibility($wordset_id));
+            $this->assertTrue(ll_tools_wordset_should_hide_recorder_text([$wordset_id]));
+
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, 'show');
+            $this->assertFalse(ll_tools_wordset_should_hide_recorder_text([$wordset_id]));
+
+            update_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', '0');
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, 'hide');
+            $this->assertTrue(ll_tools_wordset_should_hide_recorder_text([$wordset_id]));
+
+            update_option('ll_hide_recording_titles', 1);
+            $this->assertTrue(ll_tools_wordset_should_hide_recorder_text([]));
+        } finally {
+            if ($original_hide_recording_titles === null) {
+                delete_option('ll_hide_recording_titles');
+            } else {
+                update_option('ll_hide_recording_titles', $original_hide_recording_titles);
+            }
+        }
+    }
+
     public function test_get_word_for_image_in_wordset_respects_requested_wordset(): void
     {
         $wordset_one = $this->ensure_term('wordset', 'Recorder Helper WS One', 'rec-helper-ws-one');

@@ -291,7 +291,7 @@ vendor/
   - Desired recording types: `ll_desired_recording_types` (list of slugs; sentinel `__none__` disables recording for the category).
   - Helpers: `ll_tools_get_category_display_name()`, `ll_tools_get_category_quiz_config()`, `ll_can_category_generate_quiz()`.
 - `wordset` (flat; attached to `words`)
-  - Meta: `ll_language`, `manager_user_ids` (canonical multi-manager list), legacy `manager_user_id` primary mirror.
+  - Meta: `ll_language`, `ll_wordset_recorder_text_visibility`, `manager_user_ids` (canonical multi-manager list), legacy `manager_user_id` primary mirror.
   - Capabilities: `edit_wordsets` etc; non-admins see only managed wordsets.
   - Active wordset resolution: `ll_tools_get_active_wordset_id()`; default seeded on activation.
 - `language` (attached to `words`, populated from `data/iso-languages` on first run).
@@ -336,7 +336,7 @@ Core settings live in `includes/admin/settings.php`:
 - `ll_word_title_language_role` (target vs translation).
 - `ll_max_options_override` (max multiple-choice options).
 - `ll_flashcard_image_size` (small/medium/large).
-- `ll_hide_recording_titles` (recording UI).
+- `ll_hide_recording_titles` (fallback recording UI default when no wordset-specific recorder text setting applies).
 - `ll_quiz_font` and `ll_quiz_font_url` (font selection; fonts must already be enqueued by theme/plugin).
 - `ll_update_branch` (`main` stable release asset channel, `dev` branch-testing channel).
 - `ll_user_progress_events_retention_days` (retention for detailed learner activity events; summary progress stays until erasure/deletion).

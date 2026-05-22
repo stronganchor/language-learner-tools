@@ -177,6 +177,7 @@ function ll_tools_get_wordset_template_setting_meta_keys(): array {
         'll_wordset_category_manual_order',
         'll_wordset_category_prerequisites',
         'll_wordset_hide_lesson_text_for_non_text_quiz',
+        'll_wordset_recorder_text_visibility',
     ];
 
     $constant_names = [

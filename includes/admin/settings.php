@@ -379,7 +379,7 @@ function ll_render_settings_page() {
                     <th scope="row"><?php esc_html_e('Hide Word Titles in Recording Interface:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <input type="checkbox" name="ll_hide_recording_titles" id="ll_hide_recording_titles" value="1" <?php checked(1, get_option('ll_hide_recording_titles', 0), true); ?> />
-                        <p class="description"><?php esc_html_e('Check this box to hide word titles from audio recorders by default. This helps prevent pronunciation bias from reading the word.', 'll-tools-text-domain'); ?></p>
+                        <p class="description"><?php esc_html_e('Fallback for recorder pages without a wordset-specific text visibility setting. Wordset managers can override this in wordset study settings.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">

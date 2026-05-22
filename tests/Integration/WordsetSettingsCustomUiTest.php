@@ -737,6 +737,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_view' => 'settings',
             'll_wordset_tool' => 'study',
             'll_wordset_hide_lesson_text_for_non_text_quiz' => '1',
+            'll_wordset_recorder_text_visibility' => 'hide',
         ];
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
@@ -750,6 +751,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $query = $this->parseRedirectQuery($redirect_url);
         $this->assertSame('study', (string) ($query['ll_wordset_tool'] ?? ''));
         $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true));
+        $this->assertSame('hide', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, true));
         $this->assertSame(8, (int) get_option('ll_tools_wordset_cache_epoch', 0));
     }
 

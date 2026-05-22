@@ -3191,6 +3191,14 @@
         return protectMaqafNoBreak(displayTitle);
     }
 
+    function shouldHideRecorderTextForItem(img) {
+        const hideSetting = !!(window.ll_recorder_data?.hide_recorder_text || window.ll_recorder_data?.hide_name);
+        if (!hideSetting) return false;
+
+        // Text-only queue items have no image to record from, so keep their prompt visible.
+        return !(img && img.is_text_only);
+    }
+
     function getSelectedNewWordCategoryData() {
         const el = window.llRecorder;
         const fallbackName = i18n.uncategorized || 'Uncategorized';
@@ -3249,7 +3257,9 @@
         if (!el || !img || !el.title) return;
 
         const displayTitle = getDisplayTitleForImage(img);
-        el.title.textContent = displayTitle;
+        const hideText = shouldHideRecorderTextForItem(img);
+        el.title.textContent = hideText ? '' : displayTitle;
+        el.title.style.display = hideText ? 'none' : '';
         if (img.is_text_only && el.textDisplay) {
             el.textDisplay.textContent = displayTitle;
             requestAnimationFrame(() => fitTextToContainer(el.textDisplay));
@@ -3414,12 +3424,13 @@
         }
 
         const displayTitle = getDisplayTitleForImage(img);
+        const hideText = shouldHideRecorderTextForItem(img);
         if (el.title) {
-            el.title.textContent = displayTitle;
-            el.title.style.display = window.ll_recorder_data?.hide_name ? 'none' : '';
+            el.title.textContent = hideText ? '' : displayTitle;
+            el.title.style.display = hideText ? 'none' : '';
         }
         if (el.image) {
-            el.image.alt = displayTitle;
+            el.image.alt = hideText ? '' : displayTitle;
         }
         if (img.is_text_only && el.textDisplay) {
             el.textDisplay.textContent = displayTitle;
@@ -4327,11 +4338,17 @@
         div.className = 'll-review-file';
 
         const img = getCurrentReviewItem();
-        const displayTitle = getDisplayTitleForImage(img) || window.llRecorder?.title?.textContent || img.title || '';
+        const hideText = shouldHideRecorderTextForItem(img);
+        const displayTitle = hideText
+            ? ''
+            : (getDisplayTitleForImage(img) || window.llRecorder?.title?.textContent || img.title || '');
         const imageUrl = img.image_url || '';
         const categoryLabel = img.category_name || i18n.uncategorized || 'Uncategorized';
         const imageHtml = (!img.is_text_only && imageUrl)
             ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(displayTitle)}" class="ll-review-thumbnail">`
+            : '';
+        const titleHtml = displayTitle
+            ? `<h3 class="ll-review-title">${escapeHtml(displayTitle)}</h3>`
             : '';
         const categoryHtml = `<span class="ll-review-category"><strong>${escapeHtml(i18n.category || 'Category:')}</strong> ${escapeHtml(categoryLabel)}</span>`;
         const playLabel = escapeHtml(i18n.play || 'Play');
@@ -4340,7 +4357,7 @@
                 <div class="ll-review-title-section">
                     ${imageHtml}
                     <div class="ll-review-title-info">
-                        <h3 class="ll-review-title">${escapeHtml(displayTitle)}</h3>
+                        ${titleHtml}
                         <div class="ll-review-metadata">
                             ${categoryHtml}
                         </div>
@@ -4962,6 +4979,14 @@
             const data = await response.json();
 
             if (data.success) {
+                if (typeof data.data?.hide_recorder_text === 'boolean') {
+                    window.ll_recorder_data.hide_recorder_text = data.data.hide_recorder_text;
+                    window.ll_recorder_data.hide_name = data.data.hide_recorder_text;
+                } else if (typeof data.data?.hide_name === 'boolean') {
+                    window.ll_recorder_data.hide_recorder_text = data.data.hide_name;
+                    window.ll_recorder_data.hide_name = data.data.hide_name;
+                }
+
                 const newImages = Array.isArray(data.data?.images) ? data.data.images : [];
                 newImages.forEach(normalizeImageRecordingTypeState);
                 if (newImages.length === 0) {

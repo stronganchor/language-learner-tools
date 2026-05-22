@@ -10,6 +10,9 @@ if (!defined('LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY')) {
     define('LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY', 'll_wordset_sign_language_mode');
 }
+if (!defined('LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY')) {
+    define('LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY', 'll_wordset_recorder_text_visibility');
+}
 if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY')) {
     define('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY', 'll_wordset_answer_option_text_font_family');
 }
@@ -112,6 +115,56 @@ function ll_tools_wordset_uses_sign_language_mode($wordset_ids = []): bool {
     }
 
     return false;
+}
+
+function ll_tools_normalize_wordset_recorder_text_visibility($value): string {
+    $visibility = strtolower(trim((string) $value));
+    if (in_array($visibility, ['hide', 'hidden', '1', 'yes', 'true', 'on'], true)) {
+        return 'hide';
+    }
+    if (in_array($visibility, ['show', 'visible', '0', 'no', 'false', 'off'], true)) {
+        return 'show';
+    }
+    return 'inherit';
+}
+
+function ll_tools_get_wordset_recorder_text_visibility(int $wordset_id): string {
+    if ($wordset_id <= 0 || !metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY)) {
+        return 'inherit';
+    }
+
+    return ll_tools_normalize_wordset_recorder_text_visibility(
+        get_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, true)
+    );
+}
+
+function ll_tools_wordset_should_hide_recorder_text($wordset_ids = []): bool {
+    $ids = function_exists('ll_tools_normalize_wordset_setting_ids')
+        ? ll_tools_normalize_wordset_setting_ids($wordset_ids)
+        : array_values(array_filter(array_map('intval', (array) $wordset_ids), static function ($id): bool {
+            return $id > 0;
+        }));
+
+    if (count($ids) !== 1) {
+        return (bool) get_option('ll_hide_recording_titles', 0);
+    }
+
+    $wordset_id = (int) ($ids[0] ?? 0);
+    if ($wordset_id <= 0) {
+        return (bool) get_option('ll_hide_recording_titles', 0);
+    }
+
+    $visibility = ll_tools_get_wordset_recorder_text_visibility($wordset_id);
+    if ($visibility === 'hide') {
+        return true;
+    }
+    if ($visibility === 'show') {
+        return false;
+    }
+
+    return function_exists('ll_tools_wordset_hide_lesson_text_for_non_text_quiz')
+        ? ll_tools_wordset_hide_lesson_text_for_non_text_quiz($wordset_id)
+        : (bool) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
 }
 
 function ll_tools_normalize_wordset_games_image_size($value): string {
@@ -2871,6 +2924,7 @@ function ll_add_wordset_language_field($term) {
     $sign_language_mode = false;
     $autoplay_text_audio_answer_options = false;
     $hide_lesson_text_for_non_text_quiz = false;
+    $recorder_text_visibility = 'inherit';
     $games_image_size = 'default';
     $has_gender = false;
     $has_plurality = false;
@@ -2921,6 +2975,9 @@ function ll_add_wordset_language_field($term) {
             ? ll_tools_should_autoplay_text_audio_answer_options([$term_id])
             : false;
         $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
+        $recorder_text_visibility = function_exists('ll_tools_get_wordset_recorder_text_visibility')
+            ? ll_tools_get_wordset_recorder_text_visibility((int) $term_id)
+            : 'inherit';
         $games_image_size = function_exists('ll_tools_get_wordset_games_image_size')
             ? ll_tools_get_wordset_games_image_size($term_id)
             : 'default';
@@ -3069,6 +3126,19 @@ function ll_add_wordset_language_field($term) {
         '<label><input type="checkbox" id="ll-wordset-hide-lesson-text" name="ll_wordset_hide_lesson_text_for_non_text_quiz" value="1" ' . checked($hide_lesson_text_for_non_text_quiz, true, false) . ' /> ' . esc_html__('Hide word text on lesson pages/word grids when the category quiz shows only images/audio.', 'll-tools-text-domain') . '</label>',
         'll-wordset-hide-lesson-text',
         __('Categories can override this in their quiz settings.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-recorder-text-visibility-wrap',
+        __('Recorder text visibility', 'll-tools-text-domain'),
+        '<select id="ll-wordset-recorder-text-visibility" name="ll_wordset_recorder_text_visibility">'
+            . '<option value="inherit" ' . selected($recorder_text_visibility, 'inherit', false) . '>' . esc_html__('Follow lesson/grid text setting', 'll-tools-text-domain') . '</option>'
+            . '<option value="show" ' . selected($recorder_text_visibility, 'show', false) . '>' . esc_html__('Show word text in recorder', 'll-tools-text-domain') . '</option>'
+            . '<option value="hide" ' . selected($recorder_text_visibility, 'hide', false) . '>' . esc_html__('Hide word text in recorder', 'll-tools-text-domain') . '</option>'
+            . '</select>',
+        'll-wordset-recorder-text-visibility',
+        __('Use Hide for image-based recording queues where recorders should rely on the picture instead of reading the word.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -3372,6 +3442,7 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_sign_language_mode'])
         || isset($_POST['ll_wordset_autoplay_text_audio_answer_options'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
+        || isset($_POST['ll_wordset_recorder_text_visibility'])
         || isset($_POST['ll_wordset_games_image_size'])
         || isset($_POST['ll_wordset_answer_option_text_font_family'])
         || isset($_POST['ll_wordset_answer_option_text_font_weight'])
@@ -3466,6 +3537,17 @@ function ll_save_wordset_language($term_id) {
 
         $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
+
+        if (array_key_exists('ll_wordset_recorder_text_visibility', $_POST)) {
+            $recorder_text_visibility = ll_tools_normalize_wordset_recorder_text_visibility(
+                wp_unslash((string) $_POST['ll_wordset_recorder_text_visibility'])
+            );
+            if ($recorder_text_visibility === 'inherit') {
+                delete_term_meta($term_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY);
+            } else {
+                update_term_meta($term_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, $recorder_text_visibility);
+            }
+        }
 
         $sign_language_mode = isset($_POST['ll_wordset_sign_language_mode']) ? 1 : 0;
         update_term_meta($term_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, $sign_language_mode);

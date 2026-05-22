@@ -1160,7 +1160,7 @@ function ll_site_tools_shortcode($atts): string {
 
                         <label class="ll-site-tools-checkbox">
                             <input type="checkbox" name="ll_hide_recording_titles" value="1" <?php checked(1, $hide_recording_titles, true); ?> />
-                            <span><?php echo esc_html__('Hide word titles for recorders by default', 'll-tools-text-domain'); ?></span>
+                            <span><?php echo esc_html__('Hide word titles by default when no wordset recorder-text setting applies', 'll-tools-text-domain'); ?></span>
                         </label>
 
                         <div class="ll-site-tools-field-grid">

@@ -6,6 +6,7 @@ const recorderJsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/audio-recorder.js'),
   'utf8'
 );
+const onePixelPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
 
 function buildRecorderMarkup() {
   return `
@@ -66,8 +67,8 @@ function buildRecorderMarkup() {
   `;
 }
 
-function buildQueueItem(categorySlug, categoryName, title) {
-  return {
+function buildQueueItem(categorySlug, categoryName, title, overrides = {}) {
+  return Object.assign({
     id: 0,
     title,
     image_url: '',
@@ -82,10 +83,10 @@ function buildQueueItem(categorySlug, categoryName, title) {
     prompt_types: ['isolation'],
     my_existing_types: [],
     is_text_only: true
-  };
+  }, overrides);
 }
 
-async function mountRecorder(page) {
+async function mountRecorder(page, options = {}) {
   await page.goto('about:blank');
   await page.setContent(buildRecorderMarkup());
 
@@ -171,7 +172,8 @@ async function mountRecorder(page) {
     }
   });
 
-  await page.evaluate((initialImage) => {
+  const initialImage = options.initialImage || buildQueueItem('baby-animals', 'Baby animals', 'calf');
+  await page.evaluate(({ initialImage, hideRecorderText }) => {
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
@@ -184,7 +186,8 @@ async function mountRecorder(page) {
       wordset: '',
       wordset_ids: [11],
       sort_locale: 'tr_TR',
-      hide_name: false,
+      hide_name: !!hideRecorderText,
+      hide_recorder_text: !!hideRecorderText,
       recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
       recording_type_order: ['isolation'],
       recording_type_icons: { default: '' },
@@ -210,7 +213,10 @@ async function mountRecorder(page) {
         invalid_response: 'Server returned invalid response format'
       }
     };
-  }, buildQueueItem('baby-animals', 'Baby animals', 'calf'));
+  }, {
+    initialImage,
+    hideRecorderText: !!options.hideRecorderText
+  });
 
   await page.addScriptTag({ content: recorderJsSource });
   await page.evaluate(() => {
@@ -230,4 +236,28 @@ test('manual category switch stays on an empty Turkish category instead of advan
   await expect(page.locator('#ll-upload-status')).toContainText('No images need audio in this category.');
 
   await expect.poll(async () => page.evaluate(() => window.__requestedCategories.join('|'))).toBe('ağaç-çeşitleri');
+});
+
+test('recorder text setting hides image-backed word text but keeps text-only prompts usable', async ({ page }) => {
+  await mountRecorder(page, {
+    hideRecorderText: true,
+    initialImage: buildQueueItem('baby-animals', 'Baby animals', 'calf', {
+      id: 44,
+      image_url: onePixelPngDataUrl,
+      is_text_only: false
+    })
+  });
+
+  await expect(page.locator('#ll-image-title')).toBeHidden();
+  await expect(page.locator('#ll-image-title')).toHaveText('');
+  await expect(page.locator('#ll-current-image')).toHaveAttribute('alt', '');
+
+  await mountRecorder(page, {
+    hideRecorderText: true,
+    initialImage: buildQueueItem('text-only', 'Text only', 'fallback word')
+  });
+
+  await expect(page.locator('#ll-image-title')).toBeVisible();
+  await expect(page.locator('#ll-image-title')).toHaveText('fallback word');
+  await expect(page.locator('.ll-text-display')).toHaveText('fallback word');
 });
