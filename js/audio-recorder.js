@@ -3044,8 +3044,15 @@
         });
     }
 
+    function getRemainingTypesAfterSuccessfulUpload(recordingType, remaining) {
+        const recordedSlug = getRecordingTypeSlug(recordingType);
+        return sortRecordingTypes(Array.isArray(remaining) ? remaining : [])
+            .filter(slug => getRecordingTypeSlug(slug) !== recordedSlug);
+    }
+
     function handleSuccessfulUpload(recordingType, remaining, autoProcessed) {
         const el = window.llRecorder;
+        const remainingTypes = getRemainingTypesAfterSuccessfulUpload(recordingType, remaining);
         normalizeImageRecordingTypeState(images[currentImageIndex]);
         if (!Array.isArray(images[currentImageIndex].existing_types)) {
             images[currentImageIndex].existing_types = [];
@@ -3068,9 +3075,9 @@
             images[currentImageIndex].prompt_types.push(recordingType);
             images[currentImageIndex].prompt_types = sortRecordingTypes(images[currentImageIndex].prompt_types);
         }
-        images[currentImageIndex].missing_types = sortRecordingTypes(remaining.slice());
+        images[currentImageIndex].missing_types = remainingTypes;
 
-        if (requireAll && remaining.length > 0) {
+        if (requireAll && remainingTypes.length > 0) {
             if (isNewWordPanelActive()) {
                 newWordUsingPanel = false;
                 if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');

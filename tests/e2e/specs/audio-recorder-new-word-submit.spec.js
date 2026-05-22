@@ -182,16 +182,22 @@ function buildRecorderMarkup() {
   `;
 }
 
-async function mountRecorder(page) {
+async function mountRecorder(page, options = {}) {
   await page.goto('about:blank');
   await page.setContent(buildRecorderMarkup());
 
-  await page.evaluate(() => {
+  await page.evaluate((mountOptions) => {
+    const initialImages = Array.isArray(mountOptions.images) ? mountOptions.images : [];
+    const uploadRemainingTypes = Array.isArray(mountOptions.uploadRemainingTypes)
+      ? mountOptions.uploadRemainingTypes
+      : null;
+
     window.__llTestState = {
       prepareRequests: 0,
       updateTextRequests: 0,
       transcribeRequests: 0,
-      uploadRequests: 0
+      uploadRequests: 0,
+      uploadRemainingTypes
     };
 
     const makeJsonResponse = (payload) => ({
@@ -378,7 +384,9 @@ async function mountRecorder(page) {
 
         window.__llTestState.uploadRequests += 1;
         const recordingType = String(formData.get('recording_type') || 'isolation');
-        const remainingTypes = recordingType === 'isolation' ? ['introduction'] : [];
+        const remainingTypes = Array.isArray(window.__llTestState.uploadRemainingTypes)
+          ? window.__llTestState.uploadRemainingTypes.slice()
+          : (recordingType === 'isolation' ? ['introduction'] : []);
 
         setTimeout(() => {
           this.upload.dispatch('progress', new ProgressEvent('progress', {
@@ -501,7 +509,7 @@ async function mountRecorder(page) {
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
-      images: [],
+      images: initialImages,
       available_categories: {
         uncategorized: 'Uncategorized'
       },
@@ -542,13 +550,51 @@ async function mountRecorder(page) {
         new_word_update_text_failed: 'Failed to update word text'
       }
     };
-  });
+  }, options);
 
   await page.addScriptTag({ content: recorderJsSource });
   await page.evaluate(() => {
     document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
   });
 }
+
+test('successful word upload advances past a stale returned recording type', async ({ page }) => {
+  await mountRecorder(page, {
+    images: [{
+      id: 101,
+      title: 'Existing word',
+      image_url: '',
+      category_name: 'Debug Category',
+      category_slug: 'debug-category',
+      word_id: 501,
+      word_title: 'Existing word',
+      word_translation: 'Existing translation',
+      use_word_display: true,
+      missing_types: ['isolation', 'introduction'],
+      existing_types: [],
+      prompt_types: ['isolation', 'introduction'],
+      my_existing_types: [],
+      is_text_only: true
+    }],
+    uploadRemainingTypes: ['isolation', 'introduction']
+  });
+
+  await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
+
+  const recordButton = page.locator('#ll-record-btn');
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/recording/);
+
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/stopping/);
+  await expect(page.locator('#ll-submit-btn')).toBeVisible();
+
+  await page.locator('#ll-submit-btn').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  await expect(page.locator('#ll-recording-type')).toHaveValue('introduction');
+  await expect(page.locator('#ll-upload-status')).toContainText('Saved. Next type selected.');
+});
 
 test('pending new-word transcription does not block save and advances to the intro type', async ({ page }) => {
   await mountRecorder(page);
