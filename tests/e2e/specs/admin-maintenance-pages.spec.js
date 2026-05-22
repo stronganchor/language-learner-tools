@@ -38,3 +38,31 @@ test('orphaned media admin page exposes review filters and scan controls', async
     timeout: 60000
   });
 });
+
+test('audio processor admin page exposes queue tabs or an empty queue notice', async ({ page }) => {
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for admin E2E tests.');
+
+  await ensureLoggedIntoAdmin(page, '/wp-admin/tools.php?page=ll-audio-processor');
+
+  const root = page.locator('.ll-audio-processor-wrap');
+  await expect(root).toBeVisible({ timeout: 60000 });
+  await expect(root.getByRole('heading', { name: /Audio Processor/i })).toBeVisible();
+  await expect(root.locator('.ll-audio-processor-tabs, .notice.notice-info').first()).toBeVisible({
+    timeout: 60000
+  });
+});
+
+test('audio image matcher admin page exposes wordset and category queue controls', async ({ page }) => {
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for admin E2E tests.');
+
+  await ensureLoggedIntoAdmin(page, '/wp-admin/tools.php?page=ll-audio-image-matcher');
+
+  const controls = page.locator('#ll-aim-controls');
+  await expect(controls).toBeVisible({ timeout: 60000 });
+  await expect(controls.locator('#ll-aim-wordset')).toBeVisible();
+  await expect(controls.locator('#ll-aim-category')).toBeVisible();
+  await expect(controls.locator('#ll-aim-rematch')).toBeVisible();
+  await expect(controls.locator('#ll-aim-hide-used')).toBeVisible();
+  await expect(controls.locator('#ll-aim-start')).toBeVisible();
+  await expect(page.locator('#ll-aim-stage')).toBeAttached();
+});
