@@ -556,8 +556,8 @@
     color: var(--ll-cl-muted);
     font-size: 12px;
     font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 .ll-text-reader__translation-head {
@@ -1214,15 +1214,7 @@ video.ll-content-lesson-media {
     }
 
     .ll-text-reader__head {
-        display: block;
-    }
-
-    .ll-text-reader__head span:first-child {
         display: none;
-    }
-
-    .ll-text-reader__translation-head {
-        border-right: 0;
     }
 
     .ll-text-reader__row,

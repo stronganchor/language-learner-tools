@@ -780,6 +780,17 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Working editorial note.', $reader_html);
         $this->assertStringNotContainsString('Russian scan', $reader_html);
 
+        $_GET['ll_locale'] = 'tr_TR';
+        $_REQUEST['ll_locale'] = 'tr_TR';
+        try {
+            $turkish_reader_html = ll_tools_render_interlinear_block($content_lesson_id);
+        } finally {
+            unset($_GET['ll_locale'], $_REQUEST['ll_locale']);
+        }
+        $this->assertStringContainsString('<span class="ll-text-reader__translation-head">Türkçe</span>', $turkish_reader_html);
+        $this->assertStringNotContainsString('<span class="ll-text-reader__translation-head">Turkish</span>', $turkish_reader_html);
+        $this->assertStringContainsString('Merhaba, Dersim.', $turkish_reader_html);
+
         $_GET['ll_text_view'] = 'sources';
         try {
             $sources_html = ll_tools_render_interlinear_block($content_lesson_id);
