@@ -1,4 +1,6 @@
 <?php
+if (!defined('WPINC')) { die; }
+
 /**
  * LL Tools Editor role + enhancements to existing wordset_manager.
  * Places this file in user-roles/ and ensure it's included by the main plugin bootstrap

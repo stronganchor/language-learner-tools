@@ -1,4 +1,5 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 function ll_tools_word_grid_audio_url_from_path(string $audio_path): string {
     $audio_path = trim($audio_path);

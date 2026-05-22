@@ -1,4 +1,7 @@
-<?php // File: includes/post-types/words-post-type.php
+<?php
+if (!defined('WPINC')) { die; }
+
+// File: includes/post-types/words-post-type.php
 /** 
  * Register the "words" custom post type and the "word-category" custom taxonomy.
  * 

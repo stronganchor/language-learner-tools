@@ -1,4 +1,5 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 /***************************
  * [word_audio] Shortcode

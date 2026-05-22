@@ -1,4 +1,5 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 /**
  * Creates the "Word Set Manager" user role with specific capabilities.

@@ -1,4 +1,5 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 /**
  * Registers the "language" taxonomy for the "words" custom post type.

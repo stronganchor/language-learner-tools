@@ -1,4 +1,6 @@
 <?php
+if (!defined('WPINC')) { die; }
+
 // Create the "Missing Audio" admin page
 function ll_create_missing_audio_admin_page() {
     add_submenu_page(

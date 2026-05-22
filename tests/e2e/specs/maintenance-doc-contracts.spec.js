@@ -160,6 +160,23 @@ test('high-confidence user-facing strings are translation-ready', async () => {
   expect(formatted, `Hardcoded UI strings need WordPress i18n wrappers:\n${formatted.join('\n')}`).toEqual([]);
 });
 
+test('PHP include and template files block direct web access', async () => {
+  const phpFiles = pluginSourceFiles().filter((file) => file.endsWith('.php'));
+  const missingGuards = phpFiles
+    .filter((file) => file !== path.join(repoRoot, 'language-learner-tools.php'))
+    .filter((file) => {
+      const sourcePrefix = fs.readFileSync(file, 'utf8').slice(0, 500);
+      return !/defined\s*\(\s*['"](WPINC|ABSPATH)['"]/.test(sourcePrefix);
+    })
+    .map((file) => path.relative(repoRoot, file).replace(/\\/g, '/'))
+    .sort();
+
+  expect(
+    missingGuards,
+    `PHP include/template files need direct-access guards:\n${missingGuards.join('\n')}`
+  ).toEqual([]);
+});
+
 test('live smoke default admin-ajax allowlist is documented', async () => {
   const readme = fs.readFileSync(path.join(repoRoot, 'tests', 'README.md'), 'utf8');
   const liveSmokeSpec = fs.readFileSync(

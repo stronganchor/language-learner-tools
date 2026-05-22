@@ -1,4 +1,6 @@
 <?php
+if (!defined('WPINC')) { die; }
+
 // templates/quiz-page-template.php
 // Expected vars: $vh, $src, $display_name, $slug
 ?>

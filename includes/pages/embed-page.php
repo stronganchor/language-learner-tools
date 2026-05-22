@@ -1,4 +1,6 @@
 <?php
+if (!defined('WPINC')) { die; }
+
 /*
  * Embed Flashcard Page Template
  * Renders a minimal, embeddable flashcard quiz for a specific word category.

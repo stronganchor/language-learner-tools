@@ -1,4 +1,5 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 // Register the "word_images" custom post type
 function ll_tools_register_word_images_post_type() {

@@ -1,4 +1,6 @@
 <?php
+if (!defined('WPINC')) { die; }
+
 // Vars: $embed (bool), $category_label_text (string), $quiz_font (string), $mode_ui (array)
 $mode_ui = (isset($mode_ui) && is_array($mode_ui)) ? $mode_ui : [];
 $practice_mode_ui = $mode_ui['practice'] ?? [];

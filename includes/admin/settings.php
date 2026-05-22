@@ -1,4 +1,6 @@
 <?php
+if (!defined('WPINC')) { die; }
+
 /**
  * Settings Page for Language Learner Tools
  *

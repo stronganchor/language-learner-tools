@@ -1,4 +1,6 @@
 <?php
+if (!defined('WPINC')) { die; }
+
 /************************************************************************************
  * [image_upload_form] Shortcode - Bulk upload image files & generate new word image posts
  ***********************************************************************************/

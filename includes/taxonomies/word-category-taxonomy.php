@@ -1,4 +1,5 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY')) {
     define('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY', 'll_category_visibility');
