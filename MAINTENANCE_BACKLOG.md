@@ -87,6 +87,18 @@ decisions, and documentation upkeep.
      and `wordset-page-speed-large-wordset.spec.js` before changing the search
      data contract.
 
+4. Continue the tier-2 public UI translation rollout deliberately.
+   - Run a QA pass over `languages/tier2-public-ui-strings.json` to reduce the
+     public string set by removing unnecessary copy, replacing text with icons
+     where appropriate, and reusing existing strings where the context allows.
+   - Audit whether a tier-2 learner locale can be used on public surfaces while
+     elevated manager/admin UI falls back to a core full locale such as English.
+   - Add Russian (`ru_RU`) as the first tier-2 public UI PO file, then run the
+     manifest coverage checker and targeted browser smoke checks against public
+     pages.
+   - Expand `[ll_language_switcher]` display modes for larger tier-2 language
+     sets, including compact icon/button triggers and a dropdown or modal list.
+
 ## Lower Priority
 
 1. Audio/Image Matcher scalability.
