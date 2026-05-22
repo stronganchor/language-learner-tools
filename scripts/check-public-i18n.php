@@ -247,15 +247,35 @@ function ll_tools_public_i18n_select_public_entries(string $pot_path, array $con
         $all_refs = array_values(array_unique(array_map('strval', (array) ($entry['references'] ?? []))));
         sort($all_refs, SORT_STRING);
 
-        $selected[] = [
-            'key' => ll_tools_public_i18n_entry_key($entry),
+        $key = ll_tools_public_i18n_entry_key($entry);
+        $selected_entry = [
+            'key' => $key,
             'context' => $entry['context'] === null ? '' : (string) $entry['context'],
             'msgid' => $msgid,
             'msgid_plural' => $entry['msgid_plural'] === null ? null : (string) $entry['msgid_plural'],
             'references' => $all_refs,
             'public_references' => $public_refs,
         ];
+
+        if (isset($selected[$key])) {
+            $selected[$key]['references'] = array_values(array_unique(array_merge(
+                (array) ($selected[$key]['references'] ?? []),
+                $selected_entry['references']
+            )));
+            sort($selected[$key]['references'], SORT_STRING);
+
+            $selected[$key]['public_references'] = array_values(array_unique(array_merge(
+                (array) ($selected[$key]['public_references'] ?? []),
+                $selected_entry['public_references']
+            )));
+            sort($selected[$key]['public_references'], SORT_STRING);
+            continue;
+        }
+
+        $selected[$key] = $selected_entry;
     }
+
+    $selected = array_values($selected);
 
     usort($selected, static function (array $left, array $right): int {
         $left_ref = (string) ($left['public_references'][0] ?? '');

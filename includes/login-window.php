@@ -1608,7 +1608,7 @@ if (!function_exists('ll_tools_render_login_window')) {
             'container_class' => '',
             'title' => __('Sign in', 'll-tools-text-domain'),
             'message' => __('Sign in to continue.', 'll-tools-text-domain'),
-            'submit_label' => __('Log in', 'll-tools-text-domain'),
+            'submit_label' => __('Sign in', 'll-tools-text-domain'),
             'screen_mode' => 'auto',
             'redirect_to' => '',
             'show_lost_password' => true,
@@ -1807,7 +1807,7 @@ if (!function_exists('ll_tools_render_login_window')) {
                             aria-expanded="<?php echo $active_mode === 'register' ? 'true' : 'false'; ?>"
                             <?php checked($active_mode === 'register'); ?> />
                         <label class="ll-tools-login-window__toggle-label" for="<?php echo esc_attr($auth_toggle_id); ?>">
-                            <?php esc_html_e('Create a new account', 'll-tools-text-domain'); ?>
+                            <?php esc_html_e('Create account', 'll-tools-text-domain'); ?>
                         </label>
                 <?php endif; ?>
 
@@ -1825,7 +1825,7 @@ if (!function_exists('ll_tools_render_login_window')) {
                             <?php wp_nonce_field('ll_tools_login', 'll_tools_login_nonce'); ?>
 
                             <p>
-                                <label for="<?php echo esc_attr($login_identifier_id); ?>"><?php esc_html_e('Username or Email', 'll-tools-text-domain'); ?></label>
+                                <label for="<?php echo esc_attr($login_identifier_id); ?>"><?php esc_html_e('Username or email', 'll-tools-text-domain'); ?></label>
                                 <input
                                     type="text"
                                     id="<?php echo esc_attr($login_identifier_id); ?>"
@@ -1995,14 +1995,14 @@ if (!function_exists('ll_tools_render_login_window')) {
                     <p class="ll-tools-login-window__assist ll-tools-login-window__assist--muted">
                         <?php esc_html_e('Need an account?', 'll-tools-text-domain'); ?>
                         <a href="<?php echo esc_url($register_screen_url); ?>">
-                            <?php esc_html_e('Sign up', 'll-tools-text-domain'); ?>
+                            <?php esc_html_e('Create account', 'll-tools-text-domain'); ?>
                         </a>
                     </p>
                 <?php elseif (!$use_auth_toggle && $screen_mode === 'register' && $login_screen_url !== ''): ?>
                     <p class="ll-tools-login-window__assist ll-tools-login-window__assist--muted">
                         <?php esc_html_e('Already have an account?', 'll-tools-text-domain'); ?>
                         <a href="<?php echo esc_url($login_screen_url); ?>">
-                            <?php esc_html_e('Log in', 'll-tools-text-domain'); ?>
+                            <?php esc_html_e('Sign in', 'll-tools-text-domain'); ?>
                         </a>
                     </p>
                 <?php endif; ?>

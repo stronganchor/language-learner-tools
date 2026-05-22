@@ -744,10 +744,10 @@
             const message = (actions && actions.message) ? actions.message : (msgs.genderResultsMessage || '');
             const primaryLabel = (actions && actions.primary && actions.primary.label)
                 ? actions.primary.label
-                : (msgs.genderNextActivity || 'Next Gender Activity');
+                : (msgs.genderNextActivity || 'Next');
             const secondaryLabel = (actions && actions.secondary && actions.secondary.label)
                 ? actions.secondary.label
-                : (msgs.genderNextChunk || 'Next Recommended Set');
+                : (msgs.genderNextChunk || 'Next Set');
             const hasSecondary = !!(actions && actions.secondary);
 
             $('#quiz-results-title').text(title);

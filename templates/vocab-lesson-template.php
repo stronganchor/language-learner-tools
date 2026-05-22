@@ -285,12 +285,8 @@ if (have_posts()) {
     }
     $lesson_prereq_input_id = 'll-vocab-lesson-prereq-input-' . $post_id . '-' . $category_id;
     $lesson_prereq_level_display = ($lesson_prereq_editor['current_level'] === null)
-        ? esc_html__('—', 'll-tools-text-domain')
-        : sprintf(
-            /* translators: %d is the prerequisite level number for the current lesson category. */
-            esc_html__('L%d', 'll-tools-text-domain'),
-            (int) $lesson_prereq_editor['current_level']
-        );
+        ? '&mdash;'
+        : esc_html(sprintf('L%d', (int) $lesson_prereq_editor['current_level']));
     $render_mode_icon = function (string $mode, string $fallback) use ($mode_ui): void {
         $cfg = (isset($mode_ui[$mode]) && is_array($mode_ui[$mode])) ? $mode_ui[$mode] : [];
         if (!empty($cfg['svg'])) {
@@ -436,13 +432,13 @@ if (have_posts()) {
         <header class="ll-vocab-lesson-hero">
             <div class="ll-vocab-lesson-top-row">
                 <?php if ($wordset_url !== '') : ?>
-                    <a class="ll-vocab-lesson-back" href="<?php echo esc_url($wordset_url); ?>" aria-label="<?php echo esc_attr($wordset_name !== '' ? sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_name) : __('Back to Word Set', 'll-tools-text-domain')); ?>">
+                    <a class="ll-vocab-lesson-back" href="<?php echo esc_url($wordset_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_name !== '' ? $wordset_name : __('Word set', 'll-tools-text-domain'))); ?>">
                         <span class="ll-vocab-lesson-back__icon" aria-hidden="true">
                             <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                                 <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         </span>
-                        <span class="ll-vocab-lesson-back__label"><?php echo esc_html($wordset_name !== '' ? $wordset_name : __('Word Set', 'll-tools-text-domain')); ?></span>
+                        <span class="ll-vocab-lesson-back__label"><?php echo esc_html($wordset_name !== '' ? $wordset_name : __('Word set', 'll-tools-text-domain')); ?></span>
                     </a>
                 <?php endif; ?>
                 <?php if (is_user_logged_in()) : ?>
@@ -1122,7 +1118,7 @@ if (have_posts()) {
                             class="ll-tools-settings-button ll-vocab-lesson-print-trigger"
                             aria-haspopup="true"
                             aria-expanded="false"
-                            aria-label="<?php echo esc_attr__('Print lesson', 'll-tools-text-domain'); ?>">
+                            aria-label="<?php echo esc_attr__('Print', 'll-tools-text-domain'); ?>">
                             <span class="ll-vocab-lesson-print-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                                     <path d="M7 8V4h10v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1160,7 +1156,7 @@ if (have_posts()) {
                                         <circle cx="17.5" cy="11.5" r="1" fill="currentColor"/>
                                     </svg>
                                 </span>
-                                <span class="ll-vocab-lesson-print-label"><?php echo esc_html__('Open print view', 'll-tools-text-domain'); ?></span>
+                                <span class="ll-vocab-lesson-print-label"><?php echo esc_html__('Print', 'll-tools-text-domain'); ?></span>
                             </button>
                         </form>
                     </div>

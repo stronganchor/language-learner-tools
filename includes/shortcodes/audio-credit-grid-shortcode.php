@@ -317,8 +317,8 @@ function ll_tools_audio_credit_grid_shortcode($atts) {
                 'format' => '',
                 'current' => $paged,
                 'total' => $total_pages,
-                'prev_text' => __('« Prev', 'll-tools-text-domain'),
-                'next_text' => __('Next »', 'll-tools-text-domain'),
+                'prev_text' => '&laquo; ' . __('Previous', 'll-tools-text-domain'),
+                'next_text' => __('Next', 'll-tools-text-domain') . ' &raquo;',
                 'add_args' => false,
             ]);
             echo '</div>';

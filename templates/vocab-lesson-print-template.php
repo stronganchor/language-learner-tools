@@ -18,12 +18,8 @@ if ($items_per_page < 1) {
 }
 $pages = !empty($print_items) ? array_chunk($print_items, $items_per_page) : [];
 $document_title = ($display_name !== '')
-    ? sprintf(
-        /* translators: %s is the lesson/category title. */
-        __('%s - Print Lesson', 'll-tools-text-domain'),
-        $display_name
-    )
-    : __('Print Lesson', 'll-tools-text-domain');
+    ? $display_name
+    : __('Print', 'll-tools-text-domain');
 $print_image_size = apply_filters('ll_tools_vocab_lesson_print_image_size', 'large', $wordset_id ?? 0, $category ?? null);
 if (!is_string($print_image_size) && !is_array($print_image_size)) {
     $print_image_size = 'large';
@@ -104,7 +100,7 @@ $render_print_card = static function (array $item) use ($print_image_size, $show
         data-items-per-page="<?php echo esc_attr($items_per_page); ?>"
         data-show-text="<?php echo $show_text ? '1' : '0'; ?>"
         data-show-translations="<?php echo $show_translations ? '1' : '0'; ?>"
-        data-title="<?php echo esc_attr($display_name !== '' ? $display_name : __('Print Lesson', 'll-tools-text-domain')); ?>">
+        data-title="<?php echo esc_attr($display_name !== '' ? $display_name : __('Print', 'll-tools-text-domain')); ?>">
         <?php if (!$print_request_allowed) : ?>
             <?php
             $error_title = ($print_error_status === 404)
@@ -120,7 +116,7 @@ $render_print_card = static function (array $item) use ($print_image_size, $show
             </section>
         <?php elseif (empty($pages)) : ?>
             <section class="ll-vocab-lesson-print-state ll-vocab-lesson-print-state--empty">
-                <h1 class="ll-vocab-lesson-print-state__title"><?php echo esc_html($display_name !== '' ? $display_name : __('Print Lesson', 'll-tools-text-domain')); ?></h1>
+                <h1 class="ll-vocab-lesson-print-state__title"><?php echo esc_html($display_name !== '' ? $display_name : __('Print', 'll-tools-text-domain')); ?></h1>
                 <p class="ll-vocab-lesson-print-state__message"><?php echo esc_html__('No printable images were found for this lesson yet.', 'll-tools-text-domain'); ?></p>
             </section>
         <?php else : ?>
@@ -154,7 +150,7 @@ $render_print_card = static function (array $item) use ($print_image_size, $show
                 <?php foreach ($pages as $page_index => $page_items) : ?>
                     <section class="ll-vocab-lesson-print-sheet">
                         <h1 class="ll-vocab-lesson-print-sheet__title">
-                            <?php echo esc_html($display_name !== '' ? $display_name : __('Print Lesson', 'll-tools-text-domain')); ?>
+                            <?php echo esc_html($display_name !== '' ? $display_name : __('Print', 'll-tools-text-domain')); ?>
                         </h1>
                         <div class="ll-vocab-lesson-print-grid" data-ll-vocab-lesson-print-grid data-page-index="<?php echo esc_attr($page_index + 1); ?>">
                             <?php foreach ($page_items as $item) : ?>

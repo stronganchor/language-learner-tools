@@ -1149,10 +1149,6 @@ function ll_tools_dictionary_collect_related_entries(int $entry_id, array $prefe
     $current_wordset_id = function_exists('ll_tools_get_dictionary_entry_wordset_id')
         ? (int) ll_tools_get_dictionary_entry_wordset_id($entry_id)
         : 0;
-    $current_sources = ll_tools_dictionary_collect_source_labels(
-        function_exists('ll_tools_get_dictionary_entry_senses') ? ll_tools_get_dictionary_entry_senses($entry_id) : []
-    );
-
     $candidate_ids = [];
     $search_queries = [
         [
@@ -1211,38 +1207,27 @@ function ll_tools_dictionary_collect_related_entries(int $entry_id, array $prefe
         }
 
         $score = 0;
-        $reasons = [];
-        $candidate_senses = function_exists('ll_tools_get_dictionary_entry_senses') ? ll_tools_get_dictionary_entry_senses($candidate_id) : [];
-        $candidate_sources = ll_tools_dictionary_collect_source_labels($candidate_senses);
         $candidate_wordset_id = function_exists('ll_tools_get_dictionary_entry_wordset_id')
             ? (int) ll_tools_get_dictionary_entry_wordset_id($candidate_id)
             : 0;
 
         if ($candidate_norm === $title_norm) {
             $score += 140;
-            if (!empty($current_sources) && !empty($candidate_sources) && array_diff($current_sources, $candidate_sources) !== []) {
-                $reasons[] = __('Other dictionary', 'll-tools-text-domain');
-            } else {
-                $reasons[] = __('Same headword', 'll-tools-text-domain');
-            }
         }
 
         if ($candidate_norm !== $title_norm && (strpos($candidate_norm, $title_norm) !== false || strpos($title_norm, $candidate_norm) !== false)) {
             $score += 90;
-            $reasons[] = __('Contains headword', 'll-tools-text-domain');
         }
 
         similar_text($title_norm, $candidate_norm, $percent);
         if ($percent >= 72.0) {
             $score += (int) round($percent / 2);
-            $reasons[] = __('Similar form', 'll-tools-text-domain');
         }
 
         $ascii_title = preg_replace('/[^a-z]/', '', $title_norm) ?? '';
         $ascii_candidate = preg_replace('/[^a-z]/', '', $candidate_norm) ?? '';
         if ($ascii_title !== '' && $ascii_candidate !== '' && function_exists('metaphone') && metaphone($ascii_title) === metaphone($ascii_candidate)) {
             $score += 20;
-            $reasons[] = __('Similar sound', 'll-tools-text-domain');
         }
 
         if ($current_wordset_id > 0 && $candidate_wordset_id === $current_wordset_id) {
@@ -1261,7 +1246,6 @@ function ll_tools_dictionary_collect_related_entries(int $entry_id, array $prefe
         }
 
         $item['related_score'] = $score;
-        $item['related_reason'] = $reasons[0] ?? __('Related entry', 'll-tools-text-domain');
         $related[] = $item;
     }
 
@@ -1305,17 +1289,11 @@ function ll_tools_dictionary_render_badge(string $text, string $modifier = '', s
         $classes .= ' ll-dictionary__badge--external';
         $content .= '<span class="ll-dictionary__badge-icon" aria-hidden="true">&#8599;</span>';
 
-        $aria_label = ($modifier === 'source')
-            ? sprintf(
-                /* translators: %s: source label */
-                __('Open source page for %s', 'll-tools-text-domain'),
-                $text
-            )
-            : sprintf(
-                /* translators: %s: badge label */
-                __('Open link for %s', 'll-tools-text-domain'),
-                $text
-            );
+        $aria_label = sprintf(
+            /* translators: %s: badge label */
+            __('Open link for %s', 'll-tools-text-domain'),
+            $text
+        );
 
         return '<a class="' . esc_attr($classes) . '" href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr($aria_label) . '">' . $content . '</a>';
     }
@@ -1919,9 +1897,6 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
             $html .= '<span class="ll-dictionary__related-title">' . esc_html((string) ($related_entry['title'] ?? '')) . '</span>';
             if (!empty($related_entry['translation'])) {
                 $html .= '<span class="ll-dictionary__related-summary">' . esc_html((string) $related_entry['translation']) . '</span>';
-            }
-            if (!empty($related_entry['related_reason'])) {
-                $html .= '<span class="ll-dictionary__related-reason">' . esc_html((string) $related_entry['related_reason']) . '</span>';
             }
             $html .= '</a>';
         }

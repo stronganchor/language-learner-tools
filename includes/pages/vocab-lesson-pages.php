@@ -1363,8 +1363,8 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                                 $answer_classes = 'll-vocab-image-choice-option';
                                 $answer_classes .= $is_correct ? ' is-correct' : ' is-wrong';
                                 $state_label = $is_correct
-                                    ? __('Correct answer', 'll-tools-text-domain')
-                                    : __('Wrong answer', 'll-tools-text-domain');
+                                    ? __('Correct', 'll-tools-text-domain')
+                                    : __('Wrong', 'll-tools-text-domain');
                                 ?>
                                 <figure class="<?php echo esc_attr($answer_classes); ?>">
                                     <span class="ll-vocab-image-choice-option__state" aria-label="<?php echo esc_attr($state_label); ?>" title="<?php echo esc_attr($state_label); ?>">
@@ -1407,7 +1407,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                                 <?php
                                 echo ll_tools_vocab_lesson_render_prompt_card_audio_button(
                                     $prompt_audio_url,
-                                    __('Play prompt recording', 'll-tools-text-domain'),
+                                    __('Play audio', 'll-tools-text-domain'),
                                     'prompt'
                                 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                                 ?>
@@ -1428,19 +1428,16 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                                 : [];
                             $answer_audio = ll_tools_vocab_lesson_select_prompt_card_audio_entry($answer_audio_files, ['isolation', 'question', 'introduction']);
                             $answer_parts = ll_tools_vocab_lesson_get_word_display_parts($answer_word_id, $answer_audio, $transcription_mode);
-                            $answer_label = $is_correct
-                                ? __('Play correct answer recording', 'll-tools-text-domain')
-                                : __('Play wrong answer recording', 'll-tools-text-domain');
+                            $answer_label = __('Play audio', 'll-tools-text-domain');
                             $answer_classes = 'll-vocab-prompt-card-answer';
                             if ($use_referent_only_lesson_grid) {
                                 $answer_classes .= ' ll-vocab-prompt-card-answer--referent';
-                                $answer_label = __('Play referenced item recording', 'll-tools-text-domain');
                             } else {
                                 $answer_classes .= $is_correct ? ' is-correct' : ' is-wrong';
                             }
                             $state_label = $is_correct
-                                ? __('Correct answer', 'll-tools-text-domain')
-                                : __('Wrong answer', 'll-tools-text-domain');
+                                ? __('Correct', 'll-tools-text-domain')
+                                : __('Wrong', 'll-tools-text-domain');
                             ?>
                             <div class="<?php echo esc_attr($answer_classes); ?>">
                                 <?php if (!$use_referent_only_lesson_grid) : ?>
@@ -1784,10 +1781,10 @@ function ll_tools_get_or_create_vocab_lesson_page(int $category_id, int $wordset
     $wordset  = get_term($wordset_id, 'wordset');
 
     if (!($category instanceof WP_Term) || is_wp_error($category)) {
-        return new WP_Error('invalid_category', __('Invalid word-category term.', 'll-tools-text-domain'));
+        return new WP_Error('invalid_category', __('Invalid category.', 'll-tools-text-domain'));
     }
     if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
-        return new WP_Error('invalid_wordset', __('Invalid wordset term.', 'll-tools-text-domain'));
+        return new WP_Error('invalid_wordset', __('Invalid word set.', 'll-tools-text-domain'));
     }
 
     $slug    = ll_tools_vocab_lesson_build_slug($wordset->slug, $category->slug);
@@ -1935,7 +1932,7 @@ function ll_tools_get_or_create_vocab_lesson_preview_page(int $category_id, int 
     $wordset = get_term($wordset_id, 'wordset');
 
     if (!($category instanceof WP_Term) || is_wp_error($category)) {
-        return new WP_Error('invalid_category', __('Invalid word-category term.', 'll-tools-text-domain'));
+        return new WP_Error('invalid_category', __('Invalid category.', 'll-tools-text-domain'));
     }
     if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
         return new WP_Error('invalid_wordset', __('Invalid word set.', 'll-tools-text-domain'));

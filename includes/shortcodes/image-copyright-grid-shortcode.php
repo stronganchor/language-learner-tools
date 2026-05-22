@@ -421,8 +421,8 @@ function ll_image_copyright_grid_shortcode($atts) {
             'format'    => '?paged=%#%',
             'current'   => $paged,
             'total'     => $query->max_num_pages,
-            'prev_text' => __('« Prev', 'll-tools-text-domain'),
-            'next_text' => __('Next »', 'll-tools-text-domain'),
+            'prev_text' => '&laquo; ' . __('Previous', 'll-tools-text-domain'),
+            'next_text' => __('Next', 'll-tools-text-domain') . ' &raquo;',
             'add_args'  => ll_image_copyright_grid_get_filter_query_args($filters),
         ));
 

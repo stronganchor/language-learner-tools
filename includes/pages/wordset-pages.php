@@ -9372,7 +9372,6 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesLineupProgress' => __('Sequence %1$d of %2$d', 'll-tools-text-domain'),
         'gamesLineupMoveEarlier' => __('Move earlier', 'll-tools-text-domain'),
         'gamesLineupMoveLater' => __('Move later', 'll-tools-text-domain'),
-        'gamesLineupCardAudio' => __('Play card audio', 'll-tools-text-domain'),
         'gamesLineupShuffle' => __('Shuffle', 'll-tools-text-domain'),
         'gamesLineupCheck' => __('Check', 'll-tools-text-domain'),
         'gamesLineupNext' => __('Next', 'll-tools-text-domain'),
@@ -9410,7 +9409,6 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesSpeakingScoreLabel' => __('Similarity', 'll-tools-text-domain'),
         'gamesSpeakingRetry' => __('Retry', 'll-tools-text-domain'),
         'gamesSpeakingNext' => __('Next', 'll-tools-text-domain'),
-        'gamesSpeakingPlayCorrect' => __('Hear correct audio', 'll-tools-text-domain'),
         'gamesSpeakingMicError' => __('Microphone access failed.', 'll-tools-text-domain'),
         'gamesSpeakingSttError' => __('Transcription failed. Try again.', 'll-tools-text-domain'),
         'gamesSpeakingTooQuiet' => __('That was too quiet. Try again.', 'll-tools-text-domain'),
@@ -15589,10 +15587,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'repeatLabel' => __('Repeat', 'll-tools-text-domain'),
             'continueLabel' => __('Continue', 'll-tools-text-domain'),
             'resultsDifferentChunk' => __('Categories', 'll-tools-text-domain'),
-            'resultsDifferentChunkCount' => __('Categories (%2$d)', 'll-tools-text-domain'),
             'resultsRecommendedActivity' => __('Recommended', 'll-tools-text-domain'),
-            'resultsRecommendedLoading' => __('Loading recommendation...', 'll-tools-text-domain'),
-            'resultsRecommendedActivityCount' => __('Recommended (%2$d)', 'll-tools-text-domain'),
             'selectionLabel' => __('Select categories to study together', 'll-tools-text-domain'),
             'selectionCount' => __('%d selected', 'll-tools-text-domain'),
             'selectionCountWords' => __('%1$d selected · %2$d words', 'll-tools-text-domain'),
@@ -15626,7 +15621,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'noLearnedWordsInSelection' => __('No learned words are available for this selection.', 'll-tools-text-domain'),
             'noStarredHardWordsInSelection' => __('No starred hard words are available for this selection.', 'll-tools-text-domain'),
             'hiddenEmpty' => __('No hidden categories in this word set.', 'll-tools-text-domain'),
-            'hiddenCountLabel' => __('Hidden categories: %d', 'll-tools-text-domain'),
+            'hiddenCountLabel' => __('Hidden Categories', 'll-tools-text-domain'),
             'queueEmpty' => __('No upcoming activities yet.', 'll-tools-text-domain'),
             'queueRemove' => __('Remove activity', 'll-tools-text-domain'),
             'queueWordCount' => __('%d words', 'll-tools-text-domain'),
@@ -15665,7 +15660,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsFilterAny' => __('Any', 'll-tools-text-domain'),
             'analyticsFilterStar' => __('Starred', 'll-tools-text-domain'),
             'analyticsFilterStatus' => __('Status', 'll-tools-text-domain'),
-            'analyticsFilterPartOfSpeech' => __('Filter part of speech', 'll-tools-text-domain'),
+            'analyticsFilterPartOfSpeech' => __('Filter by part of speech', 'll-tools-text-domain'),
             'analyticsFilterLast' => __('Last', 'll-tools-text-domain'),
             'analyticsFilterDifficulty' => __('Difficulty Score', 'll-tools-text-domain'),
             'analyticsFilterSeen' => __('Seen', 'll-tools-text-domain'),
@@ -15710,7 +15705,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'modeLearning' => __('Learn', 'll-tools-text-domain'),
             'modeListening' => __('Listen', 'll-tools-text-domain'),
             'modeGender' => __('Gender', 'll-tools-text-domain'),
-            'modeSelfCheck' => __('Self Check', 'll-tools-text-domain'),
+            'modeSelfCheck' => __('Self check', 'll-tools-text-domain'),
             'mainLessonLabel' => __('Main lesson', 'll-tools-text-domain'),
             'openLessonLabel' => __('Open lesson', 'll-tools-text-domain'),
             'loadMoreCards' => __('Load more', 'll-tools-text-domain'),
@@ -16017,7 +16012,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                         </th>
                                         <th scope="col" data-ll-wordset-progress-sort-th="part_of_speech" data-mobile-label="<?php echo esc_attr__('POS', 'll-tools-text-domain'); ?>" aria-sort="none">
                                             <div class="ll-wordset-progress-th-controls">
-                                                <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="part_of_speech" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Filter part of speech', 'll-tools-text-domain'); ?>">
+                                                <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="part_of_speech" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Filter by part of speech', 'll-tools-text-domain'); ?>">
                                                     <span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true">
                                                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
                                                     </span>
@@ -16029,7 +16024,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                             </div>
                                             <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="part_of_speech" hidden>
                                                 <fieldset class="ll-wordset-progress-filter-fieldset">
-                                                    <legend class="screen-reader-text"><?php echo esc_html__('Filter part of speech', 'll-tools-text-domain'); ?></legend>
+                                                    <legend class="screen-reader-text"><?php echo esc_html__('Filter by part of speech', 'll-tools-text-domain'); ?></legend>
                                                     <div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="part_of_speech"></div>
                                                 </fieldset>
                                             </div>
@@ -16160,7 +16155,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             </table>
                         </div>
                         <div class="ll-wordset-selection-bar ll-wordset-progress-selection-bar" data-ll-wordset-progress-selection-bar hidden>
-                            <span class="ll-wordset-selection-bar__text" data-ll-wordset-progress-selection-count><?php echo esc_html__('0 selected words', 'll-tools-text-domain'); ?></span>
+                            <span class="ll-wordset-selection-bar__text" data-ll-wordset-progress-selection-count><?php echo esc_html(sprintf(__('%d selected words', 'll-tools-text-domain'), 0)); ?></span>
                             <div class="ll-wordset-selection-bar__actions">
                                 <?php
                                 $progress_selection_modes = ll_tools_get_study_launch_mode_order($gender_enabled);
@@ -16371,7 +16366,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 class="ll-wordset-link-chip ll-wordset-link-chip--hidden"
                                 data-ll-wordset-hidden-link
                                 href="<?php echo esc_url($hidden_categories_url); ?>"
-                                aria-label="<?php echo esc_attr(sprintf(__('Hidden categories: %d', 'll-tools-text-domain'), $hidden_category_count)); ?>"
+                                aria-label="<?php echo esc_attr(__('Hidden Categories', 'll-tools-text-domain') . ': ' . (string) $hidden_category_count); ?>"
                                 <?php if ($hidden_category_count < 1) : ?>hidden<?php endif; ?>>
                                 <span class="ll-wordset-link-chip__icon" aria-hidden="true">
                                     <?php echo ll_tools_wordset_page_render_hide_icon('ll-wordset-hidden-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -16481,7 +16476,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     <?php endforeach; ?>
                 </div>
                 <div class="ll-wordset-next-wrap">
-                    <p class="ll-wordset-next-heading"><?php echo esc_html__('Recommended:', 'll-tools-text-domain'); ?></p>
+                    <p class="ll-wordset-next-heading"><?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?></p>
                     <div class="ll-wordset-next-shell" data-ll-wordset-next-shell>
                         <button type="button" class="ll-wordset-next-card" data-ll-wordset-next aria-live="polite">
                             <span class="ll-wordset-next-card__main">
@@ -16504,7 +16499,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 <section class="ll-content-lessons-section ll-content-lessons-section--wordset-featured">
                     <div class="ll-content-lessons-section__head">
                         <h2 class="ll-content-lessons-section__title"><?php echo esc_html__('Main Lessons', 'll-tools-text-domain'); ?></h2>
-                        <p class="ll-content-lessons-section__description"><?php echo esc_html__('Start with a story or video lesson, then open the related vocab drills and practice cards below.', 'll-tools-text-domain'); ?></p>
                     </div>
                     <div class="ll-wordset-grid ll-wordset-grid--content-lessons" role="list">
                         <?php foreach ($featured_content_lessons as $lesson) : ?>
@@ -17244,7 +17238,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
                             <section class="ll-wordset-speaking-stack-stage" data-ll-wordset-speaking-stack-stage hidden aria-live="polite">
                                 <div class="ll-wordset-speaking-stack-stage__topline">
-                                    <span class="ll-wordset-speaking-stack-stage__progress" data-ll-wordset-speaking-stack-progress><?php echo esc_html__('0 left', 'll-tools-text-domain'); ?></span>
+                                    <span class="ll-wordset-speaking-stack-stage__progress" data-ll-wordset-speaking-stack-progress><?php echo esc_html(sprintf(__('%1$d left', 'll-tools-text-domain'), 0)); ?></span>
                                     <span class="ll-wordset-speaking-stack-stage__status" data-ll-wordset-speaking-stack-status><?php echo esc_html__('Mic ready', 'll-tools-text-domain'); ?></span>
                                 </div>
                                 <div class="ll-wordset-speaking-stack-stage__heard-row" data-ll-wordset-speaking-stack-heard-row hidden>
@@ -17259,7 +17253,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                             </section>
                             <section class="ll-wordset-lineup-stage" data-ll-wordset-lineup-stage hidden aria-live="polite">
                                 <div class="ll-wordset-lineup-stage__topline">
-                                    <span class="ll-wordset-lineup-stage__progress" data-ll-wordset-lineup-progress><?php echo esc_html__('Sequence 0 of 0', 'll-tools-text-domain'); ?></span>
+                                    <span class="ll-wordset-lineup-stage__progress" data-ll-wordset-lineup-progress><?php echo esc_html(sprintf(__('Sequence %1$d of %2$d', 'll-tools-text-domain'), 0, 0)); ?></span>
                                     <span class="ll-wordset-lineup-stage__category" data-ll-wordset-lineup-category></span>
                                 </div>
                                 <p class="ll-wordset-lineup-stage__instruction" data-ll-wordset-lineup-instruction><?php echo esc_html__('Put the cards in the correct order.', 'll-tools-text-domain'); ?></p>
@@ -17426,7 +17420,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                     </svg>
                                 </span>
                             </button>
-                            <button type="button" class="ll-wordset-game-stage__control ll-wordset-game-stage__control--fire" data-ll-wordset-game-control="fire" aria-label="<?php echo esc_attr__('Fire or press space bar', 'll-tools-text-domain'); ?>">
+                            <button type="button" class="ll-wordset-game-stage__control ll-wordset-game-stage__control--fire" data-ll-wordset-game-control="fire" aria-label="<?php echo esc_attr__('Fire', 'll-tools-text-domain'); ?>">
                                 <span class="ll-wordset-game-stage__control-fire-stack" aria-hidden="true">
                                     <svg class="ll-wordset-game-stage__control-burst" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                                         <path d="M12 2.75L13.98 8.02L19.25 6.04L16.98 11.31L22.25 13.29L16.98 15.27L19.25 20.54L13.98 18.56L12 23.25L10.02 18.56L4.75 20.54L7.02 15.27L1.75 13.29L7.02 11.31L4.75 6.04L10.02 8.02L12 2.75Z"></path>

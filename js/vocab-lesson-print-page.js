@@ -53,7 +53,7 @@
         var printButton = root.querySelector('[data-ll-vocab-lesson-print-trigger]');
         var textToggle = root.querySelector('[data-ll-vocab-lesson-print-toggle="text"]');
         var translationToggle = root.querySelector('[data-ll-vocab-lesson-print-toggle="translations"]');
-        var titleText = String(root.getAttribute('data-title') || '').trim() || 'Print Lesson';
+        var titleText = String(root.getAttribute('data-title') || '').trim() || 'Print';
         var itemsPerPage = Math.max(1, toInt(root.getAttribute('data-items-per-page')) || 12);
 
         var icons = {

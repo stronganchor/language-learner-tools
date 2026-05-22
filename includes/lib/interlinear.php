@@ -830,7 +830,7 @@ function ll_tools_interlinear_render_phrase_row(array $line, array $tokens): str
     }
     $cells .= ll_tools_interlinear_render_empty_phrase_cells($tokens, $cursor, count($tokens));
 
-    return '<tr class="phrase-row"><th scope="row">' . esc_html__('PHRASE', 'll-tools-text-domain') . '</th>' . $cells . '</tr>';
+    return '<tr class="phrase-row"><th scope="row">PHRASE</th>' . $cells . '</tr>';
 }
 
 function ll_tools_render_interlinear_line(array $line, bool $show_line_text = true): string {
@@ -1292,13 +1292,48 @@ function ll_tools_get_content_lesson_localized_collection_label(int $lesson_id, 
     return $value !== '' ? $value : $fallback;
 }
 
+function ll_tools_text_document_language_endonym(string $key): string {
+    $labels = [
+        'en' => 'English',
+        'tr' => 'Türkçe',
+        'de' => 'Deutsch',
+        'ru' => 'Русский',
+    ];
+
+    return $labels[sanitize_key($key)] ?? '';
+}
+
+function ll_tools_text_document_label_is_generic_language_name(string $key, string $label): bool {
+    $generic_labels = [
+        'en' => ['english'],
+        'tr' => ['turkish', 'turkce', 'türkçe'],
+        'de' => ['german', 'deutsch'],
+        'ru' => ['russian', 'русский'],
+    ];
+
+    $key = sanitize_key($key);
+    $label = function_exists('mb_strtolower')
+        ? mb_strtolower(trim($label), 'UTF-8')
+        : strtolower(trim($label));
+
+    return in_array($label, $generic_labels[$key] ?? [], true);
+}
+
 function ll_tools_text_document_translation_label(array $payload, string $key): string {
+    $endonym = ll_tools_text_document_language_endonym($key);
     $translations = isset($payload['translations']) && is_array($payload['translations']) ? $payload['translations'] : [];
     if (isset($translations[$key]) && is_array($translations[$key])) {
         $label = ll_tools_interlinear_scalar($translations[$key], ['label', 'name', 'title']);
         if ($label !== '') {
+            if ($endonym !== '' && ll_tools_text_document_label_is_generic_language_name($key, $label)) {
+                return $endonym;
+            }
             return $label;
         }
+    }
+
+    if ($endonym !== '') {
+        return $endonym;
     }
 
     $labels = [

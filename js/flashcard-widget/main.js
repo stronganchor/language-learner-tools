@@ -4401,25 +4401,13 @@
             const summaryLine = summaryTemplate
                 .replace('%1$d', String(chosenCount))
                 .replace('%2$d', String(minimumRequired));
-            const minimumOptionsBullets = [
-                msgs.checkCategoryExists || 'The category exists and has words',
-                msgs.checkWordsAssigned || 'Words are properly assigned to the category',
-                msgs.checkSpecificWrongAnswers || 'Any specific wrong-answer words are available for this target'
-            ];
             errorMessage = detailHtml +
                 escapeErrorText(summaryLine) +
                 '<br>' +
-                (msgs.minimumOptionsError || 'This quiz round has fewer than two answer options, so the quiz cannot continue.') +
-                '<br>• ' + minimumOptionsBullets.join('<br>• ');
+                escapeErrorText(msgs.minimumOptionsInvariantMessage || msgs.noContentAvailable || 'No content available.');
         } else {
-            const errorBullets = [
-                msgs.checkCategoryExists || 'The category exists and has words',
-                msgs.checkWordsAssigned || 'Words are properly assigned to the category',
-                msgs.checkWordsetFilter || 'If using wordsets, the wordset contains words for this category'
-            ];
             errorMessage = detailHtml +
-                (msgs.noWordsFound || 'No words could be loaded for this quiz. Please check that:') +
-                '<br>• ' + errorBullets.join('<br>• ');
+                escapeErrorText(msgs.noContentAvailable || msgs.noWordsFound || 'No content available.');
         }
 
         $('#quiz-results-message').html(errorMessage).show();

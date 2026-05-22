@@ -903,11 +903,11 @@ function ll_qpg_print_flashcard_shell_once() {
 
           <!-- Mode switcher: single toggle that expands to fixed-order options -->
           <?php
-            $practice_label = $practice_mode_ui['switchLabel'] ?? __('Switch to Practice Mode', 'll-tools-text-domain');
-            $learning_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
-            $self_check_label = $self_check_mode_ui['switchLabel'] ?? __('Open Self Check', 'll-tools-text-domain');
-            $listening_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
-            $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender', 'll-tools-text-domain');
+            $practice_label = $practice_mode_ui['switchLabel'] ?? __('Practice', 'll-tools-text-domain');
+            $learning_label = $learning_mode_ui['switchLabel'] ?? __('Learn', 'll-tools-text-domain');
+            $self_check_label = $self_check_mode_ui['switchLabel'] ?? __('Self check', 'll-tools-text-domain');
+            $listening_label = $listening_mode_ui['switchLabel'] ?? __('Listening', 'll-tools-text-domain');
+            $gender_label = $gender_mode_ui['switchLabel'] ?? __('Gender', 'll-tools-text-domain');
           ?>
           <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
             <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
@@ -936,15 +936,15 @@ function ll_qpg_print_flashcard_shell_once() {
           <div id="quiz-results" style="display:none;">
             <h2 id="quiz-results-title"><?php echo esc_html__('Quiz Results', 'll-tools-text-domain'); ?></h2>
             <p id="quiz-results-message" style="display:none;"></p>
-            <p><strong><?php echo esc_html__('Correct:', 'll-tools-text-domain'); ?></strong>
+            <p><strong><?php echo esc_html__('Correct', 'll-tools-text-domain'); ?>:</strong>
               <span id="correct-count">0</span> / <span id="total-questions">0</span>
             </p>
             <p id="quiz-results-categories" style="margin-top:10px; display:none;"></p>
             <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
               <?php
-                $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
-                $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
-                $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self Check', 'll-tools-text-domain');
+                $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice', 'll-tools-text-domain');
+                $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learn', 'll-tools-text-domain');
+                $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self check', 'll-tools-text-domain');
                 $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Listen', 'll-tools-text-domain');
                 $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender', 'll-tools-text-domain');
               ?>
@@ -971,10 +971,10 @@ function ll_qpg_print_flashcard_shell_once() {
             </div>
             <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
               <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Next Gender Activity', 'll-tools-text-domain'); ?>
+                <?php echo esc_html__('Next', 'll-tools-text-domain'); ?>
               </button>
               <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Next Recommended Set', 'll-tools-text-domain'); ?>
+                <?php echo esc_html__('Next Set', 'll-tools-text-domain'); ?>
               </button>
             </div>
             <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
@@ -989,7 +989,7 @@ function ll_qpg_print_flashcard_shell_once() {
                 <?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?>
               </button>
             </div>
-            <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
+            <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Replay', 'll-tools-text-domain'); ?></button>
           </div>
 
         </div>

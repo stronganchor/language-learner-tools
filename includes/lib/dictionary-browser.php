@@ -745,12 +745,12 @@ function ll_tools_dictionary_get_language_label(string $language): string {
     }
 
     $labels = [
-        'tr' => __('TR', 'll-tools-text-domain'),
-        'de' => __('DE', 'll-tools-text-domain'),
-        'en' => __('EN', 'll-tools-text-domain'),
-        'zza' => __('ZZA', 'll-tools-text-domain'),
-        'diq' => __('DIQ', 'll-tools-text-domain'),
-        'kiu' => __('KIU', 'll-tools-text-domain'),
+        'tr' => 'TR',
+        'de' => 'DE',
+        'en' => 'EN',
+        'zza' => 'ZZA',
+        'diq' => 'DIQ',
+        'kiu' => 'KIU',
     ];
 
     if (isset($labels[$language])) {

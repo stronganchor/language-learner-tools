@@ -111,7 +111,7 @@ $format_ms = static function (int $ms): string {
     <header class="ll-content-lesson-hero">
         <div class="ll-content-lesson-hero__top">
             <?php if ($is_corpus_text && $corpus_collection_url !== '') : ?>
-                <a class="ll-content-lesson-back ll-content-lesson-back--corpus" href="<?php echo esc_url($corpus_collection_url); ?>" aria-label="<?php echo esc_attr($corpus_collection_label !== '' ? sprintf(__('Back to %s', 'll-tools-text-domain'), $corpus_collection_label) : __('Back to text collection', 'll-tools-text-domain')); ?>">
+                <a class="ll-content-lesson-back ll-content-lesson-back--corpus" href="<?php echo esc_url($corpus_collection_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $corpus_collection_label !== '' ? $corpus_collection_label : __('Texts', 'll-tools-text-domain'))); ?>">
                     <span class="ll-content-lesson-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -120,13 +120,13 @@ $format_ms = static function (int $ms): string {
                     <span class="ll-content-lesson-back__label"><?php echo esc_html($corpus_collection_label !== '' ? $corpus_collection_label : __('Texts', 'll-tools-text-domain')); ?></span>
                 </a>
             <?php elseif (!$is_corpus_text && $wordset_url !== '') : ?>
-                <a class="ll-content-lesson-back ll-vocab-lesson-back" href="<?php echo esc_url($wordset_url); ?>" aria-label="<?php echo esc_attr($wordset_name !== '' ? sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_name) : __('Back to Word Set', 'll-tools-text-domain')); ?>">
+                <a class="ll-content-lesson-back ll-vocab-lesson-back" href="<?php echo esc_url($wordset_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_name !== '' ? $wordset_name : __('Word set', 'll-tools-text-domain'))); ?>">
                     <span class="ll-content-lesson-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <span class="ll-content-lesson-back__label"><?php echo esc_html($wordset_name !== '' ? $wordset_name : __('Word Set', 'll-tools-text-domain')); ?></span>
+                    <span class="ll-content-lesson-back__label"><?php echo esc_html($wordset_name !== '' ? $wordset_name : __('Word set', 'll-tools-text-domain')); ?></span>
                 </a>
             <?php endif; ?>
             <?php if (!$is_corpus_text) : ?>
@@ -168,7 +168,7 @@ $format_ms = static function (int $ms): string {
                     <?php endif; ?>
                 <?php elseif (!$is_corpus_text) : ?>
                     <div class="ll-content-lesson-empty">
-                        <?php echo esc_html__('Add a media URL in the lesson editor to play this lesson here.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('No content available.', 'll-tools-text-domain'); ?>
                     </div>
                 <?php endif; ?>
             </div>
@@ -189,7 +189,7 @@ $format_ms = static function (int $ms): string {
                 </div>
 
                 <?php if (!empty($cues)) : ?>
-                    <div class="ll-content-lesson-transcript" data-ll-content-lesson-transcript role="list" aria-label="<?php echo esc_attr__('Lesson transcript', 'll-tools-text-domain'); ?>">
+                    <div class="ll-content-lesson-transcript" data-ll-content-lesson-transcript role="list" aria-label="<?php echo esc_attr__('Transcript', 'll-tools-text-domain'); ?>">
                         <?php foreach ($cues as $cue) : ?>
                             <?php
                             $cue_id = isset($cue['id']) ? (int) $cue['id'] : 0;
@@ -217,7 +217,7 @@ $format_ms = static function (int $ms): string {
                     <script type="application/json" data-ll-content-lesson-cues><?php echo $cue_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></script>
                 <?php elseif (!$is_corpus_text) : ?>
                     <div class="ll-content-lesson-empty">
-                        <?php echo esc_html__('Add parsed transcript timing data to highlight the text during playback.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('No content available.', 'll-tools-text-domain'); ?>
                     </div>
                 <?php endif; ?>
             </div>
@@ -227,8 +227,7 @@ $format_ms = static function (int $ms): string {
     <?php
     if (function_exists('ll_tools_render_content_lesson_related_vocab_links')) {
         echo ll_tools_render_content_lesson_related_vocab_links($related_vocab_items, [
-            'title' => __('Practice This Lesson', 'll-tools-text-domain'),
-            'description' => __('Open the related vocab drills for the words from this main lesson.', 'll-tools-text-domain'),
+            'title' => __('Practice', 'll-tools-text-domain'),
         ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     }
     ?>

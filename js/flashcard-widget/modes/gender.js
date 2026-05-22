@@ -2480,7 +2480,7 @@
 
         const defaultPrimary = {
             key: 'primary',
-            label: msgs.genderNextRepeat || 'Repeat This Level',
+            label: msgs.genderNextRepeat || 'Repeat',
             plan: {
                 level: level,
                 word_ids: session.activeWordIds.slice(),
@@ -2498,7 +2498,7 @@
             if (canAdvance) {
                 primary = {
                     key: 'primary',
-                    label: msgs.genderNextLevel2 || 'Start Level 2',
+                    label: msgs.genderNextLevel2 || 'Level 2',
                     plan: {
                         level: LEVEL_TWO,
                         word_ids: session.activeWordIds.slice(),
@@ -2517,7 +2517,7 @@
             if (readyForLevelThree) {
                 primary = {
                     key: 'primary',
-                    label: msgs.genderNextLevel3 || 'Start Level 3',
+                    label: msgs.genderNextLevel3 || 'Level 3',
                     plan: {
                         level: LEVEL_THREE,
                         word_ids: session.activeWordIds.slice(),
@@ -2530,7 +2530,7 @@
             } else if (failureRate >= 0.5) {
                 primary = {
                     key: 'primary',
-                    label: msgs.genderFallbackLevel1 || 'Go Back to Level 1',
+                    label: msgs.genderFallbackLevel1 || 'Level 1',
                     plan: {
                         level: LEVEL_ONE,
                         word_ids: session.activeWordIds.slice(),
@@ -2542,7 +2542,7 @@
                 message = msgs.genderLevelTwoFallbackMessage || 'A quick review cycle in Level 1 should help.';
             } else {
                 title = msgs.genderLevelTwoRetryTitle || 'Level 2: Keep Practicing';
-                message = msgs.genderLevelTwoRetryMessage || 'Repeat this level until you get all answers right and answer quickly.';
+                message = msgs.genderLevelTwoRetryMessage || 'Repeat this level to reinforce word-gender memory.';
             }
         } else {
             const droppedWords = session.activeWordIds.filter(function (wordId) {
@@ -2552,7 +2552,7 @@
             if (droppedWords.length) {
                 primary = {
                     key: 'primary',
-                    label: msgs.genderFallbackLevel2 || 'Back to Level 2',
+                    label: msgs.genderFallbackLevel2 || 'Level 2',
                     plan: {
                         level: LEVEL_TWO,
                         word_ids: droppedWords.slice(0, CHUNK_SIZE),
@@ -2573,7 +2573,7 @@
             const targetLevel = normalizeLevel(primary && primary.plan ? primary.plan.level : level);
             secondary = {
                 key: 'secondary',
-                label: msgs.genderNextChunk || 'Next Recommended Set',
+                label: msgs.genderNextChunk || 'Next Set',
                 plan: buildDashboardSecondaryPlan(targetLevel)
             };
         }

@@ -734,7 +734,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
       <section id="ll-offline-study-view" class="ll-offline-app-view" data-ll-offline-view="study">
       <section id="ll-offline-launcher" class="ll-offline-launcher" aria-label="<?php echo esc_attr__('Offline quiz launcher', 'll-tools-text-domain'); ?>">
         <div class="ll-wordset-next-wrap">
-          <p class="ll-wordset-next-heading"><?php esc_html_e('Recommended:', 'll-tools-text-domain'); ?></p>
+          <p class="ll-wordset-next-heading"><?php esc_html_e('Recommended', 'll-tools-text-domain'); ?></p>
           <div class="ll-wordset-next-shell" data-ll-offline-next-shell>
             <button type="button" class="ll-wordset-next-card is-disabled" id="ll-offline-next-card" data-ll-offline-next aria-live="polite" aria-disabled="true" disabled>
               <span class="ll-wordset-next-card__main">
@@ -816,7 +816,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
             </div>
           </div>
           <button id="ll-offline-select-all" class="ll-wordset-select-all ll-wordset-progress-select-all" type="button">
-            <?php esc_html_e('Select All', 'll-tools-text-domain'); ?>
+            <?php esc_html_e('Select all', 'll-tools-text-domain'); ?>
           </button>
         </div>
         <div id="ll-offline-category-grid" class="ll-wordset-grid" role="list" aria-live="polite"></div>
@@ -855,15 +855,15 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
 
       <div id="ll-tools-flashcard-popup" style="display:none;">
         <div id="ll-tools-category-selection-popup" style="display:none;">
-          <h3><?php esc_html_e('Select Categories', 'll-tools-text-domain'); ?></h3>
+          <h3><?php esc_html_e('Categories', 'll-tools-text-domain'); ?></h3>
           <div class="ll-tools-category-selection-buttons">
-            <button id="ll-tools-uncheck-all" type="button"><?php esc_html_e('Uncheck All', 'll-tools-text-domain'); ?></button>
-            <button id="ll-tools-check-all" type="button"><?php esc_html_e('Check All', 'll-tools-text-domain'); ?></button>
+            <button id="ll-tools-uncheck-all" type="button"><?php esc_html_e('Deselect all', 'll-tools-text-domain'); ?></button>
+            <button id="ll-tools-check-all" type="button"><?php esc_html_e('Select all', 'll-tools-text-domain'); ?></button>
           </div>
           <div id="ll-tools-category-checkboxes-container">
             <div id="ll-tools-category-checkboxes"></div>
           </div>
-          <button id="ll-tools-start-selected-quiz" type="button"><?php esc_html_e('Start Quiz', 'll-tools-text-domain'); ?></button>
+          <button id="ll-tools-start-selected-quiz" type="button"><?php esc_html_e('Start', 'll-tools-text-domain'); ?></button>
           <button id="ll-tools-close-category-selection" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
         </div>
 
@@ -886,11 +886,11 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
           </div>
 
           <?php
-            $practice_switch_label = $practice_mode_ui['switchLabel'] ?? __('Switch to Practice Mode', 'll-tools-text-domain');
-            $learning_switch_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
-            $self_check_switch_label = $self_check_mode_ui['switchLabel'] ?? __('Open Self Check', 'll-tools-text-domain');
-            $listening_switch_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
-            $gender_switch_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender Mode', 'll-tools-text-domain');
+            $practice_switch_label = $practice_mode_ui['switchLabel'] ?? __('Practice', 'll-tools-text-domain');
+            $learning_switch_label = $learning_mode_ui['switchLabel'] ?? __('Learn', 'll-tools-text-domain');
+            $self_check_switch_label = $self_check_mode_ui['switchLabel'] ?? __('Self check', 'll-tools-text-domain');
+            $listening_switch_label = $listening_mode_ui['switchLabel'] ?? __('Listening', 'll-tools-text-domain');
+            $gender_switch_label = $gender_mode_ui['switchLabel'] ?? __('Gender', 'll-tools-text-domain');
           ?>
           <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
             <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
@@ -919,15 +919,15 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
             <h2 id="quiz-results-title"><?php esc_html_e('Quiz Results', 'll-tools-text-domain'); ?></h2>
             <p id="quiz-results-message" style="display:none;"></p>
             <p>
-              <strong><?php esc_html_e('Correct:', 'll-tools-text-domain'); ?></strong>
+              <strong><?php esc_html_e('Correct', 'll-tools-text-domain'); ?>:</strong>
               <span id="correct-count">0</span> / <span id="total-questions">0</span>
             </p>
             <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
             <div id="ll-gender-results-progress" style="display:none; margin-top: 14px;"></div>
             <?php
-              $practice_results_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
-              $learning_results_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
-              $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self Check', 'll-tools-text-domain');
+              $practice_results_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice', 'll-tools-text-domain');
+              $learning_results_label = $learning_mode_ui['resultsButtonText'] ?? __('Learn', 'll-tools-text-domain');
+              $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self check', 'll-tools-text-domain');
               $listening_results_label = $listening_mode_ui['resultsButtonText'] ?? __('Listen', 'll-tools-text-domain');
               $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender', 'll-tools-text-domain');
             ?>
@@ -955,7 +955,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
             </div>
             <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
               <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" type="button" style="display:none;">
-                <?php esc_html_e('Next Gender Activity', 'll-tools-text-domain'); ?>
+                <?php esc_html_e('Next', 'll-tools-text-domain'); ?>
               </button>
               <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
                 <?php esc_html_e('Next Set', 'll-tools-text-domain'); ?>
@@ -973,7 +973,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
                 <?php esc_html_e('Recommended', 'll-tools-text-domain'); ?>
               </button>
             </div>
-            <button id="restart-quiz" class="quiz-button" type="button" style="display:none;"><?php esc_html_e('Restart Quiz', 'll-tools-text-domain'); ?></button>
+            <button id="restart-quiz" class="quiz-button" type="button" style="display:none;"><?php esc_html_e('Replay', 'll-tools-text-domain'); ?></button>
           </div>
         </div>
       </div>

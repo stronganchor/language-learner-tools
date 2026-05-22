@@ -9574,8 +9574,8 @@
             $hiddenCount.text(String(count));
         }
         if ($hiddenLink.length) {
-            const labelTemplate = i18n.hiddenCountLabel || '';
-            $hiddenLink.attr('aria-label', formatTemplate(labelTemplate, [count]));
+            const label = String(i18n.hiddenCountLabel || '');
+            $hiddenLink.attr('aria-label', label ? label + ': ' + String(count) : String(count));
             const hasHiddenCategories = count > 0;
             $hiddenLink.prop('hidden', !hasHiddenCategories);
             if (!hasHiddenCategories) {
@@ -12418,10 +12418,6 @@
         }
         const count = uniqueIntList(plan.category_ids || []).length;
         if (count > 1) {
-            const template = String(i18n.resultsDifferentChunkCount || '');
-            if (template) {
-                return formatTemplate(template, [modeLabel(plan.mode), count]);
-            }
             return fallback + ' (' + String(count) + ')';
         }
         return fallback;
@@ -12441,10 +12437,6 @@
         }
         const count = uniqueIntList(plan.category_ids || []).length;
         if (count > 1) {
-            const template = String(i18n.resultsDifferentChunkCount || '');
-            if (template) {
-                return formatTemplate(template, [modeLabel(plan.mode), count]);
-            }
             return fallback + ' (' + String(count) + ')';
         }
         return fallback;
