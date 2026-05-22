@@ -286,6 +286,24 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertTrue(wp_script_is('ll-tools-language-switcher-js', 'enqueued'));
     }
 
+    public function test_language_switcher_dropdown_styles_stack_above_theme_headers_and_avoid_horizontal_scroll(): void
+    {
+        $css = preg_replace(
+            '/\s+/',
+            ' ',
+            (string) file_get_contents(LL_TOOLS_BASE_PATH . 'css/language-switcher.css')
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/\.ll-tools-header-language-switcher\s*\{[^}]*z-index:\s*99990;/',
+            $css
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.ll-lang-switcher--dropdown ul,\s*\.ll-lang-switcher--button ul\s*\{[^}]*z-index:\s*100000;[^}]*min-width:\s*100%;[^}]*width:\s*max-content;[^}]*overflow-x:\s*hidden;/',
+            $css
+        );
+    }
+
     public function test_browser_locale_preference_skips_saved_logged_in_user_locale(): void
     {
         $user_id = self::factory()->user->create();
