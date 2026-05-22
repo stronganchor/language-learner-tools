@@ -253,6 +253,69 @@ function ll_aim_send_wordset_forbidden(): void {
     wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
 }
 
+function ll_aim_current_user_can_access_word(int $word_id): bool {
+    if ($word_id <= 0) {
+        return false;
+    }
+
+    if (ll_aim_current_user_has_unrestricted_queue_access()) {
+        return true;
+    }
+
+    $allowed_wordset_ids = ll_aim_current_user_scoped_wordset_ids();
+    if (empty($allowed_wordset_ids)) {
+        return false;
+    }
+
+    $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+    if (!is_array($wordset_ids) || is_wp_error($wordset_ids) || empty($wordset_ids)) {
+        return false;
+    }
+
+    return !empty(array_intersect(array_map('intval', $wordset_ids), $allowed_wordset_ids));
+}
+
+function ll_aim_current_user_can_access_image(int $image_id): bool {
+    if ($image_id <= 0) {
+        return false;
+    }
+
+    if (ll_aim_current_user_has_unrestricted_queue_access()) {
+        return true;
+    }
+
+    $allowed_wordset_ids = ll_aim_current_user_scoped_wordset_ids();
+    if (empty($allowed_wordset_ids)) {
+        return false;
+    }
+
+    $owner_wordset_id = function_exists('ll_tools_get_word_image_wordset_owner_id')
+        ? (int) ll_tools_get_word_image_wordset_owner_id($image_id)
+        : (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY') ? (int) get_post_meta($image_id, LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, true) : 0);
+    if ($owner_wordset_id > 0) {
+        return in_array($owner_wordset_id, $allowed_wordset_ids, true);
+    }
+
+    $category_ids = wp_get_post_terms($image_id, 'word-category', ['fields' => 'ids']);
+    if (is_array($category_ids) && !is_wp_error($category_ids)) {
+        $owned_category_wordset_ids = [];
+        foreach ($category_ids as $category_id) {
+            $category_owner_id = function_exists('ll_tools_get_category_wordset_owner_id')
+                ? (int) ll_tools_get_category_wordset_owner_id((int) $category_id)
+                : (defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY') ? (int) get_term_meta((int) $category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, true) : 0);
+            if ($category_owner_id > 0) {
+                $owned_category_wordset_ids[] = $category_owner_id;
+            }
+        }
+
+        if (!empty($owned_category_wordset_ids)) {
+            return !empty(array_intersect(array_map('intval', $owned_category_wordset_ids), $allowed_wordset_ids));
+        }
+    }
+
+    return true;
+}
+
 // AJAX: Fetch candidate images for a category (word_images posts)
 function ll_aim_get_images_handler() {
     ll_aim_verify_ajax_request();
@@ -471,12 +534,18 @@ function ll_aim_assign_handler() {
     if (!current_user_can('edit_post', $word_id)) {
         wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
+    if (!ll_aim_current_user_can_access_word($word_id)) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+    }
 
     $image_post = get_post($image_id);
     if (!$image_post || $image_post->post_type !== 'word_images') {
         wp_send_json_error(__('Invalid image', 'll-tools-text-domain'), 400);
     }
     if (!current_user_can('edit_post', $image_id)) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+    }
+    if (!ll_aim_current_user_can_access_image($image_id)) {
         wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
