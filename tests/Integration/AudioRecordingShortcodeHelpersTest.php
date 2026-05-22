@@ -365,6 +365,85 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame($word_id, (int) ($hidden_items[0]['word_id'] ?? 0));
     }
 
+    public function test_wordset_scoped_recorder_queue_excludes_standalone_legacy_images_and_foreign_categories(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset_a = $this->ensure_term('wordset', 'Recorder Scope A', 'recorder-scope-a');
+        $wordset_b = $this->ensure_term('wordset', 'Recorder Scope B', 'recorder-scope-b');
+        $category_a = $this->ensure_term('word-category', 'Scope A Category', 'scope-a-category');
+        $category_b = $this->ensure_term('word-category', 'Quiz 1.1', 'quiz-1-1');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+
+        if (function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($category_a, $wordset_a, $category_a);
+            ll_tools_set_category_wordset_owner($category_b, $wordset_b, $category_b);
+        }
+        update_term_meta($category_a, 'll_desired_recording_types', ['isolation']);
+        update_term_meta($category_b, 'll_desired_recording_types', ['isolation']);
+        update_option('ll_uncategorized_desired_recording_types', ['isolation']);
+
+        $owned_a = $this->create_word_image_for_recording('Owned Scope A Image', $category_a, $wordset_a);
+        $owned_b = $this->create_word_image_for_recording('Owned Scope B Image', $category_b, $wordset_b);
+        $standalone_legacy = $this->create_word_image_for_recording('Standalone Legacy Image', $category_b, 0);
+        $linked_legacy = $this->create_word_image_for_recording('Linked Legacy A Image', $category_a, 0);
+
+        $word_a = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Linked Scope A Word',
+        ]);
+        set_post_thumbnail($word_a, (int) $linked_legacy['attachment_id']);
+        update_post_meta($word_a, '_ll_autopicked_image_id', (int) $linked_legacy['image_id']);
+        wp_set_object_terms($word_a, [$category_a], 'word-category', false);
+        wp_set_object_terms($word_a, [$wordset_a], 'wordset', false);
+        $expected_linked_image_id = function_exists('ll_tools_get_canonical_word_image_post_id_for_word')
+            ? (int) ll_tools_get_canonical_word_image_post_id_for_word((int) $word_a, true)
+            : (int) $linked_legacy['image_id'];
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+
+        $admin_items = ll_tools_get_recording_queue_items('', [$wordset_a], '', '', true, $admin_id);
+        $admin_image_ids = array_map(static function (array $item): int {
+            return (int) ($item['id'] ?? 0);
+        }, $admin_items);
+        $admin_word_ids = array_map(static function (array $item): int {
+            return (int) ($item['word_id'] ?? 0);
+        }, $admin_items);
+        $admin_category_slugs = array_values(array_unique(array_map(static function (array $item): string {
+            return (string) ($item['category_slug'] ?? '');
+        }, $admin_items)));
+
+        $this->assertContains((int) $owned_a['image_id'], $admin_image_ids);
+        $this->assertContains($expected_linked_image_id, $admin_image_ids);
+        $this->assertContains((int) $word_a, $admin_word_ids);
+        $this->assertNotContains((int) $standalone_legacy['image_id'], $admin_image_ids);
+        $this->assertNotContains((int) $owned_b['image_id'], $admin_image_ids);
+        $this->assertContains('scope-a-category', $admin_category_slugs);
+        $this->assertNotContains('quiz-1-1', $admin_category_slugs);
+        $this->assertNotContains('uncategorized', $admin_category_slugs);
+
+        $recorder_items = ll_tools_get_recording_queue_items('', [$wordset_a], '', '', true, $recorder_id);
+        $recorder_image_ids = array_map(static function (array $item): int {
+            return (int) ($item['id'] ?? 0);
+        }, $recorder_items);
+        $this->assertContains($expected_linked_image_id, $recorder_image_ids);
+        $this->assertNotContains((int) $standalone_legacy['image_id'], $recorder_image_ids);
+        $this->assertNotContains((int) $owned_b['image_id'], $recorder_image_ids);
+
+        $categories = ll_get_categories_for_wordset([$wordset_a], '', '');
+        $this->assertArrayHasKey('scope-a-category', $categories);
+        $this->assertArrayNotHasKey('quiz-1-1', $categories);
+
+        $category_items = ll_get_images_needing_audio('scope-a-category', [$wordset_a], '', '', true, $recorder_id);
+        $category_word_ids = array_map(static function (array $item): int {
+            return (int) ($item['word_id'] ?? 0);
+        }, $category_items);
+        $this->assertContains((int) $word_a, $category_word_ids);
+    }
+
     public function test_recorder_category_resolver_remaps_isolated_slug_to_requested_wordset(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
@@ -442,5 +521,30 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
 
         return (int) $attachment_id;
+    }
+
+    /**
+     * @return array{image_id:int,attachment_id:int}
+     */
+    private function create_word_image_for_recording(string $title, int $category_id = 0, int $owner_wordset_id = 0): array
+    {
+        $attachment_id = $this->create_image_attachment(sanitize_title($title) . '.png');
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+        set_post_thumbnail($image_id, $attachment_id);
+        if ($owner_wordset_id > 0 && function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner((int) $image_id, $owner_wordset_id, (int) $image_id);
+        }
+        if ($category_id > 0) {
+            wp_set_object_terms($image_id, [$category_id], 'word-category', false);
+        }
+
+        return [
+            'image_id' => (int) $image_id,
+            'attachment_id' => (int) $attachment_id,
+        ];
     }
 }
