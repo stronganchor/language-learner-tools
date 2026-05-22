@@ -54,6 +54,9 @@ the server with image, media, or metadata updates:
   a hard default max of 250.
 - Basic-auth REST writes to `/wp/v2/media`, `/wp/v2/word_images`, and
   `/wp/v2/words` are serialized by a lightweight resource guard.
+- Basic-auth automation writes that can mutate or rebuild larger LL Tools
+  surfaces are also serialized, including static-cache purge, wordset writes,
+  import preview/start/process/discard, and corpus-text asset/import routes.
 - The guarded routes return HTTP `429` with `Retry-After` and
   `data.retry_after_seconds` when another automation write just ran. Wait that
   long before retrying the exact same request.

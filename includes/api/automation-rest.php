@@ -587,12 +587,24 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     if (preg_match('#^/wp/v2/(media|word_images|words)(?:/\d+)?$#', $route, $matches)) {
         $resource = (string) $matches[1];
         $delay_seconds = in_array($resource, ['media', 'word_images'], true) ? 2.0 : 1.25;
+    } elseif ($route === '/ll-tools/v1/cache/static/purge') {
+        $resource = 'll_tools_static_cache_purge';
+        $delay_seconds = 2.0;
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 2.0;
     } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|prompt-cards|review-notes|interlinear)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 1.25;
+    } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
+        $resource = 'll_tools_import_' . sanitize_key((string) $matches[1]);
+        $delay_seconds = 2.0;
+    } elseif (preg_match('#^/ll-tools/v1/imports/[^/]+/(process|discard)$#', $route, $matches)) {
+        $resource = 'll_tools_import_' . sanitize_key((string) $matches[1]);
+        $delay_seconds = 2.0;
+    } elseif (preg_match('#^/ll-tools/v1/corpus-texts/(asset|import)$#', $route, $matches)) {
+        $resource = 'll_tools_corpus_text_' . sanitize_key((string) $matches[1]);
+        $delay_seconds = 2.0;
     }
 
     if ($resource === '') {
@@ -841,6 +853,22 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/wp/v2/media',
                 '/wp/v2/word_images',
                 '/wp/v2/words',
+            ],
+            'automation_write_routes' => [
+                '/ll-tools/v1/cache/static/purge',
+                '/ll-tools/v1/wordsets',
+                '/ll-tools/v1/wordsets/{wordset}/bulk-update',
+                '/ll-tools/v1/wordsets/{wordset}/transcriptions',
+                '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
+                '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
+                '/ll-tools/v1/wordsets/{wordset}/review-notes',
+                '/ll-tools/v1/wordsets/{wordset}/interlinear',
+                '/ll-tools/v1/imports/preview',
+                '/ll-tools/v1/imports/start',
+                '/ll-tools/v1/imports/{job_id}/process',
+                '/ll-tools/v1/imports/{job_id}/discard',
+                '/ll-tools/v1/corpus-texts/asset',
+                '/ll-tools/v1/corpus-texts/import',
             ],
             'bulk_update_batch' => [
                 'default_write_limit' => ll_tools_rest_automation_batch_limit('bulk_update', false)['default'],
