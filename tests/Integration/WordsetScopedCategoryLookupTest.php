@@ -6,15 +6,20 @@ final class WordsetScopedCategoryLookupTest extends LL_Tools_TestCase
     /** @var array<string,mixed> */
     private $getBackup = [];
 
+    /** @var array<string,mixed> */
+    private $requestBackup = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->getBackup = $_GET;
+        $this->requestBackup = $_REQUEST;
     }
 
     protected function tearDown(): void
     {
         $_GET = $this->getBackup;
+        $_REQUEST = $this->requestBackup;
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
 
         parent::tearDown();
@@ -157,6 +162,37 @@ final class WordsetScopedCategoryLookupTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey((string) $fixture['wordset_two_id'], $wordset_options);
     }
 
+    public function test_audio_image_matcher_ajax_rejects_recorder_unassigned_wordset(): void
+    {
+        $fixture = $this->createScopedCategoryFixture();
+        $this->setCurrentRecorderForWordset((string) $fixture['wordset_one_slug']);
+
+        $_GET = [
+            'nonce' => wp_create_nonce('ll_aim_admin'),
+            'wordset_id' => (string) $fixture['wordset_two_id'],
+            'term_id' => (string) $fixture['isolated_two_id'],
+        ];
+        $_REQUEST = $_GET;
+
+        $category_response = $this->runJsonEndpoint(static function (): void {
+            ll_aim_get_category_options_handler();
+        });
+        $this->assertFalse((bool) ($category_response['success'] ?? true));
+        $this->assertSame('Forbidden', (string) ($category_response['data'] ?? ''));
+
+        $images_response = $this->runJsonEndpoint(static function (): void {
+            ll_aim_get_images_handler();
+        });
+        $this->assertFalse((bool) ($images_response['success'] ?? true));
+        $this->assertSame('Forbidden', (string) ($images_response['data'] ?? ''));
+
+        $next_response = $this->runJsonEndpoint(static function (): void {
+            ll_aim_get_next_handler();
+        });
+        $this->assertFalse((bool) ($next_response['success'] ?? true));
+        $this->assertSame('Forbidden', (string) ($next_response['data'] ?? ''));
+    }
+
     /**
      * @return array<string,int|string>
      */
@@ -240,6 +276,44 @@ final class WordsetScopedCategoryLookupTest extends LL_Tools_TestCase
             'category' => '',
         ]);
         wp_set_current_user($user_id);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function runJsonEndpoint(callable $callback): array
+    {
+        $die_handler = static function (): void {
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_filter);
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+
+        ob_start();
+        try {
+            $callback();
+            $this->fail('Expected wp_die to be called.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_die', $e->getMessage());
+        } finally {
+            $output = (string) ob_get_clean();
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_filter);
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+        }
+
+        $decoded = json_decode($output, true);
+        $this->assertIsArray($decoded, 'Expected JSON response payload.');
+
+        return $decoded;
     }
 
     /**
