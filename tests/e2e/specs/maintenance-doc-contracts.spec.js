@@ -126,6 +126,70 @@ function collectHardcodedUiTextFindings() {
   return findings;
 }
 
+function normalizeRestRoutePath(routePath) {
+  return routePath.replace(/\(\?P<([^>]+)>[^)]+\)/g, '{$1}');
+}
+
+function restMethodsFromDefinition(definition) {
+  const methods = new Set();
+
+  if (definition.includes('WP_REST_Server::READABLE')) {
+    methods.add('GET');
+  }
+  if (definition.includes('WP_REST_Server::CREATABLE')) {
+    methods.add('POST');
+  }
+  if (definition.includes('WP_REST_Server::EDITABLE')) {
+    methods.add('POST');
+    methods.add('PUT');
+    methods.add('PATCH');
+  }
+  if (definition.includes('WP_REST_Server::DELETABLE')) {
+    methods.add('DELETE');
+  }
+
+  return ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].filter((method) => methods.has(method));
+}
+
+function collectRegisteredLlToolsRestRoutes() {
+  const sourceFiles = [
+    path.join(repoRoot, 'includes', 'api', 'automation-rest.php'),
+    path.join(repoRoot, 'includes', 'lib', 'site-sync.php')
+  ];
+  const routeRegex = /register_rest_route\(\s*['"]ll-tools\/v1['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*\[([\s\S]*?)\]\s*\);/g;
+  const routes = [];
+
+  for (const file of sourceFiles) {
+    const source = fs.readFileSync(file, 'utf8');
+    let match;
+    routeRegex.lastIndex = 0;
+
+    while ((match = routeRegex.exec(source)) !== null) {
+      const routePath = normalizeRestRoutePath(match[1]);
+      const methods = restMethodsFromDefinition(match[2]);
+
+      for (const method of methods) {
+        routes.push(`${method} ${routePath}`);
+      }
+    }
+  }
+
+  return [...new Set(routes)].sort();
+}
+
+function collectAutomationStatusRoutePaths() {
+  const source = fs.readFileSync(path.join(repoRoot, 'includes', 'api', 'automation-rest.php'), 'utf8');
+  const routesBlockMatch = source.match(/['"]routes['"]\s*=>\s*\[([\s\S]*?)\],\s*['"]resource_guard['"]/);
+
+  if (!routesBlockMatch) {
+    return null;
+  }
+
+  return [...routesBlockMatch[1].matchAll(/['"][a-z_]+['"]\s*=>\s*['"]\/ll-tools\/v1([^'"]+)['"]/g)]
+    .map((match) => match[1])
+    .sort();
+}
+
 test('README documents registered public shortcodes', async () => {
   const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
   const phpFiles = pluginSourceFiles().filter((file) => file.endsWith('.php'));
@@ -210,4 +274,23 @@ test('REST automation docs cover corpus text routes exposed by status', async ()
     expect(source).toContain(`'${statusKey}'`);
     expect(docs).toContain(docRoute);
   }
+});
+
+test('REST automation docs cover every registered ll-tools route', async () => {
+  const docs = fs.readFileSync(path.join(repoRoot, 'docs', 'REST_AUTOMATION.md'), 'utf8');
+  const registeredRoutes = collectRegisteredLlToolsRestRoutes();
+  const missing = registeredRoutes.filter((route) => !docs.includes(`\`${route}\``));
+
+  expect(
+    missing,
+    `docs/REST_AUTOMATION.md is missing registered REST routes:\n${missing.join('\n')}`
+  ).toEqual([]);
+});
+
+test('automation status route map matches the registered ll-tools REST paths', async () => {
+  const registeredPaths = [...new Set(collectRegisteredLlToolsRestRoutes().map((route) => route.replace(/^[A-Z]+ /, '')))].sort();
+  const statusPaths = collectAutomationStatusRoutePaths();
+
+  expect(statusPaths, 'Could not find the automation status routes map.').not.toBeNull();
+  expect(statusPaths).toEqual(registeredPaths);
 });

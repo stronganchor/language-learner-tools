@@ -119,8 +119,10 @@ Routes:
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
 - `POST /wordsets/{wordset}/bulk-update`
+- `POST /wordsets/{wordset}/transcriptions`
 - `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
+- `POST /wordsets/{wordset}/prompt-cards`
 - `GET /wordsets/{wordset}/report`
 - `GET /wordsets/{wordset}/report-summary`
 - `GET /wordsets/{wordset}/review-notes`
@@ -403,6 +405,28 @@ Typical uses:
 - attaching `dictionary_entry_title`
 - updating `word_note` without resending the entire word row
 
+### `POST /wordsets/{wordset}/transcriptions`
+
+Updates `word_audio` recording text, IPA, and review state for recordings that
+belong to one wordset. Send `dry_run=true` first when applying corrections from
+an external transcript review.
+
+Body fields:
+
+- `updates` optional array; omitted arrays treat the request body as one update
+- `recording_id` or `word_audio_id` required per update
+- `recording_text` or `text` optional
+- `recording_ipa` or `ipa` optional
+- `needs_review` optional boolean
+- `review_fields` optional list, or `review_field` for one targeted field
+- `review_note` optional; aliases accepted for field-specific review-note
+  payloads
+- `dry_run` optional boolean
+
+The response includes `matched_count`, `updated_count`, per-record `before` and
+`after` payloads, and structured `errors` for recordings outside the requested
+wordset.
+
 ### `GET /wordsets/{wordset}/site-sync/snapshot`
 
 Returns a wordset-scoped sync snapshot for site-to-site workflows. The first
@@ -488,6 +512,28 @@ it must match the resolved object type.
 
 The response includes the selected `wordset`, resolved `object_type`,
 `object_id`, saved `note`, and normalized `row`.
+
+### `POST /wordsets/{wordset}/prompt-cards`
+
+Updates an existing `ll_prompt_card` inside the requested wordset without
+loading wp-admin screens.
+
+Body fields:
+
+- `prompt_card_id`, `object_id`, or `id` required
+- `prompt_text` or `prompt` optional
+- `prompt_audio_url` or `prompt_audio` optional
+- `prompt_audio_attachment_id` or `prompt_audio_id` optional
+- `prompt_image_word_id` or `prompt_image_id` optional
+- `correct_answer_word_id` or `answer_word_id` optional
+- `wrong_answer_word_ids` or `wrong_answer_ids` optional
+- `track_answer_word_progress` optional boolean
+- `category_ids`, `categories`, `category`, or `category_slug` optional
+- `wordset_ids` or `wordsets` optional; the requested wordset must remain in
+  scope
+
+The response returns the `before` and `after` prompt-card payloads,
+`changed_keys`, and any bumped category cache IDs.
 
 ### `POST /imports/preview`
 
