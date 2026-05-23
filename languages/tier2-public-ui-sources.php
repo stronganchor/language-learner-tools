@@ -90,7 +90,7 @@ return [
         ],
         'hi_IN' => [
             'label' => 'Hindi',
-            'status' => 'planned',
+            'status' => 'active',
         ],
         'es_ES' => [
             'label' => 'Spanish',
