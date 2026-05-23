@@ -158,7 +158,7 @@ msgstr "Nota de revisión de línea"
 #. ll-tools-public-key: 232c5683e26814ce44862bf1fa8cc8af6438a375
 #: includes/lib/interlinear.php:2183
 msgid "Source witnesses"
-msgstr "Testimonios textuales"
+msgstr "Testigos textuales"
 
 #. ll-tools-public-key: 032c6259ad29bcd3a73247d02384e112312c1945
 #: includes/lib/interlinear.php:2225
@@ -173,7 +173,7 @@ msgstr "Derechos:"
 #. ll-tools-public-key: 400aade6f9bf7249df701adf1a9b5e7fe6a669ee
 #: includes/lib/interlinear.php:2241
 msgid "Source witness"
-msgstr "Testimonio textual"
+msgstr "Testigo textual"
 
 #. ll-tools-public-key: 77a5340b6ae7b2e13dec0ee9bb8935e4269008b9
 #: includes/lib/interlinear.php:2545 includes/lib/interlinear.php:2563
@@ -465,7 +465,7 @@ msgstr "Transcripción"
 #. ll-tools-public-key: e973659ddb1e80c5a25012ac59804a9e4ed49f57
 #: includes/lib/wordset-language-settings.php:731 includes/pages/wordset-games.php:3062
 msgid "Cached reference STT"
-msgstr "STT de referencia en caché"
+msgstr "Transcripción de referencia en caché"
 
 #. ll-tools-public-key: 93ad6dd75a3127a7d28ede9eae22ee723de88805
 #: includes/lib/wordset-language-settings.php:737 includes/pages/wordset-games.php:1794 includes/pages/wordset-games.php:1797 includes/pages/wordset-games.php:3063
@@ -545,7 +545,7 @@ msgstr "El control de seguridad del registro ha fallado. Inténtalo de nuevo."
 #. ll-tools-public-key: 281a25631c7f5ad87c34a47caa8979046c9f10c3
 #: includes/login-window.php:1400
 msgid "Please use the invited recorder email address for this signup link."
-msgstr "Usa para este enlace de registro la dirección de correo del grabador invitado."
+msgstr "Usa la dirección de correo de la persona invitada a grabar para este enlace de registro."
 
 #. ll-tools-public-key: bd178e4a9c14eac512a6b810e3ccf4f382bfbe98
 #: includes/login-window.php:1482
@@ -800,7 +800,7 @@ msgstr "Vocabulario: %1$s (%2$s)"
 #. ll-tools-public-key: 84e5b262d512cdbcd8005052b3bf59b511536335
 #: includes/pages/wordset-games.php:2071 includes/pages/wordset-games.php:4143
 msgid "Unscramble"
-msgstr "Ordena letras"
+msgstr "Ordenar letras"
 
 #. ll-tools-public-key: 091245f81debcc3f96e8e7cf1bc9a1236dae1807
 #: includes/pages/wordset-games.php:2072 includes/pages/wordset-games.php:4144
@@ -860,7 +860,7 @@ msgstr "Nombra la imagen antes de que la pila llegue arriba."
 #. ll-tools-public-key: abf651bbeaf66dfe7c83b8512b49a37a077fefa6
 #: includes/pages/wordset-games.php:3120 includes/pages/wordset-games.php:3213
 msgid "This word does not have a saved isolation recording for speaking practice."
-msgstr "Esta palabra no tiene ninguna grabación de aislamiento guardada para practicar la pronunciación."
+msgstr "Esta palabra no tiene una grabación aislada guardada para la práctica oral."
 
 #. ll-tools-public-key: 6583717bcc7dc65d2c1f25d27a8ae5b4713542b6
 #: includes/pages/wordset-games.php:3124 includes/pages/wordset-games.php:3933
@@ -870,12 +870,12 @@ msgstr "La integración con AssemblyAI no está disponible."
 #. ll-tools-public-key: e8c6d418182b80068da5c702196e7fbf5d452404
 #: includes/pages/wordset-games.php:3129 includes/pages/wordset-games.php:3223
 msgid "The saved isolation recording could not be found on disk."
-msgstr "No se ha podido encontrar en el disco la grabación de aislamiento guardada."
+msgstr "No se ha podido encontrar en el disco la grabación aislada guardada."
 
 #. ll-tools-public-key: ae87cbad192368622e733b4e25e39a2b3d5a2201
 #: includes/pages/wordset-games.php:3175 includes/pages/wordset-games.php:3274 includes/pages/wordset-games.php:3377 includes/pages/wordset-games.php:3401
 msgid "The saved isolation recording could not be transcribed."
-msgstr "No se ha podido transcribir la grabación de aislamiento guardada."
+msgstr "No se ha podido transcribir la grabación aislada guardada."
 
 #. ll-tools-public-key: 4396f04768b731b356213b2b486489f7dd6479dc
 #: includes/pages/wordset-games.php:3218
@@ -915,17 +915,17 @@ msgstr "La transcripción está vacía."
 #. ll-tools-public-key: 781c2259951f4eb1077b69b3de2ea8f351a8ecc1
 #: includes/pages/wordset-games.php:3329
 msgid "Invalid speaking target."
-msgstr "Destino de habla no válido."
+msgstr "Referencia de práctica oral no válida."
 
 #. ll-tools-public-key: cbae4826460b18c29b40b8a3819f6ce7c2724304
 #: includes/pages/wordset-games.php:3354
 msgid "Target text is missing for this word."
-msgstr "Falta el texto de destino para esta palabra."
+msgstr "Falta el texto de referencia para esta palabra."
 
 #. ll-tools-public-key: 3bcfe683107d8726fbe653c2720e7799d5385c5b
 #: includes/pages/wordset-games.php:3410
 msgid "Cached reference STT is only available with server-side speaking providers."
-msgstr "La referencia STT en caché solo está disponible con proveedores de voz del lado del servidor."
+msgstr "La transcripción de referencia en caché solo está disponible con servicios de práctica oral del lado del servidor."
 
 #. ll-tools-public-key: 8211badcb7b9c227da3ec7208bbf76e7bf99b038
 #: includes/pages/wordset-games.php:3417
@@ -1050,7 +1050,7 @@ msgstr "Palabras nuevas"
 #. ll-tools-public-key: 0a19b5501c67753b9b0de6efbdc0fbf558c04d44
 #: includes/pages/wordset-pages.php:14034 includes/pages/wordset-pages.php:14204 includes/pages/wordset-pages.php:15653
 msgid "In progress words"
-msgstr "Palabras en proceso"
+msgstr "Palabras en curso"
 
 #. ll-tools-public-key: 2d6b313bc8262d4ac648dcdff696e593e29936af
 #: includes/pages/wordset-pages.php:14035 includes/pages/wordset-pages.php:14208 includes/pages/wordset-pages.php:15654
@@ -1060,7 +1060,7 @@ msgstr "Palabras aprendidas"
 #. ll-tools-public-key: 5f646501d0318f71e39e5191952a779a8d3831f7
 #: includes/pages/wordset-pages.php:14036 includes/pages/wordset-pages.php:14212 includes/pages/wordset-pages.php:15630 includes/pages/wordset-pages.php:15655
 msgid "Starred words"
-msgstr "Palabras destacadas"
+msgstr "Palabras con estrella"
 
 #. ll-tools-public-key: d5b2f2f1f131ae7989707b0adf992f55e1afcfbe
 #: includes/pages/wordset-pages.php:14037 includes/pages/wordset-pages.php:14216 includes/pages/wordset-pages.php:15656 includes/pages/wordset-pages.php:15714
@@ -1095,12 +1095,12 @@ msgstr "Prioridades de estudio"
 #. ll-tools-public-key: 3f60fbeffa1bc4aea55fc297e6a3e1ca460b08ce
 #: includes/pages/wordset-pages.php:14196
 msgid "Select one focus (optional)"
-msgstr "Selecciona un tema (opcional)"
+msgstr "Selecciona una prioridad (opcional)"
 
 #. ll-tools-public-key: 9a00397e8c820d999777538f21a9ed9a23f19e7a
 #: includes/pages/wordset-pages.php:14197
 msgid "Study priority focus"
-msgstr "Áreas prioritarias de estudio"
+msgstr "Prioridad de estudio"
 
 #. ll-tools-public-key: 926c1d6cc67699d2a8b99dd3f8bd79edc2d5c2d8
 #: includes/pages/wordset-pages.php:14223 includes/pages/wordset-pages.php:14224
@@ -1270,7 +1270,7 @@ msgstr "Selecciona al menos una categoría."
 #. ll-tools-public-key: 2efc9dd7c619939b206c35a75468da4fe2afcd9e
 #: includes/pages/wordset-pages.php:15660
 msgid "No quiz words are available for this selection."
-msgstr "No hay palabras de cuestionario disponibles para esta selección."
+msgstr "No hay palabras disponibles para el cuestionario en esta selección."
 
 #. ll-tools-public-key: 8d6b42e053f2ccab59f4e091447c09720f32b88b
 #: includes/pages/wordset-pages.php:15661
@@ -1285,12 +1285,12 @@ msgstr "No hay palabras difíciles disponibles para esta selección."
 #. ll-tools-public-key: 866d407a04f1f366873aae1bffd180f8528ac0b3
 #: includes/pages/wordset-pages.php:15663
 msgid "No new words are available for this selection."
-msgstr "No hay nuevas palabras disponibles para esta selección."
+msgstr "No hay palabras nuevas disponibles para esta selección."
 
 #. ll-tools-public-key: ff92afee9c900b90cf194b4471cf342c8b39cd2a
 #: includes/pages/wordset-pages.php:15664
 msgid "No in progress words are available for this selection."
-msgstr "No hay palabras en proceso disponibles para esta selección."
+msgstr "No hay palabras en curso disponibles para esta selección."
 
 #. ll-tools-public-key: aaca4fca762f6e0e854405faa529a717454559d4
 #: includes/pages/wordset-pages.php:15665
@@ -1380,7 +1380,7 @@ msgstr "En curso"
 #. ll-tools-public-key: aa5a22b536ea954586b4e55cd729918186eb60cb
 #: includes/pages/wordset-pages.php:15685 includes/pages/wordset-pages.php:15695 includes/pages/wordset-pages.php:15696 includes/pages/wordset-pages.php:15699 includes/pages/wordset-pages.php:15888 includes/pages/wordset-pages.php:9505
 msgid "New"
-msgstr "Nuevo"
+msgstr "Nuevas"
 
 #. ll-tools-public-key: f788c2629379922c69a5e09d6290ab96b84151eb
 #: includes/pages/wordset-pages.php:15686 includes/pages/wordset-pages.php:15705 includes/pages/wordset-pages.php:16023
@@ -1390,7 +1390,7 @@ msgstr "Con estrella"
 #. ll-tools-public-key: ab37fa92453245c0978180e4bb50295b9037c991
 #: includes/pages/wordset-pages.php:15687 includes/pages/wordset-pages.php:9510
 msgid "Hard"
-msgstr "Difícil"
+msgstr "Difíciles"
 
 #. ll-tools-public-key: e288a81bf48bc90639936097bd89c22714e860b7
 #: includes/pages/wordset-pages.php:15688 includes/pages/wordset-pages.php:15864
@@ -1455,7 +1455,7 @@ msgstr "Filtrar por categoría gramatical"
 #. ll-tools-public-key: 33df2a6d68f29e2ded4cef2b5ec08e708b6bd949
 #: includes/pages/wordset-pages.php:15708 includes/pages/wordset-pages.php:15975 includes/pages/wordset-pages.php:16173 includes/pages/wordset-pages.php:16181
 msgid "Last"
-msgstr "Último"
+msgstr "Última vez"
 
 #. ll-tools-public-key: 5fc21c5db1c5461b082d40590e1e17b03fdcd801
 #: includes/pages/wordset-pages.php:15709 includes/pages/wordset-pages.php:16106
@@ -1470,7 +1470,7 @@ msgstr "Visto"
 #. ll-tools-public-key: 7cfb363fe188f04c5391a94f92936c2c5fa5ed35
 #: includes/pages/wordset-pages.php:15713
 msgid "Unstarred only"
-msgstr "Solo sin marcar"
+msgstr "Solo sin estrella"
 
 #. ll-tools-public-key: 4a3fb05e6af1b0a72cff68fb85af4a26ca7bb835
 #: includes/pages/wordset-pages.php:15715 includes/pages/wordset-pages.php:16008
@@ -1520,12 +1520,12 @@ msgstr "Inicia sesión para ver el progreso"
 #. ll-tools-public-key: e9e845f39a348532c26051071866ffa0bc220a0c
 #: includes/pages/wordset-pages.php:15841
 msgid "Use your account to view wordset progress and keep your learning history."
-msgstr "Utiliza tu cuenta para ver el progreso de los conjuntos de palabras y conservar tu historial de aprendizaje."
+msgstr "Usa tu cuenta para ver el progreso de este conjunto de palabras y conservar tu historial de aprendizaje."
 
 #. ll-tools-public-key: d6bd56e8598cd8ffd89030d6f94a637fecdd0272
 #: includes/pages/wordset-pages.php:15842
 msgid "Open progress"
-msgstr "Abrir progreso"
+msgstr "Ver progreso"
 
 #. ll-tools-public-key: abf10c1dc060cf4bc1353fe7f9a32f94ea089f55
 #: includes/pages/wordset-pages.php:15902 includes/pages/wordset-pages.php:3405 includes/shortcodes/flashcard-widget.php:412 includes/shortcodes/flashcard-widget.php:417 includes/shortcodes/flashcard-widget.php:422 includes/shortcodes/flashcard-widget.php:476 includes/shortcodes/flashcard-widget.php:564 includes/shortcodes/flashcard-widget.php:565 includes/shortcodes/quiz-pages-shortcodes.php:910 includes/shortcodes/quiz-pages-shortcodes.php:949 templates/flashcard-widget-template.php:134 templates/flashcard-widget-template.php:93 templates/offline-app-shell-template.php:836 templates/offline-app-shell-template.php:893 templates/offline-app-shell-template.php:932 templates/vocab-lesson-template.php:169
@@ -1560,7 +1560,7 @@ msgstr "Buscar palabras o traducciones"
 #. ll-tools-public-key: 6e50d0b0e63836bc0ee31a5ea6d79c9d3f5ad403
 #: includes/pages/wordset-pages.php:16018 includes/pages/wordset-pages.php:16027
 msgid "Filter star status"
-msgstr "Filtrar por estado de estrella"
+msgstr "Filtrar por marcado con estrella"
 
 #. ll-tools-public-key: 4cd0c8ef3d2a054d9031bca27294e85ef3ec0fbc
 #: includes/pages/wordset-pages.php:16040 includes/pages/wordset-pages.php:16052
@@ -1585,7 +1585,7 @@ msgstr "Filtrar por nivel de dificultad"
 #. ll-tools-public-key: 10b2bd1ab23371d23204afefa54edeb6e47e2dd5
 #: includes/pages/wordset-pages.php:16126 includes/pages/wordset-pages.php:16142
 msgid "Filter seen count"
-msgstr "Filtrar por número de vistas"
+msgstr "Filtrar por número de veces vista"
 
 #. ll-tools-public-key: ae13ff7f2997bfac9baf664d770eeb60f1ec547f
 #: includes/pages/wordset-pages.php:16152 includes/pages/wordset-pages.php:16168
@@ -1595,7 +1595,7 @@ msgstr "Filtrar por número de errores"
 #. ll-tools-public-key: 1cefc3abde5750c24b258e2d4db8a70266c56778
 #: includes/pages/wordset-pages.php:16175 includes/pages/wordset-pages.php:16187
 msgid "Filter last seen"
-msgstr "Filtrar por «Visto por última vez»"
+msgstr "Filtrar por última vez vista"
 
 #. ll-tools-public-key: 7ebbefc9319d7483cb8dd47d8e2f11d41ca8908e
 #: includes/pages/wordset-pages.php:16202
@@ -1665,12 +1665,12 @@ msgstr "Menos aprendidas"
 #. ll-tools-public-key: d45ea60b92b51844a353f5f53f7a2d2f92ae7712
 #: includes/pages/wordset-pages.php:16651 templates/offline-app-shell-template.php:808
 msgid "Recently studied"
-msgstr "Estudiado recientemente"
+msgstr "Estudiadas recientemente"
 
 #. ll-tools-public-key: 8bd854edcb11f2ab9b50785e594e64055d9fc93c
 #: includes/pages/wordset-pages.php:16655 templates/offline-app-shell-template.php:812
 msgid "Not recently studied"
-msgstr "No se ha estudiado recientemente"
+msgstr "No estudiadas recientemente"
 
 #. ll-tools-public-key: ff1f7abe1c22f822df09817e69c5d7198a68eff7
 #: includes/pages/wordset-pages.php:16680 includes/shortcodes/flashcard-widget.php:487
@@ -1710,12 +1710,12 @@ msgstr "Comprobando la disponibilidad del juego..."
 #. ll-tools-public-key: 84dd4f547b3c01d8e3dec09589f5988ce6ef7565
 #: includes/pages/wordset-pages.php:17173
 msgid "Sign in to play with your in-progress words."
-msgstr "Inicia sesión para seguir trabajando en tus palabras."
+msgstr "Inicia sesión para jugar con tus palabras en curso."
 
 #. ll-tools-public-key: efee1d98f6c7fcf88587e818a5c640f4e548b7d2
 #: includes/pages/wordset-pages.php:17179 includes/pages/wordset-pages.php:9349
 msgid "Eligible words"
-msgstr "Palabras válidas"
+msgstr "Palabras disponibles para jugar"
 
 #. ll-tools-public-key: 340d8608d8bb15bf718c14e7a9839458fcb5e327
 #: includes/pages/wordset-pages.php:17186 includes/pages/wordset-pages.php:9347
@@ -1751,7 +1751,7 @@ msgstr "Vidas"
 #. ll-tools-public-key: 3622a5d567f064a9764120a47da18c3a413cc404
 #: includes/pages/wordset-pages.php:17249 includes/pages/wordset-pages.php:9354
 msgid "Replay prompt"
-msgstr "Repetir indicación"
+msgstr "Repetir consigna"
 
 #. ll-tools-public-key: 7cfb5f617deccffe3db2150650fc9cd1448de2e5
 #: includes/pages/wordset-pages.php:17272 includes/pages/wordset-pages.php:9355
@@ -1836,7 +1836,7 @@ msgstr "Reproducir el audio correcto"
 #. ll-tools-public-key: d91f121fb77fc9b223f53e3a6b9ca4fbc467ad73
 #: includes/pages/wordset-pages.php:17423 includes/pages/wordset-pages.php:9417
 msgid "Target"
-msgstr "Objetivo"
+msgstr "Referencia"
 
 #. ll-tools-public-key: e0074b8b19544bd789cefcb9f4cbf174f333771f
 #: includes/pages/wordset-pages.php:17447 includes/pages/wordset-pages.php:9421
@@ -1868,7 +1868,7 @@ msgstr[1] "%d lecciones de vocabulario"
 #. ll-tools-public-key: 4a8e2701933324a1d19bac6adde6dc12861b12ff
 #: includes/pages/wordset-pages.php:3188
 msgid "Lesson actions for %s"
-msgstr "Actividades de la lección de «%s»"
+msgstr "Acciones de la lección «%s»"
 
 #. ll-tools-public-key: d30f2cc61b6b398722fae6459a9c69d04d007d1f
 #: includes/pages/wordset-pages.php:3401 includes/shortcodes/flashcard-widget.php:408 includes/shortcodes/flashcard-widget.php:413 includes/shortcodes/flashcard-widget.php:418 includes/shortcodes/flashcard-widget.php:473 includes/shortcodes/flashcard-widget.php:478 includes/shortcodes/flashcard-widget.php:538 includes/shortcodes/flashcard-widget.php:539 includes/shortcodes/quiz-pages-shortcodes.php:906 includes/shortcodes/quiz-pages-shortcodes.php:945 templates/flashcard-widget-template.php:130 templates/flashcard-widget-template.php:89 templates/offline-app-shell-template.php:830 templates/offline-app-shell-template.php:889 templates/offline-app-shell-template.php:928 templates/vocab-lesson-template.php:166
@@ -2030,7 +2030,7 @@ msgstr "Partida completada"
 #. ll-tools-public-key: 4155a7939c94927de3685bf55c69c33ca066ec17
 #: includes/pages/wordset-pages.php:9368
 msgid "Coins: %1$d · Prompts: %2$d"
-msgstr "Monedas: %1$d · Sugerencias: %2$d"
+msgstr "Monedas: %1$d · Consignas: %2$d"
 
 #. ll-tools-public-key: fa26fe6ad4d2dd8cc479f1b4bd829623e0d8685d
 #: includes/pages/wordset-pages.php:9369
@@ -2080,7 +2080,7 @@ msgstr "Tablero de secuencia de Ordenar cartas"
 #. ll-tools-public-key: 403f0013904aca7435edad2c6cea6628e3b0821d
 #: includes/pages/wordset-pages.php:9379
 msgid "Unscramble game board"
-msgstr "Tablero del juego Ordena letras"
+msgstr "Tablero del juego Ordenar letras"
 
 #. ll-tools-public-key: 6854d94bb6f6b77d04823f1aef16760079a0aac4
 #: includes/pages/wordset-pages.php:9380
@@ -2155,7 +2155,7 @@ msgstr "Ficha fija"
 #. ll-tools-public-key: 6f6401249768c645655419b9ad8b3140d0225287
 #: includes/pages/wordset-pages.php:9401
 msgid "Unscramble complete"
-msgstr "Letras ordenadas"
+msgstr "Ordenar letras completado"
 
 #. ll-tools-public-key: 37f09e4825cecbc91457e0f081c64aa11607b59e
 #: includes/pages/wordset-pages.php:9402
@@ -2180,7 +2180,7 @@ msgstr "Di la palabra que corresponde a esta imagen."
 #. ll-tools-public-key: a5e953cb4399a369f6c352081dbf61ac74ee6f8a
 #: includes/pages/wordset-pages.php:9407
 msgid "Say the word for this prompt."
-msgstr "Di la palabra correspondiente a esta indicación."
+msgstr "Di la palabra de esta consigna."
 
 #. ll-tools-public-key: 083141e570a08948318667cc678357429645a022
 #: includes/pages/wordset-pages.php:9409
@@ -2230,7 +2230,7 @@ msgstr "Eso se ha oído muy bajo. Inténtalo de nuevo."
 #. ll-tools-public-key: d452435781449ec41f463ba71376e8d52efaceac
 #: includes/pages/wordset-pages.php:9426
 msgid "This browser cannot record audio for speaking practice."
-msgstr "Este navegador no permite grabar audio para practicar la expresión oral."
+msgstr "Este navegador no permite grabar audio para la práctica oral."
 
 #. ll-tools-public-key: 8a8e73a71984370792ac6321fef490cc0d041070
 #: includes/pages/wordset-pages.php:9427
@@ -2270,7 +2270,7 @@ msgstr "Has vaciado la pila"
 #. ll-tools-public-key: e4ce3f4d61be76db9ac1a5f67ec473ab17df5ea9
 #: includes/pages/wordset-pages.php:9439
 msgid "The stack reached the top"
-msgstr "La pila llegó a la cima"
+msgstr "La pila llegó arriba"
 
 #. ll-tools-public-key: 5f56b719e015da1dc5e9a5e9c9772f9a91faf358
 #: includes/pages/wordset-pages.php:9440
@@ -2280,7 +2280,7 @@ msgstr "Se acabó el tiempo"
 #. ll-tools-public-key: 9876597e221153435f648549e77d9e1e476b0604
 #: includes/pages/wordset-pages.php:9441
 msgid "Cleared: %1$d of %2$d"
-msgstr "Eliminadas: %1$d de %2$d"
+msgstr "Completadas: %1$d de %2$d"
 
 #. ll-tools-public-key: 98d969548c81b74b1fe706d31b48644a1fe243c8
 #: includes/pages/wordset-pages.php:9529
@@ -2290,17 +2290,17 @@ msgstr "Leyenda de la tabla de palabras"
 #. ll-tools-public-key: e363cb6d5c5a5dc7592e9e216b55c56f5604d86e
 #: includes/pages/wordset-pages.php:9530
 msgid "Key"
-msgstr "Clave"
+msgstr "Leyenda"
 
 #. ll-tools-public-key: 7dbd0aa719661d9474160ca70c98aa111f63325f
 #: includes/shortcodes/audio-credit-grid-shortcode.php:286
 msgid "Speaker"
-msgstr "Ponente"
+msgstr "Voz"
 
 #. ll-tools-public-key: e123e81c45aefcd05bab191082cf4f9bdfbeedd2
 #: includes/shortcodes/audio-credit-grid-shortcode.php:287
 msgid "Credit"
-msgstr "Créditos"
+msgstr "Atribución"
 
 #. ll-tools-public-key: b102c08d6d3c4af24a89909792484b76db1cdfee
 #: includes/shortcodes/audio-credit-grid-shortcode.php:294 includes/shortcodes/image-copyright-grid-shortcode.php:222
@@ -2320,12 +2320,12 @@ msgstr "Cambios realizados"
 #. ll-tools-public-key: 51321200d8767af2975b5077f883bc37d9844d11
 #: includes/shortcodes/audio-credit-grid-shortcode.php:327
 msgid "No audio recordings found with public credit information."
-msgstr "No se han encontrado grabaciones de audio con información de crédito pública."
+msgstr "No se han encontrado grabaciones de audio con información pública de atribución."
 
 #. ll-tools-public-key: 2606da40b43349b9b85d9eb12635783a85fe8a37
 #: includes/shortcodes/dictionary-shortcode.php:1294
 msgid "Open link for %s"
-msgstr "Abrir enlace de %s"
+msgstr "Abrir enlace: %s"
 
 #. ll-tools-public-key: 9646b6d2b20bcae0fcd7a54fbde3485e6340a62c
 #: includes/shortcodes/dictionary-shortcode.php:1333 includes/shortcodes/dictionary-shortcode.php:1336
@@ -2379,7 +2379,7 @@ msgstr "Definición"
 #. ll-tools-public-key: d054fb5aaecb6618bd3fa5e6a5ea354d67868a07
 #: includes/shortcodes/dictionary-shortcode.php:1861
 msgid "View source page"
-msgstr "Ver página de origen"
+msgstr "Ver página de la fuente"
 
 #. ll-tools-public-key: 8a48590a6e0442b5e0e5c1c9c93925edf0848dcf
 #: includes/shortcodes/dictionary-shortcode.php:1870
@@ -2449,7 +2449,7 @@ msgstr "Escribe lo que quieras buscar o abre el alfabeto que aparece a continuac
 #. ll-tools-public-key: 8c97dfc07462055f90472fe53daf1bcb0f4694f1
 #: includes/shortcodes/dictionary-shortcode.php:2342
 msgid "Browse dictionary by letter"
-msgstr "Buscar en el diccionario por letra"
+msgstr "Explorar el diccionario por letra"
 
 #. ll-tools-public-key: ddd0a2fe1055dcade84f7314648ae2c56ec2c8d0
 #: includes/shortcodes/dictionary-shortcode.php:2845 includes/shortcodes/dictionary-shortcode.php:2852
@@ -2529,7 +2529,7 @@ msgstr "Escucha completada"
 #. ll-tools-public-key: 265526d358f4b56f61625da62bbbbec1d5492db4
 #: includes/shortcodes/flashcard-widget.php:379
 msgid "Pause / Play"
-msgstr "Pausa / Reproducir"
+msgstr "Pausar / reproducir"
 
 #. ll-tools-public-key: bcf9cd34f0948b6de0a39d6c9159164c73493434
 #: includes/shortcodes/flashcard-widget.php:380
@@ -2604,7 +2604,7 @@ msgstr "Me equivoqué"
 #. ll-tools-public-key: 57a41349f24144e06d62c9ab2f237cdb6c30b6c4
 #: includes/shortcodes/flashcard-widget.php:396
 msgid "I got close"
-msgstr "Estuve a punto"
+msgstr "Casi acerté"
 
 #. ll-tools-public-key: dfc8bdfe60412f855b404a9f7e2bdfd56b62dfae
 #: includes/shortcodes/flashcard-widget.php:397
@@ -2649,7 +2649,7 @@ msgstr "Pausar el audio"
 #. ll-tools-public-key: 4e5a51011bfba3e7051af9d15884bc762f8d2f9c
 #: includes/shortcodes/flashcard-widget.php:411 includes/shortcodes/flashcard-widget.php:421 includes/shortcodes/flashcard-widget.php:557 includes/shortcodes/quiz-pages-shortcodes.php:909 templates/flashcard-widget-template.php:92 templates/offline-app-shell-template.php:892
 msgid "Listening"
-msgstr "Escuchar"
+msgstr "Escucha"
 
 #. ll-tools-public-key: d8d3d0b6422f1b7919a5ea3fda781faabd1b4be4
 #: includes/shortcodes/flashcard-widget.php:419
@@ -2659,12 +2659,12 @@ msgstr "Aprendizaje"
 #. ll-tools-public-key: a09d64b5249c44b39b840b47ad5a7d663d112cc2
 #: includes/shortcodes/flashcard-widget.php:423 includes/shortcodes/word-grid-shortcode.php:4955
 msgid "Play %s recording"
-msgstr "Reproducir grabación de %s"
+msgstr "Reproducir grabación: %s"
 
 #. ll-tools-public-key: 3d982e68acb7db26a8dda35e0824320c8a38bee9
 #: includes/shortcodes/flashcard-widget.php:424 includes/shortcodes/word-grid-shortcode.php:4458 includes/shortcodes/word-grid-shortcode.php:4922 includes/shortcodes/word-grid-shortcode.php:6585
 msgid "Isolation"
-msgstr "Aislamiento"
+msgstr "Palabra aislada"
 
 #. ll-tools-public-key: 71f59379d65dd4743e2338d029b7cb7f24be5ab9
 #: includes/shortcodes/flashcard-widget.php:425 includes/shortcodes/word-grid-shortcode.php:4459 includes/shortcodes/word-grid-shortcode.php:4923
@@ -2689,7 +2689,7 @@ msgstr "Ronda de género completada"
 #. ll-tools-public-key: fefecd78313b94a17d30008894c30e30aa5f61b9
 #: includes/shortcodes/flashcard-widget.php:429
 msgid "Keep training noun gender with the next activity."
-msgstr "Sigue practicando los géneros de los sustantivos con la siguiente actividad."
+msgstr "Sigue practicando el género de los sustantivos con la siguiente actividad."
 
 #. ll-tools-public-key: c9fc08ccb42adb9882bf83eb67446db5a013302d
 #: includes/shortcodes/flashcard-widget.php:431 includes/shortcodes/quiz-pages-shortcodes.php:977 templates/flashcard-widget-template.php:162 templates/offline-app-shell-template.php:961
@@ -2759,22 +2759,22 @@ msgstr "Nivel 2: Sigue practicando"
 #. ll-tools-public-key: dd467a7cf9b055bdf2b25704e702e3ca81d409c8
 #: includes/shortcodes/flashcard-widget.php:451
 msgid "Level 2: Reset Needed"
-msgstr "Nivel 2: hace falta reiniciar"
+msgstr "Nivel 2: hace falta repasar"
 
 #. ll-tools-public-key: e6ff61e425c3dc17d2ee17ef7e60264c5eb36c6e
 #: includes/shortcodes/flashcard-widget.php:452
 msgid "A quick review cycle in Level 1 should help."
-msgstr "Un ciclo de revisión rápido en el Nivel 1 debería ser de ayuda."
+msgstr "Un repaso rápido del nivel 1 debería ayudar."
 
 #. ll-tools-public-key: 6b6e19f224945583e8b8c9899816d7c73bce511e
 #: includes/shortcodes/flashcard-widget.php:453
 msgid "Level 3 Stable"
-msgstr "Nivel 3: Estable"
+msgstr "Nivel 3: estable"
 
 #. ll-tools-public-key: 1d6fcf6d98ba186eb57b6005e7968ea91ab46dde
 #: includes/shortcodes/flashcard-widget.php:454
 msgid "Keep practicing isolation-only to maintain speed."
-msgstr "Sigue practicando solo los ejercicios de aislamiento para mantener la velocidad."
+msgstr "Sigue practicando solo con palabras aisladas para mantener la rapidez."
 
 #. ll-tools-public-key: b44812323b8bd1d0fc715d64057ac98b2bb8b033
 #: includes/shortcodes/flashcard-widget.php:455
@@ -2794,7 +2794,7 @@ msgstr "Ha ocurrido un error"
 #. ll-tools-public-key: 4a38e6dbe6b17b36c95e8d13473660246a73cc72
 #: includes/shortcodes/flashcard-widget.php:464
 msgid "Quiz round requires at least two options."
-msgstr "La ronda de preguntas requiere al menos dos opciones."
+msgstr "La ronda de cuestionario requiere al menos dos opciones."
 
 #. ll-tools-public-key: 4cb3c55db8d3b6d390ae5155e5dd20c4af4a937a
 #: includes/shortcodes/flashcard-widget.php:465
@@ -2819,7 +2819,7 @@ msgstr "Selecciona una categoría: %s"
 #. ll-tools-public-key: e74501be8bd1f9d8954cd2a86beb642e5e36fb9b
 #: includes/shortcodes/flashcard-widget.php:483
 msgid "Start with a category below, or connect sync to get the next study step."
-msgstr "Empieza por una de las categorías siguientes o conecta la sincronización para ver el siguiente paso del estudio."
+msgstr "Empieza por una de las categorías siguientes o conéctate para sincronizar y ver el siguiente paso de estudio."
 
 #. ll-tools-public-key: 9f1fd40919383db1afa6011c90503743d3e0564e
 #: includes/shortcodes/flashcard-widget.php:488
@@ -2839,7 +2839,7 @@ msgstr "Icono con los símbolos de mujer y hombre"
 #. ll-tools-public-key: ddd226fd1bef46efb59bec77fb12d8f86eab786a
 #: includes/shortcodes/image-copyright-grid-shortcode.php:168
 msgid "Image, credit, source"
-msgstr "Imagen, crédito, fuente"
+msgstr "Imagen, atribución, fuente"
 
 #. ll-tools-public-key: 515a33972c95d9f60dec35f0b0b949ac60227a3d
 #: includes/shortcodes/image-copyright-grid-shortcode.php:172 templates/content-lesson-template.php:123 templates/vocab-lesson-template.php:441
@@ -2864,7 +2864,7 @@ msgstr "Filtro"
 #. ll-tools-public-key: 0fc0df8d4ea9329ad8b57ba2cf3690451a7f8890
 #: includes/shortcodes/image-copyright-grid-shortcode.php:217
 msgid "Source %d"
-msgstr "Fuente: %d"
+msgstr "Fuente %d"
 
 #. ll-tools-public-key: 6aad6bd74bd33055c3e8d059ed54c7ca5f8d5350
 #: includes/shortcodes/image-copyright-grid-shortcode.php:401
@@ -2939,7 +2939,7 @@ msgstr "Aún no hay ninguna grabación de audio."
 #. ll-tools-public-key: 4a2567c32f885430ffe9a8d20436205e8e8cec97
 #: includes/shortcodes/word-grid-shortcode.php:2993
 msgid "Audio exists but is not published yet."
-msgstr "El audio está disponible, pero aún no se ha publicado."
+msgstr "Existe audio, pero aún no se ha publicado."
 
 #. ll-tools-public-key: e099bfe402e0268a9e4878d5089211da80604898
 #: includes/shortcodes/word-grid-shortcode.php:2996
@@ -2949,7 +2949,7 @@ msgstr "La grabación de audio existe, pero aún no hay ningún archivo."
 #. ll-tools-public-key: 2190a278ad6747c125cd3dd4be97a618d4726f1c
 #: includes/shortcodes/word-grid-shortcode.php:2999
 msgid "Word has not been published yet."
-msgstr "Aún no se ha publicado nada al respecto."
+msgstr "La palabra aún no se ha publicado."
 
 #. ll-tools-public-key: aa943527c26e3f163a13acd5399ee50bc106763c
 #: includes/shortcodes/word-grid-shortcode.php:3009
@@ -2969,7 +2969,7 @@ msgstr "Pregunta"
 #. ll-tools-public-key: dc629fc8187fa34415803ccd6ad0e783d3e85e1a
 #: includes/shortcodes/word-grid-shortcode.php:4946
 msgid "IPA suggestions"
-msgstr "Sugerencias de la IPA"
+msgstr "Sugerencias IPA"
 
 #. ll-tools-public-key: 6ddb4593b902eef78c290cdfd8861a3c5c5703e6
 #: includes/shortcodes/word-grid-shortcode.php:4947
