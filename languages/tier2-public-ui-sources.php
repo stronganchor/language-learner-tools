@@ -117,7 +117,7 @@ return [
         ],
         'id_ID' => [
             'label' => 'Indonesian',
-            'status' => 'planned',
+            'status' => 'active',
         ],
     ],
     'include_sources' => [
