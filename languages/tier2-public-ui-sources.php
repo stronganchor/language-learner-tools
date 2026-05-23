@@ -112,7 +112,8 @@ return [
         ],
         'pt_BR' => [
             'label' => 'Portuguese (Brazil)',
-            'status' => 'planned',
+            'status' => 'active',
+            'plural_forms' => 'nplurals=2; plural=(n > 1);',
         ],
         'id_ID' => [
             'label' => 'Indonesian',
