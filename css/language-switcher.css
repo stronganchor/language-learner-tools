@@ -114,7 +114,8 @@ button.ll-lang-switcher__summary {
     min-width: 100%;
     width: max-content;
     max-width: min(18rem, calc(100vw - 1.5rem));
-    max-height: min(calc(70vh + 10px), calc(24rem + 10px));
+    max-height: calc(100vh - 5rem);
+    max-height: var(--ll-lang-switcher-dropdown-max-height, calc(100dvh - 5rem));
     overflow-x: hidden;
     overflow-y: auto;
     gap: .25rem;
