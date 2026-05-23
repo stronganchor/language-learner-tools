@@ -103,7 +103,8 @@ return [
         ],
         'fr_FR' => [
             'label' => 'French',
-            'status' => 'planned',
+            'status' => 'active',
+            'plural_forms' => 'nplurals=2; plural=(n > 1);',
         ],
         'bn_BD' => [
             'label' => 'Bengali',
