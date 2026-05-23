@@ -3236,3 +3236,39 @@ msgstr "Переводы"
 #: templates/vocab-lesson-template.php:1138 templates/vocab-lesson-template.php:1141
 msgid "Print options"
 msgstr "Параметры печати"
+
+#. ll-tools-public-key: 8d46843f149957a5f79fc4065d8bc9152c57b58e
+#: includes/pages/wordset-pages.php:10025
+msgid "User menu"
+msgstr "Меню пользователя"
+
+#. ll-tools-public-key: 0e75aa1ac0a3540968dc220bb931851b39df3f4c
+#: includes/pages/wordset-pages.php:16513
+msgid "Quiz modes"
+msgstr "Режимы викторины"
+
+#. ll-tools-public-key: 07a469e4c604ea7e77d88bdec0fa8baba6b9a8fd
+#: includes/pages/wordset-pages.php:17092 includes/pages/wordset-pages.php:9352
+msgid "Open speaking settings"
+msgstr "Открыть настройки говорения"
+
+#. ll-tools-public-key: 5203b64d53ad88d36bfb6a17714fa42d534166a6
+#: includes/pages/wordset-pages.php:9350
+msgid "Speaking games are hidden because the speaking service for this word set is not responding on this device."
+msgstr "Игры с говорением скрыты, потому что сервис говорения для этого набора слов не отвечает на этом устройстве."
+
+#. ll-tools-public-key: 45247ec9df41b62f78dba368e33124fed1ac9b53
+#: includes/pages/wordset-pages.php:9351
+msgid "Speaking games are hidden because this word set speaking setup is not available right now."
+msgstr "Игры с говорением скрыты, потому что настройка говорения для этого набора слов сейчас недоступна."
+
+#. ll-tools-public-key: 791b75b5476b789410f55ae3f721368c80a19762
+#: includes/shortcodes/wordset-buttons-shortcode.php:403
+msgid "Private word set"
+msgstr "Частный набор слов"
+
+#. ll-tools-public-key: 58a730cde1f015f31ebae4fab0263a8c2852ad80
+#: includes/shortcodes/wordset-buttons-shortcode.php:407
+#, php-format
+msgid "%1$s, private word set, %2$s"
+msgstr "%1$s, частный набор слов, %2$s"

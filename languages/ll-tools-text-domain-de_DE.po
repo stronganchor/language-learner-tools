@@ -1658,7 +1658,7 @@ msgstr "Nichts zu speichern."
 
 #: includes/admin/bulk-translation-admin.php:293
 msgid "saving…"
-msgstr "speichern..."
+msgstr "Wird gespeichert…"
 
 #: includes/admin/bulk-translation-admin.php:294
 msgid "saved"
@@ -25674,3 +25674,109 @@ msgstr "Hauptlektion öffnen"
 #: templates/vocab-lesson-template.php:1560
 msgid "Add word to this lesson"
 msgstr "Vokabel zu dieser Lektion hinzufügen"
+
+#: includes/admin/settings.php:382
+msgid "Fallback for recorder pages without a wordset-specific text visibility setting. Wordset managers can override this in wordset study settings."
+msgstr "Ausweichwert für Aufnahme-Seiten ohne Vokabelset-spezifische Einstellung zur Textanzeige. Vokabelset-Manager können dies in den Lern-Einstellungen des Vokabelsets überschreiben."
+
+#: includes/api/automation-rest.php:379
+msgid "You are not allowed to clear LL Tools caches on this site."
+msgstr "Du darfst die LL Tools-Caches auf dieser Website nicht leeren."
+
+#: includes/api/automation-rest.php:896
+msgid "Use cache=all, cache=dictionary, or cache=public."
+msgstr "Verwende cache=all, cache=dictionary oder cache=public."
+
+#: includes/api/automation-rest.php:4203
+msgid "Could not find a matching corpus text post."
+msgstr "Es wurde kein passender Korpustext-Beitrag gefunden."
+
+#: includes/api/automation-rest.php:4214
+msgid "The matching content lesson is not a corpus text."
+msgstr "Die passende Inhaltslektion ist kein Korpustext."
+
+#: includes/lib/public-static-cache.php:1207
+msgid "Clear LL cache"
+msgstr "LL-Cache leeren"
+
+#. translators: %d: number of deleted cache files
+#: includes/lib/public-static-cache.php:1212
+#, php-format
+msgid "LL cache cleared (%d)"
+msgstr "LL-Cache geleert (%d)"
+
+#: includes/lib/public-static-cache.php:1231
+msgid "You are not allowed to clear LL Tools caches."
+msgstr "Du darfst die LL Tools-Caches nicht leeren."
+
+#. translators: %d: number of deleted cache files
+#: includes/lib/public-static-cache.php:1267
+#, php-format
+msgid "Cleared LL Tools static caches. %d cache file was removed."
+msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
+msgstr[0] "Statische LL Tools-Caches geleert. %d Cache-Datei wurde entfernt."
+msgstr[1] "Statische LL Tools-Caches geleert. %d Cache-Dateien wurden entfernt."
+
+#: includes/pages/wordset-pages.php:14316
+msgid "Recorder text"
+msgstr "Aufnahmetext"
+
+#: includes/pages/wordset-pages.php:14318
+#: includes/taxonomies/wordset-taxonomy.php:3134
+msgid "Recorder text visibility"
+msgstr "Sichtbarkeit des Aufnahmetexts"
+
+#: includes/pages/wordset-pages.php:14322
+#: includes/taxonomies/wordset-taxonomy.php:3136
+msgid "Follow lesson/grid text setting"
+msgstr "Text-Einstellung für Lektion/Raster folgen"
+
+#: includes/pages/wordset-pages.php:14323
+#: includes/taxonomies/wordset-taxonomy.php:3137
+msgid "Show word text in recorder"
+msgstr "Vokabeltext in der Aufnahmeoberfläche anzeigen"
+
+#: includes/pages/wordset-pages.php:14324
+#: includes/taxonomies/wordset-taxonomy.php:3138
+msgid "Hide word text in recorder"
+msgstr "Vokabeltext in der Aufnahmeoberfläche ausblenden"
+
+#. translators: %s: effective recorder text state.
+#: includes/pages/wordset-pages.php:14331
+#, php-format
+msgid "Current effective recorder state: %s."
+msgstr "Aktuell wirksamer Aufnahmetext-Status: %s."
+
+#: includes/pages/wordset-pages.php:14332
+msgid "hidden"
+msgstr "ausgeblendet"
+
+#: includes/pages/wordset-pages.php:14332
+msgid "shown"
+msgstr "angezeigt"
+
+#: includes/shortcodes/audio-recording-shortcode.php:1506
+msgid "Set"
+msgstr "Set"
+
+#: includes/shortcodes/site-tools-shortcode.php:1163
+msgid "Hide word titles by default when no wordset recorder-text setting applies"
+msgstr "Vokabeltitel standardmäßig ausblenden, wenn keine Vokabelset-Einstellung für Aufnahmetext gesetzt ist"
+
+#: includes/shortcodes/wordset-buttons-shortcode.php:403
+msgid "Private word set"
+msgstr "Privates Vokabelset"
+
+#. translators: 1: word set name, 2: lesson count label.
+#: includes/shortcodes/wordset-buttons-shortcode.php:407
+#, php-format
+msgid "%1$s, private word set, %2$s"
+msgstr "%1$s, privates Vokabelset, %2$s"
+
+#: includes/taxonomies/wordset-taxonomy.php:3141
+msgid "Use Hide for image-based recording queues where recorders should rely on the picture instead of reading the word."
+msgstr "Verwende Ausblenden für bildbasierte Aufnahme-Warteschlangen, bei denen Aufnehmende sich am Bild orientieren sollen, statt die Vokabel zu lesen."
+
+#: templates/content-lesson-template.php:143
+msgid "URL:"
+msgstr "URL:"

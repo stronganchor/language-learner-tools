@@ -25546,3 +25546,71 @@ msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
 msgstr[0] "LL Tools statik önbellekleri temizlendi. %d önbellek dosyası kaldırıldı."
 msgstr[1] "LL Tools statik önbellekleri temizlendi. %d önbellek dosyası kaldırıldı."
+
+#: includes/admin/settings.php:382
+msgid "Fallback for recorder pages without a wordset-specific text visibility setting. Wordset managers can override this in wordset study settings."
+msgstr "Kelime setine özel metin görünürlüğü ayarı olmayan kaydedici sayfaları için varsayılan. Kelime seti yöneticileri bunu kelime seti çalışma ayarlarında geçersiz kılabilir."
+
+#: includes/pages/wordset-pages.php:14316
+msgid "Recorder text"
+msgstr "Kaydedici metni"
+
+#: includes/pages/wordset-pages.php:14318
+#: includes/taxonomies/wordset-taxonomy.php:3134
+msgid "Recorder text visibility"
+msgstr "Kaydedici metni görünürlüğü"
+
+#: includes/pages/wordset-pages.php:14322
+#: includes/taxonomies/wordset-taxonomy.php:3136
+msgid "Follow lesson/grid text setting"
+msgstr "Ders/ızgara metin ayarını izle"
+
+#: includes/pages/wordset-pages.php:14323
+#: includes/taxonomies/wordset-taxonomy.php:3137
+msgid "Show word text in recorder"
+msgstr "Kaydedicide kelime metnini göster"
+
+#: includes/pages/wordset-pages.php:14324
+#: includes/taxonomies/wordset-taxonomy.php:3138
+msgid "Hide word text in recorder"
+msgstr "Kaydedicide kelime metnini gizle"
+
+#. translators: %s: effective recorder text state.
+#: includes/pages/wordset-pages.php:14331
+#, php-format
+msgid "Current effective recorder state: %s."
+msgstr "Geçerli kaydedici durumu: %s."
+
+#: includes/pages/wordset-pages.php:14332
+msgid "hidden"
+msgstr "gizli"
+
+#: includes/pages/wordset-pages.php:14332
+msgid "shown"
+msgstr "gösteriliyor"
+
+#: includes/shortcodes/audio-recording-shortcode.php:1506
+msgid "Set"
+msgstr "Set"
+
+#: includes/shortcodes/site-tools-shortcode.php:1163
+msgid "Hide word titles by default when no wordset recorder-text setting applies"
+msgstr "Kelime seti kaydedici metni ayarı yokken kelime başlıklarını varsayılan olarak gizle"
+
+#: includes/shortcodes/wordset-buttons-shortcode.php:403
+msgid "Private word set"
+msgstr "Özel kelime seti"
+
+#. translators: 1: word set name, 2: lesson count label.
+#: includes/shortcodes/wordset-buttons-shortcode.php:407
+#, php-format
+msgid "%1$s, private word set, %2$s"
+msgstr "%1$s, özel kelime seti, %2$s"
+
+#: includes/taxonomies/wordset-taxonomy.php:3141
+msgid "Use Hide for image-based recording queues where recorders should rely on the picture instead of reading the word."
+msgstr "Kaydedicilerin kelimeyi okumak yerine görsele dayanması gereken görsel tabanlı kayıt kuyrukları için Gizle'yi kullan."
+
+#: templates/content-lesson-template.php:143
+msgid "URL:"
+msgstr "URL:"
