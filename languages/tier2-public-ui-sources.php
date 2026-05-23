@@ -77,6 +77,16 @@ return [
             'english' => 'Indonesian',
             'flag' => '🇮🇩',
         ],
+        'ko_KR' => [
+            'native' => '한국어',
+            'english' => 'Korean',
+            'flag' => '🇰🇷',
+        ],
+        'it_IT' => [
+            'native' => 'Italiano',
+            'english' => 'Italian',
+            'flag' => '🇮🇹',
+        ],
     ],
     'tier2_locales' => [
         'ru_RU' => [
@@ -118,6 +128,16 @@ return [
         'id_ID' => [
             'label' => 'Indonesian',
             'status' => 'active',
+        ],
+        'ko_KR' => [
+            'label' => 'Korean',
+            'status' => 'active',
+            'plural_forms' => 'nplurals=1; plural=0;',
+        ],
+        'it_IT' => [
+            'label' => 'Italian',
+            'status' => 'active',
+            'plural_forms' => 'nplurals=2; plural=(n != 1);',
         ],
     ],
     'include_sources' => [
