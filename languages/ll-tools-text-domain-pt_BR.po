@@ -12,7 +12,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: LL Tools public i18n manifest\n"
 
 #. ll-tools-public-key: 47f041331488f3e0f319f632b9eceed49917b9f3
@@ -815,7 +815,7 @@ msgstr "Jogo de tiro espacial"
 #. ll-tools-public-key: f278c969e9053dae5d55b5641f1c6fcd27ca34db
 #: includes/pages/wordset-games.php:2093 includes/pages/wordset-games.php:4171
 msgid "Line Up"
-msgstr "Ordenar cartas"
+msgstr "Colocar em ordem"
 
 #. ll-tools-public-key: 827a4436413f0ab577ed1a7db5be466331400118
 #: includes/pages/wordset-games.php:2094 includes/pages/wordset-games.php:4172 includes/pages/wordset-pages.php:17305 includes/pages/wordset-pages.php:9382
@@ -825,12 +825,12 @@ msgstr "Coloque as cartas na ordem correta."
 #. ll-tools-public-key: c4528e77eca7d7036de3c39981286086d94c9221
 #: includes/pages/wordset-games.php:210
 msgid "Hear the word. Blast the matching picture."
-msgstr "Ouça a palavra. Atire na imagem correspondente."
+msgstr "Ouça a palavra. Acerte a imagem correspondente."
 
 #. ll-tools-public-key: 8297075464df40012ccbb5e77a15fd8ad765e77a
 #: includes/pages/wordset-games.php:2123 includes/pages/wordset-games.php:4206
 msgid "Speaking Practice"
-msgstr "Prática oral"
+msgstr "Prática de pronúncia"
 
 #. ll-tools-public-key: ec34ea3a05209de3f052fa235e062ab4e36ed5f1
 #: includes/pages/wordset-games.php:2124 includes/pages/wordset-games.php:4207
@@ -1365,7 +1365,7 @@ msgstr "Atividade"
 #. ll-tools-public-key: b9162f4bb502f407c2d35e8f10880d8436328482
 #: includes/pages/wordset-pages.php:15682 includes/pages/wordset-pages.php:15963
 msgid "Word Progress"
-msgstr "Progresso das palavras"
+msgstr "Progresso da palavra"
 
 #. ll-tools-public-key: 678ebb62b38f5480d3f097b5b3d3072b32661a48
 #: includes/pages/wordset-pages.php:15683 includes/pages/wordset-pages.php:15697 includes/pages/wordset-pages.php:15874 includes/pages/wordset-pages.php:9495
@@ -1766,7 +1766,7 @@ msgstr "Tabuleiro do jogo Wordset"
 #. ll-tools-public-key: df5bbdae3ed6282de8505636045b403e3d229929
 #: includes/pages/wordset-pages.php:17287 includes/pages/wordset-pages.php:9429
 msgid "%1$d left"
-msgstr "Restantes: %1$d"
+msgstr "Restam %1$d"
 
 #. ll-tools-public-key: 0797ca3846dea5768ddffa5844e7fc501270702a
 #: includes/pages/wordset-pages.php:17288 includes/pages/wordset-pages.php:9430
@@ -2235,12 +2235,12 @@ msgstr "Este navegador não permite gravar áudio para praticar a pronúncia."
 #. ll-tools-public-key: 8a8e73a71984370792ac6321fef490cc0d041070
 #: includes/pages/wordset-pages.php:9427
 msgid "Speaking round complete"
-msgstr "Rodada de prática oral concluída"
+msgstr "Rodada de pronúncia concluída"
 
 #. ll-tools-public-key: e946a224ca415bad201f53295990e965e188e011
 #: includes/pages/wordset-pages.php:9428
 msgid "Right: %1$d · Close: %2$d · Wrong: %3$d"
-msgstr "Corretas: %1$d · Quase: %2$d · Erradas: %3$d"
+msgstr "Acertos: %1$d · Quase: %2$d · Erros: %3$d"
 
 #. ll-tools-public-key: e9e5b3a598ffceda41c2c40781d4bfcf05c4753d
 #: includes/pages/wordset-pages.php:9431
@@ -2295,7 +2295,7 @@ msgstr "Chave"
 #. ll-tools-public-key: 7dbd0aa719661d9474160ca70c98aa111f63325f
 #: includes/shortcodes/audio-credit-grid-shortcode.php:286
 msgid "Speaker"
-msgstr "Voz"
+msgstr "Falante"
 
 #. ll-tools-public-key: e123e81c45aefcd05bab191082cf4f9bdfbeedd2
 #: includes/shortcodes/audio-credit-grid-shortcode.php:287
@@ -2320,7 +2320,7 @@ msgstr "Alterações realizadas"
 #. ll-tools-public-key: 51321200d8767af2975b5077f883bc37d9844d11
 #: includes/shortcodes/audio-credit-grid-shortcode.php:327
 msgid "No audio recordings found with public credit information."
-msgstr "Não foram encontradas gravações de áudio com informações públicas de crédito."
+msgstr "Nenhuma gravação de áudio com créditos públicos foi encontrada."
 
 #. ll-tools-public-key: 2606da40b43349b9b85d9eb12635783a85fe8a37
 #: includes/shortcodes/dictionary-shortcode.php:1294
@@ -2348,8 +2348,8 @@ msgstr[1] "%d palavras relacionadas"
 #: includes/shortcodes/dictionary-shortcode.php:1618
 msgid "+ %d more sense"
 msgid_plural "+ %d more senses"
-msgstr[0] "+ %d sentido a mais"
-msgstr[1] "+ %d sentidos a mais"
+msgstr[0] "+ %d acepção a mais"
+msgstr[1] "+ %d acepções a mais"
 
 #. ll-tools-public-key: cbb81102208a239ea4d0664a3a01abc88fae59de
 #: includes/shortcodes/dictionary-shortcode.php:1663
@@ -2519,7 +2519,7 @@ msgstr "Ótimo trabalho. Continuamos?"
 #. ll-tools-public-key: df965ed320a8f696cb03a5d3f1938ae257eda6ac
 #: includes/shortcodes/flashcard-widget.php:377
 msgid "Continue Learning"
-msgstr "Continue aprendendo"
+msgstr "Continuar aprendendo"
 
 #. ll-tools-public-key: b218459564632a39a064c17b7ecc3bb235d111d3
 #: includes/shortcodes/flashcard-widget.php:378
@@ -2699,7 +2699,7 @@ msgstr "Próximo conjunto"
 #. ll-tools-public-key: a5f343d505817fc22b15931c78950339ce594d9d
 #: includes/shortcodes/flashcard-widget.php:432
 msgid "Gender progress"
-msgstr "Progresso de gênero gramatical"
+msgstr "Progresso de gênero"
 
 #. ll-tools-public-key: 15921aab15be2390ef0d318b0bc6f8cb64c5f92d
 #: includes/shortcodes/flashcard-widget.php:433
@@ -2749,7 +2749,7 @@ msgstr "Nível 2 Concluído"
 #. ll-tools-public-key: 6ef1ed91f66dff88501a9c89f4858c6e695c1d2c
 #: includes/shortcodes/flashcard-widget.php:448
 msgid "You are ready for pure isolation practice."
-msgstr "Você já pode praticar apenas com palavras isoladas."
+msgstr "Você já pode praticar só com palavras isoladas."
 
 #. ll-tools-public-key: b40d39462680f412436b7276042c5869d88214ed
 #: includes/shortcodes/flashcard-widget.php:449
@@ -2774,7 +2774,7 @@ msgstr "Nível 3: estável"
 #. ll-tools-public-key: 1d6fcf6d98ba186eb57b6005e7968ea91ab46dde
 #: includes/shortcodes/flashcard-widget.php:454
 msgid "Keep practicing isolation-only to maintain speed."
-msgstr "Continue praticando apenas com palavras isoladas para manter a rapidez."
+msgstr "Continue praticando só palavras isoladas para manter a velocidade."
 
 #. ll-tools-public-key: b44812323b8bd1d0fc715d64057ac98b2bb8b033
 #: includes/shortcodes/flashcard-widget.php:455
@@ -2839,7 +2839,7 @@ msgstr "Ícone com os símbolos feminino e masculino"
 #. ll-tools-public-key: ddd226fd1bef46efb59bec77fb12d8f86eab786a
 #: includes/shortcodes/image-copyright-grid-shortcode.php:168
 msgid "Image, credit, source"
-msgstr "Imagem, créditos, fonte"
+msgstr "Imagem, crédito e fonte"
 
 #. ll-tools-public-key: 515a33972c95d9f60dec35f0b0b949ac60227a3d
 #: includes/shortcodes/image-copyright-grid-shortcode.php:172 templates/content-lesson-template.php:123 templates/vocab-lesson-template.php:441
@@ -2924,7 +2924,7 @@ msgstr "Jogar"
 #. ll-tools-public-key: 91649783c0e23511c87fd6ea6b7e7b29d6353216
 #: includes/shortcodes/quiz-pages-shortcodes.php:931 templates/flashcard-widget-template.php:114 templates/offline-app-shell-template.php:913
 msgid "Switch Mode"
-msgstr "Alternar modo"
+msgstr "Trocar modo"
 
 #. ll-tools-public-key: 925f8f03e54d58f26da6578c52dc88cf6e03f66f
 #: includes/shortcodes/quiz-pages-shortcodes.php:937 templates/flashcard-widget-template.php:120 templates/offline-app-shell-template.php:919

@@ -12,7 +12,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: LL Tools public i18n manifest\n"
 
 #. ll-tools-public-key: 47f041331488f3e0f319f632b9eceed49917b9f3
@@ -1766,7 +1766,7 @@ msgstr "Plateau du jeu de l'ensemble de mots"
 #. ll-tools-public-key: df5bbdae3ed6282de8505636045b403e3d229929
 #: includes/pages/wordset-pages.php:17287 includes/pages/wordset-pages.php:9429
 msgid "%1$d left"
-msgstr "%1$d à gauche"
+msgstr "Reste : %1$d"
 
 #. ll-tools-public-key: 0797ca3846dea5768ddffa5844e7fc501270702a
 #: includes/pages/wordset-pages.php:17288 includes/pages/wordset-pages.php:9430
