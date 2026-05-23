@@ -94,7 +94,8 @@ return [
         ],
         'es_ES' => [
             'label' => 'Spanish',
-            'status' => 'planned',
+            'status' => 'active',
+            'plural_forms' => 'nplurals=2; plural=(n != 1);',
         ],
         'ar' => [
             'label' => 'Arabic',
