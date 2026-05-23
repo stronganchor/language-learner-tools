@@ -114,7 +114,7 @@ button.ll-lang-switcher__summary {
     min-width: 100%;
     width: max-content;
     max-width: min(18rem, calc(100vw - 1.5rem));
-    max-height: min(70vh, 24rem);
+    max-height: min(calc(70vh + 10px), calc(24rem + 10px));
     overflow-x: hidden;
     overflow-y: auto;
     gap: .25rem;
