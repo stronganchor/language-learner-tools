@@ -61,6 +61,11 @@ Full core translations are tracked separately for Turkish (`tr_TR`) and German
 `tier2-public-ui-sources.php`; Russian (`ru_RU`) is the first planned tier-2
 locale.
 
+Tier-2 PO files may also include small supplemental source-backed batches added
+by autonomous upkeep. The public UI manifest remains the coverage contract for
+learner-facing strings; supplemental entries only reduce the full-source PO
+backlog for admin/plugin metadata strings.
+
 The integration test `PublicUiTranslationManifestTest` keeps the generated
 manifest synchronized with the current POT selection and verifies that Turkish
 continues to cover every public manifest entry.

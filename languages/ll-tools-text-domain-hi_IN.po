@@ -1,5 +1,5 @@
 # LL Tools tier-2 public UI translations.
-# This file is generated from languages/tier2-public-ui-strings.json.
+# Public UI entries are generated from languages/tier2-public-ui-strings.json; upkeep may append source-backed entries.
 msgid ""
 msgstr ""
 "Project-Id-Version: Language Learner Tools Public UI\n"
@@ -3109,3 +3109,43 @@ msgstr "अनुवाद"
 #: templates/vocab-lesson-template.php:1138 templates/vocab-lesson-template.php:1141
 msgid "Print options"
 msgstr "प्रिंट विकल्प"
+
+#: includes/privacy.php:735 language-learner-tools.php
+msgid "Language Learner Tools"
+msgstr "Language Learner Tools"
+
+#: language-learner-tools.php
+msgid "https://github.com/stronganchor/language-learner-tools"
+msgstr "https://github.com/stronganchor/language-learner-tools"
+
+#: language-learner-tools.php
+msgid "WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages."
+msgstr "भाषा सीखने के लिए शब्दावली सामग्री बनाने हेतु WordPress उपकरण, जिनमें शब्द प्रबंधन, ऑडियो/चित्र अपलोड, उपयोग के लिए तैयार फ्लैशकार्ड क्विज़ और एम्बेड की जा सकने वाली अभ्यास पेज शामिल हैं।"
+
+#: language-learner-tools.php
+msgid "Strong Anchor Tech"
+msgstr "Strong Anchor Tech"
+
+#: language-learner-tools.php
+msgid "https://stronganchortech.com"
+msgstr "https://stronganchortech.com"
+
+#: includes/admin/admin-dashboard-menu.php:37
+msgid "LL Tools"
+msgstr "LL Tools"
+
+#: includes/admin/admin-dashboard-menu.php:152 includes/admin/admin-dashboard-menu.php:43 includes/admin/admin-dashboard-menu.php:735 includes/admin/admin-dashboard-menu.php:812 includes/admin/admin-dashboard-menu.php:905
+msgid "LL Tools Utilities"
+msgstr "LL Tools उपयोगिताएँ"
+
+#: includes/admin/admin-dashboard-menu.php:151 includes/admin/admin-dashboard-menu.php:318 includes/admin/admin-dashboard-menu.php:401 includes/admin/admin-dashboard-menu.php:725 includes/admin/settings.php:26
+msgid "Language Learning Tools"
+msgstr "भाषा सीखने के उपकरण"
+
+#: includes/admin/admin-dashboard-menu.php:153 includes/admin/admin-dashboard-menu.php:803 includes/admin/settings.php:25 includes/admin/settings.php:322
+msgid "Language Learning Tools Settings"
+msgstr "भाषा सीखने के उपकरण सेटिंग्स"
+
+#: includes/admin/admin-dashboard-menu.php:154 includes/admin/admin-dashboard-menu.php:454 includes/admin/audio-processor-admin.php:1432 includes/admin/audio-processor-admin.php:838
+msgid "Audio Processor"
+msgstr "ऑडियो प्रोसेसर"
