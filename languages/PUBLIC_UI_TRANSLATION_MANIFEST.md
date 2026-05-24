@@ -54,12 +54,20 @@ php scripts/check-public-i18n.php --json --all-tier2
 
 Add `--details` when a workflow needs the per-string missing/untranslated keys.
 
+For translation wording and QA guidance, see
+`languages/PUBLIC_UI_TRANSLATION_GUIDELINES.md`.
+
 ## Current Locale Tiers
 
 Full core translations are tracked separately for Turkish (`tr_TR`) and German
 (`de_DE`). Tier-2 public UI locales are configured in
-`tier2-public-ui-sources.php`; Russian (`ru_RU`) is the first planned tier-2
-locale.
+`tier2-public-ui-sources.php`.
+
+Current active tier-2 public UI locales include Russian (`ru_RU`), Spanish
+(`es_ES`), French (`fr_FR`), Portuguese (Brazil) (`pt_BR`), Indonesian
+(`id_ID`), Hindi (`hi_IN`), Korean (`ko_KR`), and Italian (`it_IT`). Planned but
+not yet active tier-2 locales include Chinese Simplified (`zh_CN`), Arabic
+(`ar`), and Bengali (`bn_BD`).
 
 Tier-2 PO files may also include small supplemental source-backed batches added
 by autonomous upkeep. The public UI manifest remains the coverage contract for
@@ -67,5 +75,6 @@ learner-facing strings; supplemental entries only reduce the full-source PO
 backlog for admin/plugin metadata strings.
 
 The integration test `PublicUiTranslationManifestTest` keeps the generated
-manifest synchronized with the current POT selection and verifies that Turkish
-continues to cover every public manifest entry.
+manifest synchronized with the current POT selection, verifies that Turkish
+continues to cover every public manifest entry, and requires every active
+tier-2 public locale to ship complete `.po`, `.mo`, and `.l10n.php` assets.
