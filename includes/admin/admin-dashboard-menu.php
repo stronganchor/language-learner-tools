@@ -97,6 +97,7 @@ if (!function_exists('ll_tools_get_tools_hub_related_page_slugs')) {
             'll-export',
             'll-import',
             'll-offline-app-export',
+            'll-login-blocks',
             'll-ipa-keyboard',
             'll-word-option-rules',
             'll-image-aspect-normalizer',
@@ -162,6 +163,7 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
             'll-import' => __('Import', 'll-tools-text-domain'),
             'll-site-sync' => __('Site Sync', 'll-tools-text-domain'),
             'll-offline-app-export' => __('Offline App Export', 'll-tools-text-domain'),
+            'll-login-blocks' => __('Login Blocks', 'll-tools-text-domain'),
             'll-ipa-keyboard' => __('Transcription Manager', 'll-tools-text-domain'),
             'll-word-option-rules' => __('Word Option Rules', 'll-tools-text-domain'),
             'll-image-aspect-normalizer' => __('Image Aspect Normalizer', 'll-tools-text-domain'),
@@ -435,6 +437,9 @@ function ll_tools_get_tools_hub_card_sections(): array {
     $offline_app_export_capability = function_exists('ll_tools_get_offline_app_export_capability')
         ? ll_tools_get_offline_app_export_capability()
         : 'manage_options';
+    $login_blocks_capability = function_exists('ll_tools_get_login_blocks_admin_capability')
+        ? ll_tools_get_login_blocks_admin_capability()
+        : 'manage_options';
     $site_sync_capability = function_exists('ll_tools_site_sync_capability')
         ? ll_tools_site_sync_capability()
         : 'manage_options';
@@ -557,6 +562,15 @@ function ll_tools_get_tools_hub_card_sections(): array {
                 'page_slug' => 'll-offline-app-export',
                 'cap' => $offline_app_export_capability,
                 'icon' => 'dashicons-smartphone',
+            ],
+            [
+                'label' => __('Login Blocks', 'll-tools-text-domain'),
+                'description' => __('Release frontend login and sign-up rate-limit blocks for a connection.', 'll-tools-text-domain'),
+                'menu_slug' => 'tools.php?page=ll-login-blocks',
+                'url' => ll_tools_get_tools_page_url('ll-login-blocks'),
+                'page_slug' => 'll-login-blocks',
+                'cap' => $login_blocks_capability,
+                'icon' => 'dashicons-unlock',
             ],
             [
                 'label' => __('Transcription Manager', 'll-tools-text-domain'),
@@ -703,6 +717,7 @@ function ll_tools_get_tools_hub_direct_submenu_page_slugs(): array {
         $import_page_slug,
         'll-site-sync',
         'll-offline-app-export',
+        'll-login-blocks',
     ];
 }
 

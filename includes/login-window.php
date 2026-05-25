@@ -724,6 +724,7 @@ if (!function_exists('ll_tools_login_window_record_registration_attempt')) {
         $key = ll_tools_login_window_registration_attempt_key($ip);
         $attempts = (int) get_transient($key);
         set_transient($key, $attempts + 1, $config['window']);
+        ll_tools_login_window_track_rate_limit_attempt('registration', $ip, $attempts + 1, $config['limit'], $config['window']);
     }
 }
 
@@ -738,6 +739,7 @@ if (!function_exists('ll_tools_login_window_reset_registration_attempts')) {
         }
 
         delete_transient(ll_tools_login_window_registration_attempt_key($ip));
+        ll_tools_login_window_forget_rate_limit_ip('registration', $ip);
     }
 }
 
@@ -799,6 +801,7 @@ if (!function_exists('ll_tools_login_window_record_username_suggestion_attempt')
         $key = ll_tools_login_window_username_suggestion_attempt_key($ip);
         $attempts = (int) get_transient($key);
         set_transient($key, $attempts + 1, $config['window']);
+        ll_tools_login_window_track_rate_limit_attempt('username_suggestion', $ip, $attempts + 1, $config['limit'], $config['window']);
     }
 }
 
@@ -813,6 +816,7 @@ if (!function_exists('ll_tools_login_window_reset_username_suggestion_attempts')
         }
 
         delete_transient(ll_tools_login_window_username_suggestion_attempt_key($ip));
+        ll_tools_login_window_forget_rate_limit_ip('username_suggestion', $ip);
     }
 }
 
@@ -1054,7 +1058,7 @@ if (!function_exists('ll_tools_login_window_resolve_login_identifier')) {
 if (!function_exists('ll_tools_login_window_login_attempt_limit_config')) {
     function ll_tools_login_window_login_attempt_limit_config(): array {
         return [
-            'limit' => max(0, (int) apply_filters('ll_tools_login_ip_attempt_limit', 5)),
+            'limit' => max(0, (int) apply_filters('ll_tools_login_ip_attempt_limit', 10)),
             'window' => max(MINUTE_IN_SECONDS, (int) apply_filters('ll_tools_login_ip_attempt_window', 10 * MINUTE_IN_SECONDS)),
         ];
     }
@@ -1109,6 +1113,7 @@ if (!function_exists('ll_tools_login_window_record_login_attempt')) {
         $key = ll_tools_login_window_login_attempt_key($ip);
         $attempts = (int) get_transient($key);
         set_transient($key, $attempts + 1, $config['window']);
+        ll_tools_login_window_track_rate_limit_attempt('login', $ip, $attempts + 1, $config['limit'], $config['window']);
     }
 }
 
@@ -1123,12 +1128,290 @@ if (!function_exists('ll_tools_login_window_reset_login_attempts')) {
         }
 
         delete_transient(ll_tools_login_window_login_attempt_key($ip));
+        ll_tools_login_window_forget_rate_limit_ip('login', $ip);
     }
 }
 
 if (!function_exists('ll_tools_login_window_login_rate_limit_message')) {
     function ll_tools_login_window_login_rate_limit_message(): string {
         return __('Too many login attempts from this connection. Please try again in a few minutes.', 'll-tools-text-domain');
+    }
+}
+
+if (!defined('LL_TOOLS_LOGIN_WINDOW_RATE_LIMIT_INDEX_OPTION')) {
+    define('LL_TOOLS_LOGIN_WINDOW_RATE_LIMIT_INDEX_OPTION', 'll_tools_auth_rate_limit_index_v1');
+}
+
+if (!function_exists('ll_tools_login_window_rate_limit_types')) {
+    function ll_tools_login_window_rate_limit_types(): array {
+        return [
+            'login' => [
+                'label' => __('Login', 'll-tools-text-domain'),
+                'status_callback' => 'll_tools_login_window_get_login_rate_limit_status',
+                'reset_callback' => 'll_tools_login_window_reset_login_attempts',
+            ],
+            'registration' => [
+                'label' => __('Sign-up', 'll-tools-text-domain'),
+                'status_callback' => 'll_tools_login_window_get_registration_rate_limit_status',
+                'reset_callback' => 'll_tools_login_window_reset_registration_attempts',
+            ],
+            'username_suggestion' => [
+                'label' => __('Username suggestions', 'll-tools-text-domain'),
+                'status_callback' => 'll_tools_login_window_get_username_suggestion_rate_limit_status',
+                'reset_callback' => 'll_tools_login_window_reset_username_suggestion_attempts',
+            ],
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_login_window_sanitize_rate_limit_type')) {
+    function ll_tools_login_window_sanitize_rate_limit_type($type): string {
+        $type = sanitize_key((string) $type);
+        $types = ll_tools_login_window_rate_limit_types();
+        return isset($types[$type]) ? $type : '';
+    }
+}
+
+if (!function_exists('ll_tools_login_window_rate_limit_index_key')) {
+    function ll_tools_login_window_rate_limit_index_key(string $ip): string {
+        return substr(md5($ip), 0, 24);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_rate_limit_index')) {
+    function ll_tools_login_window_get_rate_limit_index(): array {
+        $raw_index = get_option(LL_TOOLS_LOGIN_WINDOW_RATE_LIMIT_INDEX_OPTION, []);
+        if (!is_array($raw_index)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($raw_index as $type => $entries) {
+            $type = ll_tools_login_window_sanitize_rate_limit_type($type);
+            if ($type === '' || !is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $entry_key => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $ip = ll_tools_login_window_normalize_ip((string) ($entry['ip'] ?? ''));
+                if ($ip === '') {
+                    continue;
+                }
+
+                $entry_key = ll_tools_login_window_rate_limit_index_key($ip);
+                $normalized[$type][$entry_key] = [
+                    'ip' => $ip,
+                    'attempts' => max(0, (int) ($entry['attempts'] ?? 0)),
+                    'limit' => max(0, (int) ($entry['limit'] ?? 0)),
+                    'window' => max(0, (int) ($entry['window'] ?? 0)),
+                    'updated_at' => max(0, (int) ($entry['updated_at'] ?? 0)),
+                    'expires_at' => max(0, (int) ($entry['expires_at'] ?? 0)),
+                ];
+            }
+        }
+
+        return $normalized;
+    }
+}
+
+if (!function_exists('ll_tools_login_window_update_rate_limit_index')) {
+    function ll_tools_login_window_update_rate_limit_index(array $index): void {
+        $index = array_filter($index, static function ($entries): bool {
+            return is_array($entries) && !empty($entries);
+        });
+
+        if (empty($index)) {
+            delete_option(LL_TOOLS_LOGIN_WINDOW_RATE_LIMIT_INDEX_OPTION);
+            return;
+        }
+
+        update_option(LL_TOOLS_LOGIN_WINDOW_RATE_LIMIT_INDEX_OPTION, $index, false);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_track_rate_limit_attempt')) {
+    function ll_tools_login_window_track_rate_limit_attempt(string $type, string $ip, int $attempts, int $limit, int $window): void {
+        $type = ll_tools_login_window_sanitize_rate_limit_type($type);
+        $ip = ll_tools_login_window_normalize_ip($ip);
+        if ($type === '' || $ip === '' || $limit <= 0) {
+            return;
+        }
+
+        $now = time();
+        $index = ll_tools_login_window_get_rate_limit_index();
+        $entry_key = ll_tools_login_window_rate_limit_index_key($ip);
+        $index[$type][$entry_key] = [
+            'ip' => $ip,
+            'attempts' => max(0, $attempts),
+            'limit' => max(0, $limit),
+            'window' => max(MINUTE_IN_SECONDS, $window),
+            'updated_at' => $now,
+            'expires_at' => $now + max(MINUTE_IN_SECONDS, $window),
+        ];
+
+        ll_tools_login_window_update_rate_limit_index(ll_tools_login_window_prune_rate_limit_index($index));
+    }
+}
+
+if (!function_exists('ll_tools_login_window_forget_rate_limit_ip')) {
+    function ll_tools_login_window_forget_rate_limit_ip(string $type, string $ip): void {
+        $type = ll_tools_login_window_sanitize_rate_limit_type($type);
+        $ip = ll_tools_login_window_normalize_ip($ip);
+        if ($type === '' || $ip === '') {
+            return;
+        }
+
+        $index = ll_tools_login_window_get_rate_limit_index();
+        $entry_key = ll_tools_login_window_rate_limit_index_key($ip);
+        if (isset($index[$type][$entry_key])) {
+            unset($index[$type][$entry_key]);
+        }
+
+        ll_tools_login_window_update_rate_limit_index($index);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_prune_rate_limit_index')) {
+    function ll_tools_login_window_prune_rate_limit_index(array $index): array {
+        $now = time();
+        $types = ll_tools_login_window_rate_limit_types();
+        $pruned = [];
+
+        foreach ($types as $type => $type_config) {
+            $entries = isset($index[$type]) && is_array($index[$type]) ? $index[$type] : [];
+            foreach ($entries as $entry_key => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $ip = ll_tools_login_window_normalize_ip((string) ($entry['ip'] ?? ''));
+                if ($ip === '') {
+                    continue;
+                }
+
+                $status_callback = (string) ($type_config['status_callback'] ?? '');
+                $status = is_callable($status_callback) ? (array) call_user_func($status_callback, $ip) : [];
+                $attempts = max(0, (int) ($status['attempts'] ?? ($entry['attempts'] ?? 0)));
+                if ($attempts <= 0) {
+                    continue;
+                }
+
+                $expires_at = max(0, (int) ($entry['expires_at'] ?? 0));
+                if ($expires_at > 0 && $expires_at <= $now && empty($status['limited'])) {
+                    continue;
+                }
+
+                $entry['ip'] = $ip;
+                $entry['attempts'] = $attempts;
+                $entry['limit'] = max(0, (int) ($status['limit'] ?? ($entry['limit'] ?? 0)));
+                $entry['window'] = max(0, (int) ($status['window'] ?? ($entry['window'] ?? 0)));
+                $entry['expires_at'] = $expires_at;
+                $entry['updated_at'] = max(0, (int) ($entry['updated_at'] ?? 0));
+                $pruned[$type][$entry_key] = $entry;
+            }
+
+            if (!empty($pruned[$type]) && count($pruned[$type]) > 100) {
+                uasort($pruned[$type], static function ($left, $right): int {
+                    return ((int) ($right['updated_at'] ?? 0)) <=> ((int) ($left['updated_at'] ?? 0));
+                });
+                $pruned[$type] = array_slice($pruned[$type], 0, 100, true);
+            }
+        }
+
+        return $pruned;
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_tracked_rate_limits')) {
+    function ll_tools_login_window_get_tracked_rate_limits(bool $limited_only = false): array {
+        $index = ll_tools_login_window_prune_rate_limit_index(ll_tools_login_window_get_rate_limit_index());
+        ll_tools_login_window_update_rate_limit_index($index);
+
+        $types = ll_tools_login_window_rate_limit_types();
+        $rows = [];
+        foreach ($index as $type => $entries) {
+            $type_config = $types[$type] ?? [];
+            $status_callback = (string) ($type_config['status_callback'] ?? '');
+            foreach ((array) $entries as $entry) {
+                $ip = ll_tools_login_window_normalize_ip((string) ($entry['ip'] ?? ''));
+                if ($ip === '' || !is_callable($status_callback)) {
+                    continue;
+                }
+
+                $status = (array) call_user_func($status_callback, $ip);
+                $limited = !empty($status['limited']);
+                if ($limited_only && !$limited) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'type' => $type,
+                    'label' => (string) ($type_config['label'] ?? $type),
+                    'ip' => $ip,
+                    'attempts' => max(0, (int) ($status['attempts'] ?? 0)),
+                    'limit' => max(0, (int) ($status['limit'] ?? 0)),
+                    'window' => max(0, (int) ($status['window'] ?? 0)),
+                    'limited' => $limited,
+                    'updated_at' => max(0, (int) ($entry['updated_at'] ?? 0)),
+                    'expires_at' => max(0, (int) ($entry['expires_at'] ?? 0)),
+                ];
+            }
+        }
+
+        usort($rows, static function ($left, $right): int {
+            return ((int) ($right['updated_at'] ?? 0)) <=> ((int) ($left['updated_at'] ?? 0));
+        });
+
+        return $rows;
+    }
+}
+
+if (!function_exists('ll_tools_login_window_release_rate_limits_for_ip')) {
+    function ll_tools_login_window_release_rate_limits_for_ip(string $ip, array $types = []): array {
+        $ip = ll_tools_login_window_normalize_ip($ip);
+        if ($ip === '') {
+            return [
+                'released' => 0,
+                'ip' => '',
+                'types' => [],
+                'before' => [],
+            ];
+        }
+
+        $available_types = ll_tools_login_window_rate_limit_types();
+        $types = empty($types)
+            ? array_keys($available_types)
+            : array_values(array_filter(array_map('ll_tools_login_window_sanitize_rate_limit_type', $types)));
+
+        $released = 0;
+        $before = [];
+        foreach ($types as $type) {
+            if (!isset($available_types[$type])) {
+                continue;
+            }
+
+            $status_callback = (string) ($available_types[$type]['status_callback'] ?? '');
+            if (is_callable($status_callback)) {
+                $before[$type] = (array) call_user_func($status_callback, $ip);
+            }
+
+            $reset_callback = (string) ($available_types[$type]['reset_callback'] ?? '');
+            if (is_callable($reset_callback)) {
+                call_user_func($reset_callback, $ip);
+                $released++;
+            }
+        }
+
+        return [
+            'released' => $released,
+            'ip' => $ip,
+            'types' => $types,
+            'before' => $before,
+        ];
     }
 }
 

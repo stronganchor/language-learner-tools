@@ -78,6 +78,7 @@ final class AdminMenuSplitTest extends LL_Tools_TestCase
 
         $this->assertContains('tools.php?page=ll-audio-processor', $menu_slugs);
         $this->assertContains('admin.php?page=ll-tools-user-progress-report', $menu_slugs);
+        $this->assertContains('tools.php?page=ll-login-blocks', $menu_slugs);
         $this->assertContains('edit.php?post_type=ll_vocab_lesson', $menu_slugs);
     }
 
@@ -135,6 +136,7 @@ final class AdminMenuSplitTest extends LL_Tools_TestCase
             $this->assertContains('tools.php?page=ll-bulk-word-import', $submenu_slugs);
             $this->assertContains('tools.php?page=ll-dictionary-import', $submenu_slugs);
             $this->assertContains('tools.php?page=ll-offline-app-export', $submenu_slugs);
+            $this->assertContains('tools.php?page=ll-login-blocks', $submenu_slugs);
         } finally {
             $menu = $original_menu;
             $submenu = $original_submenu;

@@ -65,6 +65,26 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertSame('manage_options', ll_tools_get_settings_maintenance_capability());
     }
 
+    public function test_default_login_blocks_admin_capability_is_manage_options(): void
+    {
+        $this->assertSame('manage_options', ll_tools_get_login_blocks_admin_capability());
+    }
+
+    public function test_login_blocks_admin_capability_filter_is_applied(): void
+    {
+        $filter = static function (): string {
+            return 'view_ll_tools';
+        };
+
+        add_filter('ll_tools_login_blocks_admin_capability', $filter);
+
+        try {
+            $this->assertSame('view_ll_tools', ll_tools_get_login_blocks_admin_capability());
+        } finally {
+            remove_filter('ll_tools_login_blocks_admin_capability', $filter);
+        }
+    }
+
     public function test_manage_options_user_keeps_view_ll_tools_access_even_if_role_cap_is_missing(): void
     {
         $role = get_role('administrator');
@@ -260,6 +280,53 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertSame(['safe' => true], get_transient('ll_wc_words_capability_test'));
     }
 
+    public function test_login_blocks_admin_page_rejects_view_ll_tools_only_user(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'author']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        $message = $this->runEndpointExpectWpDie(static function (): void {
+            ll_tools_render_login_blocks_admin_page();
+        });
+
+        $this->assertStringContainsString('You do not have permission to release login blocks.', $message);
+    }
+
+    public function test_login_blocks_admin_page_releases_ip_for_admin(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $ip = '203.0.113.44';
+        ll_tools_login_window_reset_login_attempts($ip);
+        ll_tools_login_window_record_login_attempt($ip);
+        $this->assertSame(1, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
+
+        $_POST = [
+            'll_tools_release_auth_blocks' => '1',
+            'll_tools_auth_block_ip' => $ip,
+            '_wpnonce' => wp_create_nonce('ll_tools_release_auth_blocks'),
+        ];
+        $_REQUEST = $_POST;
+
+        ob_start();
+        try {
+            ll_tools_render_login_blocks_admin_page();
+            $output = (string) ob_get_clean();
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            ll_tools_login_window_reset_login_attempts($ip);
+        }
+
+        $this->assertStringContainsString('Released auth blocks for 203.0.113.44', $output);
+        $this->assertSame(0, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
+    }
+
     public function test_tools_hub_hides_admin_only_cards_from_view_ll_tools_only_user(): void
     {
         $user_id = self::factory()->user->create(['role' => 'author']);
@@ -277,6 +344,7 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Missing Audio', $output);
         $this->assertStringNotContainsString('Bulk Word Import', $output);
         $this->assertStringNotContainsString('Offline App Export', $output);
+        $this->assertStringNotContainsString('Login Blocks', $output);
     }
 
     public function test_version_change_schedules_post_update_maintenance(): void

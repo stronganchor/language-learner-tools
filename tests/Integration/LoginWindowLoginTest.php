@@ -3,6 +3,14 @@ declare(strict_types=1);
 
 final class LoginWindowLoginTest extends LL_Tools_TestCase
 {
+    public function test_frontend_login_rate_limit_defaults_to_ten_attempts_for_ten_minutes(): void
+    {
+        $config = ll_tools_login_window_login_attempt_limit_config();
+
+        $this->assertSame(10, (int) $config['limit']);
+        $this->assertSame(10 * MINUTE_IN_SECONDS, (int) $config['window']);
+    }
+
     public function test_frontend_login_rate_limit_blocks_after_configured_failed_attempts(): void
     {
         $ip = '203.0.113.24';
@@ -49,6 +57,55 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
             $this->assertSame('login', (string) ($third_payload['form'] ?? ''));
             $this->assertSame(2, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
             $this->assertTrue((bool) ll_tools_login_window_get_login_rate_limit_status($ip)['limited']);
+        } finally {
+            ll_tools_login_window_reset_login_attempts($ip);
+            remove_filter('ll_tools_login_ip_attempt_limit', $limit_filter);
+            remove_filter('ll_tools_login_ip_attempt_window', $window_filter);
+        }
+    }
+
+    public function test_tracked_frontend_login_block_can_be_released_for_ip(): void
+    {
+        $ip = '203.0.113.27';
+        $limit_filter = static function (): int {
+            return 2;
+        };
+        $window_filter = static function (): int {
+            return 5 * MINUTE_IN_SECONDS;
+        };
+
+        add_filter('ll_tools_login_ip_attempt_limit', $limit_filter);
+        add_filter('ll_tools_login_ip_attempt_window', $window_filter);
+
+        try {
+            ll_tools_login_window_reset_login_attempts($ip);
+
+            ll_tools_login_window_record_login_attempt($ip);
+            ll_tools_login_window_record_login_attempt($ip);
+
+            $status = ll_tools_login_window_get_login_rate_limit_status($ip);
+            $this->assertSame(2, (int) $status['attempts']);
+            $this->assertTrue((bool) $status['limited']);
+
+            $tracked_rows = ll_tools_login_window_get_tracked_rate_limits(true);
+            $matching_rows = array_values(array_filter($tracked_rows, static function (array $row) use ($ip): bool {
+                return (string) ($row['type'] ?? '') === 'login' && (string) ($row['ip'] ?? '') === $ip;
+            }));
+
+            $this->assertCount(1, $matching_rows);
+            $this->assertSame(2, (int) $matching_rows[0]['attempts']);
+
+            $release = ll_tools_login_window_release_rate_limits_for_ip($ip);
+
+            $this->assertSame($ip, (string) $release['ip']);
+            $this->assertSame(2, (int) ($release['before']['login']['attempts'] ?? 0));
+            $this->assertSame(0, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
+            $this->assertFalse((bool) ll_tools_login_window_get_login_rate_limit_status($ip)['limited']);
+
+            $post_release_rows = array_values(array_filter(ll_tools_login_window_get_tracked_rate_limits(true), static function (array $row) use ($ip): bool {
+                return (string) ($row['ip'] ?? '') === $ip;
+            }));
+            $this->assertSame([], $post_release_rows);
         } finally {
             ll_tools_login_window_reset_login_attempts($ip);
             remove_filter('ll_tools_login_ip_attempt_limit', $limit_filter);
