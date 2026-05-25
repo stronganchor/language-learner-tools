@@ -136,6 +136,10 @@
       body.set("action", "ll_tools_suggest_learner_username");
       body.set("nonce", ajaxConfig.suggestUsernameNonce);
       body.set("email", email);
+      if (ajaxConfig.locale && ajaxConfig.localeNonce) {
+        body.set("ll_locale", ajaxConfig.locale);
+        body.set("ll_locale_nonce", ajaxConfig.localeNonce);
+      }
 
       fetch(ajaxConfig.ajaxUrl, {
         method: "POST",

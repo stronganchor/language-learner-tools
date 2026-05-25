@@ -1138,6 +1138,259 @@ if (!function_exists('ll_tools_login_window_login_rate_limit_message')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_is_available_locale')) {
+    function ll_tools_login_window_is_available_locale(string $locale): bool {
+        if ($locale === '') {
+            return false;
+        }
+
+        if (function_exists('ll_tools_is_available_public_locale')) {
+            return ll_tools_is_available_public_locale($locale);
+        }
+
+        if ($locale === 'en_US') {
+            return true;
+        }
+
+        if (function_exists('get_available_languages')) {
+            return in_array($locale, get_available_languages(), true);
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('ll_tools_login_window_sanitize_request_value')) {
+    function ll_tools_login_window_sanitize_request_value($value): string {
+        if (is_array($value) || is_object($value)) {
+            return '';
+        }
+
+        return sanitize_text_field(wp_unslash((string) $value));
+    }
+}
+
+if (!function_exists('ll_tools_login_window_normalize_available_locale')) {
+    function ll_tools_login_window_normalize_available_locale($locale): string {
+        $normalized = function_exists('ll_tools_normalize_switcher_locale_code')
+            ? ll_tools_normalize_switcher_locale_code($locale)
+            : trim(str_replace('-', '_', (string) $locale));
+
+        return ll_tools_login_window_is_available_locale($normalized) ? $normalized : '';
+    }
+}
+
+if (!function_exists('ll_tools_login_window_verify_locale_nonce_value')) {
+    function ll_tools_login_window_verify_locale_nonce_value($nonce): bool {
+        $nonce = ll_tools_login_window_sanitize_request_value($nonce);
+        if ($nonce === '') {
+            return false;
+        }
+
+        $action = function_exists('ll_tools_get_locale_switch_nonce_action')
+            ? ll_tools_get_locale_switch_nonce_action()
+            : 'll_tools_switch_locale';
+
+        return (bool) wp_verify_nonce($nonce, $action);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_locale_from_request')) {
+    function ll_tools_login_window_get_locale_from_request(): string {
+        $locale_value = null;
+        $nonce_value = null;
+
+        if (isset($_POST['ll_locale'])) {
+            $locale_value = $_POST['ll_locale'];
+            $nonce_value = $_POST['ll_locale_nonce'] ?? '';
+        } elseif (isset($_GET['ll_locale'])) {
+            $locale_value = $_GET['ll_locale'];
+            $nonce_value = $_GET['ll_locale_nonce'] ?? '';
+        } elseif (isset($_REQUEST['ll_locale'])) {
+            $locale_value = $_REQUEST['ll_locale'];
+            $nonce_value = $_REQUEST['ll_locale_nonce'] ?? '';
+        }
+
+        if ($locale_value === null) {
+            return '';
+        }
+
+        $locale = ll_tools_login_window_normalize_available_locale(
+            ll_tools_login_window_sanitize_request_value($locale_value)
+        );
+        if ($locale === '') {
+            return '';
+        }
+
+        return ll_tools_login_window_verify_locale_nonce_value($nonce_value) ? $locale : '';
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_locale_from_redirect')) {
+    function ll_tools_login_window_get_locale_from_redirect($redirect_to): string {
+        $query = is_string($redirect_to) ? (string) wp_parse_url($redirect_to, PHP_URL_QUERY) : '';
+        if ($query === '') {
+            return '';
+        }
+
+        $args = [];
+        parse_str($query, $args);
+        if (empty($args['ll_locale'])) {
+            return '';
+        }
+
+        $locale = ll_tools_login_window_normalize_available_locale((string) $args['ll_locale']);
+        if ($locale === '') {
+            return '';
+        }
+
+        return ll_tools_login_window_verify_locale_nonce_value($args['ll_locale_nonce'] ?? '') ? $locale : '';
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_browser_locale_for_auth_request')) {
+    function ll_tools_login_window_get_browser_locale_for_auth_request(): string {
+        if (function_exists('ll_tools_is_browser_language_autoswitch_enabled') && !ll_tools_is_browser_language_autoswitch_enabled()) {
+            return '';
+        }
+
+        $accept_language = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? (string) $_SERVER['HTTP_ACCEPT_LANGUAGE'] : '';
+        if ($accept_language === '' || !function_exists('ll_tools_get_accept_language_preferences')) {
+            return '';
+        }
+
+        $available = function_exists('ll_tools_get_plugin_locales') ? ll_tools_get_plugin_locales() : [];
+        foreach (ll_tools_get_accept_language_preferences($accept_language) as $candidate) {
+            $matched = function_exists('ll_tools_match_browser_locale_to_available_locales')
+                ? ll_tools_match_browser_locale_to_available_locales($candidate, $available)
+                : '';
+            $matched = ll_tools_login_window_normalize_available_locale($matched);
+            if ($matched !== '') {
+                return $matched;
+            }
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('ll_tools_login_window_translation_file_for_locale')) {
+    function ll_tools_login_window_translation_file_for_locale(string $locale): string {
+        $locale = ll_tools_login_window_normalize_available_locale($locale);
+        if ($locale === '' || $locale === 'en_US') {
+            return '';
+        }
+
+        $directories = [];
+        if (defined('WP_LANG_DIR')) {
+            $directories[] = trailingslashit(WP_LANG_DIR) . 'plugins/';
+        }
+        if (defined('LL_TOOLS_BASE_PATH')) {
+            $directories[] = trailingslashit(LL_TOOLS_BASE_PATH) . 'languages/';
+        }
+
+        foreach (array_unique($directories) as $directory) {
+            foreach (['ll-tools-text-domain-' . $locale . '.mo', 'll-tools-text-domain_' . $locale . '.mo'] as $filename) {
+                $path = $directory . $filename;
+                if (is_readable($path)) {
+                    return $path;
+                }
+            }
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('ll_tools_login_window_load_textdomain_for_locale')) {
+    function ll_tools_login_window_load_textdomain_for_locale(string $locale): bool {
+        if (!function_exists('unload_textdomain') || !function_exists('load_textdomain')) {
+            return false;
+        }
+
+        $locale = ll_tools_login_window_normalize_available_locale($locale);
+        if ($locale === '') {
+            return false;
+        }
+
+        unload_textdomain('ll-tools-text-domain');
+        if ($locale === 'en_US') {
+            return true;
+        }
+
+        $translation_file = ll_tools_login_window_translation_file_for_locale($locale);
+        if ($translation_file === '') {
+            return false;
+        }
+
+        return (bool) load_textdomain('ll-tools-text-domain', $translation_file);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_frontend_request_locale')) {
+    function ll_tools_login_window_get_frontend_request_locale($redirect_to = ''): string {
+        $requested = ll_tools_login_window_get_locale_from_request();
+        if ($requested !== '') {
+            return $requested;
+        }
+
+        $from_redirect = ll_tools_login_window_get_locale_from_redirect($redirect_to);
+        if ($from_redirect !== '') {
+            return $from_redirect;
+        }
+
+        if (function_exists('ll_tools_get_logged_in_user_locale_preference')) {
+            $user_locale = ll_tools_login_window_normalize_available_locale(ll_tools_get_logged_in_user_locale_preference());
+            if ($user_locale !== '') {
+                return $user_locale;
+            }
+        }
+
+        if (function_exists('ll_tools_get_locale_cookie_preference')) {
+            $cookie_locale = ll_tools_login_window_normalize_available_locale(ll_tools_get_locale_cookie_preference());
+            if ($cookie_locale !== '') {
+                return $cookie_locale;
+            }
+        }
+
+        return ll_tools_login_window_get_browser_locale_for_auth_request();
+    }
+}
+
+if (!function_exists('ll_tools_login_window_switch_to_frontend_request_locale')) {
+    function ll_tools_login_window_switch_to_frontend_request_locale($redirect_to = ''): string {
+        $locale = ll_tools_login_window_get_frontend_request_locale($redirect_to);
+        if ($locale === '') {
+            return '';
+        }
+
+        if (function_exists('switch_to_locale') && (!function_exists('get_locale') || get_locale() !== $locale)) {
+            switch_to_locale($locale);
+        }
+
+        ll_tools_login_window_load_textdomain_for_locale($locale);
+
+        return $locale;
+    }
+}
+
+if (!function_exists('ll_tools_login_window_locale_fields_markup')) {
+    function ll_tools_login_window_locale_fields_markup(): string {
+        $locale = function_exists('get_locale') ? get_locale() : '';
+        $locale = ll_tools_login_window_normalize_available_locale($locale);
+        if ($locale === '') {
+            return '';
+        }
+
+        $action = function_exists('ll_tools_get_locale_switch_nonce_action')
+            ? ll_tools_get_locale_switch_nonce_action()
+            : 'll_tools_switch_locale';
+
+        return '<input type="hidden" name="ll_locale" value="' . esc_attr($locale) . '" />'
+            . '<input type="hidden" name="ll_locale_nonce" value="' . esc_attr(wp_create_nonce($action)) . '" />';
+    }
+}
+
 if (!defined('LL_TOOLS_LOGIN_WINDOW_RATE_LIMIT_INDEX_OPTION')) {
     define('LL_TOOLS_LOGIN_WINDOW_RATE_LIMIT_INDEX_OPTION', 'll_tools_auth_rate_limit_index_v1');
 }
@@ -1475,6 +1728,7 @@ if (!function_exists('ll_tools_login_window_auth_error_messages')) {
 if (!function_exists('ll_tools_handle_frontend_login')) {
     function ll_tools_handle_frontend_login(): void {
         $raw_redirect = isset($_POST['redirect_to']) ? wp_unslash((string) $_POST['redirect_to']) : '';
+        ll_tools_login_window_switch_to_frontend_request_locale($raw_redirect);
         $redirect_to = ll_tools_get_auth_redirect_target($raw_redirect);
 
         if (is_user_logged_in()) {
@@ -1580,6 +1834,7 @@ add_action('admin_post_ll_tools_login', 'll_tools_handle_frontend_login');
 if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
     function ll_tools_handle_frontend_learner_registration(): void {
         $raw_redirect = isset($_POST['redirect_to']) ? wp_unslash((string) $_POST['redirect_to']) : '';
+        ll_tools_login_window_switch_to_frontend_request_locale($raw_redirect);
         $redirect_to = ll_tools_get_auth_redirect_target($raw_redirect);
         $recorder_invite_token = function_exists('ll_tools_recorder_invite_get_request_token')
             ? ll_tools_recorder_invite_get_request_token()
@@ -1821,6 +2076,7 @@ add_action('admin_post_ll_tools_register_learner', 'll_tools_handle_frontend_lea
 if (!function_exists('ll_tools_login_window_username_suggestion_ajax')) {
     function ll_tools_login_window_username_suggestion_ajax(): void {
         check_ajax_referer('ll_tools_suggest_learner_username', 'nonce');
+        ll_tools_login_window_switch_to_frontend_request_locale();
 
         if (!ll_tools_is_learner_self_registration_available()) {
             wp_send_json_error(['message' => __('New account registration is currently disabled.', 'll-tools-text-domain')], 403);
@@ -1851,10 +2107,23 @@ if (!function_exists('ll_tools_enqueue_login_window_assets')) {
         ll_enqueue_asset_by_timestamp('/js/login-window.js', 'll-tools-login-window-js', [], true);
 
         if (wp_script_is('ll-tools-login-window-js', 'registered')) {
-            wp_localize_script('ll-tools-login-window-js', 'llToolsLoginWindow', [
+            $script_config = [
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'suggestUsernameNonce' => wp_create_nonce('ll_tools_suggest_learner_username'),
-            ]);
+            ];
+
+            $locale = function_exists('get_locale') ? get_locale() : '';
+            $locale = ll_tools_login_window_normalize_available_locale($locale);
+            if ($locale !== '') {
+                $script_config['locale'] = $locale;
+                $script_config['localeNonce'] = wp_create_nonce(
+                    function_exists('ll_tools_get_locale_switch_nonce_action')
+                        ? ll_tools_get_locale_switch_nonce_action()
+                        : 'll_tools_switch_locale'
+                );
+            }
+
+            wp_localize_script('ll-tools-login-window-js', 'llToolsLoginWindow', $script_config);
         }
     }
 }
@@ -2105,6 +2374,7 @@ if (!function_exists('ll_tools_render_login_window')) {
                         <form id="<?php echo esc_attr($login_form_id); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                             <input type="hidden" name="action" value="ll_tools_login" />
                             <input type="hidden" name="redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
+                            <?php echo ll_tools_login_window_locale_fields_markup(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                             <?php wp_nonce_field('ll_tools_login', 'll_tools_login_nonce'); ?>
 
                             <p>
@@ -2159,6 +2429,7 @@ if (!function_exists('ll_tools_render_login_window')) {
                         <form id="<?php echo esc_attr($registration_form_id); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                             <input type="hidden" name="action" value="ll_tools_register_learner" />
                             <input type="hidden" name="redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
+                            <?php echo ll_tools_login_window_locale_fields_markup(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                             <input type="hidden" name="ll_tools_register_username_is_custom" value="<?php echo esc_attr($prefill_username_is_custom ? '1' : '0'); ?>" data-ll-register-username-custom="1" />
                             <input type="hidden" name="ll_tools_register_rendered_at" value="<?php echo esc_attr((string) $challenge_timestamp); ?>" />
                             <input type="hidden" name="ll_tools_register_math_left" value="<?php echo esc_attr((string) $challenge_left); ?>" />

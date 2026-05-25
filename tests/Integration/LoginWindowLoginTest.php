@@ -11,6 +11,30 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
         $this->assertSame(10 * MINUTE_IN_SECONDS, (int) $config['window']);
     }
 
+    public function test_rendered_auth_forms_carry_signed_frontend_locale(): void
+    {
+        update_option('users_can_register', 1);
+        update_option('ll_allow_learner_self_registration', 1);
+
+        $locale_filter = static function (): string {
+            return 'tr_TR';
+        };
+        add_filter('locale', $locale_filter, 999);
+
+        try {
+            $html = ll_tools_render_login_window([
+                'show_registration' => true,
+                'screen_mode' => 'combined',
+                'redirect_to' => 'http://example.org/learn/',
+            ]);
+
+            $this->assertSame(2, substr_count($html, 'name="ll_locale" value="tr_TR"'));
+            $this->assertSame(2, substr_count($html, 'name="ll_locale_nonce"'));
+        } finally {
+            remove_filter('locale', $locale_filter, 999);
+        }
+    }
+
     public function test_frontend_login_rate_limit_blocks_after_configured_failed_attempts(): void
     {
         $ip = '203.0.113.24';
@@ -61,6 +85,55 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
             ll_tools_login_window_reset_login_attempts($ip);
             remove_filter('ll_tools_login_ip_attempt_limit', $limit_filter);
             remove_filter('ll_tools_login_ip_attempt_window', $window_filter);
+        }
+    }
+
+    public function test_frontend_login_rate_limit_message_uses_signed_frontend_locale(): void
+    {
+        $ip = '203.0.113.28';
+        $limit_filter = static function (): int {
+            return 1;
+        };
+        $window_filter = static function (): int {
+            return 5 * MINUTE_IN_SECONDS;
+        };
+        $english_message = 'Too many login attempts from this connection. Please try again in a few minutes.';
+
+        ll_tools_login_window_load_textdomain_for_locale('tr_TR');
+        $expected_message = ll_tools_login_window_login_rate_limit_message();
+        $this->reloadPluginTextdomainForCurrentLocale();
+
+        $this->assertNotSame($english_message, $expected_message);
+
+        add_filter('ll_tools_login_ip_attempt_limit', $limit_filter);
+        add_filter('ll_tools_login_ip_attempt_window', $window_filter);
+
+        try {
+            ll_tools_login_window_reset_login_attempts($ip);
+
+            $locale_fields = [
+                'll_locale' => 'tr_TR',
+                'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
+            ];
+
+            $this->runLoginRequest($ip, array_merge($locale_fields, [
+                'log' => 'frontlogin@example.org',
+                'pwd' => '',
+            ]));
+
+            $blocked_redirect = $this->runLoginRequest($ip, array_merge($locale_fields, [
+                'log' => 'frontlogin@example.org',
+                'pwd' => '',
+            ]));
+            $blocked_payload = $this->getFeedbackPayloadFromRedirect($blocked_redirect);
+
+            $this->assertContains($expected_message, $blocked_payload['messages']);
+            $this->assertNotContains($english_message, $blocked_payload['messages']);
+        } finally {
+            ll_tools_login_window_reset_login_attempts($ip);
+            remove_filter('ll_tools_login_ip_attempt_limit', $limit_filter);
+            remove_filter('ll_tools_login_ip_attempt_window', $window_filter);
+            $this->reloadPluginTextdomainForCurrentLocale();
         }
     }
 
@@ -248,7 +321,9 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
     private function runLoginRequest(string $ip, array $overrides = []): string
     {
         $previous_post = $_POST;
+        $previous_request = $_REQUEST;
         $previous_server = $_SERVER;
+        $previous_locale = function_exists('get_locale') ? (string) get_locale() : '';
         $redirect_url = '';
 
         $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -261,6 +336,7 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
             'pwd' => 'CorrectHorse1!',
             'rememberme' => '1',
         ], $overrides);
+        $_REQUEST = array_merge($_GET, $_POST);
 
         $redirect_filter = static function ($location) use (&$redirect_url) {
             $redirect_url = (string) $location;
@@ -276,7 +352,18 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
         } finally {
             remove_filter('wp_redirect', $redirect_filter, 10);
             $_POST = $previous_post;
+            $_REQUEST = $previous_request;
             $_SERVER = $previous_server;
+            while (
+                $previous_locale !== ''
+                && function_exists('get_locale')
+                && (string) get_locale() !== $previous_locale
+                && function_exists('restore_current_locale')
+                && restore_current_locale()
+            ) {
+                // Restore any locale stack entries left behind by intercepted redirects.
+            }
+            $this->reloadPluginTextdomainForCurrentLocale();
             wp_set_current_user(0);
             if (function_exists('wp_logout')) {
                 wp_logout();
@@ -300,5 +387,15 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
         $this->assertIsArray($payload);
 
         return $payload;
+    }
+
+    private function reloadPluginTextdomainForCurrentLocale(): void
+    {
+        if (function_exists('unload_textdomain')) {
+            unload_textdomain('ll-tools-text-domain');
+        }
+        if (function_exists('ll_tools_load_textdomain')) {
+            ll_tools_load_textdomain();
+        }
     }
 }
