@@ -191,13 +191,17 @@ async function mountRecorder(page, options = {}) {
     const uploadRemainingTypes = Array.isArray(mountOptions.uploadRemainingTypes)
       ? mountOptions.uploadRemainingTypes
       : null;
+    const uploadRemainingTypesSequence = Array.isArray(mountOptions.uploadRemainingTypesSequence)
+      ? mountOptions.uploadRemainingTypesSequence
+      : null;
 
     window.__llTestState = {
       prepareRequests: 0,
       updateTextRequests: 0,
       transcribeRequests: 0,
       uploadRequests: 0,
-      uploadRemainingTypes
+      uploadRemainingTypes,
+      uploadRemainingTypesSequence
     };
 
     const makeJsonResponse = (payload) => ({
@@ -384,7 +388,13 @@ async function mountRecorder(page, options = {}) {
 
         window.__llTestState.uploadRequests += 1;
         const recordingType = String(formData.get('recording_type') || 'isolation');
-        const remainingTypes = Array.isArray(window.__llTestState.uploadRemainingTypes)
+        const uploadIndex = window.__llTestState.uploadRequests - 1;
+        const sequencedRemainingTypes = Array.isArray(window.__llTestState.uploadRemainingTypesSequence)
+          ? window.__llTestState.uploadRemainingTypesSequence[uploadIndex]
+          : null;
+        const remainingTypes = Array.isArray(sequencedRemainingTypes)
+          ? sequencedRemainingTypes.slice()
+          : Array.isArray(window.__llTestState.uploadRemainingTypes)
           ? window.__llTestState.uploadRemainingTypes.slice()
           : (recordingType === 'isolation' ? ['introduction'] : []);
 
@@ -558,6 +568,18 @@ async function mountRecorder(page, options = {}) {
   });
 }
 
+async function recordAndSubmitCurrentType(page) {
+  const recordButton = page.locator('#ll-record-btn');
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/recording/);
+
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/stopping/);
+  await expect(page.locator('#ll-submit-btn')).toBeVisible();
+
+  await page.locator('#ll-submit-btn').click();
+}
+
 test('successful word upload advances past a stale returned recording type', async ({ page }) => {
   await mountRecorder(page, {
     images: [{
@@ -581,19 +603,71 @@ test('successful word upload advances past a stale returned recording type', asy
 
   await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
 
-  const recordButton = page.locator('#ll-record-btn');
-  await recordButton.click();
-  await expect(recordButton).toHaveClass(/recording/);
-
-  await recordButton.click();
-  await expect(recordButton).toHaveClass(/stopping/);
-  await expect(page.locator('#ll-submit-btn')).toBeVisible();
-
-  await page.locator('#ll-submit-btn').click();
+  await recordAndSubmitCurrentType(page);
 
   await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
   await expect(page.locator('#ll-recording-type')).toHaveValue('introduction');
   await expect(page.locator('#ll-upload-status')).toContainText('Saved. Next type selected.');
+});
+
+test('final required type upload advances to the next word when remaining types are stale', async ({ page }) => {
+  await mountRecorder(page, {
+    images: [
+      {
+        id: 101,
+        title: 'First word',
+        image_url: '',
+        category_name: 'Debug Category',
+        category_slug: 'debug-category',
+        word_id: 501,
+        word_title: 'First word',
+        word_translation: 'First translation',
+        use_word_display: true,
+        missing_types: ['isolation', 'introduction', 'question'],
+        existing_types: [],
+        prompt_types: ['isolation', 'introduction', 'question'],
+        my_existing_types: [],
+        is_text_only: true
+      },
+      {
+        id: 102,
+        title: 'Second word',
+        image_url: '',
+        category_name: 'Debug Category',
+        category_slug: 'debug-category',
+        word_id: 502,
+        word_title: 'Second word',
+        word_translation: 'Second translation',
+        use_word_display: true,
+        missing_types: ['isolation'],
+        existing_types: [],
+        prompt_types: ['isolation'],
+        my_existing_types: [],
+        is_text_only: true
+      }
+    ],
+    uploadRemainingTypesSequence: [
+      ['introduction', 'question'],
+      ['question'],
+      ['isolation', 'introduction', 'question']
+    ]
+  });
+
+  await expect(page.locator('#ll-image-title')).toHaveText('First word');
+  await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
+
+  await recordAndSubmitCurrentType(page);
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  await expect(page.locator('#ll-recording-type')).toHaveValue('introduction');
+
+  await recordAndSubmitCurrentType(page);
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(2);
+  await expect(page.locator('#ll-recording-type')).toHaveValue('question');
+
+  await recordAndSubmitCurrentType(page);
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(3);
+  await expect(page.locator('#ll-image-title')).toHaveText('Second word');
+  await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
 });
 
 test('pending new-word transcription does not block save and advances to the intro type', async ({ page }) => {

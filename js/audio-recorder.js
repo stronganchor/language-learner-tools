@@ -3044,38 +3044,58 @@
         });
     }
 
-    function getRemainingTypesAfterSuccessfulUpload(recordingType, remaining) {
+    function getRecordingTypeSlugSet(list) {
+        const slugs = new Set();
+        sortRecordingTypes(Array.isArray(list) ? list : []).forEach(item => {
+            const slug = getRecordingTypeSlug(item);
+            if (slug) {
+                slugs.add(slug);
+            }
+        });
+        return slugs;
+    }
+
+    function getRemainingTypesAfterSuccessfulUpload(recordingType, remaining, item) {
         const recordedSlug = getRecordingTypeSlug(recordingType);
+        const pendingBeforeUpload = getRecordingTypeSlugSet(item?.missing_types || []);
+        const hasPendingBeforeUpload = pendingBeforeUpload.size > 0;
+
         return sortRecordingTypes(Array.isArray(remaining) ? remaining : [])
-            .filter(slug => getRecordingTypeSlug(slug) !== recordedSlug);
+            .filter(type => {
+                const slug = getRecordingTypeSlug(type);
+                if (!slug || slug === recordedSlug) return false;
+                if (hasPendingBeforeUpload && !pendingBeforeUpload.has(slug)) return false;
+                return true;
+            });
     }
 
     function handleSuccessfulUpload(recordingType, remaining, autoProcessed) {
         const el = window.llRecorder;
-        const remainingTypes = getRemainingTypesAfterSuccessfulUpload(recordingType, remaining);
-        normalizeImageRecordingTypeState(images[currentImageIndex]);
-        if (!Array.isArray(images[currentImageIndex].existing_types)) {
-            images[currentImageIndex].existing_types = [];
+        const currentImage = images[currentImageIndex];
+        normalizeImageRecordingTypeState(currentImage);
+        const remainingTypes = getRemainingTypesAfterSuccessfulUpload(recordingType, remaining, currentImage);
+        if (!Array.isArray(currentImage.existing_types)) {
+            currentImage.existing_types = [];
         }
-        if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
-            images[currentImageIndex].existing_types.push(recordingType);
-            images[currentImageIndex].existing_types = sortRecordingTypes(images[currentImageIndex].existing_types);
+        if (recordingType && !currentImage.existing_types.includes(recordingType)) {
+            currentImage.existing_types.push(recordingType);
+            currentImage.existing_types = sortRecordingTypes(currentImage.existing_types);
         }
-        if (!Array.isArray(images[currentImageIndex].my_existing_types)) {
-            images[currentImageIndex].my_existing_types = [];
+        if (!Array.isArray(currentImage.my_existing_types)) {
+            currentImage.my_existing_types = [];
         }
-        if (recordingType && !images[currentImageIndex].my_existing_types.includes(recordingType)) {
-            images[currentImageIndex].my_existing_types.push(recordingType);
-            images[currentImageIndex].my_existing_types = sortRecordingTypes(images[currentImageIndex].my_existing_types);
+        if (recordingType && !currentImage.my_existing_types.includes(recordingType)) {
+            currentImage.my_existing_types.push(recordingType);
+            currentImage.my_existing_types = sortRecordingTypes(currentImage.my_existing_types);
         }
-        if (!Array.isArray(images[currentImageIndex].prompt_types)) {
-            images[currentImageIndex].prompt_types = [];
+        if (!Array.isArray(currentImage.prompt_types)) {
+            currentImage.prompt_types = [];
         }
-        if (recordingType && !images[currentImageIndex].prompt_types.includes(recordingType)) {
-            images[currentImageIndex].prompt_types.push(recordingType);
-            images[currentImageIndex].prompt_types = sortRecordingTypes(images[currentImageIndex].prompt_types);
+        if (recordingType && !currentImage.prompt_types.includes(recordingType)) {
+            currentImage.prompt_types.push(recordingType);
+            currentImage.prompt_types = sortRecordingTypes(currentImage.prompt_types);
         }
-        images[currentImageIndex].missing_types = remainingTypes;
+        currentImage.missing_types = remainingTypes;
 
         if (requireAll && remainingTypes.length > 0) {
             if (isNewWordPanelActive()) {
