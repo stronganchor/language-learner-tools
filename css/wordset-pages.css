@@ -919,8 +919,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__label-wrap {
-    flex: 0 0 auto;
-    width: 100%;
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    flex: none;
+    width: auto;
+    max-width: calc(100% - 32px);
     color: #fff;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
@@ -1002,11 +1007,21 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__count {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
     margin-left: 0;
-    border-color: rgba(255, 255, 255, 0.32);
-    background: rgba(255, 255, 255, 0.92);
-    color: #10233f;
+    border-color: rgba(255, 255, 255, 0.42) !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    color: #10233f !important;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
+.ll-wordset-buttons-shortcode__button--has-image:hover .ll-wordset-buttons-shortcode__count,
+.ll-wordset-buttons-shortcode__button--has-image:focus-visible .ll-wordset-buttons-shortcode__count {
+    border-color: rgba(255, 255, 255, 0.5) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #10233f !important;
 }
 
 @media (max-width: 640px) {
@@ -1028,6 +1043,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-page .ll-wordset-buttons-shortcode__button--has-image {
         min-height: 0 !important;
         padding: 14px !important;
+    }
+
+    .ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__label-wrap {
+        top: 14px;
+        left: 14px;
+        right: 14px;
+        max-width: calc(100% - 28px);
+    }
+
+    .ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__count {
+        right: 14px;
+        bottom: 14px;
     }
 
     .ll-wordset-buttons-shortcode__button:not(.ll-wordset-buttons-shortcode__button--has-image) .ll-wordset-buttons-shortcode__media {
