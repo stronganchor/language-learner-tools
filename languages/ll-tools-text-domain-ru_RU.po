@@ -3312,3 +3312,63 @@ msgstr "Настройки инструментов для изучения яз
 #: includes/admin/admin-dashboard-menu.php:154 includes/admin/admin-dashboard-menu.php:454 includes/admin/audio-processor-admin.php:1432 includes/admin/audio-processor-admin.php:838
 msgid "Audio Processor"
 msgstr "Обработчик аудио"
+
+#: includes/admin/admin-dashboard-menu.php:155 includes/admin/admin-dashboard-menu.php:463
+msgid "Audio/Image Matcher"
+msgstr "Сопоставление аудио/изображений"
+
+#: includes/admin/admin-dashboard-menu.php:156 includes/admin/admin-dashboard-menu.php:472
+msgid "Missing Audio"
+msgstr "Отсутствующее аудио"
+
+#: includes/admin/admin-dashboard-menu.php:157 includes/admin/admin-dashboard-menu.php:481
+msgid "Bulk Word Import"
+msgstr "Массовый импорт слов"
+
+#: includes/admin/admin-dashboard-menu.php:158 includes/admin/admin-dashboard-menu.php:490
+msgid "Dictionary Manager"
+msgstr "Менеджер словаря"
+
+#: includes/admin/admin-dashboard-menu.php:159 includes/admin/admin-dashboard-menu.php:499 includes/admin/dictionary-import-admin.php:1789
+msgid "Dictionary Sources"
+msgstr "Источники словаря"
+
+#: includes/admin/admin-dashboard-menu.php:160 includes/admin/admin-dashboard-menu.php:508
+msgid "Bulk Translations"
+msgstr "Массовые переводы"
+
+#: includes/admin/admin-dashboard-menu.php:161 includes/admin/admin-dashboard-menu.php:526 includes/admin/export-import.php:3490 includes/admin/word-option-rules-admin.php:1923
+msgid "Export"
+msgstr "Экспорт"
+
+#: includes/admin/admin-dashboard-menu.php:162 includes/admin/admin-dashboard-menu.php:535 includes/admin/export-import.php:3778 includes/admin/word-option-rules-admin.php:1935 includes/pages/wordset-pages.php:10141
+msgid "Import"
+msgstr "Импорт"
+
+#: includes/admin/admin-dashboard-menu.php:163 includes/admin/admin-dashboard-menu.php:544
+msgid "Site Sync"
+msgstr "Синхронизация сайта"
+
+#: includes/admin/admin-dashboard-menu.php:164 includes/admin/admin-dashboard-menu.php:553 includes/pages/wordset-pages.php:10204
+msgid "Offline App Export"
+msgstr "Экспорт офлайн-приложения"
+
+#: includes/admin/admin-dashboard-menu.php:165 includes/admin/admin-dashboard-menu.php:562 includes/admin/ipa-keyboard-admin.php:12 includes/admin/ipa-keyboard-admin.php:447
+msgid "Transcription Manager"
+msgstr "Менеджер транскрипций"
+
+#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:571 includes/admin/word-option-rules-admin.php:1310 includes/admin/word-option-rules-admin.php:1322 includes/admin/word-option-rules-admin.php:9
+msgid "Word Option Rules"
+msgstr "Правила вариантов ответа"
+
+#: includes/admin/admin-dashboard-menu.php:167 includes/admin/audio-processor-admin.php:1454 includes/admin/image-aspect-normalizer-admin.php:120
+msgid "Image Aspect Normalizer"
+msgstr "Нормализатор соотношения сторон изображения"
+
+#: includes/admin/admin-dashboard-menu.php:168 includes/admin/audio-processor-admin.php:1485 includes/admin/image-webp-optimizer-admin.php:1539
+msgid "WebP Image Optimizer"
+msgstr "Оптимизатор изображений WebP"
+
+#: includes/admin/admin-dashboard-menu.php:169 includes/admin/orphan-media-admin.php:1242
+msgid "Orphaned Media"
+msgstr "Потерянные медиа"

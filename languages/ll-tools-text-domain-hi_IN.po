@@ -3149,3 +3149,63 @@ msgstr "भाषा सीखने के उपकरण सेटिंग�
 #: includes/admin/admin-dashboard-menu.php:154 includes/admin/admin-dashboard-menu.php:454 includes/admin/audio-processor-admin.php:1432 includes/admin/audio-processor-admin.php:838
 msgid "Audio Processor"
 msgstr "ऑडियो प्रोसेसर"
+
+#: includes/admin/admin-dashboard-menu.php:155 includes/admin/admin-dashboard-menu.php:463
+msgid "Audio/Image Matcher"
+msgstr "ऑडियो/छवि मिलानकर्ता"
+
+#: includes/admin/admin-dashboard-menu.php:156 includes/admin/admin-dashboard-menu.php:472
+msgid "Missing Audio"
+msgstr "अनुपलब्ध ऑडियो"
+
+#: includes/admin/admin-dashboard-menu.php:157 includes/admin/admin-dashboard-menu.php:481
+msgid "Bulk Word Import"
+msgstr "शब्दों का थोक आयात"
+
+#: includes/admin/admin-dashboard-menu.php:158 includes/admin/admin-dashboard-menu.php:490
+msgid "Dictionary Manager"
+msgstr "शब्दकोश प्रबंधक"
+
+#: includes/admin/admin-dashboard-menu.php:159 includes/admin/admin-dashboard-menu.php:499 includes/admin/dictionary-import-admin.php:1789
+msgid "Dictionary Sources"
+msgstr "शब्दकोश स्रोत"
+
+#: includes/admin/admin-dashboard-menu.php:160 includes/admin/admin-dashboard-menu.php:508
+msgid "Bulk Translations"
+msgstr "थोक अनुवाद"
+
+#: includes/admin/admin-dashboard-menu.php:161 includes/admin/admin-dashboard-menu.php:526 includes/admin/export-import.php:3490 includes/admin/word-option-rules-admin.php:1923
+msgid "Export"
+msgstr "निर्यात"
+
+#: includes/admin/admin-dashboard-menu.php:162 includes/admin/admin-dashboard-menu.php:535 includes/admin/export-import.php:3778 includes/admin/word-option-rules-admin.php:1935 includes/pages/wordset-pages.php:10141
+msgid "Import"
+msgstr "आयात"
+
+#: includes/admin/admin-dashboard-menu.php:163 includes/admin/admin-dashboard-menu.php:544
+msgid "Site Sync"
+msgstr "साइट सिंक"
+
+#: includes/admin/admin-dashboard-menu.php:164 includes/admin/admin-dashboard-menu.php:553 includes/pages/wordset-pages.php:10204
+msgid "Offline App Export"
+msgstr "ऑफ़लाइन ऐप निर्यात"
+
+#: includes/admin/admin-dashboard-menu.php:165 includes/admin/admin-dashboard-menu.php:562 includes/admin/ipa-keyboard-admin.php:12 includes/admin/ipa-keyboard-admin.php:447
+msgid "Transcription Manager"
+msgstr "ट्रांसक्रिप्शन प्रबंधक"
+
+#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:571 includes/admin/word-option-rules-admin.php:1310 includes/admin/word-option-rules-admin.php:1322 includes/admin/word-option-rules-admin.php:9
+msgid "Word Option Rules"
+msgstr "उत्तर विकल्प नियम"
+
+#: includes/admin/admin-dashboard-menu.php:167 includes/admin/audio-processor-admin.php:1454 includes/admin/image-aspect-normalizer-admin.php:120
+msgid "Image Aspect Normalizer"
+msgstr "छवि अनुपात सामान्यीकरण"
+
+#: includes/admin/admin-dashboard-menu.php:168 includes/admin/audio-processor-admin.php:1485 includes/admin/image-webp-optimizer-admin.php:1539
+msgid "WebP Image Optimizer"
+msgstr "WebP छवि अनुकूलक"
+
+#: includes/admin/admin-dashboard-menu.php:169 includes/admin/orphan-media-admin.php:1242
+msgid "Orphaned Media"
+msgstr "अनाथ मीडिया"
