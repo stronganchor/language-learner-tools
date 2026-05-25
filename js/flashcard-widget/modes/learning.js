@@ -890,6 +890,37 @@
         return Promise.resolve();
     }
 
+    function categoryConfigRequiresAudio(config) {
+        const cfg = (config && typeof config === 'object') ? config : {};
+        const promptType = String(cfg.prompt_type || 'audio');
+        const optionType = String(cfg.option_type || cfg.mode || '');
+        const promptHasAudio = (Util && typeof Util.promptTypeHasAudio === 'function')
+            ? Util.promptTypeHasAudio(promptType)
+            : (promptType === 'audio' || promptType === 'image_audio');
+        return promptHasAudio || optionType === 'audio' || optionType === 'text_audio';
+    }
+
+    function buildIntroductionAudioPattern(word, requiresAudio) {
+        if (!requiresAudio) {
+            return [];
+        }
+
+        const introAudio = FlashcardAudio && typeof FlashcardAudio.selectBestAudio === 'function'
+            ? FlashcardAudio.selectBestAudio(word, ['introduction'])
+            : '';
+        const isoAudio = FlashcardAudio && typeof FlashcardAudio.selectBestAudio === 'function'
+            ? FlashcardAudio.selectBestAudio(word, ['isolation'])
+            : '';
+
+        if (introAudio && isoAudio && introAudio !== isoAudio) {
+            const useIntroFirst = Math.random() < 0.5;
+            return useIntroFirst ? [introAudio, isoAudio, introAudio] : [isoAudio, introAudio, isoAudio];
+        }
+
+        const singleAudio = introAudio || isoAudio || (word && word.audio);
+        return [singleAudio, singleAudio, singleAudio];
+    }
+
     function introduceWords(words, context) {
         if (!State.isIntroducing()) {
             console.warn('introduceWords called but not in INTRODUCING_WORDS state');
@@ -927,6 +958,7 @@
         const introMode = (cfg && (Util.promptTypeHasImage ? Util.promptTypeHasImage(cfg.prompt_type) : (cfg.prompt_type === 'image')) && (mode === 'audio' || mode === 'text_audio'))
             ? 'image'
             : mode;
+        const introRequiresAudio = categoryConfigRequiresAudio(cfg);
 
         Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, introMode, State.currentCategoryName, cfg))).then(function () {
             if (!State.isIntroducing()) {
@@ -940,19 +972,10 @@
                     $card.attr('data-word-index', index);
                 }
 
-                const introAudio = FlashcardAudio.selectBestAudio(word, ['introduction']);
-                const isoAudio = FlashcardAudio.selectBestAudio(word, ['isolation']);
-
-                let audioPattern;
-                if (introAudio && isoAudio && introAudio !== isoAudio) {
-                    const useIntroFirst = Math.random() < 0.5;
-                    audioPattern = useIntroFirst ? [introAudio, isoAudio, introAudio] : [isoAudio, introAudio, isoAudio];
-                } else {
-                    const singleAudio = introAudio || isoAudio || word.audio;
-                    audioPattern = [singleAudio, singleAudio, singleAudio];
-                }
+                const audioPattern = buildIntroductionAudioPattern(word, introRequiresAudio);
 
                 if ($card && typeof $card.attr === 'function') {
+                    $card.attr('data-audio-required', introRequiresAudio ? '1' : '0');
                     $card.attr('data-audio-pattern', JSON.stringify(audioPattern));
                 }
             });
@@ -1083,6 +1106,21 @@
             }
             const audioUrl = audioPattern[repetition] || audioPattern[0];
             const retriesUsed = Math.max(0, parseInt(retryCount, 10) || 0);
+            const audioRequired = $currentCard && typeof $currentCard.attr === 'function'
+                ? ($currentCard.attr('data-audio-required') !== '0')
+                : true;
+            if (!audioRequired) {
+                releaseIntroLoading().then(function () {
+                    continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: true });
+                });
+                return;
+            }
+            if (!audioUrl) {
+                console.error('Failed to create introduction audio');
+                releaseIntroLoading();
+                continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: false });
+                return;
+            }
             const managedAudio = FlashcardAudio.createIntroductionAudio
                 ? FlashcardAudio.createIntroductionAudio(audioUrl)
                 : null;

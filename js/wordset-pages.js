@@ -1551,12 +1551,15 @@
                 mode: String((cat && cat.mode) || 'image'),
                 prompt_type: String((cat && cat.prompt_type) || 'audio'),
                 option_type: String((cat && cat.option_type) || 'image'),
+                learning_prompt_type: String((cat && cat.learning_prompt_type) || ''),
+                learning_option_type: String((cat && cat.learning_option_type) || ''),
                 learning_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'learning_supported')
                     ? normalizeBooleanFlag(cat.learning_supported)
                     : true,
                 self_check_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'self_check_supported')
                     ? normalizeBooleanFlag(cat.self_check_supported)
                     : true,
+                sign_language_mode: normalizeBooleanFlag(cat && cat.sign_language_mode),
                 gender_supported: normalizeBooleanFlag(cat && cat.gender_supported),
                 is_public: cat && Object.prototype.hasOwnProperty.call(cat, 'is_public')
                     ? normalizeBooleanFlag(cat.is_public)
@@ -5997,13 +6000,24 @@
         return key || 'image';
     }
 
-    function getCategoryQuizPresentationKey(catId) {
+    function getCategoryQuizPresentationKey(catId, options) {
         const cat = getCategoryById(catId);
         if (!cat) {
             return 'audio->image';
         }
-        const promptType = normalizePromptTypeForCompatibility(cat.prompt_type || 'audio');
-        const optionType = normalizeOptionTypeForCompatibility(cat.option_type || cat.mode || 'image');
+        const opts = (options && typeof options === 'object') ? options : {};
+        const useLearningPresentation = normalizeMode(opts.mode || '') === 'learning';
+        const useSignLearningPresentation = useLearningPresentation && !!cat.sign_language_mode;
+        const promptType = normalizePromptTypeForCompatibility(
+            useLearningPresentation && cat.learning_prompt_type
+                ? cat.learning_prompt_type
+                : (useSignLearningPresentation ? 'image' : (cat.prompt_type || 'audio'))
+        );
+        const optionType = normalizeOptionTypeForCompatibility(
+            useLearningPresentation && cat.learning_option_type
+                ? cat.learning_option_type
+                : (useSignLearningPresentation ? 'image' : (cat.option_type || cat.mode || 'image'))
+        );
         return promptType + '->' + optionType;
     }
 
@@ -6014,7 +6028,7 @@
         if (!requireMatchingPresentation) {
             return aspectBucket;
         }
-        return aspectBucket + '|' + getCategoryQuizPresentationKey(catId);
+        return aspectBucket + '|' + getCategoryQuizPresentationKey(catId, opts);
     }
 
     function filterCategoryIdsByAspectBucket(categoryIds, options) {
@@ -6293,7 +6307,8 @@
         const launchMode = normalizeMode(opts.mode || '');
         return filterCategoryIdsByAspectBucket(baseIds, {
             preferCategoryId: parseInt(opts.preferCategoryId, 10) || baseIds[0] || 0,
-            requireMatchingPresentation: launchMode === 'learning'
+            requireMatchingPresentation: launchMode === 'learning',
+            mode: launchMode
         });
     }
 
@@ -11644,6 +11659,7 @@
         let compatibleCategoryIds = selectCompatibleCategoryIdsByWordCounts(ids, {
             preferCategoryId: parseInt(opts.preferCategoryId, 10) || ids[0] || 0,
             requireMatchingPresentation: true,
+            mode: 'learning',
             priorityCounts: wordLists.filteredCountByCategory,
             totalCounts: wordLists.totalCountByCategory
         });
@@ -11806,7 +11822,8 @@
             priorityFocus: opts.priorityFocus || ''
         });
         const groups = buildCategoryCompatibilityGroups(ids, {
-            requireMatchingPresentation: requireMatchingPresentation
+            requireMatchingPresentation: requireMatchingPresentation,
+            mode: opts.mode || ''
         });
         const entries = [];
 
@@ -12047,7 +12064,8 @@
         }
         return filterCategoryIdsByAspectBucket(byMode, {
             preferCategoryId: byMode[0] || ids[0] || 0,
-            requireMatchingPresentation: key === 'learning'
+            requireMatchingPresentation: key === 'learning',
+            mode: key
         });
     }
 

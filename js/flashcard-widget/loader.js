@@ -233,6 +233,12 @@
         }
 
         function getCategoryConfig(name) {
+            if (typeof window.getCategoryConfig === 'function') {
+                const liveConfig = window.getCategoryConfig(name);
+                if (liveConfig && typeof liveConfig === 'object') {
+                    return Object.assign({}, defaultConfig, liveConfig);
+                }
+            }
             const util = getUtil();
             const found = (util && typeof util.getCategoryConfig === 'function')
                 ? (util.getCategoryConfig(name) || findCategoryConfigFallback(name))

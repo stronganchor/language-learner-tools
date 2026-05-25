@@ -1394,10 +1394,14 @@ function ll_tools_apply_wordset_quiz_presentation_overrides(array $config, $word
             break;
     }
 
-    $learning_supported = !(ll_tools_quiz_prompt_type_has_image($prompt_type) && in_array($option_type, ['text_title', 'text_translation'], true));
+    $learning_prompt_type = 'image';
+    $learning_option_type = 'image';
+    $learning_supported = !(ll_tools_quiz_prompt_type_has_image($learning_prompt_type) && in_array($learning_option_type, ['text_title', 'text_translation'], true));
 
     $config['prompt_type'] = $prompt_type;
     $config['option_type'] = $option_type;
+    $config['learning_prompt_type'] = $learning_prompt_type;
+    $config['learning_option_type'] = $learning_option_type;
     $config['use_titles'] = ($option_type === 'text_title') || !empty($config['use_titles']);
     $config['learning_supported'] = $learning_supported;
     $config['self_check_supported'] = true;

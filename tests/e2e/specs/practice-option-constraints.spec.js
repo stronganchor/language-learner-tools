@@ -19,6 +19,10 @@ const practiceSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/modes/practice.js'),
   'utf8'
 );
+const learningSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/modes/learning.js'),
+  'utf8'
+);
 
 async function mountSelectionHarness(page, options = {}) {
   const maxCards = Number.isFinite(Number(options.maxCards))
@@ -1864,6 +1868,184 @@ test('learning mode matches introduced IDs even when word payload IDs are string
 
   expect(result.threw).toBe(false);
   expect(result.ids).toEqual([801, 802]);
+});
+
+test('learning mode uses sign-language image-image presentation override', async ({ page }) => {
+  const category = 'ASL basics';
+
+  await mountSelectionHarness(page, {
+    categories: [{
+      name: category,
+      prompt_type: 'image',
+      option_type: 'text_title',
+      learning_prompt_type: 'image',
+      learning_option_type: 'image',
+      learning_supported: true,
+      sign_language_mode: true
+    }],
+    targetCategoryName: category,
+    state: {
+      isLearningMode: true,
+      categoryNames: [category]
+    }
+  });
+
+  const config = await page.evaluate((categoryName) => {
+    return window.LLFlashcards.Selection.getCategoryConfig(categoryName);
+  }, category);
+
+  expect(config.prompt_type).toBe('image');
+  expect(config.option_type).toBe('image');
+  expect(config.mode).toBe('image');
+  expect(config.learning_supported).toBe(true);
+});
+
+test('learning introduction advances image-only sign cards without creating audio', async ({ page }) => {
+  const category = 'ASL signs';
+
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-content">
+      <div id="ll-tools-flashcard"></div>
+      <button id="ll-tools-repeat-flashcard" type="button"></button>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate((categoryName) => {
+    const STATES = {
+      QUIZ_READY: 'quiz_ready',
+      INTRODUCING_WORDS: 'introducing_words',
+      SHOWING_RESULTS: 'showing_results'
+    };
+    window.__createdAudioUrls = [];
+    window.__showLoadingErrorCalls = 0;
+    window.__startQuizRoundCalls = 0;
+    window.__learningProgressSnapshots = [];
+    window.llToolsFlashcardsData = {
+      introSilenceMs: 0,
+      introWordSilenceMs: 0
+    };
+    window.LLFlashcards = {
+      State: {
+        STATES,
+        AUDIO_REPETITIONS: 1,
+        currentFlowState: STATES.QUIZ_READY,
+        currentCategoryName: categoryName,
+        wordsByCategory: {},
+        categoryNames: [categoryName],
+        isIntroducingWord: true,
+        isLearningMode: true,
+        abortAllOperations: false,
+        introducedWordIDs: [],
+        wordIntroductionProgress: {},
+        wordCorrectCounts: {},
+        wrongAnswerQueue: [],
+        learningWordSets: [],
+        addTimeout: function () {},
+        canIntroduceWords: function () { return true; },
+        getState: function () { return this.currentFlowState; },
+        isIntroducing: function () { return this.currentFlowState === STATES.INTRODUCING_WORDS; },
+        transitionTo: function (nextState) {
+          this.currentFlowState = nextState;
+          return true;
+        },
+        forceTransitionTo: function (nextState) {
+          this.currentFlowState = nextState;
+          return true;
+        }
+      },
+      Selection: {
+        getCategoryConfig: function () {
+          return {
+            prompt_type: 'image',
+            option_type: 'image',
+            learning_prompt_type: 'image',
+            learning_option_type: 'image',
+            learning_supported: true,
+            sign_language_mode: true
+          };
+        },
+        getCurrentDisplayMode: function () {
+          return 'image';
+        }
+      },
+      Util: {
+        promptTypeHasImage: function (promptType) {
+          return promptType === 'image';
+        },
+        promptTypeHasAudio: function (promptType) {
+          return promptType === 'audio' || promptType === 'image_audio';
+        }
+      },
+      Dom: {
+        hideLoading: function () { return Promise.resolve(); },
+        disableRepeatButton: function () {},
+        enableRepeatButton: function () {},
+        restoreHeaderUI: function () {},
+        updateLearningProgress: function (introduced, total, correct, introProgress) {
+          window.__learningProgressSnapshots.push({
+            introduced,
+            total,
+            introProgress: Object.assign({}, introProgress || {})
+          });
+        }
+      },
+      Cards: {
+        appendWordToContainer: function (word) {
+          const $card = window.jQuery('<div>', {
+            class: 'flashcard-container',
+            'data-word-id': String((word && word.id) || '')
+          });
+          window.jQuery('#ll-tools-flashcard').append($card);
+          return $card;
+        }
+      },
+      Results: {},
+      Modes: {}
+    };
+    window.FlashcardLoader = {
+      loadResourcesForWord: function () { return Promise.resolve(); }
+    };
+    window.FlashcardAudio = {
+      selectBestAudio: function () { return ''; },
+      createIntroductionAudio: function (url) {
+        window.__createdAudioUrls.push(String(url || ''));
+        return null;
+      }
+    };
+  }, category);
+  await page.addScriptTag({ content: learningSource });
+
+  const result = await page.evaluate(async () => {
+    const word = {
+      id: 901,
+      title: 'Hello',
+      label: 'Hello',
+      image: 'https://example.test/hello.jpg'
+    };
+    const Learning = window.LLFlashcards.Modes.Learning;
+    const handled = Learning.handlePostSelection([word], {
+      setGuardedTimeout: function (fn) { return window.setTimeout(fn, 0); },
+      startQuizRound: function () { window.__startQuizRoundCalls += 1; },
+      showLoadingError: function () { window.__showLoadingErrorCalls += 1; }
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 40));
+    return {
+      handled,
+      createdAudioUrls: window.__createdAudioUrls.slice(),
+      showLoadingErrorCalls: window.__showLoadingErrorCalls,
+      startQuizRoundCalls: window.__startQuizRoundCalls,
+      introducedWordIDs: window.LLFlashcards.State.introducedWordIDs.slice(),
+      progress: Object.assign({}, window.LLFlashcards.State.wordIntroductionProgress)
+    };
+  });
+
+  expect(result.handled).toBe(true);
+  expect(result.createdAudioUrls).toEqual([]);
+  expect(result.showLoadingErrorCalls).toBe(0);
+  expect(result.startQuizRoundCalls).toBe(1);
+  expect(result.introducedWordIDs).toEqual([901]);
+  expect(result.progress['901']).toBe(1);
 });
 
 test('throws a hard error when fewer than two options are truly available', async ({ page }) => {

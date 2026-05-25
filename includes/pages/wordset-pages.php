@@ -3048,8 +3048,11 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'mode'       => $option_type,
             'prompt_type' => $prompt_type,
             'option_type' => $option_type,
+            'learning_prompt_type' => (string) ($quiz_config['learning_prompt_type'] ?? ''),
+            'learning_option_type' => (string) ($quiz_config['learning_option_type'] ?? ''),
             'learning_supported' => $learning_supported,
             'self_check_supported' => $self_check_supported,
+            'sign_language_mode' => !empty($quiz_config['sign_language_mode']),
             'gender_supported' => $gender_supported,
             'aspect_bucket' => $aspect_bucket,
             'count'      => (int) ($row['word_count'] ?? 0),
@@ -3513,6 +3516,12 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         $enhanced['option_type'] = isset($study_cat['option_type']) && (string) $study_cat['option_type'] !== ''
             ? (string) $study_cat['option_type']
             : (string) ($cat['option_type'] ?? 'image');
+        $enhanced['learning_prompt_type'] = isset($study_cat['learning_prompt_type']) && (string) $study_cat['learning_prompt_type'] !== ''
+            ? (string) $study_cat['learning_prompt_type']
+            : (string) ($cat['learning_prompt_type'] ?? '');
+        $enhanced['learning_option_type'] = isset($study_cat['learning_option_type']) && (string) $study_cat['learning_option_type'] !== ''
+            ? (string) $study_cat['learning_option_type']
+            : (string) ($cat['learning_option_type'] ?? '');
         if (array_key_exists('learning_supported', $study_cat)) {
             $enhanced['learning_supported'] = !empty($study_cat['learning_supported']);
         } elseif (array_key_exists('learning_supported', $cat)) {
@@ -3530,6 +3539,9 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         $enhanced['gender_supported'] = array_key_exists('gender_supported', $study_cat)
             ? !empty($study_cat['gender_supported'])
             : !empty($cat['gender_supported']);
+        $enhanced['sign_language_mode'] = array_key_exists('sign_language_mode', $study_cat)
+            ? !empty($study_cat['sign_language_mode'])
+            : !empty($cat['sign_language_mode']);
         $enhanced['aspect_bucket'] = (isset($study_cat['aspect_bucket']) && (string) $study_cat['aspect_bucket'] !== '')
             ? (string) $study_cat['aspect_bucket']
             : (string) ($cat['aspect_bucket'] ?? '');
@@ -14721,6 +14733,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         $enhanced['option_type'] = isset($study_cat['option_type']) && (string) $study_cat['option_type'] !== ''
             ? (string) $study_cat['option_type']
             : (string) ($cat['option_type'] ?? 'image');
+        $enhanced['learning_prompt_type'] = isset($study_cat['learning_prompt_type']) && (string) $study_cat['learning_prompt_type'] !== ''
+            ? (string) $study_cat['learning_prompt_type']
+            : (string) ($cat['learning_prompt_type'] ?? '');
+        $enhanced['learning_option_type'] = isset($study_cat['learning_option_type']) && (string) $study_cat['learning_option_type'] !== ''
+            ? (string) $study_cat['learning_option_type']
+            : (string) ($cat['learning_option_type'] ?? '');
         if (array_key_exists('learning_supported', $study_cat)) {
             $enhanced['learning_supported'] = !empty($study_cat['learning_supported']);
         } elseif (array_key_exists('learning_supported', $cat)) {
@@ -14738,6 +14756,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         $enhanced['gender_supported'] = array_key_exists('gender_supported', $study_cat)
             ? !empty($study_cat['gender_supported'])
             : !empty($cat['gender_supported']);
+        $enhanced['sign_language_mode'] = array_key_exists('sign_language_mode', $study_cat)
+            ? !empty($study_cat['sign_language_mode'])
+            : !empty($cat['sign_language_mode']);
         $enhanced['aspect_bucket'] = (isset($study_cat['aspect_bucket']) && (string) $study_cat['aspect_bucket'] !== '')
             ? (string) $study_cat['aspect_bucket']
             : (string) ($cat['aspect_bucket'] ?? '');
@@ -15510,8 +15531,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'mode' => (string) ($cat['mode'] ?? ''),
             'prompt_type' => (string) ($cat['prompt_type'] ?? ''),
             'option_type' => (string) ($cat['option_type'] ?? ''),
+            'learning_prompt_type' => (string) ($cat['learning_prompt_type'] ?? ''),
+            'learning_option_type' => (string) ($cat['learning_option_type'] ?? ''),
             'learning_supported' => !empty($cat['learning_supported']),
             'self_check_supported' => !array_key_exists('self_check_supported', $cat) || !empty($cat['self_check_supported']),
+            'sign_language_mode' => !empty($cat['sign_language_mode']),
             'gender_supported' => !empty($cat['gender_supported']),
             'is_public' => !array_key_exists('is_public', $cat) || !empty($cat['is_public']),
             'public_note' => (string) ($cat['public_note'] ?? ''),

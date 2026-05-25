@@ -800,6 +800,19 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('image', (string) ($config['prompt_type'] ?? ''));
         $this->assertSame('image', (string) ($config['option_type'] ?? ''));
         $this->assertFalse(ll_tools_quiz_requires_audio($config, (string) ($config['option_type'] ?? '')));
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        $config = ll_tools_apply_wordset_quiz_presentation_overrides(
+            ll_tools_get_category_quiz_config($category_id),
+            [$wordset_id]
+        );
+        $this->assertSame('image', (string) ($config['prompt_type'] ?? ''));
+        $this->assertSame('text_title', (string) ($config['option_type'] ?? ''));
+        $this->assertSame('image', (string) ($config['learning_prompt_type'] ?? ''));
+        $this->assertSame('image', (string) ($config['learning_option_type'] ?? ''));
+        $this->assertTrue((bool) ($config['learning_supported'] ?? false));
+        $this->assertFalse(ll_tools_quiz_requires_audio($config, (string) ($config['option_type'] ?? '')));
     }
 
     public function test_transcription_settings_action_updates_speaking_game_access(): void

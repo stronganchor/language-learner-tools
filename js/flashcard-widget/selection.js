@@ -118,8 +118,34 @@
         return Object.assign({}, base, found || {});
     }
 
+    function applyLearningCategoryConfig(rawConfig) {
+        const cfg = Object.assign({}, rawConfig || {});
+        if (!State || !parseBooleanFlag(State.isLearningMode)) {
+            return cfg;
+        }
+
+        const rawLearningPromptType = String(cfg.learning_prompt_type || '').trim();
+        const rawLearningOptionType = String(cfg.learning_option_type || '').trim();
+        const shouldUseSignImageLearning = parseBooleanFlag(cfg.sign_language_mode);
+        const promptOverride = rawLearningPromptType ? normalizePromptType(rawLearningPromptType) : (shouldUseSignImageLearning ? 'image' : '');
+        const optionOverride = rawLearningOptionType ? rawLearningOptionType.toLowerCase() : (shouldUseSignImageLearning ? 'image' : '');
+        if (!promptOverride && !optionOverride) {
+            return cfg;
+        }
+
+        if (promptOverride) {
+            cfg.prompt_type = promptOverride;
+        }
+        if (optionOverride) {
+            cfg.option_type = optionOverride;
+            cfg.mode = optionOverride;
+        }
+        cfg.learning_supported = !(promptTypeHasImage(cfg.prompt_type) && (cfg.option_type === 'text_title' || cfg.option_type === 'text_translation'));
+        return cfg;
+    }
+
     function getCategoryConfig(name) {
-        return getRawCategoryConfig(name);
+        return applyLearningCategoryConfig(getRawCategoryConfig(name));
     }
 
     function stripGenderVariation(value) {

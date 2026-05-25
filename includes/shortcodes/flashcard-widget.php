@@ -1102,12 +1102,15 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             'mode'        => $mode,
             'option_type' => $option_type,
             'prompt_type' => $config['prompt_type'],
+            'learning_prompt_type' => (string) ($config['learning_prompt_type'] ?? ''),
+            'learning_option_type' => (string) ($config['learning_option_type'] ?? ''),
             'learning_supported' => $learning_supported,
             'self_check_supported' => $self_check_supported,
             'use_titles'  => $config['use_titles'],
             'word_count'  => $word_count,
             'gender_word_count' => $gender_word_count,
             'gender_supported' => ($gender_enabled && $gender_word_count >= $min_word_count),
+            'sign_language_mode' => !empty($config['sign_language_mode']),
             'aspect_bucket' => $aspect_bucket,
         ];
     }

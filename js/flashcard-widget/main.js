@@ -663,8 +663,11 @@
         if (State.isSelfCheckMode) {
             return false;
         }
-        if (State.isListeningMode || State.isLearningMode || State.isGenderMode) {
+        if (State.isListeningMode || State.isGenderMode) {
             return true;
+        }
+        if (State.isLearningMode) {
+            return promptTypeHasAudio(promptType) || optionType === 'audio' || optionType === 'text_audio';
         }
         return promptTypeHasAudio(promptType) || optionType === 'audio' || optionType === 'text_audio';
     }
