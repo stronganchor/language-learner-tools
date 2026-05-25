@@ -1290,8 +1290,8 @@ function ll_tools_dictionary_render_badge(string $text, string $modifier = '', s
         $content .= '<span class="ll-dictionary__badge-icon" aria-hidden="true">&#8599;</span>';
 
         $aria_label = sprintf(
-            /* translators: %s: badge label */
-            __('Open link for %s', 'll-tools-text-domain'),
+            /* translators: %s: source label */
+            __('Open source page for %s', 'll-tools-text-domain'),
             $text
         );
 

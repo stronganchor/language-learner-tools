@@ -213,7 +213,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-auth-layout="toggle"', $markup);
         $this->assertStringContainsString('data-ll-auth-mode="login"', $markup);
         $this->assertStringContainsString('data-ll-auth-toggle="1"', $markup);
-        $this->assertStringContainsString('Create a new account', $markup);
+        $this->assertStringContainsString('Create account', $markup);
         $this->assertStringContainsString('data-ll-register-email="1"', $markup);
         $this->assertStringContainsString('data-ll-register-password="1"', $markup);
         $this->assertStringContainsString('data-ll-register-password-toggle="1"', $markup);

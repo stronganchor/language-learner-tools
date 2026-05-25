@@ -1410,11 +1410,15 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-import-rest-admin:TempPass!456'),
             'HTTP_HOST' => '127.0.0.1:10036',
         ];
+        $guard_delay = static function (): float {
+            return 0.1;
+        };
         $job_id = '';
         $preview_token = '';
 
+        add_filter('ll_tools_rest_resource_guard_delay_seconds', $guard_delay);
         try {
-            $preview = $this->dispatch_ll_tools_rest_request(
+            $preview = $this->dispatch_ll_tools_rest_request_with_guard_retry(
                 'POST',
                 '/ll-tools/v1/imports/preview',
                 ['existing' => $zip_filename],
@@ -1429,7 +1433,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $this->assertSame(1, (int) (($preview_data['summary']['categories'] ?? 0)));
             $this->assertSame($zip_filename, (string) (($preview_data['source']['zip_name'] ?? '')));
 
-            $start = $this->dispatch_ll_tools_rest_request(
+            $start = $this->dispatch_ll_tools_rest_request_with_guard_retry(
                 'POST',
                 '/ll-tools/v1/imports/start',
                 ['preview_token' => $preview_token],
@@ -1446,7 +1450,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
             $completed_job = [];
             for ($attempt = 0; $attempt < 12; $attempt++) {
-                $process = $this->dispatch_ll_tools_rest_request(
+                $process = $this->dispatch_ll_tools_rest_request_with_guard_retry(
                     'POST',
                     '/ll-tools/v1/imports/' . rawurlencode($job_id) . '/process',
                     [],
@@ -1487,6 +1491,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $imported_category = get_term_by('slug', $category_slug, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $imported_category);
         } finally {
+            remove_filter('ll_tools_rest_resource_guard_delay_seconds', $guard_delay);
             if ($job_id !== '') {
                 ll_tools_import_job_delete($job_id, $admin_id);
             }
@@ -1531,6 +1536,29 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertNotWPError($response);
 
         return rest_ensure_response($response);
+    }
+
+    /**
+     * @param array<string,mixed> $params
+     * @param array<string,string> $server_overrides
+     */
+    private function dispatch_ll_tools_rest_request_with_guard_retry(string $method, string $route, array $params = [], array $server_overrides = [], bool $reset_current_user = false): WP_REST_Response
+    {
+        $response = $this->dispatch_ll_tools_rest_request($method, $route, $params, $server_overrides, $reset_current_user);
+        if ($response->get_status() !== 429) {
+            return $response;
+        }
+
+        $data = $response->get_data();
+        if (!is_array($data) || (string) ($data['code'] ?? '') !== 'll_tools_rest_resource_guard_wait') {
+            return $response;
+        }
+
+        $error_data = is_array($data['data'] ?? null) ? $data['data'] : [];
+        $retry_after = max(0.1, (float) ($error_data['retry_after_seconds'] ?? 0.1));
+        usleep((int) ceil(($retry_after + 0.05) * 1000000));
+
+        return $this->dispatch_ll_tools_rest_request($method, $route, $params, $server_overrides, $reset_current_user);
     }
 
     private function backup_request_state(): void
