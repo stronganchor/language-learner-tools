@@ -146,6 +146,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Buttons Image Wordset', $html);
         $this->assertStringContainsString('Buttons Plain Wordset', $html);
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode__button--has-image', $html);
         $this->assertStringContainsString('ll-wordset-buttons-shortcode__image', $html);
         $this->assertSame(1, substr_count($html, 'll-wordset-buttons-shortcode__media'));
     }

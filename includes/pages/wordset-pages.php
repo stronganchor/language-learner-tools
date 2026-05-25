@@ -2015,6 +2015,101 @@ function ll_tools_get_wordset_button_image_preview_data($wordset, string $size =
     ];
 }
 
+function ll_tools_get_wordset_profile_summary($wordset, string $image_size = 'large', bool $masked_image = true): array {
+    $wordset_term = ll_tools_resolve_wordset_term($wordset);
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return [
+            'language_code' => '',
+            'translation_language' => '',
+            'profile_blurb' => '',
+            'image' => [
+                'attachment_id' => 0,
+                'url' => '',
+                'title' => '',
+            ],
+        ];
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $language_code = function_exists('ll_tools_get_wordset_target_language')
+        ? (string) ll_tools_get_wordset_target_language([$wordset_id])
+        : (string) get_term_meta($wordset_id, 'll_language', true);
+    $translation_language = function_exists('ll_tools_get_wordset_translation_language')
+        ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
+        : (defined('LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY') ? (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, true) : '');
+    $profile_blurb = function_exists('ll_tools_get_wordset_profile_blurb')
+        ? ll_tools_get_wordset_profile_blurb($wordset_id)
+        : '';
+    $image = ll_tools_get_wordset_button_image_preview_data($wordset_id, $image_size, $masked_image);
+
+    return [
+        'language_code' => trim($language_code),
+        'translation_language' => trim($translation_language),
+        'profile_blurb' => $profile_blurb,
+        'image' => $image,
+    ];
+}
+
+function ll_tools_wordset_page_render_profile_section(WP_Term $wordset_term, array $profile): string {
+    $image = isset($profile['image']) && is_array($profile['image']) ? $profile['image'] : [];
+    $image_url = trim((string) ($image['url'] ?? ''));
+    $image_title = trim((string) ($image['title'] ?? ''));
+    $language_code = trim((string) ($profile['language_code'] ?? ''));
+    $translation_language = trim((string) ($profile['translation_language'] ?? ''));
+    $profile_blurb = function_exists('ll_tools_sanitize_wordset_profile_blurb')
+        ? ll_tools_sanitize_wordset_profile_blurb((string) ($profile['profile_blurb'] ?? ''))
+        : sanitize_textarea_field((string) ($profile['profile_blurb'] ?? ''));
+
+    if ($image_url === '' && $language_code === '' && $translation_language === '' && $profile_blurb === '') {
+        return '';
+    }
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-profile<?php echo $image_url !== '' ? ' ll-wordset-profile--has-image' : ''; ?>" aria-labelledby="ll-wordset-profile-title-<?php echo esc_attr((string) $wordset_term->term_id); ?>">
+        <?php if ($image_url !== '') : ?>
+            <figure class="ll-wordset-profile__media">
+                <img
+                    class="ll-wordset-profile__image"
+                    src="<?php echo esc_url($image_url); ?>"
+                    alt="<?php echo esc_attr($image_title !== '' ? $image_title : $wordset_term->name); ?>"
+                    loading="eager"
+                    decoding="async"
+                />
+            </figure>
+        <?php endif; ?>
+        <div class="ll-wordset-profile__body">
+            <h2 id="ll-wordset-profile-title-<?php echo esc_attr((string) $wordset_term->term_id); ?>" class="ll-wordset-profile__title">
+                <?php echo esc_html__('About this word set', 'll-tools-text-domain'); ?>
+            </h2>
+            <?php if ($language_code !== '' || $translation_language !== '') : ?>
+                <dl class="ll-wordset-profile__meta">
+                    <?php if ($language_code !== '') : ?>
+                        <div class="ll-wordset-profile__meta-item">
+                            <dt><?php echo esc_html__('Language code', 'll-tools-text-domain'); ?></dt>
+                            <dd><?php echo esc_html($language_code); ?></dd>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($translation_language !== '') : ?>
+                        <div class="ll-wordset-profile__meta-item">
+                            <dt><?php echo esc_html__('Translation language', 'll-tools-text-domain'); ?></dt>
+                            <dd><?php echo esc_html($translation_language); ?></dd>
+                        </div>
+                    <?php endif; ?>
+                </dl>
+            <?php endif; ?>
+            <?php if ($profile_blurb !== '') : ?>
+                <div class="ll-wordset-profile__blurb">
+                    <?php echo wpautop(esc_html($profile_blurb)); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_wordset_page_get_public_lesson_preview_word_lookup(array $word_ids, bool $requires_audio): array {
     static $post_status_cache = [];
     static $published_audio_cache = [];
@@ -5315,6 +5410,17 @@ function ll_tools_wordset_page_manager_offline_export_notice(): ?array {
 function ll_tools_wordset_page_save_advanced_settings(int $term_id) {
     if ($term_id <= 0) {
         return new WP_Error('wordset', __('Unable to find that word set.', 'll-tools-text-domain'));
+    }
+
+    if (array_key_exists('ll_wordset_profile_blurb', $_POST)) {
+        $profile_blurb = function_exists('ll_tools_sanitize_wordset_profile_blurb')
+            ? ll_tools_sanitize_wordset_profile_blurb(wp_unslash((string) $_POST['ll_wordset_profile_blurb']))
+            : sanitize_textarea_field(wp_unslash((string) $_POST['ll_wordset_profile_blurb']));
+        if ($profile_blurb === '') {
+            delete_term_meta($term_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY);
+        } else {
+            update_term_meta($term_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, $profile_blurb);
+        }
     }
 
     if (array_key_exists('ll_wordset_button_image_attachment_id', $_POST)) {
@@ -10243,7 +10349,7 @@ function ll_tools_wordset_settings_tool_description(string $tool): string {
         return __('Search words, filter media states, bulk-edit categories and statuses, and undo recent editor actions.', 'll-tools-text-domain');
     }
     if ($tool === 'advanced') {
-        return __('Category ordering, button images, answer text styling, grammar options, and game image sizing.', 'll-tools-text-domain');
+        return __('Category ordering, profile image and intro, answer text styling, grammar options, and game image sizing.', 'll-tools-text-domain');
     }
     if ($tool === 'import') {
         return __('Create words quickly from pasted prompt and answer pairs.', 'll-tools-text-domain');
@@ -10773,6 +10879,9 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
     $button_image_preview = function_exists('ll_tools_get_wordset_button_image_preview_data')
         ? ll_tools_get_wordset_button_image_preview_data($wordset_id, 'medium', false)
         : ['attachment_id' => 0, 'url' => '', 'title' => ''];
+    $profile_blurb = function_exists('ll_tools_get_wordset_profile_blurb')
+        ? ll_tools_get_wordset_profile_blurb($wordset_id)
+        : '';
     $has_gender = (bool) get_term_meta($wordset_id, 'll_wordset_has_gender', true);
     $has_plurality = (bool) get_term_meta($wordset_id, 'll_wordset_has_plurality', true);
     $has_verb_tense = (bool) get_term_meta($wordset_id, 'll_wordset_has_verb_tense', true);
@@ -10828,6 +10937,7 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
         'button_image_attachment_id' => isset($button_image_preview['attachment_id']) ? (int) $button_image_preview['attachment_id'] : 0,
         'button_image_preview_url' => (string) ($button_image_preview['url'] ?? ''),
         'button_image_label' => (string) ($button_image_preview['title'] ?? ''),
+        'profile_blurb' => $profile_blurb,
         'category_ordering_mode' => function_exists('ll_tools_wordset_get_category_ordering_mode')
             ? ll_tools_wordset_get_category_ordering_mode($wordset_id)
             : 'none',
@@ -10865,6 +10975,9 @@ function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_te
     $button_image_attachment_id = max(0, (int) ($settings['button_image_attachment_id'] ?? 0));
     $button_image_preview_url = trim((string) ($settings['button_image_preview_url'] ?? ''));
     $button_image_label = trim((string) ($settings['button_image_label'] ?? ''));
+    $profile_blurb = function_exists('ll_tools_sanitize_wordset_profile_blurb')
+        ? ll_tools_sanitize_wordset_profile_blurb((string) ($settings['profile_blurb'] ?? ''))
+        : sanitize_textarea_field((string) ($settings['profile_blurb'] ?? ''));
     $category_ordering_mode = function_exists('ll_tools_wordset_normalize_category_ordering_mode')
         ? ll_tools_wordset_normalize_category_ordering_mode((string) ($settings['category_ordering_mode'] ?? 'none'))
         : sanitize_key((string) ($settings['category_ordering_mode'] ?? 'none'));
@@ -10943,10 +11056,10 @@ function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_te
                 </div>
 
                 <div class="ll-wordset-settings-card__group">
-                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Navigation', 'll-tools-text-domain'); ?></h3>
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Profile', 'll-tools-text-domain'); ?></h3>
                     <div class="ll-wordset-button-image-field" data-ll-wordset-button-image-picker>
                         <label for="ll-wordset-button-image-attachment-id">
-                            <span><?php echo esc_html__('Word set button image', 'll-tools-text-domain'); ?></span>
+                            <span><?php echo esc_html__('Word set profile image', 'll-tools-text-domain'); ?></span>
                             <input
                                 id="ll-wordset-button-image-attachment-id"
                                 type="hidden"
@@ -10979,7 +11092,19 @@ function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_te
                                 <?php echo esc_html__('Remove image', 'll-tools-text-domain'); ?>
                             </button>
                         </div>
-                        <p class="description"><?php echo esc_html__('Optional image used by [ll_wordset_buttons] when this word set appears in button lists.', 'll-tools-text-domain'); ?></p>
+                        <p class="description"><?php echo esc_html__('Use a 16:9 landscape image. It appears on the word set page and in [ll_wordset_buttons] thumbnail cards.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                    <div class="ll-wordset-settings-card__field">
+                        <label for="ll-wordset-profile-blurb">
+                            <span><?php echo esc_html__('Intro blurb', 'll-tools-text-domain'); ?></span>
+                            <textarea
+                                id="ll-wordset-profile-blurb"
+                                name="ll_wordset_profile_blurb"
+                                rows="5"
+                                class="large-text"
+                            ><?php echo esc_textarea($profile_blurb); ?></textarea>
+                        </label>
+                        <p class="description"><?php echo esc_html__('Short learner-facing context for this word set, such as where the language is spoken or what course material these quizzes complement.', 'll-tools-text-domain'); ?></p>
                     </div>
                 </div>
 
@@ -14551,6 +14676,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $translation_language = function_exists('ll_tools_get_wordset_translation_language')
         ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
         : (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, true);
+    $wordset_profile = function_exists('ll_tools_get_wordset_profile_summary')
+        ? ll_tools_get_wordset_profile_summary($wordset_term, 'large', true)
+        : [];
     $category_translation_enabled = function_exists('ll_tools_is_wordset_category_translation_enabled')
         ? (bool) ll_tools_is_wordset_category_translation_enabled([$wordset_id], true)
         : (bool) get_term_meta($wordset_id, LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_ENABLED_META_KEY, true);
@@ -15271,7 +15399,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             );
         }
         if (!empty($advanced_settings['button_image_attachment_id'])) {
-            $advanced_status_parts[] = __('Button image', 'll-tools-text-domain');
+            $advanced_status_parts[] = __('Profile image', 'll-tools-text-domain');
+        }
+        if (trim((string) ($advanced_settings['profile_blurb'] ?? '')) !== '') {
+            $advanced_status_parts[] = __('Intro blurb', 'll-tools-text-domain');
         }
         if (($advanced_settings['games_image_size'] ?? 'default') === 'large') {
             $advanced_status_parts[] = __('Large images', 'll-tools-text-domain');
@@ -16517,6 +16648,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     </div>
                 </header>
             <?php endif; ?>
+
+            <?php echo ll_tools_wordset_page_render_profile_section($wordset_term, $wordset_profile); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 
             <?php if (is_array($lesson_enable_notice) && !empty($lesson_enable_notice['message'])) : ?>
                 <div

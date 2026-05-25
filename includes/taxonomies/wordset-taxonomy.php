@@ -31,6 +31,9 @@ if (!defined('LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY')) {
     define('LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY', 'll_wordset_button_image_attachment_id');
 }
+if (!defined('LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY')) {
+    define('LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY', 'll_wordset_profile_blurb');
+}
 
 function ll_tools_normalize_wordset_visibility($value): string {
     $visibility = sanitize_key((string) $value);
@@ -212,6 +215,34 @@ function ll_tools_get_wordset_button_image_attachment_id($wordset): int {
 
     return ll_tools_sanitize_wordset_button_image_attachment_id(
         get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true)
+    );
+}
+
+function ll_tools_sanitize_wordset_profile_blurb($value): string {
+    $value = sanitize_textarea_field((string) $value);
+    $value = preg_replace("/[ \t]+\r?\n/", "\n", $value);
+    $value = preg_replace("/\r\n?/", "\n", (string) $value);
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return '';
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($value, 0, 2400);
+    }
+
+    return substr($value, 0, 2400);
+}
+
+function ll_tools_get_wordset_profile_blurb($wordset): string {
+    $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
+    if ($wordset_id <= 0) {
+        return '';
+    }
+
+    return ll_tools_sanitize_wordset_profile_blurb(
+        get_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, true)
     );
 }
 

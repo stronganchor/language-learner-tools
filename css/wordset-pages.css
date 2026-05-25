@@ -427,6 +427,99 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: none;
 }
 
+.ll-wordset-profile {
+    width: 100%;
+    max-width: var(--ll-wp-main-shell-max-width);
+    margin: 0 auto 18px;
+    display: grid;
+    grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+    gap: clamp(16px, 3vw, 28px);
+    align-items: center;
+}
+
+.ll-wordset-profile:not(.ll-wordset-profile--has-image) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.ll-wordset-profile__media {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 16px;
+    background: #edf2f7;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    box-shadow: 0 14px 28px rgba(35, 29, 21, 0.12);
+}
+
+.ll-wordset-profile__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ll-wordset-profile__body {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ll-wordset-profile__title {
+    margin: 0;
+    color: var(--ll-wp-text);
+    font-size: 1.35rem;
+    font-weight: 760;
+    line-height: 1.15;
+    letter-spacing: 0;
+}
+
+.ll-wordset-profile__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+}
+
+.ll-wordset-profile__meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    min-height: 30px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--ll-wp-pill-slate-border);
+    background: rgba(255, 255, 255, 0.86);
+    color: var(--ll-wp-text);
+    font-size: 0.82rem;
+    line-height: 1.15;
+}
+
+.ll-wordset-profile__meta-item dt {
+    color: var(--ll-wp-muted);
+    font-weight: 700;
+}
+
+.ll-wordset-profile__meta-item dd {
+    margin: 0;
+    min-width: 0;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.ll-wordset-profile__blurb {
+    display: grid;
+    gap: 0.7em;
+    max-width: 68ch;
+    color: var(--ll-wp-muted);
+    font-size: 0.98rem;
+    line-height: 1.55;
+}
+
+.ll-wordset-profile__blurb p {
+    margin: 0;
+}
+
 @media (max-width: 800px) {
     .ll-wordset-utility-bar {
         align-items: stretch;
@@ -452,6 +545,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-utility-bar--guest .ll-wordset-utility-bar__links {
         width: auto;
+    }
+
+    .ll-wordset-profile {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
     }
 }
 
@@ -706,7 +804,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    align-items: center;
+    align-items: stretch;
     gap: 12px;
     list-style: none !important;
 }
@@ -733,7 +831,36 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-page .ll-wordset-buttons-shortcode__button--has-image {
-    min-height: 90px !important;
+    position: relative;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+    align-items: flex-start !important;
+    aspect-ratio: 16 / 9;
+    min-height: 0 !important;
+    padding: 16px !important;
+    overflow: hidden;
+    border-color: rgba(15, 23, 42, 0.14) !important;
+    background: #111827 !important;
+    color: #fff !important;
+    box-shadow: 0 14px 26px rgba(15, 23, 42, 0.16) !important;
+}
+
+.ll-wordset-page .ll-wordset-buttons-shortcode__button--has-image::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+        linear-gradient(180deg, rgba(3, 7, 18, 0.04) 20%, rgba(3, 7, 18, 0.54) 70%, rgba(3, 7, 18, 0.76) 100%),
+        linear-gradient(90deg, rgba(3, 7, 18, 0.28), rgba(3, 7, 18, 0.02) 58%);
+    pointer-events: none;
+}
+
+.ll-wordset-page .ll-wordset-buttons-shortcode__button--has-image:hover,
+.ll-wordset-page .ll-wordset-buttons-shortcode__button--has-image:focus-visible {
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.36) !important;
+    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.2), 0 0 0 2px rgba(255, 255, 255, 0.18) !important;
 }
 
 .ll-wordset-page .ll-wordset-buttons-shortcode__button--private {
@@ -756,6 +883,20 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
+.ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__media {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    flex: none;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+    background: #111827;
+    box-shadow: none;
+}
+
 .ll-wordset-buttons-shortcode__image {
     display: block;
     width: 100%;
@@ -771,6 +912,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 8px;
 }
 
+.ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__label-wrap,
+.ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__count {
+    position: relative;
+    z-index: 2;
+}
+
+.ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__label-wrap {
+    flex: 0 0 auto;
+    width: 100%;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
 .ll-wordset-buttons-shortcode__label {
     flex: 0 1 auto;
     min-width: 0;
@@ -778,6 +932,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     font-size: 1rem;
     font-weight: 700;
     line-height: 1.25;
+}
+
+.ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__label {
+    font-size: 1.18rem;
+    line-height: 1.16;
 }
 
 .ll-wordset-buttons-shortcode__privacy-badge {
@@ -842,6 +1001,14 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     box-shadow: none;
 }
 
+.ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__count {
+    margin-left: 0;
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.92);
+    color: #10233f;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
 @media (max-width: 640px) {
     .ll-wordset-buttons-shortcode__list {
         gap: 10px;
@@ -859,10 +1026,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-page .ll-wordset-buttons-shortcode__button--has-image {
-        min-height: 82px !important;
+        min-height: 0 !important;
+        padding: 14px !important;
     }
 
-    .ll-wordset-buttons-shortcode__media {
+    .ll-wordset-buttons-shortcode__button:not(.ll-wordset-buttons-shortcode__button--has-image) .ll-wordset-buttons-shortcode__media {
         flex-basis: 72px;
         width: 72px;
     }
@@ -3371,7 +3539,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-button-image-field__frame {
     width: min(100%, 240px);
-    aspect-ratio: 7 / 5;
+    aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: 14px;
     background: #edf2f7;

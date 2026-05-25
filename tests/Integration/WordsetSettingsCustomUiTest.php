@@ -922,10 +922,37 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Advanced Settings', $html);
         $this->assertStringContainsString('name="ll_wordset_category_ordering_mode"', $html);
         $this->assertStringContainsString('name="ll_wordset_button_image_attachment_id"', $html);
+        $this->assertStringContainsString('name="ll_wordset_profile_blurb"', $html);
         $this->assertStringContainsString('name="ll_wordset_keep_original_audio"', $html);
         $this->assertStringContainsString('name="ll_wordset_games_image_size"', $html);
         $this->assertStringContainsString('name="ll_wordset_has_gender"', $html);
         $this->assertStringContainsString('name="ll_wordset_plurality_options"', $html);
+    }
+
+    public function test_wordset_page_renders_profile_image_language_code_and_blurb(): void
+    {
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $attachment_id = $this->createImageAttachment('profile-wordset-page.png');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, $attachment_id);
+        update_term_meta($wordset_id, 'll_language', 'he');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, 'Designed to complement Aleph with Beth videos.');
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('ll-wordset-profile--has-image', $html);
+        $this->assertStringContainsString('ll-wordset-profile__image', $html);
+        $this->assertStringContainsString('Language code', $html);
+        $this->assertStringContainsString('he', $html);
+        $this->assertStringContainsString('Designed to complement Aleph with Beth videos.', $html);
     }
 
     public function test_categories_tool_renders_create_and_edit_forms_for_wordset_manager(): void
@@ -1147,6 +1174,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_view' => 'settings',
             'll_wordset_tool' => 'advanced',
             'll_wordset_button_image_attachment_id' => (string) $button_image_attachment_id,
+            'll_wordset_profile_blurb' => "Complements the Aleph with Beth videos.\nFocus on early Biblical Hebrew reading.",
             'll_wordset_games_image_size' => 'large',
             'll_wordset_keep_original_audio' => '1',
             'll_wordset_answer_option_text_font_weight' => '500',
@@ -1183,6 +1211,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('advanced', (string) ($query['ll_wordset_tool'] ?? ''));
         $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
         $this->assertSame((string) $button_image_attachment_id, (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true));
+        $this->assertSame("Complements the Aleph with Beth videos.\nFocus on early Biblical Hebrew reading.", (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, true));
         $this->assertSame('large', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, true));
         $this->assertSame('1', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY, true));
         $this->assertSame('500', (string) get_term_meta($wordset_id, ll_tools_wordset_answer_option_font_weight_primary_meta_key(), true));
@@ -1224,6 +1253,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_view' => 'settings',
             'll_wordset_tool' => 'advanced',
             'll_wordset_button_image_attachment_id' => (string) $button_image_attachment_id,
+            'll_wordset_profile_blurb' => 'Manager-facing intro text for this word set.',
             'll_wordset_games_image_size' => 'large',
             'll_wordset_answer_option_text_font_weight' => '500',
             'll_wordset_answer_option_text_font_size_px' => '34',
@@ -1246,6 +1276,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('advanced', (string) ($query['ll_wordset_tool'] ?? ''));
         $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
         $this->assertSame((string) $button_image_attachment_id, (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true));
+        $this->assertSame('Manager-facing intro text for this word set.', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, true));
         $this->assertSame('large', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, true));
         $this->assertSame('500', (string) get_term_meta($wordset_id, ll_tools_wordset_answer_option_font_weight_primary_meta_key(), true));
         $this->assertSame('34', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, true));

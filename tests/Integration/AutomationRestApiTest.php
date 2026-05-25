@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class AutomationRestApiTest extends LL_Tools_TestCase
 {
+    private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=';
+
     /** @var array<string,mixed> */
     private array $server_backup = [];
 
@@ -123,6 +125,40 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         $blocked = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/blocked-rest-wordset/report');
         $this->assertSame(403, $blocked->get_status());
+    }
+
+    public function test_wordset_profile_rest_route_updates_thumbnail_blurb_and_language_code(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Profile Wordset', 'rest-profile-wordset');
+        $attachment_id = $this->create_image_attachment('rest-profile-thumbnail.png');
+
+        wp_set_current_user($admin_id);
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-profile-wordset/profile', [
+            'profile_image_attachment_id' => $attachment_id,
+            'language_code' => 'he',
+            'profile_blurb' => "Complements Aleph with Beth videos.\nIncludes early reading practice.",
+        ]);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertTrue((bool) ($data['changed'] ?? false));
+        $this->assertContains('profile_image_attachment_id', (array) ($data['changed_keys'] ?? []));
+        $this->assertContains('profile_blurb', (array) ($data['changed_keys'] ?? []));
+        $this->assertContains('language_code', (array) ($data['changed_keys'] ?? []));
+        $this->assertSame($attachment_id, (int) get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true));
+        $this->assertSame('he', (string) get_term_meta($wordset_id, 'll_language', true));
+        $this->assertSame("Complements Aleph with Beth videos.\nIncludes early reading practice.", (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, true));
+
+        $read = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-profile-wordset/profile');
+        $this->assertSame(200, $read->get_status());
+        $read_data = $read->get_data();
+        $this->assertIsArray($read_data);
+        $this->assertSame($attachment_id, (int) ($read_data['profile_image_attachment_id'] ?? 0));
+        $this->assertSame('he', (string) ($read_data['language_code'] ?? ''));
+        $this->assertSame("Complements Aleph with Beth videos.\nIncludes early reading practice.", (string) ($read_data['profile_blurb'] ?? ''));
     }
 
     public function test_create_wordset_route_can_clone_template_and_assign_manager(): void
@@ -1633,6 +1669,48 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         return (int) $word_id;
+    }
+
+    private function create_image_attachment(string $filename): int
+    {
+        $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($bytes);
+
+        $upload = wp_upload_bits($filename, null, $bytes);
+        $this->assertIsArray($upload);
+        $this->assertSame('', (string) ($upload['error'] ?? ''));
+
+        $file_path = (string) ($upload['file'] ?? '');
+        $this->assertNotSame('', $file_path);
+        $this->assertFileExists($file_path);
+
+        $filetype = wp_check_filetype(basename($file_path), null);
+        $attachment_id = wp_insert_attachment([
+            'post_mime_type' => (string) ($filetype['type'] ?? 'image/png'),
+            'post_title' => preg_replace('/\.[^.]+$/', '', basename($file_path)),
+            'post_content' => '',
+            'post_status' => 'inherit',
+        ], $file_path);
+
+        $this->assertIsInt($attachment_id);
+        $this->assertGreaterThan(0, $attachment_id);
+
+        $metadata = function_exists('wp_generate_attachment_metadata')
+            ? wp_generate_attachment_metadata($attachment_id, $file_path)
+            : [];
+        if (is_array($metadata) && !empty($metadata)) {
+            wp_update_attachment_metadata($attachment_id, $metadata);
+        }
+
+        $relative_path = function_exists('_wp_relative_upload_path')
+            ? (string) _wp_relative_upload_path($file_path)
+            : '';
+        if ($relative_path === '') {
+            $relative_path = ltrim((string) wp_normalize_path($file_path), '/');
+        }
+        update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
+
+        return (int) $attachment_id;
     }
 
     /**

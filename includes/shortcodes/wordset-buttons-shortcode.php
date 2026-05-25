@@ -94,7 +94,7 @@ function ll_tools_wordset_buttons_shortcode_cache_key(array $atts, string $tag =
         : 1;
 
     $payload = [
-        'schema' => 2,
+        'schema' => 3,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'site' => home_url('/'),
         'locale' => function_exists('get_locale') ? (string) get_locale() : '',
@@ -390,7 +390,7 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                 }
 
                 $button_image = function_exists('ll_tools_get_wordset_button_image_preview_data')
-                    ? ll_tools_get_wordset_button_image_preview_data($term, 'medium', true)
+                    ? ll_tools_get_wordset_button_image_preview_data($term, 'large', true)
                     : ['attachment_id' => 0, 'url' => ''];
                 $button_image_url = trim((string) ($button_image['url'] ?? ''));
                 $has_button_image = ($button_image_url !== '');

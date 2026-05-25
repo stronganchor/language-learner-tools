@@ -593,7 +593,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 2.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|prompt-cards|review-notes|interlinear)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 1.25;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
@@ -832,6 +832,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
+            'wordset_profile' => '/ll-tools/v1/wordsets/{wordset}/profile',
             'prompt_cards' => '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
@@ -860,6 +861,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/bulk-update',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
+                '/ll-tools/v1/wordsets/{wordset}/profile',
                 '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
                 '/ll-tools/v1/wordsets/{wordset}/review-notes',
                 '/ll-tools/v1/wordsets/{wordset}/interlinear',
@@ -2166,6 +2168,172 @@ function ll_tools_rest_automation_first_request_param(WP_REST_Request $request, 
     }
 
     return null;
+}
+
+function ll_tools_rest_automation_wordset_profile_payload(WP_Term $wordset_term): array {
+    $wordset_id = (int) $wordset_term->term_id;
+    $profile = function_exists('ll_tools_get_wordset_profile_summary')
+        ? ll_tools_get_wordset_profile_summary($wordset_id, 'large', false)
+        : [];
+    $image = isset($profile['image']) && is_array($profile['image']) ? $profile['image'] : [];
+    $attachment_id = isset($image['attachment_id']) ? (int) $image['attachment_id'] : 0;
+
+    return [
+        'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
+        'language_code' => (string) ($profile['language_code'] ?? ''),
+        'target_language' => (string) ($profile['language_code'] ?? ''),
+        'translation_language' => (string) ($profile['translation_language'] ?? ''),
+        'profile_blurb' => (string) ($profile['profile_blurb'] ?? ''),
+        'profile_image' => [
+            'attachment_id' => $attachment_id,
+            'url' => (string) ($image['url'] ?? ''),
+            'title' => (string) ($image['title'] ?? ''),
+        ],
+        'profile_image_attachment_id' => $attachment_id,
+        'button_image_attachment_id' => $attachment_id,
+    ];
+}
+
+function ll_tools_rest_automation_profile_uploaded_image_id(WP_REST_Request $request, WP_Term $wordset_term) {
+    $files = $request->get_file_params();
+    if (!is_array($files) || empty($files)) {
+        return 0;
+    }
+
+    $file = null;
+    foreach (['profile_image', 'thumbnail', 'image', 'file'] as $key) {
+        if (isset($files[$key]) && is_array($files[$key])) {
+            $file = $files[$key];
+            break;
+        }
+    }
+    if (!is_array($file)) {
+        return 0;
+    }
+
+    if (!current_user_can('upload_files')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_profile_image_upload_forbidden',
+            __('You do not have permission to upload files.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    if (!function_exists('media_handle_sideload')) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+    }
+
+    $title = sprintf(
+        /* translators: %s: word set name. */
+        __('%s profile image', 'll-tools-text-domain'),
+        (string) $wordset_term->name
+    );
+    $attachment_id = media_handle_sideload($file, 0, $title);
+    if (is_wp_error($attachment_id)) {
+        return ll_tools_rest_automation_with_status($attachment_id, 400);
+    }
+
+    $attachment_id = function_exists('ll_tools_sanitize_wordset_button_image_attachment_id')
+        ? ll_tools_sanitize_wordset_button_image_attachment_id($attachment_id)
+        : absint($attachment_id);
+    if ($attachment_id <= 0) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_profile_image_invalid',
+            __('The uploaded file is not a valid image.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    return $attachment_id;
+}
+
+function ll_tools_rest_automation_wordset_profile(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $method = strtoupper((string) $request->get_method());
+    $before = ll_tools_rest_automation_wordset_profile_payload($wordset_term);
+    if ($method === 'GET') {
+        return rest_ensure_response($before);
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $changed_keys = [];
+
+    $uploaded_attachment_id = ll_tools_rest_automation_profile_uploaded_image_id($request, $wordset_term);
+    if (is_wp_error($uploaded_attachment_id) || $uploaded_attachment_id instanceof WP_REST_Response) {
+        return $uploaded_attachment_id;
+    }
+    if ((int) $uploaded_attachment_id > 0) {
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, (int) $uploaded_attachment_id);
+        $changed_keys[] = 'profile_image_attachment_id';
+    } elseif (ll_tools_rest_automation_request_has_any_param($request, ['profile_image_attachment_id', 'button_image_attachment_id', 'thumbnail_attachment_id'])) {
+        $raw_attachment_id = ll_tools_rest_automation_first_request_param($request, ['profile_image_attachment_id', 'button_image_attachment_id', 'thumbnail_attachment_id']);
+        $requested_attachment_id = absint($raw_attachment_id);
+        $attachment_id = function_exists('ll_tools_sanitize_wordset_button_image_attachment_id')
+            ? ll_tools_sanitize_wordset_button_image_attachment_id($raw_attachment_id)
+            : $requested_attachment_id;
+        if ($requested_attachment_id > 0 && $attachment_id <= 0) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_profile_image_invalid',
+                __('The profile image attachment must be an existing image attachment.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        if ($attachment_id <= 0) {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY);
+        } else {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, $attachment_id);
+        }
+        $changed_keys[] = 'profile_image_attachment_id';
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['profile_blurb', 'intro_blurb', 'blurb'])) {
+        $raw_blurb = ll_tools_rest_automation_first_request_param($request, ['profile_blurb', 'intro_blurb', 'blurb']);
+        $profile_blurb = function_exists('ll_tools_sanitize_wordset_profile_blurb')
+            ? ll_tools_sanitize_wordset_profile_blurb((string) $raw_blurb)
+            : sanitize_textarea_field((string) $raw_blurb);
+        if ($profile_blurb === '') {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY);
+        } else {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, $profile_blurb);
+        }
+        $changed_keys[] = 'profile_blurb';
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['language_code', 'target_language'])) {
+        $language_code = function_exists('ll_tools_sanitize_wordset_language_setting')
+            ? ll_tools_sanitize_wordset_language_setting((string) ll_tools_rest_automation_first_request_param($request, ['language_code', 'target_language']))
+            : sanitize_text_field((string) ll_tools_rest_automation_first_request_param($request, ['language_code', 'target_language']));
+        update_term_meta($wordset_id, 'll_language', $language_code);
+        $changed_keys[] = 'language_code';
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['translation_language'])) {
+        $translation_language = function_exists('ll_tools_sanitize_wordset_language_setting')
+            ? ll_tools_sanitize_wordset_language_setting((string) $request->get_param('translation_language'))
+            : sanitize_text_field((string) $request->get_param('translation_language'));
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, $translation_language);
+        $changed_keys[] = 'translation_language';
+    }
+
+    $changed_keys = array_values(array_unique($changed_keys));
+    if (!empty($changed_keys) && function_exists('ll_tools_bump_wordset_cache_epoch')) {
+        ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+    }
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
+        'changed' => !empty($changed_keys),
+        'changed_keys' => $changed_keys,
+        'before' => $before,
+        'after' => ll_tools_rest_automation_wordset_profile_payload($wordset_term),
+    ]);
 }
 
 function ll_tools_rest_automation_word_option_rules(WP_REST_Request $request) {
@@ -4019,6 +4187,50 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_word_option_rules',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/profile', [
+        'methods' => [WP_REST_Server::READABLE, WP_REST_Server::CREATABLE, WP_REST_Server::EDITABLE],
+        'callback' => 'll_tools_rest_automation_wordset_profile',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'profile_image_attachment_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'button_image_attachment_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'thumbnail_attachment_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'profile_blurb' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'intro_blurb' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'blurb' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'language_code' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'target_language' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'translation_language' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+        ],
     ]);
 
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/prompt-cards', [

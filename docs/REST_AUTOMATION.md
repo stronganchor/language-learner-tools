@@ -125,6 +125,8 @@ Routes:
 - `POST /wordsets/{wordset}/transcriptions`
 - `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
+- `GET /wordsets/{wordset}/profile`
+- `POST /wordsets/{wordset}/profile`
 - `POST /wordsets/{wordset}/prompt-cards`
 - `GET /wordsets/{wordset}/report`
 - `GET /wordsets/{wordset}/report-summary`
@@ -476,6 +478,32 @@ Returns fast live-verification counts without building every word row:
 - total audio record count
 
 Use this route for live smoke tests after imports.
+
+### `GET /wordsets/{wordset}/profile`
+
+Returns learner-facing wordset profile metadata:
+
+- wordset id, slug, and name
+- language code / target language
+- translation language
+- intro blurb
+- profile image attachment id, URL, and title
+
+### `POST /wordsets/{wordset}/profile`
+
+Updates the learner-facing wordset profile. This is the automation-friendly way
+to set the 16:9 thumbnail used by `[ll_wordset_buttons]` and the wordset page.
+
+Body fields:
+
+- `profile_image_attachment_id` optional image attachment ID; send `0` to clear
+- `profile_image`, `thumbnail`, `image`, or `file` optional multipart upload
+- `profile_blurb` optional plain-text intro blurb
+- `language_code` optional target language code/value
+- `translation_language` optional helper/translation language code/value
+
+Aliases `button_image_attachment_id`, `thumbnail_attachment_id`,
+`intro_blurb`, `blurb`, and `target_language` are accepted for convenience.
 
 ### `GET /wordsets/{wordset}/review-notes`
 
