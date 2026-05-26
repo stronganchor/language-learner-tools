@@ -11,27 +11,9 @@
         return switcher ? switcher.querySelector('[data-ll-language-switcher-modal]') : null;
     }
 
-    function setExpanded(switcher, expanded) {
-        var trigger = switcher ? switcher.querySelector('[data-ll-language-switcher-open]') : null;
-        if (trigger) {
-            trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-        }
-    }
-
-    function updateDropdownHeight(switcher) {
-        var details = switcher ? switcher.querySelector('.ll-lang-switcher__details') : null;
-        var list = switcher ? switcher.querySelector('.ll-lang-switcher__list') : null;
-        if (!details || !list) {
-            return;
-        }
-
-        if (!details.hasAttribute('open')) {
-            list.style.removeProperty('--ll-lang-switcher-dropdown-max-height');
-            return;
-        }
-
+    function setFloatingListHeight(list) {
         var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-        if (viewportHeight <= 0) {
+        if (!list || viewportHeight <= 0) {
             return;
         }
 
@@ -43,6 +25,39 @@
                 Math.max(dropdownMinimumHeight, availableHeight) + 'px'
             );
         }
+    }
+
+    function setExpanded(switcher, expanded) {
+        var trigger = switcher ? switcher.querySelector('[data-ll-language-switcher-open]') : null;
+        if (trigger) {
+            trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+    }
+
+    function updateDropdownHeight(switcher) {
+        var details = switcher ? switcher.querySelector('.ll-lang-switcher__details') : null;
+        var list = switcher ? switcher.querySelector('.ll-lang-switcher__list') : null;
+        if (!switcher) {
+            return;
+        }
+
+        if (details && list) {
+            if (!details.hasAttribute('open')) {
+                list.style.removeProperty('--ll-lang-switcher-dropdown-max-height');
+            }
+
+            if (details.hasAttribute('open')) {
+                setFloatingListHeight(list);
+            }
+        }
+
+        switcher.querySelectorAll('.ll-lang-switcher__secondary-list').forEach(function (secondaryList) {
+            if (secondaryList.closest('.ll-lang-switcher__secondary[open]')) {
+                setFloatingListHeight(secondaryList);
+            } else {
+                secondaryList.style.removeProperty('--ll-lang-switcher-dropdown-max-height');
+            }
+        });
     }
 
     function updateOpenDropdownHeights() {
@@ -118,13 +133,23 @@
             return;
         }
 
-        if (event.target.closest('.ll-lang-switcher__details > .ll-lang-switcher__summary')) {
+        if (
+            event.target.closest('.ll-lang-switcher__details > .ll-lang-switcher__summary')
+            || event.target.closest('.ll-lang-switcher__secondary > .ll-lang-switcher__secondary-summary')
+        ) {
             scheduleOpenDropdownHeightUpdate();
         }
     });
 
     document.addEventListener('toggle', function (event) {
-        if (!event.target || !event.target.classList || !event.target.classList.contains('ll-lang-switcher__details')) {
+        if (
+            !event.target
+            || !event.target.classList
+            || (
+                !event.target.classList.contains('ll-lang-switcher__details')
+                && !event.target.classList.contains('ll-lang-switcher__secondary')
+            )
+        ) {
             return;
         }
 
@@ -140,7 +165,10 @@
                 (event.key === 'Enter' || event.key === ' ')
                 && event.target
                 && event.target.closest
-                && event.target.closest('.ll-lang-switcher__details > .ll-lang-switcher__summary')
+                && (
+                    event.target.closest('.ll-lang-switcher__details > .ll-lang-switcher__summary')
+                    || event.target.closest('.ll-lang-switcher__secondary > .ll-lang-switcher__secondary-summary')
+                )
             ) {
                 scheduleOpenDropdownHeightUpdate();
             }

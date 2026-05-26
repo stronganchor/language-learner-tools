@@ -280,6 +280,128 @@ function ll_tools_get_plugin_locales($force_refresh = false) {
 }
 
 /**
+ * Resolve a shortcode locale token such as "tr" or "tr_TR" to an available locale.
+ */
+function ll_tools_resolve_switcher_locale_token($token, array $available_locales): string {
+    $normalized_token = ll_tools_normalize_switcher_locale_code($token);
+    if ($normalized_token === '') {
+        return '';
+    }
+
+    $normalized_available = [];
+    foreach ($available_locales as $available_locale) {
+        $normalized = ll_tools_normalize_switcher_locale_code($available_locale);
+        if ($normalized === '') {
+            continue;
+        }
+        $normalized_available[$normalized] = (string) $available_locale;
+    }
+
+    if (isset($normalized_available[$normalized_token])) {
+        return $normalized_available[$normalized_token];
+    }
+
+    $language = strtok($normalized_token, '_');
+    if (!is_string($language) || $language === '') {
+        return '';
+    }
+
+    if (isset($normalized_available[$language])) {
+        return $normalized_available[$language];
+    }
+
+    foreach ($normalized_available as $normalized_locale => $available_locale) {
+        if (strpos($normalized_locale, $language . '_') === 0) {
+            return $available_locale;
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Parse a comma/space/pipe-separated list of primary locale tokens.
+ *
+ * @return string[]
+ */
+function ll_tools_parse_switcher_primary_locale_list($raw_locales, array $available_locales): array {
+    $raw_locales = trim((string) $raw_locales);
+    if ($raw_locales === '') {
+        return [];
+    }
+
+    $primary_locales = [];
+    foreach (preg_split('/[\s,|]+/', $raw_locales) ?: [] as $token) {
+        $locale = ll_tools_resolve_switcher_locale_token($token, $available_locales);
+        if ($locale !== '' && !in_array($locale, $primary_locales, true)) {
+            $primary_locales[] = $locale;
+        }
+    }
+
+    return $primary_locales;
+}
+
+/**
+ * Return the primary language bucket for a switcher instance.
+ *
+ * @return string[]
+ */
+function ll_tools_get_language_switcher_primary_locales(array $available_locales, array $atts): array {
+    $primary_locales = ll_tools_parse_switcher_primary_locale_list($atts['primary_locales'] ?? '', $available_locales);
+
+    if (empty($primary_locales)) {
+        $primary_count = max(0, absint($atts['primary_count'] ?? 0));
+        if ($primary_count > 0) {
+            $primary_locales = array_slice($available_locales, 0, $primary_count);
+        }
+    }
+
+    $primary_locales = (array) apply_filters('ll_tools_language_switcher_primary_locales', $primary_locales, $available_locales, $atts);
+    $resolved = [];
+    foreach ($primary_locales as $locale) {
+        $resolved_locale = ll_tools_resolve_switcher_locale_token($locale, $available_locales);
+        if ($resolved_locale !== '' && !in_array($resolved_locale, $resolved, true)) {
+            $resolved[] = $resolved_locale;
+        }
+    }
+
+    return $resolved;
+}
+
+/**
+ * Split switcher locales into visible primary choices and the secondary bucket.
+ */
+function ll_tools_partition_language_switcher_locales(array $available_locales, array $primary_locales): array {
+    if (empty($primary_locales)) {
+        return [
+            'primary' => $available_locales,
+            'secondary' => [],
+        ];
+    }
+
+    $primary = array_values(array_filter(
+        $primary_locales,
+        static fn (string $locale): bool => in_array($locale, $available_locales, true)
+    ));
+    $secondary = array_values(array_filter(
+        $available_locales,
+        static fn (string $locale): bool => !in_array($locale, $primary, true)
+    ));
+
+    if (empty($secondary)) {
+        return [
+            'primary' => $available_locales,
+            'secondary' => [],
+        ];
+    }
+
+    return [
+        'primary' => $primary,
+        'secondary' => $secondary,
+    ];
+}
+
+/**
  * Validate locale strings accepted by the switcher cookie.
  */
 function ll_tools_is_valid_switcher_locale($locale) {
@@ -627,6 +749,52 @@ function ll_tools_filter_locale($locale) {
 }
 add_filter('locale', 'll_tools_filter_locale');
 
+function ll_tools_language_switcher_current_summary_markup($locale, string $style, bool $show_flags): string {
+    $label = ll_tools_locale_label($locale, $style);
+    $flag = $show_flags ? ll_tools_locale_flag($locale) : '';
+    $meta = ll_tools_get_locale_display_meta($locale);
+    $dir = (string) ($meta['dir'] ?? 'auto');
+
+    $markup = '<span class="ll-lang-switcher__summary-current">';
+    if ($flag !== '') {
+        $markup .= '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span>';
+    }
+    $markup .= '<span class="ll-label" dir="' . esc_attr($dir) . '">' . esc_html($label) . '</span>';
+    $markup .= '</span>';
+
+    return $markup;
+}
+
+function ll_tools_render_language_switcher_locale_item(string $locale, string $current, string $style, bool $show_flags): string {
+    $is_current = ($locale === $current);
+    $label = ll_tools_locale_label($locale, $style);
+    $flag = $show_flags ? ll_tools_locale_flag($locale) : '';
+    $meta = ll_tools_get_locale_display_meta($locale);
+    $dir = (string) ($meta['dir'] ?? 'auto');
+    $url = esc_url(add_query_arg([
+        'll_locale' => $locale,
+        'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
+    ]));
+
+    ob_start();
+    ?>
+    <li<?php echo $is_current ? ' class="is-current"' : ''; ?>>
+        <?php if ($is_current): ?>
+            <span aria-current="true" class="ll-lang-current">
+                <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
+                <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
+            </span>
+        <?php else: ?>
+            <a href="<?php echo $url; ?>" class="ll-lang-link">
+                <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
+                <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
+            </a>
+        <?php endif; ?>
+    </li>
+    <?php
+    return ob_get_clean();
+}
+
 /**
  * Keep public-only tier-2 preferences out of wp-admin/staff locale selection.
  */
@@ -656,6 +824,9 @@ add_filter('pre_determine_locale', 'll_tools_pre_determine_locale_for_staff_publ
  *  - show_flags: 1 or 0 (default 1)
  *  - style: 'native' | 'english' | 'code' (default 'native')
  *  - display: 'list' | 'dropdown' | 'button' | 'modal' (default 'list')
+ *  - primary_locales: comma/space/pipe-separated locale list for top-level choices
+ *  - primary_count: number of top-level choices to show before secondary bucket
+ *  - secondary_label: label for the secondary language bucket
  *  - class: extra CSS class to add to wrapper
  */
 function ll_language_switcher_shortcode($atts) {
@@ -667,6 +838,9 @@ function ll_language_switcher_shortcode($atts) {
         'display'    => 'list',
         'button_label' => '',
         'show_current' => '1',
+        'primary_locales' => '',
+        'primary_count' => '0',
+        'secondary_label' => '',
         'class'      => '',
     ], $atts, 'll_language_switcher');
 
@@ -685,21 +859,33 @@ function ll_language_switcher_shortcode($atts) {
     if ($button_label === '') {
         $button_label = __('Language', 'll-tools-text-domain');
     }
+    $secondary_label = trim((string) $atts['secondary_label']);
+    if ($secondary_label === '') {
+        $secondary_label = __('Other languages', 'll-tools-text-domain');
+    }
+    $primary_locales = ll_tools_get_language_switcher_primary_locales($available, $atts);
+    $locale_groups = ll_tools_partition_language_switcher_locales($available, $primary_locales);
+    $primary_available = $locale_groups['primary'];
+    $secondary_available = $locale_groups['secondary'];
+    $has_secondary_bucket = !empty($secondary_available);
     $extra_class = sanitize_html_class($atts['class']);
     $current_label = ll_tools_locale_label($current, $style);
-    $wrapper_classes = trim('ll-lang-switcher ll-lang-switcher--' . $display . ' ' . $extra_class);
+    $current_summary = $show_current ? ll_tools_language_switcher_current_summary_markup($current, $style, $show_flags) : '';
+    $summary_aria_label = sprintf(
+        /* translators: %s: Current language name. */
+        __('Language: %s', 'll-tools-text-domain'),
+        $current_label
+    );
+    $wrapper_classes = trim('ll-lang-switcher ll-lang-switcher--' . $display . ($has_secondary_bucket ? ' ll-lang-switcher--has-secondary' : '') . ' ' . $extra_class);
     $modal_id = 'll-lang-switcher-modal-' . $instance;
 
     ob_start();
     ?>
     <nav class="<?php echo esc_attr($wrapper_classes); ?>" aria-label="<?php echo esc_attr__('Language', 'll-tools-text-domain'); ?>" data-ll-language-switcher>
         <?php if ($display === 'modal') : ?>
-            <button type="button" class="ll-lang-switcher__summary" data-ll-language-switcher-open aria-haspopup="dialog" aria-expanded="false" aria-controls="<?php echo esc_attr($modal_id); ?>">
-                <span class="ll-lang-switcher__summary-icon" aria-hidden="true">A/あ</span>
-                <span class="ll-lang-switcher__summary-label"><?php echo esc_html($button_label); ?></span>
-                <?php if ($show_current) : ?>
-                    <span class="ll-lang-switcher__summary-current"><?php echo esc_html($current_label); ?></span>
-                <?php endif; ?>
+            <button type="button" class="ll-lang-switcher__summary" data-ll-language-switcher-open aria-label="<?php echo esc_attr($summary_aria_label); ?>" aria-haspopup="dialog" aria-expanded="false" aria-controls="<?php echo esc_attr($modal_id); ?>">
+                <span class="ll-lang-switcher__summary-icon" aria-hidden="true">&#127760;</span>
+                <?php echo $current_summary; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </button>
             <div id="<?php echo esc_attr($modal_id); ?>" class="ll-lang-switcher__modal" role="dialog" aria-modal="true" aria-label="<?php echo esc_attr__('Language', 'll-tools-text-domain'); ?>" data-ll-language-switcher-modal hidden>
                 <div class="ll-lang-switcher__backdrop" data-ll-language-switcher-close></div>
@@ -712,40 +898,29 @@ function ll_language_switcher_shortcode($atts) {
                     </div>
         <?php elseif ($display !== 'list') : ?>
             <details class="ll-lang-switcher__details">
-                <summary class="ll-lang-switcher__summary">
-                    <span class="ll-lang-switcher__summary-icon" aria-hidden="true">A/あ</span>
-                    <span class="ll-lang-switcher__summary-label"><?php echo esc_html($button_label); ?></span>
-                    <?php if ($show_current) : ?>
-                        <span class="ll-lang-switcher__summary-current"><?php echo esc_html($current_label); ?></span>
-                    <?php endif; ?>
+                <summary class="ll-lang-switcher__summary" aria-label="<?php echo esc_attr($summary_aria_label); ?>">
+                    <span class="ll-lang-switcher__summary-icon" aria-hidden="true">&#127760;</span>
+                    <?php echo $current_summary; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </summary>
         <?php endif; ?>
         <ul class="ll-lang-switcher__list">
-            <?php foreach ($available as $loc):
-                $is_current = ($loc === $current);
-                $label = ll_tools_locale_label($loc, $style);
-                $flag  = $show_flags ? ll_tools_locale_flag($loc) : '';
-                $meta = ll_tools_get_locale_display_meta($loc);
-                $dir = (string) ($meta['dir'] ?? 'auto');
-                $url   = esc_url(add_query_arg([
-                    'll_locale' => $loc,
-                    'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
-                ]));
-            ?>
-                <li class="<?php echo $is_current ? 'is-current' : ''; ?>">
-                    <?php if ($is_current): ?>
-                        <span aria-current="true" class="ll-lang-current">
-                            <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
-                            <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
-                        </span>
-                    <?php else: ?>
-                        <a href="<?php echo $url; ?>" class="ll-lang-link">
-                            <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
-                            <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
-                        </a>
-                    <?php endif; ?>
-                </li>
+            <?php foreach ($primary_available as $loc) : ?>
+                <?php echo ll_tools_render_language_switcher_locale_item($loc, $current, $style, $show_flags); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php endforeach; ?>
+            <?php if ($has_secondary_bucket) : ?>
+                <li class="ll-lang-switcher__secondary-item">
+                    <details class="ll-lang-switcher__secondary">
+                        <summary class="ll-lang-switcher__secondary-summary">
+                            <span class="ll-lang-switcher__secondary-label"><?php echo esc_html($secondary_label); ?></span>
+                        </summary>
+                        <ul class="ll-lang-switcher__secondary-list">
+                            <?php foreach ($secondary_available as $loc) : ?>
+                                <?php echo ll_tools_render_language_switcher_locale_item($loc, $current, $style, $show_flags); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            <?php endforeach; ?>
+                        </ul>
+                    </details>
+                </li>
+            <?php endif; ?>
         </ul>
         <?php if ($display === 'modal') : ?>
                 </div>
@@ -831,6 +1006,12 @@ function ll_tools_maybe_enqueue_header_language_switcher_assets(): void {
 }
 add_action('wp_enqueue_scripts', 'll_tools_maybe_enqueue_header_language_switcher_assets', 20);
 
+function ll_tools_get_header_language_switcher_primary_locales(): array {
+    $locales = (array) apply_filters('ll_tools_header_language_switcher_primary_locales', ['tr_TR', 'en_US', 'de_DE']);
+
+    return array_values(array_filter(array_map('strval', $locales)));
+}
+
 function ll_tools_render_header_language_switcher(): void {
     static $printed = false;
     if ($printed || !ll_tools_should_render_header_language_switcher()) {
@@ -842,6 +1023,8 @@ function ll_tools_render_header_language_switcher(): void {
         'style' => 'native',
         'display' => 'dropdown',
         'button_label' => __('Language', 'll-tools-text-domain'),
+        'primary_locales' => implode(',', ll_tools_get_header_language_switcher_primary_locales()),
+        'secondary_label' => __('Other languages', 'll-tools-text-domain'),
         'class' => 'll-lang-switcher--header',
     ]);
     if (trim((string) $markup) === '') {

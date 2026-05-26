@@ -241,10 +241,12 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('ll-tools-header-language-switcher', $html);
         $this->assertStringContainsString('ll-lang-switcher--dropdown', $html);
+        $this->assertStringContainsString('ll-lang-switcher--has-secondary', $html);
+        $this->assertStringContainsString('Other languages', $html);
         $this->assertStringContainsString('ll-flag', $html);
     }
 
-    public function test_language_switcher_dropdown_display_renders_button_summary(): void
+    public function test_language_switcher_dropdown_display_renders_current_language_summary(): void
     {
         $html = ll_language_switcher_shortcode([
             'display' => 'dropdown',
@@ -253,8 +255,36 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('ll-lang-switcher--dropdown', $html);
         $this->assertStringContainsString('ll-lang-switcher__summary', $html);
-        $this->assertStringContainsString('A/あ', $html);
+        $this->assertStringContainsString('&#127760;', $html);
+        $this->assertStringContainsString('ll-lang-switcher__summary-current', $html);
+        $this->assertStringContainsString('English', $html);
+        $this->assertStringContainsString('ll-flag', $html);
+        $this->assertStringNotContainsString('ll-lang-switcher__summary-label', $html);
+        $this->assertStringNotContainsString('A/あ', $html);
         $this->assertStringContainsString('ll_locale_nonce', $html);
+    }
+
+    public function test_language_switcher_can_bucket_secondary_languages_after_primary_locales(): void
+    {
+        $html = ll_language_switcher_shortcode([
+            'primary_locales' => 'tr,en,de',
+        ]);
+
+        $secondary_start = strpos($html, 'll-lang-switcher__secondary-list');
+        $turkish_position = strpos($html, 'll_locale=tr_TR');
+        $german_position = strpos($html, 'll_locale=de_DE');
+        $russian_position = strpos($html, 'll_locale=ru_RU');
+
+        $this->assertStringContainsString('ll-lang-switcher--has-secondary', $html);
+        $this->assertStringContainsString('ll-lang-switcher__secondary', $html);
+        $this->assertStringContainsString('Other languages', $html);
+        $this->assertIsInt($secondary_start);
+        $this->assertIsInt($turkish_position);
+        $this->assertIsInt($german_position);
+        $this->assertIsInt($russian_position);
+        $this->assertLessThan($secondary_start, $turkish_position);
+        $this->assertLessThan($secondary_start, $german_position);
+        $this->assertGreaterThan($secondary_start, $russian_position);
     }
 
     public function test_language_switcher_modal_display_renders_dialog_controls(): void
@@ -299,7 +329,11 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
             $css
         );
         $this->assertMatchesRegularExpression(
-            '/\.ll-lang-switcher--dropdown ul,\s*\.ll-lang-switcher--button ul\s*\{[^}]*z-index:\s*100000;[^}]*min-width:\s*100%;[^}]*width:\s*max-content;[^}]*overflow-x:\s*hidden;/',
+            '/\.ll-lang-switcher--dropdown \.ll-lang-switcher__details > \.ll-lang-switcher__list,\s*\.ll-lang-switcher--button \.ll-lang-switcher__details > \.ll-lang-switcher__list\s*\{[^}]*z-index:\s*100000;[^}]*min-width:\s*100%;[^}]*width:\s*max-content;[^}]*overflow-x:\s*hidden;/',
+            $css
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.ll-lang-switcher--list\.ll-lang-switcher--has-secondary \.ll-lang-switcher__secondary-list\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*100000;[^}]*overflow-x:\s*hidden;/',
             $css
         );
     }
