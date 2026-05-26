@@ -88,6 +88,52 @@ final class WordGridIpaKeyboardSortTest extends LL_Tools_TestCase
         $this->assertNotContains("r\u{0325}", array_values((array) ($config['keyboard_symbols'] ?? [])));
     }
 
+    public function test_ipa_keyboard_groups_all_reviewed_tie_bar_tokens_before_compacting_diacritics(): void
+    {
+        $wordset_id = $this->createWordset();
+
+        $first_word_id = $this->createWord($wordset_id, 'Reviewed Tie Bars One');
+        $this->createRecording(
+            $first_word_id,
+            "c\u{0361}ç d\u{0361}ʒ t\u{032A}\u{0361}ʙ\u{0325} t\u{032A}\u{0361}\u{10784}"
+        );
+
+        $second_word_id = $this->createWord($wordset_id, 'Reviewed Tie Bars Two');
+        $this->createRecording(
+            $second_word_id,
+            "t\u{0361}ʃ t\u{0361}ʙ\u{0325} d\u{032A}\u{0361}ʙ"
+        );
+
+        $config = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
+        $groups = [];
+        foreach ((array) ($config['keyboard_groups'] ?? []) as $group) {
+            $groups[(string) ($group['key'] ?? '')] = array_values((array) ($group['symbols'] ?? []));
+        }
+
+        $expected_tie_bar_tokens = [
+            "c\u{0361}ç",
+            "d\u{0361}ʒ",
+            "t\u{0361}ʃ",
+            "t\u{032A}\u{0361}ʙ\u{0325}",
+            "t\u{032A}\u{0361}\u{10784}",
+            "t\u{0361}ʙ\u{0325}",
+            "d\u{032A}\u{0361}ʙ",
+        ];
+
+        foreach ($expected_tie_bar_tokens as $symbol) {
+            $this->assertContains($symbol, $groups['affricates'] ?? []);
+            $this->assertNotContains($symbol, $groups['rare'] ?? []);
+            $this->assertNotContains($symbol, $groups['consonants'] ?? []);
+        }
+
+        $details = (array) ($config['symbol_details'] ?? []);
+        $this->assertSame('voiceless palatal affricate', (string) ($details["c\u{0361}ç"]['label'] ?? ''));
+        $this->assertSame(
+            'voiceless dental stop with voiceless bilabial trill release',
+            (string) ($details["t\u{032A}\u{0361}ʙ\u{0325}"]['label'] ?? '')
+        );
+    }
+
     private function createWordset(): int
     {
         $term = wp_insert_term('IPA Keyboard Sort ' . wp_generate_password(6, false, false), 'wordset');

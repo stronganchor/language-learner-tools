@@ -197,6 +197,9 @@
         if (!text) {
             return false;
         }
+        if (/[\u035C\u0361]/u.test(text)) {
+            return false;
+        }
         return (Array.isArray(modifiers) ? modifiers : []).some(function (modifier) {
             return !!modifier && text !== modifier && text.indexOf(modifier) !== -1;
         });

@@ -661,6 +661,12 @@ if (!function_exists('ll_tools_get_secondary_text_keyboard_affricate_description
             "p\u{0361}f" => __('voiceless labiodental affricate', 'll-tools-text-domain'),
             "k\u{0361}x" => __('voiceless velar affricate', 'll-tools-text-domain'),
             "q\u{0361}χ" => __('voiceless uvular affricate', 'll-tools-text-domain'),
+            "c\u{0361}ç" => __('voiceless palatal affricate', 'll-tools-text-domain'),
+            "ɟ\u{0361}ʝ" => __('voiced palatal affricate', 'll-tools-text-domain'),
+            "t\u{032A}\u{0361}ʙ\u{0325}" => __('voiceless dental stop with voiceless bilabial trill release', 'll-tools-text-domain'),
+            "t\u{032A}\u{0361}\u{10784}" => __('voiceless dental stop with bilabial trill release', 'll-tools-text-domain'),
+            "d\u{032A}\u{0361}ʙ" => __('voiced dental stop with bilabial trill release', 'll-tools-text-domain'),
+            "t\u{0361}ʙ\u{0325}" => __('voiceless alveolar stop with voiceless bilabial trill release', 'll-tools-text-domain'),
         ];
     }
 }
@@ -942,16 +948,16 @@ if (!function_exists('ll_tools_build_secondary_text_keyboard_groups')) {
             if (isset($top_symbols[$symbol])) {
                 continue;
             }
-            if (ll_tools_secondary_text_keyboard_symbol_uses_compact_modifier($symbol, $mode)) {
-                continue;
-            }
-
             $recording_count = array_key_exists($symbol, $recording_counts)
                 ? max(0, (int) $recording_counts[$symbol])
                 : $rare_threshold;
 
             if (ll_tools_secondary_text_keyboard_symbol_contains_tie_bar($symbol, $mode)) {
                 $affricates[] = $symbol;
+                continue;
+            }
+
+            if (ll_tools_secondary_text_keyboard_symbol_uses_compact_modifier($symbol, $mode)) {
                 continue;
             }
 

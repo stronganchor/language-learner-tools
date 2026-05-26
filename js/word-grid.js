@@ -5186,6 +5186,7 @@
         if (secondaryTextMode !== 'ipa') { return false; }
         const text = (symbol || '').toString().trim();
         if (!text) { return false; }
+        if (/[\u035C\u0361]/u.test(text)) { return false; }
         return secondaryTextCompactModifierChars.some(function (modifier) {
             return modifier && text !== modifier && text.indexOf(modifier) !== -1;
         });
