@@ -4336,7 +4336,7 @@
         if (secondaryTextMode !== 'ipa') {
             return raw.replace(/[\r\n\t\u00A0]+/g, ' ').replace(/\s+/g, ' ').trim();
         }
-        return raw.replace(/\u1D2E/g, '\u{10784}').trim();
+        return raw.replace(/\u1D2E/g, '\u{10784}').replace(/\u0131/g, '\u026A').trim();
     }
 
     function normalizeIpaForStorage(value) {
@@ -4816,6 +4816,9 @@
         }
         if (ch === '\u1D2E') {
             return '\u{10784}';
+        }
+        if (ch === '\u0131') {
+            return '\u026A';
         }
         if (ch === "'" || ch === '’') {
             return '\u02C8';

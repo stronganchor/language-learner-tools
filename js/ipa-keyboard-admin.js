@@ -422,6 +422,39 @@
         $(input).trigger('input');
     }
 
+    function normalizeTypedIpaValue(value) {
+        const text = (value == null ? '' : String(value));
+        const transcription = getTranscription();
+        if (!transcription || String(transcription.mode || '') !== 'ipa') {
+            return text;
+        }
+
+        return text.replace(/\u0131/g, '\u026A');
+    }
+
+    function normalizeIpaInputElement(input) {
+        if (!input) {
+            return false;
+        }
+
+        const raw = (input.value || '').toString();
+        const normalized = normalizeTypedIpaValue(raw);
+        if (raw === normalized) {
+            return false;
+        }
+
+        const start = typeof input.selectionStart === 'number' ? input.selectionStart : normalized.length;
+        const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : normalized.length;
+        const nextStart = normalizeTypedIpaValue(raw.slice(0, start)).length;
+        const nextEnd = normalizeTypedIpaValue(raw.slice(0, end)).length;
+        input.value = normalized;
+        if (typeof input.setSelectionRange === 'function') {
+            input.setSelectionRange(nextStart, nextEnd);
+        }
+
+        return true;
+    }
+
     function hideIpaSymbolContextMenu() {
         if ($activeIpaSymbolMenu.length) {
             $activeIpaSymbolMenu.remove();
@@ -3359,6 +3392,10 @@
         showIpaKeyboardForInput($(this));
     });
 
+    $symbols.on('input', '.ll-ipa-input', function () {
+        normalizeIpaInputElement(this);
+    });
+
     $searchResults.on('focus click', '.ll-ipa-search-ipa-input', function () {
         showIpaKeyboardForInput($(this));
     });
@@ -3411,6 +3448,10 @@
     });
 
     $searchResults.on('input', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {
+        if ($(this).hasClass('ll-ipa-search-ipa-input')) {
+            normalizeIpaInputElement(this);
+        }
+
         const $row = $(this).closest('tr');
         if (!$row.length || $row.data('llSearchRowSaving')) {
             return;

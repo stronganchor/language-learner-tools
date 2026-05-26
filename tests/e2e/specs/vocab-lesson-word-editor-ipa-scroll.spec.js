@@ -228,6 +228,8 @@ test('focusing the IPA field recenters the modal body so the waveform and keyboa
   await expect(page.locator('.ll-word-ipa-key[data-ipa-char="dʲ"]')).toHaveCount(0);
   await expect(page.locator('.ll-word-ipa-key[data-ipa-char="tʷ"]')).toHaveCount(0);
   await expect(page.locator('.ll-word-ipa-key[data-ipa-char="aː"]')).toHaveCount(0);
+  await ipaInput.fill('bır');
+  await expect(ipaInput).toHaveValue('bɪr');
   expect(after.scrollTop).toBeGreaterThan(before.scrollTop);
   expect(Math.abs(after.centerOffset)).toBeLessThan(Math.abs(before.centerOffset));
   expect(Math.abs(after.centerOffset)).toBeLessThanOrEqual(after.bodyHeight * 0.35);

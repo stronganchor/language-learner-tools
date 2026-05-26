@@ -489,7 +489,11 @@ function ll_tools_word_grid_normalize_ipa_text(string $text): string {
     }, $text);
 
     $text = wp_strip_all_tags($text);
-    $text = str_replace("\u{1D2E}", "\u{10784}", $text);
+    $text = str_replace(
+        ["\u{1D2E}", "\u{0131}"],
+        ["\u{10784}", "\u{026A}"],
+        $text
+    );
 
     return $text;
 }

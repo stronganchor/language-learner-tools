@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.4.10
+Version: 6.4.11
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,11 +19,12 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.4.10');
+define('LL_TOOLS_VERSION', '6.4.11');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
 define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
+define('LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION', 'll_tools_dotless_i_ipa_migrated');
 
 function ll_tools_is_supported_php_version($version = null): bool {
     if (!is_string($version) || $version === '') {
@@ -275,6 +276,97 @@ add_filter('user_has_cap', 'll_tools_grant_view_cap_to_administrators', 10, 4);
 function ll_tools_schedule_post_update_maintenance(): void {
     set_transient('ll_tools_vocab_lesson_flush_rewrite', 1, 10 * MINUTE_IN_SECONDS);
 }
+
+/**
+ * Rewrite accidental Turkish dotless-i characters in stored IPA transcriptions.
+ */
+function ll_tools_normalize_dotless_i_recording_ipa_meta(): int {
+    global $wpdb;
+
+    if (!($wpdb instanceof wpdb)) {
+        return 0;
+    }
+
+    $dotless_i = "\u{0131}";
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT pm.post_id, pm.meta_value, p.post_parent
+         FROM {$wpdb->postmeta} pm
+         INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+         WHERE pm.meta_key = %s
+           AND p.post_type = %s
+           AND pm.meta_value LIKE %s",
+        'recording_ipa',
+        'word_audio',
+        '%' . $wpdb->esc_like($dotless_i) . '%'
+    ));
+
+    if (empty($rows)) {
+        return 0;
+    }
+
+    $updated_count = 0;
+    $word_ids = [];
+    foreach ($rows as $row) {
+        $recording_id = (int) ($row->post_id ?? 0);
+        if ($recording_id <= 0) {
+            continue;
+        }
+
+        $current = (string) ($row->meta_value ?? '');
+        $normalized = function_exists('ll_tools_word_grid_normalize_ipa_output')
+            ? ll_tools_word_grid_normalize_ipa_output($current, 'ipa')
+            : str_replace($dotless_i, "\u{026A}", $current);
+        if ($current === $normalized) {
+            continue;
+        }
+
+        update_post_meta($recording_id, 'recording_ipa', $normalized);
+        $updated_count++;
+
+        $word_id = (int) ($row->post_parent ?? 0);
+        if ($word_id > 0) {
+            $word_ids[$word_id] = true;
+        }
+    }
+
+    if (!empty($word_ids)) {
+        $wordset_ids = [];
+        foreach (array_keys($word_ids) as $word_id) {
+            $terms = wp_get_post_terms((int) $word_id, 'wordset', ['fields' => 'ids']);
+            if (is_wp_error($terms) || empty($terms)) {
+                continue;
+            }
+            foreach ((array) $terms as $wordset_id) {
+                $wordset_id = (int) $wordset_id;
+                if ($wordset_id > 0) {
+                    $wordset_ids[$wordset_id] = true;
+                }
+            }
+        }
+
+        foreach (array_keys($wordset_ids) as $wordset_id) {
+            if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
+                ll_tools_word_grid_rebuild_wordset_ipa_special_chars((int) $wordset_id);
+            }
+            if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_letter_map')) {
+                ll_tools_word_grid_rebuild_wordset_ipa_letter_map((int) $wordset_id);
+            }
+        }
+    }
+
+    return $updated_count;
+}
+
+function ll_tools_maybe_normalize_dotless_i_recording_ipa_meta(): void {
+    $stored_version = (int) get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 0);
+    if ($stored_version >= 1) {
+        return;
+    }
+
+    ll_tools_normalize_dotless_i_recording_ipa_meta();
+    update_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 1, false);
+}
+add_action('init', 'll_tools_maybe_normalize_dotless_i_recording_ipa_meta', 6);
 
 /**
  * Detect deployed version changes even when WordPress update hooks were skipped.

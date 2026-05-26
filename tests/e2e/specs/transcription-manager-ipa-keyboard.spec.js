@@ -264,8 +264,11 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ɛ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʃ"]')).toHaveAttribute('title', 'voiceless postalveolar fricative');
 
+  await ipaInput.type('ı');
+  await expect(ipaInput).toHaveValue('teɪ');
+
   await page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]').click();
-  await expect(ipaInput).toHaveValue('teʰ');
+  await expect(ipaInput).toHaveValue('teɪʰ');
 
   page.once('dialog', async (dialog) => {
     await dialog.accept();

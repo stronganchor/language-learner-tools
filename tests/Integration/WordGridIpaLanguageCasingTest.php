@@ -62,6 +62,39 @@ final class WordGridIpaLanguageCasingTest extends LL_Tools_TestCase
         $this->assertSame('Incı', ll_tools_normalize_transcript_case('INCI', [$wordset_id]));
     }
 
+    public function test_dotless_i_is_normalized_to_near_close_front_vowel_in_ipa_fields(): void
+    {
+        $this->assertSame('bɪr qɪ', ll_tools_word_grid_normalize_ipa_input('bır qı'));
+        $this->assertSame('bɪr qɪ', ll_tools_word_grid_sanitize_ipa('bır qı'));
+        $this->assertSame('bɪr qɪ', ll_tools_word_grid_normalize_ipa_output('bır qı'));
+    }
+
+    public function test_dotless_i_recording_ipa_migration_updates_stored_transcriptions_and_caches(): void
+    {
+        delete_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION);
+
+        $wordset_id = $this->createWordset('zza');
+        $word_id = $this->createWord($wordset_id, 'IPA Dotless Migration Word');
+        $recording_id = $this->createRecording($word_id, 'Bır qı', 'bır qı');
+        update_term_meta($wordset_id, 'll_wordset_ipa_special_chars', ['ı']);
+        update_term_meta($wordset_id, 'll_wordset_ipa_letter_map', [
+            'ı' => [
+                'ı' => 2,
+            ],
+        ]);
+
+        $this->assertSame(1, ll_tools_normalize_dotless_i_recording_ipa_meta());
+
+        $this->assertSame('bɪr qɪ', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        $symbols = (array) get_term_meta($wordset_id, 'll_wordset_ipa_special_chars', true);
+        $this->assertContains('ɪ', $symbols);
+        $this->assertNotContains('ı', $symbols);
+
+        $map = ll_tools_word_grid_get_wordset_ipa_letter_map($wordset_id);
+        $this->assertSame(2, (int) ($map['ı']['ɪ'] ?? 0));
+        $this->assertFalse(isset($map['ı']['ı']));
+    }
+
     public static function turkishStyleLanguageProvider(): array
     {
         return [
