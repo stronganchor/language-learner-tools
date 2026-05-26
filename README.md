@@ -205,15 +205,18 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
 ### `[ll_interlinear]`
 - Renders a compact public interlinear table with the shared LL Tools interlinear markup and CSS.
 - **Attributes**:
-  - `text`: optional source line shown above the table.
+  - `text`: optional source line rendered as a `Sentence` row.
   - `show_text`: `1|0`; defaults to `1`.
+  - `translation` / `free_translation` / `free`: optional free translation rendered as a final row.
   - `class`: optional extra wrapper class.
-- **Content format**: one row per line, using `|` or tabs. The first cell is the row label; supported labels are `FORM`/`WORD`, `MORPH`, `LEMMA`, `GLOSS`, `POS`, and `TEXT`.
+- **Content format**: one row per line, using `|` or tabs. The first cell is the row label; supported labels are `SENTENCE`/`TEXT`, `FORM`/`WORD`, `MORPH`, `LEMMA`, `GLOSS`, `POS`, and `FREE`/`FREE_TRANSLATION`.
 
 ```text
-[ll_interlinear text="Lac qicik"]
-FORM | lac-&empty; | qicik
-GLOSS | son-M.AP.EZ | small
+[ll_interlinear]
+SENTENCE | Lac qicik
+MORPH | lac | &empty; | qicik
+GLOSS | son | M.EZ | small
+FREE | little boy
 [/ll_interlinear]
 ```
 
