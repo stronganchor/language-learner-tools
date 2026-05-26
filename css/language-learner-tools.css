@@ -352,8 +352,8 @@ p:has(.ll-word-audio) {
 }
 
 .ll-interlinear--shortcode {
-    display: inline-block;
-    width: auto;
+    display: block;
+    width: 100%;
     max-width: 100%;
     margin: 0.35rem 0;
     border: 0;
@@ -383,10 +383,41 @@ p:has(.ll-word-audio) {
 
 .ll-interlinear--shortcode .ll-interlinear-grid {
     padding: 0;
+    overflow-x: visible;
+    width: 100%;
+}
+
+.ll-interlinear--shortcode .ll-interlinear-table {
+    width: 100%;
+    min-width: 0;
 }
 
 .ll-interlinear--shortcode .ll-interlinear-shortcode__sentence td,
 .ll-interlinear--shortcode .ll-interlinear-shortcode__free-translation td {
+    white-space: normal;
+}
+
+.ll-interlinear--shortcode .ll-interlinear-shortcode__token-row td {
+    padding: 0;
+    white-space: normal;
+}
+
+.ll-interlinear--shortcode .ll-interlinear-shortcode__cells {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    max-width: 100%;
+}
+
+.ll-interlinear--shortcode .ll-interlinear-shortcode__cell {
+    display: inline-flex;
+    align-items: baseline;
+    max-width: 100%;
+    margin: -1px 0 0 -1px;
+    padding: 3px 7px;
+    border: 1px solid var(--ll-interlinear-line);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
     white-space: normal;
 }
 

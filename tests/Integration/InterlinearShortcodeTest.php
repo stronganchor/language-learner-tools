@@ -33,10 +33,10 @@ final class InterlinearShortcodeTest extends LL_Tools_TestCase
         try {
             $output = do_shortcode(
                 "[ll_interlinear]\n"
-                . "SENTENCE | [ll_test_audio]Lac qicik[/ll_test_audio]\n"
+                . "SENTENCE | [ll_test_audio]Lac qicik | example[/ll_test_audio]\n"
                 . "MORPH | lac | ∅ | qicik\n"
                 . "GLOSS | son | M.EZ | small\n"
-                . "FREE | little boy\n"
+                . "FREE | little boy | literally small son\n"
                 . '[/ll_interlinear]'
             );
         } finally {
@@ -45,11 +45,13 @@ final class InterlinearShortcodeTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('<th scope="row">Sentence</th>', $output);
         $this->assertStringContainsString('class="ll-interlinear-shortcode__sentence"', $output);
-        $this->assertStringContainsString('<span class="test-audio">Lac qicik</span>', $output);
+        $this->assertStringContainsString('<span class="test-audio">Lac qicik | example</span>', $output);
         $this->assertStringContainsString('<th scope="row">MORPH</th>', $output);
+        $this->assertStringContainsString('class="ll-interlinear-shortcode__cell"', $output);
         $this->assertStringContainsString('∅', $output);
         $this->assertStringContainsString('<th scope="row">Free translation</th>', $output);
-        $this->assertStringContainsString('little boy', $output);
+        $this->assertStringContainsString('little boy | literally small son', $output);
+        $this->assertStringNotContainsString('colspan=', $output);
         $this->assertStringNotContainsString('[ll_test_audio]', $output);
     }
 
