@@ -137,7 +137,14 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $pageSizeFilter = static function (): int {
             return 2;
         };
+        $wordAudioQueryCount = 0;
+        $wordAudioQueryCounter = static function (WP_Query $query) use (&$wordAudioQueryCount): void {
+            if ($query->get('post_type') === 'word_audio' && $query->get('fields') === 'ids') {
+                $wordAudioQueryCount++;
+            }
+        };
         add_filter('ll_tools_ipa_keyboard_search_results_per_page', $pageSizeFilter);
+        add_action('pre_get_posts', $wordAudioQueryCounter);
 
         try {
             wp_set_current_user($user_id);
@@ -154,6 +161,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             });
 
             $this->assertTrue((bool) ($response['success'] ?? false));
+            $this->assertLessThanOrEqual(3, $wordAudioQueryCount);
             $data = (array) ($response['data'] ?? []);
             $this->assertSame(5, (int) ($data['total_matches'] ?? 0));
             $this->assertSame(2, (int) ($data['shown_count'] ?? 0));
@@ -170,6 +178,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             $this->assertSame('Charlie', (string) ($results[0]['word_text'] ?? ''));
             $this->assertSame('Delta', (string) ($results[1]['word_text'] ?? ''));
 
+            $wordAudioQueryCount = 0;
             $_POST['search_page'] = 99;
             $_REQUEST = $_POST;
 
@@ -178,6 +187,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             });
 
             $this->assertTrue((bool) ($lastPageResponse['success'] ?? false));
+            $this->assertLessThanOrEqual(3, $wordAudioQueryCount);
             $lastPageData = (array) ($lastPageResponse['data'] ?? []);
             $this->assertSame(3, (int) ($lastPageData['current_page'] ?? 0));
             $this->assertSame(5, (int) ($lastPageData['page_start'] ?? 0));
@@ -190,6 +200,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             $this->assertSame('Echo', (string) ($lastPageResults[0]['word_text'] ?? ''));
         } finally {
             remove_filter('ll_tools_ipa_keyboard_search_results_per_page', $pageSizeFilter);
+            remove_action('pre_get_posts', $wordAudioQueryCounter);
         }
     }
 

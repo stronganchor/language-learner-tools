@@ -4736,8 +4736,11 @@ function ll_tools_ipa_keyboard_recording_matches_search(
     return false;
 }
 
-function ll_tools_ipa_keyboard_build_search_row_payload(int $recording_id, int $wordset_id, array $word_info): array {
-    $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa'));
+function ll_tools_ipa_keyboard_build_search_row_payload(int $recording_id, int $wordset_id, array $word_info, string $transcription_mode = ''): array {
+    if ($transcription_mode === '') {
+        $transcription_mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
+    }
+    $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $transcription_mode);
     $payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, (int) wp_get_post_parent_id($recording_id), $word_info, $recording_ipa, $wordset_id);
     $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
     if (!empty($validation['active']) || !empty($validation['ignored'])) {
@@ -4769,7 +4772,7 @@ function ll_tools_ipa_keyboard_search_recordings(
     int $page = 1,
     int $per_page = 0
 ): array {
-    $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $transcription_mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $page = max(1, $page);
     $per_page = $per_page > 0 ? $per_page : ll_tools_ipa_keyboard_get_search_results_per_page();
     $word_ids = ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id);
@@ -4822,7 +4825,8 @@ function ll_tools_ipa_keyboard_search_recordings(
         $payload = ll_tools_ipa_keyboard_build_search_row_payload(
             $recording_id,
             $wordset_id,
-            (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => ''])
+            (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => '']),
+            $transcription_mode
         );
 
         if ($issues_only && (int) ($payload['issue_count'] ?? 0) <= 0) {
