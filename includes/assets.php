@@ -97,6 +97,7 @@ function ll_tools_get_public_assets_shortcode_tags(): array {
         'quiz_pages_dropdown',
         'word_grid',
         'word_audio',
+        'll_interlinear',
         'wordset_page',
         'll_wordset_page',
         'wordset_buttons',

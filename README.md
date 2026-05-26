@@ -39,6 +39,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `[ll_corpus_text_grid]` / `[ll_text_document_grid]` - front-end content-lesson grid for corpus/text-document lessons.
   - `[word_grid]` – grid of words with audio/text toggles, supports wordset filtering.
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
+  - `[ll_interlinear]` - compact interlinear table using the shared LL Tools interlinear renderer.
   - `[editor_hub]` – editor-facing workflow for filling missing word metadata and recording details.
   - `[wordset_page]` / `[ll_wordset_page]` – front-end wordset hub with study, progress, and manager views.
   - `[ll_language_switcher]` – front-end locale switcher for the plugin’s available translations.
@@ -200,6 +201,21 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
   - `translate`: `yes|no` (show the translation next to the audio button).
   - `recording_type`: specific `recording_type` slug to play, such as `introduction`.
   - `word_audio_id`: exact `word_audio` post ID to play.
+
+### `[ll_interlinear]`
+- Renders a compact public interlinear table with the shared LL Tools interlinear markup and CSS.
+- **Attributes**:
+  - `text`: optional source line shown above the table.
+  - `show_text`: `1|0`; defaults to `1`.
+  - `class`: optional extra wrapper class.
+- **Content format**: one row per line, using `|` or tabs. The first cell is the row label; supported labels are `FORM`/`WORD`, `MORPH`, `LEMMA`, `GLOSS`, `POS`, and `TEXT`.
+
+```text
+[ll_interlinear text="Lac qicik"]
+FORM | lac-&empty; | qicik
+GLOSS | son-M.AP.EZ | small
+[/ll_interlinear]
+```
 
 ### `[image_copyright_grid]`
 - **Attributes**:

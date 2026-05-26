@@ -160,6 +160,7 @@ require_once(__DIR__ . '/pages/site-tools-page.php');
 // Include shortcodes
 require_once(__DIR__ . '/shortcodes/flashcard-widget.php');
 require_once(__DIR__ . '/shortcodes/word-audio-shortcode.php');
+require_once(__DIR__ . '/shortcodes/interlinear-shortcode.php');
 require_once(__DIR__ . '/shortcodes/word-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/editor-hub-shortcode.php');
 require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
