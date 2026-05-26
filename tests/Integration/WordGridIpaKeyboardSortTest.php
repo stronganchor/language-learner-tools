@@ -54,8 +54,38 @@ final class WordGridIpaKeyboardSortTest extends LL_Tools_TestCase
 
         $config = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
 
-        $this->assertSame(['ʰ', 'ʲ', 'ʷ', 'ː'], array_values((array) ($config['modifier_chars'] ?? [])));
+        $this->assertSame(['ʰ', 'ʲ', 'ʷ', 'ː', "\u{0325}", "\u{032A}", "\u{0306}", "\u{0361}"], array_values((array) ($config['modifier_chars'] ?? [])));
         $this->assertSame(['ʃ', 'ʒ'], array_values((array) ($config['keyboard_symbols'] ?? [])));
+    }
+
+    public function test_ipa_keyboard_groups_reviewed_symbols_by_type_and_frequency(): void
+    {
+        $wordset_id = $this->createWordset();
+        $first_word_id = $this->createWord($wordset_id, 'Reviewed One');
+        $this->createRecording($first_word_id, "ʃ ɛ t\u{0361}ʃ ʔ ɬ r\u{0325}");
+
+        $second_word_id = $this->createWord($wordset_id, 'Reviewed Two');
+        $this->createRecording($second_word_id, "ʃ ɛ d\u{0361}ʒ");
+
+        $unreviewed_word_id = $this->createWord($wordset_id, 'Unreviewed');
+        $unreviewed_recording_id = $this->createRecording($unreviewed_word_id, 'ʡ ʒ');
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($unreviewed_recording_id);
+
+        $config = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
+        $groups = [];
+        foreach ((array) ($config['keyboard_groups'] ?? []) as $group) {
+            $groups[(string) ($group['key'] ?? '')] = array_values((array) ($group['symbols'] ?? []));
+        }
+
+        $this->assertContains('ʔ', $groups['signs'] ?? []);
+        $this->assertNotContains('ʡ', $groups['signs'] ?? []);
+        $this->assertCount(2, $groups['affricates'] ?? []);
+        $this->assertContains("t\u{0361}ʃ", $groups['affricates'] ?? []);
+        $this->assertContains("d\u{0361}ʒ", $groups['affricates'] ?? []);
+        $this->assertSame(['ɛ'], $groups['vowels'] ?? []);
+        $this->assertSame(['ʃ'], $groups['consonants'] ?? []);
+        $this->assertSame(['ɬ'], $groups['rare'] ?? []);
+        $this->assertNotContains("r\u{0325}", array_values((array) ($config['keyboard_symbols'] ?? [])));
     }
 
     private function createWordset(): int

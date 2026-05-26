@@ -1719,6 +1719,18 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     display: none;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-ipa-keyboard-group {
+    display: grid;
+    gap: 4px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-keyboard-label {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-ipa-keyboard-row {
     display: flex;
     flex-wrap: wrap;

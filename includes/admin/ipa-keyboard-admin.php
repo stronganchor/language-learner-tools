@@ -176,6 +176,13 @@ function ll_tools_ipa_keyboard_sanitize_search_page($raw): int {
     return max(1, $page);
 }
 
+function ll_tools_ipa_keyboard_get_transcription_mode_for_wordset(int $wordset_id): string {
+    $mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
+        ? sanitize_key((string) ll_tools_get_wordset_recording_transcription_mode($wordset_id > 0 ? [$wordset_id] : [], true))
+        : 'ipa';
+    return in_array($mode, ['ipa', 'transliteration', 'transcription'], true) ? $mode : 'ipa';
+}
+
 function ll_tools_ipa_keyboard_get_requested_search_state(): array {
     $query = isset($_GET['search']) ? ll_tools_ipa_keyboard_sanitize_search_query($_GET['search']) : '';
     $scope = isset($_GET['scope']) ? sanitize_key((string) wp_unslash($_GET['scope'])) : 'both';
@@ -371,6 +378,10 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchExceptionRestore' => __('Undo exception', 'll-tools-text-domain'),
             'searchApproveSymbolMapping' => __('Approve %1$s symbol and map it to %2$s in orthography', 'll-tools-text-domain'),
             'searchApprovedSymbolMapping' => __('Approved symbol mapping.', 'll-tools-text-domain'),
+            'keyboardFlagIllegal' => __('Flag as illegal symbol', 'll-tools-text-domain'),
+            'keyboardFlagIllegalConfirm' => __('Mark %s as illegal for this word set?', 'll-tools-text-domain'),
+            'keyboardFlagIllegalSaving' => __('Flagging symbol and rescanning this word set...', 'll-tools-text-domain'),
+            'keyboardFlagIllegalSaved' => __('Symbol marked illegal and checks rescanned.', 'll-tools-text-domain'),
             'searchSaveFailed' => __('Save failed', 'll-tools-text-domain'),
             'orthographyLoading' => __('Loading orthography conversion data...', 'll-tools-text-domain'),
             'orthographyUnsupported' => __('IPA-to-orthography conversion is only available when this word set uses IPA transcription mode.', 'll-tools-text-domain'),
@@ -558,11 +569,11 @@ function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): ar
             'display_format' => 'brackets',
             'uses_ipa_font' => true,
             'supports_superscript' => true,
-            'common_chars' => ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'],
-            'common_chars_label' => __('Common IPA symbols', 'll-tools-text-domain'),
+            'common_chars' => [],
+            'common_chars_label' => '',
             'modifier_chars' => function_exists('ll_tools_get_secondary_text_keyboard_modifier_symbols') ? ll_tools_get_secondary_text_keyboard_modifier_symbols('ipa') : ['ʰ', 'ʲ', 'ʷ', 'ː'],
-            'modifier_chars_label' => __('Modifiers', 'll-tools-text-domain'),
-            'wordset_chars_label' => __('Wordset IPA symbols', 'll-tools-text-domain'),
+            'modifier_chars_label' => __('Diacritics and signs', 'll-tools-text-domain'),
+            'wordset_chars_label' => __('Wordset symbols', 'll-tools-text-domain'),
             'special_chars_heading' => __('IPA Special Characters', 'll-tools-text-domain'),
             'special_chars_empty' => __('No IPA symbols found for this word set.', 'll-tools-text-domain'),
             'special_chars_add_label' => __('Add symbols', 'll-tools-text-domain'),
@@ -596,6 +607,9 @@ function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): ar
     if (function_exists('ll_tools_sort_secondary_text_symbols')) {
         $common_chars = ll_tools_sort_secondary_text_symbols($common_chars, $mode);
     }
+    if ($mode === 'ipa') {
+        $common_chars = [];
+    }
     $config['common_chars'] = $common_chars;
 
     $modifier_chars = [];
@@ -611,37 +625,85 @@ function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): ar
     }
     $config['modifier_chars'] = $mode === 'ipa' ? $modifier_chars : [];
     if (empty($config['modifier_chars_label'])) {
-        $config['modifier_chars_label'] = __('Modifiers', 'll-tools-text-domain');
+        $config['modifier_chars_label'] = __('Diacritics and signs', 'll-tools-text-domain');
     }
 
     if (empty($config['keyboard_aria_label'])) {
         $config['keyboard_aria_label'] = __('IPA symbols', 'll-tools-text-domain');
     }
 
-    $config['keyboard_symbols'] = ll_tools_ipa_keyboard_get_keyboard_symbols($wordset_id, $mode);
+    $keyboard_inventory = ll_tools_ipa_keyboard_get_keyboard_inventory($wordset_id, $mode);
+    $config['keyboard_symbols'] = function_exists('ll_tools_compact_secondary_text_keyboard_symbols')
+        ? ll_tools_compact_secondary_text_keyboard_symbols((array) ($keyboard_inventory['symbols'] ?? []), $mode)
+        : array_values((array) ($keyboard_inventory['symbols'] ?? []));
+    $config['keyboard_groups'] = function_exists('ll_tools_build_secondary_text_keyboard_groups')
+        ? ll_tools_build_secondary_text_keyboard_groups(
+            (array) ($keyboard_inventory['symbols'] ?? []),
+            $mode,
+            (array) ($keyboard_inventory['recording_counts'] ?? []),
+            ['illegal_symbols' => (array) ($keyboard_inventory['illegal_symbols'] ?? [])]
+        )
+        : [];
+    $detail_symbols = function_exists('ll_tools_flatten_secondary_text_keyboard_groups')
+        ? ll_tools_flatten_secondary_text_keyboard_groups($config['keyboard_groups'])
+        : array_values(array_unique(array_merge($config['modifier_chars'], $config['keyboard_symbols'])));
+    $config['symbol_details'] = function_exists('ll_tools_get_secondary_text_keyboard_symbol_details')
+        ? ll_tools_get_secondary_text_keyboard_symbol_details($detail_symbols, $mode)
+        : [];
+    $config['illegal_symbols'] = array_values((array) ($keyboard_inventory['illegal_symbols'] ?? []));
 
     return $config;
 }
 
-function ll_tools_ipa_keyboard_get_keyboard_symbols(int $wordset_id = 0, string $transcription_mode = ''): array {
+function ll_tools_ipa_keyboard_get_keyboard_inventory(int $wordset_id = 0, string $transcription_mode = ''): array {
     $wordset_id = (int) $wordset_id;
-    if ($wordset_id <= 0 || !function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')) {
-        return [];
+    if ($wordset_id <= 0) {
+        return [
+            'symbols' => [],
+            'recording_counts' => [],
+            'illegal_symbols' => [],
+            'mode' => $transcription_mode !== '' ? sanitize_key($transcription_mode) : 'ipa',
+        ];
     }
 
     $mode = $transcription_mode !== ''
         ? sanitize_key($transcription_mode)
-        : (function_exists('ll_tools_get_wordset_recording_transcription_mode')
-            ? sanitize_key((string) ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true))
-            : 'ipa');
+        : ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     if (!in_array($mode, ['ipa', 'transliteration', 'transcription'], true)) {
         $mode = 'ipa';
     }
 
+    if (function_exists('ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory')) {
+        $inventory = ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory($wordset_id);
+    } else {
+        $inventory = [
+            'symbols' => function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')
+                ? ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id)
+                : [],
+            'recording_counts' => [],
+        ];
+    }
+
+    $illegal_symbols = function_exists('ll_tools_get_wordset_secondary_text_illegal_symbols')
+        ? ll_tools_get_wordset_secondary_text_illegal_symbols($wordset_id, $mode)
+        : [];
+    $raw_counts = (array) ($inventory['recording_counts'] ?? []);
+    $recording_counts = [];
+    foreach ($raw_counts as $symbol => $count) {
+        $normalized = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol, $mode);
+        if ($normalized !== '') {
+            $recording_counts[$normalized] = max((int) ($recording_counts[$normalized] ?? 0), (int) $count);
+        }
+    }
+
     $symbols = [];
-    foreach ((array) ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id) as $symbol) {
+    foreach ((array) ($inventory['symbols'] ?? []) as $symbol) {
         $normalized = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol, $mode);
         if ($normalized === '' || in_array($normalized, $symbols, true)) {
+            continue;
+        }
+        if (function_exists('ll_tools_secondary_text_token_has_illegal_symbol')
+            && ll_tools_secondary_text_token_has_illegal_symbol($normalized, $illegal_symbols) !== '') {
             continue;
         }
         $symbols[] = $normalized;
@@ -650,6 +712,19 @@ function ll_tools_ipa_keyboard_get_keyboard_symbols(int $wordset_id = 0, string 
     if (function_exists('ll_tools_sort_secondary_text_symbols')) {
         $symbols = ll_tools_sort_secondary_text_symbols($symbols, $mode);
     }
+
+    return [
+        'symbols' => $symbols,
+        'recording_counts' => $recording_counts,
+        'illegal_symbols' => array_values((array) $illegal_symbols),
+        'mode' => $mode,
+    ];
+}
+
+function ll_tools_ipa_keyboard_get_keyboard_symbols(int $wordset_id = 0, string $transcription_mode = ''): array {
+    $inventory = ll_tools_ipa_keyboard_get_keyboard_inventory($wordset_id, $transcription_mode);
+    $mode = (string) ($inventory['mode'] ?? ($transcription_mode !== '' ? sanitize_key($transcription_mode) : 'ipa'));
+    $symbols = array_values((array) ($inventory['symbols'] ?? []));
 
     if (function_exists('ll_tools_compact_secondary_text_keyboard_symbols')) {
         $symbols = ll_tools_compact_secondary_text_keyboard_symbols($symbols, $mode);
@@ -941,6 +1016,10 @@ function ll_tools_ipa_keyboard_build_symbol_data(int $wordset_id): array {
     foreach ($recording_ids as $recording_id) {
         $recording_id = (int) $recording_id;
         if ($recording_id <= 0) {
+            continue;
+        }
+        if (function_exists('ll_tools_word_grid_recording_ipa_is_reviewed')
+            && !ll_tools_word_grid_recording_ipa_is_reviewed($recording_id)) {
             continue;
         }
         $word_id = wp_get_post_parent_id($recording_id);
@@ -1324,6 +1403,9 @@ function ll_tools_ipa_keyboard_update_cached_special_symbols(
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return [];
+    }
+    if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
+        return ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
     }
 
     $existing_raw = get_term_meta($wordset_id, 'll_wordset_ipa_special_chars', true);
@@ -1840,7 +1922,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 5;
+    return 6;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -1868,6 +1950,10 @@ function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
         'dental_diacritic_context' => [
             'label' => __('Dental diacritic placement', 'll-tools-text-domain'),
             'description' => __('Flags dental marks that are not attached to t or d.', 'll-tools-text-domain'),
+        ],
+        'illegal_ipa_symbol' => [
+            'label' => __('Illegal IPA symbol', 'll-tools-text-domain'),
+            'description' => __('Flags symbols that have been marked illegal for this word set.', 'll-tools-text-domain'),
         ],
         'unapproved_ipa_symbol' => [
             'label' => __('Unapproved IPA symbol', 'll-tools-text-domain'),
@@ -1902,7 +1988,7 @@ function ll_tools_ipa_keyboard_get_wordset_approved_ipa_symbols(int $wordset_id)
         return [];
     }
 
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $raw = get_term_meta($wordset_id, ll_tools_ipa_keyboard_approved_symbols_meta_key(), true);
     $approved = ll_tools_ipa_keyboard_sanitize_approved_ipa_symbols($raw, $mode);
     if ($approved !== $raw) {
@@ -1921,7 +2007,7 @@ function ll_tools_ipa_keyboard_update_wordset_approved_ipa_symbols(int $wordset_
         return [];
     }
 
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $approved = ll_tools_ipa_keyboard_sanitize_approved_ipa_symbols($symbols, $mode);
     if (empty($approved)) {
         delete_term_meta($wordset_id, ll_tools_ipa_keyboard_approved_symbols_meta_key());
@@ -1934,7 +2020,7 @@ function ll_tools_ipa_keyboard_update_wordset_approved_ipa_symbols(int $wordset_
 
 function ll_tools_ipa_keyboard_add_wordset_approved_ipa_symbol(int $wordset_id, string $symbol): array {
     $approved = ll_tools_ipa_keyboard_get_wordset_approved_ipa_symbols($wordset_id);
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $symbol = ll_tools_ipa_keyboard_normalize_ipa_token($symbol, $mode);
     if ($symbol !== '' && !in_array($symbol, $approved, true)) {
         $approved[] = $symbol;
@@ -2051,7 +2137,7 @@ function ll_tools_ipa_keyboard_sanitize_validation_rule($raw_rule, string $mode 
 }
 
 function ll_tools_ipa_keyboard_sanitize_validation_config($raw_config, int $wordset_id = 0): array {
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $builtin_rules = ll_tools_ipa_keyboard_get_builtin_validation_rules();
     $config = [
         'disabled_builtin_rules' => [],
@@ -3706,8 +3792,7 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
     int $wordset_id,
     array $exception_rule_keys = []
 ): array {
-    $transcription = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
-    $mode = (string) ($transcription['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     if ($recording_id <= 0 || $wordset_id <= 0 || $mode !== 'ipa') {
         return ['active' => [], 'ignored' => []];
     }
@@ -3897,6 +3982,34 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                 __('The dental diacritic should be attached to t or d in this IPA inventory.', 'll-tools-text-domain'),
                 $token
             );
+        }
+    }
+
+    if (!in_array('illegal_ipa_symbol', $disabled_builtin_rules, true)
+        && function_exists('ll_tools_get_wordset_secondary_text_illegal_symbols')
+        && function_exists('ll_tools_secondary_text_token_has_illegal_symbol')) {
+        $illegal_symbols = ll_tools_get_wordset_secondary_text_illegal_symbols($wordset_id, $mode);
+        if (!empty($illegal_symbols)) {
+            foreach ($segment_tokens as $token) {
+                $token = (string) $token;
+                $illegal_symbol = ll_tools_secondary_text_token_has_illegal_symbol($token, $illegal_symbols);
+                if ($illegal_symbol === '') {
+                    continue;
+                }
+                $add_issue(
+                    $issue_map,
+                    'builtin:illegal_ipa_symbol',
+                    'illegal_ipa_symbol',
+                    'builtin',
+                    (string) ($builtin_rules['illegal_ipa_symbol']['label'] ?? ''),
+                    sprintf(
+                        /* translators: %s is an IPA symbol. */
+                        __('This transcription contains %s, which is marked illegal for this word set.', 'll-tools-text-domain'),
+                        $illegal_symbol
+                    ),
+                    $token
+                );
+            }
         }
     }
 
@@ -4920,6 +5033,7 @@ function ll_tools_ipa_keyboard_update_recording_fields(
         'recording_ipa' => $recording_ipa,
         'recording' => $recording_payload,
         'keyboard_symbols' => ll_tools_ipa_keyboard_get_keyboard_symbols($wordset_id, $transcription_mode),
+        'transcription' => ll_tools_ipa_keyboard_get_transcription_config($wordset_id),
         'previous_symbols' => array_keys($previous_symbol_counts),
         'previous_symbol_counts' => $previous_symbol_counts,
         'symbols' => array_keys($symbol_counts),
@@ -5542,6 +5656,51 @@ function ll_tools_approve_ipa_keyboard_symbol_mapping_handler() {
     ]);
 }
 
+add_action('wp_ajax_ll_tools_flag_ipa_keyboard_illegal_symbol', 'll_tools_flag_ipa_keyboard_illegal_symbol_handler');
+function ll_tools_flag_ipa_keyboard_illegal_symbol_handler() {
+    check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+    }
+
+    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
+    }
+
+    $transcription = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
+    $mode = (string) ($transcription['mode'] ?? 'ipa');
+    if ($mode !== 'ipa') {
+        wp_send_json_error(__('Rules unavailable', 'll-tools-text-domain'), 400);
+    }
+
+    $raw_symbol = isset($_POST['symbol']) ? (string) wp_unslash($_POST['symbol']) : '';
+    $symbol = function_exists('ll_tools_sanitize_secondary_text_keyboard_symbol')
+        ? ll_tools_sanitize_secondary_text_keyboard_symbol($raw_symbol, $mode)
+        : ll_tools_ipa_keyboard_normalize_ipa_token($raw_symbol, $mode);
+    if ($symbol === '') {
+        wp_send_json_error(__('Invalid symbol', 'll-tools-text-domain'), 400);
+    }
+
+    $illegal_symbols = function_exists('ll_tools_add_wordset_secondary_text_illegal_symbol')
+        ? ll_tools_add_wordset_secondary_text_illegal_symbol($wordset_id, $symbol, $mode)
+        : [];
+    if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
+        ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
+    }
+    $rescanned_count = ll_tools_ipa_keyboard_rescan_wordset_validations($wordset_id);
+    ll_tools_ipa_keyboard_remember_wordset($wordset_id);
+
+    wp_send_json_success([
+        'symbol' => $symbol,
+        'illegal_symbols' => array_values((array) $illegal_symbols),
+        'rescanned_count' => $rescanned_count,
+        'transcription' => ll_tools_ipa_keyboard_get_transcription_config($wordset_id),
+        'validation_config' => ll_tools_ipa_keyboard_build_validation_config_payload($wordset_id),
+    ]);
+}
+
 add_action('wp_ajax_ll_tools_confirm_ipa_keyboard_transcription_review', 'll_tools_set_ipa_keyboard_transcription_review_state_handler');
 add_action('wp_ajax_ll_tools_set_ipa_keyboard_transcription_review_state', 'll_tools_set_ipa_keyboard_transcription_review_state_handler');
 function ll_tools_set_ipa_keyboard_transcription_review_state_handler() {
@@ -5583,6 +5742,9 @@ function ll_tools_set_ipa_keyboard_transcription_review_state_handler() {
     }
 
     ll_tools_ipa_keyboard_set_recording_review_state($recording_id, $needs_review, $review_field, $review_note);
+    if ($review_field === 'recording_ipa' && function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
+        ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
+    }
     $word_display = ll_tools_ipa_keyboard_get_word_display_map([$word_id]);
     $payload = ll_tools_ipa_keyboard_build_search_row_payload(
         $recording_id,
@@ -5593,6 +5755,7 @@ function ll_tools_set_ipa_keyboard_transcription_review_state_handler() {
 
     wp_send_json_success([
         'recording' => $payload,
+        'transcription' => ll_tools_ipa_keyboard_get_transcription_config($wordset_id),
     ]);
 }
 

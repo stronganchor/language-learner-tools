@@ -67,7 +67,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $data = (array) ($response['data'] ?? []);
         $this->assertSame($recording_id, (int) ($data['recording_id'] ?? 0));
         $this->assertSame('ʒ', (string) ($data['recording_ipa'] ?? ''));
-        $this->assertSame(['ʒ'], array_values((array) ($data['keyboard_symbols'] ?? [])));
+        $this->assertSame([], array_values((array) ($data['keyboard_symbols'] ?? [])));
         $this->assertSame(['ʃ'], array_values((array) ($data['previous_symbols'] ?? [])));
         $this->assertSame(['ʒ'], array_values((array) ($data['symbols'] ?? [])));
         $this->assertSame(2, (int) (($data['previous_symbol_counts']['ʃ'] ?? 0)));
@@ -93,7 +93,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertNotSame('', (string) ($recording['word_edit_link'] ?? ''));
         $this->assertTrue(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
 
-        $this->assertSame(['ʒ'], ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id));
+        $this->assertSame([], ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id));
 
         $_POST = [
             'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
@@ -163,7 +163,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             $this->assertSame(3, (int) ($data['page_start'] ?? 0));
             $this->assertSame(4, (int) ($data['page_end'] ?? 0));
             $this->assertTrue((bool) ($data['has_more'] ?? false));
-            $this->assertSame(['ɬ'], array_values((array) (($data['transcription'] ?? [])['keyboard_symbols'] ?? [])));
+            $this->assertSame([], array_values((array) (($data['transcription'] ?? [])['keyboard_symbols'] ?? [])));
 
             $results = array_values((array) ($data['results'] ?? []));
             $this->assertCount(2, $results);
@@ -277,6 +277,52 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
 
         $this->assertContains('dental_diacritic_context', $codes);
         $this->assertContains('unapproved_ipa_symbol', $codes);
+    }
+
+    public function test_flag_illegal_symbol_adds_validation_issue_and_removes_keyboard_symbol(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Illegal IPA Symbol Wordset');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Illegal IPA',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Illegal IPA Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_ipa', 'ʃa');
+
+        $this->assertContains('ʃ', ll_tools_ipa_keyboard_get_keyboard_symbols($wordset_id, 'ipa'));
+
+        wp_set_current_user($user_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'symbol' => 'ʃ',
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_flag_ipa_keyboard_illegal_symbol_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = (array) ($response['data'] ?? []);
+        $this->assertContains('ʃ', (array) ($data['illegal_symbols'] ?? []));
+        $this->assertNotContains('ʃ', (array) (($data['transcription'] ?? [])['keyboard_symbols'] ?? []));
+
+        $state = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($state['active'] ?? []));
+
+        $this->assertContains('illegal_ipa_symbol', $codes);
     }
 
     public function test_approve_symbol_mapping_adds_wordset_approval_and_orthography_rule(): void

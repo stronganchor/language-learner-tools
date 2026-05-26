@@ -98,8 +98,69 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
     };
 
     window.__llTranscriptionKeyboardMock = {
+      illegalSymbols: [],
       postCalls: []
     };
+
+    function buildTranscription() {
+      const illegal = window.__llTranscriptionKeyboardMock.illegalSymbols.slice();
+      const filterSymbols = (symbols) => symbols.filter((symbol) => !illegal.some((entry) => symbol.includes(entry)));
+
+      return {
+        mode: 'ipa',
+        symbols_column_label: 'Pronunciation',
+        common_chars: [],
+        common_chars_label: '',
+        modifier_chars: ['ʰ', 'ʲ', 'ʷ', 'ː', '\u0325', '\u032A', '\u0306', '\u0361'],
+        modifier_chars_label: 'Diacritics and signs',
+        wordset_chars_label: 'Wordset symbols',
+        keyboard_symbols: filterSymbols(['qʰ', 'dʲ', 'tʷ', 'aː', 't͡ʃ', 'ɛ', 'ʃ', 'ɬ', 'ʔ']),
+        keyboard_groups: [
+          {
+            key: 'signs',
+            label: 'Diacritics and signs',
+            symbols: filterSymbols(['ʰ', 'ʲ', 'ʷ', 'ː', '\u0325', '\u032A', '\u0306', '\u0361', 'ʔ'])
+          },
+          {
+            key: 'affricates',
+            label: 'Affricates and tie bars',
+            symbols: filterSymbols(['t͡ʃ'])
+          },
+          {
+            key: 'vowels',
+            label: 'Vowels',
+            symbols: filterSymbols(['ɛ'])
+          },
+          {
+            key: 'consonants',
+            label: 'Consonants',
+            symbols: filterSymbols(['ʃ'])
+          },
+          {
+            key: 'rare',
+            label: 'Rare symbols',
+            symbols: filterSymbols(['ɬ'])
+          }
+        ],
+        symbol_details: {
+          'ʰ': { display: 'ʰ', label: 'aspiration modifier' },
+          'ʲ': { display: 'ʲ', label: 'palatalization modifier' },
+          'ʷ': { display: 'ʷ', label: 'labialization modifier' },
+          'ː': { display: 'ː', label: 'long sound marker' },
+          '\u0325': { display: '◌\u0325', label: 'devoicing diacritic' },
+          '\u032A': { display: '◌\u032A', label: 'dental diacritic' },
+          '\u0306': { display: '◌\u0306', label: 'extra-short diacritic' },
+          '\u0361': { display: '◌\u0361◌', label: 'tie bar' },
+          't͡ʃ': { display: 't͡ʃ', label: 'voiceless postalveolar affricate' },
+          'ɛ': { display: 'ɛ', label: 'open-mid front unrounded vowel' },
+          'ʃ': { display: 'ʃ', label: 'voiceless postalveolar fricative' },
+          'ɬ': { display: 'ɬ', label: 'voiceless alveolar lateral fricative' },
+          'ʔ': { display: 'ʔ', label: 'glottal stop' }
+        },
+        illegal_symbols: window.__llTranscriptionKeyboardMock.illegalSymbols.slice(),
+        keyboard_aria_label: 'IPA symbols'
+      };
+    }
 
     const $ = window.jQuery;
     $.post = function (url, data) {
@@ -119,17 +180,7 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
                 id: 7,
                 name: 'IPA Wordset'
               },
-              transcription: {
-                mode: 'ipa',
-                symbols_column_label: 'Pronunciation',
-                common_chars: ['ʃ'],
-                common_chars_label: 'Common IPA symbols',
-                modifier_chars: ['ʰ', 'ʲ', 'ʷ', 'ː'],
-                modifier_chars_label: 'Modifiers',
-                wordset_chars_label: 'Wordset IPA symbols',
-                keyboard_symbols: ['qʰ', 'dʲ', 'tʷ', 'aː', 'ɬ'],
-                keyboard_aria_label: 'IPA symbols'
-              },
+              transcription: buildTranscription(),
               results: [clone(baseRecording)],
               total_matches: 1,
               shown_count: 1,
@@ -143,6 +194,28 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
               review_only: false,
               exact_transcription: false,
               can_edit: true,
+              validation_config: {
+                supports_rules: true,
+                builtin_rules: [],
+                custom_rules: []
+              }
+            }
+          });
+          return;
+        }
+
+        if (requestData.action === 'll_tools_flag_ipa_keyboard_illegal_symbol') {
+          const symbol = String(requestData.symbol || '');
+          if (symbol && !window.__llTranscriptionKeyboardMock.illegalSymbols.includes(symbol)) {
+            window.__llTranscriptionKeyboardMock.illegalSymbols.push(symbol);
+          }
+          deferred.resolve({
+            success: true,
+            data: {
+              symbol,
+              illegal_symbols: window.__llTranscriptionKeyboardMock.illegalSymbols.slice(),
+              rescanned_count: 1,
+              transcription: buildTranscription(),
               validation_config: {
                 supports_rules: true,
                 builtin_rules: [],
@@ -167,19 +240,40 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
 
   await ipaInput.click();
   await expect(page.locator('[data-ll-ipa-inline-keyboard]')).toHaveCount(1);
-  await expect(page.locator('.ll-ipa-inline-keyboard-label').first()).toHaveText('Modifiers');
+  await expect(page.locator('.ll-ipa-inline-keyboard-label').first()).toHaveText('Diacritics and signs');
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʲ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʷ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ː"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[title="devoicing diacritic"]')).toHaveText('◌\u0325');
+  await expect(page.locator('.ll-ipa-inline-key[title="dental diacritic"]')).toHaveText('◌\u032A');
+  await expect(page.locator('.ll-ipa-inline-key[title="extra-short diacritic"]')).toHaveText('◌\u0306');
+  await expect(page.locator('.ll-ipa-inline-key[title="tie bar"]')).toHaveText('◌\u0361◌');
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʔ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Common IPA symbols' })).toHaveCount(0);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Affricates and tie bars' })).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Vowels' })).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Consonants' })).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Rare symbols' })).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="qʰ"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="dʲ"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="tʷ"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="aː"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ɬ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="t͡ʃ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ɛ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʃ"]')).toHaveAttribute('title', 'voiceless postalveolar fricative');
 
   await page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]').click();
   await expect(ipaInput).toHaveValue('teʰ');
+
+  page.once('dialog', async (dialog) => {
+    await dialog.accept();
+  });
+  await page.locator('.ll-ipa-inline-key[data-ipa-char="ʃ"]').click({ button: 'right' });
+  await expect(page.locator('.ll-ipa-symbol-menu-action')).toHaveText('Flag as illegal symbol');
+  await page.locator('.ll-ipa-symbol-menu-action').click();
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Symbol marked illegal and checks rescanned.');
 
   const actions = await page.evaluate(() => {
     return window.__llTranscriptionKeyboardMock.postCalls.map(function (call) {
@@ -188,6 +282,8 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
   });
 
   expect(actions).toEqual([
+    'll_tools_search_ipa_keyboard_recordings',
+    'll_tools_flag_ipa_keyboard_illegal_symbol',
     'll_tools_search_ipa_keyboard_recordings'
   ]);
 });

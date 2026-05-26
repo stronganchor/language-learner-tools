@@ -36,6 +36,13 @@
     const secondaryTextModifierChars = secondaryTextMode === 'ipa'
         ? (Array.isArray(cfg.secondaryTextModifierChars) && cfg.secondaryTextModifierChars.length ? cfg.secondaryTextModifierChars.slice() : ['ʰ', 'ʲ', 'ʷ', 'ː'])
         : [];
+    const secondaryTextCompactModifierChars = secondaryTextModifierChars.filter(function (ch) {
+        return ch !== '\u0361';
+    });
+    const secondaryTextKeyboardGroups = Array.isArray(cfg.secondaryTextKeyboardGroups) ? cfg.secondaryTextKeyboardGroups.slice() : [];
+    const secondaryTextSymbolDetails = (cfg.secondaryTextSymbolDetails && typeof cfg.secondaryTextSymbolDetails === 'object')
+        ? cfg.secondaryTextSymbolDetails
+        : {};
     const secondaryTextUsesIpaFont = !!cfg.secondaryTextUsesIpaFont;
     const secondaryTextSupportsSuperscript = !!cfg.secondaryTextSupportsSuperscript && secondaryTextMode === 'ipa';
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
@@ -1810,11 +1817,11 @@
         moveRecordingError: editI18n.moveRecordingError || 'Unable to move recording.',
         selectMoveTarget: editI18n.selectMoveTarget || 'Choose a target word.',
         noMatchingWords: editI18n.noMatchingWords || 'No matching words.',
-        ipaCommon: editI18n.ipaCommon || 'Common IPA symbols',
-        ipaModifiers: editI18n.ipaModifiers || 'Modifiers',
-        ipaWordset: editI18n.ipaWordset || 'Wordset IPA symbols',
+        ipaCommon: editI18n.ipaCommon || '',
+        ipaModifiers: editI18n.ipaModifiers || 'Diacritics and signs',
+        ipaWordset: editI18n.ipaWordset || 'Wordset symbols',
         secondaryTextCommon: editI18n.secondaryTextCommon || editI18n.ipaCommon || 'Common symbols',
-        secondaryTextModifiers: editI18n.secondaryTextModifiers || editI18n.ipaModifiers || 'Modifiers',
+        secondaryTextModifiers: editI18n.secondaryTextModifiers || editI18n.ipaModifiers || 'Diacritics and signs',
         secondaryTextWordset: editI18n.secondaryTextWordset || editI18n.ipaWordset || 'Wordset symbols'
     };
     const lessonEditTargetLufs = -18.0;
@@ -5168,7 +5175,7 @@
         if (secondaryTextMode !== 'ipa') { return false; }
         const text = (symbol || '').toString().trim();
         if (!text) { return false; }
-        return secondaryTextModifierChars.some(function (modifier) {
+        return secondaryTextCompactModifierChars.some(function (modifier) {
             return modifier && text !== modifier && text.indexOf(modifier) !== -1;
         });
     }
@@ -5184,6 +5191,38 @@
             compact.push(text);
         });
         return compact;
+    }
+
+    function normalizeSecondaryTextKeyboardGroups(groups, skipSet) {
+        const list = [];
+        (Array.isArray(groups) ? groups : []).forEach(function (group) {
+            const seen = new Set();
+            const symbols = [];
+            (Array.isArray(group && group.symbols) ? group.symbols : []).forEach(function (ch) {
+                const text = (ch || '').toString().trim();
+                if (!text || seen.has(text) || (skipSet && skipSet.has(text))) { return; }
+                seen.add(text);
+                symbols.push(text);
+            });
+            if (!symbols.length) { return; }
+            list.push({
+                key: (group && group.key ? String(group.key) : '').trim(),
+                label: (group && group.label ? String(group.label) : '').trim(),
+                symbols: symbols
+            });
+        });
+        return list;
+    }
+
+    function getSecondaryTextSymbolDetail(symbol) {
+        const text = (symbol == null ? '' : String(symbol)).trim();
+        const detail = text && Object.prototype.hasOwnProperty.call(secondaryTextSymbolDetails, text) && secondaryTextSymbolDetails[text] && typeof secondaryTextSymbolDetails[text] === 'object'
+            ? secondaryTextSymbolDetails[text]
+            : {};
+        return {
+            display: (detail.display == null || String(detail.display) === '') ? text : String(detail.display),
+            label: (detail.label == null || String(detail.label) === '') ? text : String(detail.label)
+        };
     }
 
     function mergeIpaSpecialChars(newChars) {
@@ -5870,20 +5909,35 @@
     function appendIpaKeyboardRow($keyboard, chars, label, extraClass) {
         const rowChars = Array.isArray(chars) ? chars : [];
         if (!rowChars.length) { return 0; }
+        const $group = $('<div>', {
+            class: 'll-word-edit-ipa-keyboard-group' + (extraClass ? ' ' + extraClass.replace(/row/g, 'group') : ''),
+            'aria-label': label || ''
+        });
+        if (label) {
+            $('<div>', {
+                class: 'll-word-edit-ipa-keyboard-label',
+                text: label
+            }).appendTo($group);
+        }
         const $row = $('<div>', {
             class: 'll-word-edit-ipa-keyboard-row' + (extraClass ? ' ' + extraClass : ''),
             'aria-label': label || ''
         });
         rowChars.forEach(function (ch) {
+            const detail = getSecondaryTextSymbolDetail(ch);
+            const display = detail.display || ch;
+            const title = detail.label || ch;
             $('<button>', {
                 type: 'button',
                 class: 'll-word-ipa-key',
-                text: ch,
+                text: display,
                 'data-ipa-char': ch,
-                'aria-label': ch
+                'aria-label': title && title !== display ? (display + ': ' + title) : display,
+                title: title
             }).appendTo($row);
         });
-        $row.appendTo($keyboard);
+        $row.appendTo($group);
+        $group.appendTo($keyboard);
         return rowChars.length;
     }
 
@@ -5891,10 +5945,26 @@
         if (!$keyboard || !$keyboard.length) { return 0; }
         $keyboard.empty();
 
+        const skipSet = new Set(Array.isArray(skipChars) ? skipChars : []);
+        const configuredGroups = normalizeSecondaryTextKeyboardGroups(secondaryTextKeyboardGroups, skipSet);
+        if (configuredGroups.length) {
+            let configuredTotal = 0;
+            configuredGroups.forEach(function (group) {
+                configuredTotal += appendIpaKeyboardRow(
+                    $keyboard,
+                    group.symbols,
+                    group.label,
+                    group.key ? ('ll-word-edit-ipa-keyboard-row--' + group.key) : ''
+                );
+            });
+            if (configuredTotal) {
+                return configuredTotal;
+            }
+        }
+
         const common = [];
         const wordset = [];
         const seen = new Set();
-        const skipSet = new Set(Array.isArray(skipChars) ? skipChars : []);
         const modifierSet = new Set(secondaryTextModifierChars);
         const pushUnique = function (target, ch) {
             const text = (ch || '').toString().trim();
@@ -5922,7 +5992,7 @@
             return 0;
         }
 
-        appendIpaKeyboardRow($keyboard, modifierChars, editMessages.secondaryTextModifiers || editMessages.ipaModifiers || 'Modifiers', 'll-word-edit-ipa-keyboard-row--modifiers');
+        appendIpaKeyboardRow($keyboard, modifierChars, editMessages.secondaryTextModifiers || editMessages.ipaModifiers || 'Diacritics and signs', 'll-word-edit-ipa-keyboard-row--modifiers');
         appendIpaKeyboardRow($keyboard, sortedCommon, editMessages.secondaryTextCommon || editMessages.ipaCommon || 'Common', 'll-word-edit-ipa-keyboard-row--common');
         appendIpaKeyboardRow($keyboard, sortedWordset, editMessages.secondaryTextWordset || editMessages.ipaWordset || 'Wordset', 'll-word-edit-ipa-keyboard-row--wordset');
 

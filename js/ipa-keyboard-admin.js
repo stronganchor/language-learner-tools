@@ -62,6 +62,7 @@
     let currentKeyboardSymbols = [];
     let activeIpaKeyboardInput = null;
     let $activeIpaKeyboard = $();
+    let $activeIpaSymbolMenu = $();
     let suppressSearchBlurSave = false;
 
     function t(key, fallback) {
@@ -147,6 +148,9 @@
             modifier_chars_label: '',
             wordset_chars_label: '',
             keyboard_symbols: [],
+            keyboard_groups: [],
+            symbol_details: {},
+            illegal_symbols: [],
             keyboard_aria_label: '',
             special_chars_heading: ($symbolsHeading.text() || '').toString().trim(),
             special_chars_description: ($symbolsDescription.text() || '').toString().trim(),
@@ -177,9 +181,15 @@
         }
         let modifiers = uniqueStringList(transcription.modifier_chars);
         if (!modifiers.length) {
-            modifiers = ['ʰ', 'ʲ', 'ʷ', 'ː'];
+            modifiers = ['ʰ', 'ʲ', 'ʷ', 'ː', '\u0325', '\u032A', '\u0306', '\u0361'];
         }
         return modifiers;
+    }
+
+    function getCompactingModifierChars(modifiers) {
+        return (Array.isArray(modifiers) ? modifiers : []).filter(function (modifier) {
+            return modifier !== '\u0361';
+        });
     }
 
     function symbolUsesCompactModifier(symbol, modifiers) {
@@ -203,6 +213,43 @@
         return compact;
     }
 
+    function normalizeKeyboardGroups(groups) {
+        const list = [];
+        (Array.isArray(groups) ? groups : []).forEach(function (group) {
+            const symbols = uniqueStringList(group && group.symbols ? group.symbols : []);
+            if (!symbols.length) {
+                return;
+            }
+            list.push({
+                key: (group && group.key ? String(group.key) : '').trim(),
+                label: (group && group.label ? String(group.label) : '').trim(),
+                symbols: symbols
+            });
+        });
+        return list;
+    }
+
+    function getSymbolDetail(symbol) {
+        const text = (symbol == null ? '' : String(symbol)).trim();
+        const transcription = getTranscription();
+        const details = transcription && transcription.symbol_details && typeof transcription.symbol_details === 'object'
+            ? transcription.symbol_details
+            : {};
+        const detail = text && Object.prototype.hasOwnProperty.call(details, text) && details[text] && typeof details[text] === 'object'
+            ? details[text]
+            : {};
+
+        return {
+            display: (detail.display == null || String(detail.display) === '') ? text : String(detail.display),
+            label: (detail.label == null || String(detail.label) === '') ? text : String(detail.label)
+        };
+    }
+
+    function getSymbolMenuLabel(symbol) {
+        const detail = getSymbolDetail(symbol);
+        return detail.display || symbol;
+    }
+
     function canShowIpaKeyboard() {
         const transcription = getTranscription();
         return !!currentCanEdit
@@ -212,6 +259,7 @@
     }
 
     function hideIpaKeyboard() {
+        hideIpaSymbolContextMenu();
         if ($activeIpaKeyboard.length) {
             $activeIpaKeyboard.remove();
         }
@@ -248,11 +296,17 @@
 
     function getIpaKeyboardGroups() {
         const transcription = getTranscription();
+        const configuredGroups = normalizeKeyboardGroups(transcription.keyboard_groups);
+        if (configuredGroups.length) {
+            return configuredGroups;
+        }
+
         const modifiers = getCompactModifierChars();
-        const common = compactKeyboardSymbols(transcription.common_chars, modifiers).filter(function (symbol) {
+        const compactingModifiers = getCompactingModifierChars(modifiers);
+        const common = compactKeyboardSymbols(transcription.common_chars, compactingModifiers).filter(function (symbol) {
             return modifiers.indexOf(symbol) === -1;
         });
-        const wordset = compactKeyboardSymbols(currentKeyboardSymbols, modifiers).filter(function (symbol) {
+        const wordset = compactKeyboardSymbols(currentKeyboardSymbols, compactingModifiers).filter(function (symbol) {
             return modifiers.indexOf(symbol) === -1 && common.indexOf(symbol) === -1;
         });
         const groups = [];
@@ -282,12 +336,17 @@
     }
 
     function buildIpaKeyboardKey(symbol) {
+        const detail = getSymbolDetail(symbol);
+        const display = detail.display || symbol;
+        const label = detail.label || symbol;
+        const ariaLabel = label && label !== display ? (display + ': ' + label) : display;
         return $('<button>', {
             type: 'button',
             class: 'll-ipa-inline-key',
-            text: symbol,
+            text: display,
             'data-ipa-char': symbol,
-            'aria-label': symbol
+            'aria-label': ariaLabel,
+            title: label
         });
     }
 
@@ -363,11 +422,105 @@
         $(input).trigger('input');
     }
 
+    function hideIpaSymbolContextMenu() {
+        if ($activeIpaSymbolMenu.length) {
+            $activeIpaSymbolMenu.remove();
+        }
+        $activeIpaSymbolMenu = $();
+    }
+
+    function showIpaSymbolContextMenu($key, event) {
+        const symbol = ($key.attr('data-ipa-char') || '').toString();
+        if (!symbol || !currentCanEdit || !currentWordsetId) {
+            return;
+        }
+
+        hideIpaSymbolContextMenu();
+        const label = getSymbolMenuLabel(symbol);
+        const $button = $('<button>', {
+            type: 'button',
+            class: 'll-ipa-symbol-menu-action',
+            text: t('keyboardFlagIllegal', 'Flag as illegal symbol'),
+            'data-ipa-char': symbol,
+            role: 'menuitem'
+        });
+        $activeIpaSymbolMenu = $('<div>', {
+            class: 'll-ipa-symbol-menu',
+            role: 'menu',
+            'aria-label': label
+        }).append($button);
+        $('body').append($activeIpaSymbolMenu);
+
+        const menu = $activeIpaSymbolMenu.get(0);
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || 0;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+        const width = menu ? menu.offsetWidth : 180;
+        const height = menu ? menu.offsetHeight : 44;
+        const keyOffset = $key.offset() || { left: scrollLeft, top: scrollTop };
+        let left = event && typeof event.pageX === 'number' ? event.pageX : (keyOffset.left || scrollLeft);
+        let top = event && typeof event.pageY === 'number' ? event.pageY : ((keyOffset.top || scrollTop) + $key.outerHeight());
+
+        if (viewportWidth && left + width > scrollLeft + viewportWidth - 8) {
+            left = Math.max(scrollLeft + 8, scrollLeft + viewportWidth - width - 8);
+        }
+        if (viewportHeight && top + height > scrollTop + viewportHeight - 8) {
+            top = Math.max(scrollTop + 8, scrollTop + viewportHeight - height - 8);
+        }
+
+        $activeIpaSymbolMenu.css({ left: left + 'px', top: top + 'px' });
+        $button.trigger('focus');
+    }
+
+    function flagIpaKeyboardSymbolIllegal(symbol) {
+        symbol = (symbol == null ? '' : String(symbol)).trim();
+        if (!symbol || !currentWordsetId || !currentCanEdit) {
+            return;
+        }
+
+        const label = getSymbolMenuLabel(symbol);
+        if (!window.confirm(formatText(t('keyboardFlagIllegalConfirm', 'Mark %s as illegal for this word set?'), [label]))) {
+            return;
+        }
+
+        setStatus(t('keyboardFlagIllegalSaving', 'Flagging symbol and rescanning this word set...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_flag_ipa_keyboard_illegal_symbol',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            symbol: symbol
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+
+            const data = response.data || {};
+            if (data.transcription) {
+                applyTranscriptionConfig(data.transcription);
+            }
+            markTabsDirty(['symbols', 'search', 'orthography']);
+            loadSearch(currentWordsetId, true, {
+                quietStatus: true,
+                showLoading: false,
+                successStatus: t('keyboardFlagIllegalSaved', 'Symbol marked illegal and checks rescanned.')
+            });
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    }
+
     function applyTranscriptionConfig(config) {
         currentTranscription = $.extend({}, buildDefaultTranscription(), config || {});
         currentTranscription.common_chars = uniqueStringList(currentTranscription.common_chars);
         currentTranscription.modifier_chars = uniqueStringList(currentTranscription.modifier_chars);
         currentTranscription.keyboard_symbols = uniqueStringList(currentTranscription.keyboard_symbols);
+        currentTranscription.keyboard_groups = normalizeKeyboardGroups(currentTranscription.keyboard_groups);
+        currentTranscription.symbol_details = currentTranscription.symbol_details && typeof currentTranscription.symbol_details === 'object'
+            ? currentTranscription.symbol_details
+            : {};
+        currentTranscription.illegal_symbols = uniqueStringList(currentTranscription.illegal_symbols);
         currentTranscription.supports_superscript = !!currentTranscription.supports_superscript
             && String(currentTranscription.mode || '') === 'ipa';
         applyKeyboardSymbols(currentTranscription.keyboard_symbols);
@@ -2590,7 +2743,11 @@
             setSymbolSummaryCounts($details, currentRecordingCount + recordingDelta, currentOccurrenceCount + occurrenceDelta);
         });
 
-        applyKeyboardSymbols(data && data.keyboard_symbols ? data.keyboard_symbols : currentKeyboardSymbols);
+        if (data && data.transcription) {
+            applyTranscriptionConfig(data.transcription);
+        } else {
+            applyKeyboardSymbols(data && data.keyboard_symbols ? data.keyboard_symbols : currentKeyboardSymbols);
+        }
     }
 
     function updateSearchRowValidation($row, validation) {
@@ -2711,6 +2868,9 @@
             }
 
             const data = response.data || {};
+            if (data.transcription) {
+                applyTranscriptionConfig(data.transcription);
+            }
             if (data.recording) {
                 replaceSearchRowByRecordingId(recordingId, data.recording);
             }
@@ -3213,6 +3373,7 @@
         const symbol = ($(this).attr('data-ipa-char') || '').toString();
         event.preventDefault();
         event.stopPropagation();
+        hideIpaSymbolContextMenu();
 
         if (!input || !symbol) {
             suppressSearchBlurSave = false;
@@ -3222,6 +3383,20 @@
         insertIpaKeyboardChar(input, symbol);
         input.focus();
         suppressSearchBlurSave = false;
+    });
+
+    $admin.on('contextmenu', '.ll-ipa-inline-key', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        showIpaSymbolContextMenu($(this), event);
+    });
+
+    $(document).on('click.llIpaKeyboardAdmin', '.ll-ipa-symbol-menu-action', function (event) {
+        const symbol = ($(this).attr('data-ipa-char') || '').toString();
+        event.preventDefault();
+        event.stopPropagation();
+        hideIpaSymbolContextMenu();
+        flagIpaKeyboardSymbolIllegal(symbol);
     });
 
     $searchResults.on('click', '.ll-ipa-search-page-button', function () {
@@ -3454,10 +3629,11 @@
             return;
         }
 
-        if ($(event.target).closest('[data-ll-ipa-inline-keyboard-wrap], .ll-ipa-search-ipa-input, .ll-ipa-input').length) {
+        if ($(event.target).closest('[data-ll-ipa-inline-keyboard-wrap], .ll-ipa-symbol-menu, .ll-ipa-search-ipa-input, .ll-ipa-input').length) {
             return;
         }
 
+        hideIpaSymbolContextMenu();
         hideIpaKeyboard();
     });
 
@@ -3466,6 +3642,7 @@
             return;
         }
 
+        hideIpaSymbolContextMenu();
         hideIpaKeyboard();
     });
 
