@@ -244,12 +244,13 @@ function ll_tools_interlinear_shortcode_render_cell(string $value, string $label
     return esc_html($value !== '' ? $value : '?');
 }
 
-function ll_tools_interlinear_shortcode_render_token_row(string $label, array $cells): string {
-    $html = '<tr class="ll-interlinear-shortcode__token-row ll-interlinear-shortcode__token-row--' . esc_attr(strtolower($label)) . '"><th scope="row">' . esc_html($label) . '</th><td><span class="ll-interlinear-shortcode__cells">';
-    foreach ($cells as $cell) {
-        $html .= '<span class="ll-interlinear-shortcode__cell">' . ll_tools_interlinear_shortcode_render_cell((string) $cell, $label) . '</span>';
+function ll_tools_interlinear_shortcode_render_table_row(string $label, array $cells, int $column_count): string {
+    $html = '<tr class="ll-interlinear-shortcode__token-row ll-interlinear-shortcode__token-row--' . esc_attr(strtolower($label)) . '"><th scope="row">' . esc_html($label) . '</th>';
+    for ($index = 0; $index < $column_count; $index++) {
+        $value = (string) ($cells[$index] ?? '');
+        $html .= '<td>' . ll_tools_interlinear_shortcode_render_cell($value, $label) . '</td>';
     }
-    $html .= '</span></td></tr>';
+    $html .= '</tr>';
 
     return $html;
 }
@@ -266,8 +267,8 @@ function ll_tools_interlinear_shortcode_render_sentence_html(string $sentence): 
     return esc_html($sentence);
 }
 
-function ll_tools_interlinear_shortcode_render_text_row(string $label, string $content, string $class_name, bool $allow_shortcodes = false): string {
-    $html = '<tr class="' . esc_attr($class_name) . '"><th scope="row">' . esc_html($label) . '</th><td>';
+function ll_tools_interlinear_shortcode_render_text_row(string $label, string $content, string $class_name, int $column_count, bool $allow_shortcodes = false): string {
+    $html = '<tr class="' . esc_attr($class_name) . '"><th scope="row">' . esc_html($label) . '</th><td colspan="' . esc_attr((string) max(1, $column_count)) . '">';
     $html .= $allow_shortcodes ? ll_tools_interlinear_shortcode_render_sentence_html($content) : esc_html($content);
     $html .= '</td></tr>';
 
@@ -277,6 +278,7 @@ function ll_tools_interlinear_shortcode_render_text_row(string $label, string $c
 function ll_tools_interlinear_shortcode_render_table(array $parsed): string {
     $rows = is_array($parsed['rows'] ?? null) ? $parsed['rows'] : [];
     $row_order = ll_tools_interlinear_shortcode_row_order($rows);
+    $column_count = max(1, (int) ($parsed['column_count'] ?? 0));
     if (empty($row_order)) {
         return '';
     }
@@ -286,13 +288,13 @@ function ll_tools_interlinear_shortcode_render_table(array $parsed): string {
 
     $html = '<div class="ll-interlinear-grid"><table class="ll-interlinear-table"><tbody>';
     if ($sentence !== '') {
-        $html .= ll_tools_interlinear_shortcode_render_text_row(__('Sentence', 'll-tools-text-domain'), $sentence, 'll-interlinear-shortcode__sentence', true);
+        $html .= ll_tools_interlinear_shortcode_render_text_row(__('Sentence', 'll-tools-text-domain'), $sentence, 'll-interlinear-shortcode__sentence', $column_count, true);
     }
     foreach ($row_order as $label) {
-        $html .= ll_tools_interlinear_shortcode_render_token_row($label, (array) $rows[$label]);
+        $html .= ll_tools_interlinear_shortcode_render_table_row($label, (array) $rows[$label], $column_count);
     }
     if ($free_translation !== '') {
-        $html .= ll_tools_interlinear_shortcode_render_text_row(__('Free translation', 'll-tools-text-domain'), $free_translation, 'll-interlinear-shortcode__free-translation');
+        $html .= ll_tools_interlinear_shortcode_render_text_row(__('Free translation', 'll-tools-text-domain'), $free_translation, 'll-interlinear-shortcode__free-translation', $column_count);
     }
     $html .= '</tbody></table></div>';
 

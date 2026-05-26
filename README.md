@@ -209,7 +209,7 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
   - `show_text`: `1|0`; defaults to `1`.
   - `translation` / `free_translation` / `free`: optional free translation rendered as a final row.
   - `class`: optional extra wrapper class.
-- **Content format**: one row per line, using `|` or tabs. The first cell is the row label; supported labels are `SENTENCE`/`TEXT`, `FORM`/`WORD`, `MORPH`, `LEMMA`, `GLOSS`, `POS`, and `FREE`/`FREE_TRANSLATION`. `SENTENCE`/`TEXT` and `FREE`/`FREE_TRANSLATION` split only on the first separator and render as a single content cell; analysis rows render as flexible token cells.
+- **Content format**: one row per line, using `|` or tabs. The first cell is the row label; supported labels are `SENTENCE`/`TEXT`, `FORM`/`WORD`, `MORPH`, `LEMMA`, `GLOSS`, `POS`, and `FREE`/`FREE_TRANSLATION`. `SENTENCE`/`TEXT` and `FREE`/`FREE_TRANSLATION` split only on the first separator and render as a single content cell; analysis rows render as aligned table columns.
 
 ```text
 [ll_interlinear]

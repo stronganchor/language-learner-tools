@@ -47,11 +47,10 @@ final class InterlinearShortcodeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('class="ll-interlinear-shortcode__sentence"', $output);
         $this->assertStringContainsString('<span class="test-audio">Lac qicik | example</span>', $output);
         $this->assertStringContainsString('<th scope="row">MORPH</th>', $output);
-        $this->assertStringContainsString('class="ll-interlinear-shortcode__cell"', $output);
         $this->assertStringContainsString('∅', $output);
         $this->assertStringContainsString('<th scope="row">Free translation</th>', $output);
         $this->assertStringContainsString('little boy | literally small son', $output);
-        $this->assertStringNotContainsString('colspan=', $output);
+        $this->assertStringContainsString('colspan="3"', $output);
         $this->assertStringNotContainsString('[ll_test_audio]', $output);
     }
 
