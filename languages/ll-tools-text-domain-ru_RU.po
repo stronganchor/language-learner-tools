@@ -3372,3 +3372,223 @@ msgstr "Оптимизатор изображений WebP"
 #: includes/admin/admin-dashboard-menu.php:169 includes/admin/orphan-media-admin.php:1242
 msgid "Orphaned Media"
 msgstr "Потерянные медиа"
+
+#. ll-tools-public-key: 57a627c27ac943aa41beeb341957416d1b612b29
+#: includes/login-window.php:1402
+msgid "Login"
+msgstr "Вход"
+
+#. ll-tools-public-key: 8fc1a67d5c1587c9936ab975846c813d4fe495c3
+#: includes/login-window.php:1407
+msgid "Sign-up"
+msgstr "Регистрация"
+
+#. ll-tools-public-key: 8ef8e4594ad74c054ba5937986c1b6b6b4c1819b
+#: includes/pages/wordset-pages.php:10026
+msgid "Editor Hub"
+msgstr "Центр редактора"
+
+#. ll-tools-public-key: 4e035f5cbf72e9cad4c4ec3f30f03ae2814a92d1
+#: includes/pages/wordset-pages.php:10038
+msgid "Recorder"
+msgstr "Запись"
+
+#. ll-tools-public-key: 972b97d4bb4862c9faefa4e85c375b0828409203
+#: includes/pages/wordset-pages.php:10049 includes/pages/wordset-pages.php:16596
+msgid "Classes"
+msgstr "Классы"
+
+#. ll-tools-public-key: 2d06dd8050a948d93bc2bda4221ac9b1946853c2
+#: includes/pages/wordset-pages.php:10060
+msgid "Site Tools"
+msgstr "Инструменты сайта"
+
+#. ll-tools-public-key: 69acdb2e9c5b85a27f7e9cb5f5f7c619746adcd3
+#: includes/pages/wordset-pages.php:14033
+msgid "Bundle details"
+msgstr "Сведения о пакете"
+
+#. ll-tools-public-key: 2c74dcbbeb4ee761fb19b3532104a979e4398c6d
+#: includes/pages/wordset-pages.php:14037
+msgid "App name"
+msgstr "Название приложения"
+
+#. ll-tools-public-key: 98e19e4700ba484cea5892087094e78f78362ddb
+#: includes/pages/wordset-pages.php:14047
+msgid "Used in the offline app shell and Android build metadata."
+msgstr "Используется в оболочке офлайн-приложения и метаданных сборки Android."
+
+#. ll-tools-public-key: 2c438641fc8aa46ed983512c82a915f09ac1646b
+#: includes/pages/wordset-pages.php:14052
+msgid "Android app ID suffix"
+msgstr "Суффикс ID приложения Android"
+
+#. ll-tools-public-key: cbbde343bd3e84a9d7e10e39fb3619fb85e141ab
+#: includes/pages/wordset-pages.php:14061
+msgid "Letters, numbers, underscores, and dots are allowed. The exporter sanitizes this automatically."
+msgstr "Разрешены буквы, цифры, подчеркивания и точки. Экспортер автоматически очищает это значение."
+
+#. ll-tools-public-key: 3d83cf8654396b5398b030aba64a9106d80825ce
+#: includes/pages/wordset-pages.php:14066
+msgid "Version name"
+msgstr "Название версии"
+
+#. ll-tools-public-key: 464f2b8dc586d4d9fcd01b29520e9b4f6961ef48
+#: includes/pages/wordset-pages.php:14080
+msgid "Version code"
+msgstr "Код версии"
+
+#. ll-tools-public-key: 3a0ec75428f70342fac3218a7a0d93b162fca5fe
+#: includes/pages/wordset-pages.php:14092
+msgid "Increase this integer when distributing an updated Android build."
+msgstr "Увеличивайте это целое число при распространении обновленной сборки Android."
+
+#. ll-tools-public-key: a1b790a7758198e4a59e78d697ad08f8b2f5d6ce
+#: includes/pages/wordset-pages.php:14098
+msgid "Export notes"
+msgstr "Примечания к экспорту"
+
+#. ll-tools-public-key: 818e4bc0b4ac78ea73af5a8242f46322e7122f9d
+#: includes/pages/wordset-pages.php:14100
+msgid "No site icon set"
+msgstr "Значок сайта не задан"
+
+#. ll-tools-public-key: e2de3811709ecb1384ad750984483511e0f325f3
+#: includes/pages/wordset-pages.php:14100
+msgid "Uses current site icon"
+msgstr "Используется текущий значок сайта"
+
+#. ll-tools-public-key: 2ff2f9b08ad6d1fd335c1f0dc5ad0aa55b73780f
+#: includes/pages/wordset-pages.php:14101
+msgid "Offline speaking disabled in exports"
+msgstr "Офлайн-практика произношения отключена в экспортах"
+
+#. ll-tools-public-key: 9f61bdc348c9870915626c8dedc7228df695fc4d
+#: includes/pages/wordset-pages.php:14107
+msgid "This export uses the current site icon automatically. Advanced one-off icon overrides can stay in the dashboard exporter until we migrate that piece too."
+msgstr "Этот экспорт автоматически использует текущий значок сайта. Расширенные разовые переопределения значка могут оставаться в экспортере панели управления, пока мы не перенесем и эту часть."
+
+#. ll-tools-public-key: c6d80373930c99c8591babf3c6906da97552a98a
+#: includes/pages/wordset-pages.php:14108
+msgid "No site icon is set for this site, so the Android builder keeps its default launcher icon unless you add one later."
+msgstr "Для этого сайта не задан значок, поэтому сборщик Android сохраняет стандартный значок запуска, если вы не добавите другой позже."
+
+#. ll-tools-public-key: 6d7929ab809e24fa8f1034f6122094fb440032b5
+#: includes/pages/wordset-pages.php:14112
+msgid "The offline bundle includes the standalone shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then link a site account later to sync study state and progress."
+msgstr "Офлайн-пакет включает автономную оболочку и встроенные медиа для поддерживаемых режимов викторины. Учащиеся могут продолжать пользоваться приложением локально, а позже связать учетную запись сайта, чтобы синхронизировать состояние обучения и прогресс."
+
+#. ll-tools-public-key: 485f0855e6715d80ca276342efb08fdb3591b234
+#: includes/pages/wordset-pages.php:14114
+msgid "Export Offline App"
+msgstr "Экспортировать офлайн-приложение"
+
+#. ll-tools-public-key: bba20261a8e43bdf1d3f643de19108ea13ae8896
+#: includes/pages/wordset-pages.php:15782
+msgid "Delete"
+msgstr "Удалить"
+
+#. ll-tools-public-key: 6c9ec82137a08ae8ca15498a2b28ab66716252d9
+#: includes/pages/wordset-pages.php:15783
+msgid "Delete this category and any linked vocab lesson? This cannot be undone."
+msgstr "Удалить эту категорию и все связанные уроки словаря? Это действие нельзя отменить."
+
+#. ll-tools-public-key: 5beaac066641d171f36b221f48ffe879e6af96b8
+#: includes/pages/wordset-pages.php:15784 includes/pages/wordset-pages.php:4020
+msgid "Category management for %s"
+msgstr "Управление категорией для %s"
+
+#. ll-tools-public-key: 6718dc34c21554ebfb8550d8d8429b3f9831f800
+#: includes/pages/wordset-pages.php:15962
+msgid "Use the invited email address to manage this word set."
+msgstr "Используйте приглашенный адрес электронной почты для управления этим набором слов."
+
+#. ll-tools-public-key: 6bdcc5d9893ec6896ad266e167606f9dc7796a90
+#: includes/pages/wordset-pages.php:15968 includes/pages/wordset-pages.php:15974
+msgid "Create manager account"
+msgstr "Создать учетную запись менеджера"
+
+#. ll-tools-public-key: 378e446652d17f8e0fc15f7e9de895ccc81fd5fa
+#: includes/pages/wordset-pages.php:15971
+msgid "This invite can create or connect a Word Set Manager account for this word set."
+msgstr "Это приглашение может создать или подключить учетную запись менеджера набора слов для этого набора слов."
+
+#. ll-tools-public-key: 831a3715d687ffe892b2ba0ade7ef2dc4bbfabd6
+#: includes/pages/wordset-pages.php:16488
+msgid "Sign in to open word set tools."
+msgstr "Войдите, чтобы открыть инструменты набора слов."
+
+#. ll-tools-public-key: 6ea44e419ca80d23bd47cd91a68603b920e994e2
+#: includes/pages/wordset-pages.php:16542
+msgid "Image Upload"
+msgstr "Загрузка изображений"
+
+#. ll-tools-public-key: ad0c920f5506014d6746731e5d6eb070928cf10d
+#: includes/pages/wordset-pages.php:16542
+msgid "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes."
+msgstr "Загрузите изображения и при необходимости автоматически создайте черновики слов в этом наборе слов, когда категория поддерживает викторины из изображения в текст."
+
+#. ll-tools-public-key: 01a5a6ff2d6f2168d7e42f35c7d7f60d83cbd304
+#: includes/pages/wordset-pages.php:16544
+msgid "Audio Upload"
+msgstr "Загрузка аудио"
+
+#. ll-tools-public-key: 29f5e5d66256a35f02c618df1dddd966e467aa9a
+#: includes/pages/wordset-pages.php:16544
+msgid "Bulk upload audio files and create or match draft words in this word set."
+msgstr "Массово загрузите аудиофайлы и создайте или сопоставьте черновики слов в этом наборе слов."
+
+#. ll-tools-public-key: a6505f249cf2032d7d3bd97499deee29306473cd
+#: includes/pages/wordset-pages.php:16549
+msgid "No settings tools are available for this word set right now."
+msgstr "Сейчас для этого набора слов нет доступных инструментов настроек."
+
+#. ll-tools-public-key: 3f237413b868b8571b30d7bdf3cffd3af904f704
+#: includes/pages/wordset-pages.php:16592
+msgid "Open classes"
+msgstr "Открыть классы"
+
+#. ll-tools-public-key: 22bd77d115beb237e368721890f6293004594bdf
+#: includes/pages/wordset-pages.php:16603
+msgid "Update Language Learner Tools to version %s"
+msgstr "Обновить Language Learner Tools до версии %s"
+
+#. ll-tools-public-key: ae5af4695aa6a8f0f5aae087ccbeaae87b281afa
+#: includes/pages/wordset-pages.php:16606
+msgid "Update to %s"
+msgstr "Обновить до %s"
+
+#. ll-tools-public-key: 556e309c62f15a6542735e15d5b65ae623931d58
+#: includes/pages/wordset-pages.php:16611
+msgid "Word set tools"
+msgstr "Инструменты набора слов"
+
+#. ll-tools-public-key: 7a214f513e270580c43e13f4c9b676bf2daa71f4
+#: includes/shortcodes/dictionary-shortcode.php:1294
+msgid "Open source page for %s"
+msgstr "Открыть страницу источника для %s"
+
+#. ll-tools-public-key: 3af995da2f8ca95df34c032390c370f2beeb68b7
+#: includes/login-window.php:1952
+msgid "Please choose a username."
+msgstr "Выберите имя пользователя."
+
+#. ll-tools-public-key: 1afefc466e0008ea336e8d3a2c624e6ac7d51055
+#: includes/login-window.php:1954
+msgid "That username is not valid."
+msgstr "Это имя пользователя недействительно."
+
+#. ll-tools-public-key: 3573ee2d580350073dbbd9e631db25144f47f8d1
+#: includes/login-window.php:1956
+msgid "That username is already taken."
+msgstr "Это имя пользователя уже занято."
+
+#. ll-tools-public-key: 23088d7d1d96d8912fc2a38a0006a539a5918edb
+#: includes/login-window.php:1960
+msgid "Please enter a password."
+msgstr "Введите пароль."
+
+#. ll-tools-public-key: 45a93d1c034fb61305e7ef563e05d96238019c0d
+#: includes/login-window.php:1962
+msgid "Use at least 8 characters for your password."
+msgstr "Используйте не менее 8 символов для пароля."

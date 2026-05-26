@@ -3202,3 +3202,348 @@ msgstr "WebP 이미지 최적화"
 #: includes/admin/admin-dashboard-menu.php:169 includes/admin/orphan-media-admin.php:1242
 msgid "Orphaned Media"
 msgstr "고아 미디어"
+
+#. ll-tools-public-key: 57a627c27ac943aa41beeb341957416d1b612b29
+#: includes/login-window.php:1402
+msgid "Login"
+msgstr "로그인"
+
+#. ll-tools-public-key: 8fc1a67d5c1587c9936ab975846c813d4fe495c3
+#: includes/login-window.php:1407
+msgid "Sign-up"
+msgstr "가입"
+
+#. ll-tools-public-key: 8ef8e4594ad74c054ba5937986c1b6b6b4c1819b
+#: includes/pages/wordset-pages.php:10026
+msgid "Editor Hub"
+msgstr "편집자 허브"
+
+#. ll-tools-public-key: 4e035f5cbf72e9cad4c4ec3f30f03ae2814a92d1
+#: includes/pages/wordset-pages.php:10038
+msgid "Recorder"
+msgstr "녹음기"
+
+#. ll-tools-public-key: 972b97d4bb4862c9faefa4e85c375b0828409203
+#: includes/pages/wordset-pages.php:10049 includes/pages/wordset-pages.php:16596
+msgid "Classes"
+msgstr "수업"
+
+#. ll-tools-public-key: 2d06dd8050a948d93bc2bda4221ac9b1946853c2
+#: includes/pages/wordset-pages.php:10060
+msgid "Site Tools"
+msgstr "사이트 도구"
+
+#. ll-tools-public-key: 69acdb2e9c5b85a27f7e9cb5f5f7c619746adcd3
+#: includes/pages/wordset-pages.php:14033
+msgid "Bundle details"
+msgstr "번들 세부정보"
+
+#. ll-tools-public-key: 2c74dcbbeb4ee761fb19b3532104a979e4398c6d
+#: includes/pages/wordset-pages.php:14037
+msgid "App name"
+msgstr "앱 이름"
+
+#. ll-tools-public-key: 98e19e4700ba484cea5892087094e78f78362ddb
+#: includes/pages/wordset-pages.php:14047
+msgid "Used in the offline app shell and Android build metadata."
+msgstr "오프라인 앱 셸과 Android 빌드 메타데이터에 사용됩니다."
+
+#. ll-tools-public-key: 2c438641fc8aa46ed983512c82a915f09ac1646b
+#: includes/pages/wordset-pages.php:14052
+msgid "Android app ID suffix"
+msgstr "Android 앱 ID 접미사"
+
+#. ll-tools-public-key: cbbde343bd3e84a9d7e10e39fb3619fb85e141ab
+#: includes/pages/wordset-pages.php:14061
+msgid "Letters, numbers, underscores, and dots are allowed. The exporter sanitizes this automatically."
+msgstr "문자, 숫자, 밑줄, 점을 사용할 수 있습니다. 내보내기 도구가 이를 자동으로 정리합니다."
+
+#. ll-tools-public-key: 3d83cf8654396b5398b030aba64a9106d80825ce
+#: includes/pages/wordset-pages.php:14066
+msgid "Version name"
+msgstr "버전 이름"
+
+#. ll-tools-public-key: 464f2b8dc586d4d9fcd01b29520e9b4f6961ef48
+#: includes/pages/wordset-pages.php:14080
+msgid "Version code"
+msgstr "버전 코드"
+
+#. ll-tools-public-key: 3a0ec75428f70342fac3218a7a0d93b162fca5fe
+#: includes/pages/wordset-pages.php:14092
+msgid "Increase this integer when distributing an updated Android build."
+msgstr "업데이트된 Android 빌드를 배포할 때 이 정수를 늘리세요."
+
+#. ll-tools-public-key: a1b790a7758198e4a59e78d697ad08f8b2f5d6ce
+#: includes/pages/wordset-pages.php:14098
+msgid "Export notes"
+msgstr "내보내기 참고사항"
+
+#. ll-tools-public-key: 818e4bc0b4ac78ea73af5a8242f46322e7122f9d
+#: includes/pages/wordset-pages.php:14100
+msgid "No site icon set"
+msgstr "사이트 아이콘이 설정되지 않음"
+
+#. ll-tools-public-key: e2de3811709ecb1384ad750984483511e0f325f3
+#: includes/pages/wordset-pages.php:14100
+msgid "Uses current site icon"
+msgstr "현재 사이트 아이콘 사용"
+
+#. ll-tools-public-key: 2ff2f9b08ad6d1fd335c1f0dc5ad0aa55b73780f
+#: includes/pages/wordset-pages.php:14101
+msgid "Offline speaking disabled in exports"
+msgstr "내보내기에서 오프라인 발음 연습 비활성화됨"
+
+#. ll-tools-public-key: 9f61bdc348c9870915626c8dedc7228df695fc4d
+#: includes/pages/wordset-pages.php:14107
+msgid "This export uses the current site icon automatically. Advanced one-off icon overrides can stay in the dashboard exporter until we migrate that piece too."
+msgstr "이 내보내기는 현재 사이트 아이콘을 자동으로 사용합니다. 고급 일회성 아이콘 재정의는 해당 부분을 마이그레이션할 때까지 대시보드 내보내기 도구에 남겨둘 수 있습니다."
+
+#. ll-tools-public-key: c6d80373930c99c8591babf3c6906da97552a98a
+#: includes/pages/wordset-pages.php:14108
+msgid "No site icon is set for this site, so the Android builder keeps its default launcher icon unless you add one later."
+msgstr "이 사이트에는 사이트 아이콘이 설정되어 있지 않으므로, 나중에 아이콘을 추가하지 않는 한 Android 빌더는 기본 런처 아이콘을 유지합니다."
+
+#. ll-tools-public-key: 6d7929ab809e24fa8f1034f6122094fb440032b5
+#: includes/pages/wordset-pages.php:14112
+msgid "The offline bundle includes the standalone shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then link a site account later to sync study state and progress."
+msgstr "오프라인 번들은 독립 실행형 셸과 지원되는 퀴즈 모드용 번들 미디어를 포함합니다. 학습자는 앱을 로컬에서 계속 사용한 뒤 나중에 사이트 계정을 연결해 학습 상태와 진도를 동기화할 수 있습니다."
+
+#. ll-tools-public-key: 485f0855e6715d80ca276342efb08fdb3591b234
+#: includes/pages/wordset-pages.php:14114
+msgid "Export Offline App"
+msgstr "오프라인 앱 내보내기"
+
+#. ll-tools-public-key: bba20261a8e43bdf1d3f643de19108ea13ae8896
+#: includes/pages/wordset-pages.php:15782
+msgid "Delete"
+msgstr "삭제"
+
+#. ll-tools-public-key: 6c9ec82137a08ae8ca15498a2b28ab66716252d9
+#: includes/pages/wordset-pages.php:15783
+msgid "Delete this category and any linked vocab lesson? This cannot be undone."
+msgstr "이 카테고리와 연결된 어휘 레슨을 삭제할까요? 이 작업은 되돌릴 수 없습니다."
+
+#. ll-tools-public-key: 5beaac066641d171f36b221f48ffe879e6af96b8
+#: includes/pages/wordset-pages.php:15784 includes/pages/wordset-pages.php:4020
+msgid "Category management for %s"
+msgstr "%s 카테고리 관리"
+
+#. ll-tools-public-key: 3048c2067f45e3bd4607d3e326e2685eb3f03116
+#: includes/pages/wordset-pages.php:15874
+msgid "Older"
+msgstr "이전"
+
+#. ll-tools-public-key: 7e13ef899567eb22eb7780235a0f013cd075874a
+#: includes/pages/wordset-pages.php:15875 includes/pages/wordset-pages.php:15885
+msgid "Never"
+msgstr "없음"
+
+#. ll-tools-public-key: afa4dcee87ab6f317f7d7b4a08422d8b2b901a62
+#: includes/pages/wordset-pages.php:15876
+msgid "Sort ascending"
+msgstr "오름차순 정렬"
+
+#. ll-tools-public-key: 00933294dd9d3017a3ec6476ce95e22b777908a3
+#: includes/pages/wordset-pages.php:15877
+msgid "Sort descending"
+msgstr "내림차순 정렬"
+
+#. ll-tools-public-key: a4a7a8179b7883002dac0b5b7d762591eed147af
+#: includes/pages/wordset-pages.php:15880
+msgid "Select all: %1$s"
+msgstr "모두 선택: %1$s"
+
+#. ll-tools-public-key: c7f1f9b77d64192193b6765c1d51d74e4fb2efc1
+#: includes/pages/wordset-pages.php:15881
+msgid "Deselect all: %1$s"
+msgstr "모두 선택 해제: %1$s"
+
+#. ll-tools-public-key: ac93762e1f7ab50d8471886bf4fc149772e7223f
+#: includes/pages/wordset-pages.php:15882
+msgid "Filtered words"
+msgstr "필터링된 단어"
+
+#. ll-tools-public-key: 417cec394f78d4a4a43a29fe96e76b1f52be9f68
+#: includes/pages/wordset-pages.php:15886
+msgid "%1$d rounds, %2$d words"
+msgstr "%1$d라운드, %2$d단어"
+
+#. ll-tools-public-key: 87a57388fac29569f9f84d4bafdabcbba2349bc5
+#: includes/pages/wordset-pages.php:15889
+msgid "%d tracked words"
+msgstr "%d개 추적 단어"
+
+#. ll-tools-public-key: 493644d938c0f5cbc2ddc7b9d48db472ac4293fa
+#: includes/pages/wordset-pages.php:15890
+msgid "Tracked"
+msgstr "추적됨"
+
+#. ll-tools-public-key: e5d873243afb1aace7665a0d7e7cfd9353ba9940
+#: includes/pages/wordset-pages.php:15891
+msgid "Not started"
+msgstr "시작 전"
+
+#. ll-tools-public-key: a83e932803addad46d1ef41c5671bc0a52567216
+#: includes/pages/wordset-pages.php:15895
+msgid "Last practiced"
+msgstr "마지막 연습"
+
+#. ll-tools-public-key: b93dd89c9ca1b022ab71a1fc0404006fc3247b41
+#: includes/pages/wordset-pages.php:15898
+msgid "Level"
+msgstr "레벨"
+
+#. ll-tools-public-key: 6bd985e6a5489d3ca298eca5475d584d1f300bae
+#: includes/pages/wordset-pages.php:15899
+msgid "Show gender progress in the tables"
+msgstr "표에 문법 성 진도 표시"
+
+#. ll-tools-public-key: e86d2a40a18a8912053dddc36aa0f0a52a6a5f6c
+#: includes/pages/wordset-pages.php:15900
+msgid "Show general progress in the tables"
+msgstr "표에 일반 진도 표시"
+
+#. ll-tools-public-key: b8b62aa9fbb0db360c75d549314d4ff22bc0f1b0
+#: includes/pages/wordset-pages.php:15901
+msgid "Filter gender"
+msgstr "문법 성 필터"
+
+#. ll-tools-public-key: 5689de32060ba9199abd0e3b01e4b538cd64a967
+#: includes/pages/wordset-pages.php:15902
+msgid "Filter level"
+msgstr "레벨 필터"
+
+#. ll-tools-public-key: dae78723568029968ec4b6c3404afa1aed50bca3
+#: includes/pages/wordset-pages.php:15910
+msgid "Load more"
+msgstr "더 불러오기"
+
+#. ll-tools-public-key: 7f85c47dc549719b87d18d96935a3659a8416d8f
+#: includes/pages/wordset-pages.php:15911
+msgid "Loading more cards..."
+msgstr "카드를 더 불러오는 중..."
+
+#. ll-tools-public-key: 520743d791588be910a4d405712d40f72c6f0a92
+#: includes/pages/wordset-pages.php:15912
+msgid "Could not load more cards right now."
+msgstr "지금은 카드를 더 불러올 수 없습니다."
+
+#. ll-tools-public-key: c5e95a6a323633b27083c69d123e3be87cefae0d
+#: includes/pages/wordset-pages.php:15913
+msgid "Saving..."
+msgstr "저장 중..."
+
+#. ll-tools-public-key: f5a83117446c0c03f9a93ba8f9784cd0e1cda477
+#: includes/pages/wordset-pages.php:15914
+msgid "Saved!"
+msgstr "저장됨!"
+
+#. ll-tools-public-key: 6718dc34c21554ebfb8550d8d8429b3f9831f800
+#: includes/pages/wordset-pages.php:15962
+msgid "Use the invited email address to manage this word set."
+msgstr "초대된 이메일 주소로 이 단어 세트를 관리하세요."
+
+#. ll-tools-public-key: 6bdcc5d9893ec6896ad266e167606f9dc7796a90
+#: includes/pages/wordset-pages.php:15968 includes/pages/wordset-pages.php:15974
+msgid "Create manager account"
+msgstr "관리자 계정 만들기"
+
+#. ll-tools-public-key: 378e446652d17f8e0fc15f7e9de895ccc81fd5fa
+#: includes/pages/wordset-pages.php:15971
+msgid "This invite can create or connect a Word Set Manager account for this word set."
+msgstr "이 초대로 이 단어 세트의 단어 세트 관리자 계정을 만들거나 연결할 수 있습니다."
+
+#. ll-tools-public-key: 831a3715d687ffe892b2ba0ade7ef2dc4bbfabd6
+#: includes/pages/wordset-pages.php:16488
+msgid "Sign in to open word set tools."
+msgstr "단어 세트 도구를 열려면 로그인하세요."
+
+#. ll-tools-public-key: 6ea44e419ca80d23bd47cd91a68603b920e994e2
+#: includes/pages/wordset-pages.php:16542
+msgid "Image Upload"
+msgstr "이미지 업로드"
+
+#. ll-tools-public-key: ad0c920f5506014d6746731e5d6eb070928cf10d
+#: includes/pages/wordset-pages.php:16542
+msgid "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes."
+msgstr "이 단어 세트에서 카테고리가 이미지-텍스트 퀴즈를 지원할 때 이미지를 업로드하고 선택적으로 초안 단어를 자동 생성합니다."
+
+#. ll-tools-public-key: 01a5a6ff2d6f2168d7e42f35c7d7f60d83cbd304
+#: includes/pages/wordset-pages.php:16544
+msgid "Audio Upload"
+msgstr "오디오 업로드"
+
+#. ll-tools-public-key: 29f5e5d66256a35f02c618df1dddd966e467aa9a
+#: includes/pages/wordset-pages.php:16544
+msgid "Bulk upload audio files and create or match draft words in this word set."
+msgstr "오디오 파일을 일괄 업로드하고 이 단어 세트에서 초안 단어를 만들거나 일치시킵니다."
+
+#. ll-tools-public-key: a6505f249cf2032d7d3bd97499deee29306473cd
+#: includes/pages/wordset-pages.php:16549
+msgid "No settings tools are available for this word set right now."
+msgstr "지금 이 단어 세트에 사용할 수 있는 설정 도구가 없습니다."
+
+#. ll-tools-public-key: 21dc5a7bf7a498507254ca668c3b8496bc78b682
+#: includes/pages/wordset-pages.php:16581
+msgid "Open games"
+msgstr "게임 열기"
+
+#. ll-tools-public-key: 3f237413b868b8571b30d7bdf3cffd3af904f704
+#: includes/pages/wordset-pages.php:16592
+msgid "Open classes"
+msgstr "수업 열기"
+
+#. ll-tools-public-key: 22bd77d115beb237e368721890f6293004594bdf
+#: includes/pages/wordset-pages.php:16603
+msgid "Update Language Learner Tools to version %s"
+msgstr "Language Learner Tools를 버전 %s(으)로 업데이트"
+
+#. ll-tools-public-key: ae5af4695aa6a8f0f5aae087ccbeaae87b281afa
+#: includes/pages/wordset-pages.php:16606
+msgid "Update to %s"
+msgstr "%s(으)로 업데이트"
+
+#. ll-tools-public-key: 556e309c62f15a6542735e15d5b65ae623931d58
+#: includes/pages/wordset-pages.php:16611
+msgid "Word set tools"
+msgstr "단어 세트 도구"
+
+#. ll-tools-public-key: f689fa6fbb1f290a47c14e2f15269729d0ee1324
+#: includes/pages/wordset-pages.php:9458
+msgid "Unable to load games right now."
+msgstr "지금은 게임을 불러올 수 없습니다."
+
+#. ll-tools-public-key: d89ec8c817c56a09a66ef79227f913ff08be7bbc
+#: includes/pages/wordset-pages.php:9459
+msgid "%d words ready"
+msgstr "%d개 단어 준비됨"
+
+#. ll-tools-public-key: 7a214f513e270580c43e13f4c9b676bf2daa71f4
+#: includes/shortcodes/dictionary-shortcode.php:1294
+msgid "Open source page for %s"
+msgstr "%s의 출처 페이지 열기"
+
+#. ll-tools-public-key: 3af995da2f8ca95df34c032390c370f2beeb68b7
+#: includes/login-window.php:1952
+msgid "Please choose a username."
+msgstr "사용자 이름을 선택하세요."
+
+#. ll-tools-public-key: 1afefc466e0008ea336e8d3a2c624e6ac7d51055
+#: includes/login-window.php:1954
+msgid "That username is not valid."
+msgstr "해당 사용자 이름은 유효하지 않습니다."
+
+#. ll-tools-public-key: 3573ee2d580350073dbbd9e631db25144f47f8d1
+#: includes/login-window.php:1956
+msgid "That username is already taken."
+msgstr "해당 사용자 이름은 이미 사용 중입니다."
+
+#. ll-tools-public-key: 23088d7d1d96d8912fc2a38a0006a539a5918edb
+#: includes/login-window.php:1960
+msgid "Please enter a password."
+msgstr "비밀번호를 입력하세요."
+
+#. ll-tools-public-key: 45a93d1c034fb61305e7ef563e05d96238019c0d
+#: includes/login-window.php:1962
+msgid "Use at least 8 characters for your password."
+msgstr "비밀번호는 8자 이상 사용하세요."

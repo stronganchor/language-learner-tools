@@ -3209,3 +3209,348 @@ msgstr "Optimizador de imágenes WebP"
 #: includes/admin/admin-dashboard-menu.php:169 includes/admin/orphan-media-admin.php:1242
 msgid "Orphaned Media"
 msgstr "Medios huérfanos"
+
+#. ll-tools-public-key: 57a627c27ac943aa41beeb341957416d1b612b29
+#: includes/login-window.php:1402
+msgid "Login"
+msgstr "Iniciar sesión"
+
+#. ll-tools-public-key: 8fc1a67d5c1587c9936ab975846c813d4fe495c3
+#: includes/login-window.php:1407
+msgid "Sign-up"
+msgstr "Registrarse"
+
+#. ll-tools-public-key: 8ef8e4594ad74c054ba5937986c1b6b6b4c1819b
+#: includes/pages/wordset-pages.php:10026
+msgid "Editor Hub"
+msgstr "Centro de edición"
+
+#. ll-tools-public-key: 4e035f5cbf72e9cad4c4ec3f30f03ae2814a92d1
+#: includes/pages/wordset-pages.php:10038
+msgid "Recorder"
+msgstr "Grabadora"
+
+#. ll-tools-public-key: 972b97d4bb4862c9faefa4e85c375b0828409203
+#: includes/pages/wordset-pages.php:10049 includes/pages/wordset-pages.php:16596
+msgid "Classes"
+msgstr "Clases"
+
+#. ll-tools-public-key: 2d06dd8050a948d93bc2bda4221ac9b1946853c2
+#: includes/pages/wordset-pages.php:10060
+msgid "Site Tools"
+msgstr "Herramientas del sitio"
+
+#. ll-tools-public-key: 69acdb2e9c5b85a27f7e9cb5f5f7c619746adcd3
+#: includes/pages/wordset-pages.php:14033
+msgid "Bundle details"
+msgstr "Detalles del paquete"
+
+#. ll-tools-public-key: 2c74dcbbeb4ee761fb19b3532104a979e4398c6d
+#: includes/pages/wordset-pages.php:14037
+msgid "App name"
+msgstr "Nombre de la app"
+
+#. ll-tools-public-key: 98e19e4700ba484cea5892087094e78f78362ddb
+#: includes/pages/wordset-pages.php:14047
+msgid "Used in the offline app shell and Android build metadata."
+msgstr "Se usa en la interfaz de la app sin conexión y en los metadatos de compilación de Android."
+
+#. ll-tools-public-key: 2c438641fc8aa46ed983512c82a915f09ac1646b
+#: includes/pages/wordset-pages.php:14052
+msgid "Android app ID suffix"
+msgstr "Sufijo del ID de app de Android"
+
+#. ll-tools-public-key: cbbde343bd3e84a9d7e10e39fb3619fb85e141ab
+#: includes/pages/wordset-pages.php:14061
+msgid "Letters, numbers, underscores, and dots are allowed. The exporter sanitizes this automatically."
+msgstr "Se permiten letras, números, guiones bajos y puntos. El exportador sanea esto automáticamente."
+
+#. ll-tools-public-key: 3d83cf8654396b5398b030aba64a9106d80825ce
+#: includes/pages/wordset-pages.php:14066
+msgid "Version name"
+msgstr "Nombre de versión"
+
+#. ll-tools-public-key: 464f2b8dc586d4d9fcd01b29520e9b4f6961ef48
+#: includes/pages/wordset-pages.php:14080
+msgid "Version code"
+msgstr "Código de versión"
+
+#. ll-tools-public-key: 3a0ec75428f70342fac3218a7a0d93b162fca5fe
+#: includes/pages/wordset-pages.php:14092
+msgid "Increase this integer when distributing an updated Android build."
+msgstr "Aumenta este entero al distribuir una compilación de Android actualizada."
+
+#. ll-tools-public-key: a1b790a7758198e4a59e78d697ad08f8b2f5d6ce
+#: includes/pages/wordset-pages.php:14098
+msgid "Export notes"
+msgstr "Notas de exportación"
+
+#. ll-tools-public-key: 818e4bc0b4ac78ea73af5a8242f46322e7122f9d
+#: includes/pages/wordset-pages.php:14100
+msgid "No site icon set"
+msgstr "No hay icono del sitio configurado"
+
+#. ll-tools-public-key: e2de3811709ecb1384ad750984483511e0f325f3
+#: includes/pages/wordset-pages.php:14100
+msgid "Uses current site icon"
+msgstr "Usa el icono actual del sitio"
+
+#. ll-tools-public-key: 2ff2f9b08ad6d1fd335c1f0dc5ad0aa55b73780f
+#: includes/pages/wordset-pages.php:14101
+msgid "Offline speaking disabled in exports"
+msgstr "La práctica oral sin conexión está desactivada en las exportaciones"
+
+#. ll-tools-public-key: 9f61bdc348c9870915626c8dedc7228df695fc4d
+#: includes/pages/wordset-pages.php:14107
+msgid "This export uses the current site icon automatically. Advanced one-off icon overrides can stay in the dashboard exporter until we migrate that piece too."
+msgstr "Esta exportación usa automáticamente el icono actual del sitio. Las sustituciones avanzadas de icono para un caso puntual pueden permanecer en el exportador del panel hasta que también migremos esa parte."
+
+#. ll-tools-public-key: c6d80373930c99c8591babf3c6906da97552a98a
+#: includes/pages/wordset-pages.php:14108
+msgid "No site icon is set for this site, so the Android builder keeps its default launcher icon unless you add one later."
+msgstr "No hay ningún icono de sitio configurado para este sitio, así que el constructor de Android conserva su icono de inicio predeterminado a menos que añadas uno más tarde."
+
+#. ll-tools-public-key: 6d7929ab809e24fa8f1034f6122094fb440032b5
+#: includes/pages/wordset-pages.php:14112
+msgid "The offline bundle includes the standalone shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then link a site account later to sync study state and progress."
+msgstr "El paquete sin conexión incluye la interfaz independiente y los medios incluidos para los modos de quiz compatibles. Los estudiantes pueden seguir usando la app localmente y después vincular una cuenta del sitio para sincronizar el estado de estudio y el progreso."
+
+#. ll-tools-public-key: 485f0855e6715d80ca276342efb08fdb3591b234
+#: includes/pages/wordset-pages.php:14114
+msgid "Export Offline App"
+msgstr "Exportar app sin conexión"
+
+#. ll-tools-public-key: bba20261a8e43bdf1d3f643de19108ea13ae8896
+#: includes/pages/wordset-pages.php:15782
+msgid "Delete"
+msgstr "Eliminar"
+
+#. ll-tools-public-key: 6c9ec82137a08ae8ca15498a2b28ab66716252d9
+#: includes/pages/wordset-pages.php:15783
+msgid "Delete this category and any linked vocab lesson? This cannot be undone."
+msgstr "¿Eliminar esta categoría y cualquier lección de vocabulario vinculada? Esta acción no se puede deshacer."
+
+#. ll-tools-public-key: 5beaac066641d171f36b221f48ffe879e6af96b8
+#: includes/pages/wordset-pages.php:15784 includes/pages/wordset-pages.php:4020
+msgid "Category management for %s"
+msgstr "Gestión de categorías para %s"
+
+#. ll-tools-public-key: 3048c2067f45e3bd4607d3e326e2685eb3f03116
+#: includes/pages/wordset-pages.php:15874
+msgid "Older"
+msgstr "Más antiguo"
+
+#. ll-tools-public-key: 7e13ef899567eb22eb7780235a0f013cd075874a
+#: includes/pages/wordset-pages.php:15875 includes/pages/wordset-pages.php:15885
+msgid "Never"
+msgstr "Nunca"
+
+#. ll-tools-public-key: afa4dcee87ab6f317f7d7b4a08422d8b2b901a62
+#: includes/pages/wordset-pages.php:15876
+msgid "Sort ascending"
+msgstr "Orden ascendente"
+
+#. ll-tools-public-key: 00933294dd9d3017a3ec6476ce95e22b777908a3
+#: includes/pages/wordset-pages.php:15877
+msgid "Sort descending"
+msgstr "Orden descendente"
+
+#. ll-tools-public-key: a4a7a8179b7883002dac0b5b7d762591eed147af
+#: includes/pages/wordset-pages.php:15880
+msgid "Select all: %1$s"
+msgstr "Seleccionar todo: %1$s"
+
+#. ll-tools-public-key: c7f1f9b77d64192193b6765c1d51d74e4fb2efc1
+#: includes/pages/wordset-pages.php:15881
+msgid "Deselect all: %1$s"
+msgstr "Deseleccionar todo: %1$s"
+
+#. ll-tools-public-key: ac93762e1f7ab50d8471886bf4fc149772e7223f
+#: includes/pages/wordset-pages.php:15882
+msgid "Filtered words"
+msgstr "Palabras filtradas"
+
+#. ll-tools-public-key: 417cec394f78d4a4a43a29fe96e76b1f52be9f68
+#: includes/pages/wordset-pages.php:15886
+msgid "%1$d rounds, %2$d words"
+msgstr "%1$d rondas, %2$d palabras"
+
+#. ll-tools-public-key: 87a57388fac29569f9f84d4bafdabcbba2349bc5
+#: includes/pages/wordset-pages.php:15889
+msgid "%d tracked words"
+msgstr "%d palabras seguidas"
+
+#. ll-tools-public-key: 493644d938c0f5cbc2ddc7b9d48db472ac4293fa
+#: includes/pages/wordset-pages.php:15890
+msgid "Tracked"
+msgstr "Con seguimiento"
+
+#. ll-tools-public-key: e5d873243afb1aace7665a0d7e7cfd9353ba9940
+#: includes/pages/wordset-pages.php:15891
+msgid "Not started"
+msgstr "No iniciadas"
+
+#. ll-tools-public-key: a83e932803addad46d1ef41c5671bc0a52567216
+#: includes/pages/wordset-pages.php:15895
+msgid "Last practiced"
+msgstr "Última práctica"
+
+#. ll-tools-public-key: b93dd89c9ca1b022ab71a1fc0404006fc3247b41
+#: includes/pages/wordset-pages.php:15898
+msgid "Level"
+msgstr "Nivel"
+
+#. ll-tools-public-key: 6bd985e6a5489d3ca298eca5475d584d1f300bae
+#: includes/pages/wordset-pages.php:15899
+msgid "Show gender progress in the tables"
+msgstr "Mostrar el progreso de género gramatical en las tablas"
+
+#. ll-tools-public-key: e86d2a40a18a8912053dddc36aa0f0a52a6a5f6c
+#: includes/pages/wordset-pages.php:15900
+msgid "Show general progress in the tables"
+msgstr "Mostrar el progreso general en las tablas"
+
+#. ll-tools-public-key: b8b62aa9fbb0db360c75d549314d4ff22bc0f1b0
+#: includes/pages/wordset-pages.php:15901
+msgid "Filter gender"
+msgstr "Filtrar género gramatical"
+
+#. ll-tools-public-key: 5689de32060ba9199abd0e3b01e4b538cd64a967
+#: includes/pages/wordset-pages.php:15902
+msgid "Filter level"
+msgstr "Filtrar nivel"
+
+#. ll-tools-public-key: dae78723568029968ec4b6c3404afa1aed50bca3
+#: includes/pages/wordset-pages.php:15910
+msgid "Load more"
+msgstr "Cargar más"
+
+#. ll-tools-public-key: 7f85c47dc549719b87d18d96935a3659a8416d8f
+#: includes/pages/wordset-pages.php:15911
+msgid "Loading more cards..."
+msgstr "Cargando más tarjetas..."
+
+#. ll-tools-public-key: 520743d791588be910a4d405712d40f72c6f0a92
+#: includes/pages/wordset-pages.php:15912
+msgid "Could not load more cards right now."
+msgstr "No se pueden cargar más tarjetas ahora mismo."
+
+#. ll-tools-public-key: c5e95a6a323633b27083c69d123e3be87cefae0d
+#: includes/pages/wordset-pages.php:15913
+msgid "Saving..."
+msgstr "Guardando..."
+
+#. ll-tools-public-key: f5a83117446c0c03f9a93ba8f9784cd0e1cda477
+#: includes/pages/wordset-pages.php:15914
+msgid "Saved!"
+msgstr "Guardado!"
+
+#. ll-tools-public-key: 6718dc34c21554ebfb8550d8d8429b3f9831f800
+#: includes/pages/wordset-pages.php:15962
+msgid "Use the invited email address to manage this word set."
+msgstr "Usa la dirección de correo invitada para gestionar este conjunto de palabras."
+
+#. ll-tools-public-key: 6bdcc5d9893ec6896ad266e167606f9dc7796a90
+#: includes/pages/wordset-pages.php:15968 includes/pages/wordset-pages.php:15974
+msgid "Create manager account"
+msgstr "Crear cuenta de gestor"
+
+#. ll-tools-public-key: 378e446652d17f8e0fc15f7e9de895ccc81fd5fa
+#: includes/pages/wordset-pages.php:15971
+msgid "This invite can create or connect a Word Set Manager account for this word set."
+msgstr "Esta invitación puede crear o conectar una cuenta de gestor de conjuntos de palabras para este conjunto de palabras."
+
+#. ll-tools-public-key: 831a3715d687ffe892b2ba0ade7ef2dc4bbfabd6
+#: includes/pages/wordset-pages.php:16488
+msgid "Sign in to open word set tools."
+msgstr "Inicia sesión para abrir las herramientas del conjunto de palabras."
+
+#. ll-tools-public-key: 6ea44e419ca80d23bd47cd91a68603b920e994e2
+#: includes/pages/wordset-pages.php:16542
+msgid "Image Upload"
+msgstr "Subida de imágenes"
+
+#. ll-tools-public-key: ad0c920f5506014d6746731e5d6eb070928cf10d
+#: includes/pages/wordset-pages.php:16542
+msgid "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes."
+msgstr "Sube imágenes y, opcionalmente, crea automáticamente palabras en borrador en este conjunto de palabras cuando la categoría admite quizzes de imagen a texto."
+
+#. ll-tools-public-key: 01a5a6ff2d6f2168d7e42f35c7d7f60d83cbd304
+#: includes/pages/wordset-pages.php:16544
+msgid "Audio Upload"
+msgstr "Subida de audio"
+
+#. ll-tools-public-key: 29f5e5d66256a35f02c618df1dddd966e467aa9a
+#: includes/pages/wordset-pages.php:16544
+msgid "Bulk upload audio files and create or match draft words in this word set."
+msgstr "Sube archivos de audio en lote y crea o empareja palabras en borrador en este conjunto de palabras."
+
+#. ll-tools-public-key: a6505f249cf2032d7d3bd97499deee29306473cd
+#: includes/pages/wordset-pages.php:16549
+msgid "No settings tools are available for this word set right now."
+msgstr "No hay herramientas de configuración disponibles para este conjunto de palabras ahora mismo."
+
+#. ll-tools-public-key: 21dc5a7bf7a498507254ca668c3b8496bc78b682
+#: includes/pages/wordset-pages.php:16581
+msgid "Open games"
+msgstr "Abrir juegos"
+
+#. ll-tools-public-key: 3f237413b868b8571b30d7bdf3cffd3af904f704
+#: includes/pages/wordset-pages.php:16592
+msgid "Open classes"
+msgstr "Abrir clases"
+
+#. ll-tools-public-key: 22bd77d115beb237e368721890f6293004594bdf
+#: includes/pages/wordset-pages.php:16603
+msgid "Update Language Learner Tools to version %s"
+msgstr "Actualizar Language Learner Tools a la versión %s"
+
+#. ll-tools-public-key: ae5af4695aa6a8f0f5aae087ccbeaae87b281afa
+#: includes/pages/wordset-pages.php:16606
+msgid "Update to %s"
+msgstr "Actualizar a %s"
+
+#. ll-tools-public-key: 556e309c62f15a6542735e15d5b65ae623931d58
+#: includes/pages/wordset-pages.php:16611
+msgid "Word set tools"
+msgstr "Herramientas del conjunto de palabras"
+
+#. ll-tools-public-key: f689fa6fbb1f290a47c14e2f15269729d0ee1324
+#: includes/pages/wordset-pages.php:9458
+msgid "Unable to load games right now."
+msgstr "No se pueden cargar los juegos ahora mismo."
+
+#. ll-tools-public-key: d89ec8c817c56a09a66ef79227f913ff08be7bbc
+#: includes/pages/wordset-pages.php:9459
+msgid "%d words ready"
+msgstr "%d palabras listas"
+
+#. ll-tools-public-key: 7a214f513e270580c43e13f4c9b676bf2daa71f4
+#: includes/shortcodes/dictionary-shortcode.php:1294
+msgid "Open source page for %s"
+msgstr "Abrir la página de la fuente de %s"
+
+#. ll-tools-public-key: 3af995da2f8ca95df34c032390c370f2beeb68b7
+#: includes/login-window.php:1952
+msgid "Please choose a username."
+msgstr "Elige un nombre de usuario."
+
+#. ll-tools-public-key: 1afefc466e0008ea336e8d3a2c624e6ac7d51055
+#: includes/login-window.php:1954
+msgid "That username is not valid."
+msgstr "Ese nombre de usuario no es válido."
+
+#. ll-tools-public-key: 3573ee2d580350073dbbd9e631db25144f47f8d1
+#: includes/login-window.php:1956
+msgid "That username is already taken."
+msgstr "Ese nombre de usuario ya está en uso."
+
+#. ll-tools-public-key: 23088d7d1d96d8912fc2a38a0006a539a5918edb
+#: includes/login-window.php:1960
+msgid "Please enter a password."
+msgstr "Introduce una contraseña."
+
+#. ll-tools-public-key: 45a93d1c034fb61305e7ef563e05d96238019c0d
+#: includes/login-window.php:1962
+msgid "Use at least 8 characters for your password."
+msgstr "Usa al menos 8 caracteres para tu contraseña."

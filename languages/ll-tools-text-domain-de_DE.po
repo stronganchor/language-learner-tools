@@ -25780,3 +25780,13 @@ msgstr "Verwende Ausblenden für bildbasierte Aufnahme-Warteschlangen, bei denen
 #: templates/content-lesson-template.php:143
 msgid "URL:"
 msgstr "URL:"
+
+#. ll-tools-public-key: 57a627c27ac943aa41beeb341957416d1b612b29
+#: includes/login-window.php:1402
+msgid "Login"
+msgstr "Anmeldung"
+
+#. ll-tools-public-key: 8fc1a67d5c1587c9936ab975846c813d4fe495c3
+#: includes/login-window.php:1407
+msgid "Sign-up"
+msgstr "Registrierung"
