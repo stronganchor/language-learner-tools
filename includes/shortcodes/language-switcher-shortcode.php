@@ -765,7 +765,7 @@ function ll_tools_language_switcher_current_summary_markup($locale, string $styl
     return $markup;
 }
 
-function ll_tools_render_language_switcher_locale_item(string $locale, string $current, string $style, bool $show_flags): string {
+function ll_tools_render_language_switcher_locale_item(string $locale, string $current, string $style, bool $show_flags, string $item_class = ''): string {
     $is_current = ($locale === $current);
     $label = ll_tools_locale_label($locale, $style);
     $flag = $show_flags ? ll_tools_locale_flag($locale) : '';
@@ -775,10 +775,14 @@ function ll_tools_render_language_switcher_locale_item(string $locale, string $c
         'll_locale' => $locale,
         'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
     ]));
+    $item_classes = array_filter([
+        $is_current ? 'is-current' : '',
+        sanitize_html_class($item_class),
+    ]);
 
     ob_start();
     ?>
-    <li<?php echo $is_current ? ' class="is-current"' : ''; ?>>
+    <li<?php echo !empty($item_classes) ? ' class="' . esc_attr(implode(' ', $item_classes)) . '"' : ''; ?>>
         <?php if ($is_current): ?>
             <span aria-current="true" class="ll-lang-current">
                 <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
@@ -908,18 +912,14 @@ function ll_language_switcher_shortcode($atts) {
                 <?php echo ll_tools_render_language_switcher_locale_item($loc, $current, $style, $show_flags); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php endforeach; ?>
             <?php if ($has_secondary_bucket) : ?>
-                <li class="ll-lang-switcher__secondary-item">
-                    <details class="ll-lang-switcher__secondary">
-                        <summary class="ll-lang-switcher__secondary-summary">
-                            <span class="ll-lang-switcher__secondary-label"><?php echo esc_html($secondary_label); ?></span>
-                        </summary>
-                        <ul class="ll-lang-switcher__secondary-list">
-                            <?php foreach ($secondary_available as $loc) : ?>
-                                <?php echo ll_tools_render_language_switcher_locale_item($loc, $current, $style, $show_flags); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                            <?php endforeach; ?>
-                        </ul>
-                    </details>
+                <li class="ll-lang-switcher__more-item">
+                    <button type="button" class="ll-lang-switcher__more" data-ll-language-switcher-more aria-expanded="false" aria-label="<?php echo esc_attr($secondary_label); ?>">
+                        <span aria-hidden="true">...</span>
+                    </button>
                 </li>
+                <?php foreach ($secondary_available as $loc) : ?>
+                    <?php echo ll_tools_render_language_switcher_locale_item($loc, $current, $style, $show_flags, 'll-lang-switcher__secondary-locale'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <?php endforeach; ?>
             <?php endif; ?>
         </ul>
         <?php if ($display === 'modal') : ?>

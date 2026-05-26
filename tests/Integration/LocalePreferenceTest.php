@@ -242,7 +242,7 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-tools-header-language-switcher', $html);
         $this->assertStringContainsString('ll-lang-switcher--dropdown', $html);
         $this->assertStringContainsString('ll-lang-switcher--has-secondary', $html);
-        $this->assertStringContainsString('Other languages', $html);
+        $this->assertStringContainsString('data-ll-language-switcher-more', $html);
         $this->assertStringContainsString('ll-flag', $html);
     }
 
@@ -270,20 +270,24 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
             'primary_locales' => 'tr,en,de',
         ]);
 
-        $secondary_start = strpos($html, 'll-lang-switcher__secondary-list');
+        $more_position = strpos($html, 'data-ll-language-switcher-more');
+        $secondary_start = strpos($html, 'll-lang-switcher__secondary-locale');
         $turkish_position = strpos($html, 'll_locale=tr_TR');
         $german_position = strpos($html, 'll_locale=de_DE');
         $russian_position = strpos($html, 'll_locale=ru_RU');
 
         $this->assertStringContainsString('ll-lang-switcher--has-secondary', $html);
-        $this->assertStringContainsString('ll-lang-switcher__secondary', $html);
-        $this->assertStringContainsString('Other languages', $html);
+        $this->assertStringContainsString('ll-lang-switcher__more', $html);
+        $this->assertStringContainsString('data-ll-language-switcher-more', $html);
+        $this->assertStringContainsString('ll-lang-switcher__secondary-locale', $html);
+        $this->assertIsInt($more_position);
         $this->assertIsInt($secondary_start);
         $this->assertIsInt($turkish_position);
         $this->assertIsInt($german_position);
         $this->assertIsInt($russian_position);
-        $this->assertLessThan($secondary_start, $turkish_position);
-        $this->assertLessThan($secondary_start, $german_position);
+        $this->assertLessThan($more_position, $turkish_position);
+        $this->assertLessThan($more_position, $german_position);
+        $this->assertGreaterThan($more_position, $secondary_start);
         $this->assertGreaterThan($secondary_start, $russian_position);
     }
 
@@ -333,7 +337,11 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
             $css
         );
         $this->assertMatchesRegularExpression(
-            '/\.ll-lang-switcher--list\.ll-lang-switcher--has-secondary \.ll-lang-switcher__secondary-list\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*100000;[^}]*overflow-x:\s*hidden;/',
+            '/\.ll-lang-switcher--has-secondary:not\(\.ll-lang-switcher--secondary-expanded\) \.ll-lang-switcher__secondary-locale\s*\{[^}]*display:\s*none;/',
+            $css
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.ll-lang-switcher--secondary-expanded \.ll-lang-switcher__more-item\s*\{[^}]*display:\s*none;/',
             $css
         );
     }

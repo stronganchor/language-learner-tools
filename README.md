@@ -222,7 +222,7 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
   - `display`: `list`, `dropdown`, `button`, or `modal`.
   - `primary_locales`: comma/space/pipe-separated locale list to keep as top-level choices, such as `tr_TR,en_US,de_DE`.
   - `primary_count`: number of locales to keep as top-level choices before placing the rest under the secondary bucket.
-  - `secondary_label`: label for the secondary bucket; defaults to `Other languages`.
+  - `secondary_label`: accessible label for the secondary reveal button; defaults to `Other languages`.
   - `class`: extra CSS class for wrapper styling.
 
 ### `[ll_locale_block]`
