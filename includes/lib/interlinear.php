@@ -553,6 +553,7 @@ function ll_tools_interlinear_abbreviation_glossary(): array {
         'OPT' => __('optative mood', 'll-tools-text-domain'),
         'COP' => __('copula', 'll-tools-text-domain'),
         'DEM' => __('demonstrative', 'll-tools-text-domain'),
+        'DIST' => __('distal', 'll-tools-text-domain'),
         'PROX' => __('proximal', 'll-tools-text-domain'),
         'PROG' => __('progressive', 'll-tools-text-domain'),
         'EZ' => __('ezafe', 'll-tools-text-domain'),

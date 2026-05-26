@@ -43,6 +43,8 @@ function ll_tools_interlinear_shortcode_normalize_row_label(string $label): stri
         'SENTENCE' => 'SENTENCE',
         'TEXT' => 'TEXT',
         'LINE' => 'TEXT',
+        'IPA' => 'IPA',
+        'TRANSCRIPTION' => 'IPA',
         'FREE' => 'FREE_TRANSLATION',
         'FREE_TRANSLATION' => 'FREE_TRANSLATION',
         'FREE_TRANS' => 'FREE_TRANSLATION',
@@ -85,7 +87,7 @@ function ll_tools_interlinear_shortcode_parse_line(string $content, string $line
             continue;
         }
 
-        if ($label === 'TEXT') {
+        if ($label === 'SENTENCE' || $label === 'TEXT') {
             $line_text = trim(implode(' ', array_filter($parts, static function (string $part): bool {
                 return $part !== '';
             })));
@@ -168,6 +170,7 @@ function ll_tools_interlinear_shortcode_parse_table(string $content, array $atts
     $content = ll_tools_interlinear_shortcode_clean_content($content);
     $rows = [];
     $sentence = ll_tools_interlinear_shortcode_decode_cell((string) ($atts['text'] ?? ''));
+    $ipa = ll_tools_interlinear_shortcode_decode_cell((string) ($atts['ipa'] ?? ''));
     $free_translation = ll_tools_interlinear_shortcode_decode_cell((string) (
         $atts['free_translation']
         ?? $atts['translation']
@@ -203,6 +206,11 @@ function ll_tools_interlinear_shortcode_parse_table(string $content, array $atts
             continue;
         }
 
+        if ($label === 'IPA') {
+            $ipa = ll_tools_interlinear_shortcode_decode_cell((string) $raw_value);
+            continue;
+        }
+
         if ($label === 'FREE_TRANSLATION') {
             $free_translation = ll_tools_interlinear_shortcode_decode_cell((string) $raw_value);
             continue;
@@ -219,6 +227,7 @@ function ll_tools_interlinear_shortcode_parse_table(string $content, array $atts
 
     return [
         'sentence' => $sentence,
+        'ipa' => $ipa,
         'free_translation' => $free_translation,
         'rows' => $rows,
         'column_count' => $column_count,
@@ -284,17 +293,21 @@ function ll_tools_interlinear_shortcode_render_table(array $parsed): string {
     }
 
     $sentence = (string) ($parsed['sentence'] ?? '');
+    $ipa = (string) ($parsed['ipa'] ?? '');
     $free_translation = (string) ($parsed['free_translation'] ?? '');
 
     $html = '<div class="ll-interlinear-grid"><table class="ll-interlinear-table"><tbody>';
     if ($sentence !== '') {
-        $html .= ll_tools_interlinear_shortcode_render_text_row(__('Sentence', 'll-tools-text-domain'), $sentence, 'll-interlinear-shortcode__sentence', $column_count, true);
+        $html .= ll_tools_interlinear_shortcode_render_text_row(__('TEXT', 'll-tools-text-domain'), $sentence, 'll-interlinear-shortcode__sentence', $column_count, true);
+    }
+    if ($ipa !== '') {
+        $html .= ll_tools_interlinear_shortcode_render_text_row(__('IPA', 'll-tools-text-domain'), $ipa, 'll-interlinear-shortcode__ipa ll-ipa', $column_count);
     }
     foreach ($row_order as $label) {
         $html .= ll_tools_interlinear_shortcode_render_table_row($label, (array) $rows[$label], $column_count);
     }
     if ($free_translation !== '') {
-        $html .= ll_tools_interlinear_shortcode_render_text_row(__('Free translation', 'll-tools-text-domain'), $free_translation, 'll-interlinear-shortcode__free-translation', $column_count);
+        $html .= ll_tools_interlinear_shortcode_render_text_row(__('FREE', 'll-tools-text-domain'), $free_translation, 'll-interlinear-shortcode__free-translation', $column_count);
     }
     $html .= '</tbody></table></div>';
 
@@ -304,6 +317,7 @@ function ll_tools_interlinear_shortcode_render_table(array $parsed): string {
 function ll_tools_interlinear_shortcode($atts = [], $content = '', $tag = 'll_interlinear'): string {
     $atts = shortcode_atts([
         'text' => '',
+        'ipa' => '',
         'show_text' => '1',
         'translation' => '',
         'free_translation' => '',
@@ -322,6 +336,7 @@ function ll_tools_interlinear_shortcode($atts = [], $content = '', $tag = 'll_in
 
     if (!ll_tools_interlinear_shortcode_is_truthy($atts['show_text'] ?? '1')) {
         $parsed['sentence'] = '';
+        $parsed['ipa'] = '';
     }
 
     $table_html = ll_tools_interlinear_shortcode_render_table($parsed);

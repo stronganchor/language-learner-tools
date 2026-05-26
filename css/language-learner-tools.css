@@ -394,12 +394,17 @@ p:has(.ll-word-audio) {
 }
 
 .ll-interlinear--shortcode .ll-interlinear-shortcode__sentence td,
+.ll-interlinear--shortcode .ll-interlinear-shortcode__ipa td,
 .ll-interlinear--shortcode .ll-interlinear-shortcode__free-translation td {
     white-space: normal;
 }
 
 .ll-interlinear--shortcode .ll-interlinear-shortcode__sentence td {
     font-weight: 700;
+}
+
+.ll-interlinear--shortcode .ll-interlinear-shortcode__ipa td {
+    color: var(--ll-interlinear-muted);
 }
 
 .ll-interlinear--shortcode .ll-interlinear-shortcode__free-translation td {
