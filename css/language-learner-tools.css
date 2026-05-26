@@ -2272,7 +2272,8 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 }
 
 .word-grid.ll-word-grid .ll-word-edit-process-audio,
-.word-grid.ll-word-grid .ll-word-edit-processing-play-selection {
+.word-grid.ll-word-grid .ll-word-edit-processing-play-selection,
+.word-grid.ll-word-grid .ll-word-edit-processing-download-audio {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -2292,16 +2293,38 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     appearance: none !important;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-processing-download-audio {
+    width: 30px !important;
+    min-width: 30px !important;
+    padding: 0 !important;
+    text-decoration: none !important;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-processing-play-selection {
     border-color: #cbd5e1 !important;
     background: #ffffff !important;
     color: #334155 !important;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-processing-download-icon {
+    display: block;
+    width: 15px;
+    height: 15px;
+    background-color: currentColor;
+    -webkit-mask: url("../media/download-minimalistic-svgrepo-com.svg") center / contain no-repeat;
+    mask: url("../media/download-minimalistic-svgrepo-com.svg") center / contain no-repeat;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-process-audio:hover:not(:disabled),
-.word-grid.ll-word-grid .ll-word-edit-processing-play-selection:hover:not(:disabled) {
+.word-grid.ll-word-grid .ll-word-edit-processing-play-selection:hover:not(:disabled),
+.word-grid.ll-word-grid .ll-word-edit-processing-download-audio:hover {
     border-color: #2563eb !important;
     background: #dbeafe !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-download-audio:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 2px;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-process-audio:disabled,

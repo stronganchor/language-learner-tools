@@ -69,6 +69,10 @@ final class WordGridRecordingProcessingTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-processing-waveform', $output);
         $this->assertStringContainsString('data-ll-processing-waveform-canvas', $output);
         $this->assertStringContainsString('data-ll-processing-play-selection', $output);
+        $this->assertStringContainsString('data-ll-processing-download-audio', $output);
+        $this->assertStringContainsString('class="ll-word-edit-processing-download-audio"', $output);
+        $this->assertStringContainsString('href="' . esc_url(site_url($fixture['current_path'])) . '" download', $output);
+        $this->assertStringContainsString('aria-label="Download audio"', $output);
         $this->assertStringNotContainsString('data-ll-processing-start', $output);
         $this->assertStringNotContainsString('data-ll-processing-end', $output);
         $this->assertStringContainsString('data-ll-processing-source-audio-url="' . esc_url(site_url($fixture['original_path'])) . '"', $output);

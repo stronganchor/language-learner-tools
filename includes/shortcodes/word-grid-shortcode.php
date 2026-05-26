@@ -3457,6 +3457,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'sourceCurrent' => __('Using current audio', 'll-tools-text-domain'),
             'playSelection' => __('Play clip', 'll-tools-text-domain'),
             'pauseSelection' => __('Pause clip', 'll-tools-text-domain'),
+            'downloadAudio' => __('Download audio', 'll-tools-text-domain'),
             'waveformLoading' => __('Loading waveform...', 'll-tools-text-domain'),
             'waveformUnavailable' => __('Waveform unavailable.', 'll-tools-text-domain'),
             'recordings' => __('Recordings', 'll-tools-text-domain'),
@@ -5107,6 +5108,7 @@ function ll_tools_word_grid_shortcode($atts) {
         'trim_end_handle' => __('End boundary', 'll-tools-text-domain'),
         'source_original' => __('Using saved original audio', 'll-tools-text-domain'),
         'source_current' => __('Using current audio', 'll-tools-text-domain'),
+        'download_audio' => __('Download audio', 'll-tools-text-domain'),
         'move_recording' => __('Move recording', 'll-tools-text-domain'),
         'move_recording_to' => __('Move to word', 'll-tools-text-domain'),
         'move_recording_placeholder' => __('Search words', 'll-tools-text-domain'),
@@ -6026,6 +6028,7 @@ function ll_tools_word_grid_shortcode($atts) {
                             echo '<div class="ll-word-edit-processing-actions">';
                             echo '<button type="button" class="ll-word-edit-processing-play-selection" data-ll-processing-play-selection>' . esc_html($edit_labels['play_selection']) . '</button>';
                             echo '<button type="button" class="ll-word-edit-process-audio" data-ll-process-recording-audio>' . esc_html($process_button_label) . '</button>';
+                            echo '<a class="ll-word-edit-processing-download-audio" data-ll-processing-download-audio href="' . esc_url($recording_audio_url) . '" download aria-label="' . esc_attr($edit_labels['download_audio']) . '" title="' . esc_attr($edit_labels['download_audio']) . '"><span class="ll-word-edit-processing-download-icon" aria-hidden="true"></span></a>';
                             echo '<span class="ll-word-edit-processing-status" data-ll-processing-status aria-live="polite"></span>';
                             echo '</div>';
                             echo '</div>';

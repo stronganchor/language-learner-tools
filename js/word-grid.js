@@ -4034,6 +4034,14 @@
                     try { audioEl.load(); } catch (_) {}
                 }
             }
+            const $download = $recording.find('[data-ll-processing-download-audio]').first();
+            if ($download.length) {
+                if (audioUrl) {
+                    $download.attr('href', audioUrl);
+                } else {
+                    $download.removeAttr('href');
+                }
+            }
             clearLessonEditProcessingState($recording);
             ensureLessonEditProcessingWaveform($recording).catch(function () {});
         }
