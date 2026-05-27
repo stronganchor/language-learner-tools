@@ -3554,3 +3554,27 @@ msgstr "Saisissez un mot de passe."
 #: includes/login-window.php:1962
 msgid "Use at least 8 characters for your password."
 msgstr "Utilisez au moins 8 caractères pour votre mot de passe."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "distal"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "Autres langues"
+
+#: includes/shortcodes/language-switcher-shortcode.php:880
+msgid "Language: %s"
+msgstr "Langue : %s"
+
+#: includes/shortcodes/word-grid-shortcode.php:6040
+msgid "Transcription guide"
+msgstr "Guide de transcription"
+
+#: includes/shortcodes/word-grid-shortcode.php:6041
+msgid "Previous letter"
+msgstr "Lettre précédente"
+
+#: includes/shortcodes/word-grid-shortcode.php:6043
+msgid "Next letter"
+msgstr "Lettre suivante"

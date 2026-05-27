@@ -3592,3 +3592,27 @@ msgstr "Введите пароль."
 #: includes/login-window.php:1962
 msgid "Use at least 8 characters for your password."
 msgstr "Используйте не менее 8 символов для пароля."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "дистальный"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "Другие языки"
+
+#: includes/shortcodes/language-switcher-shortcode.php:880
+msgid "Language: %s"
+msgstr "Язык: %s"
+
+#: includes/shortcodes/word-grid-shortcode.php:6040
+msgid "Transcription guide"
+msgstr "Руководство по транскрипции"
+
+#: includes/shortcodes/word-grid-shortcode.php:6041
+msgid "Previous letter"
+msgstr "Предыдущая буква"
+
+#: includes/shortcodes/word-grid-shortcode.php:6043
+msgid "Next letter"
+msgstr "Следующая буква"

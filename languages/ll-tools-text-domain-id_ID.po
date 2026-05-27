@@ -3554,3 +3554,27 @@ msgstr "Masukkan kata sandi."
 #: includes/login-window.php:1962
 msgid "Use at least 8 characters for your password."
 msgstr "Gunakan setidaknya 8 karakter untuk kata sandimu."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "distal"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "Bahasa lain"
+
+#: includes/shortcodes/language-switcher-shortcode.php:880
+msgid "Language: %s"
+msgstr "Bahasa: %s"
+
+#: includes/shortcodes/word-grid-shortcode.php:6040
+msgid "Transcription guide"
+msgstr "Panduan transkripsi"
+
+#: includes/shortcodes/word-grid-shortcode.php:6041
+msgid "Previous letter"
+msgstr "Huruf sebelumnya"
+
+#: includes/shortcodes/word-grid-shortcode.php:6043
+msgid "Next letter"
+msgstr "Huruf berikutnya"

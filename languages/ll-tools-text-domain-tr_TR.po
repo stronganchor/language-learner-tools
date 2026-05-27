@@ -25624,3 +25624,751 @@ msgstr "Giriş"
 #: includes/login-window.php:1407
 msgid "Sign-up"
 msgstr "Kayıt"
+
+#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:567 includes/admin/login-blocks-admin.php:181 includes/admin/login-blocks-admin.php:40 includes/admin/login-blocks-admin.php:41
+msgid "Login Blocks"
+msgstr "Giriş engelleri"
+
+#: includes/admin/admin-dashboard-menu.php:568
+msgid "Release frontend login and sign-up rate-limit blocks for a connection."
+msgstr "Bir bağlantı için ön uç giriş ve kayıt hız sınırı engellerini kaldır."
+
+#: includes/admin/ipa-keyboard-admin.php:381
+msgid "Flag as illegal symbol"
+msgstr "İzin verilmeyen sembol olarak işaretle"
+
+#: includes/admin/ipa-keyboard-admin.php:382
+msgid "Mark %s as illegal for this word set?"
+msgstr "%s bu kelime setinde izin verilmeyen sembol olarak işaretlensin mi?"
+
+#: includes/admin/ipa-keyboard-admin.php:383
+msgid "Flagging symbol and rescanning this word set..."
+msgstr "Sembol işaretleniyor ve bu kelime seti yeniden taranıyor..."
+
+#: includes/admin/ipa-keyboard-admin.php:384
+msgid "Symbol marked illegal and checks rescanned."
+msgstr "Sembol izin verilmeyen olarak işaretlendi ve kontroller yeniden tarandı."
+
+#: includes/admin/ipa-keyboard-admin.php:575 includes/admin/ipa-keyboard-admin.php:628 includes/lib/sort.php:935 includes/lib/wordset-language-settings.php:1156 includes/shortcodes/word-grid-shortcode.php:3309 includes/shortcodes/word-grid-shortcode.php:3484 includes/shortcodes/word-grid-shortcode.php:3487
+msgid "Diacritics and signs"
+msgstr "Aksanlar ve işaretler"
+
+#: includes/admin/ipa-keyboard-admin.php:576 includes/lib/wordset-language-settings.php:1157 includes/shortcodes/word-grid-shortcode.php:3310 includes/shortcodes/word-grid-shortcode.php:3485 includes/shortcodes/word-grid-shortcode.php:3488
+msgid "Wordset symbols"
+msgstr "Kelime seti sembolleri"
+
+#: includes/admin/ipa-keyboard-admin.php:1955
+msgid "Illegal IPA symbol"
+msgstr "İzin verilmeyen IPA sembolü"
+
+#: includes/admin/ipa-keyboard-admin.php:1956
+msgid "Flags symbols that have been marked illegal for this word set."
+msgstr "Bu kelime setinde izin verilmeyen olarak işaretlenmiş sembolleri belirtir."
+
+#: includes/admin/ipa-keyboard-admin.php:4007
+msgid "This transcription contains %s, which is marked illegal for this word set."
+msgstr "Bu transkripsiyon %s içeriyor; bu sembol bu kelime setinde izin verilmeyen olarak işaretlenmiş."
+
+#: includes/admin/ipa-keyboard-admin.php:5687
+msgid "Invalid symbol"
+msgstr "Geçersiz sembol"
+
+#: includes/admin/login-blocks-admin.php:62
+msgid "%d minute"
+msgid_plural "%d minutes"
+msgstr[0] "%d dakika"
+msgstr[1] "%d dakika"
+
+#: includes/admin/login-blocks-admin.php:69
+msgid "%d second"
+msgid_plural "%d seconds"
+msgstr[0] "%d saniye"
+msgstr[1] "%d saniye"
+
+#: includes/admin/login-blocks-admin.php:81
+msgid "Any moment now"
+msgstr "Her an"
+
+#: includes/admin/login-blocks-admin.php:86
+msgid "In %1$s (%2$s)"
+msgstr "%1$s içinde (%2$s)"
+
+#: includes/admin/login-blocks-admin.php:107
+msgid "%1$s: %2$d/%3$d"
+msgstr "%1$s: %2$d/%3$d"
+
+#: includes/admin/login-blocks-admin.php:124
+msgid "You do not have permission to release login blocks."
+msgstr "Giriş engellerini kaldırma iznin yok."
+
+#: includes/admin/login-blocks-admin.php:146
+msgid "Enter a valid IPv4 or IPv6 address."
+msgstr "Geçerli bir IPv4 veya IPv6 adresi gir."
+
+#: includes/admin/login-blocks-admin.php:155
+msgid "Released auth blocks for %1$s. Previous status: %2$s."
+msgstr "%1$s için kimlik doğrulama engelleri kaldırıldı. Önceki durum: %2$s."
+
+#: includes/admin/login-blocks-admin.php:163
+msgid "Cleared any matching auth block records for %s."
+msgstr "%s için eşleşen kimlik doğrulama engeli kayıtları temizlendi."
+
+#: includes/admin/login-blocks-admin.php:193
+msgid "Frontend login blocks happen after %1$d failed login attempts from the same connection. They expire automatically after %2$s."
+msgstr "Ön uç giriş engelleri, aynı bağlantıdan %1$d başarısız giriş denemesinden sonra oluşur. %2$s sonra otomatik olarak sona erer."
+
+#: includes/admin/login-blocks-admin.php:205
+msgid "Connection IP"
+msgstr "Bağlantı IP adresi"
+
+#: includes/admin/login-blocks-admin.php:214
+msgid "203.0.113.24"
+msgstr "203.0.113.24"
+
+#: includes/admin/login-blocks-admin.php:221
+msgid "This admin request appears to come from %s."
+msgstr "Bu yönetici isteği %s adresinden geliyor gibi görünüyor."
+
+#: includes/admin/login-blocks-admin.php:228
+msgid "Releases login, sign-up, and username-suggestion rate limits for the IP. Older blocks created before active tracking existed may not appear below, but entering the IP here can still clear them."
+msgstr "Bu IP için giriş, kayıt ve kullanıcı adı önerisi hız sınırı engellerini kaldırır. Etkin izleme oluşmadan önce oluşturulan eski engeller aşağıda görünmeyebilir, ancak IP adresini buraya girmek bunları yine de temizleyebilir."
+
+#: includes/admin/login-blocks-admin.php:235
+msgid "Release Blocks"
+msgstr "Engelleri kaldır"
+
+#: includes/admin/login-blocks-admin.php:240
+msgid "Active Tracked Blocks"
+msgstr "Etkin izlenen engeller"
+
+#: includes/admin/login-blocks-admin.php:243
+msgid "No active tracked auth blocks were found."
+msgstr "Etkin izlenen kimlik doğrulama engeli bulunamadı."
+
+#: includes/admin/login-blocks-admin.php:249
+msgid "Block Type"
+msgstr "Engel türü"
+
+#: includes/admin/login-blocks-admin.php:250
+msgid "Attempts"
+msgstr "Denemeler"
+
+#: includes/admin/login-blocks-admin.php:251
+msgid "Automatic Release"
+msgstr "Otomatik kaldırma"
+
+#: includes/admin/login-blocks-admin.php:276
+msgid "Release"
+msgstr "Kaldır"
+
+#: includes/api/automation-rest.php:2230
+msgid "%s profile image"
+msgstr "%s profil görseli"
+
+#: includes/api/automation-rest.php:2244
+msgid "The uploaded file is not a valid image."
+msgstr "Yüklenen dosya geçerli bir görsel değil."
+
+#: includes/api/automation-rest.php:2283
+msgid "The profile image attachment must be an existing image attachment."
+msgstr "Profil görseli eki mevcut bir görsel eki olmalıdır."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "uzak"
+
+#: includes/lib/sort.php:539
+msgid "close front unrounded vowel"
+msgstr "Ünlü: kapalı, ön, düz"
+
+#: includes/lib/sort.php:540
+msgid "close front rounded vowel"
+msgstr "Ünlü: kapalı, ön, yuvarlak"
+
+#: includes/lib/sort.php:541
+msgid "close central unrounded vowel"
+msgstr "Ünlü: kapalı, merkez, düz"
+
+#: includes/lib/sort.php:542
+msgid "close central rounded vowel"
+msgstr "Ünlü: kapalı, merkez, yuvarlak"
+
+#: includes/lib/sort.php:543
+msgid "close back unrounded vowel"
+msgstr "Ünlü: kapalı, arka, düz"
+
+#: includes/lib/sort.php:544
+msgid "close back rounded vowel"
+msgstr "Ünlü: kapalı, arka, yuvarlak"
+
+#: includes/lib/sort.php:545
+msgid "near-close near-front unrounded vowel"
+msgstr "Ünlü: kapalıya yakın, öne yakın, düz"
+
+#: includes/lib/sort.php:546
+msgid "near-close near-front rounded vowel"
+msgstr "Ünlü: kapalıya yakın, öne yakın, yuvarlak"
+
+#: includes/lib/sort.php:547
+msgid "near-close near-back rounded vowel"
+msgstr "Ünlü: kapalıya yakın, arkaya yakın, yuvarlak"
+
+#: includes/lib/sort.php:548
+msgid "close-mid front unrounded vowel"
+msgstr "Ünlü: yarı kapalı, ön, düz"
+
+#: includes/lib/sort.php:549
+msgid "close-mid front rounded vowel"
+msgstr "Ünlü: yarı kapalı, ön, yuvarlak"
+
+#: includes/lib/sort.php:550
+msgid "close-mid central unrounded vowel"
+msgstr "Ünlü: yarı kapalı, merkez, düz"
+
+#: includes/lib/sort.php:551
+msgid "close-mid central rounded vowel"
+msgstr "Ünlü: yarı kapalı, merkez, yuvarlak"
+
+#: includes/lib/sort.php:552
+msgid "close-mid back unrounded vowel"
+msgstr "Ünlü: yarı kapalı, arka, düz"
+
+#: includes/lib/sort.php:553
+msgid "close-mid back rounded vowel"
+msgstr "Ünlü: yarı kapalı, arka, yuvarlak"
+
+#: includes/lib/sort.php:554
+msgid "mid central vowel"
+msgstr "Ünlü: orta, merkez"
+
+#: includes/lib/sort.php:555
+msgid "open-mid front unrounded vowel"
+msgstr "Ünlü: yarı açık, ön, düz"
+
+#: includes/lib/sort.php:556
+msgid "open-mid front rounded vowel"
+msgstr "Ünlü: yarı açık, ön, yuvarlak"
+
+#: includes/lib/sort.php:557
+msgid "open-mid central unrounded vowel"
+msgstr "Ünlü: yarı açık, merkez, düz"
+
+#: includes/lib/sort.php:558
+msgid "open-mid central rounded vowel"
+msgstr "Ünlü: yarı açık, merkez, yuvarlak"
+
+#: includes/lib/sort.php:559
+msgid "open-mid back unrounded vowel"
+msgstr "Ünlü: yarı açık, arka, düz"
+
+#: includes/lib/sort.php:560
+msgid "open-mid back rounded vowel"
+msgstr "Ünlü: yarı açık, arka, yuvarlak"
+
+#: includes/lib/sort.php:561
+msgid "near-open front unrounded vowel"
+msgstr "Ünlü: açığa yakın, ön, düz"
+
+#: includes/lib/sort.php:562
+msgid "near-open central vowel"
+msgstr "Ünlü: açığa yakın, merkez"
+
+#: includes/lib/sort.php:563
+msgid "open front unrounded vowel"
+msgstr "Ünlü: açık, ön, düz"
+
+#: includes/lib/sort.php:564
+msgid "open front rounded vowel"
+msgstr "Ünlü: açık, ön, yuvarlak"
+
+#: includes/lib/sort.php:565
+msgid "open back unrounded vowel"
+msgstr "Ünlü: açık, arka, düz"
+
+#: includes/lib/sort.php:566
+msgid "open back rounded vowel"
+msgstr "Ünlü: açık, arka, yuvarlak"
+
+#: includes/lib/sort.php:567
+msgid "rhotacized mid central vowel"
+msgstr "Ünlü: r-renkli, orta, merkez"
+
+#: includes/lib/sort.php:568
+msgid "rhotacized open-mid central vowel"
+msgstr "Ünlü: r-renkli, yarı açık, merkez"
+
+#: includes/lib/sort.php:576
+msgid "voiceless bilabial stop"
+msgstr "Ünsüz: ötümsüz, çift dudak, patlamalı"
+
+#: includes/lib/sort.php:577
+msgid "voiced bilabial stop"
+msgstr "Ünsüz: ötümlü, çift dudak, patlamalı"
+
+#: includes/lib/sort.php:578
+msgid "voiceless alveolar stop"
+msgstr "Ünsüz: ötümsüz, diş yuvası, patlamalı"
+
+#: includes/lib/sort.php:579
+msgid "voiced alveolar stop"
+msgstr "Ünsüz: ötümlü, diş yuvası, patlamalı"
+
+#: includes/lib/sort.php:580
+msgid "voiceless retroflex stop"
+msgstr "Ünsüz: ötümsüz, retrofleks, patlamalı"
+
+#: includes/lib/sort.php:581
+msgid "voiced retroflex stop"
+msgstr "Ünsüz: ötümlü, retrofleks, patlamalı"
+
+#: includes/lib/sort.php:582
+msgid "voiceless palatal stop"
+msgstr "Ünsüz: ötümsüz, damaksıl, patlamalı"
+
+#: includes/lib/sort.php:583
+msgid "voiced palatal stop"
+msgstr "Ünsüz: ötümlü, damaksıl, patlamalı"
+
+#: includes/lib/sort.php:584
+msgid "voiceless velar stop"
+msgstr "Ünsüz: ötümsüz, yumuşak damak, patlamalı"
+
+#: includes/lib/sort.php:585 includes/lib/sort.php:586
+msgid "voiced velar stop"
+msgstr "Ünsüz: ötümlü, yumuşak damak, patlamalı"
+
+#: includes/lib/sort.php:587
+msgid "voiceless uvular stop"
+msgstr "Ünsüz: ötümsüz, küçük dil, patlamalı"
+
+#: includes/lib/sort.php:588
+msgid "voiced uvular stop"
+msgstr "Ünsüz: ötümlü, küçük dil, patlamalı"
+
+#: includes/lib/sort.php:589
+msgid "glottal stop"
+msgstr "Ünsüz: gırtlaksıl, patlamalı"
+
+#: includes/lib/sort.php:590
+msgid "epiglottal stop"
+msgstr "Ünsüz: epiglot, patlamalı"
+
+#: includes/lib/sort.php:591
+msgid "voiced bilabial nasal"
+msgstr "Ünsüz: ötümlü, çift dudak, genizsil"
+
+#: includes/lib/sort.php:592
+msgid "voiced labiodental nasal"
+msgstr "Ünsüz: ötümlü, dudak-diş, genizsil"
+
+#: includes/lib/sort.php:593
+msgid "voiced alveolar nasal"
+msgstr "Ünsüz: ötümlü, diş yuvası, genizsil"
+
+#: includes/lib/sort.php:594
+msgid "voiced retroflex nasal"
+msgstr "Ünsüz: ötümlü, retrofleks, genizsil"
+
+#: includes/lib/sort.php:595
+msgid "voiced palatal nasal"
+msgstr "Ünsüz: ötümlü, damaksıl, genizsil"
+
+#: includes/lib/sort.php:596
+msgid "voiced velar nasal"
+msgstr "Ünsüz: ötümlü, yumuşak damak, genizsil"
+
+#: includes/lib/sort.php:597
+msgid "voiced uvular nasal"
+msgstr "Ünsüz: ötümlü, küçük dil, genizsil"
+
+#: includes/lib/sort.php:598
+msgid "voiced bilabial trill"
+msgstr "Ünsüz: ötümlü, çift dudak, titreşimli"
+
+#: includes/lib/sort.php:599
+msgid "voiced alveolar trill"
+msgstr "Ünsüz: ötümlü, diş yuvası, titreşimli"
+
+#: includes/lib/sort.php:600
+msgid "voiced uvular trill"
+msgstr "Ünsüz: ötümlü, küçük dil, titreşimli"
+
+#: includes/lib/sort.php:601
+msgid "voiced labiodental flap"
+msgstr "Ünsüz: ötümlü, dudak-diş, tek vuruşlu"
+
+#: includes/lib/sort.php:602
+msgid "voiced alveolar tap"
+msgstr "Ünsüz: ötümlü, diş yuvası, dokunmalı"
+
+#: includes/lib/sort.php:603
+msgid "voiced retroflex flap"
+msgstr "Ünsüz: ötümlü, retrofleks, tek vuruşlu"
+
+#: includes/lib/sort.php:604
+msgid "voiceless bilabial fricative"
+msgstr "Ünsüz: ötümsüz, çift dudak, sürtünmeli"
+
+#: includes/lib/sort.php:605
+msgid "voiced bilabial fricative"
+msgstr "Ünsüz: ötümlü, çift dudak, sürtünmeli"
+
+#: includes/lib/sort.php:606
+msgid "voiceless labiodental fricative"
+msgstr "Ünsüz: ötümsüz, dudak-diş, sürtünmeli"
+
+#: includes/lib/sort.php:607
+msgid "voiced labiodental fricative"
+msgstr "Ünsüz: ötümlü, dudak-diş, sürtünmeli"
+
+#: includes/lib/sort.php:608
+msgid "voiceless dental fricative"
+msgstr "Ünsüz: ötümsüz, diş, sürtünmeli"
+
+#: includes/lib/sort.php:609
+msgid "voiced dental fricative"
+msgstr "Ünsüz: ötümlü, diş, sürtünmeli"
+
+#: includes/lib/sort.php:610
+msgid "voiceless alveolar fricative"
+msgstr "Ünsüz: ötümsüz, diş yuvası, sürtünmeli"
+
+#: includes/lib/sort.php:611
+msgid "voiced alveolar fricative"
+msgstr "Ünsüz: ötümlü, diş yuvası, sürtünmeli"
+
+#: includes/lib/sort.php:612
+msgid "voiceless postalveolar fricative"
+msgstr "Ünsüz: ötümsüz, diş yuvası sonrası, sürtünmeli"
+
+#: includes/lib/sort.php:613
+msgid "voiced postalveolar fricative"
+msgstr "Ünsüz: ötümlü, diş yuvası sonrası, sürtünmeli"
+
+#: includes/lib/sort.php:614
+msgid "voiceless retroflex fricative"
+msgstr "Ünsüz: ötümsüz, retrofleks, sürtünmeli"
+
+#: includes/lib/sort.php:615
+msgid "voiced retroflex fricative"
+msgstr "Ünsüz: ötümlü, retrofleks, sürtünmeli"
+
+#: includes/lib/sort.php:616
+msgid "voiceless alveolo-palatal fricative"
+msgstr "Ünsüz: ötümsüz, alveolo-palatal, sürtünmeli"
+
+#: includes/lib/sort.php:617
+msgid "voiced alveolo-palatal fricative"
+msgstr "Ünsüz: ötümlü, alveolo-palatal, sürtünmeli"
+
+#: includes/lib/sort.php:618
+msgid "voiceless palatal fricative"
+msgstr "Ünsüz: ötümsüz, damaksıl, sürtünmeli"
+
+#: includes/lib/sort.php:619
+msgid "voiced palatal fricative"
+msgstr "Ünsüz: ötümlü, damaksıl, sürtünmeli"
+
+#: includes/lib/sort.php:620
+msgid "voiceless velar fricative"
+msgstr "Ünsüz: ötümsüz, yumuşak damak, sürtünmeli"
+
+#: includes/lib/sort.php:621
+msgid "voiced velar fricative"
+msgstr "Ünsüz: ötümlü, yumuşak damak, sürtünmeli"
+
+#: includes/lib/sort.php:622
+msgid "voiceless uvular fricative"
+msgstr "Ünsüz: ötümsüz, küçük dil, sürtünmeli"
+
+#: includes/lib/sort.php:623
+msgid "voiced uvular fricative"
+msgstr "Ünsüz: ötümlü, küçük dil, sürtünmeli"
+
+#: includes/lib/sort.php:624
+msgid "voiceless pharyngeal fricative"
+msgstr "Ünsüz: ötümsüz, yutaksıl, sürtünmeli"
+
+#: includes/lib/sort.php:625
+msgid "voiced pharyngeal fricative"
+msgstr "Ünsüz: ötümlü, yutaksıl, sürtünmeli"
+
+#: includes/lib/sort.php:626
+msgid "voiceless glottal fricative"
+msgstr "Ünsüz: ötümsüz, gırtlaksıl, sürtünmeli"
+
+#: includes/lib/sort.php:627
+msgid "voiced glottal fricative"
+msgstr "Ünsüz: ötümlü, gırtlaksıl, sürtünmeli"
+
+#: includes/lib/sort.php:628
+msgid "voiceless alveolar lateral fricative"
+msgstr "Ünsüz: ötümsüz, diş yuvası, yanal sürtünmeli"
+
+#: includes/lib/sort.php:629
+msgid "voiced alveolar lateral fricative"
+msgstr "Ünsüz: ötümlü, diş yuvası, yanal sürtünmeli"
+
+#: includes/lib/sort.php:630
+msgid "voiced labiodental approximant"
+msgstr "Ünsüz: ötümlü, dudak-diş, yaklaşıklı"
+
+#: includes/lib/sort.php:631
+msgid "voiced alveolar approximant"
+msgstr "Ünsüz: ötümlü, diş yuvası, yaklaşıklı"
+
+#: includes/lib/sort.php:632
+msgid "voiced retroflex approximant"
+msgstr "Ünsüz: ötümlü, retrofleks, yaklaşıklı"
+
+#: includes/lib/sort.php:633
+msgid "voiced palatal approximant"
+msgstr "Ünsüz: ötümlü, damaksıl, yaklaşıklı"
+
+#: includes/lib/sort.php:634
+msgid "voiced velar approximant"
+msgstr "Ünsüz: ötümlü, yumuşak damak, yaklaşıklı"
+
+#: includes/lib/sort.php:635
+msgid "voiced alveolar lateral approximant"
+msgstr "Ünsüz: ötümlü, diş yuvası, yanal yaklaşıklı"
+
+#: includes/lib/sort.php:636
+msgid "voiced retroflex lateral approximant"
+msgstr "Ünsüz: ötümlü, retrofleks, yanal yaklaşıklı"
+
+#: includes/lib/sort.php:637
+msgid "voiced palatal lateral approximant"
+msgstr "Ünsüz: ötümlü, damaksıl, yanal yaklaşıklı"
+
+#: includes/lib/sort.php:638
+msgid "voiced velar lateral approximant"
+msgstr "Ünsüz: ötümlü, yumuşak damak, yanal yaklaşıklı"
+
+#: includes/lib/sort.php:639
+msgid "velarized alveolar lateral approximant"
+msgstr "Ünsüz: velarize, diş yuvası, yanal yaklaşıklı"
+
+#: includes/lib/sort.php:640
+msgid "voiced labial-velar approximant"
+msgstr "Ünsüz: ötümlü, dudak-yumuşak damak, yaklaşıklı"
+
+#: includes/lib/sort.php:641
+msgid "voiced labial-palatal approximant"
+msgstr "Ünsüz: ötümlü, dudak-damak, yaklaşıklı"
+
+#: includes/lib/sort.php:642
+msgid "voiceless labial-velar fricative"
+msgstr "Ünsüz: ötümsüz, dudak-yumuşak damak, sürtünmeli"
+
+#: includes/lib/sort.php:643
+msgid "voiceless epiglottal fricative"
+msgstr "Ünsüz: ötümsüz, epiglot, sürtünmeli"
+
+#: includes/lib/sort.php:644
+msgid "voiced epiglottal fricative"
+msgstr "Ünsüz: ötümlü, epiglot, sürtünmeli"
+
+#: includes/lib/sort.php:645
+msgid "voiceless palatal-velar fricative"
+msgstr "Ünsüz: ötümsüz, damak-yumuşak damak, sürtünmeli"
+
+#: includes/lib/sort.php:653
+msgid "voiceless alveolar affricate"
+msgstr "Ünsüz: ötümsüz, diş yuvası, affrikat"
+
+#: includes/lib/sort.php:654
+msgid "voiced alveolar affricate"
+msgstr "Ünsüz: ötümlü, diş yuvası, affrikat"
+
+#: includes/lib/sort.php:655
+msgid "voiceless postalveolar affricate"
+msgstr "Ünsüz: ötümsüz, diş yuvası sonrası, affrikat"
+
+#: includes/lib/sort.php:656
+msgid "voiced postalveolar affricate"
+msgstr "Ünsüz: ötümlü, diş yuvası sonrası, affrikat"
+
+#: includes/lib/sort.php:657
+msgid "voiceless alveolo-palatal affricate"
+msgstr "Ünsüz: ötümsüz, alveolo-palatal, affrikat"
+
+#: includes/lib/sort.php:658
+msgid "voiced alveolo-palatal affricate"
+msgstr "Ünsüz: ötümlü, alveolo-palatal, affrikat"
+
+#: includes/lib/sort.php:659
+msgid "voiceless retroflex affricate"
+msgstr "Ünsüz: ötümsüz, retrofleks, affrikat"
+
+#: includes/lib/sort.php:660
+msgid "voiced retroflex affricate"
+msgstr "Ünsüz: ötümlü, retrofleks, affrikat"
+
+#: includes/lib/sort.php:661
+msgid "voiceless labiodental affricate"
+msgstr "Ünsüz: ötümsüz, dudak-diş, affrikat"
+
+#: includes/lib/sort.php:662
+msgid "voiceless velar affricate"
+msgstr "Ünsüz: ötümsüz, yumuşak damak, affrikat"
+
+#: includes/lib/sort.php:663
+msgid "voiceless uvular affricate"
+msgstr "Ünsüz: ötümsüz, küçük dil, affrikat"
+
+#: includes/lib/sort.php:664
+msgid "voiceless palatal affricate"
+msgstr "Ünsüz: ötümsüz, damaksıl, affrikat"
+
+#: includes/lib/sort.php:665
+msgid "voiced palatal affricate"
+msgstr "Ünsüz: ötümlü, damaksıl, affrikat"
+
+#: includes/lib/sort.php:666
+msgid "voiceless dental stop with voiceless bilabial trill release"
+msgstr "Ünsüz: ötümsüz, diş patlamalısı, ötümsüz çift dudak titreşimli salımlı"
+
+#: includes/lib/sort.php:667
+msgid "voiceless dental stop with bilabial trill release"
+msgstr "Ünsüz: ötümsüz, diş patlamalısı, çift dudak titreşimli salımlı"
+
+#: includes/lib/sort.php:668
+msgid "voiced dental stop with bilabial trill release"
+msgstr "Ünsüz: ötümlü, diş patlamalısı, çift dudak titreşimli salımlı"
+
+#: includes/lib/sort.php:669
+msgid "voiceless alveolar stop with voiceless bilabial trill release"
+msgstr "Ünsüz: ötümsüz, diş yuvası patlamalısı, ötümsüz çift dudak titreşimli salımlı"
+
+#: includes/lib/sort.php:709
+msgid "transcription symbol"
+msgstr "transkripsiyon sembolü"
+
+#: includes/lib/sort.php:713
+msgid "aspiration modifier"
+msgstr "aspirasyon değiştiricisi"
+
+#: includes/lib/sort.php:714
+msgid "palatalization modifier"
+msgstr "damaksıllaştırma değiştiricisi"
+
+#: includes/lib/sort.php:715
+msgid "labialization modifier"
+msgstr "dudaksıllaştırma değiştiricisi"
+
+#: includes/lib/sort.php:716
+msgid "long sound marker"
+msgstr "uzun ses işareti"
+
+#: includes/lib/sort.php:717
+msgid "devoicing diacritic"
+msgstr "ötümsüzleştirme aksanı"
+
+#: includes/lib/sort.php:718
+msgid "dental diacritic"
+msgstr "diş aksanı"
+
+#: includes/lib/sort.php:719
+msgid "extra-short diacritic"
+msgstr "ekstra kısa aksanı"
+
+#: includes/lib/sort.php:720
+msgid "tie bar"
+msgstr "bağ çizgisi"
+
+#: includes/lib/sort.php:721
+msgid "primary stress marker"
+msgstr "birincil vurgu işareti"
+
+#: includes/lib/sort.php:722
+msgid "secondary stress marker"
+msgstr "ikincil vurgu işareti"
+
+#: includes/lib/sort.php:744
+msgid "tie-bar IPA sequence"
+msgstr "bağ çizgili IPA dizisi"
+
+#: includes/lib/sort.php:747
+msgid "IPA symbol"
+msgstr "IPA sembolü"
+
+#: includes/lib/sort.php:903
+msgid "Symbols"
+msgstr "Semboller"
+
+#: includes/lib/sort.php:994
+msgid "Affricates and tie bars"
+msgstr "Affrikatlar ve bağ çizgileri"
+
+#: includes/lib/sort.php:995
+msgid "Vowels"
+msgstr "Ünlüler"
+
+#: includes/lib/sort.php:996
+msgid "Consonants"
+msgstr "Ünsüzler"
+
+#: includes/lib/sort.php:997
+msgid "Rare symbols"
+msgstr "Nadir semboller"
+
+#: includes/lib/sort.php:998
+msgid "Other symbols"
+msgstr "Diğer semboller"
+
+#: includes/login-window.php:1412
+msgid "Username suggestions"
+msgstr "Kullanıcı adı önerileri"
+
+#: includes/pages/wordset-pages.php:2083
+msgid "About this word set"
+msgstr "Bu kelime seti hakkında"
+
+#: includes/pages/wordset-pages.php:2089
+msgid "Language code"
+msgstr "Dil kodu"
+
+#: includes/pages/wordset-pages.php:10352
+msgid "Category ordering, profile image and intro, answer text styling, grammar options, and game image sizing."
+msgstr "Kategori sıralaması, profil görseli ve giriş, yanıt metni stili, gramer seçenekleri ve oyun görseli boyutlandırması."
+
+#: includes/pages/wordset-pages.php:11059
+msgid "Profile"
+msgstr "Profil"
+
+#: includes/pages/wordset-pages.php:11062
+msgid "Word set profile image"
+msgstr "Kelime seti profil görseli"
+
+#: includes/pages/wordset-pages.php:11095
+msgid "Use a 16:9 landscape image. It appears on the word set page and in [ll_wordset_buttons] thumbnail cards."
+msgstr "16:9 yatay bir görsel kullan. Kelime seti sayfasında ve [ll_wordset_buttons] küçük resim kartlarında görünür."
+
+#: includes/pages/wordset-pages.php:11099 includes/pages/wordset-pages.php:15405
+msgid "Intro blurb"
+msgstr "Giriş açıklaması"
+
+#: includes/pages/wordset-pages.php:11107
+msgid "Short learner-facing context for this word set, such as where the language is spoken or what course material these quizzes complement."
+msgstr "Bu kelime seti için, dilin nerede konuşulduğu veya bu quizlerin hangi ders materyalini tamamladığı gibi öğrenciye yönelik kısa bağlam."
+
+#: includes/pages/wordset-pages.php:15402
+msgid "Profile image"
+msgstr "Profil görseli"
+
+#: includes/shortcodes/interlinear-shortcode.php:301
+msgid "TEXT"
+msgstr "METİN"
+
+#: includes/shortcodes/interlinear-shortcode.php:310
+msgid "FREE"
+msgstr "SERBEST"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "Diğer diller"
+
+#: includes/shortcodes/word-grid-shortcode.php:3464 includes/shortcodes/word-grid-shortcode.php:5115
+msgid "Download audio"
+msgstr "Sesi indir"

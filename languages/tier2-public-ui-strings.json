@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 653,
+    "entry_count": 650,
     "entries": [
         {
             "key": "47f041331488f3e0f319f632b9eceed49917b9f3",
@@ -60,12 +60,12 @@
             "msgid": "English",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1340",
+                "includes/lib/interlinear.php:1341",
                 "includes/lib/wordset-language-settings.php:143",
                 "includes/shortcodes/dictionary-shortcode.php:299"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1340",
+                "includes/lib/interlinear.php:1341",
                 "includes/shortcodes/dictionary-shortcode.php:299"
             ]
         },
@@ -75,11 +75,11 @@
             "msgid": "Turkish",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1341",
+                "includes/lib/interlinear.php:1342",
                 "includes/lib/wordset-language-settings.php:178"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1341"
+                "includes/lib/interlinear.php:1342"
             ]
         },
         {
@@ -88,11 +88,11 @@
             "msgid": "German",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1342",
+                "includes/lib/interlinear.php:1343",
                 "includes/lib/wordset-language-settings.php:145"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1342"
+                "includes/lib/interlinear.php:1343"
             ]
         },
         {
@@ -101,11 +101,11 @@
             "msgid": "Russian",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1343",
+                "includes/lib/interlinear.php:1344",
                 "includes/lib/wordset-language-settings.php:173"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1343"
+                "includes/lib/interlinear.php:1344"
             ]
         },
         {
@@ -114,10 +114,10 @@
             "msgid": "Section %d",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1546"
+                "includes/lib/interlinear.php:1547"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1546"
+                "includes/lib/interlinear.php:1547"
             ]
         },
         {
@@ -126,10 +126,10 @@
             "msgid": "No text is available for this language in this section.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1588"
+                "includes/lib/interlinear.php:1589"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1588"
+                "includes/lib/interlinear.php:1589"
             ]
         },
         {
@@ -138,10 +138,10 @@
             "msgid": "Book language",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1605"
+                "includes/lib/interlinear.php:1606"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1605"
+                "includes/lib/interlinear.php:1606"
             ]
         },
         {
@@ -150,10 +150,10 @@
             "msgid": "Book sections",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1625"
+                "includes/lib/interlinear.php:1626"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1625"
+                "includes/lib/interlinear.php:1626"
             ]
         },
         {
@@ -162,10 +162,10 @@
             "msgid": "Book page navigation",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1658"
+                "includes/lib/interlinear.php:1659"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1658"
+                "includes/lib/interlinear.php:1659"
             ]
         },
         {
@@ -175,18 +175,18 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/image-webp-optimizer-admin.php:1497",
-                "includes/admin/ipa-keyboard-admin.php:313",
-                "includes/admin/ipa-keyboard-admin.php:335",
+                "includes/admin/ipa-keyboard-admin.php:320",
+                "includes/admin/ipa-keyboard-admin.php:342",
                 "includes/admin/site-sync-admin.php:1119",
-                "includes/lib/interlinear.php:1662",
-                "includes/lib/interlinear.php:1666",
+                "includes/lib/interlinear.php:1663",
+                "includes/lib/interlinear.php:1667",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:320",
                 "includes/shortcodes/dictionary-shortcode.php:1943",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:424"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1662",
-                "includes/lib/interlinear.php:1666",
+                "includes/lib/interlinear.php:1663",
+                "includes/lib/interlinear.php:1667",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:320",
                 "includes/shortcodes/dictionary-shortcode.php:1943",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:424"
@@ -199,10 +199,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/login-blocks-admin.php:264",
-                "includes/lib/interlinear.php:1670"
+                "includes/lib/interlinear.php:1671"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1670"
+                "includes/lib/interlinear.php:1671"
             ]
         },
         {
@@ -212,11 +212,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/image-webp-optimizer-admin.php:1498",
-                "includes/admin/ipa-keyboard-admin.php:314",
-                "includes/admin/ipa-keyboard-admin.php:336",
+                "includes/admin/ipa-keyboard-admin.php:321",
+                "includes/admin/ipa-keyboard-admin.php:343",
                 "includes/admin/site-sync-admin.php:1122",
-                "includes/lib/interlinear.php:1678",
-                "includes/lib/interlinear.php:1682",
+                "includes/lib/interlinear.php:1679",
+                "includes/lib/interlinear.php:1683",
                 "includes/pages/wordset-pages.php:17478",
                 "includes/pages/wordset-pages.php:17607",
                 "includes/pages/wordset-pages.php:9506",
@@ -230,8 +230,8 @@
                 "templates/offline-app-shell-template.php:958"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1678",
-                "includes/lib/interlinear.php:1682",
+                "includes/lib/interlinear.php:1679",
+                "includes/lib/interlinear.php:1683",
                 "includes/pages/wordset-pages.php:17478",
                 "includes/pages/wordset-pages.php:9506",
                 "includes/pages/wordset-pages.php:9540",
@@ -251,19 +251,19 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/export-import.php:11342",
-                "includes/admin/ipa-keyboard-admin.php:275",
-                "includes/lib/interlinear.php:1691",
-                "includes/lib/interlinear.php:1909",
+                "includes/admin/ipa-keyboard-admin.php:282",
+                "includes/lib/interlinear.php:1692",
+                "includes/lib/interlinear.php:1910",
                 "includes/pages/wordset-editor.php:3162",
                 "includes/shortcodes/editor-hub-shortcode.php:1079",
                 "includes/shortcodes/editor-hub-shortcode.php:660",
-                "includes/shortcodes/word-grid-shortcode.php:4981",
+                "includes/shortcodes/word-grid-shortcode.php:5093",
                 "templates/vocab-lesson-print-template.php:127",
                 "templates/vocab-lesson-template.php:1144"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1691",
-                "includes/lib/interlinear.php:1909",
+                "includes/lib/interlinear.php:1692",
+                "includes/lib/interlinear.php:1910",
                 "templates/vocab-lesson-print-template.php:127",
                 "templates/vocab-lesson-template.php:1144"
             ]
@@ -274,12 +274,12 @@
             "msgid": "Interlinear",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1697",
-                "includes/lib/interlinear.php:2594",
-                "includes/lib/interlinear.php:2597"
+                "includes/lib/interlinear.php:1698",
+                "includes/lib/interlinear.php:2595",
+                "includes/lib/interlinear.php:2598"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1697"
+                "includes/lib/interlinear.php:1698"
             ]
         },
         {
@@ -288,15 +288,15 @@
             "msgid": "Sources",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1700",
-                "includes/lib/interlinear.php:1947",
-                "includes/lib/interlinear.php:2308",
+                "includes/lib/interlinear.php:1701",
+                "includes/lib/interlinear.php:1948",
                 "includes/lib/interlinear.php:2309",
+                "includes/lib/interlinear.php:2310",
                 "includes/post-types/dictionary-entry-post-type.php:1775",
                 "includes/shortcodes/dictionary-shortcode.php:1844"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1700",
+                "includes/lib/interlinear.php:1701",
                 "includes/shortcodes/dictionary-shortcode.php:1844"
             ]
         },
@@ -306,10 +306,10 @@
             "msgid": "Text view",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1707"
+                "includes/lib/interlinear.php:1708"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1707"
+                "includes/lib/interlinear.php:1708"
             ]
         },
         {
@@ -318,13 +318,13 @@
             "msgid": "Translation language",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1728",
+                "includes/lib/interlinear.php:1729",
                 "includes/pages/wordset-pages.php:10638",
                 "includes/pages/wordset-pages.php:2095",
                 "includes/taxonomies/wordset-taxonomy.php:3089"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1728"
+                "includes/lib/interlinear.php:1729"
             ]
         },
         {
@@ -333,10 +333,10 @@
             "msgid": "Content warning",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1818"
+                "includes/lib/interlinear.php:1819"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1818"
+                "includes/lib/interlinear.php:1819"
             ]
         },
         {
@@ -345,10 +345,10 @@
             "msgid": "People mentioned",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1823"
+                "includes/lib/interlinear.php:1824"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1823"
+                "includes/lib/interlinear.php:1824"
             ]
         },
         {
@@ -357,10 +357,10 @@
             "msgid": "Historical context",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1828"
+                "includes/lib/interlinear.php:1829"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1828"
+                "includes/lib/interlinear.php:1829"
             ]
         },
         {
@@ -369,10 +369,10 @@
             "msgid": "Research note",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1833"
+                "includes/lib/interlinear.php:1834"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1833"
+                "includes/lib/interlinear.php:1834"
             ]
         },
         {
@@ -381,10 +381,10 @@
             "msgid": "Places mentioned",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1838"
+                "includes/lib/interlinear.php:1839"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1838"
+                "includes/lib/interlinear.php:1839"
             ]
         },
         {
@@ -393,10 +393,10 @@
             "msgid": "Text background",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:1878"
+                "includes/lib/interlinear.php:1879"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1878"
+                "includes/lib/interlinear.php:1879"
             ]
         },
         {
@@ -410,7 +410,7 @@
                 "includes/admin/export-import.php:11310",
                 "includes/admin/export-import.php:11345",
                 "includes/admin/user-progress-report.php:991",
-                "includes/lib/interlinear.php:1906",
+                "includes/lib/interlinear.php:1907",
                 "includes/pages/wordset-editor.php:3017",
                 "includes/pages/wordset-editor.php:3163",
                 "includes/pages/wordset-editor.php:658",
@@ -422,10 +422,10 @@
                 "includes/shortcodes/editor-hub-shortcode.php:1080",
                 "includes/shortcodes/editor-hub-shortcode.php:511",
                 "includes/shortcodes/editor-hub-shortcode.php:668",
-                "includes/shortcodes/word-grid-shortcode.php:4961"
+                "includes/shortcodes/word-grid-shortcode.php:5073"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:1906"
+                "includes/lib/interlinear.php:1907"
             ]
         },
         {
@@ -434,10 +434,10 @@
             "msgid": "Line review note",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:2152"
+                "includes/lib/interlinear.php:2153"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:2152"
+                "includes/lib/interlinear.php:2153"
             ]
         },
         {
@@ -446,10 +446,10 @@
             "msgid": "Source witnesses",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:2183"
+                "includes/lib/interlinear.php:2184"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:2183"
+                "includes/lib/interlinear.php:2184"
             ]
         },
         {
@@ -458,10 +458,10 @@
             "msgid": "Pages:",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:2225"
+                "includes/lib/interlinear.php:2226"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:2225"
+                "includes/lib/interlinear.php:2226"
             ]
         },
         {
@@ -470,10 +470,10 @@
             "msgid": "Rights:",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:2231"
+                "includes/lib/interlinear.php:2232"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:2231"
+                "includes/lib/interlinear.php:2232"
             ]
         },
         {
@@ -482,10 +482,10 @@
             "msgid": "Source witness",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:2241"
+                "includes/lib/interlinear.php:2242"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:2241"
+                "includes/lib/interlinear.php:2242"
             ]
         },
         {
@@ -494,12 +494,12 @@
             "msgid": "Interlinear analysis",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:2545",
-                "includes/lib/interlinear.php:2563"
+                "includes/lib/interlinear.php:2546",
+                "includes/lib/interlinear.php:2564",
+                "includes/shortcodes/interlinear-shortcode.php:345"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:2545",
-                "includes/lib/interlinear.php:2563"
+                "includes/lib/interlinear.php:2546"
             ]
         },
         {
@@ -791,15 +791,27 @@
             ]
         },
         {
-            "key": "cba9b3cafd926acf3fd88e63bcafdb0430d169e1",
+            "key": "a179620552740fc2b630aae5ee598bf9a5b4f6ab",
             "context": "",
-            "msgid": "proximal",
+            "msgid": "distal",
             "msgid_plural": null,
             "references": [
                 "includes/lib/interlinear.php:556"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:556"
+            ]
+        },
+        {
+            "key": "cba9b3cafd926acf3fd88e63bcafdb0430d169e1",
+            "context": "",
+            "msgid": "proximal",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/interlinear.php:557"
+            ],
+            "public_references": [
+                "includes/lib/interlinear.php:557"
             ]
         },
         {
@@ -808,10 +820,10 @@
             "msgid": "progressive",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:557"
+                "includes/lib/interlinear.php:558"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:557"
+                "includes/lib/interlinear.php:558"
             ]
         },
         {
@@ -820,10 +832,10 @@
             "msgid": "ezafe",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:558"
+                "includes/lib/interlinear.php:559"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:558"
+                "includes/lib/interlinear.php:559"
             ]
         },
         {
@@ -832,10 +844,10 @@
             "msgid": "agreement",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:559"
+                "includes/lib/interlinear.php:560"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:559"
+                "includes/lib/interlinear.php:560"
             ]
         },
         {
@@ -844,10 +856,10 @@
             "msgid": "aspect",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:560"
+                "includes/lib/interlinear.php:561"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:560"
+                "includes/lib/interlinear.php:561"
             ]
         },
         {
@@ -856,10 +868,10 @@
             "msgid": "mood",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:561"
+                "includes/lib/interlinear.php:562"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:561"
+                "includes/lib/interlinear.php:562"
             ]
         },
         {
@@ -868,10 +880,10 @@
             "msgid": "polarity",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:562"
+                "includes/lib/interlinear.php:563"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:562"
+                "includes/lib/interlinear.php:563"
             ]
         },
         {
@@ -880,10 +892,10 @@
             "msgid": "case",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:563"
+                "includes/lib/interlinear.php:564"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:563"
+                "includes/lib/interlinear.php:564"
             ]
         },
         {
@@ -892,10 +904,10 @@
             "msgid": "clitic",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:564"
+                "includes/lib/interlinear.php:565"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:564"
+                "includes/lib/interlinear.php:565"
             ]
         },
         {
@@ -904,10 +916,10 @@
             "msgid": "number",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:565"
+                "includes/lib/interlinear.php:566"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:565"
+                "includes/lib/interlinear.php:566"
             ]
         },
         {
@@ -916,10 +928,10 @@
             "msgid": "phonological process",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:566"
+                "includes/lib/interlinear.php:567"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:566"
+                "includes/lib/interlinear.php:567"
             ]
         },
         {
@@ -928,10 +940,10 @@
             "msgid": "buffer consonant",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:567"
+                "includes/lib/interlinear.php:568"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:567"
+                "includes/lib/interlinear.php:568"
             ]
         },
         {
@@ -940,10 +952,10 @@
             "msgid": "derivational morphology",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:568"
+                "includes/lib/interlinear.php:569"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:568"
+                "includes/lib/interlinear.php:569"
             ]
         },
         {
@@ -952,10 +964,10 @@
             "msgid": "noun",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:569"
+                "includes/lib/interlinear.php:570"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:569"
+                "includes/lib/interlinear.php:570"
             ]
         },
         {
@@ -964,10 +976,10 @@
             "msgid": "verb",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:570"
+                "includes/lib/interlinear.php:571"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:570"
+                "includes/lib/interlinear.php:571"
             ]
         },
         {
@@ -976,10 +988,10 @@
             "msgid": "pronoun",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:571"
+                "includes/lib/interlinear.php:572"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:571"
+                "includes/lib/interlinear.php:572"
             ]
         },
         {
@@ -988,10 +1000,10 @@
             "msgid": "determiner",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:572"
+                "includes/lib/interlinear.php:573"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:572"
+                "includes/lib/interlinear.php:573"
             ]
         },
         {
@@ -1000,10 +1012,10 @@
             "msgid": "postposition",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:573"
+                "includes/lib/interlinear.php:574"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:573"
+                "includes/lib/interlinear.php:574"
             ]
         },
         {
@@ -1012,10 +1024,10 @@
             "msgid": "particle",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:574"
+                "includes/lib/interlinear.php:575"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:574"
+                "includes/lib/interlinear.php:575"
             ]
         },
         {
@@ -1024,10 +1036,10 @@
             "msgid": "adverb",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:575"
+                "includes/lib/interlinear.php:576"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:575"
+                "includes/lib/interlinear.php:576"
             ]
         },
         {
@@ -1036,10 +1048,10 @@
             "msgid": "adjective",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:576"
+                "includes/lib/interlinear.php:577"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:576"
+                "includes/lib/interlinear.php:577"
             ]
         },
         {
@@ -1048,10 +1060,10 @@
             "msgid": "interjection",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:577"
+                "includes/lib/interlinear.php:578"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:577"
+                "includes/lib/interlinear.php:578"
             ]
         },
         {
@@ -1060,10 +1072,10 @@
             "msgid": "conjunction",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:578"
+                "includes/lib/interlinear.php:579"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:578"
+                "includes/lib/interlinear.php:579"
             ]
         },
         {
@@ -1072,10 +1084,10 @@
             "msgid": "phrase",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:579"
+                "includes/lib/interlinear.php:580"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:579"
+                "includes/lib/interlinear.php:580"
             ]
         },
         {
@@ -1084,10 +1096,10 @@
             "msgid": "lexical item",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:580"
+                "includes/lib/interlinear.php:581"
             ],
             "public_references": [
-                "includes/lib/interlinear.php:580"
+                "includes/lib/interlinear.php:581"
             ]
         },
         {
@@ -1144,8 +1156,8 @@
             "msgid": "IPA",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:557",
-                "includes/admin/ipa-keyboard-admin.php:571",
+                "includes/admin/ipa-keyboard-admin.php:568",
+                "includes/admin/ipa-keyboard-admin.php:582",
                 "includes/admin/site-sync-admin.php:1046",
                 "includes/lib/wordset-language-settings.php:1148",
                 "includes/lib/wordset-language-settings.php:1149",
@@ -1162,8 +1174,9 @@
                 "includes/shortcodes/editor-hub-shortcode.php:1040",
                 "includes/shortcodes/editor-hub-shortcode.php:644",
                 "includes/shortcodes/editor-hub-shortcode.php:645",
-                "includes/shortcodes/word-grid-shortcode.php:4942",
-                "includes/shortcodes/word-grid-shortcode.php:4950"
+                "includes/shortcodes/interlinear-shortcode.php:304",
+                "includes/shortcodes/word-grid-shortcode.php:5054",
+                "includes/shortcodes/word-grid-shortcode.php:5062"
             ],
             "public_references": [
                 "includes/lib/wordset-language-settings.php:1148",
@@ -1171,9 +1184,7 @@
                 "includes/lib/wordset-language-settings.php:1168",
                 "includes/lib/wordset-language-settings.php:734",
                 "includes/pages/wordset-games.php:3060",
-                "includes/pages/wordset-pages.php:9537",
-                "includes/shortcodes/word-grid-shortcode.php:4942",
-                "includes/shortcodes/word-grid-shortcode.php:4950"
+                "includes/pages/wordset-pages.php:9537"
             ]
         },
         {
@@ -2765,7 +2776,7 @@
                 "includes/shortcodes/audio-recording-shortcode.php:3810",
                 "includes/shortcodes/audio-recording-shortcode.php:462",
                 "includes/shortcodes/audio-recording-shortcode.php:6676",
-                "includes/shortcodes/word-grid-shortcode.php:6867"
+                "includes/shortcodes/word-grid-shortcode.php:6981"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:3922"
@@ -3076,7 +3087,7 @@
             "msgid": "Categories",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:318",
+                "includes/admin/ipa-keyboard-admin.php:325",
                 "includes/admin/offline-app-export.php:703",
                 "includes/admin/user-progress-report.php:951",
                 "includes/pages/wordset-editor.php:3020",
@@ -3094,7 +3105,7 @@
                 "includes/post-types/words-post-type.php:987",
                 "includes/shortcodes/flashcard-widget.php:388",
                 "includes/shortcodes/quiz-pages-shortcodes.php:995",
-                "includes/shortcodes/word-grid-shortcode.php:4965",
+                "includes/shortcodes/word-grid-shortcode.php:5077",
                 "templates/flashcard-widget-template.php:171",
                 "templates/flashcard-widget-template.php:47",
                 "templates/offline-app-shell-template.php:858",
@@ -3454,7 +3465,7 @@
             "msgid": "Select all",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:415",
+                "includes/admin/ipa-keyboard-admin.php:426",
                 "includes/pages/wordset-pages.php:15799",
                 "includes/pages/wordset-pages.php:15878",
                 "includes/pages/wordset-pages.php:16160",
@@ -3583,8 +3594,8 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/bulk-translation-admin.php:216",
-                "includes/admin/ipa-keyboard-admin.php:269",
-                "includes/admin/ipa-keyboard-admin.php:393",
+                "includes/admin/ipa-keyboard-admin.php:276",
+                "includes/admin/ipa-keyboard-admin.php:404",
                 "includes/pages/wordset-pages.php:15812",
                 "includes/post-types/prompt-card-post-type.php:550",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:204",
@@ -3799,8 +3810,8 @@
                 "includes/admin/bulk-translation-admin.php:176",
                 "includes/admin/bulk-translation-admin.php:198",
                 "includes/admin/export-import.php:3936",
-                "includes/admin/ipa-keyboard-admin.php:273",
-                "includes/admin/ipa-keyboard-admin.php:315",
+                "includes/admin/ipa-keyboard-admin.php:280",
+                "includes/admin/ipa-keyboard-admin.php:322",
                 "includes/admin/missing-audio-admin-page.php:635",
                 "includes/admin/orphan-media-admin.php:854",
                 "includes/admin/user-progress-report.php:990",
@@ -3818,7 +3829,7 @@
                 "includes/privacy.php:556",
                 "includes/shortcodes/editor-hub-shortcode.php:1052",
                 "includes/shortcodes/editor-hub-shortcode.php:510",
-                "includes/shortcodes/word-grid-shortcode.php:4960"
+                "includes/shortcodes/word-grid-shortcode.php:5072"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:15832",
@@ -3873,7 +3884,7 @@
                 "includes/post-types/dictionary-entry-post-type.php:1319",
                 "includes/shortcodes/editor-hub-shortcode.php:1058",
                 "includes/shortcodes/editor-hub-shortcode.php:514",
-                "includes/shortcodes/word-grid-shortcode.php:5667",
+                "includes/shortcodes/word-grid-shortcode.php:5780",
                 "templates/vocab-lesson-template.php:609"
             ],
             "public_references": [
@@ -4137,13 +4148,12 @@
             "references": [
                 "includes/pages/wordset-pages.php:15857",
                 "includes/shortcodes/flashcard-widget.php:407",
-                "includes/shortcodes/word-grid-shortcode.php:3332",
-                "includes/shortcodes/word-grid-shortcode.php:5469"
+                "includes/shortcodes/word-grid-shortcode.php:3443",
+                "includes/shortcodes/word-grid-shortcode.php:5582"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:15857",
-                "includes/shortcodes/flashcard-widget.php:407",
-                "includes/shortcodes/word-grid-shortcode.php:3332"
+                "includes/shortcodes/flashcard-widget.php:407"
             ]
         },
         {
@@ -4153,13 +4163,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:15858",
-                "includes/shortcodes/word-grid-shortcode.php:3333",
-                "includes/shortcodes/word-grid-shortcode.php:5468"
+                "includes/shortcodes/word-grid-shortcode.php:3444",
+                "includes/shortcodes/word-grid-shortcode.php:5581"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:15858",
-                "includes/shortcodes/word-grid-shortcode.php:3333",
-                "includes/shortcodes/word-grid-shortcode.php:5468"
+                "includes/pages/wordset-pages.php:15858"
             ]
         },
         {
@@ -4181,7 +4189,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/bulk-translation-admin.php:181",
-                "includes/admin/ipa-keyboard-admin.php:420",
+                "includes/admin/ipa-keyboard-admin.php:431",
                 "includes/admin/split-word-admin.php:397",
                 "includes/admin/user-progress-report.php:992",
                 "includes/pages/wordset-editor.php:2865",
@@ -4464,7 +4472,7 @@
                 "includes/shortcodes/flashcard-widget.php:565",
                 "includes/shortcodes/quiz-pages-shortcodes.php:919",
                 "includes/shortcodes/quiz-pages-shortcodes.php:958",
-                "includes/shortcodes/word-grid-shortcode.php:5687",
+                "includes/shortcodes/word-grid-shortcode.php:5800",
                 "templates/flashcard-widget-template.php:134",
                 "templates/flashcard-widget-template.php:93",
                 "templates/offline-app-shell-template.php:836",
@@ -4917,10 +4925,10 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:143",
                 "includes/admin/audio-processor-admin.php:164",
-                "includes/admin/ipa-keyboard-admin.php:254",
+                "includes/admin/ipa-keyboard-admin.php:261",
                 "includes/pages/wordset-pages.php:15913",
                 "includes/shortcodes/dictionary-shortcode.php:39",
-                "includes/shortcodes/word-grid-shortcode.php:3338",
+                "includes/shortcodes/word-grid-shortcode.php:3449",
                 "templates/vocab-lesson-template.php:363"
             ],
             "public_references": [
@@ -5072,7 +5080,7 @@
             "references": [
                 "includes/pages/wordset-pages.php:16094",
                 "includes/pages/wordset-pages.php:16100",
-                "includes/shortcodes/word-grid-shortcode.php:4966"
+                "includes/shortcodes/word-grid-shortcode.php:5078"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16094",
@@ -5086,7 +5094,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:16148",
-                "includes/shortcodes/word-grid-shortcode.php:5005"
+                "includes/shortcodes/word-grid-shortcode.php:5118"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16148"
@@ -6588,7 +6596,7 @@
             "references": [
                 "includes/pages/wordset-pages.php:9528",
                 "includes/shortcodes/audio-recording-shortcode.php:1431",
-                "includes/shortcodes/word-grid-shortcode.php:3419"
+                "includes/shortcodes/word-grid-shortcode.php:3531"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:9528"
@@ -7281,10 +7289,10 @@
             "references": [
                 "includes/admin/bulk-translation-admin.php:146",
                 "includes/admin/image-webp-optimizer-admin.php:1567",
-                "includes/admin/ipa-keyboard-admin.php:294",
-                "includes/admin/ipa-keyboard-admin.php:470",
-                "includes/admin/ipa-keyboard-admin.php:496",
-                "includes/admin/ipa-keyboard-admin.php:519",
+                "includes/admin/ipa-keyboard-admin.php:301",
+                "includes/admin/ipa-keyboard-admin.php:481",
+                "includes/admin/ipa-keyboard-admin.php:507",
+                "includes/admin/ipa-keyboard-admin.php:530",
                 "includes/shortcodes/dictionary-shortcode.php:2856",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:161"
             ],
@@ -7788,17 +7796,16 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/export-import.php:3954",
-                "includes/admin/ipa-keyboard-admin.php:893",
+                "includes/admin/ipa-keyboard-admin.php:968",
                 "includes/admin/word-option-rules-admin.php:1684",
                 "includes/pages/wordset-editor.php:2477",
                 "includes/shortcodes/flashcard-widget.php:423",
-                "includes/shortcodes/word-grid-shortcode.php:4461",
-                "includes/shortcodes/word-grid-shortcode.php:4955",
+                "includes/shortcodes/word-grid-shortcode.php:4573",
+                "includes/shortcodes/word-grid-shortcode.php:5067",
                 "templates/vocab-lesson-template.php:1489"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:423",
-                "includes/shortcodes/word-grid-shortcode.php:4955"
+                "includes/shortcodes/flashcard-widget.php:423"
             ]
         },
         {
@@ -7812,16 +7819,13 @@
                 "includes/shortcodes/audio-recording-shortcode.php:29",
                 "includes/shortcodes/editor-hub-shortcode.php:302",
                 "includes/shortcodes/flashcard-widget.php:424",
-                "includes/shortcodes/word-grid-shortcode.php:4458",
-                "includes/shortcodes/word-grid-shortcode.php:4922",
-                "includes/shortcodes/word-grid-shortcode.php:6585",
+                "includes/shortcodes/word-grid-shortcode.php:4570",
+                "includes/shortcodes/word-grid-shortcode.php:5034",
+                "includes/shortcodes/word-grid-shortcode.php:6699",
                 "includes/taxonomies/recording-type-taxonomy.php:41"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:424",
-                "includes/shortcodes/word-grid-shortcode.php:4458",
-                "includes/shortcodes/word-grid-shortcode.php:4922",
-                "includes/shortcodes/word-grid-shortcode.php:6585"
+                "includes/shortcodes/flashcard-widget.php:424"
             ]
         },
         {
@@ -7834,15 +7838,13 @@
                 "includes/shortcodes/audio-recording-shortcode.php:31",
                 "includes/shortcodes/editor-hub-shortcode.php:303",
                 "includes/shortcodes/flashcard-widget.php:425",
-                "includes/shortcodes/word-grid-shortcode.php:4459",
-                "includes/shortcodes/word-grid-shortcode.php:4923",
-                "includes/shortcodes/word-grid-shortcode.php:6586",
+                "includes/shortcodes/word-grid-shortcode.php:4571",
+                "includes/shortcodes/word-grid-shortcode.php:5035",
+                "includes/shortcodes/word-grid-shortcode.php:6700",
                 "includes/taxonomies/recording-type-taxonomy.php:43"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:425",
-                "includes/shortcodes/word-grid-shortcode.php:4459",
-                "includes/shortcodes/word-grid-shortcode.php:4923"
+                "includes/shortcodes/flashcard-widget.php:425"
             ]
         },
         {
@@ -7854,14 +7856,13 @@
                 "includes/pages/wordset-editor.php:3134",
                 "includes/shortcodes/editor-hub-shortcode.php:1063",
                 "includes/shortcodes/flashcard-widget.php:426",
-                "includes/shortcodes/word-grid-shortcode.php:3355",
-                "includes/shortcodes/word-grid-shortcode.php:4980",
-                "includes/shortcodes/word-grid-shortcode.php:5988",
-                "includes/shortcodes/word-grid-shortcode.php:6045"
+                "includes/shortcodes/word-grid-shortcode.php:3467",
+                "includes/shortcodes/word-grid-shortcode.php:5092",
+                "includes/shortcodes/word-grid-shortcode.php:6102",
+                "includes/shortcodes/word-grid-shortcode.php:6159"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:426",
-                "includes/shortcodes/word-grid-shortcode.php:5988"
+                "includes/shortcodes/flashcard-widget.php:426"
             ]
         },
         {
@@ -8160,7 +8161,7 @@
             "msgid": "Clear selection",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:416",
+                "includes/admin/ipa-keyboard-admin.php:427",
                 "includes/pages/wordset-pages.php:16369",
                 "includes/pages/wordset-pages.php:16878",
                 "includes/shortcodes/flashcard-widget.php:469",
@@ -8307,7 +8308,7 @@
             "references": [
                 "includes/admin/export-import.php:3630",
                 "includes/admin/export-import.php:3715",
-                "includes/admin/ipa-keyboard-admin.php:452",
+                "includes/admin/ipa-keyboard-admin.php:463",
                 "includes/admin/teacher-classes-page.php:568",
                 "includes/admin/word-option-rules-admin.php:1358",
                 "includes/pages/wordset-pages.php:8974",
@@ -8414,20 +8415,46 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:10244",
-                "includes/shortcodes/language-switcher-shortcode.php:686",
-                "includes/shortcodes/language-switcher-shortcode.php:695",
-                "includes/shortcodes/language-switcher-shortcode.php:704",
-                "includes/shortcodes/language-switcher-shortcode.php:844",
-                "includes/shortcodes/language-switcher-shortcode.php:852",
+                "includes/shortcodes/language-switcher-shortcode.php:1025",
+                "includes/shortcodes/language-switcher-shortcode.php:1035",
+                "includes/shortcodes/language-switcher-shortcode.php:864",
+                "includes/shortcodes/language-switcher-shortcode.php:888",
+                "includes/shortcodes/language-switcher-shortcode.php:894",
                 "includes/taxonomies/language-taxonomy.php:12",
                 "includes/taxonomies/wordset-taxonomy.php:1385"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:686",
-                "includes/shortcodes/language-switcher-shortcode.php:695",
-                "includes/shortcodes/language-switcher-shortcode.php:704",
-                "includes/shortcodes/language-switcher-shortcode.php:844",
-                "includes/shortcodes/language-switcher-shortcode.php:852"
+                "includes/shortcodes/language-switcher-shortcode.php:1025",
+                "includes/shortcodes/language-switcher-shortcode.php:1035",
+                "includes/shortcodes/language-switcher-shortcode.php:864",
+                "includes/shortcodes/language-switcher-shortcode.php:888",
+                "includes/shortcodes/language-switcher-shortcode.php:894"
+            ]
+        },
+        {
+            "key": "88b69c14bd4c473c352ff8b046e441c8771e239b",
+            "context": "",
+            "msgid": "Other languages",
+            "msgid_plural": null,
+            "references": [
+                "includes/shortcodes/language-switcher-shortcode.php:1027",
+                "includes/shortcodes/language-switcher-shortcode.php:868"
+            ],
+            "public_references": [
+                "includes/shortcodes/language-switcher-shortcode.php:1027",
+                "includes/shortcodes/language-switcher-shortcode.php:868"
+            ]
+        },
+        {
+            "key": "2210b994e977db33cf4842a09a910573b1ab34d8",
+            "context": "",
+            "msgid": "Language: %s",
+            "msgid_plural": null,
+            "references": [
+                "includes/shortcodes/language-switcher-shortcode.php:880"
+            ],
+            "public_references": [
+                "includes/shortcodes/language-switcher-shortcode.php:880"
             ]
         },
         {
@@ -8441,13 +8468,13 @@
                 "includes/admin/audio-processor-admin.php:997",
                 "includes/admin/offline-app-export.php:1596",
                 "includes/admin/split-word-admin.php:177",
-                "includes/shortcodes/language-switcher-shortcode.php:709",
-                "includes/shortcodes/word-grid-shortcode.php:5013",
+                "includes/shortcodes/language-switcher-shortcode.php:899",
+                "includes/shortcodes/word-grid-shortcode.php:5126",
                 "templates/offline-app-shell-template.php:701",
                 "templates/vocab-lesson-template.php:523"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:709",
+                "includes/shortcodes/language-switcher-shortcode.php:899",
                 "templates/offline-app-shell-template.php:701"
             ]
         },
@@ -8573,151 +8600,39 @@
             ]
         },
         {
-            "key": "fee6db5dcf20ef77c839b6ea43b70bd059a6aaf0",
+            "key": "eca7c992f131636f870f6e2583f55bf25ecc40c5",
             "context": "",
-            "msgid": "No audio recording yet.",
+            "msgid": "Transcription guide",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:2980"
+                "includes/shortcodes/word-grid-shortcode.php:6040"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:2980"
+                "includes/shortcodes/word-grid-shortcode.php:6040"
             ]
         },
         {
-            "key": "4a2567c32f885430ffe9a8d20436205e8e8cec97",
+            "key": "bc7d7be5aa7004fc20f6bd886d6f7efe9bd48e03",
             "context": "",
-            "msgid": "Audio exists but is not published yet.",
+            "msgid": "Previous letter",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:2993"
+                "includes/shortcodes/word-grid-shortcode.php:6041"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:2993"
+                "includes/shortcodes/word-grid-shortcode.php:6041"
             ]
         },
         {
-            "key": "e099bfe402e0268a9e4878d5089211da80604898",
+            "key": "83b7f3d3e18b7f59b7520b6685a52278c8f45d2e",
             "context": "",
-            "msgid": "Audio record exists but has no file yet.",
+            "msgid": "Next letter",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:2996"
+                "includes/shortcodes/word-grid-shortcode.php:6043"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:2996"
-            ]
-        },
-        {
-            "key": "2190a278ad6747c125cd3dd4be97a618d4726f1c",
-            "context": "",
-            "msgid": "Word has not been published yet.",
-            "msgid_plural": null,
-            "references": [
-                "includes/shortcodes/word-grid-shortcode.php:2999"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:2999"
-            ]
-        },
-        {
-            "key": "aa943527c26e3f163a13acd5399ee50bc106763c",
-            "context": "",
-            "msgid": "Published but hidden. Reason: missing audio.",
-            "msgid_plural": null,
-            "references": [
-                "includes/shortcodes/word-grid-shortcode.php:3009"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:3009"
-            ]
-        },
-        {
-            "key": "829b4b30882c4fcb32cf1e539861a370686fafde",
-            "context": "",
-            "msgid": "Star all",
-            "msgid_plural": null,
-            "references": [
-                "includes/shortcodes/word-grid-shortcode.php:3334",
-                "templates/vocab-lesson-template.php:448"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:3334",
-                "templates/vocab-lesson-template.php:448"
-            ]
-        },
-        {
-            "key": "acfb4faef880cf553926018fec3690ec6371a349",
-            "context": "",
-            "msgid": "Question",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/export-import.php:608",
-                "includes/shortcodes/audio-recording-shortcode.php:30",
-                "includes/shortcodes/editor-hub-shortcode.php:301",
-                "includes/shortcodes/word-grid-shortcode.php:4457",
-                "includes/shortcodes/word-grid-shortcode.php:4921",
-                "includes/shortcodes/word-grid-shortcode.php:6584",
-                "includes/taxonomies/recording-type-taxonomy.php:42"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:4457",
-                "includes/shortcodes/word-grid-shortcode.php:4921",
-                "includes/shortcodes/word-grid-shortcode.php:6584"
-            ]
-        },
-        {
-            "key": "dc629fc8187fa34415803ccd6ad0e783d3e85e1a",
-            "context": "",
-            "msgid": "IPA suggestions",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/wordset-language-settings.php:1164",
-                "includes/shortcodes/word-grid-shortcode.php:4946",
-                "includes/shortcodes/word-grid-shortcode.php:5934"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:4946"
-            ]
-        },
-        {
-            "key": "6ddb4593b902eef78c290cdfd8861a3c5c5703e6",
-            "context": "",
-            "msgid": "IPA symbols",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/ipa-keyboard-admin.php:575",
-                "includes/admin/ipa-keyboard-admin.php:578",
-                "includes/admin/ipa-keyboard-admin.php:618",
-                "includes/lib/wordset-language-settings.php:1165",
-                "includes/lib/wordset-language-settings.php:1169",
-                "includes/shortcodes/word-grid-shortcode.php:4947",
-                "includes/shortcodes/word-grid-shortcode.php:5938"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:4947"
-            ]
-        },
-        {
-            "key": "d1f65032db9e5b793e434c7d0be330b12172d644",
-            "context": "",
-            "msgid": "Recording",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/ipa-keyboard-admin.php:274",
-                "includes/admin/ipa-keyboard-admin.php:890",
-                "includes/admin/split-word-admin.php:395",
-                "includes/admin/split-word-admin.php:407",
-                "includes/admin/split-word-admin.php:414",
-                "includes/pages/wordset-editor.php:2883",
-                "includes/post-types/words-post-type.php:1045",
-                "includes/post-types/words-post-type.php:1048",
-                "includes/shortcodes/editor-hub-shortcode.php:653",
-                "includes/shortcodes/word-grid-shortcode.php:6575",
-                "templates/vocab-lesson-template.php:1040"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:6575"
+                "includes/shortcodes/word-grid-shortcode.php:6043"
             ]
         },
         {
@@ -8965,7 +8880,7 @@
             "references": [
                 "includes/pages/wordset-pages.php:16777",
                 "includes/pages/wordset-pages.php:16778",
-                "includes/shortcodes/word-grid-shortcode.php:4967",
+                "includes/shortcodes/word-grid-shortcode.php:5079",
                 "templates/offline-app-shell-template.php:772",
                 "templates/offline-app-shell-template.php:773"
             ],
@@ -8994,7 +8909,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:16792",
-                "includes/shortcodes/word-grid-shortcode.php:4969",
+                "includes/shortcodes/word-grid-shortcode.php:5081",
                 "templates/offline-app-shell-template.php:792"
             ],
             "public_references": [
@@ -9072,8 +8987,8 @@
             "msgid": "Print",
             "msgid_plural": null,
             "references": [
-                "includes/lib/interlinear.php:2275",
-                "includes/lib/interlinear.php:2368",
+                "includes/lib/interlinear.php:2276",
+                "includes/lib/interlinear.php:2369",
                 "templates/vocab-lesson-print-template.php:103",
                 "templates/vocab-lesson-print-template.php:119",
                 "templates/vocab-lesson-print-template.php:139",
@@ -9167,6 +9082,19 @@
             "public_references": [
                 "templates/vocab-lesson-template.php:1138",
                 "templates/vocab-lesson-template.php:1141"
+            ]
+        },
+        {
+            "key": "829b4b30882c4fcb32cf1e539861a370686fafde",
+            "context": "",
+            "msgid": "Star all",
+            "msgid_plural": null,
+            "references": [
+                "includes/shortcodes/word-grid-shortcode.php:3445",
+                "templates/vocab-lesson-template.php:448"
+            ],
+            "public_references": [
+                "templates/vocab-lesson-template.php:448"
             ]
         }
     ]

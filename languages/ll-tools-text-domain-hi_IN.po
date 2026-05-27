@@ -3554,3 +3554,27 @@ msgstr "कृपया पासवर्ड दर्ज करें."
 #: includes/login-window.php:1962
 msgid "Use at least 8 characters for your password."
 msgstr "अपने पासवर्ड के लिए कम से कम 8 वर्ण इस्तेमाल करें."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "दूरस्थ"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "अन्य भाषाएँ"
+
+#: includes/shortcodes/language-switcher-shortcode.php:880
+msgid "Language: %s"
+msgstr "भाषा: %s"
+
+#: includes/shortcodes/word-grid-shortcode.php:6040
+msgid "Transcription guide"
+msgstr "प्रतिलेखन मार्गदर्शिका"
+
+#: includes/shortcodes/word-grid-shortcode.php:6041
+msgid "Previous letter"
+msgstr "पिछला अक्षर"
+
+#: includes/shortcodes/word-grid-shortcode.php:6043
+msgid "Next letter"
+msgstr "अगला अक्षर"

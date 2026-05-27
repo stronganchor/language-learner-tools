@@ -25790,3 +25790,751 @@ msgstr "Anmeldung"
 #: includes/login-window.php:1407
 msgid "Sign-up"
 msgstr "Registrierung"
+
+#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:567 includes/admin/login-blocks-admin.php:181 includes/admin/login-blocks-admin.php:40 includes/admin/login-blocks-admin.php:41
+msgid "Login Blocks"
+msgstr "Login-Sperren"
+
+#: includes/admin/admin-dashboard-menu.php:568
+msgid "Release frontend login and sign-up rate-limit blocks for a connection."
+msgstr "Rate-Limit-Sperren für Frontend-Login und Registrierung für eine Verbindung aufheben."
+
+#: includes/admin/ipa-keyboard-admin.php:381
+msgid "Flag as illegal symbol"
+msgstr "Als unzulässiges Symbol markieren"
+
+#: includes/admin/ipa-keyboard-admin.php:382
+msgid "Mark %s as illegal for this word set?"
+msgstr "%s für dieses Vokabelset als unzulässiges Symbol markieren?"
+
+#: includes/admin/ipa-keyboard-admin.php:383
+msgid "Flagging symbol and rescanning this word set..."
+msgstr "Symbol wird markiert und dieses Vokabelset wird erneut geprüft..."
+
+#: includes/admin/ipa-keyboard-admin.php:384
+msgid "Symbol marked illegal and checks rescanned."
+msgstr "Symbol markiert und Prüfungen erneut durchgeführt."
+
+#: includes/admin/ipa-keyboard-admin.php:575 includes/admin/ipa-keyboard-admin.php:628 includes/lib/sort.php:935 includes/lib/wordset-language-settings.php:1156 includes/shortcodes/word-grid-shortcode.php:3309 includes/shortcodes/word-grid-shortcode.php:3484 includes/shortcodes/word-grid-shortcode.php:3487
+msgid "Diacritics and signs"
+msgstr "Diakritika und Zeichen"
+
+#: includes/admin/ipa-keyboard-admin.php:576 includes/lib/wordset-language-settings.php:1157 includes/shortcodes/word-grid-shortcode.php:3310 includes/shortcodes/word-grid-shortcode.php:3485 includes/shortcodes/word-grid-shortcode.php:3488
+msgid "Wordset symbols"
+msgstr "Vokabelset-Symbole"
+
+#: includes/admin/ipa-keyboard-admin.php:1955
+msgid "Illegal IPA symbol"
+msgstr "Unzulässiges IPA-Symbol"
+
+#: includes/admin/ipa-keyboard-admin.php:1956
+msgid "Flags symbols that have been marked illegal for this word set."
+msgstr "Kennzeichnet Symbole, die für dieses Vokabelset als unzulässig markiert wurden."
+
+#: includes/admin/ipa-keyboard-admin.php:4007
+msgid "This transcription contains %s, which is marked illegal for this word set."
+msgstr "Diese Transkription enthält %s, das für dieses Vokabelset als unzulässig markiert ist."
+
+#: includes/admin/ipa-keyboard-admin.php:5687
+msgid "Invalid symbol"
+msgstr "Ungültiges Symbol"
+
+#: includes/admin/login-blocks-admin.php:62
+msgid "%d minute"
+msgid_plural "%d minutes"
+msgstr[0] "%d Minute"
+msgstr[1] "%d Minuten"
+
+#: includes/admin/login-blocks-admin.php:69
+msgid "%d second"
+msgid_plural "%d seconds"
+msgstr[0] "%d Sekunde"
+msgstr[1] "%d Sekunden"
+
+#: includes/admin/login-blocks-admin.php:81
+msgid "Any moment now"
+msgstr "jeden Moment"
+
+#: includes/admin/login-blocks-admin.php:86
+msgid "In %1$s (%2$s)"
+msgstr "In %1$s (%2$s)"
+
+#: includes/admin/login-blocks-admin.php:107
+msgid "%1$s: %2$d/%3$d"
+msgstr "%1$s: %2$d/%3$d"
+
+#: includes/admin/login-blocks-admin.php:124
+msgid "You do not have permission to release login blocks."
+msgstr "Du hast keine Berechtigung, Login-Sperren aufzuheben."
+
+#: includes/admin/login-blocks-admin.php:146
+msgid "Enter a valid IPv4 or IPv6 address."
+msgstr "Gib eine gültige IPv4- oder IPv6-Adresse ein."
+
+#: includes/admin/login-blocks-admin.php:155
+msgid "Released auth blocks for %1$s. Previous status: %2$s."
+msgstr "Authentifizierungssperren für %1$s aufgehoben. Vorheriger Status: %2$s."
+
+#: includes/admin/login-blocks-admin.php:163
+msgid "Cleared any matching auth block records for %s."
+msgstr "Alle passenden Authentifizierungssperren für %s wurden gelöscht."
+
+#: includes/admin/login-blocks-admin.php:193
+msgid "Frontend login blocks happen after %1$d failed login attempts from the same connection. They expire automatically after %2$s."
+msgstr "Frontend-Login-Sperren entstehen nach %1$d fehlgeschlagenen Login-Versuchen von derselben Verbindung. Sie laufen nach %2$s automatisch ab."
+
+#: includes/admin/login-blocks-admin.php:205
+msgid "Connection IP"
+msgstr "Verbindungs-IP"
+
+#: includes/admin/login-blocks-admin.php:214
+msgid "203.0.113.24"
+msgstr "203.0.113.24"
+
+#: includes/admin/login-blocks-admin.php:221
+msgid "This admin request appears to come from %s."
+msgstr "Diese Admin-Anfrage scheint von %s zu kommen."
+
+#: includes/admin/login-blocks-admin.php:228
+msgid "Releases login, sign-up, and username-suggestion rate limits for the IP. Older blocks created before active tracking existed may not appear below, but entering the IP here can still clear them."
+msgstr "Hebt Login-, Registrierungs- und Benutzernamensvorschlags-Limits für die IP auf. Ältere Sperren, die vor der aktiven Nachverfolgung erstellt wurden, erscheinen unten möglicherweise nicht, können durch Eingabe der IP hier aber trotzdem gelöscht werden."
+
+#: includes/admin/login-blocks-admin.php:235
+msgid "Release Blocks"
+msgstr "Sperren aufheben"
+
+#: includes/admin/login-blocks-admin.php:240
+msgid "Active Tracked Blocks"
+msgstr "Aktive nachverfolgte Sperren"
+
+#: includes/admin/login-blocks-admin.php:243
+msgid "No active tracked auth blocks were found."
+msgstr "Keine aktiven nachverfolgten Authentifizierungssperren gefunden."
+
+#: includes/admin/login-blocks-admin.php:249
+msgid "Block Type"
+msgstr "Sperrtyp"
+
+#: includes/admin/login-blocks-admin.php:250
+msgid "Attempts"
+msgstr "Versuche"
+
+#: includes/admin/login-blocks-admin.php:251
+msgid "Automatic Release"
+msgstr "Automatische Freigabe"
+
+#: includes/admin/login-blocks-admin.php:276
+msgid "Release"
+msgstr "Freigeben"
+
+#: includes/api/automation-rest.php:2230
+msgid "%s profile image"
+msgstr "%s-Profilbild"
+
+#: includes/api/automation-rest.php:2244
+msgid "The uploaded file is not a valid image."
+msgstr "Die hochgeladene Datei ist kein gültiges Bild."
+
+#: includes/api/automation-rest.php:2283
+msgid "The profile image attachment must be an existing image attachment."
+msgstr "Der Profilbild-Anhang muss ein vorhandener Bildanhang sein."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "distal"
+
+#: includes/lib/sort.php:539
+msgid "close front unrounded vowel"
+msgstr "Vokal: geschlossen, vorn, ungerundet"
+
+#: includes/lib/sort.php:540
+msgid "close front rounded vowel"
+msgstr "Vokal: geschlossen, vorn, gerundet"
+
+#: includes/lib/sort.php:541
+msgid "close central unrounded vowel"
+msgstr "Vokal: geschlossen, zentral, ungerundet"
+
+#: includes/lib/sort.php:542
+msgid "close central rounded vowel"
+msgstr "Vokal: geschlossen, zentral, gerundet"
+
+#: includes/lib/sort.php:543
+msgid "close back unrounded vowel"
+msgstr "Vokal: geschlossen, hinten, ungerundet"
+
+#: includes/lib/sort.php:544
+msgid "close back rounded vowel"
+msgstr "Vokal: geschlossen, hinten, gerundet"
+
+#: includes/lib/sort.php:545
+msgid "near-close near-front unrounded vowel"
+msgstr "Vokal: fast geschlossen, fast vorn, ungerundet"
+
+#: includes/lib/sort.php:546
+msgid "near-close near-front rounded vowel"
+msgstr "Vokal: fast geschlossen, fast vorn, gerundet"
+
+#: includes/lib/sort.php:547
+msgid "near-close near-back rounded vowel"
+msgstr "Vokal: fast geschlossen, fast hinten, gerundet"
+
+#: includes/lib/sort.php:548
+msgid "close-mid front unrounded vowel"
+msgstr "Vokal: halbgeschlossen, vorn, ungerundet"
+
+#: includes/lib/sort.php:549
+msgid "close-mid front rounded vowel"
+msgstr "Vokal: halbgeschlossen, vorn, gerundet"
+
+#: includes/lib/sort.php:550
+msgid "close-mid central unrounded vowel"
+msgstr "Vokal: halbgeschlossen, zentral, ungerundet"
+
+#: includes/lib/sort.php:551
+msgid "close-mid central rounded vowel"
+msgstr "Vokal: halbgeschlossen, zentral, gerundet"
+
+#: includes/lib/sort.php:552
+msgid "close-mid back unrounded vowel"
+msgstr "Vokal: halbgeschlossen, hinten, ungerundet"
+
+#: includes/lib/sort.php:553
+msgid "close-mid back rounded vowel"
+msgstr "Vokal: halbgeschlossen, hinten, gerundet"
+
+#: includes/lib/sort.php:554
+msgid "mid central vowel"
+msgstr "Vokal: mittelhoch, zentral"
+
+#: includes/lib/sort.php:555
+msgid "open-mid front unrounded vowel"
+msgstr "Vokal: halboffen, vorn, ungerundet"
+
+#: includes/lib/sort.php:556
+msgid "open-mid front rounded vowel"
+msgstr "Vokal: halboffen, vorn, gerundet"
+
+#: includes/lib/sort.php:557
+msgid "open-mid central unrounded vowel"
+msgstr "Vokal: halboffen, zentral, ungerundet"
+
+#: includes/lib/sort.php:558
+msgid "open-mid central rounded vowel"
+msgstr "Vokal: halboffen, zentral, gerundet"
+
+#: includes/lib/sort.php:559
+msgid "open-mid back unrounded vowel"
+msgstr "Vokal: halboffen, hinten, ungerundet"
+
+#: includes/lib/sort.php:560
+msgid "open-mid back rounded vowel"
+msgstr "Vokal: halboffen, hinten, gerundet"
+
+#: includes/lib/sort.php:561
+msgid "near-open front unrounded vowel"
+msgstr "Vokal: fast offen, vorn, ungerundet"
+
+#: includes/lib/sort.php:562
+msgid "near-open central vowel"
+msgstr "Vokal: fast offen, zentral"
+
+#: includes/lib/sort.php:563
+msgid "open front unrounded vowel"
+msgstr "Vokal: offen, vorn, ungerundet"
+
+#: includes/lib/sort.php:564
+msgid "open front rounded vowel"
+msgstr "Vokal: offen, vorn, gerundet"
+
+#: includes/lib/sort.php:565
+msgid "open back unrounded vowel"
+msgstr "Vokal: offen, hinten, ungerundet"
+
+#: includes/lib/sort.php:566
+msgid "open back rounded vowel"
+msgstr "Vokal: offen, hinten, gerundet"
+
+#: includes/lib/sort.php:567
+msgid "rhotacized mid central vowel"
+msgstr "Vokal: rhotaziert, mittelhoch, zentral"
+
+#: includes/lib/sort.php:568
+msgid "rhotacized open-mid central vowel"
+msgstr "Vokal: rhotaziert, halboffen, zentral"
+
+#: includes/lib/sort.php:576
+msgid "voiceless bilabial stop"
+msgstr "Konsonant: stimmlos, bilabial, Plosiv"
+
+#: includes/lib/sort.php:577
+msgid "voiced bilabial stop"
+msgstr "Konsonant: stimmhaft, bilabial, Plosiv"
+
+#: includes/lib/sort.php:578
+msgid "voiceless alveolar stop"
+msgstr "Konsonant: stimmlos, alveolar, Plosiv"
+
+#: includes/lib/sort.php:579
+msgid "voiced alveolar stop"
+msgstr "Konsonant: stimmhaft, alveolar, Plosiv"
+
+#: includes/lib/sort.php:580
+msgid "voiceless retroflex stop"
+msgstr "Konsonant: stimmlos, retroflex, Plosiv"
+
+#: includes/lib/sort.php:581
+msgid "voiced retroflex stop"
+msgstr "Konsonant: stimmhaft, retroflex, Plosiv"
+
+#: includes/lib/sort.php:582
+msgid "voiceless palatal stop"
+msgstr "Konsonant: stimmlos, palatal, Plosiv"
+
+#: includes/lib/sort.php:583
+msgid "voiced palatal stop"
+msgstr "Konsonant: stimmhaft, palatal, Plosiv"
+
+#: includes/lib/sort.php:584
+msgid "voiceless velar stop"
+msgstr "Konsonant: stimmlos, velar, Plosiv"
+
+#: includes/lib/sort.php:585 includes/lib/sort.php:586
+msgid "voiced velar stop"
+msgstr "Konsonant: stimmhaft, velar, Plosiv"
+
+#: includes/lib/sort.php:587
+msgid "voiceless uvular stop"
+msgstr "Konsonant: stimmlos, uvular, Plosiv"
+
+#: includes/lib/sort.php:588
+msgid "voiced uvular stop"
+msgstr "Konsonant: stimmhaft, uvular, Plosiv"
+
+#: includes/lib/sort.php:589
+msgid "glottal stop"
+msgstr "glottaler Plosiv"
+
+#: includes/lib/sort.php:590
+msgid "epiglottal stop"
+msgstr "epiglottaler Plosiv"
+
+#: includes/lib/sort.php:591
+msgid "voiced bilabial nasal"
+msgstr "Konsonant: stimmhaft, bilabial, Nasal"
+
+#: includes/lib/sort.php:592
+msgid "voiced labiodental nasal"
+msgstr "Konsonant: stimmhaft, labiodental, Nasal"
+
+#: includes/lib/sort.php:593
+msgid "voiced alveolar nasal"
+msgstr "Konsonant: stimmhaft, alveolar, Nasal"
+
+#: includes/lib/sort.php:594
+msgid "voiced retroflex nasal"
+msgstr "Konsonant: stimmhaft, retroflex, Nasal"
+
+#: includes/lib/sort.php:595
+msgid "voiced palatal nasal"
+msgstr "Konsonant: stimmhaft, palatal, Nasal"
+
+#: includes/lib/sort.php:596
+msgid "voiced velar nasal"
+msgstr "Konsonant: stimmhaft, velar, Nasal"
+
+#: includes/lib/sort.php:597
+msgid "voiced uvular nasal"
+msgstr "Konsonant: stimmhaft, uvular, Nasal"
+
+#: includes/lib/sort.php:598
+msgid "voiced bilabial trill"
+msgstr "Konsonant: stimmhaft, bilabial, Vibrant"
+
+#: includes/lib/sort.php:599
+msgid "voiced alveolar trill"
+msgstr "Konsonant: stimmhaft, alveolar, Vibrant"
+
+#: includes/lib/sort.php:600
+msgid "voiced uvular trill"
+msgstr "Konsonant: stimmhaft, uvular, Vibrant"
+
+#: includes/lib/sort.php:601
+msgid "voiced labiodental flap"
+msgstr "Konsonant: stimmhaft, labiodental, Flap"
+
+#: includes/lib/sort.php:602
+msgid "voiced alveolar tap"
+msgstr "Konsonant: stimmhaft, alveolar, Tap"
+
+#: includes/lib/sort.php:603
+msgid "voiced retroflex flap"
+msgstr "Konsonant: stimmhaft, retroflex, Flap"
+
+#: includes/lib/sort.php:604
+msgid "voiceless bilabial fricative"
+msgstr "Konsonant: stimmlos, bilabial, Frikativ"
+
+#: includes/lib/sort.php:605
+msgid "voiced bilabial fricative"
+msgstr "Konsonant: stimmhaft, bilabial, Frikativ"
+
+#: includes/lib/sort.php:606
+msgid "voiceless labiodental fricative"
+msgstr "Konsonant: stimmlos, labiodental, Frikativ"
+
+#: includes/lib/sort.php:607
+msgid "voiced labiodental fricative"
+msgstr "Konsonant: stimmhaft, labiodental, Frikativ"
+
+#: includes/lib/sort.php:608
+msgid "voiceless dental fricative"
+msgstr "Konsonant: stimmlos, dental, Frikativ"
+
+#: includes/lib/sort.php:609
+msgid "voiced dental fricative"
+msgstr "Konsonant: stimmhaft, dental, Frikativ"
+
+#: includes/lib/sort.php:610
+msgid "voiceless alveolar fricative"
+msgstr "Konsonant: stimmlos, alveolar, Frikativ"
+
+#: includes/lib/sort.php:611
+msgid "voiced alveolar fricative"
+msgstr "Konsonant: stimmhaft, alveolar, Frikativ"
+
+#: includes/lib/sort.php:612
+msgid "voiceless postalveolar fricative"
+msgstr "Konsonant: stimmlos, postalveolar, Frikativ"
+
+#: includes/lib/sort.php:613
+msgid "voiced postalveolar fricative"
+msgstr "Konsonant: stimmhaft, postalveolar, Frikativ"
+
+#: includes/lib/sort.php:614
+msgid "voiceless retroflex fricative"
+msgstr "Konsonant: stimmlos, retroflex, Frikativ"
+
+#: includes/lib/sort.php:615
+msgid "voiced retroflex fricative"
+msgstr "Konsonant: stimmhaft, retroflex, Frikativ"
+
+#: includes/lib/sort.php:616
+msgid "voiceless alveolo-palatal fricative"
+msgstr "Konsonant: stimmlos, alveolo-palatal, Frikativ"
+
+#: includes/lib/sort.php:617
+msgid "voiced alveolo-palatal fricative"
+msgstr "Konsonant: stimmhaft, alveolo-palatal, Frikativ"
+
+#: includes/lib/sort.php:618
+msgid "voiceless palatal fricative"
+msgstr "Konsonant: stimmlos, palatal, Frikativ"
+
+#: includes/lib/sort.php:619
+msgid "voiced palatal fricative"
+msgstr "Konsonant: stimmhaft, palatal, Frikativ"
+
+#: includes/lib/sort.php:620
+msgid "voiceless velar fricative"
+msgstr "Konsonant: stimmlos, velar, Frikativ"
+
+#: includes/lib/sort.php:621
+msgid "voiced velar fricative"
+msgstr "Konsonant: stimmhaft, velar, Frikativ"
+
+#: includes/lib/sort.php:622
+msgid "voiceless uvular fricative"
+msgstr "Konsonant: stimmlos, uvular, Frikativ"
+
+#: includes/lib/sort.php:623
+msgid "voiced uvular fricative"
+msgstr "Konsonant: stimmhaft, uvular, Frikativ"
+
+#: includes/lib/sort.php:624
+msgid "voiceless pharyngeal fricative"
+msgstr "Konsonant: stimmlos, pharyngal, Frikativ"
+
+#: includes/lib/sort.php:625
+msgid "voiced pharyngeal fricative"
+msgstr "Konsonant: stimmhaft, pharyngal, Frikativ"
+
+#: includes/lib/sort.php:626
+msgid "voiceless glottal fricative"
+msgstr "Konsonant: stimmlos, glottal, Frikativ"
+
+#: includes/lib/sort.php:627
+msgid "voiced glottal fricative"
+msgstr "Konsonant: stimmhaft, glottal, Frikativ"
+
+#: includes/lib/sort.php:628
+msgid "voiceless alveolar lateral fricative"
+msgstr "Konsonant: stimmlos, alveolar, lateraler Frikativ"
+
+#: includes/lib/sort.php:629
+msgid "voiced alveolar lateral fricative"
+msgstr "Konsonant: stimmhaft, alveolar, lateraler Frikativ"
+
+#: includes/lib/sort.php:630
+msgid "voiced labiodental approximant"
+msgstr "Konsonant: stimmhaft, labiodental, Approximant"
+
+#: includes/lib/sort.php:631
+msgid "voiced alveolar approximant"
+msgstr "Konsonant: stimmhaft, alveolar, Approximant"
+
+#: includes/lib/sort.php:632
+msgid "voiced retroflex approximant"
+msgstr "Konsonant: stimmhaft, retroflex, Approximant"
+
+#: includes/lib/sort.php:633
+msgid "voiced palatal approximant"
+msgstr "Konsonant: stimmhaft, palatal, Approximant"
+
+#: includes/lib/sort.php:634
+msgid "voiced velar approximant"
+msgstr "Konsonant: stimmhaft, velar, Approximant"
+
+#: includes/lib/sort.php:635
+msgid "voiced alveolar lateral approximant"
+msgstr "Konsonant: stimmhaft, alveolar, lateraler Approximant"
+
+#: includes/lib/sort.php:636
+msgid "voiced retroflex lateral approximant"
+msgstr "Konsonant: stimmhaft, retroflex, lateraler Approximant"
+
+#: includes/lib/sort.php:637
+msgid "voiced palatal lateral approximant"
+msgstr "Konsonant: stimmhaft, palatal, lateraler Approximant"
+
+#: includes/lib/sort.php:638
+msgid "voiced velar lateral approximant"
+msgstr "Konsonant: stimmhaft, velar, lateraler Approximant"
+
+#: includes/lib/sort.php:639
+msgid "velarized alveolar lateral approximant"
+msgstr "Konsonant: velarisiert, alveolar, lateraler Approximant"
+
+#: includes/lib/sort.php:640
+msgid "voiced labial-velar approximant"
+msgstr "Konsonant: stimmhaft, labial-velar, Approximant"
+
+#: includes/lib/sort.php:641
+msgid "voiced labial-palatal approximant"
+msgstr "Konsonant: stimmhaft, labial-palatal, Approximant"
+
+#: includes/lib/sort.php:642
+msgid "voiceless labial-velar fricative"
+msgstr "Konsonant: stimmlos, labial-velar, Frikativ"
+
+#: includes/lib/sort.php:643
+msgid "voiceless epiglottal fricative"
+msgstr "Konsonant: stimmlos, epiglottal, Frikativ"
+
+#: includes/lib/sort.php:644
+msgid "voiced epiglottal fricative"
+msgstr "Konsonant: stimmhaft, epiglottal, Frikativ"
+
+#: includes/lib/sort.php:645
+msgid "voiceless palatal-velar fricative"
+msgstr "Konsonant: stimmlos, palatal-velar, Frikativ"
+
+#: includes/lib/sort.php:653
+msgid "voiceless alveolar affricate"
+msgstr "Konsonant: stimmlos, alveolar, Affrikate"
+
+#: includes/lib/sort.php:654
+msgid "voiced alveolar affricate"
+msgstr "Konsonant: stimmhaft, alveolar, Affrikate"
+
+#: includes/lib/sort.php:655
+msgid "voiceless postalveolar affricate"
+msgstr "Konsonant: stimmlos, postalveolar, Affrikate"
+
+#: includes/lib/sort.php:656
+msgid "voiced postalveolar affricate"
+msgstr "Konsonant: stimmhaft, postalveolar, Affrikate"
+
+#: includes/lib/sort.php:657
+msgid "voiceless alveolo-palatal affricate"
+msgstr "Konsonant: stimmlos, alveolo-palatal, Affrikate"
+
+#: includes/lib/sort.php:658
+msgid "voiced alveolo-palatal affricate"
+msgstr "Konsonant: stimmhaft, alveolo-palatal, Affrikate"
+
+#: includes/lib/sort.php:659
+msgid "voiceless retroflex affricate"
+msgstr "Konsonant: stimmlos, retroflex, Affrikate"
+
+#: includes/lib/sort.php:660
+msgid "voiced retroflex affricate"
+msgstr "Konsonant: stimmhaft, retroflex, Affrikate"
+
+#: includes/lib/sort.php:661
+msgid "voiceless labiodental affricate"
+msgstr "Konsonant: stimmlos, labiodental, Affrikate"
+
+#: includes/lib/sort.php:662
+msgid "voiceless velar affricate"
+msgstr "Konsonant: stimmlos, velar, Affrikate"
+
+#: includes/lib/sort.php:663
+msgid "voiceless uvular affricate"
+msgstr "Konsonant: stimmlos, uvular, Affrikate"
+
+#: includes/lib/sort.php:664
+msgid "voiceless palatal affricate"
+msgstr "Konsonant: stimmlos, palatal, Affrikate"
+
+#: includes/lib/sort.php:665
+msgid "voiced palatal affricate"
+msgstr "Konsonant: stimmhaft, palatal, Affrikate"
+
+#: includes/lib/sort.php:666
+msgid "voiceless dental stop with voiceless bilabial trill release"
+msgstr "Konsonant: stimmloser dentaler Plosiv mit stimmloser bilabialer Vibrant-Freisetzung"
+
+#: includes/lib/sort.php:667
+msgid "voiceless dental stop with bilabial trill release"
+msgstr "Konsonant: stimmloser dentaler Plosiv mit bilabialer Vibrant-Freisetzung"
+
+#: includes/lib/sort.php:668
+msgid "voiced dental stop with bilabial trill release"
+msgstr "Konsonant: stimmhafter dentaler Plosiv mit bilabialer Vibrant-Freisetzung"
+
+#: includes/lib/sort.php:669
+msgid "voiceless alveolar stop with voiceless bilabial trill release"
+msgstr "Konsonant: stimmloser alveolarer Plosiv mit stimmloser bilabialer Vibrant-Freisetzung"
+
+#: includes/lib/sort.php:709
+msgid "transcription symbol"
+msgstr "Transkriptionssymbol"
+
+#: includes/lib/sort.php:713
+msgid "aspiration modifier"
+msgstr "Aspirationsmodifikator"
+
+#: includes/lib/sort.php:714
+msgid "palatalization modifier"
+msgstr "Palatalisierungsmodifikator"
+
+#: includes/lib/sort.php:715
+msgid "labialization modifier"
+msgstr "Labialisierungsmodifikator"
+
+#: includes/lib/sort.php:716
+msgid "long sound marker"
+msgstr "Längenmarker"
+
+#: includes/lib/sort.php:717
+msgid "devoicing diacritic"
+msgstr "Entstimmungsdiakritikum"
+
+#: includes/lib/sort.php:718
+msgid "dental diacritic"
+msgstr "Dentaldiakritikum"
+
+#: includes/lib/sort.php:719
+msgid "extra-short diacritic"
+msgstr "Extra-kurz-Diakritikum"
+
+#: includes/lib/sort.php:720
+msgid "tie bar"
+msgstr "Bindebogen"
+
+#: includes/lib/sort.php:721
+msgid "primary stress marker"
+msgstr "Hauptakzentmarker"
+
+#: includes/lib/sort.php:722
+msgid "secondary stress marker"
+msgstr "Nebenakzentmarker"
+
+#: includes/lib/sort.php:744
+msgid "tie-bar IPA sequence"
+msgstr "IPA-Sequenz mit Bindebogen"
+
+#: includes/lib/sort.php:747
+msgid "IPA symbol"
+msgstr "IPA-Symbol"
+
+#: includes/lib/sort.php:903
+msgid "Symbols"
+msgstr "Symbole"
+
+#: includes/lib/sort.php:994
+msgid "Affricates and tie bars"
+msgstr "Affrikaten und Bindebögen"
+
+#: includes/lib/sort.php:995
+msgid "Vowels"
+msgstr "Vokale"
+
+#: includes/lib/sort.php:996
+msgid "Consonants"
+msgstr "Konsonanten"
+
+#: includes/lib/sort.php:997
+msgid "Rare symbols"
+msgstr "Seltene Symbole"
+
+#: includes/lib/sort.php:998
+msgid "Other symbols"
+msgstr "Andere Symbole"
+
+#: includes/login-window.php:1412
+msgid "Username suggestions"
+msgstr "Benutzernamensvorschläge"
+
+#: includes/pages/wordset-pages.php:2083
+msgid "About this word set"
+msgstr "Über dieses Vokabelset"
+
+#: includes/pages/wordset-pages.php:2089
+msgid "Language code"
+msgstr "Sprachcode"
+
+#: includes/pages/wordset-pages.php:10352
+msgid "Category ordering, profile image and intro, answer text styling, grammar options, and game image sizing."
+msgstr "Kategoriesortierung, Profilbild und Intro, Antworttext-Stil, Grammatikoptionen und Bildgröße für Spiele."
+
+#: includes/pages/wordset-pages.php:11059
+msgid "Profile"
+msgstr "Profil"
+
+#: includes/pages/wordset-pages.php:11062
+msgid "Word set profile image"
+msgstr "Profilbild des Vokabelsets"
+
+#: includes/pages/wordset-pages.php:11095
+msgid "Use a 16:9 landscape image. It appears on the word set page and in [ll_wordset_buttons] thumbnail cards."
+msgstr "Verwende ein 16:9-Bild im Querformat. Es erscheint auf der Vokabelset-Seite und in [ll_wordset_buttons]-Vorschaubildkarten."
+
+#: includes/pages/wordset-pages.php:11099 includes/pages/wordset-pages.php:15405
+msgid "Intro blurb"
+msgstr "Intro-Text"
+
+#: includes/pages/wordset-pages.php:11107
+msgid "Short learner-facing context for this word set, such as where the language is spoken or what course material these quizzes complement."
+msgstr "Kurzer lernendenorientierter Kontext für dieses Vokabelset, z. B. wo die Sprache gesprochen wird oder welches Kursmaterial diese Quizze ergänzen."
+
+#: includes/pages/wordset-pages.php:15402
+msgid "Profile image"
+msgstr "Profilbild"
+
+#: includes/shortcodes/interlinear-shortcode.php:301
+msgid "TEXT"
+msgstr "TEXT"
+
+#: includes/shortcodes/interlinear-shortcode.php:310
+msgid "FREE"
+msgstr "FREI"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "Andere Sprachen"
+
+#: includes/shortcodes/word-grid-shortcode.php:3464 includes/shortcodes/word-grid-shortcode.php:5115
+msgid "Download audio"
+msgstr "Audio herunterladen"

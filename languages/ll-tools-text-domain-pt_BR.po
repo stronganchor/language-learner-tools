@@ -3554,3 +3554,27 @@ msgstr "Digite uma senha."
 #: includes/login-window.php:1962
 msgid "Use at least 8 characters for your password."
 msgstr "Use pelo menos 8 caracteres na sua senha."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "distal"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "Outros idiomas"
+
+#: includes/shortcodes/language-switcher-shortcode.php:880
+msgid "Language: %s"
+msgstr "Idioma: %s"
+
+#: includes/shortcodes/word-grid-shortcode.php:6040
+msgid "Transcription guide"
+msgstr "Guia de transcrição"
+
+#: includes/shortcodes/word-grid-shortcode.php:6041
+msgid "Previous letter"
+msgstr "Letra anterior"
+
+#: includes/shortcodes/word-grid-shortcode.php:6043
+msgid "Next letter"
+msgstr "Próxima letra"

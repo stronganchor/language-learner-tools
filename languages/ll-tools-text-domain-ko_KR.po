@@ -3547,3 +3547,27 @@ msgstr "비밀번호를 입력하세요."
 #: includes/login-window.php:1962
 msgid "Use at least 8 characters for your password."
 msgstr "비밀번호는 8자 이상 사용하세요."
+
+#: includes/lib/interlinear.php:556
+msgid "distal"
+msgstr "원칭"
+
+#: includes/shortcodes/language-switcher-shortcode.php:1027 includes/shortcodes/language-switcher-shortcode.php:868
+msgid "Other languages"
+msgstr "다른 언어"
+
+#: includes/shortcodes/language-switcher-shortcode.php:880
+msgid "Language: %s"
+msgstr "언어: %s"
+
+#: includes/shortcodes/word-grid-shortcode.php:6040
+msgid "Transcription guide"
+msgstr "전사 가이드"
+
+#: includes/shortcodes/word-grid-shortcode.php:6041
+msgid "Previous letter"
+msgstr "이전 글자"
+
+#: includes/shortcodes/word-grid-shortcode.php:6043
+msgid "Next letter"
+msgstr "다음 글자"
