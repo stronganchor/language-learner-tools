@@ -991,8 +991,8 @@ if (!function_exists('ll_tools_build_secondary_text_keyboard_groups')) {
             ];
         };
 
-        $append_group($groups, 'affricates', __('Affricates and tie bars', 'll-tools-text-domain'), $affricates);
         $append_group($groups, 'vowels', __('Vowels', 'll-tools-text-domain'), $vowels);
+        $append_group($groups, 'affricates', __('Affricates and tie bars', 'll-tools-text-domain'), $affricates);
         $append_group($groups, 'consonants', __('Consonants', 'll-tools-text-domain'), $consonants);
         $append_group($groups, 'rare', __('Rare symbols', 'll-tools-text-domain'), $rare);
         $append_group($groups, 'other', __('Other symbols', 'll-tools-text-domain'), $other);

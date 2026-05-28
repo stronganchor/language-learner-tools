@@ -73,12 +73,20 @@ final class WordGridIpaKeyboardSortTest extends LL_Tools_TestCase
 
         $config = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
         $groups = [];
+        $group_keys = [];
         foreach ((array) ($config['keyboard_groups'] ?? []) as $group) {
-            $groups[(string) ($group['key'] ?? '')] = array_values((array) ($group['symbols'] ?? []));
+            $group_key = (string) ($group['key'] ?? '');
+            $groups[$group_key] = array_values((array) ($group['symbols'] ?? []));
+            $group_keys[] = $group_key;
         }
 
         $this->assertContains('ʔ', $groups['signs'] ?? []);
         $this->assertNotContains('ʡ', $groups['signs'] ?? []);
+        $vowels_index = array_search('vowels', $group_keys, true);
+        $affricates_index = array_search('affricates', $group_keys, true);
+        $this->assertNotFalse($vowels_index);
+        $this->assertNotFalse($affricates_index);
+        $this->assertTrue($vowels_index < $affricates_index, 'Vowels should render before affricates.');
         $this->assertCount(2, $groups['affricates'] ?? []);
         $this->assertContains("t\u{0361}ʃ", $groups['affricates'] ?? []);
         $this->assertContains("d\u{0361}ʒ", $groups['affricates'] ?? []);
