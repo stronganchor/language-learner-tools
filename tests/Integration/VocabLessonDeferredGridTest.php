@@ -584,6 +584,8 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $prompt_category_id);
 
+        wp_dequeue_script('ll-tools-word-grid');
+
         $_POST = [
             'lesson_id' => $lesson_id,
             'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
@@ -603,6 +605,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $html = (string) (($response['data'] ?? [])['html'] ?? '');
         $this->assertStringContainsString('ll-vocab-image-choice-grid', $html);
         $this->assertStringContainsString('data-ll-image-choice-lesson-grid="1"', $html);
+        $this->assertTrue(wp_script_is('ll-tools-word-grid', 'enqueued'));
         $this->assertStringContainsString('data-prompt-card-id="' . $prompt_card_id . '"', $html);
         $this->assertStringContainsString('ll-vocab-image-choice-card--referent', $html);
         $this->assertStringContainsString('ll-vocab-image-choice-card__referent', $html);
@@ -809,6 +812,9 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
 
         $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
         $this->assertTrue(is_singular('ll_vocab_lesson'));
+        wp_dequeue_script('ll-tools-word-grid');
+        ll_tools_vocab_lesson_enqueue_assets();
+        $this->assertTrue(wp_script_is('ll-tools-word-grid', 'enqueued'));
 
         ob_start();
         include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';

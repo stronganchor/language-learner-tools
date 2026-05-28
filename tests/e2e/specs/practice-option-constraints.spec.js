@@ -1680,6 +1680,134 @@ test('reserved wrong-answer words are not used as distractors for other targets'
   expect(pickedIds.includes(503)).toBe(false);
 });
 
+test('prompt-card support rows are skipped as sign-language practice targets', async ({ page }) => {
+  const category = 'ASL prompt support category';
+  const promptImageSupport = {
+    id: 551,
+    title: 'Tree sign',
+    label: 'Tree sign',
+    image: 'https://img.test/tree-sign.webp',
+    is_prompt_card_support_only: true,
+    is_prompt_card_prompt_image_support: true,
+    prompt_card_support_roles: ['prompt'],
+    prompt_card_support_owner_ids: [901]
+  };
+  const answerSupport = {
+    id: 552,
+    title: 'Tree',
+    label: 'Tree',
+    image: 'https://img.test/tree-answer.jpg',
+    is_prompt_card_support_only: true,
+    is_prompt_card_answer_option_support: true,
+    prompt_card_support_roles: ['correct'],
+    prompt_card_support_owner_ids: [901]
+  };
+  const promptCard = {
+    id: 901,
+    title: 'Tree',
+    label: 'Tree',
+    image: 'https://img.test/tree-sign.webp',
+    answer_image: 'https://img.test/tree-answer.jpg',
+    is_prompt_card: true,
+    prompt_card_id: 901,
+    answer_word_id: 552
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'image', option_type: 'image', sign_language_mode: true }],
+    targetCategoryName: category,
+    wordsByCategory: {
+      [category]: [promptImageSupport, answerSupport, promptCard]
+    },
+    optionWordsByCategory: {
+      [category]: [promptImageSupport, answerSupport, promptCard]
+    },
+    state: {
+      categoryNames: [category]
+    }
+  });
+
+  const selected = await page.evaluate(() => {
+    const target = window.LLFlashcards.Selection.selectTargetWordAndCategory();
+    return {
+      id: Number(target && target.id) || 0,
+      image: String((target && target.image) || ''),
+      answerImage: String((target && target.answer_image) || '')
+    };
+  });
+
+  expect(selected).toEqual({
+    id: 901,
+    image: 'https://img.test/tree-sign.webp',
+    answerImage: 'https://img.test/tree-answer.jpg'
+  });
+});
+
+test('sign-language prompt image support rows are not used as answer options', async ({ page }) => {
+  const category = 'ASL prompt image option guard';
+  const targetWord = {
+    id: 911,
+    title: 'Tree',
+    label: 'Tree',
+    image: 'https://img.test/tree-sign.webp',
+    answer_image: 'https://img.test/tree-answer.jpg',
+    is_prompt_card: true,
+    prompt_card_id: 911,
+    answer_word_id: 912
+  };
+  const promptImageSupport = {
+    id: 912,
+    title: 'Tree sign support',
+    label: 'Tree sign support',
+    image: 'https://img.test/tree-sign.webp',
+    is_prompt_card_support_only: true,
+    is_prompt_card_prompt_image_support: true,
+    prompt_card_support_roles: ['prompt'],
+    prompt_card_support_owner_ids: [911]
+  };
+  const answerOption = {
+    id: 913,
+    title: 'House',
+    label: 'House',
+    image: 'https://img.test/house-answer.jpg',
+    is_prompt_card_support_only: true,
+    is_prompt_card_answer_option_support: true,
+    prompt_card_support_roles: ['correct'],
+    prompt_card_support_owner_ids: [914]
+  };
+  const normalDistractor = {
+    id: 915,
+    title: 'Car',
+    label: 'Car',
+    image: 'https://img.test/car-answer.jpg'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'image', option_type: 'image', sign_language_mode: true }],
+    targetCategoryName: category,
+    desiredCount: 4,
+    wordsByCategory: {
+      [category]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, promptImageSupport, answerOption, normalDistractor]
+    }
+  });
+
+  const pickedIds = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'ASL prompt image option guard' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+      .filter((id) => id > 0);
+  }, targetWord);
+
+  expect(pickedIds).toContain(911);
+  expect(pickedIds).toContain(913);
+  expect(pickedIds).toContain(915);
+  expect(pickedIds).not.toContain(912);
+});
+
 test('text-to-text mode pulls wrong answers from other text options', async ({ page }) => {
   const category = 'Text only category';
   const targetWord = { id: 601, title: 'Casa', label: 'House' };

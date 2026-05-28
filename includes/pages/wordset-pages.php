@@ -2295,7 +2295,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
         'requires_audio' => $requires_audio ? 1 : 0,
-        'prompt_card_preview_schema' => 4,
+        'prompt_card_preview_schema' => 5,
     ]);
     $cached_preview = ll_tools_wordset_page_get_cached_payload($preview_cache_key, $request_cache);
     if (is_array($cached_preview)) {
@@ -2565,7 +2565,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         $prompt_card_option_preview_added = count($items) > $prompt_card_option_preview_start_count;
     }
 
-    if (!$prompt_card_option_preview_added && $use_images && count($items) < $limit && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids')) {
+    if (!$option_has_image && !$prompt_card_option_preview_added && $use_images && count($items) < $limit && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids')) {
         $prompt_image_word_ids = ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids(
             $wordset_id,
             $category_id,
@@ -3000,7 +3000,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             ? max(1, (int) ll_tools_get_wordset_cache_epoch())
             : 1;
         $guest_cache_key = ll_tools_wordset_page_build_cache_key('categories', [
-            'schema' => 2,
+            'schema' => 3,
             'wordset_id' => $wordset_id,
             'preview_limit' => max(1, (int) $preview_limit),
             'preview_mode' => $defer_previews ? 'deferred' : 'eager',

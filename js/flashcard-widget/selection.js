@@ -1202,10 +1202,32 @@
         return normalizeIdList(word.specific_wrong_answer_owner_ids);
     }
 
+    function getWordPromptCardSupportRoles(word) {
+        if (!word || typeof word !== 'object') return [];
+        const roles = word.prompt_card_support_roles;
+        if (!Array.isArray(roles)) return [];
+        return roles.map(function (role) {
+            return String(role || '').trim();
+        }).filter(Boolean);
+    }
+
+    function isPromptCardPromptImageSupport(word) {
+        if (!word || typeof word !== 'object') return false;
+        if (Object.prototype.hasOwnProperty.call(word, 'is_prompt_card_prompt_image_support')) {
+            if (parseBooleanFlag(word.is_prompt_card_prompt_image_support)) return true;
+        }
+        const roles = getWordPromptCardSupportRoles(word);
+        return roles.indexOf('prompt') !== -1
+            && roles.indexOf('correct') === -1;
+    }
+
     function isWordBlockedFromPromptRounds(word) {
         if (!word || typeof word !== 'object') return false;
         if (Object.prototype.hasOwnProperty.call(word, 'is_specific_wrong_answer_only')) {
             if (parseBooleanFlag(word.is_specific_wrong_answer_only)) return true;
+        }
+        if (Object.prototype.hasOwnProperty.call(word, 'is_prompt_card_support_only')) {
+            if (parseBooleanFlag(word.is_prompt_card_support_only)) return true;
         }
         return getWordSpecificWrongAnswerOwnerIds(word).length > 0
             && getWordSpecificWrongAnswerIds(word).length === 0
@@ -1213,6 +1235,7 @@
     }
 
     function isWordAllowedAsWrongAnswerForTarget(word, targetWord) {
+        if (isPromptCardPromptImageSupport(word)) return false;
         const ownerIds = getWordSpecificWrongAnswerOwnerIds(word);
         if (!ownerIds.length) return true;
         const targetId = normalizeWordId(targetWord && targetWord.id);

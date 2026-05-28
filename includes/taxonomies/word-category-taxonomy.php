@@ -4174,7 +4174,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         'text_label_schema'    => 5,
-        'prompt_card_schema'   => 3,
+        'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
@@ -4229,6 +4229,21 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
                 if ($require_audio && !$option_requires_audio && !$has_audio) {
                     $count++;
                 }
+                continue;
+            }
+            $is_prompt_card_support_only = false;
+            if (array_key_exists('is_prompt_card_support_only', $row)) {
+                $raw_flag = $row['is_prompt_card_support_only'];
+                if (is_bool($raw_flag)) {
+                    $is_prompt_card_support_only = $raw_flag;
+                } elseif (is_numeric($raw_flag)) {
+                    $is_prompt_card_support_only = ((int) $raw_flag) > 0;
+                } else {
+                    $normalized_flag = strtolower(trim((string) $raw_flag));
+                    $is_prompt_card_support_only = in_array($normalized_flag, ['1', 'true', 'yes', 'on'], true);
+                }
+            }
+            if ($is_prompt_card_support_only) {
                 continue;
             }
 
@@ -4537,6 +4552,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $prompt_text_type = ll_tools_get_quiz_prompt_text_type($prompt_type, $use_titles);
     $require_prompt_image = ll_tools_quiz_prompt_type_has_image($prompt_type);
     $require_option_image = ll_tools_quiz_option_type_has_image($option_type);
+    $track_prompt_card_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
     $term_id = (int) ($category_context['term_id'] ?? 0);
     $cache_flags = [
         'require_audio'        => $require_audio,
@@ -4548,7 +4564,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
         'text_label_schema'    => 5,
-        'prompt_card_schema'   => 3,
+        'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
@@ -4629,6 +4645,32 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $prompt_card_post_ids = [];
     $prompt_cards = [];
     $prompt_card_support_word_ids = [];
+    $prompt_card_support_owner_map = [];
+    $prompt_card_support_role_map = [];
+    $register_prompt_card_support_word = static function (int $word_id, int $prompt_card_id, string $role) use (
+        $track_prompt_card_support_only,
+        &$prompt_card_support_owner_map,
+        &$prompt_card_support_role_map
+    ): void {
+        if (!$track_prompt_card_support_only || $word_id <= 0 || $prompt_card_id <= 0) {
+            return;
+        }
+
+        $role = sanitize_key($role);
+        if ($role === '') {
+            return;
+        }
+
+        if (!isset($prompt_card_support_owner_map[$word_id])) {
+            $prompt_card_support_owner_map[$word_id] = [];
+        }
+        $prompt_card_support_owner_map[$word_id][$prompt_card_id] = true;
+
+        if (!isset($prompt_card_support_role_map[$word_id])) {
+            $prompt_card_support_role_map[$word_id] = [];
+        }
+        $prompt_card_support_role_map[$word_id][$role] = true;
+    };
     if (
         function_exists('ll_tools_get_prompt_card_posts_for_category_context')
         && function_exists('ll_tools_get_prompt_card_data')
@@ -4648,15 +4690,21 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                 continue;
             }
 
+            $correct_answer_word_id = (int) $card['correct_answer_word_id'];
             $prompt_cards[] = $card;
             $prompt_card_post_ids[] = $prompt_card_id;
-            $prompt_card_support_word_ids[] = (int) $card['correct_answer_word_id'];
+            $prompt_card_support_word_ids[] = $correct_answer_word_id;
+            $register_prompt_card_support_word($correct_answer_word_id, $prompt_card_id, 'correct');
             if (!empty($card['prompt_image_word_id'])) {
-                $prompt_card_support_word_ids[] = (int) $card['prompt_image_word_id'];
+                $prompt_image_word_id = (int) $card['prompt_image_word_id'];
+                $prompt_card_support_word_ids[] = $prompt_image_word_id;
+                $register_prompt_card_support_word($prompt_image_word_id, $prompt_card_id, 'prompt');
             }
             if (!empty($card['wrong_answer_word_ids']) && is_array($card['wrong_answer_word_ids'])) {
                 foreach ($card['wrong_answer_word_ids'] as $wrong_word_id) {
-                    $prompt_card_support_word_ids[] = (int) $wrong_word_id;
+                    $wrong_word_id = (int) $wrong_word_id;
+                    $prompt_card_support_word_ids[] = $wrong_word_id;
+                    $register_prompt_card_support_word($wrong_word_id, $prompt_card_id, 'wrong');
                 }
             }
         }
@@ -4774,6 +4822,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $blocked_map,
         $blocked_map_by_recording_type,
         $specific_wrong_owner_map,
+        $prompt_card_support_owner_map,
+        $prompt_card_support_role_map,
         $prompt_text_type
     ): array {
         $display_values = isset($display_text_by_word[$word_id]) && is_array($display_text_by_word[$word_id])
@@ -4990,6 +5040,23 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $is_specific_wrong_answer_only = !empty($specific_wrong_answer_owner_ids)
             && empty($specific_wrong_answer_ids)
             && empty($specific_wrong_answer_texts);
+        $prompt_card_support_owner_ids = isset($prompt_card_support_owner_map[$word_id]) && is_array($prompt_card_support_owner_map[$word_id])
+            ? array_values(array_filter(array_map('intval', array_keys($prompt_card_support_owner_map[$word_id])), static function ($id) {
+                return $id > 0;
+            }))
+            : [];
+        sort($prompt_card_support_owner_ids, SORT_NUMERIC);
+        $prompt_card_support_roles = isset($prompt_card_support_role_map[$word_id]) && is_array($prompt_card_support_role_map[$word_id])
+            ? array_values(array_filter(array_map('strval', array_keys($prompt_card_support_role_map[$word_id])), static function (string $role): bool {
+                return $role !== '';
+            }))
+            : [];
+        sort($prompt_card_support_roles, SORT_STRING);
+        $is_prompt_card_support_only = !empty($prompt_card_support_owner_ids);
+        $is_prompt_card_answer_option_support = in_array('correct', $prompt_card_support_roles, true)
+            || in_array('wrong', $prompt_card_support_roles, true);
+        $is_prompt_card_prompt_image_support = in_array('prompt', $prompt_card_support_roles, true)
+            && !in_array('correct', $prompt_card_support_roles, true);
 
         $word_data = [
             'id' => $word_id,
@@ -5001,6 +5068,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'specific_wrong_answer_texts' => $specific_wrong_answer_texts,
             'specific_wrong_answer_owner_ids' => $specific_wrong_answer_owner_ids,
             'is_specific_wrong_answer_only' => $is_specific_wrong_answer_only,
+            'prompt_card_support_owner_ids' => $prompt_card_support_owner_ids,
+            'prompt_card_support_roles' => $prompt_card_support_roles,
+            'is_prompt_card_support_only' => $is_prompt_card_support_only,
+            'is_prompt_card_answer_option_support' => $is_prompt_card_answer_option_support,
+            'is_prompt_card_prompt_image_support' => $is_prompt_card_prompt_image_support,
             'audio' => $primary_audio,
             'audio_files' => $audio_files,
             'recording_texts_by_type' => $recording_texts_by_type,
@@ -5174,6 +5246,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $prompt_row['specific_wrong_answer_texts'] = [];
             $prompt_row['specific_wrong_answer_owner_ids'] = [];
             $prompt_row['is_specific_wrong_answer_only'] = false;
+            $prompt_row['prompt_card_support_owner_ids'] = [];
+            $prompt_row['prompt_card_support_roles'] = [];
+            $prompt_row['is_prompt_card_support_only'] = false;
+            $prompt_row['is_prompt_card_answer_option_support'] = false;
+            $prompt_row['is_prompt_card_prompt_image_support'] = false;
             $prompt_row['prompt_audio'] = $card_prompt_audio;
             $prompt_row['has_prompt_audio'] = ($card_prompt_audio !== '');
             $suppress_sign_language_prompt_instruction = !empty($config['sign_language_mode'])

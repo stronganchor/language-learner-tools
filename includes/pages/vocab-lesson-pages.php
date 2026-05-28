@@ -1071,6 +1071,32 @@ function ll_tools_vocab_lesson_render_state_icon(bool $is_correct): string {
     return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
 }
 
+function ll_tools_vocab_lesson_enqueue_word_grid_assets(int $wordset_id, $category, int $lesson_id = 0): void {
+    if (!function_exists('ll_tools_word_grid_enqueue_frontend_assets_for_context')) {
+        return;
+    }
+
+    $category_term = ($category instanceof WP_Term && !is_wp_error($category)) ? $category : null;
+    $category_ids = $category_term ? [(int) $category_term->term_id] : [];
+    $can_manage_internal_notes = function_exists('ll_tools_current_user_can_manage_internal_review_notes')
+        && ll_tools_current_user_can_manage_internal_review_notes($wordset_id);
+
+    ll_tools_word_grid_enqueue_frontend_assets_for_context([
+        'wordset_id' => $wordset_id,
+        'category_term' => $category_term,
+        'lesson_id' => $lesson_id,
+        'can_edit_words' => false,
+        'can_manage_internal_notes' => $can_manage_internal_notes,
+        'user_study_state' => [
+            'wordset_id' => $wordset_id,
+            'category_ids' => $category_ids,
+            'starred_word_ids' => [],
+            'star_mode' => 'normal',
+            'fast_transitions' => false,
+        ],
+    ]);
+}
+
 function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $category, int $lesson_id = 0): string {
     $posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
     if (empty($posts)) {
@@ -1153,6 +1179,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
     $can_manage_internal_notes = function_exists('ll_tools_current_user_can_manage_internal_review_notes')
         && function_exists('ll_tools_render_internal_review_note_field')
         && ll_tools_current_user_can_manage_internal_review_notes($wordset_id);
+    ll_tools_vocab_lesson_enqueue_word_grid_assets($wordset_id, $category, $lesson_id);
 
     $grid_attrs = [
         'id' => 'word-grid',
@@ -3150,6 +3177,15 @@ function ll_tools_vocab_lesson_enqueue_assets() {
             ll_tools_enqueue_confetti_asset();
         }
         ll_tools_vocab_lesson_bootstrap_flashcards();
+    }
+    $lesson_id = (int) get_queried_object_id();
+    $wordset_id = $lesson_id > 0 ? (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true) : 0;
+    $category_id = $lesson_id > 0 ? (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true) : 0;
+    if ($wordset_id > 0 && $category_id > 0) {
+        $category = get_term($category_id, 'word-category');
+        if ($category instanceof WP_Term && !is_wp_error($category) && !empty(ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true))) {
+            ll_tools_vocab_lesson_enqueue_word_grid_assets($wordset_id, $category, $lesson_id);
+        }
     }
     ll_enqueue_asset_by_timestamp('/css/vocab-lesson-pages.css', 'll-vocab-lesson-pages-css', ['ll-tools-flashcard-style']);
     if (ll_tools_is_vocab_lesson_print_request()) {

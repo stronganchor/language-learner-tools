@@ -131,6 +131,69 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertNotEmpty((string) ($support_rows[$mountain_id]['image'] ?? ''));
     }
 
+    public function test_sign_language_prompt_card_support_words_are_not_prompt_targets(): void
+    {
+        $prompt_category_name = 'ASL Primary Support Questions ' . wp_generate_password(5, false);
+        $prompt_category_id = $this->createCategory($prompt_category_name, 'image', 'image');
+        $wordset_id = $this->createWordset('ASL Primary Support Wordset ' . wp_generate_password(5, false));
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $sign_tree_id = $this->createWord($effective_prompt_category_id, 'ASL Tree Sign');
+        $tree_id = $this->createWord($effective_prompt_category_id, 'Tree');
+        $house_id = $this->createWord($effective_prompt_category_id, 'House');
+        foreach ([$sign_tree_id, $tree_id, $house_id] as $word_id) {
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            $this->addImage($word_id, '-primary-support');
+        }
+
+        $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'ASL Tree Primary Support',
+            'prompt_text' => 'Choose the matching ASL sign.',
+            'prompt_image_word_id' => $sign_tree_id,
+            'correct_answer_word_id' => $tree_id,
+            'wrong_answer_word_ids' => [$house_id],
+            'track_answer_word_progress' => true,
+        ]);
+
+        $config = [
+            'prompt_type' => 'image',
+            'option_type' => 'image',
+            'sign_language_mode' => true,
+            'use_titles' => false,
+        ];
+        $rows = ll_get_words_by_category($prompt_category_name, 'image', [$wordset_id], $config);
+        $count = ll_get_words_by_category_count($prompt_category_name, 'image', [$wordset_id], $config);
+        $prompt_row = $this->findPromptCardRow((array) $rows, $prompt_card_id);
+
+        $rows_by_id = [];
+        foreach ((array) $rows as $row) {
+            if (!is_array($row) || !empty($row['is_prompt_card'])) {
+                continue;
+            }
+            $rows_by_id[(int) ($row['id'] ?? 0)] = $row;
+        }
+
+        $this->assertSame(1, $count);
+        $this->assertNotEmpty($prompt_row);
+        $this->assertFalse((bool) ($prompt_row['is_prompt_card_support_only'] ?? true));
+        $this->assertSame([], (array) ($prompt_row['prompt_card_support_roles'] ?? []));
+
+        $answer_row = $rows_by_id[$tree_id] ?? [];
+        $this->assertTrue((bool) ($answer_row['is_prompt_card_support_only'] ?? false));
+        $this->assertTrue((bool) ($answer_row['is_prompt_card_answer_option_support'] ?? false));
+        $this->assertFalse((bool) ($answer_row['is_prompt_card_prompt_image_support'] ?? true));
+        $this->assertSame([$prompt_card_id], $this->normalizeIds((array) ($answer_row['prompt_card_support_owner_ids'] ?? [])));
+        $this->assertSame(['correct'], array_values((array) ($answer_row['prompt_card_support_roles'] ?? [])));
+
+        $prompt_image_row = $rows_by_id[$sign_tree_id] ?? [];
+        $this->assertTrue((bool) ($prompt_image_row['is_prompt_card_support_only'] ?? false));
+        $this->assertFalse((bool) ($prompt_image_row['is_prompt_card_answer_option_support'] ?? true));
+        $this->assertTrue((bool) ($prompt_image_row['is_prompt_card_prompt_image_support'] ?? false));
+        $this->assertSame([$prompt_card_id], $this->normalizeIds((array) ($prompt_image_row['prompt_card_support_owner_ids'] ?? [])));
+        $this->assertSame(['prompt'], array_values((array) ($prompt_image_row['prompt_card_support_roles'] ?? [])));
+    }
+
     public function test_imported_support_word_image_link_bumps_prompt_card_category_cache(): void
     {
         $prompt_category_name = 'ASL Text Prompt Cards ' . wp_generate_password(5, false);

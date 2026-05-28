@@ -442,6 +442,9 @@ function ll_tools_word_is_blocked_from_prompt_rounds(array $word): bool {
     if (array_key_exists('is_specific_wrong_answer_only', $word) && !empty($word['is_specific_wrong_answer_only'])) {
         return true;
     }
+    if (array_key_exists('is_prompt_card_support_only', $word) && !empty($word['is_prompt_card_support_only'])) {
+        return true;
+    }
 
     $owner_ids = array_values(array_filter(array_map('intval', (array) ($word['specific_wrong_answer_owner_ids'] ?? [])), static function (int $owner_id): bool {
         return $owner_id > 0;

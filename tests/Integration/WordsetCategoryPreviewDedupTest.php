@@ -214,6 +214,65 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertNotContains($second_prompt_attachment_id, $image_attachment_ids);
     }
 
+    public function test_sign_language_image_choice_preview_does_not_fall_back_to_prompt_images_when_answer_images_missing(): void
+    {
+        $wordset = wp_insert_term('Sign Missing Answer Preview Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, '1');
+
+        $prompt_category = wp_insert_term('Sign Missing Answer Preview Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($prompt_category));
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'audio');
+
+        $asset_category = wp_insert_term('Sign Missing Answer Preview Assets ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($asset_category));
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        $prompt_attachment_id = $this->createImageAttachment('sign-missing-answer-prompt.png');
+        $second_prompt_attachment_id = $this->createImageAttachment('sign-missing-answer-prompt-second.png', self::ALT_PIXEL_PNG_BASE64);
+        $prompt_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $prompt_attachment_id, 'Tree Sign Prompt');
+        $second_prompt_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $second_prompt_attachment_id, 'Airplane Sign Prompt');
+
+        $answer_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Tree',
+        ]);
+        $second_answer_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Airplane',
+        ]);
+        foreach ([$answer_word_id, $second_answer_word_id] as $answer_id) {
+            wp_set_post_terms($answer_id, [$asset_category_id], 'word-category', false);
+            wp_set_post_terms($answer_id, [$wordset_id], 'wordset', false);
+        }
+
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Sign Missing Answer Preview Card',
+            'prompt_image_word_id' => $prompt_image_word_id,
+            'correct_answer_word_id' => $answer_word_id,
+        ]);
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Sign Missing Answer Preview Second Card',
+            'prompt_image_word_id' => $second_prompt_image_word_id,
+            'correct_answer_word_id' => $second_answer_word_id,
+        ]);
+
+        $preview = ll_tools_get_wordset_category_preview($wordset_id, $prompt_category_id, 2, true);
+        $this->assertIsArray($preview);
+        $this->assertFalse((bool) ($preview['has_images'] ?? true));
+        $this->assertSame([], $this->extractPreviewImageAttachmentIds($preview));
+        $this->assertNotContains($prompt_attachment_id, $this->extractPreviewImageAttachmentIds($preview));
+        $this->assertNotContains($second_prompt_attachment_id, $this->extractPreviewImageAttachmentIds($preview));
+    }
+
     public function test_sign_language_image_to_text_preview_uses_answer_text(): void
     {
         $wordset = wp_insert_term('Sign Text Preview Wordset ' . wp_generate_password(6, false), 'wordset');

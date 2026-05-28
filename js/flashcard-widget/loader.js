@@ -852,6 +852,13 @@
                 const ownTexts = Array.isArray(word.specific_wrong_answer_texts) ? word.specific_wrong_answer_texts.filter(Boolean) : [];
                 return ownerIds.length > 0 && ownIds.length === 0 && ownTexts.length === 0;
             };
+            const isPromptCardSupportOnlyWord = function (word) {
+                if (!word || typeof word !== 'object') return false;
+                if (Object.prototype.hasOwnProperty.call(word, 'is_prompt_card_support_only')) {
+                    return parseBool(word.is_prompt_card_support_only);
+                }
+                return false;
+            };
 
             // Filter out words that do not have a resolvable audio URL
             const filteredByCategory = Array.isArray(wordData) ? wordData.map(function (w) {
@@ -889,12 +896,16 @@
                 tracker.applyLocalProgressToWords(filteredByCategory);
             }
 
+            const filteredByPromptTargets = filteredByCategory.filter(function (w) {
+                return !isPromptCardSupportOnlyWord(w);
+            });
+
             const filteredBySession = sessionWordLookup
-                ? filteredByCategory.filter(function (w) {
+                ? filteredByPromptTargets.filter(function (w) {
                     const wordId = parseInt(w && w.id, 10);
                     return !!wordId && !!sessionWordLookup[wordId];
                 })
-                : filteredByCategory.slice();
+                : filteredByPromptTargets.slice();
 
             decorateOfflineWords(filteredByCategory);
             decorateOfflineWords(filteredBySession);

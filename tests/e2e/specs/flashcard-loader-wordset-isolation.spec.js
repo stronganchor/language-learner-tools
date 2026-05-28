@@ -202,6 +202,86 @@ test('flashcard loader preserves explicit listening word order when provided', a
   expect(optionIds).toEqual([3, 1, 2]);
 });
 
+test('flashcard loader keeps prompt-card support rows out of the target pool while preserving options', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['ASL basics'];
+    window.getCategoryDisplayMode = function () { return 'image'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'asl',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      categories: [
+        { id: 11, name: 'ASL basics', prompt_type: 'image', option_type: 'image', sign_language_mode: true }
+      ]
+    };
+
+    const $ = window.jQuery;
+    $.ajax = function (opts) {
+      setTimeout(() => {
+        opts.success({
+          success: true,
+          data: [
+            {
+              id: 551,
+              title: 'Tree sign',
+              label: 'Tree sign',
+              image: 'https://img.test/tree-sign.webp',
+              wordset_ids: [101],
+              is_prompt_card_support_only: true,
+              is_prompt_card_prompt_image_support: true,
+              prompt_card_support_roles: ['prompt'],
+              prompt_card_support_owner_ids: [901]
+            },
+            {
+              id: 552,
+              title: 'Tree',
+              label: 'Tree',
+              image: 'https://img.test/tree-answer.jpg',
+              wordset_ids: [101],
+              is_prompt_card_support_only: true,
+              is_prompt_card_answer_option_support: true,
+              prompt_card_support_roles: ['correct'],
+              prompt_card_support_owner_ids: [901]
+            },
+            {
+              id: 901,
+              title: 'Tree',
+              label: 'Tree',
+              image: 'https://img.test/tree-sign.webp',
+              answer_image: 'https://img.test/tree-answer.jpg',
+              wordset_ids: [101],
+              is_prompt_card: true,
+              prompt_card_id: 901,
+              answer_word_id: 552
+            }
+          ]
+        });
+      }, 0);
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  await page.evaluate(() => window.FlashcardLoader.loadResourcesForCategory('ASL basics'));
+
+  await expect.poll(async () => {
+    return await page.evaluate(() => (window.optionWordsByCategory['ASL basics'] || []).length);
+  }).toBe(3);
+
+  const targetIds = await page.evaluate(() => (window.wordsByCategory['ASL basics'] || []).map((word) => Number(word && word.id) || 0));
+  const optionIds = await page.evaluate(() => (window.optionWordsByCategory['ASL basics'] || []).map((word) => Number(word && word.id) || 0).sort((a, b) => a - b));
+
+  expect(targetIds).toEqual([901]);
+  expect(optionIds).toEqual([551, 552, 901]);
+});
+
 test('flashcard loader can skip current-word audio preload when requested', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });
