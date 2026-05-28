@@ -156,6 +156,7 @@ TSV;
             'post_title' => 'Standard Lesson',
         ]);
         update_post_meta($standard_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($standard_lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'standard');
 
         $corpus_lesson_id = self::factory()->post->create([
             'post_type' => 'll_content_lesson',

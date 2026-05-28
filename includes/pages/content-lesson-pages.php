@@ -219,22 +219,9 @@ function ll_tools_get_content_lessons_for_wordset(int $wordset_id): array {
         'order' => 'ASC',
         'no_found_rows' => true,
         'meta_query' => [
-            'relation' => 'AND',
             [
                 'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
                 'value' => (string) $wordset_id,
-            ],
-            [
-                'relation' => 'OR',
-                [
-                    'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
-                    'compare' => 'NOT EXISTS',
-                ],
-                [
-                    'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
-                    'value' => 'corpus_text',
-                    'compare' => '!=',
-                ],
             ],
         ],
     ]);
@@ -242,6 +229,9 @@ function ll_tools_get_content_lessons_for_wordset(int $wordset_id): array {
     $lessons = [];
     foreach ((array) $posts as $post) {
         if (!($post instanceof WP_Post)) {
+            continue;
+        }
+        if (function_exists('ll_tools_content_lesson_is_corpus_text') && ll_tools_content_lesson_is_corpus_text((int) $post->ID)) {
             continue;
         }
 
