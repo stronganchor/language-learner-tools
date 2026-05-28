@@ -101,6 +101,15 @@ const hydratedLazyCategories = allCategories.map((category) => {
   });
 });
 
+const lazyContentLesson = {
+  type: 'content',
+  id: 901,
+  title: 'Kucuk Kirmizi Tavuk',
+  excerpt: 'A searchable story lesson.',
+  media_label: 'Audio lesson',
+  category_count: 2
+};
+
 const inactiveCategory = {
   id: 44,
   slug: 'numbers',
@@ -288,7 +297,8 @@ function buildConfig(options = {}) {
     total: categories.length,
     remaining: Math.max(0, categories.length - 1),
     shellBaseOffset: 1,
-    shells: buildLazyShells(categories)
+    shells: buildLazyShells(categories),
+    contentShells: []
   }, options.lazyCards || {});
   const i18n = Object.assign({
     selectionLabel: 'Select categories to study together',
@@ -474,14 +484,55 @@ async function mountWordsetPage(page, options = {}) {
         .split(',')
         .map((value) => Number.parseInt(value, 10) || 0)
         .filter(Boolean);
+      const requestedContentIds = String(data.content_ids || '')
+        .split(',')
+        .map((value) => Number.parseInt(value, 10) || 0)
+        .filter(Boolean);
       const requestedLookup = new Set(requestedCategoryIds);
+      const requestedContentLookup = new Set(requestedContentIds);
       const offset = Number.parseInt(data.offset, 10) || 0;
       const count = Math.max(1, Number.parseInt(data.count, 10) || 1);
       const startIndex = Math.max(0, offset);
-      const nextCards = requestedCategoryIds.length
-        ? remainingCards.filter((card) => requestedLookup.has(card.id))
+      const nextCards = requestedCategoryIds.length || requestedContentIds.length
+        ? remainingCards.filter((card) => {
+          if (card && card.type === 'content') {
+            return requestedContentLookup.has(card.id);
+          }
+          return requestedLookup.has(card.id);
+        })
         : remainingCards.slice(startIndex, startIndex + count);
       const html = nextCards.map((card) => {
+        if (card && card.type === 'content') {
+          return [
+            '<article class="ll-wordset-card ll-wordset-card--content" role="listitem" data-ll-wordset-card-type="content" data-lesson-id="' + card.id + '">',
+            '  <div class="ll-wordset-card__top">',
+            '    <span class="ll-wordset-card__content-top-spacer" aria-hidden="true"></span>',
+            '    <a class="ll-wordset-card__heading" href="#" aria-label="' + card.title + '">',
+            '      <h2 class="ll-wordset-card__title">' + card.title + '</h2>',
+            '    </a>',
+            '    <span class="ll-wordset-card__content-badge">Main lesson</span>',
+            '  </div>',
+            '  <a class="ll-wordset-card__lesson-link" href="#" aria-label="' + card.title + '">',
+            '    <div class="ll-wordset-card__preview ll-wordset-card__preview--content has-text">',
+            '      <div class="ll-wordset-card__content-stage">',
+            '        <span class="ll-wordset-card__content-icon-wrap" aria-hidden="true"></span>',
+            '        <div class="ll-wordset-card__content-copy">',
+            '          <div class="ll-wordset-card__content-pills">',
+            '            <span class="ll-wordset-card__content-pill ll-wordset-card__content-pill--media">' + card.media_label + '</span>',
+            '            <span class="ll-wordset-card__content-pill ll-wordset-card__content-pill--count">' + card.category_count + ' vocab lessons</span>',
+            '          </div>',
+            '          <p class="ll-wordset-card__content-excerpt">' + card.excerpt + '</p>',
+            '        </div>',
+            '      </div>',
+            '    </div>',
+            '  </a>',
+            '  <div class="ll-wordset-card__quiz-actions">',
+            '    <span class="ll-wordset-card__content-open">Open lesson</span>',
+            '  </div>',
+            '</article>'
+          ].join('');
+        }
+
         const trackClass = lazyProgressTrackLoading
           ? 'll-wordset-card__progress-track is-loading'
           : 'll-wordset-card__progress-track';
@@ -533,10 +584,11 @@ async function mountWordsetPage(page, options = {}) {
           success: true,
           data: {
             html,
-            categoryIds: nextCards.map((card) => card.id),
-            loaded: requestedCategoryIds.length ? offset : Math.min(remainingCards.length, startIndex + nextCards.length),
-            nextOffset: requestedCategoryIds.length ? offset : Math.min(remainingCards.length, startIndex + nextCards.length),
-            hasMore: requestedCategoryIds.length ? true : (startIndex + nextCards.length) < remainingCards.length
+            categoryIds: nextCards.filter((card) => !card || card.type !== 'content').map((card) => card.id),
+            contentIds: nextCards.filter((card) => card && card.type === 'content').map((card) => card.id),
+            loaded: (requestedCategoryIds.length || requestedContentIds.length) ? offset : Math.min(remainingCards.length, startIndex + nextCards.length),
+            nextOffset: (requestedCategoryIds.length || requestedContentIds.length) ? offset : Math.min(remainingCards.length, startIndex + nextCards.length),
+            hasMore: (requestedCategoryIds.length || requestedContentIds.length) ? true : (startIndex + nextCards.length) < remainingCards.length
           }
         });
       }, lazyAjaxDelay);
@@ -712,6 +764,31 @@ test('wordset search hydrates matching unloaded categories with real previews', 
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([11, 33]);
+});
+
+test('wordset search hydrates matching unloaded content lessons', async ({ page }) => {
+  await mountWordsetPage(page, {
+    lazyAjaxDelay: 300,
+    remainingCards: [lazyContentLesson],
+    lazyCards: {
+      total: 2,
+      remaining: 1,
+      shells: [],
+      contentShells: [lazyContentLesson]
+    }
+  });
+
+  await page.fill('[data-ll-wordset-page-search]', 'kirmizi');
+
+  await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llLazyAjaxCalls.map((call) => String(call.content_ids || '')));
+  }).toContain(String(lazyContentLesson.id));
+
+  const contentCard = page.locator('.ll-wordset-card[data-ll-wordset-card-type="content"][data-lesson-id="901"]');
+  await expect(contentCard.locator('.ll-wordset-card__title')).toHaveText('Kucuk Kirmizi Tavuk');
+  await expect(contentCard).not.toHaveJSProperty('hidden', true);
+  await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
 });
 
 test('client-rendered inactive categories include hide and trash controls', async ({ page }) => {

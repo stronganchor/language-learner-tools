@@ -533,6 +533,9 @@
     const lazyCardsPreviewLimit = Math.max(1, parseInt(lazyCardsCfg.previewLimit, 10) || 2);
     const lazyCardsShellBaseOffset = Math.max(0, parseInt(lazyCardsCfg.shellBaseOffset, 10) || Math.max(0, parseInt(lazyCardsCfg.initialCount, 10) || lazyCardsLoadedCount));
     const lazyCardShells = normalizeLazyCardShells(lazyCardsCfg.shells);
+    const lazyContentCardShells = normalizeLazyCardShells(lazyCardsCfg.contentShells).filter(function (shell) {
+        return shell && String(shell.type || '').toLowerCase() === 'content';
+    });
     let lazyCardsRequest = null;
     let lazyCardsLoadAllPromise = null;
     let lazyCardsObserver = null;
@@ -543,6 +546,8 @@
     let searchCardHydrationRequestToken = 0;
     const searchCardHydratedIds = {};
     const searchCardHydratingIds = {};
+    const searchContentCardHydratedIds = {};
+    const searchContentCardHydratingIds = {};
     let lazyCardsPlaceholderColumnCache = {
         width: 0,
         template: '',
@@ -1598,6 +1603,7 @@
                     type: 'content',
                     id: Math.max(0, parseInt(source.id, 10) || 0),
                     title: String(source.title || ''),
+                    excerpt: String(source.excerpt || ''),
                     media_type: String(source.media_type || 'audio'),
                     media_label: String(source.media_label || ''),
                     category_count: Math.max(0, parseInt(source.category_count, 10) || 0)
@@ -7464,7 +7470,68 @@
         });
     }
 
-    function requestHydratedSearchMatchCards(categoryIds) {
+    function getContentLessonCardById(lessonId) {
+        const id = parseInt(lessonId, 10) || 0;
+        if (!id) {
+            return $();
+        }
+        return $root.find('.ll-wordset-card[data-ll-wordset-card-type="content"][data-lesson-id="' + id + '"]').first();
+    }
+
+    function contentLessonTextMatchesSearch(values, query) {
+        const normalizedQuery = normalizeSearchText(query || '');
+        if (!normalizedQuery) {
+            return true;
+        }
+        const text = normalizeSearchText((Array.isArray(values) ? values : []).join(' '));
+        return text.indexOf(normalizedQuery) !== -1;
+    }
+
+    function contentLessonShellMatchesSearch(shell, query) {
+        const source = (shell && typeof shell === 'object') ? shell : {};
+        return contentLessonTextMatchesSearch([
+            source.title || '',
+            source.excerpt || '',
+            source.media_label || ''
+        ], query);
+    }
+
+    function contentLessonCardMatchesSearch($card, query) {
+        const $node = ($card && $card.length) ? $card.first() : $();
+        if (!$node.length) {
+            return false;
+        }
+        return contentLessonTextMatchesSearch([
+            $node.find('.ll-wordset-card__title').first().text(),
+            $node.find('.ll-wordset-card__content-excerpt').first().text(),
+            $node.find('.ll-wordset-card__content-pill').text(),
+            $node.text()
+        ], query);
+    }
+
+    function getSearchMatchingLazyContentLessonIds(query) {
+        const normalizedQuery = normalizeSearchText(query || '');
+        if (!normalizedQuery || !lazyContentCardShells.length) {
+            return [];
+        }
+
+        const ids = [];
+        const seen = {};
+        lazyContentCardShells.forEach(function (shell) {
+            const lessonId = parseInt(shell && shell.id, 10) || 0;
+            if (!lessonId || seen[lessonId]) {
+                return;
+            }
+            seen[lessonId] = true;
+            if (!contentLessonShellMatchesSearch(shell, normalizedQuery)) {
+                return;
+            }
+            ids.push(lessonId);
+        });
+        return ids;
+    }
+
+    function requestHydratedSearchMatchCards(categoryIds, contentIds) {
         if (!lazyCardsEnabled || !ajaxUrl || !lazyCardsNonce || !lazyCardsToken) {
             return;
         }
@@ -7472,7 +7539,10 @@
         const ids = uniqueIntList(categoryIds || []).filter(function (categoryId) {
             return categoryId > 0 && !searchCardHydratedIds[categoryId] && !searchCardHydratingIds[categoryId];
         });
-        if (!ids.length) {
+        const lessonIds = uniqueIntList(contentIds || []).filter(function (lessonId) {
+            return lessonId > 0 && !searchContentCardHydratedIds[lessonId] && !searchContentCardHydratingIds[lessonId];
+        });
+        if (!ids.length && !lessonIds.length) {
             return;
         }
 
@@ -7480,19 +7550,29 @@
         ids.forEach(function (categoryId) {
             searchCardHydratingIds[categoryId] = true;
         });
+        lessonIds.forEach(function (lessonId) {
+            searchContentCardHydratingIds[lessonId] = true;
+        });
+
+        const requestData = {
+            action: 'll_tools_wordset_page_lazy_cards',
+            nonce: lazyCardsNonce,
+            token: lazyCardsToken,
+            wordset_id: lazyCardsWordsetId,
+            preview_limit: lazyCardsPreviewLimit
+        };
+        if (ids.length) {
+            requestData.category_ids = ids.join(',');
+        }
+        if (lessonIds.length) {
+            requestData.content_ids = lessonIds.join(',');
+        }
 
         $.ajax({
             url: ajaxUrl,
             method: 'POST',
             dataType: 'json',
-            data: {
-                action: 'll_tools_wordset_page_lazy_cards',
-                nonce: lazyCardsNonce,
-                token: lazyCardsToken,
-                wordset_id: lazyCardsWordsetId,
-                preview_limit: lazyCardsPreviewLimit,
-                category_ids: ids.join(',')
-            }
+            data: requestData
         }).done(function (response) {
             const payload = (response && response.success && response.data && typeof response.data === 'object')
                 ? response.data
@@ -7506,6 +7586,11 @@
             hydratedIds.forEach(function (categoryId) {
                 searchCardHydratedIds[categoryId] = true;
             });
+            const payloadLessonIds = uniqueIntList(payload.contentIds || payload.content_ids || []);
+            const hydratedLessonIds = payloadLessonIds.length ? payloadLessonIds : lessonIds;
+            hydratedLessonIds.forEach(function (lessonId) {
+                searchContentCardHydratedIds[lessonId] = true;
+            });
 
             if (payload.html) {
                 appendLazyCardsMarkup(payload.html);
@@ -7513,6 +7598,9 @@
         }).always(function () {
             ids.forEach(function (categoryId) {
                 delete searchCardHydratingIds[categoryId];
+            });
+            lessonIds.forEach(function (lessonId) {
+                delete searchContentCardHydratingIds[lessonId];
             });
             if (requestToken === searchCardHydrationRequestToken && isMainCategorySearchActive()) {
                 syncLazyCardsUi({
@@ -7527,7 +7615,10 @@
         const normalizedQuery = String(query || '').trim().toLowerCase();
         if (!normalizedQuery || !$grid.length) {
             removeTemporarySearchResultCards();
-            return 0;
+            return {
+                insertedCount: 0,
+                pendingMatches: false
+            };
         }
 
         const lookup = (visibleLookup && typeof visibleLookup === 'object') ? visibleLookup : {};
@@ -7536,6 +7627,8 @@
         const progressLookup = buildCategoryProgressLookupFromAnalytics();
         const starredLookup = buildCategoryStarredLookupFromAnalytics();
         const hydrateCategoryIds = [];
+        const hydrateContentIds = [];
+        const pendingContentIds = [];
         let $inserted = $();
 
         categories.forEach(function (category) {
@@ -7578,9 +7671,22 @@
             }
         });
 
+        getSearchMatchingLazyContentLessonIds(normalizedQuery).forEach(function (lessonId) {
+            if (getContentLessonCardById(lessonId).length || searchContentCardHydratedIds[lessonId]) {
+                return;
+            }
+            pendingContentIds.push(lessonId);
+            if (!searchContentCardHydratingIds[lessonId]) {
+                hydrateContentIds.push(lessonId);
+            }
+        });
+
         finalizeInsertedMainGridCards($inserted);
-        requestHydratedSearchMatchCards(hydrateCategoryIds);
-        return $inserted.length;
+        requestHydratedSearchMatchCards(hydrateCategoryIds, hydrateContentIds);
+        return {
+            insertedCount: $inserted.length,
+            pendingMatches: pendingContentIds.length > 0
+        };
     }
 
     function getLazyCardsPlaceholderColumnCount() {
@@ -8336,8 +8442,12 @@
         if (!query) {
             materializeInlineSortedMainCategoryCards();
         }
+        let searchRenderResult = {
+            insertedCount: 0,
+            pendingMatches: false
+        };
         if (query) {
-            ensureSearchMatchCardsRendered(visibleLookup, query);
+            searchRenderResult = ensureSearchMatchCardsRendered(visibleLookup, query) || searchRenderResult;
         }
 
         const previousSelectedIds = uniqueIntList(selectedCategoryIds || []);
@@ -8375,11 +8485,14 @@
 
         $root.find('.ll-wordset-card[data-ll-wordset-card-type="content"]').each(function () {
             const $card = $(this);
-            const shouldShow = !query;
+            const shouldShow = !query || contentLessonCardMatchesSearch($card, query);
             $card
                 .prop('hidden', !shouldShow)
                 .toggleClass('is-search-filtered-out', !shouldShow)
                 .attr('aria-hidden', shouldShow ? 'false' : 'true');
+            if (shouldShow) {
+                visibleCount += 1;
+            }
         });
 
         $root.find('.ll-wordset-card[data-ll-wordset-card-type="add-category"]').each(function () {
@@ -8391,7 +8504,7 @@
                 .attr('aria-hidden', shouldShow ? 'false' : 'true');
         });
 
-        const pendingMatches = false;
+        const pendingMatches = !!(searchRenderResult && searchRenderResult.pendingMatches);
 
         if (selectedCategoryIds.length !== previousSelectedIds.length) {
             renderSelectionBar();

@@ -4197,6 +4197,7 @@ function ll_tools_wordset_page_build_lazy_card_shell(array $card): array {
             'type' => 'content',
             'id' => max(0, (int) ($data['id'] ?? 0)),
             'title' => (string) ($data['title'] ?? ''),
+            'excerpt' => (string) ($data['excerpt'] ?? ''),
             'media_type' => sanitize_key((string) ($data['media_type'] ?? 'audio')),
             'media_label' => (string) ($data['media_label'] ?? ''),
             'category_count' => max(0, (int) ($data['category_count'] ?? 0)),
@@ -4233,6 +4234,27 @@ function ll_tools_wordset_page_build_lazy_card_shells(array $cards, int $limit =
         if (count($shells) >= $limit) {
             break;
         }
+    }
+
+    return $shells;
+}
+
+function ll_tools_wordset_page_build_lazy_content_card_shells(array $cards): array {
+    $shells = [];
+    $seen = [];
+    foreach ($cards as $card) {
+        if (!is_array($card) || ($card['type'] ?? '') !== 'content') {
+            continue;
+        }
+
+        $shell = ll_tools_wordset_page_build_lazy_card_shell($card);
+        $lesson_id = isset($shell['id']) ? (int) $shell['id'] : 0;
+        if ($lesson_id <= 0 || isset($seen[$lesson_id])) {
+            continue;
+        }
+
+        $seen[$lesson_id] = true;
+        $shells[] = $shell;
     }
 
     return $shells;
@@ -15088,6 +15110,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'remaining' => 0,
         'shellBaseOffset' => count($mixed_lesson_cards),
         'shells' => [],
+        'contentShells' => [],
     ];
     if ($is_main_view && count($mixed_lesson_cards) > ll_tools_wordset_page_get_lazy_card_batch_size()) {
         $lazy_batch_size = ll_tools_wordset_page_get_lazy_card_batch_size();
@@ -15098,6 +15121,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $remaining_lazy_cards,
             max(24, $lazy_batch_size * 3)
         );
+        $lazy_content_shells = ll_tools_wordset_page_build_lazy_content_card_shells($remaining_lazy_cards);
         $lazy_cards_user_id = get_current_user_id();
         $lazy_cards_token_hint = '';
         if ($lazy_cards_user_id <= 0) {
@@ -15144,6 +15168,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'remaining' => max(0, count($mixed_lesson_cards) - count($initial_mixed_lesson_cards)),
             'shellBaseOffset' => count($initial_mixed_lesson_cards),
             'shells' => $lazy_shells,
+            'contentShells' => $lazy_content_shells,
         ];
     } else {
         $initial_mixed_lesson_cards = ll_tools_wordset_page_hydrate_mixed_card_previews($initial_mixed_lesson_cards, $preview_limit);
@@ -16917,6 +16942,12 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $requested_category_ids = array_values(array_unique(array_filter(array_map('intval', $requested_category_ids), static function (int $category_id): bool {
         return $category_id > 0;
     })));
+    $requested_content_ids = isset($_POST['content_ids'])
+        ? wp_parse_id_list(wp_unslash($_POST['content_ids']))
+        : [];
+    $requested_content_ids = array_values(array_unique(array_filter(array_map('intval', $requested_content_ids), static function (int $lesson_id): bool {
+        return $lesson_id > 0;
+    })));
     $public_cache_args = [
         'token' => $token,
         'wordset_id' => $wordset_id,
@@ -16924,6 +16955,7 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
         'offset' => $offset,
         'count' => $requested_count,
         'category_ids' => $requested_category_ids,
+        'content_ids' => $requested_content_ids,
     ];
     $cached_response = ll_tools_wordset_page_lazy_cards_ajax_cache_get($public_cache_args);
     if (is_array($cached_response)) {
@@ -16956,26 +16988,45 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $total = max($payload_total, $base_offset + count($cards));
     $render_context = (isset($payload['render_context']) && is_array($payload['render_context'])) ? $payload['render_context'] : [];
 
-    if (!empty($requested_category_ids)) {
+    if (!empty($requested_category_ids) || !empty($requested_content_ids)) {
         $requested_lookup = array_fill_keys($requested_category_ids, true);
+        $requested_content_lookup = array_fill_keys($requested_content_ids, true);
         $matched_cards = [];
         $matched_category_ids = [];
+        $matched_content_ids = [];
         foreach ($cards as $card) {
-            if (!is_array($card) || ($card['type'] ?? '') !== 'category' || !isset($card['data']) || !is_array($card['data'])) {
+            if (!is_array($card) || !isset($card['data']) || !is_array($card['data'])) {
                 continue;
             }
-            $category_id = isset($card['data']['id']) ? (int) $card['data']['id'] : 0;
-            if ($category_id <= 0 || empty($requested_lookup[$category_id])) {
+
+            $card_type = (string) ($card['type'] ?? 'category');
+            if ($card_type === 'category') {
+                $category_id = isset($card['data']['id']) ? (int) $card['data']['id'] : 0;
+                if ($category_id <= 0 || empty($requested_lookup[$category_id])) {
+                    continue;
+                }
+                $matched_cards[] = $card;
+                $matched_category_ids[] = $category_id;
+                continue;
+            }
+
+            if ($card_type !== 'content') {
+                continue;
+            }
+
+            $lesson_id = isset($card['data']['id']) ? (int) $card['data']['id'] : 0;
+            if ($lesson_id <= 0 || empty($requested_content_lookup[$lesson_id])) {
                 continue;
             }
             $matched_cards[] = $card;
-            $matched_category_ids[] = $category_id;
+            $matched_content_ids[] = $lesson_id;
         }
 
         $matched_cards = ll_tools_wordset_page_hydrate_mixed_card_previews($matched_cards, $preview_limit);
         $response = [
             'html' => ll_tools_wordset_page_render_mixed_cards($matched_cards, $render_context),
             'categoryIds' => array_values(array_unique($matched_category_ids)),
+            'contentIds' => array_values(array_unique($matched_content_ids)),
             'loaded' => min($offset, $total),
             'nextOffset' => min($offset, $total),
             'hasMore' => ($offset < $total),

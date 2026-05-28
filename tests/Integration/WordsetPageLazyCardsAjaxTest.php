@@ -258,6 +258,92 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_ajax_hydrates_lazy_content_lesson_by_requested_id(): void
+    {
+        $fixture = $this->createWordsetFixture(7);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_ids = array_values(array_map('intval', (array) ($fixture['category_ids'] ?? [])));
+        $wordset_term = get_term($wordset_id, 'wordset');
+
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->assertGreaterThanOrEqual(7, count($category_ids));
+
+        $content_lesson_id = $this->createContentLesson(
+            $wordset_id,
+            'Lazy Content Search Story',
+            [(int) $category_ids[6]],
+            [(int) $category_ids[6]]
+        );
+
+        $original_get = $_GET;
+        $original_wordset_page = get_query_var('ll_wordset_page');
+        $original_wordset_view = get_query_var('ll_wordset_view');
+        $batch_size_filter = static function (): int {
+            return 6;
+        };
+        $bootstrap_filter = static function ($should_bootstrap, $view, $filter_wordset_id): bool {
+            if ((int) $filter_wordset_id === 0) {
+                return (bool) $should_bootstrap;
+            }
+
+            return (string) $view === 'progress';
+        };
+
+        add_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+        add_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10, 4);
+
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+
+        try {
+            $html = ll_tools_render_wordset_page_content($wordset_id, [
+                'show_title' => false,
+                'wrapper_tag' => 'div',
+            ]);
+
+            $this->assertStringNotContainsString('Lazy Content Search Story', $html);
+
+            $config = $this->extractLocalizedConfig((string) wp_scripts()->get_data('ll-wordset-pages-js', 'data'));
+            $this->assertTrue((bool) ($config['lazyCards']['enabled'] ?? false));
+            $this->assertIsArray($config['lazyCards']['contentShells'] ?? null);
+            $this->assertContains(
+                $content_lesson_id,
+                array_map('intval', wp_list_pluck((array) ($config['lazyCards']['contentShells'] ?? []), 'id'))
+            );
+
+            $original_post = $_POST;
+            $original_request = $_REQUEST;
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_lazy_cards'),
+                'token' => (string) ($config['lazyCards']['token'] ?? ''),
+                'wordset_id' => $wordset_id,
+                'preview_limit' => 2,
+                'content_ids' => (string) $content_lesson_id,
+            ];
+            $_REQUEST = $_POST;
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_wordset_page_handle_lazy_cards_ajax();
+                });
+            } finally {
+                $_POST = $original_post;
+                $_REQUEST = $original_request;
+            }
+
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            $this->assertSame([$content_lesson_id], array_map('intval', (array) ($response['data']['contentIds'] ?? [])));
+            $this->assertStringContainsString('Lazy Content Search Story', (string) ($response['data']['html'] ?? ''));
+            $this->assertStringContainsString('data-lesson-id="' . $content_lesson_id . '"', (string) ($response['data']['html'] ?? ''));
+        } finally {
+            $_GET = $original_get;
+            set_query_var('ll_wordset_page', $original_wordset_page);
+            set_query_var('ll_wordset_view', $original_wordset_view);
+            remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+            remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
+        }
+    }
+
     public function test_guest_lazy_cards_ajax_response_cache_uses_shared_token_and_epochs(): void
     {
         wp_set_current_user(0);
@@ -299,6 +385,7 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertFalse(is_wp_error($wordset));
         $this->assertIsArray($wordset);
         $wordset_id = (int) $wordset['term_id'];
+        $category_ids = [];
 
         for ($category_index = 0; $category_index < $category_count; $category_index++) {
             $letter = chr(ord('A') + $category_index);
@@ -307,6 +394,7 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             $this->assertIsArray($category_term);
 
             $category_id = (int) $category_term['term_id'];
+            $category_ids[] = $category_id;
             update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
             update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
 
@@ -336,7 +424,29 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
 
         return [
             'wordset_id' => $wordset_id,
+            'category_ids' => $category_ids,
         ];
+    }
+
+    private function createContentLesson(int $wordset_id, string $title, array $category_ids, array $prereq_category_ids = []): int
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => $title,
+            'post_excerpt' => 'A searchable lazy content lesson.',
+        ]);
+
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'standard');
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META, 'audio');
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, array_values(array_map('intval', $category_ids)));
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META, '1');
+        if (!empty($prereq_category_ids)) {
+            update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_PREREQ_CATEGORY_IDS_META, array_values(array_map('intval', $prereq_category_ids)));
+        }
+
+        return (int) $lesson_id;
     }
 
     private function createWordWithAudio(string $title, string $translation, int $category_id, int $wordset_id, string $audio_file_name): int
