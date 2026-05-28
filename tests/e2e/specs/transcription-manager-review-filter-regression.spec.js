@@ -132,7 +132,9 @@ test('reviewed rows stay visible until the transcription search is manually refr
         buildRecording(101, 'Alpha', { recording_text: true }, 'Check the vowel length before clearing.'),
         buildRecording(202, 'Beta', { recording_ipa: true }, '')
       ],
-      postCalls: []
+      postCalls: [],
+      holdReviewStateRequests: false,
+      pendingReviewStateRequests: []
     };
 
     const $ = window.jQuery;
@@ -188,36 +190,47 @@ test('reviewed rows stay visible until the transcription search is manually refr
         }
 
         if (requestData.action === 'll_tools_set_ipa_keyboard_transcription_review_state') {
-          const recordingId = parseInt(requestData.recording_id, 10) || 0;
-          const needsReview = !!requestData.needs_review;
+          const finishReviewStateRequest = function () {
+            const recordingId = parseInt(requestData.recording_id, 10) || 0;
+            const needsReview = !!requestData.needs_review;
 
-          window.__llTranscriptionManagerMock.recordings = window.__llTranscriptionManagerMock.recordings.map(function (recording) {
-            if (recording.recording_id !== recordingId) {
-              return recording;
-            }
+            window.__llTranscriptionManagerMock.recordings = window.__llTranscriptionManagerMock.recordings.map(function (recording) {
+              if (recording.recording_id !== recordingId) {
+                return recording;
+              }
 
-            const reviewField = requestData.review_field === 'recording_text' ? 'recording_text' : 'recording_ipa';
-            const reviewFields = Object.assign({ recording_text: false, recording_ipa: false }, recording.review_fields || {});
-            reviewFields[reviewField] = needsReview;
-            const stillNeedsReview = !!(reviewFields.recording_text || reviewFields.recording_ipa);
+              const reviewField = requestData.review_field === 'recording_text' ? 'recording_text' : 'recording_ipa';
+              const reviewFields = Object.assign({ recording_text: false, recording_ipa: false }, recording.review_fields || {});
+              reviewFields[reviewField] = needsReview;
+              const stillNeedsReview = !!(reviewFields.recording_text || reviewFields.recording_ipa);
 
-            return Object.assign({}, recording, {
-              needs_review: stillNeedsReview,
-              review_fields: reviewFields,
-              review_note: stillNeedsReview ? (recording.review_note || '') : ''
+              return Object.assign({}, recording, {
+                needs_review: stillNeedsReview,
+                review_fields: reviewFields,
+                review_note: stillNeedsReview ? (recording.review_note || '') : ''
+              });
             });
-          });
 
-          const updated = window.__llTranscriptionManagerMock.recordings.find(function (recording) {
-            return recording.recording_id === recordingId;
-          });
+            const updated = window.__llTranscriptionManagerMock.recordings.find(function (recording) {
+              return recording.recording_id === recordingId;
+            });
 
-          deferred.resolve({
-            success: true,
-            data: {
-              recording: clone(updated)
-            }
-          });
+            deferred.resolve({
+              success: true,
+              data: {
+                recording: clone(updated)
+              }
+            });
+          };
+
+          if (window.__llTranscriptionManagerMock.holdReviewStateRequests) {
+            window.__llTranscriptionManagerMock.pendingReviewStateRequests.push({
+              finish: finishReviewStateRequest
+            });
+            return;
+          }
+
+          finishReviewStateRequest();
           return;
         }
 
@@ -295,7 +308,32 @@ test('reviewed rows stay visible until the transcription search is manually refr
   expect(laptopLayout.transcriptionWidth / laptopLayout.tableWidth).toBeGreaterThan(0.45);
   expect(laptopLayout.transcriptionWidth).toBeGreaterThan(laptopLayout.issuesWidth * 1.75);
 
-  await rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle').click();
+  await page.evaluate(() => {
+    window.__llTranscriptionManagerMock.holdReviewStateRequests = true;
+  });
+
+  const reviewTextToggle = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle');
+  const reviewTextStatus = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-review-status');
+  await reviewTextToggle.click();
+
+  await expect(reviewTextToggle).toBeDisabled();
+  await expect(reviewTextToggle).toHaveClass(/is-saving/);
+  await expect(reviewTextToggle).toHaveAttribute('aria-busy', 'true');
+  await expect(reviewTextToggle).toHaveText('Saving...');
+  await expect(reviewTextStatus).toHaveClass(/is-saving/);
+  await expect(reviewTextStatus).toHaveAttribute('aria-busy', 'true');
+  await expect(reviewTextStatus.locator('.ll-ipa-search-review-status-label')).toHaveText('Saving...');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle')).toBeDisabled();
+  await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '1');
+
+  await page.evaluate(() => {
+    const mock = window.__llTranscriptionManagerMock;
+    const pending = mock.pendingReviewStateRequests.shift();
+    mock.holdReviewStateRequests = false;
+    if (pending) {
+      pending.finish();
+    }
+  });
 
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toHaveAttribute('data-recording-id', '101');
@@ -311,6 +349,37 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(rows.nth(1)).toHaveAttribute('data-needs-review', '1');
   await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Reviewed.');
 
+  await page.evaluate(() => {
+    window.__llTranscriptionManagerMock.holdReviewStateRequests = true;
+  });
+
+  const flagTextToggle = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle');
+  const flagTextStatus = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-review-status');
+  await expect(flagTextToggle).toHaveText('Mark as needing review');
+  await flagTextToggle.click();
+
+  await expect(flagTextToggle).toBeDisabled();
+  await expect(flagTextToggle).toHaveClass(/is-saving/);
+  await expect(flagTextStatus).toHaveClass(/is-saving/);
+  await expect(flagTextStatus.locator('.ll-ipa-search-review-status-label')).toHaveText('Saving...');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle')).toBeDisabled();
+  await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '0');
+
+  await page.evaluate(() => {
+    const mock = window.__llTranscriptionManagerMock;
+    const pending = mock.pendingReviewStateRequests.shift();
+    mock.holdReviewStateRequests = false;
+    if (pending) {
+      pending.finish();
+    }
+  });
+
+  await expect(rows.nth(0)).toHaveAttribute('data-recording-id', '101');
+  await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '1');
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-review-status.is-needs-review .ll-ipa-search-review-status-label')).toHaveText('Needs review');
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as reviewed');
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Marked for review.');
+
   const actions = await page.evaluate(() => {
     return window.__llTranscriptionManagerMock.postCalls.map(function (call) {
       return call.data.action;
@@ -319,6 +388,7 @@ test('reviewed rows stay visible until the transcription search is manually refr
 
   expect(actions).toEqual([
     'll_tools_search_ipa_keyboard_recordings',
+    'll_tools_set_ipa_keyboard_transcription_review_state',
     'll_tools_set_ipa_keyboard_transcription_review_state'
   ]);
 });

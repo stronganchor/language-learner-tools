@@ -1742,6 +1742,135 @@
             }));
     }
 
+    function buildSearchReviewSavingStatus() {
+        const savingLabel = t('saving', 'Saving...');
+
+        return $('<span>', {
+            class: 'll-ipa-search-review-status is-saving',
+            'aria-label': savingLabel,
+            'aria-busy': 'true'
+        })
+            .append($('<span>', {
+                class: 'll-ipa-search-review-status-icon',
+                'aria-hidden': 'true'
+            }))
+            .append($('<span>', {
+                class: 'll-ipa-search-review-status-label',
+                text: savingLabel
+            }));
+    }
+
+    function getSearchReviewFieldSelector(field) {
+        return field === 'recording_text'
+            ? '.ll-ipa-search-text-cell'
+            : '.ll-ipa-search-ipa-cell';
+    }
+
+    function getSearchReviewAction($row, field) {
+        if (!$row || !$row.length) {
+            return $();
+        }
+
+        return $row.find(getSearchReviewFieldSelector(field) + ' .ll-ipa-search-field-review-action').first();
+    }
+
+    function getReviewToggleButtonText(nextNeedsReview) {
+        return nextNeedsReview
+            ? t('searchReviewMarkAsNeedsReview', 'Mark as needing review')
+            : t('searchReviewMarkAsReviewed', 'Mark as reviewed');
+    }
+
+    function getReviewToggleButtonAriaLabel(field, nextNeedsReview) {
+        const fieldLabel = getReviewFieldLabel(field);
+        return nextNeedsReview
+            ? formatText(t('searchReviewMarkFieldAsNeedsReview', '%s: mark as needing review'), [fieldLabel])
+            : formatText(t('searchReviewMarkFieldAsReviewed', '%s: mark as reviewed'), [fieldLabel]);
+    }
+
+    function restoreReviewToggleButton($toggle) {
+        if (!$toggle || !$toggle.length) {
+            return;
+        }
+
+        const field = ($toggle.attr('data-review-field') || 'recording_ipa').toString() === 'recording_text'
+            ? 'recording_text'
+            : 'recording_ipa';
+        const nextNeedsReview = ($toggle.attr('data-next-review-state') || '0') === '1';
+        const currentNeedsReview = ($toggle.attr('data-current-review-state') || '0') === '1';
+
+        $toggle
+            .removeClass('is-saving')
+            .prop('disabled', false)
+            .removeAttr('aria-busy aria-disabled')
+            .attr({
+                'aria-label': getReviewToggleButtonAriaLabel(field, nextNeedsReview),
+                'aria-pressed': currentNeedsReview ? 'true' : 'false'
+            })
+            .text(getReviewToggleButtonText(nextNeedsReview));
+    }
+
+    function setSearchReviewSavingState($row, reviewField, saving) {
+        if (!$row || !$row.length) {
+            return;
+        }
+
+        const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
+        if (saving) {
+            const $action = getSearchReviewAction($row, field);
+            $row
+                .data('llSearchReviewSaving', true)
+                .addClass('is-review-saving')
+                .attr('data-review-saving-field', field);
+            $row.find('.ll-ipa-review-toggle')
+                .prop('disabled', true)
+                .attr('aria-disabled', 'true');
+
+            if ($action.length) {
+                const $status = $action.find('.ll-ipa-search-review-status').first();
+                const $toggle = $action.find('.ll-ipa-review-toggle').first();
+                $action.addClass('is-saving');
+                if ($status.length) {
+                    $status.replaceWith(buildSearchReviewSavingStatus());
+                } else {
+                    $action.prepend(buildSearchReviewSavingStatus());
+                }
+                if ($toggle.length) {
+                    $toggle
+                        .addClass('is-saving')
+                        .attr('aria-busy', 'true')
+                        .text(t('saving', 'Saving...'));
+                }
+            }
+            return;
+        }
+
+        const savedField = ($row.attr('data-review-saving-field') || field).toString() === 'recording_text'
+            ? 'recording_text'
+            : 'recording_ipa';
+        const currentNeedsReview = savedField === 'recording_text'
+            ? ($row.attr('data-review-text') || '0') === '1'
+            : ($row.attr('data-review-ipa') || '0') === '1';
+        const $restoreAction = getSearchReviewAction($row, savedField);
+
+        $row
+            .removeData('llSearchReviewSaving')
+            .removeClass('is-review-saving')
+            .removeAttr('data-review-saving-field');
+        $row.find('.ll-ipa-review-toggle').each(function () {
+            restoreReviewToggleButton($(this));
+        });
+
+        if ($restoreAction.length) {
+            const $status = $restoreAction.find('.ll-ipa-search-review-status').first();
+            $restoreAction.removeClass('is-saving');
+            if ($status.length) {
+                $status.replaceWith(buildSearchReviewStatus(currentNeedsReview));
+            } else {
+                $restoreAction.prepend(buildSearchReviewStatus(currentNeedsReview));
+            }
+        }
+    }
+
     function buildSearchFieldReviewAction(field, reviewFields) {
         const fields = normalizeReviewFields(reviewFields);
         const needsReview = !!fields[field];
@@ -1809,18 +1938,15 @@
         if (extraClass) {
             classes.push(extraClass);
         }
-        const flagLabel = t('searchReviewMarkAsNeedsReview', 'Mark as needing review');
-        const confirmLabel = t('searchReviewMarkAsReviewed', 'Mark as reviewed');
-        const fieldLabel = getReviewFieldLabel(field);
-        const flagAriaLabel = formatText(t('searchReviewMarkFieldAsNeedsReview', '%s: mark as needing review'), [fieldLabel]);
-        const confirmAriaLabel = formatText(t('searchReviewMarkFieldAsReviewed', '%s: mark as reviewed'), [fieldLabel]);
+        const nextNeedsReview = !needsReview;
 
         return $('<button>', {
             type: 'button',
             class: classes.join(' '),
-            text: needsReview ? confirmLabel : flagLabel,
-            'aria-label': needsReview ? confirmAriaLabel : flagAriaLabel,
-            'data-next-review-state': needsReview ? '0' : '1',
+            text: getReviewToggleButtonText(nextNeedsReview),
+            'aria-label': getReviewToggleButtonAriaLabel(field, nextNeedsReview),
+            'data-next-review-state': nextNeedsReview ? '1' : '0',
+            'data-current-review-state': needsReview ? '1' : '0',
             'data-review-field': field,
             'aria-pressed': needsReview ? 'true' : 'false'
         });
@@ -2799,13 +2925,31 @@
         return $newRow;
     }
 
+    function getSearchRowByRecordingId(recordingId) {
+        const safeRecordingId = parseInt(recordingId, 10) || 0;
+        if (!safeRecordingId) {
+            return $();
+        }
+
+        return $searchResults.find('tr[data-recording-id="' + safeRecordingId + '"]').first();
+    }
+
+    function setSearchReviewSavingStateByRecordingId(recordingId, reviewField, saving) {
+        const $row = getSearchRowByRecordingId(recordingId);
+        if (!$row.length) {
+            return;
+        }
+
+        setSearchReviewSavingState($row, reviewField, saving);
+    }
+
     function replaceSearchRowByRecordingId(recordingId, rec) {
         const safeRecordingId = parseInt(recordingId, 10) || 0;
         if (!safeRecordingId) {
             return null;
         }
 
-        const $row = $searchResults.find('tr[data-recording-id="' + safeRecordingId + '"]').first();
+        const $row = getSearchRowByRecordingId(safeRecordingId);
         if (!$row.length) {
             return null;
         }
@@ -2855,10 +2999,12 @@
             return;
         }
 
+        const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
         pendingSearchReviewState[String(recordingId)] = {
             needsReview: !!needsReview,
-            reviewField: reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa'
+            reviewField: field
         };
+        setSearchReviewSavingStateByRecordingId(recordingId, field, true);
     }
 
     function clearPendingSearchReviewState(recordingId) {
@@ -2866,7 +3012,12 @@
             return;
         }
 
-        delete pendingSearchReviewState[String(recordingId)];
+        const key = String(recordingId);
+        const state = pendingSearchReviewState[key] || {};
+        delete pendingSearchReviewState[key];
+        if (state.reviewField) {
+            setSearchReviewSavingStateByRecordingId(recordingId, state.reviewField, false);
+        }
     }
 
     function flushPendingSearchReviewState(recordingId) {
@@ -2886,6 +3037,7 @@
         }
         const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
 
+        setSearchReviewSavingStateByRecordingId(recordingId, field, true);
         setStatus(t('saving', 'Saving...'), false);
         return $.post(ajaxUrl, {
             action: 'll_tools_set_ipa_keyboard_transcription_review_state',
@@ -2916,6 +3068,8 @@
             );
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
+            setSearchReviewSavingStateByRecordingId(recordingId, field, false);
         });
     }
 
@@ -3491,7 +3645,7 @@
             ? 'recording_text'
             : 'recording_ipa';
 
-        if (!recordingId || !currentWordsetId) {
+        if (!recordingId || !currentWordsetId || $row.data('llSearchReviewSaving')) {
             return;
         }
 
@@ -3506,10 +3660,7 @@
             return;
         }
 
-        $btn.prop('disabled', true);
-        submitSearchReviewState(recordingId, nextNeedsReview, reviewField).always(function () {
-            $btn.prop('disabled', false);
-        });
+        submitSearchReviewState(recordingId, nextNeedsReview, reviewField);
     });
 
     $searchResults.on('click', '.ll-ipa-symbol-approval', function () {
