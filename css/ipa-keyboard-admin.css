@@ -1042,12 +1042,8 @@
     width: auto;
 }
 
-.ll-ipa-search-table col.ll-ipa-search-col-categories {
-    width: 150px;
-}
-
 .ll-ipa-search-table col.ll-ipa-search-col-checks {
-    width: 250px;
+    width: 200px;
 }
 
 .ll-ipa-search-table col.ll-ipa-search-col-actions {
@@ -1161,7 +1157,8 @@
 }
 
 .ll-ipa-search-meta-categories {
-    display: none;
+    display: grid;
+    gap: 4px;
 }
 
 .ll-ipa-search-word-link {
@@ -1186,7 +1183,6 @@
 }
 
 .ll-ipa-search-transcription-cell,
-.ll-ipa-search-categories-cell,
 .ll-ipa-search-issues-cell,
 .ll-ipa-search-action-cell {
     min-width: 0;
@@ -1642,26 +1638,12 @@
         width: auto;
     }
 
-    .ll-ipa-search-table col.ll-ipa-search-col-categories {
-        width: 0;
-    }
-
     .ll-ipa-search-table col.ll-ipa-search-col-checks {
-        width: 210px;
+        width: 180px;
     }
 
     .ll-ipa-search-table col.ll-ipa-search-col-actions {
         width: 84px;
-    }
-
-    .ll-ipa-search-categories-heading,
-    .ll-ipa-search-categories-cell {
-        display: none;
-    }
-
-    .ll-ipa-search-meta-categories {
-        display: grid;
-        gap: 4px;
     }
 }
 
@@ -1693,7 +1675,7 @@
     }
 
     .ll-ipa-search-table col.ll-ipa-search-col-checks {
-        width: 190px;
+        width: 168px;
     }
 
     .ll-ipa-rule-row {
@@ -1806,10 +1788,6 @@
         line-height: 1.2;
         letter-spacing: 0;
         text-transform: uppercase;
-    }
-
-    .ll-ipa-search-table .ll-ipa-search-categories-cell {
-        display: none;
     }
 
     .ll-ipa-search-action-cell {

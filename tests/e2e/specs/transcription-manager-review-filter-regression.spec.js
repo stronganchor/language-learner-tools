@@ -270,6 +270,31 @@ test('reviewed rows stay visible until the transcription search is manually refr
   expect(mobileLayout.textInputTag).toBe('TEXTAREA');
   expect(mobileLayout.scrollWidth).toBeLessThanOrEqual(mobileLayout.clientWidth + 1);
 
+  await page.setViewportSize({ width: 1180, height: 800 });
+
+  const laptopLayout = await rows.nth(0).evaluate((row) => {
+    const table = row.closest('.ll-ipa-search-table').getBoundingClientRect();
+    const transcriptionCell = row.querySelector('.ll-ipa-search-transcription-cell').getBoundingClientRect();
+    const issuesCell = row.querySelector('.ll-ipa-search-issues-cell').getBoundingClientRect();
+    const metaCategories = row.querySelector('.ll-ipa-search-meta-categories');
+    return {
+      categoryColumnHeadingCount: document.querySelectorAll('.ll-ipa-search-categories-heading').length,
+      categoryColumnCellCount: document.querySelectorAll('.ll-ipa-search-categories-cell').length,
+      metaCategoryDisplay: metaCategories ? window.getComputedStyle(metaCategories).display : '',
+      metaCategoryText: metaCategories ? metaCategories.textContent.trim() : '',
+      tableWidth: table.width,
+      transcriptionWidth: transcriptionCell.width,
+      issuesWidth: issuesCell.width
+    };
+  });
+
+  expect(laptopLayout.categoryColumnHeadingCount).toBe(0);
+  expect(laptopLayout.categoryColumnCellCount).toBe(0);
+  expect(laptopLayout.metaCategoryDisplay).toBe('grid');
+  expect(laptopLayout.metaCategoryText).toContain('Regression Category');
+  expect(laptopLayout.transcriptionWidth / laptopLayout.tableWidth).toBeGreaterThan(0.45);
+  expect(laptopLayout.transcriptionWidth).toBeGreaterThan(laptopLayout.issuesWidth * 1.75);
+
   await rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle').click();
 
   await expect(rows).toHaveCount(2);

@@ -1976,7 +1976,6 @@
         })
             .append($metaCell)
             .append(buildSearchTranscriptionCell($textInput, $ipaInput, reviewFields, reviewNote))
-            .append($('<td>', { class: 'll-ipa-search-categories-cell' }).append(buildCategoriesCell(categories)))
             .append($issueCell)
             .append($actionCell);
     }
@@ -2168,14 +2167,12 @@
         const $colgroup = $('<colgroup>')
             .append($('<col>', { class: 'll-ipa-search-col-meta' }))
             .append($('<col>', { class: 'll-ipa-search-col-transcriptions' }))
-            .append($('<col>', { class: 'll-ipa-search-col-categories' }))
             .append($('<col>', { class: 'll-ipa-search-col-checks' }))
             .append($('<col>', { class: 'll-ipa-search-col-actions' }));
         const $thead = $('<thead>').append(
             $('<tr>')
                 .append($('<th>', { class: 'll-ipa-search-meta-heading', text: t('searchWordLabel', 'Word') }))
                 .append($('<th>', { class: 'll-ipa-search-transcription-heading', text: t('searchTranscriptionsLabel', 'Transcriptions') }))
-                .append($('<th>', { class: 'll-ipa-search-categories-heading', text: t('searchCategoriesLabel', 'Categories') }))
                 .append($('<th>', { class: 'll-ipa-search-checks-heading', text: t('searchIssuesLabel', 'Checks') }))
                 .append($('<th>', { class: 'll-ipa-search-actions-heading', text: '' }))
         );
