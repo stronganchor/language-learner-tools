@@ -1,7 +1,8 @@
 # Maintenance Backlog
 
-Updated May 8, 2026 after the security, i18n, UI, routing-maintenance,
-wordset performance, and follow-up maintenance passes.
+Updated May 29, 2026 after the weekly maintenance/performance audit and the
+autonomous REST/docs, i18n, public-resource, and wordset-search follow-up
+passes.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -9,8 +10,8 @@ being folded into a small opportunistic fix.
 ## Current Short List
 
 The active maintenance list for the current round is intentionally narrowed to
-browser regression coverage, flashcard-shell duplication, helper cleanup
-decisions, and documentation upkeep.
+browser regression coverage, resource-policy decisions, flashcard-shell
+duplication, helper cleanup decisions, and documentation upkeep.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid, including prerequisite ordering.
@@ -34,11 +35,17 @@ decisions, and documentation upkeep.
    - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.
    - Prefer a shared PHP renderer or small partials before adding more shell controls.
 
-3. Keep the audited helper decisions explicit.
+3. Decide the remaining site-sync snapshot resource policy before changing behavior.
+   - `GET /wordsets/{wordset}/site-sync/snapshot` currently permits an unpaged snapshot when `per_page` is omitted or `0`; `include_media` defaults to true.
+   - This is intentionally not changed opportunistically because automation users may depend on full snapshots.
+   - A safer future policy may require explicit `per_page=0` or a privileged/full-export flag, while keeping paged snapshots crawlable and predictable for automation.
+   - Verify any behavior change against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
+
+4. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.
    - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` is a legacy supported-language-map helper, not a duplicate of the wordset source/target resolver `ll_tools_get_deepl_language_codes()`. Keep it for compatibility unless a future external-usage audit proves it can be deprecated.
 
-4. Keep architecture and operator docs current after large feature work.
+5. Keep architecture and operator docs current after large feature work.
    - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, but it should be refreshed whenever another large workflow lands.
    - `README.md` shortcode coverage is now guarded by a Playwright source-contract regression; update the README and the test together when intentionally adding or removing public shortcodes.
 
@@ -74,9 +81,12 @@ decisions, and documentation upkeep.
    - The wordset main page currently builds and localizes the full category
      word-search index via `ll_tools_get_wordset_page_category_search_index()`
      in `includes/pages/wordset-pages.php`.
+   - The May 29 maintenance pass narrowed the SQL to words that have at least
+     one allowed category, which reduces wasted scans without changing the
+     client-side search contract.
    - That preserves instant client-side category search, including matches on
-     word titles/translations and diacritic-insensitive text, but it still makes
-     first render scan the whole wordset's published words.
+     word titles/translations and diacritic-insensitive text, but first render
+     can still scan many published words for large allowed category sets.
    - Treat this as a larger performance project because the replacement should
      be an on-demand cached AJAX/REST lookup that loads when search is focused
      or typed, returns matching category IDs without forcing lazy-card loads,

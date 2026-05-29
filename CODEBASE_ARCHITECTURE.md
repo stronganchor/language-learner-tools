@@ -290,7 +290,7 @@ vendor/
   - Quiz config meta: `ll_quiz_prompt_type` (audio|image|text_translation|text_title), `ll_quiz_option_type` (image|text_translation|text_title|audio|text_audio).
   - Desired recording types: `ll_desired_recording_types` (list of slugs; sentinel `__none__` disables recording for the category).
   - Helpers: `ll_tools_get_category_display_name()`, `ll_tools_get_category_quiz_config()`, `ll_can_category_generate_quiz()`.
-- `wordset` (flat; attached to `words`)
+- `wordset` (flat; attached to `words` and `ll_prompt_card`)
   - Meta: `ll_language`, `ll_wordset_recorder_text_visibility`, `manager_user_ids` (canonical multi-manager list), legacy `manager_user_id` primary mirror.
   - Capabilities: `edit_wordsets` etc; non-admins see only managed wordsets.
   - Active wordset resolution: `ll_tools_get_active_wordset_id()`; default seeded on activation.
@@ -474,9 +474,12 @@ Core settings live in `includes/admin/settings.php`:
 - All admin and public UI strings should remain i18n-detectable (Loco Translate compatible): wrap PHP/template strings in WordPress i18n helpers using `ll-tools-text-domain`, and pass JS UI copy through localized data/messages instead of hardcoded literals.
 - Tier-2 public UI translations are tracked through `languages/tier2-public-ui-sources.php`, the generated `languages/tier2-public-ui-strings.json` manifest, and `scripts/check-public-i18n.php`; mixed-purpose source files should use public-only line ranges so manager/admin strings do not enter the tier-2 coverage set.
 - Public static caches must exclude logged-in users, wp-admin, admin-ajax, REST/API, POST requests, preview/customizer requests, and error/redirect responses; anonymous cache keys should normalize noisy args such as `ll_locale_nonce` and `ll_tools_auth`.
+- Public static cache writes must keep the configured max-byte guard, and MISS responses should not receive public cache headers until storage succeeds.
+- Anonymous public AJAX surfaces that can rebuild expensive payloads should be cache-aware and resource-guarded: preserve cheap cache hits, but throttle or cap cache misses and oversized batch requests.
+- Wordset main-page category search indexing should stay scoped to allowed categories. The current SQL prunes words that have no allowed category while preserving the deepest-category assignment rule; a larger on-demand search migration must preserve diacritic-insensitive matching and hidden-selection cleanup.
 - Public dictionary requests should canonicalize noisy browse state early: `ll_dictionary_entry` wins over letter/browse state, `letter` collapses to `ll_dictionary_letter`, and private wordsets/entries must not leak through AJAX or direct-detail fallbacks.
 - Custom STT endpoints must stay wordset-scoped and validate both saved and request-time URLs against private/reserved hosts or resolved private IP ranges before proxying.
-- Automation REST write endpoints must keep server-side throttles/caps and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site.
+- Automation REST write endpoints must keep server-side throttles/caps, serialized resource guards for expensive writes, and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site.
 - Offline export/sync payloads must preserve wordset scoping, quiz configuration, media proxy expectations, and prompt-card metadata needed by the shared flashcard runtime.
 - Frontend teacher-class `admin-post.php` actions must account for limited-role redirect handling so teachers are not bounced to the site home after valid class actions.
 

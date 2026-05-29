@@ -6392,7 +6392,7 @@ msgstr "Lütfen geçerli bir bildirim e-posta adresi gir."
 
 #: includes/admin/bulk-word-import-admin.php:439
 msgid "Please provide at least one word to import."
-msgstr "Lütfen içe aktarmak için en az bir kelime sağlayın."
+msgstr "Lütfen içe aktarmak için en az bir kelime sağla."
 
 #: includes/admin/audio-image-matcher.php:92
 msgid "Please select a category."
@@ -7109,11 +7109,11 @@ msgstr ""
 
 #: templates/vocab-lesson-template.php:448
 msgid "Replace"
-msgstr "Değiştirin"
+msgstr "Değiştir"
 
 #: includes/post-types/word-audio-post-type.php:368
 msgid "Replace Recording Types"
-msgstr "Kayıt Türlerini Değiştirin"
+msgstr "Kayıt Türlerini Değiştir"
 
 #: includes/post-types/word-audio-post-type.php:344
 msgid ""
@@ -7551,7 +7551,7 @@ msgstr "Bir zip dosyası seç"
 #: includes/shortcodes/flashcard-widget.php:471
 #: templates/offline-app-shell-template.php:819
 msgid "Select All"
-msgstr "Tümünü Seçin"
+msgstr "Tümünü Seç"
 
 #: includes/admin/ipa-keyboard-admin.php:400
 #: includes/pages/wordset-pages.php:13146
@@ -11723,7 +11723,7 @@ msgstr "Kopyalama başarısız oldu"
 
 #: includes/admin/export-import.php:177 includes/admin/export-import.php:3541
 msgid "Select a word set first"
-msgstr "Önce bir kelime seti seçin"
+msgstr "Önce bir kelime seti seç"
 
 #: includes/admin/export-import.php:178
 msgid "Loading categories for the selected word set..."
@@ -11980,7 +11980,7 @@ msgstr "Dışa aktarma verileri toplu işleme için aşamalandırılamadı."
 
 #: includes/admin/export-import.php:2158
 msgid "Could not prepare the export batch state. Please try again."
-msgstr "Dışa aktarma toplu durumu hazırlanamadı. Lütfen tekrar deneyin."
+msgstr "Dışa aktarma toplu durumu hazırlanamadı. Lütfen tekrar dene."
 
 #: includes/admin/export-import.php:2184
 msgid "Could not open the export zip for batched writing."
@@ -12712,7 +12712,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:6836
 msgid "Import failed: choose a .zip file to upload."
-msgstr "İçe aktarma başarısız oldu: yüklenecek bir .zip dosyası seçin."
+msgstr "İçe aktarma başarısız oldu: yüklenecek bir .zip dosyası seç."
 
 #: includes/admin/export-import.php:6842
 msgid "Import failed: the selected zip file is empty or invalid."
@@ -14325,7 +14325,7 @@ msgstr "Hepsi yakalandı"
 
 #: includes/admin/offline-app-export.php:1591
 msgid "Sync failed. Your local progress is still saved."
-msgstr "Senkronizasyon başarısız oldu. Yerel ilerlemeniz hâlâ kayıtlıdır."
+msgstr "Senkronizasyon başarısız oldu. Yerel ilerlemen hâlâ kayıtlıdır."
 
 #: includes/admin/offline-app-export.php:1592
 #: templates/offline-app-shell-template.php:680
@@ -14838,7 +14838,7 @@ msgstr "Soru"
 
 #: includes/admin/prompt-audio-import-admin.php:258
 msgid "Please provide at least one prompt to import."
-msgstr "Lütfen içe aktarmak için en az bir soru girin."
+msgstr "Lütfen içe aktarmak için en az bir soru gir."
 
 #: includes/admin/prompt-audio-import-admin.php:261
 msgid "Prompt cards are not available in this installation."
@@ -15512,11 +15512,11 @@ msgstr "Hedefi Yükle"
 #: includes/admin/uploads/audio-upload-form.php:598
 #: includes/admin/uploads/image-upload-form.php:816
 msgid "Please choose at least one word set for this upload."
-msgstr "Lütfen bu yükleme için en az bir kelime seti seçin."
+msgstr "Lütfen bu yükleme için en az bir kelime seti seç."
 
 #: includes/admin/uploads/audio-upload-form.php:602
 msgid "Please choose a single word set when matching existing words."
-msgstr "Lütfen mevcut kelimeleri eşleştirirken tek bir kelime seti seçin."
+msgstr "Lütfen mevcut kelimeleri eşleştirirken tek bir kelime seti seç."
 
 #: includes/admin/uploads/image-upload-form.php:51
 #: includes/admin/uploads/image-upload-form.php:55
@@ -16863,16 +16863,16 @@ msgstr ""
 
 #: includes/login-window.php:816 includes/login-window.php:838
 msgid "Please use a non-temporary email address."
-msgstr "Lütfen geçici olmayan bir e-posta adresi kullanın."
+msgstr "Lütfen geçici olmayan bir e-posta adresi kullan."
 
 #: includes/login-window.php:860 includes/login-window.php:904
 msgid "Bot protection check failed. Please try again."
-msgstr "Bot koruma kontrolü başarısız oldu. Lütfen tekrar deneyin."
+msgstr "Bot koruma kontrolü başarısız oldu. Lütfen tekrar dene."
 
 #: includes/login-window.php:879
 msgid "Registration security check failed. Please refresh and try again."
 msgstr ""
-"Kayıt güvenliği kontrolü başarısız oldu. Lütfen yenileyin ve tekrar deneyin."
+"Kayıt güvenliği kontrolü başarısız oldu. Lütfen yenile ve tekrar dene."
 
 #: includes/login-window.php:888
 msgid "Please wait a moment before submitting the form."
@@ -16880,11 +16880,11 @@ msgstr "Formu göndermeden önce lütfen biraz bekleyin."
 
 #: includes/login-window.php:890
 msgid "That sign up form expired. Please try again."
-msgstr "Bu kayıt formunun süresi doldu. Lütfen tekrar deneyin."
+msgstr "Bu kayıt formunun süresi doldu. Lütfen tekrar dene."
 
 #: includes/login-window.php:897
 msgid "Please solve the math question."
-msgstr "Lütfen matematik sorusunu çözün."
+msgstr "Lütfen matematik sorusunu çöz."
 
 #: includes/login-window.php:1001
 msgid ""
@@ -16892,15 +16892,15 @@ msgid ""
 "minutes."
 msgstr ""
 "Bu bağlantıdan çok fazla oturum açma denemesi yapıldı. Lütfen birkaç dakika "
-"sonra tekrar deneyin."
+"sonra tekrar dene."
 
 #: includes/login-window.php:1077
 msgid "Login security check failed. Please try again."
-msgstr "Giriş güvenliği kontrolü başarısız oldu. Lütfen tekrar deneyin."
+msgstr "Giriş güvenliği kontrolü başarısız oldu. Lütfen tekrar dene."
 
 #: includes/login-window.php:1017 includes/login-window.php:1105
 msgid "Please enter your username or email address."
-msgstr "Lütfen kullanıcı adınızı veya e-posta adresinizi girin."
+msgstr "Lütfen kullanıcı adını veya e-posta adresini gir."
 
 #: includes/login-window.php:1021 includes/login-window.php:1108
 msgid "Please enter your password."
@@ -16953,11 +16953,11 @@ msgstr "Bu alanı boş bırakın"
 
 #: includes/login-window.php:1808
 msgid "Need an account?"
-msgstr "Bir hesaba mı ihtiyacınız var?"
+msgstr "Bir hesaba mı ihtiyacın var?"
 
 #: includes/offline-app-sync.php:268
 msgid "Too many login attempts. Please try again in a few minutes."
-msgstr "Çok fazla giriş denemesi. Lütfen birkaç dakika sonra tekrar deneyin."
+msgstr "Çok fazla giriş denemesi. Lütfen birkaç dakika sonra tekrar dene."
 
 #: includes/offline-app-sync.php:436
 msgid "Sign in required."
@@ -17052,7 +17052,7 @@ msgstr "Yeni bir sözlük sayfası mı oluşturacaksınız?"
 #: includes/shortcodes/flashcard-widget.php:453
 msgid "Close this quiz? Your current progress in this popup will be lost."
 msgstr ""
-"Bu quiz kapatılsın mı? Bu açılır penceredeki mevcut ilerlemeniz kaybolacak."
+"Bu quiz kapatılsın mı? Bu açılır penceredeki mevcut ilerlemen kaybolacak."
 
 #: includes/pages/site-tools-page.php:16 includes/pages/wordset-pages.php:8252
 #: includes/shortcodes/site-tools-shortcode.php:887
@@ -17769,11 +17769,11 @@ msgstr "Kaydedici davet e-postası gönderilemedi."
 
 #: includes/pages/wordset-pages.php:6193
 msgid "Please sign in with a valid user account."
-msgstr "Lütfen geçerli bir kullanıcı hesabıyla oturum açın."
+msgstr "Lütfen geçerli bir kullanıcı hesabıyla oturum aç."
 
 #: includes/pages/wordset-pages.php:6198
 msgid "Please continue with the invited recorder email address."
-msgstr "Lütfen davet edilen kaydedicinin e-posta adresiyle devam edin."
+msgstr "Lütfen davet edilen kaydedicinin e-posta adresiyle devam et."
 
 #: includes/pages/wordset-pages.php:6208
 msgid "Recorder access could not be enabled right now."
@@ -17838,7 +17838,7 @@ msgstr "Kaydedici kuyruğu şu anda güncellenemiyor."
 
 #: includes/pages/wordset-pages.php:7161
 msgid "Sign in to manage classes"
-msgstr "Sınıfları yönetmek için oturum açın"
+msgstr "Sınıfları yönetmek için oturum aç"
 
 #: includes/pages/wordset-pages.php:7162
 msgid ""
@@ -17874,7 +17874,7 @@ msgstr[1] "%d öğrenci"
 
 #: includes/pages/wordset-pages.php:7288
 msgid "Choose a class to see invites and student progress."
-msgstr "Davetleri ve öğrenci ilerlemesini görmek için bir sınıf seçin."
+msgstr "Davetleri ve öğrenci ilerlemesini görmek için bir sınıf seç."
 
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:7297 includes/teacher-classes.php:1214
@@ -17917,7 +17917,7 @@ msgstr "%d dizi hazır"
 #: includes/pages/wordset-pages.php:7652
 #, php-format
 msgid "Need %1$d more learned words to unlock this game."
-msgstr "Bu oyunun kilidini açmak için %1$d kelimeye daha ihtiyacınız var."
+msgstr "Bu oyunun kilidini açmak için %1$d kelimeye daha ihtiyacın var."
 
 #: includes/pages/wordset-pages.php:7654
 #, php-format
@@ -18137,11 +18137,11 @@ msgstr "Mikrofon erişimi başarısız oldu."
 
 #: includes/pages/wordset-pages.php:7734
 msgid "Transcription failed. Try again."
-msgstr "Transkripsiyon başarısız oldu. Tekrar deneyin."
+msgstr "Transkripsiyon başarısız oldu. Tekrar dene."
 
 #: includes/pages/wordset-pages.php:7735
 msgid "That was too quiet. Try again."
-msgstr "Bu çok sessizdi. Tekrar deneyin."
+msgstr "Bu çok sessizdi. Tekrar dene."
 
 #: includes/pages/wordset-pages.php:7736
 msgid "This browser cannot record audio for speaking practice."
@@ -19404,7 +19404,7 @@ msgstr "Quiz görünümü"
 msgid ""
 "Automatically play the audio for text + audio answer options during quizzes."
 msgstr ""
-"Quizlerde metin + sesli cevap seçenekleri için sesi otomatik olarak oynatın."
+"Quizlerde metin + sesli cevap seçenekleri için sesi otomatik olarak oynat."
 
 #: includes/pages/wordset-pages.php:11876
 #: includes/taxonomies/wordset-taxonomy.php:2801
@@ -19638,13 +19638,13 @@ msgstr "Şu anda daha fazla kart yüklenemiyor."
 
 #: includes/pages/wordset-pages.php:13300
 msgid "Sign in or create an account"
-msgstr "Oturum açın veya bir hesap oluşturun"
+msgstr "Oturum aç veya bir hesap oluştur"
 
 #: includes/pages/wordset-pages.php:13301
 msgid "Use an account to save your progress and keep learning from this page."
 msgstr ""
-"İlerlemenizi kaydetmek ve bu sayfadan öğrenmeye devam etmek için bir hesap "
-"kullanın."
+"İlerlemeni kaydetmek ve bu sayfadan öğrenmeye devam etmek için bir hesap "
+"kullan."
 
 #: includes/pages/wordset-pages.php:13768
 msgid "Back to word set tools"
@@ -19652,7 +19652,7 @@ msgstr "Kelime seti araçlarına geri dön"
 
 #: includes/pages/wordset-pages.php:13816
 msgid "Sign in to open word set tools."
-msgstr "Kelime seti araçlarını açmak için oturum açın."
+msgstr "Kelime seti araçlarını açmak için oturum aç."
 
 #: includes/pages/wordset-pages.php:13874
 msgid "No settings tools are available for this word set right now."
@@ -19747,7 +19747,7 @@ msgstr "Kaydı başlat"
 
 #: includes/pages/wordset-pages.php:14793
 msgid "Play your recording"
-msgstr "Kaydınızı oynatın"
+msgstr "Kaydını oynat"
 
 #: includes/pages/wordset-pages.php:14818
 msgid "Correct audio"
@@ -20726,7 +20726,7 @@ msgstr "Soru kartı #%d"
 #: includes/shortcodes/audio-recording-shortcode.php:6196
 msgid ""
 "This recording is already uploading. Please wait a moment and try again."
-msgstr "Bu kayıt zaten yükleniyor. Lütfen biraz bekleyip tekrar deneyin."
+msgstr "Bu kayıt zaten yükleniyor. Lütfen biraz bekleyip tekrar dene."
 
 #. translators: %s: prompt text or prompt card title
 #: includes/shortcodes/audio-recording-shortcode.php:5288
@@ -21182,11 +21182,11 @@ msgstr "Özel kayıt arayüzünü açın."
 
 #: includes/shortcodes/site-tools-shortcode.php:922
 msgid "Browse the public dictionary page without opening wp-admin."
-msgstr "Wp-admin'i açmadan genel sözlük sayfasına göz atın."
+msgstr "Wp-admin'i açmadan genel sözlük sayfasına göz at."
 
 #: includes/shortcodes/site-tools-shortcode.php:943
 msgid "Sign in to access Site Tools"
-msgstr "Site Araçlarına erişmek için oturum açın"
+msgstr "Site Araçlarına erişmek için oturum aç"
 
 #: includes/shortcodes/site-tools-shortcode.php:944
 msgid ""
@@ -21507,8 +21507,8 @@ msgstr ""
 #: includes/shortcodes/site-tools-shortcode.php:1446
 msgid "Clear cached quiz payloads and bump word-category cache versions."
 msgstr ""
-"Önbelleğe alınmış quiz verilerini temizleyin ve kelime kategorisi önbellek "
-"sürümlerini artırın."
+"Önbelleğe alınmış quiz verilerini temizle ve kelime kategorisi önbellek "
+"sürümlerini artır."
 
 #: includes/shortcodes/site-tools-shortcode.php:1448
 #: includes/shortcodes/site-tools-shortcode.php:1460
@@ -21707,7 +21707,7 @@ msgstr "Bu tarayıcıda kayıt sesi getirilemiyor."
 
 #: includes/shortcodes/word-grid-shortcode.php:3837
 msgid "Please choose an image to upload."
-msgstr "Lütfen yüklemek için bir resim seçin."
+msgstr "Lütfen yüklemek için bir resim seç."
 
 #: includes/shortcodes/word-grid-shortcode.php:3841
 #: includes/shortcodes/word-grid-shortcode.php:3869
@@ -21717,7 +21717,7 @@ msgstr "Resim yüklemeleri şu anda kullanılamıyor."
 #: includes/shortcodes/word-grid-shortcode.php:3859
 #: includes/shortcodes/word-grid-shortcode.php:3892
 msgid "Image upload failed. Please try again."
-msgstr "Resim yükleme başarısız oldu. Lütfen tekrar deneyin."
+msgstr "Resim yükleme başarısız oldu. Lütfen tekrar dene."
 
 #: includes/shortcodes/word-grid-shortcode.php:3861
 msgid "Please upload a valid JPG, PNG, GIF, or WebP image."
@@ -22030,8 +22030,8 @@ msgid ""
 "href=\"%2$s\">edit the words in this category</a> so they match the current "
 "presentation."
 msgstr ""
-"Ya <a href=\"%1$s\">bu kategorinin quiz sunumunu değiştirin</a> ya da <a "
-"href=\"%2$s\">bu kategorideki kelimeleri düzenleyin</a>, böylece mevcut "
+"Ya <a href=\"%1$s\">bu kategorinin quiz sunumunu değiştir</a> ya da <a "
+"href=\"%2$s\">bu kategorideki kelimeleri düzenle</a>, böylece mevcut "
 "sunumla eşleşsinler."
 
 #. translators: 1: category name, 2: owning word set name
@@ -22043,7 +22043,7 @@ msgstr "%1$s - %2$s"
 
 #: includes/taxonomies/wordset-taxonomy.php:829
 msgid "Sorry, you are not allowed to view this item."
-msgstr "Üzgünüz, bu öğeyi görüntüleme iznin yok."
+msgstr "Maalesef bu öğeyi görüntüleme iznin yok."
 
 #: includes/taxonomies/wordset-taxonomy.php:2725
 msgid ""
@@ -22149,7 +22149,7 @@ msgstr "Bu sınıf daveti bağlantısının süresi doldu."
 
 #: includes/teacher-classes.php:1030
 msgid "Please sign in with a valid learner account."
-msgstr "Lütfen geçerli bir öğrenci hesabıyla oturum açın."
+msgstr "Lütfen geçerli bir öğrenci hesabıyla oturum aç."
 
 #: includes/teacher-classes.php:1035
 msgid "This invitation is only for learner accounts."
@@ -22157,7 +22157,7 @@ msgstr "Bu davetiye yalnızca öğrenci hesapları içindir."
 
 #: includes/teacher-classes.php:1040
 msgid "Please sign in with the invited learner email address."
-msgstr "Lütfen davet edilen öğrencinin e-posta adresiyle oturum açın."
+msgstr "Lütfen davet edilen öğrencinin e-posta adresiyle oturum aç."
 
 #: includes/teacher-classes.php:1180
 msgid "Enter the email address of an existing learner account."
@@ -22203,7 +22203,7 @@ msgstr "bu sınıf"
 #: includes/teacher-classes.php:1289
 #, php-format
 msgid "Sign in with the invited learner account to join %s."
-msgstr "Katılmak için davet edilen öğrenci hesabıyla oturum açın: %s."
+msgstr "%s sınıfına katılmak için davet edilen öğrenci hesabıyla oturum aç."
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1309

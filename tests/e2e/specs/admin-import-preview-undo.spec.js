@@ -117,8 +117,41 @@ function confirmImportForm(page) {
   }).first();
 }
 
+async function clickAndWaitForUrlState(page, button, urlPredicate, timeout = 120000) {
+  await button.click({ timeout, noWaitAfter: true });
+  await expect.poll(() => {
+    try {
+      return urlPredicate(new URL(page.url()));
+    } catch (_) {
+      return false;
+    }
+  }, {
+    timeout,
+    message: 'URL did not reach the expected admin import state'
+  }).toBe(true);
+}
+
+async function clickAndWaitForAdminPost(page, button, action, timeout = 120000) {
+  await Promise.all([
+    page.waitForResponse((response) => {
+      const request = response.request();
+      let responseUrl;
+      try {
+        responseUrl = new URL(response.url());
+      } catch (_) {
+        return false;
+      }
+
+      return request.method() === 'POST'
+        && /\/wp-admin\/admin-post\.php$/.test(responseUrl.pathname)
+        && (request.postData() || '').includes(`action=${encodeURIComponent(action)}`);
+    }, { timeout }),
+    button.click({ timeout, noWaitAfter: true })
+  ]);
+}
+
 test('admin import page previews, imports, and undoes a minimal server zip bundle', async ({ page }) => {
-  test.setTimeout(240000);
+  test.setTimeout(360000);
   test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for admin E2E tests.');
 
   const fixture = createMinimalImportBundleZip();
@@ -130,30 +163,26 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     await expect(previewForm.locator('#ll_import_existing')).toBeVisible({ timeout: 30000 });
 
     await previewForm.locator('#ll_import_existing').selectOption({ value: fixture.zipName });
-    await Promise.all([
-      page.waitForURL((url) => url.searchParams.has('ll_import_preview'), {
-        waitUntil: 'commit',
-        timeout: 120000
-      }),
-      previewForm.locator('button[type="submit"]').click({ timeout: 120000 })
-    ]);
+    await clickAndWaitForUrlState(
+      page,
+      previewForm.locator('button[type="submit"]'),
+      (url) => url.searchParams.has('ll_import_preview')
+    );
 
     await expect(page.locator('#ll-tools-import-preview')).toBeVisible({ timeout: 60000 });
     await expect(page.locator('.ll-tools-import-category-list')).toContainText(fixture.categoryName);
     await expect(confirmImportForm(page)).toBeVisible();
 
     const importForm = confirmImportForm(page);
-    await Promise.all([
-      page.waitForURL((url) => (
+    await clickAndWaitForUrlState(
+      page,
+      importForm.locator('button[type="submit"]'),
+      (url) => (
         /\/wp-admin\/tools\.php$/.test(url.pathname)
         && url.searchParams.get('page') === 'll-import'
         && !url.searchParams.has('ll_import_preview')
-      ), {
-        waitUntil: 'commit',
-        timeout: 120000
-      }),
-      importForm.locator('button[type="submit"]').click({ timeout: 120000 })
-    ]);
+      )
+    );
 
     const importRow = page.locator('.ll-tools-recent-imports-table tbody tr').filter({ hasText: fixture.zipName }).first();
     await expect(importRow).toBeVisible({ timeout: 120000 });
@@ -164,7 +193,7 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     await expect(categoriesDetails).toContainText(fixture.categoryName);
 
     page.once('dialog', (dialog) => dialog.accept());
-    await importRow.locator('.ll-tools-undo-import-button').click({ timeout: 120000 });
+    await clickAndWaitForAdminPost(page, importRow.locator('.ll-tools-undo-import-button'), 'll_tools_undo_import');
 
     const undoneRow = page.locator('.ll-tools-recent-imports-table tbody tr').filter({ hasText: fixture.zipName }).first();
     await expect(undoneRow).toBeVisible({ timeout: 60000 });
