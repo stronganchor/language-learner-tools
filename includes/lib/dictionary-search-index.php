@@ -460,12 +460,14 @@ add_action('admin_init', 'll_tools_dictionary_lookup_maybe_process_admin_batch',
  * Query entry IDs from the indexed lookup table.
  *
  * @param string[] $statuses Allowed post statuses.
+ * @param int      $limit      Optional maximum number of candidate IDs to return.
  * @return int[]
  */
-function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, array $statuses, string $search_scope = 'all'): array {
+function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, array $statuses, string $search_scope = 'all', int $limit = 0): array {
     static $request_cache = [];
     global $wpdb;
 
+    $limit = max(0, $limit);
     $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
         ? ll_tools_dictionary_entry_normalize_lookup_value($search)
         : trim(strtolower($search));
@@ -480,6 +482,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         'search' => $lookup,
         'search_scope' => $search_scope,
         'statuses' => array_values($statuses),
+        'limit' => $limit,
     ];
     $cached = function_exists('ll_tools_dictionary_browser_get_cached_payload')
         ? ll_tools_dictionary_browser_get_cached_payload('lookup_entry_ids', $cache_args, $request_cache)
@@ -560,6 +563,10 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
     ";
 
     $params = array_merge($statuses, $where_params, $case_params);
+    if ($limit > 0) {
+        $sql .= "\nLIMIT %d";
+        $params[] = $limit;
+    }
     $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
 
     if (function_exists('ll_tools_dictionary_browser_store_cached_payload')) {

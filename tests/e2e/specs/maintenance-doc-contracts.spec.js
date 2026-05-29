@@ -36,7 +36,8 @@ function pluginSourceFiles() {
     path.join(repoRoot, 'language-learner-tools.php'),
     ...walkFiles(path.join(repoRoot, 'includes'), (file) => file.endsWith('.php')),
     ...walkFiles(path.join(repoRoot, 'templates'), (file) => file.endsWith('.php')),
-    ...walkFiles(path.join(repoRoot, 'js'), (file) => file.endsWith('.js'))
+    ...walkFiles(path.join(repoRoot, 'js'), (file) => file.endsWith('.js')),
+    ...walkFiles(path.join(repoRoot, 'offline-app'), (file) => file.endsWith('.js'))
   ].filter((file) => fs.existsSync(file));
 }
 

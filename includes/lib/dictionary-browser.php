@@ -2656,7 +2656,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         && ll_tools_dictionary_lookup_is_ready()
         && function_exists('ll_tools_dictionary_query_entry_ids_from_lookup_table')
     ) {
-        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope);
+        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope, $candidate_fetch_limit);
         $search_results_pre_ranked = ll_tools_dictionary_search_scopes_use_all($search_scopes) && !empty($candidate_ids);
         if (!empty($candidate_ids)) {
             $needs_meta_cache = (!ll_tools_dictionary_search_scopes_use_all($search_scopes) || $pos_slug !== '' || $source_id !== '' || $dialect !== '');

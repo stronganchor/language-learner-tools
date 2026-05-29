@@ -2745,12 +2745,18 @@ add_action('wp_enqueue_scripts', 'll_tools_enqueue_vocab_lesson_word_options_mod
 
 function ll_tools_vocab_lesson_bootstrap_flashcards() {
     static $bootstrapped = false;
-    if ($bootstrapped || !is_singular('ll_vocab_lesson')) {
+    if (!is_singular('ll_vocab_lesson')) {
         return;
     }
-    $bootstrapped = true;
 
     if (!function_exists('ll_flashcards_enqueue_and_localize') || !function_exists('ll_qpg_print_flashcard_shell_once')) {
+        return;
+    }
+
+    if ($bootstrapped) {
+        if (false === has_action('wp_footer', 'll_qpg_print_flashcard_shell_once')) {
+            add_action('wp_footer', 'll_qpg_print_flashcard_shell_once', 5);
+        }
         return;
     }
 
@@ -2799,6 +2805,7 @@ function ll_tools_vocab_lesson_bootstrap_flashcards() {
     ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName);
 
     add_action('wp_footer', 'll_qpg_print_flashcard_shell_once', 5);
+    $bootstrapped = true;
 }
 
 function ll_tools_vocab_lesson_should_preload_flashcards(): bool {

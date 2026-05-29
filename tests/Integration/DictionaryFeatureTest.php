@@ -1002,6 +1002,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $lookup_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM " . ll_tools_dictionary_lookup_table_name());
         $this->assertGreaterThan(0, $lookup_count);
+
+        $limited_lookup_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table('ruec', ['publish'], 'all', 1);
+        $this->assertCount(1, $limited_lookup_ids);
     }
 
     public function test_dictionary_search_scope_limits_headwords_and_language_specific_translations(): void

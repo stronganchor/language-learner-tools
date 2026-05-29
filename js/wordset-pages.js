@@ -14316,7 +14316,7 @@
             const allFiltered = !!$form.find('[data-ll-wordset-editor-all-filtered]').is(':checked');
             if (!selectedCount && !allFiltered) {
                 evt.preventDefault();
-                alert(String($form.attr('data-ll-wordset-editor-empty-selection') || 'Select at least one word first.'));
+                alert(String($form.attr('data-ll-wordset-editor-empty-selection') || 'Select at least one visible word first.'));
                 return;
             }
 
@@ -14328,7 +14328,7 @@
                     : '';
                 if (!targetCategory && !newCategory) {
                     evt.preventDefault();
-                    alert(String($form.attr('data-ll-wordset-editor-category-required') || 'Choose a category target.'));
+                    alert(String($form.attr('data-ll-wordset-editor-category-required') || 'Choose a category target for this action.'));
                     return;
                 }
             }

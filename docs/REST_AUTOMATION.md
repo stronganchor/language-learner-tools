@@ -127,6 +127,8 @@ Routes:
 - `POST /wordsets/{wordset}/word-option-rules`
 - `GET /wordsets/{wordset}/profile`
 - `POST /wordsets/{wordset}/profile`
+- `PUT /wordsets/{wordset}/profile`
+- `PATCH /wordsets/{wordset}/profile`
 - `POST /wordsets/{wordset}/prompt-cards`
 - `GET /wordsets/{wordset}/report`
 - `GET /wordsets/{wordset}/report-summary`
@@ -489,10 +491,13 @@ Returns learner-facing wordset profile metadata:
 - intro blurb
 - profile image attachment id, URL, and title
 
-### `POST /wordsets/{wordset}/profile`
+### `POST /wordsets/{wordset}/profile`, `PUT /wordsets/{wordset}/profile`, `PATCH /wordsets/{wordset}/profile`
 
 Updates the learner-facing wordset profile. This is the automation-friendly way
 to set the 16:9 thumbnail used by `[ll_wordset_buttons]` and the wordset page.
+All three write methods use the same partial-update handler: omitted fields are
+left unchanged, and the response includes `changed`, `changed_keys`, `before`,
+and `after`.
 
 Body fields:
 

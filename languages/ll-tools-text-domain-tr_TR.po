@@ -4500,15 +4500,15 @@ msgstr "Ders/grid metin görünürlüğü"
 #: includes/admin/ipa-keyboard-admin.php:555
 #: includes/lib/wordset-language-settings.php:1164
 msgid "Letter to IPA Map"
-msgstr "IPA Haritasına Mektup"
+msgstr "Harf-IPA Haritası"
 
 #: includes/admin/ipa-keyboard-admin.php:265
 msgid "Letter(s)"
-msgstr "Mektup(lar)"
+msgstr "Harf(ler)"
 
 #: includes/admin/ipa-keyboard-admin.php:285
 msgid "Letters"
-msgstr "Mektuplar"
+msgstr "Harfler"
 
 #: includes/admin/ipa-keyboard-admin.php:286
 msgid "Letters (e.g. ll)"
@@ -5262,7 +5262,7 @@ msgstr "Sonraki Cinsiyet Etkinliği"
 
 #: includes/shortcodes/word-grid-shortcode.php:5525
 msgid "Next letter"
-msgstr "Sonraki mektup"
+msgstr "Sonraki harf"
 
 #: includes/shortcodes/flashcard-widget.php:427
 #: includes/shortcodes/quiz-pages-shortcodes.php:791
@@ -6600,7 +6600,7 @@ msgstr "Önceki"
 
 #: includes/shortcodes/word-grid-shortcode.php:5523
 msgid "Previous letter"
-msgstr "Önceki mektup"
+msgstr "Önceki harf"
 
 #: includes/admin/admin-dashboard-menu.php:405
 msgid ""
@@ -16752,7 +16752,7 @@ msgstr "Harf çevirisi karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1189
 msgid "Letter to Transliteration Map"
-msgstr "Harf Harf Haritasına Mektup"
+msgstr "Harf-Harf Çevirisi Haritası"
 
 #: includes/lib/wordset-language-settings.php:1190
 msgid ""
@@ -16821,7 +16821,7 @@ msgstr "Transkripsiyon karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1214
 msgid "Letter to Transcription Map"
-msgstr "Mektuptan Transkripsiyona Harita"
+msgstr "Harf-Transkripsiyon Haritası"
 
 #: includes/lib/wordset-language-settings.php:1215
 msgid ""
@@ -19521,7 +19521,7 @@ msgstr "Hazır değil"
 
 #: includes/pages/wordset-pages.php:12892
 msgid "Zip unavailable"
-msgstr "Posta kodu kullanılamıyor"
+msgstr "ZIP kullanılamıyor"
 
 #: includes/pages/wordset-pages.php:12899
 msgid "No exportable categories"
