@@ -265,11 +265,11 @@ Representative E2E coverage areas:
   - Prompt-card recorder permissions plus real media upload beyond the local WordPress-backed queue fixture, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
   - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
   - Offline app service-worker/install behavior and real remote snapshot sync edge cases.
-  - Deeper Unscramble interaction and completion flows plus Speaking Practice recording/API behavior.
+  - Speaking Practice recording/API behavior.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
-  - Verifies the wordset games page bootstraps availability correctly, covers Line Up startup/retry/reorder/completion and Unscramble startup into their dedicated sequence stage, checks Word Stack layout/fall-speed regressions, and verifies Space Shooter/Bubble Pop runtime behavior and progress events.
+  - Verifies the wordset games page bootstraps availability correctly, covers Line Up startup/retry/reorder/completion and Unscramble startup/keyboard tile reorder/completion, checks Word Stack layout/fall-speed regressions, and verifies Space Shooter/Bubble Pop runtime behavior and progress events.
 - Additional specs in the same folder cover audio-recorder new-word flows, quiz audio gating, mobile/layout regressions, text fitting, wordset progress/loading shells, and more. Treat this section as a representative summary rather than a full inventory.
 
 Optional env vars (set directly or in `tests/.env`):

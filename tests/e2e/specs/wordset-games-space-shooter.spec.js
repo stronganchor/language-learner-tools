@@ -1180,17 +1180,18 @@ async function mountGamesPage(page, {
           const catalogEntry = getCatalogEntry('unscramble') || {};
           const gameSettings = getGameSettings('unscramble');
           const words = Array.isArray(window.__unscrambleWords) ? window.__unscrambleWords.slice() : [];
+          const minimumWordCount = Math.max(1, Number(gameSettings.minimumWordCount || 5));
           return buildLaunchEntry(
             'unscramble',
             catalogEntry.title || 'Unscramble',
             catalogEntry.description || 'See the clue. Put the letters back in order.',
             words,
             {
-              minimum_word_count: 5,
+              minimum_word_count: minimumWordCount,
               available_word_count: words.length,
-              launch_word_cap: Number(gameSettings.maxLoadedWords || words.length || 5),
+              launch_word_cap: Number(gameSettings.maxLoadedWords || words.length || minimumWordCount),
               launch_word_count: words.length,
-              launchable: words.length >= 5,
+              launchable: words.length >= minimumWordCount,
               minimum_tile_count: Number(gameSettings.minTileCount || 3),
               maximum_tile_count: Number(gameSettings.maxTileCount || 18),
               maximum_unit_count: Number(gameSettings.maxUnitCount || 14),
@@ -1445,6 +1446,57 @@ async function moveLineupWordToIndex(page, wordId, targetIndex) {
 async function arrangeLineupOrder(page, targetWordIds) {
   for (let index = 0; index < targetWordIds.length; index += 1) {
     await moveLineupWordToIndex(page, targetWordIds[index], index);
+  }
+}
+
+async function getUnscrambleUnitState(page) {
+  return page.evaluate(() => {
+    const ctx = window.LLWordsetGames && window.LLWordsetGames.__ctx;
+    const run = ctx && ctx.run;
+    const toIds = (items) => (Array.isArray(items) ? items : []).map((item) => Number.parseInt(item && item.id, 10) || 0);
+
+    return {
+      orderUnitIds: toIds(run && run.currentOrder),
+      targetUnitIds: toIds(run && run.currentWord && run.currentWord.unscramble_units),
+      currentWordId: Number.parseInt(run && run.currentWord && run.currentWord.id, 10) || 0
+    };
+  });
+}
+
+async function moveUnscrambleUnitToIndex(page, unitId, targetIndex) {
+  for (;;) {
+    const state = await getUnscrambleUnitState(page);
+    const currentIndex = state.orderUnitIds.indexOf(unitId);
+
+    expect(currentIndex).toBeGreaterThanOrEqual(0);
+    if (currentIndex <= targetIndex) {
+      return;
+    }
+
+    await page.evaluate((targetUnitId) => {
+      const tile = document.querySelector(`[data-ll-wordset-unscramble-tile][data-unit-id="${targetUnitId}"]`);
+      if (!tile) {
+        return;
+      }
+      tile.focus();
+      tile.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'ArrowLeft',
+        code: 'ArrowLeft',
+        bubbles: true,
+        cancelable: true
+      }));
+    }, unitId);
+
+    await expect.poll(async () => {
+      const nextState = await getUnscrambleUnitState(page);
+      return nextState.orderUnitIds.indexOf(unitId);
+    }).toBe(currentIndex - 1);
+  }
+}
+
+async function arrangeUnscrambleOrder(page, targetUnitIds) {
+  for (let index = 0; index < targetUnitIds.length; index += 1) {
+    await moveUnscrambleUnitToIndex(page, targetUnitIds[index], index);
   }
 }
 
@@ -1789,6 +1841,89 @@ test('line up supports retry, card reordering, progress events, and completion',
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Line-Up complete');
   await expect(page.locator('[data-ll-wordset-game-overlay-summary]')).toContainText('Retries: 1');
+  await expect.poll(async () => page.evaluate(() => window.__flushCount)).toBeGreaterThan(0);
+
+  await page.locator('[data-ll-wordset-game-return]').click();
+  await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+});
+
+test('unscramble supports keyboard tile reordering, progress events, and completion', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    unscrambleWords: buildUnscrambleWords(1),
+    promptAudioDurationSeconds: 0.05,
+    configOverrides: {
+      games: {
+        catalog: {
+          unscramble: {
+            slug: 'unscramble',
+            title: 'Unscramble',
+            description: 'See the clue. Put the letters back in order.'
+          }
+        },
+        unscramble: {
+          slug: 'unscramble',
+          minimumWordCount: 1,
+          minTileCount: 3,
+          maxTileCount: 18,
+          maxUnitCount: 14,
+          maxLoadedWords: 1
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'unscramble')).toBeEnabled();
+  await expect(gameStatus(page, 'unscramble')).toHaveText('1 words ready');
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('unscramble');
+  });
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.slug === 'unscramble'
+      && run.lineupOrderWordIds.length >= 3
+      && !run.lineupSequenceLocked);
+  });
+
+  const initialState = await getUnscrambleUnitState(page);
+  expect(initialState.currentWordId).toBe(401);
+  expect(initialState.targetUnitIds).toHaveLength(7);
+  expect(initialState.orderUnitIds).not.toEqual(initialState.targetUnitIds);
+
+  await expect(page.locator('[data-ll-wordset-lineup-status]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText(/\d of 7 letters are in the right place\./);
+
+  await arrangeUnscrambleOrder(page, initialState.targetUnitIds);
+  await expect.poll(async () => {
+    const state = await getUnscrambleUnitState(page);
+    return state.orderUnitIds;
+  }).toEqual(initialState.targetUnitIds);
+
+  await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText('Solved.');
+  await expect(page.locator('[data-ll-wordset-unscramble-skip]')).toBeHidden();
+
+  const solvedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(solvedState.lineupSequenceLocked).toBe(true);
+  expect(solvedState.promptsResolved).toBe(1);
+
+  const progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
+  const unscrambleEvents = progressEvents.filter((event) => event.entry && event.entry.payload && event.entry.payload.event_source === 'unscramble');
+  expect(unscrambleEvents.filter((event) => event.type === 'word_exposure')).toHaveLength(1);
+  const outcomeEvents = unscrambleEvents.filter((event) => event.type === 'word_outcome');
+  expect(outcomeEvents).toHaveLength(1);
+  expect(outcomeEvents[0].entry.isCorrect).toBe(true);
+  expect(outcomeEvents[0].entry.payload.tile_count).toBe(7);
+  expect(outcomeEvents[0].entry.payload.moves).toBeGreaterThan(0);
+  expect(outcomeEvents[0].entry.payload.needed_retry).toBe(1);
+
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Unscramble complete');
+  await expect(page.locator('[data-ll-wordset-game-overlay-summary]')).toContainText('Solved: 1 of 1');
+  await expect(page.locator('[data-ll-wordset-game-overlay-summary]')).toContainText('Moves:');
   await expect.poll(async () => page.evaluate(() => window.__flushCount)).toBeGreaterThan(0);
 
   await page.locator('[data-ll-wordset-game-return]').click();

@@ -107,6 +107,12 @@
         return slug || DEFAULT_GAME_SLUG;
     }
 
+    function matchesKey(event, keys, codes) {
+        const key = String(event && event.key || '').toLowerCase();
+        const code = String(event && event.code || '').toLowerCase();
+        return keys.indexOf(key) !== -1 || codes.indexOf(code) !== -1;
+    }
+
     function normalizeRoundOptionValue(value) {
         const rawValue = String(value || '').trim().toLowerCase();
         if (rawValue === GAME_LENGTH_ALL) {
@@ -11052,12 +11058,6 @@
     function bindLifecycle(ctx) {
         if (ctx.boundLifecycle) {
             return;
-        }
-
-        function matchesKey(event, keys, codes) {
-            const key = String(event && event.key || '').toLowerCase();
-            const code = String(event && event.code || '').toLowerCase();
-            return keys.indexOf(key) !== -1 || codes.indexOf(code) !== -1;
         }
 
         ctx.onVisibilityChange = function () {

@@ -23,7 +23,7 @@ decisions, and documentation upkeep.
    - Offline app shell launcher and sync-panel wiring now have self-contained
      browser coverage; remaining offline gaps are service-worker/install
      behavior and real remote snapshot sync edge cases.
-   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble has startup coverage into its dedicated tile stage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed. Remaining game gaps are deeper Unscramble interactions/completion plus Speaking Practice recording/API behavior.
+   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed. Remaining game gap is Speaking Practice recording/API behavior.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,
      a safe cache-flush submit path, and mobile overflow.
