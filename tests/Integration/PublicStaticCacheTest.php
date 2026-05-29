@@ -253,6 +253,54 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertStringContainsString('public cache store test', (string) file_get_contents($file));
     }
 
+    public function test_public_static_cache_store_skips_oversized_payloads(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-oversized-store-test.html';
+        $meta_file = ll_tools_public_static_cache_meta_file_path($file);
+        @unlink($file);
+        @unlink($meta_file);
+
+        $max_bytes_filter = static function (): int {
+            return 600;
+        };
+
+        add_filter('ll_tools_public_static_cache_max_bytes', $max_bytes_filter);
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'file' => $file,
+            'identity' => [
+                'type' => 'wordset_main',
+                'id' => 17,
+                'path' => '/oversized-cached-wordset',
+                'wordset_id' => 17,
+            ],
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('oversized public cache payload ', 40) . '</body></html>';
+            $this->assertGreaterThan(600, ob_get_length());
+            ll_tools_store_public_static_cache();
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+            remove_filter('ll_tools_public_static_cache_max_bytes', $max_bytes_filter);
+        }
+
+        $this->assertFileDoesNotExist($file);
+        $this->assertFileDoesNotExist($meta_file);
+    }
+
     public function test_public_static_cache_store_runs_before_wordpress_flushes_output_buffers(): void
     {
         $this->assertSame(0, has_action('shutdown', 'll_tools_store_public_static_cache'));

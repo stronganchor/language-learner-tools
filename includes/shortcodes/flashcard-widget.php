@@ -1263,6 +1263,97 @@ function ll_tools_flashcards_public_ajax_cache_set(array $args, array $rows): vo
     set_transient($key, $rows, $ttl);
 }
 
+function ll_tools_flashcards_public_ajax_throttle_config(): array {
+    $defaults = [
+        'window' => MINUTE_IN_SECONDS,
+        'request_limit' => 60,
+    ];
+    $config = (array) apply_filters('ll_tools_flashcards_public_ajax_throttle_config', [
+        'window' => apply_filters('ll_tools_flashcards_public_ajax_throttle_window', $defaults['window']),
+        'request_limit' => apply_filters('ll_tools_flashcards_public_ajax_throttle_request_limit', $defaults['request_limit']),
+    ]);
+
+    return [
+        'window' => max(10, (int) ($config['window'] ?? $defaults['window'])),
+        'request_limit' => max(0, (int) ($config['request_limit'] ?? $defaults['request_limit'])),
+    ];
+}
+
+function ll_tools_flashcards_public_ajax_client_identifier(): string {
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? trim((string) wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+    if ($ip === '') {
+        $ip = 'unknown';
+    }
+
+    return substr(md5($ip), 0, 24);
+}
+
+function ll_tools_flashcards_public_ajax_throttle_key(string $identifier): string {
+    return 'll_fc_ajax_throttle_' . substr(md5($identifier), 0, 24);
+}
+
+function ll_tools_flashcards_public_ajax_throttle_status(string $identifier = ''): array {
+    $config = ll_tools_flashcards_public_ajax_throttle_config();
+    if ((int) ($config['request_limit'] ?? 0) <= 0) {
+        return [
+            'allowed' => true,
+            'retry_after' => 0,
+            'count' => 0,
+            'limit' => 0,
+        ];
+    }
+
+    if ($identifier === '') {
+        $identifier = ll_tools_flashcards_public_ajax_client_identifier();
+    }
+
+    $key = ll_tools_flashcards_public_ajax_throttle_key($identifier);
+    $window = max(10, (int) ($config['window'] ?? MINUTE_IN_SECONDS));
+    $limit = max(1, (int) ($config['request_limit'] ?? 60));
+    $now = time();
+    $bucket = get_transient($key);
+    if (!is_array($bucket) || (int) ($bucket['expires_at'] ?? 0) <= $now) {
+        $bucket = [
+            'count' => 0,
+            'expires_at' => $now + $window,
+        ];
+    }
+
+    $count = max(0, (int) ($bucket['count'] ?? 0)) + 1;
+    $expires_at = max($now + 1, (int) ($bucket['expires_at'] ?? ($now + $window)));
+    $bucket['count'] = $count;
+    $bucket['expires_at'] = $expires_at;
+    set_transient($key, $bucket, max(1, $expires_at - $now));
+
+    return [
+        'allowed' => ($count <= $limit),
+        'retry_after' => max(1, $expires_at - $now),
+        'count' => $count,
+        'limit' => $limit,
+    ];
+}
+
+function ll_tools_flashcards_reset_public_ajax_throttle(string $identifier = ''): void {
+    if ($identifier === '') {
+        $identifier = ll_tools_flashcards_public_ajax_client_identifier();
+    }
+
+    delete_transient(ll_tools_flashcards_public_ajax_throttle_key($identifier));
+}
+
+function ll_tools_flashcards_public_ajax_send_throttle_response(array $status): void {
+    $retry_after = max(1, (int) ($status['retry_after'] ?? 1));
+    if (!headers_sent()) {
+        header('Retry-After: ' . $retry_after);
+    }
+
+    wp_send_json_error([
+        'code' => 'rate_limited',
+        'message' => __('Too many flashcard category requests. Please try again shortly.', 'll-tools-text-domain'),
+        'retry_after' => $retry_after,
+    ], 429);
+}
+
 function ll_tools_flashcards_send_public_ajax_cache_header(string $status): void {
     if (!headers_sent()) {
         header('X-LL-Flashcard-Ajax-Cache: ' . strtoupper($status));
@@ -1346,6 +1437,13 @@ function ll_get_words_by_category_ajax() {
     if (is_array($cached_words)) {
         ll_tools_flashcards_send_public_ajax_cache_header('HIT');
         wp_send_json_success($cached_words);
+    }
+
+    if (!is_user_logged_in()) {
+        $throttle_status = ll_tools_flashcards_public_ajax_throttle_status();
+        if (empty($throttle_status['allowed'])) {
+            ll_tools_flashcards_public_ajax_send_throttle_response($throttle_status);
+        }
     }
 
     $category_ref = $term instanceof WP_Term

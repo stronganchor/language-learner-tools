@@ -9,6 +9,10 @@ if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_TTL')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_TTL', DAY_IN_SECONDS);
 }
 
+if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_MAX_BYTES')) {
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_MAX_BYTES', 5 * 1024 * 1024);
+}
+
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER', '%%LL_TOOLS_WORDSET_LAZY_CARDS_NONCE%%');
 }
@@ -26,6 +30,21 @@ function ll_tools_public_static_cache_ttl(): int {
         : (int) LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_TTL;
 
     return max(60, (int) apply_filters('ll_tools_public_static_cache_ttl', $ttl));
+}
+
+/**
+ * Return the maximum public-page static-cache payload size in bytes.
+ *
+ * A value of 0 disables the max-byte guard.
+ *
+ * @param array{type:string,id:int,path:string,wordset_id?:int}|null $identity
+ */
+function ll_tools_public_static_cache_max_bytes(?array $identity = null): int {
+    $max_bytes = defined('LL_TOOLS_PUBLIC_STATIC_CACHE_MAX_BYTES')
+        ? (int) constant('LL_TOOLS_PUBLIC_STATIC_CACHE_MAX_BYTES')
+        : (int) LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_MAX_BYTES;
+
+    return max(0, (int) apply_filters('ll_tools_public_static_cache_max_bytes', $max_bytes, $identity));
 }
 
 /**
@@ -762,6 +781,18 @@ function ll_tools_store_public_static_cache(): void {
         }
 
         $file = (string) $context['file'];
+        $identity = (isset($context['identity']) && is_array($context['identity'])) ? $context['identity'] : null;
+        $stored_html = ll_tools_public_static_cache_prepare_html_for_storage($html, $identity);
+        $stored_bytes = strlen($stored_html);
+        $max_bytes = ll_tools_public_static_cache_max_bytes($identity);
+        if ($max_bytes > 0 && $stored_bytes > $max_bytes) {
+            ll_tools_public_static_cache_debug_log('skip_oversized_payload', [
+                'bytes' => $stored_bytes,
+                'max_bytes' => $max_bytes,
+            ]);
+            return;
+        }
+
         $dir = dirname($file);
         if (!wp_mkdir_p($dir) || !is_dir($dir) || !is_writable($dir)) {
             ll_tools_public_static_cache_debug_log('skip_unwritable_dir', [
@@ -776,8 +807,6 @@ function ll_tools_store_public_static_cache(): void {
         }
 
         $tmp = $file . '.tmp-' . wp_generate_password(12, false, false);
-        $identity = (isset($context['identity']) && is_array($context['identity'])) ? $context['identity'] : null;
-        $stored_html = ll_tools_public_static_cache_prepare_html_for_storage($html, $identity);
         $written = @file_put_contents($tmp, $stored_html, LOCK_EX);
         if ($written === false) {
             @unlink($tmp);

@@ -17045,9 +17045,12 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
         ]);
     }
 
-    $batch_size = isset($payload['batch_size']) ? max(1, (int) $payload['batch_size']) : ll_tools_wordset_page_get_lazy_card_batch_size();
+    $configured_batch_size = ll_tools_wordset_page_get_lazy_card_batch_size();
+    $batch_size = isset($payload['batch_size'])
+        ? min(max(1, (int) $payload['batch_size']), $configured_batch_size)
+        : $configured_batch_size;
     if ($requested_count > 0) {
-        $batch_size = min(max(1, $requested_count), 96);
+        $batch_size = min(max(1, $requested_count), $batch_size);
     }
 
     $relative_offset = max(0, $offset - $base_offset);

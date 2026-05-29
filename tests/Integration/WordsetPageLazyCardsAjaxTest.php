@@ -258,6 +258,79 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_ajax_caps_requested_lazy_card_count_to_configured_batch_size(): void
+    {
+        $fixture = $this->createWordsetFixture(14);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        wp_set_current_user(0);
+
+        $original_get = $_GET;
+        $original_wordset_page = get_query_var('ll_wordset_page');
+        $original_wordset_view = get_query_var('ll_wordset_view');
+        $batch_size_filter = static function (): int {
+            return 6;
+        };
+        $bootstrap_filter = static function ($should_bootstrap, $view, $filter_wordset_id): bool {
+            if ((int) $filter_wordset_id === 0) {
+                return (bool) $should_bootstrap;
+            }
+
+            return (string) $view === 'progress';
+        };
+
+        add_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+        add_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10, 4);
+
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+
+        try {
+            ll_tools_render_wordset_page_content($wordset_id, [
+                'show_title' => false,
+                'wrapper_tag' => 'div',
+            ]);
+
+            $config = $this->extractLocalizedConfig((string) wp_scripts()->get_data('ll-wordset-pages-js', 'data'));
+            $this->assertTrue((bool) ($config['lazyCards']['enabled'] ?? false));
+
+            $original_post = $_POST;
+            $original_request = $_REQUEST;
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_lazy_cards'),
+                'token' => (string) ($config['lazyCards']['token'] ?? ''),
+                'wordset_id' => $wordset_id,
+                'preview_limit' => 2,
+                'offset' => 6,
+                'count' => 96,
+            ];
+            $_REQUEST = $_POST;
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_wordset_page_handle_lazy_cards_ajax();
+                });
+            } finally {
+                $_POST = $original_post;
+                $_REQUEST = $original_request;
+            }
+
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            $this->assertSame(12, (int) ($response['data']['loaded'] ?? 0));
+            $this->assertSame(12, (int) ($response['data']['nextOffset'] ?? 0));
+            $this->assertTrue((bool) ($response['data']['hasMore'] ?? false));
+        } finally {
+            $_GET = $original_get;
+            set_query_var('ll_wordset_page', $original_wordset_page);
+            set_query_var('ll_wordset_view', $original_wordset_view);
+            remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+            remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
+        }
+    }
+
     public function test_ajax_hydrates_lazy_content_lesson_by_requested_id(): void
     {
         $fixture = $this->createWordsetFixture(7);

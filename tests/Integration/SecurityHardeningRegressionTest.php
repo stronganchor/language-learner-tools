@@ -213,6 +213,71 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertNull(ll_tools_flashcards_public_ajax_cache_get($args));
     }
 
+    public function test_public_flashcard_ajax_throttles_uncached_anonymous_misses_but_allows_cache_hits(): void
+    {
+        $fixture = $this->create_flashcard_word_with_audio(4242);
+        wp_set_current_user(0);
+
+        $previous_remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.42';
+        $limit_filter = static function (): int {
+            return 1;
+        };
+        $window_filter = static function (): int {
+            return 60;
+        };
+        add_filter('ll_tools_flashcards_public_ajax_throttle_request_limit', $limit_filter);
+        add_filter('ll_tools_flashcards_public_ajax_throttle_window', $window_filter);
+        ll_tools_flashcards_reset_public_ajax_throttle();
+
+        $base_post = [
+            'category' => $fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+        ];
+
+        try {
+            $_POST = $base_post;
+            $_REQUEST = $_POST;
+            $first = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+
+            $_POST = $base_post;
+            $_REQUEST = $_POST;
+            $cached = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+
+            $_POST = array_merge($base_post, [
+                'display_mode' => 'text_title',
+                'option_type' => 'text_title',
+            ]);
+            $_REQUEST = $_POST;
+            $limited = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            ll_tools_flashcards_reset_public_ajax_throttle();
+            remove_filter('ll_tools_flashcards_public_ajax_throttle_request_limit', $limit_filter);
+            remove_filter('ll_tools_flashcards_public_ajax_throttle_window', $window_filter);
+            if ($previous_remote_addr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previous_remote_addr;
+            }
+        }
+
+        $this->assertTrue((bool) ($first['success'] ?? false));
+        $this->assertTrue((bool) ($cached['success'] ?? false));
+        $this->assertFalse((bool) ($limited['success'] ?? true));
+        $this->assertSame('rate_limited', (string) ($limited['data']['code'] ?? ''));
+        $this->assertGreaterThan(0, (int) ($limited['data']['retry_after'] ?? 0));
+    }
+
     public function test_public_flashcard_ajax_does_not_persist_invalid_category_misses(): void
     {
         wp_set_current_user(0);
