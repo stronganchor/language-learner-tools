@@ -135,6 +135,7 @@ function buildRecorderMarkup() {
           <div class="ll-recording-type-selector">
             <select id="ll-recording-type"></select>
           </div>
+          <div id="ll-recording-prompt" class="ll-recording-prompt" hidden></div>
 
           <div class="ll-recording-buttons">
             <button type="button" id="ll-record-btn" class="ll-btn ll-btn-record"></button>
@@ -194,12 +195,23 @@ async function mountRecorder(page, options = {}) {
     const uploadRemainingTypesSequence = Array.isArray(mountOptions.uploadRemainingTypesSequence)
       ? mountOptions.uploadRemainingTypesSequence
       : null;
+    const defaultRecordingTypes = [
+      { slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' },
+      { slug: 'introduction', name: 'Introduction', label: 'Introduction', icon: '' }
+    ];
+    const recordingTypes = Array.isArray(mountOptions.recordingTypes) && mountOptions.recordingTypes.length
+      ? mountOptions.recordingTypes
+      : defaultRecordingTypes;
+    const recordingTypeOrder = Array.isArray(mountOptions.recordingTypeOrder) && mountOptions.recordingTypeOrder.length
+      ? mountOptions.recordingTypeOrder
+      : recordingTypes.map((type) => String(type.slug || '').trim()).filter(Boolean);
 
     window.__llTestState = {
       prepareRequests: 0,
       updateTextRequests: 0,
       transcribeRequests: 0,
       uploadRequests: 0,
+      lastUploadPayload: null,
       uploadRemainingTypes,
       uploadRemainingTypesSequence
     };
@@ -235,10 +247,7 @@ async function mountRecorder(page, options = {}) {
         return Promise.resolve(makeJsonResponse({
           success: true,
           data: {
-            recording_types: [
-              { slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' },
-              { slug: 'introduction', name: 'Introduction', label: 'Introduction', icon: '' }
-            ]
+            recording_types: recordingTypes
           }
         }));
       }
@@ -388,6 +397,19 @@ async function mountRecorder(page, options = {}) {
 
         window.__llTestState.uploadRequests += 1;
         const recordingType = String(formData.get('recording_type') || 'isolation');
+        const uploadPayload = {};
+        if (formData && typeof formData.entries === 'function') {
+          for (const [key, value] of formData.entries()) {
+            uploadPayload[key] = value instanceof Blob
+              ? {
+                name: String(value.name || ''),
+                type: String(value.type || ''),
+                size: value.size
+              }
+              : String(value);
+          }
+        }
+        window.__llTestState.lastUploadPayload = uploadPayload;
         const uploadIndex = window.__llTestState.uploadRequests - 1;
         const sequencedRemainingTypes = Array.isArray(window.__llTestState.uploadRemainingTypesSequence)
           ? window.__llTestState.uploadRemainingTypesSequence[uploadIndex]
@@ -529,10 +551,9 @@ async function mountRecorder(page, options = {}) {
       sort_locale: 'en_US',
       hide_name: false,
       recording_types: [
-        { slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' },
-        { slug: 'introduction', name: 'Introduction', label: 'Introduction', icon: '' }
+        ...recordingTypes
       ],
-      recording_type_order: ['isolation', 'introduction'],
+      recording_type_order: recordingTypeOrder,
       recording_type_icons: {
         default: ''
       },
@@ -555,6 +576,7 @@ async function mountRecorder(page, options = {}) {
         transcribing: 'Transcribing...',
         uploading: 'Uploading...',
         saved_next_type: 'Saved. Next type selected.',
+        recording_prompt_label: 'Say:',
         success: 'Success! Recording will be processed later.',
         new_word_prepare_failed: 'Failed to prepare new word',
         new_word_update_text_failed: 'Failed to update word text'
@@ -666,6 +688,77 @@ test('final required type upload advances to the next word when remaining types 
 
   await recordAndSubmitCurrentType(page);
   await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(3);
+  await expect(page.locator('#ll-image-title')).toHaveText('Second word');
+  await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
+});
+
+test('prompt-card queue item uploads prompt audio by prompt card id and advances', async ({ page }) => {
+  await mountRecorder(page, {
+    images: [
+      {
+        id: 0,
+        prompt_card_id: 901,
+        title: 'Is this a horse?',
+        image_url: '',
+        category_name: 'Prompt Cards',
+        category_slug: 'prompt-cards',
+        word_id: 0,
+        word_title: 'Is this a horse?',
+        word_translation: '',
+        use_word_display: true,
+        missing_types: ['prompt'],
+        existing_types: [],
+        prompt_types: ['prompt'],
+        my_existing_types: [],
+        recording_prompts: {
+          prompt: 'Read the question exactly.'
+        },
+        is_text_only: true,
+        is_prompt_audio: true,
+        hide_key: 'prompt_card:901'
+      },
+      {
+        id: 102,
+        title: 'Second word',
+        image_url: '',
+        category_name: 'Debug Category',
+        category_slug: 'debug-category',
+        word_id: 502,
+        word_title: 'Second word',
+        word_translation: 'Second translation',
+        use_word_display: true,
+        missing_types: ['isolation'],
+        existing_types: [],
+        prompt_types: ['isolation'],
+        my_existing_types: [],
+        is_text_only: true
+      }
+    ],
+    recordingTypes: [
+      { slug: 'prompt', name: 'Prompt audio', label: 'Prompt audio', icon: '' },
+      { slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }
+    ],
+    recordingTypeOrder: ['prompt', 'isolation'],
+    uploadRemainingTypesSequence: [
+      []
+    ]
+  });
+
+  await expect(page.locator('#ll-image-title')).toHaveText('Is this a horse?');
+  await expect(page.locator('#ll-recording-type')).toHaveValue('prompt');
+  await expect(page.locator('.ll-recording-type-choice[data-recording-type-value="prompt"]')).toHaveClass(/is-needed/);
+  await expect(page.locator('#ll-recording-prompt')).toBeVisible();
+  await expect(page.locator('#ll-recording-prompt')).toHaveText('Say: Read the question exactly.');
+
+  await recordAndSubmitCurrentType(page);
+
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.lastUploadPayload)).toMatchObject({
+    prompt_card_id: '901',
+    word_id: '0',
+    recording_type: 'prompt',
+    word_title: 'Is this a horse?'
+  });
   await expect(page.locator('#ll-image-title')).toHaveText('Second word');
   await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
 });

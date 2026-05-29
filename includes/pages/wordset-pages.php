@@ -4495,6 +4495,7 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
     $term_relationships_table = $wpdb->term_relationships;
     $term_taxonomy_table = $wpdb->term_taxonomy;
     $postmeta_table = $wpdb->postmeta;
+    $allowed_category_placeholders = implode(', ', array_fill(0, count($allowed_category_ids), '%d'));
 
     $sql = "
         SELECT
@@ -4523,10 +4524,19 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
         WHERE posts.post_type = 'words'
             AND posts.post_status = 'publish'
             AND wordset_taxonomy.term_id = %d
+            AND EXISTS (
+                SELECT 1
+                FROM {$term_relationships_table} AS allowed_category_relationships
+                INNER JOIN {$term_taxonomy_table} AS allowed_category_taxonomy
+                    ON allowed_category_taxonomy.term_taxonomy_id = allowed_category_relationships.term_taxonomy_id
+                    AND allowed_category_taxonomy.taxonomy = 'word-category'
+                    AND allowed_category_taxonomy.term_id IN ({$allowed_category_placeholders})
+                WHERE allowed_category_relationships.object_id = posts.ID
+            )
         ORDER BY posts.ID ASC
     ";
 
-    $rows = $wpdb->get_results($wpdb->prepare($sql, $wordset_id), ARRAY_A);
+    $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge([$wordset_id], $allowed_category_ids)), ARRAY_A);
     if (empty($rows)) {
         return ll_tools_wordset_page_store_cached_payload($cache_key, [], $cache_ttl, $request_cache);
     }
