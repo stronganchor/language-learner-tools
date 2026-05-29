@@ -240,6 +240,8 @@ Representative E2E coverage areas:
   - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance actions, including a safe cache-flush submit path and mobile overflow check.
+- `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
+  - Verifies a local WordPress-backed prompt-card fixture is exposed through `[audio_recording_interface]` as a prompt-audio queue item with the expected wordset, category, and prompt-card payload.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
   - Verifies a teacher-role user can create a class from the frontend wordset classes page, return to the newly selected class, see the success notice, and delete the class again.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
@@ -256,7 +258,7 @@ Representative E2E coverage areas:
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md` and high-confidence hardcoded UI-string contexts using WordPress i18n wrappers.
 - Known E2E coverage gaps still worth adding:
   - Content lessons and mixed lesson-grid behavior.
-  - Live WordPress prompt-card recorder queue fixture coverage beyond the self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
+  - Prompt-card recorder permissions plus real media upload beyond the local WordPress-backed queue fixture, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
   - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
   - Offline app shell launch/sync behavior.
   - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.

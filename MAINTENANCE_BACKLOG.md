@@ -10,12 +10,12 @@ being folded into a small opportunistic fix.
 ## Current Short List
 
 The active maintenance list for the current round is intentionally narrowed to
-browser regression coverage, resource-policy decisions, flashcard-shell
-duplication, helper cleanup decisions, and documentation upkeep.
+browser regression coverage, flashcard-shell duplication, helper cleanup
+decisions, and documentation upkeep.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid, including prerequisite ordering.
-   - Prompt-card recorder queue flows. A focused browser fixture now covers prompt-card prompt-audio queue upload/advance behavior; the remaining gap is a live WordPress browser fixture that creates an actual prompt card and exercises permissions plus real media upload. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
+   - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior and a local WordPress-backed prompt-card queue item; the remaining gap is permissions plus real media upload. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class assignment, invite, and progress-table flows. Teacher class
      creation now has frontend Playwright coverage for a teacher-role user,
      including the limited-role `admin-post.php` path and selected-class
@@ -35,11 +35,10 @@ duplication, helper cleanup decisions, and documentation upkeep.
    - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.
    - Prefer a shared PHP renderer or small partials before adding more shell controls.
 
-3. Decide the remaining site-sync snapshot resource policy before changing behavior.
-   - `GET /wordsets/{wordset}/site-sync/snapshot` currently permits an unpaged snapshot when `per_page` is omitted or `0`; `include_media` defaults to true.
-   - This is intentionally not changed opportunistically because automation users may depend on full snapshots.
-   - A safer future policy may require explicit `per_page=0` or a privileged/full-export flag, while keeping paged snapshots crawlable and predictable for automation.
-   - Verify any behavior change against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
+3. Keep the site-sync snapshot policy unchanged unless live usage shows pressure.
+   - `GET /wordsets/{wordset}/site-sync/snapshot` intentionally continues to permit an unpaged snapshot when `per_page` is omitted or `0`; `include_media` defaults to true.
+   - Automation users may depend on full snapshots, so treat any future cap/default change as a deliberate compatibility decision.
+   - If production usage ever shows resource pressure, verify any behavior change against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
 
 4. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.

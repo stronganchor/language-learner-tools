@@ -45,7 +45,7 @@ async function dismissAdminEmailVerification(page) {
 }
 
 async function ensureLoggedIntoAdmin(page, targetPath = '/wp-admin/') {
-  await page.goto(targetPath, { waitUntil: 'domcontentloaded' });
+  await page.goto(targetPath, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
   const loginForm = page.locator('#loginform');
   if (/\/wp-login\.php/.test(page.url()) || (await loginForm.count()) > 0) {
@@ -61,11 +61,58 @@ async function ensureLoggedIntoAdmin(page, targetPath = '/wp-admin/') {
   await dismissAdminEmailVerification(page);
 
   if (!targetMatchesCurrentUrl(page, targetPath)) {
-    await page.goto(targetPath, { waitUntil: 'domcontentloaded' });
+    await page.goto(targetPath, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await dismissAdminEmailVerification(page);
   }
 
-  await expect(page).toHaveURL(/\/wp-admin\//);
+  await expect.poll(() => page.url(), { timeout: 60000 }).toMatch(/\/wp-admin(?:\/|$)/);
+}
+
+async function adminRest(page, path, { method = 'GET', body = null } = {}) {
+  const performRequest = async () => page.evaluate(async ({ requestPath, requestMethod, requestBody }) => {
+    const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
+    if (!nonce) {
+      return { error: 'missing-rest-nonce' };
+    }
+
+    const response = await fetch(requestPath, {
+      method: requestMethod,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': nonce
+      },
+      body: requestBody ? JSON.stringify(requestBody) : undefined
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (_) {
+      data = null;
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data
+    };
+  }, { requestPath: path, requestMethod: method, requestBody: body });
+
+  let result = await performRequest();
+  if (result && result.error === 'missing-rest-nonce') {
+    await page.context().clearCookies().catch(() => {});
+    await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+    result = await performRequest();
+  }
+
+  if (!result || result.error) {
+    throw new Error(`REST ${method} ${path} failed: ${result && result.error ? result.error : 'unknown error'}`);
+  }
+  if (!result.ok) {
+    throw new Error(`REST ${method} ${path} failed: HTTP ${result.status} ${JSON.stringify(result.data)}`);
+  }
+
+  return result.data;
 }
 
 async function createWpPage(page, { title, content, status = 'publish', timeoutMs = 30000 }) {
@@ -155,6 +202,7 @@ async function deleteWpPage(page, pageId) {
 }
 
 module.exports = {
+  adminRest,
   createWpPage,
   deleteWpPage,
   dismissAdminEmailVerification,
