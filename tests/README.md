@@ -240,6 +240,8 @@ Representative E2E coverage areas:
   - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
+- `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
+  - Verifies lazy wordset-page card hydration, deferred preview shells, unloaded category/content search hydration, inactive-category card actions, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance actions, including a safe cache-flush submit path and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
@@ -259,7 +261,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/maintenance-doc-contracts.spec.js`
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md` and high-confidence hardcoded UI-string contexts using WordPress i18n wrappers.
 - Known E2E coverage gaps still worth adding:
-  - Content lessons and mixed lesson-grid behavior.
+  - WordPress-backed content lesson fixtures for real content lesson routes and media payloads beyond the covered mixed-grid order/search/selection browser behavior.
   - Prompt-card recorder permissions plus real media upload beyond the local WordPress-backed queue fixture, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
   - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
   - Offline app service-worker/install behavior and real remote snapshot sync edge cases.

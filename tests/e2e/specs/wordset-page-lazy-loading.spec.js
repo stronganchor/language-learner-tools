@@ -173,6 +173,39 @@ function buildCardMarkup(category, options = {}) {
   `;
 }
 
+function buildContentLessonCardMarkup(card) {
+  const lesson = card || {};
+
+  return `
+    <article class="ll-wordset-card ll-wordset-card--content" role="listitem" data-ll-wordset-card-type="content" data-lesson-id="${lesson.id}">
+      <div class="ll-wordset-card__top">
+        <span class="ll-wordset-card__content-top-spacer" aria-hidden="true"></span>
+        <a class="ll-wordset-card__heading" href="#" aria-label="${lesson.title}">
+          <h2 class="ll-wordset-card__title">${lesson.title}</h2>
+        </a>
+        <span class="ll-wordset-card__content-badge">Main lesson</span>
+      </div>
+      <a class="ll-wordset-card__lesson-link" href="#" aria-label="${lesson.title}">
+        <div class="ll-wordset-card__preview ll-wordset-card__preview--content has-text">
+          <div class="ll-wordset-card__content-stage">
+            <span class="ll-wordset-card__content-icon-wrap" aria-hidden="true"></span>
+            <div class="ll-wordset-card__content-copy">
+              <div class="ll-wordset-card__content-pills">
+                <span class="ll-wordset-card__content-pill ll-wordset-card__content-pill--media">${lesson.media_label}</span>
+                <span class="ll-wordset-card__content-pill ll-wordset-card__content-pill--count">${lesson.category_count} vocab lessons</span>
+              </div>
+              <p class="ll-wordset-card__content-excerpt">${lesson.excerpt}</p>
+            </div>
+          </div>
+        </div>
+      </a>
+      <div class="ll-wordset-card__quiz-actions">
+        <span class="ll-wordset-card__content-open">Open lesson</span>
+      </div>
+    </article>
+  `;
+}
+
 function buildInactiveCardMarkup(category) {
   const cat = category || {};
 
@@ -727,6 +760,49 @@ test('lazy-loaded cards resolve stale deferred progress loading state', async ({
     studied: '33.33%',
     fresh: '0%'
   });
+});
+
+test('mixed content lesson cards keep order and category-only selection behavior', async ({ page }) => {
+  const contentLesson = Object.assign({}, lazyContentLesson, {
+    id: 777,
+    title: 'Story Bridge',
+    excerpt: 'Placed after Fruit and before Animals.',
+    media_label: 'Audio lesson',
+    category_count: 1
+  });
+  const orderedMarkup = [
+    buildCardMarkup(allCategories[0]),
+    buildContentLessonCardMarkup(contentLesson),
+    buildCardMarkup(allCategories[1])
+  ].join('');
+
+  await mountWordsetPage(page, {
+    categories: [allCategories[0], allCategories[1]],
+    remainingCards: [],
+    initialCardsMarkup: orderedMarkup,
+    lazyCards: {
+      enabled: false,
+      loaded: 3,
+      total: 3,
+      remaining: 0
+    }
+  });
+
+  await expect(page.locator('.ll-wordset-grid > .ll-wordset-card .ll-wordset-card__title'))
+    .toHaveText(['Fruit', 'Story Bridge', 'Animals']);
+  await expect(page.locator('.ll-wordset-card[data-ll-wordset-card-type="content"] [data-ll-wordset-select]'))
+    .toHaveCount(0);
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('[data-ll-wordset-select]:checked')).toHaveCount(2);
+  await expect(page.locator('[data-ll-wordset-selection-text]')).toHaveText('6 words');
+
+  await page.fill('[data-ll-wordset-page-search]', 'bridge');
+
+  await expect(page.locator('.ll-wordset-card[data-ll-wordset-card-type="content"]')).toBeVisible();
+  await expect(page.locator('.ll-wordset-card[data-cat-id]:not([hidden])')).toHaveCount(0);
+  await expect(page.locator('[data-ll-wordset-select]:checked')).toHaveCount(0);
+  await expect(page.locator('[data-ll-wordset-selection-bar]')).toBeHidden();
 });
 
 test('wordset search hydrates matching unloaded categories with real previews', async ({ page }) => {

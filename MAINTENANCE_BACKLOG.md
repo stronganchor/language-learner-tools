@@ -14,7 +14,7 @@ browser regression coverage, flashcard-shell duplication, helper cleanup
 decisions, and documentation upkeep.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
-   - Content lessons in the mixed lesson grid, including prerequisite ordering.
+   - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, and category-only selection behavior. The remaining gap is a WordPress-backed browser fixture for real content lesson routes and media payloads.
    - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior and a local WordPress-backed prompt-card queue item; the remaining gap is permissions plus real media upload. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class assignment, invite, and progress-table flows. Teacher class
      creation now has frontend Playwright coverage for a teacher-role user,
