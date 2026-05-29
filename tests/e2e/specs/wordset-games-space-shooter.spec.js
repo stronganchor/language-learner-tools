@@ -1415,6 +1415,39 @@ async function resolveCorrectRounds(page, slug, totalRounds) {
   }
 }
 
+async function moveLineupWordToIndex(page, wordId, targetIndex) {
+  for (;;) {
+    const currentIndex = await page.evaluate((targetWordId) => {
+      const run = window.LLWordsetGames.__debug.getRunState();
+      const order = run && Array.isArray(run.lineupOrderWordIds) ? run.lineupOrderWordIds : [];
+      return order.indexOf(targetWordId);
+    }, wordId);
+
+    expect(currentIndex).toBeGreaterThanOrEqual(0);
+    if (currentIndex <= targetIndex) {
+      return;
+    }
+
+    await page
+      .locator(`[data-ll-wordset-lineup-card][data-word-id="${wordId}"] [data-ll-wordset-lineup-move="earlier"]`)
+      .click();
+
+    await expect.poll(async () => {
+      return page.evaluate((targetWordId) => {
+        const run = window.LLWordsetGames.__debug.getRunState();
+        const order = run && Array.isArray(run.lineupOrderWordIds) ? run.lineupOrderWordIds : [];
+        return order.indexOf(targetWordId);
+      }, wordId);
+    }).toBe(currentIndex - 1);
+  }
+}
+
+async function arrangeLineupOrder(page, targetWordIds) {
+  for (let index = 0; index < targetWordIds.length; index += 1) {
+    await moveLineupWordToIndex(page, targetWordIds[index], index);
+  }
+}
+
 test('games page keeps launch disabled when logged out', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: false });
 
@@ -1683,6 +1716,84 @@ test('line up and unscramble launch dedicated sequence stages', async ({ page })
   await expect(page.locator('[data-ll-wordset-game-canvas]')).toBeHidden();
 
   await closeRunPopup(page);
+});
+
+test('line up supports retry, card reordering, progress events, and completion', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    configOverrides: {
+      games: {
+        catalog: {
+          'line-up': {
+            slug: 'line-up',
+            title: 'Line Up',
+            description: 'Put the cards in the correct order.'
+          }
+        },
+        lineUp: {
+          slug: 'line-up',
+          minimumSequenceLength: 3,
+          maxLoadedSequences: 3
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'line-up')).toBeEnabled();
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('line-up');
+  });
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.slug === 'line-up'
+      && run.lineupSequenceWordIds.length === 4
+      && run.lineupOrderWordIds.length === 4);
+  });
+
+  const initialState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(initialState.lineupSequenceWordIds).toEqual([301, 302, 303, 304]);
+  expect(initialState.lineupOrderWordIds).not.toEqual(initialState.lineupSequenceWordIds);
+
+  await page.locator('[data-ll-wordset-lineup-check]').click();
+  await expect(page.locator('[data-ll-wordset-lineup-status]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText(/Not quite yet\. \d of 4 are in the right place\./);
+  await expect(page.locator('[data-ll-wordset-lineup-next]')).toBeHidden();
+
+  await arrangeLineupOrder(page, initialState.lineupSequenceWordIds);
+  await expect.poll(async () => {
+    return page.evaluate(() => window.LLWordsetGames.__debug.getRunState().lineupOrderWordIds);
+  }).toEqual(initialState.lineupSequenceWordIds);
+
+  await page.locator('[data-ll-wordset-lineup-check]').click();
+  await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText('Correct order.');
+  await expect(page.locator('[data-ll-wordset-lineup-next]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-lineup-next]')).toHaveText('Finish');
+
+  const solvedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(solvedState.lineupSequenceLocked).toBe(true);
+  expect(solvedState.promptsResolved).toBe(1);
+
+  const progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
+  const lineupEvents = progressEvents.filter((event) => event.entry && event.entry.payload && event.entry.payload.event_source === 'lineup');
+  expect(lineupEvents.filter((event) => event.type === 'word_exposure')).toHaveLength(4);
+  const outcomeEvents = lineupEvents.filter((event) => event.type === 'word_outcome');
+  expect(outcomeEvents).toHaveLength(4);
+  expect(outcomeEvents.every((event) => event.entry.isCorrect === true)).toBe(true);
+  expect(outcomeEvents.every((event) => event.entry.payload.sequence_attempts === 2)).toBe(true);
+  expect(outcomeEvents.some((event) => event.entry.payload.needed_retry === 1)).toBe(true);
+
+  await page.locator('[data-ll-wordset-lineup-next]').click();
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Line-Up complete');
+  await expect(page.locator('[data-ll-wordset-game-overlay-summary]')).toContainText('Retries: 1');
+  await expect.poll(async () => page.evaluate(() => window.__flushCount)).toBeGreaterThan(0);
+
+  await page.locator('[data-ll-wordset-game-return]').click();
+  await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
 });
 
 test('games catalog keeps cards compact on wide screens and uses distinct launch themes for each game', async ({ page }) => {
