@@ -115,6 +115,30 @@ function buildGamesMarkup() {
               </div>
               <div class="ll-wordset-game-stage__canvas-wrap">
                 <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
+                <section class="ll-wordset-lineup-stage" data-ll-wordset-lineup-stage hidden aria-live="polite">
+                  <div class="ll-wordset-lineup-stage__topline">
+                    <span class="ll-wordset-lineup-stage__progress" data-ll-wordset-lineup-progress>Sequence 0 of 0</span>
+                    <span class="ll-wordset-lineup-stage__category" data-ll-wordset-lineup-category></span>
+                  </div>
+                  <p class="ll-wordset-lineup-stage__instruction" data-ll-wordset-lineup-instruction>Put the cards in the correct order.</p>
+                  <div class="ll-wordset-lineup-stage__prompt" data-ll-wordset-lineup-prompt hidden>
+                    <figure class="ll-wordset-lineup-stage__prompt-image-frame" data-ll-wordset-lineup-prompt-image-wrap hidden>
+                      <img class="ll-wordset-lineup-stage__prompt-image" data-ll-wordset-lineup-prompt-image alt="" />
+                    </figure>
+                    <div class="ll-wordset-lineup-stage__prompt-text-wrap" data-ll-wordset-lineup-prompt-text-wrap hidden>
+                      <span class="screen-reader-text" data-ll-wordset-lineup-prompt-label>Clue</span>
+                      <p class="ll-wordset-lineup-stage__prompt-text" data-ll-wordset-lineup-prompt-text dir="auto"></p>
+                    </div>
+                  </div>
+                  <p class="ll-wordset-lineup-stage__status" data-ll-wordset-lineup-status hidden></p>
+                  <ol class="ll-wordset-lineup-stage__cards" data-ll-wordset-lineup-cards></ol>
+                  <div class="ll-wordset-lineup-stage__actions">
+                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--ghost" data-ll-wordset-lineup-shuffle>Shuffle</button>
+                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip" data-ll-wordset-unscramble-skip hidden>Skip</button>
+                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--primary" data-ll-wordset-lineup-check>Check</button>
+                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--primary" data-ll-wordset-lineup-next hidden>Next</button>
+                  </div>
+                </section>
               </div>
               <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
                 <button type="button" data-ll-wordset-game-control="left" aria-label="Move left">
@@ -405,6 +429,65 @@ function buildSpeakingStackWords(count = 6) {
     speaking_target_text: String(word.title || word.label || ''),
     speaking_best_correct_audio_url: `https://example.test/audio/speaking-${word.id}.mp3`
   }));
+}
+
+function buildLineupSequences() {
+  const words = buildLargeSpaceShooterWords(4).map((word, index) => ({
+    ...word,
+    id: 301 + index,
+    title: ['Seed', 'Sprout', 'Stem', 'Flower'][index],
+    label: ['Seed', 'Sprout', 'Stem', 'Flower'][index],
+    prompt_label: ['Seed', 'Sprout', 'Stem', 'Flower'][index]
+  }));
+
+  return [{
+    category_id: 88,
+    category_name: 'Plant Cycle',
+    category_slug: 'plant-cycle',
+    direction: 'ltr',
+    word_count: words.length,
+    words
+  }];
+}
+
+function buildUnscrambleWords(count = 5) {
+  const answers = ['merhaba', 'kalem', 'gunes', 'deniz', 'kitap'];
+
+  return answers.slice(0, Math.max(1, count)).map((answer, index) => {
+    const units = answer.split('').map((letter, unitIndex) => ({
+      id: ((index + 1) * 100) + unitIndex,
+      text: letter,
+      movable: true
+    }));
+
+    return {
+      id: 401 + index,
+      title: answer,
+      label: answer,
+      prompt_label: answer,
+      translation: `Clue ${index + 1}`,
+      image: '',
+      audio: `https://example.test/audio/unscramble-${index + 1}.mp3`,
+      audio_files: [{ url: `https://example.test/audio/unscramble-${index + 1}.mp3`, recording_type: 'isolation' }],
+      practice_recording_types: ['isolation'],
+      preferred_speaker_user_id: 0,
+      option_blocked_ids: [],
+      category_id: 33,
+      category_ids: [33],
+      category_name: 'Unscramble Set',
+      category_names: ['Unscramble Set'],
+      similar_word_id: '',
+      speaking_best_correct_audio_url: `https://example.test/audio/unscramble-correct-${index + 1}.mp3`,
+      unscramble_answer_text: answer,
+      unscramble_prompt_type: 'text',
+      unscramble_prompt_text: `Clue ${index + 1}`,
+      unscramble_prompt_image: '',
+      unscramble_direction: 'ltr',
+      unscramble_unit_count: units.length,
+      unscramble_movable_unit_count: units.length,
+      unscramble_units: units
+    };
+  });
 }
 
 function buildWideBubblePopWords(count = 6) {
@@ -728,6 +811,8 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
 async function mountGamesPage(page, {
   isLoggedIn,
   words = buildSpaceShooterWords(),
+  lineupSequences = buildLineupSequences(),
+  unscrambleWords = buildUnscrambleWords(),
   audioLoadDelayMs = 60,
   promptAudioDurationSeconds = 4.2,
   promptAutoReplayGapMs = null,
@@ -738,7 +823,7 @@ async function mountGamesPage(page, {
   await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
-    ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides, bubbleOverrides }) => {
+    ({ config, gameWords, lineupSequences, unscrambleWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides, bubbleOverrides }) => {
       window.llWordsetPageData = config;
       if (
         window.llWordsetPageData
@@ -768,6 +853,8 @@ async function mountGamesPage(page, {
         Object.assign(window.llWordsetPageData.games.bubblePop, bubbleOverrides);
       }
       window.__gameBootstrapWords = gameWords;
+      window.__lineupSequences = lineupSequences;
+      window.__unscrambleWords = unscrambleWords;
       window.__queuedProgressEvents = [];
       window.__flushCount = 0;
       window.__scrollCalls = [];
@@ -1089,6 +1176,51 @@ async function mountGamesPage(page, {
           category_ids: [11, 22],
           words: words
         }, extra);
+        const buildUnscrambleEntry = () => {
+          const catalogEntry = getCatalogEntry('unscramble') || {};
+          const gameSettings = getGameSettings('unscramble');
+          const words = Array.isArray(window.__unscrambleWords) ? window.__unscrambleWords.slice() : [];
+          return buildLaunchEntry(
+            'unscramble',
+            catalogEntry.title || 'Unscramble',
+            catalogEntry.description || 'See the clue. Put the letters back in order.',
+            words,
+            {
+              minimum_word_count: 5,
+              available_word_count: words.length,
+              launch_word_cap: Number(gameSettings.maxLoadedWords || words.length || 5),
+              launch_word_count: words.length,
+              launchable: words.length >= 5,
+              minimum_tile_count: Number(gameSettings.minTileCount || 3),
+              maximum_tile_count: Number(gameSettings.maxTileCount || 18),
+              maximum_unit_count: Number(gameSettings.maxUnitCount || 14),
+              category_ids: [33]
+            }
+          );
+        };
+        const buildLineupEntry = () => {
+          const catalogEntry = getCatalogEntry('line-up') || {};
+          const gameSettings = getGameSettings('line-up');
+          const sequences = Array.isArray(window.__lineupSequences) ? window.__lineupSequences.slice() : [];
+          return {
+            slug: 'line-up',
+            title: catalogEntry.title || 'Line Up',
+            description: catalogEntry.description || 'Put the cards in the correct order.',
+            minimum_word_count: 1,
+            minimum_sequence_count: 1,
+            minimum_sequence_length: Number(gameSettings.minimumSequenceLength || 3),
+            available_word_count: sequences.length,
+            available_sequence_count: sequences.length,
+            enabled_category_count: sequences.length ? 1 : 0,
+            launch_word_cap: sequences.length,
+            launch_word_count: sequences.length,
+            launch_sequence_cap: sequences.length,
+            launchable: sequences.length > 0,
+            reason_code: sequences.length > 0 ? '' : 'lineup_not_configured',
+            category_ids: [88],
+            sequences
+          };
+        };
         const getGamesConfig = () => ((window.llWordsetPageData || {}).games || {});
         const getCatalogEntry = (slug) => {
           const catalog = getGamesConfig().catalog || {};
@@ -1105,6 +1237,12 @@ async function mountGamesPage(page, {
           if (slug === 'speaking-stack') {
             return gamesConfig.speakingStack || {};
           }
+          if (slug === 'unscramble') {
+            return gamesConfig.unscramble || {};
+          }
+          if (slug === 'line-up') {
+            return gamesConfig.lineUp || {};
+          }
           return {};
         };
 
@@ -1113,6 +1251,8 @@ async function mountGamesPage(page, {
           const shooterCatalog = getCatalogEntry('space-shooter');
           const bubbleCatalog = getCatalogEntry('bubble-pop');
           const speakingStackCatalog = getCatalogEntry('speaking-stack');
+          const unscrambleCatalog = getCatalogEntry('unscramble');
+          const lineupCatalog = getCatalogEntry('line-up');
           const shooterSettings = getGameSettings('space-shooter');
           const bubbleSettings = getGameSettings('bubble-pop');
           const speakingStackSettings = getGameSettings('speaking-stack');
@@ -1143,6 +1283,12 @@ async function mountGamesPage(page, {
               Number(speakingStackSettings.maxLoadedWords || window.__gameBootstrapWords.length || 6),
               window.__gameBootstrapWords
             );
+          }
+          if (unscrambleCatalog) {
+            responseGames.unscramble = buildUnscrambleEntry();
+          }
+          if (lineupCatalog) {
+            responseGames['line-up'] = buildLineupEntry();
           }
 
           deferred.resolve({
@@ -1199,6 +1345,22 @@ async function mountGamesPage(page, {
                 )
               }
             });
+          } else if (slug === 'unscramble') {
+            deferred.resolve({
+              success: true,
+              data: {
+                wordset_id: 77,
+                game: buildUnscrambleEntry()
+              }
+            });
+          } else if (slug === 'line-up') {
+            deferred.resolve({
+              success: true,
+              data: {
+                wordset_id: 77,
+                game: buildLineupEntry()
+              }
+            });
           } else {
             deferred.reject(new Error('Unexpected launch slug'));
           }
@@ -1211,6 +1373,8 @@ async function mountGamesPage(page, {
     {
       config: buildGamesConfig(isLoggedIn, configOverrides),
       gameWords: words,
+      lineupSequences,
+      unscrambleWords,
       audioLoadDelay: audioLoadDelayMs,
       promptAudioDuration: promptAudioDurationSeconds,
       replayGapMs: promptAutoReplayGapMs,
@@ -1424,6 +1588,99 @@ test('word stack starts with a much slower fall speed before the first transcrip
   const activeCards = await stackState.jsonValue();
   expect(activeCards).toHaveLength(3);
   expect(activeCards.every((card) => card.speed >= 45 && card.speed <= 60)).toBe(true);
+
+  await closeRunPopup(page);
+});
+
+test('line up and unscramble launch dedicated sequence stages', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    configOverrides: {
+      games: {
+        catalog: {
+          'line-up': {
+            slug: 'line-up',
+            title: 'Line Up',
+            description: 'Put the cards in the correct order.'
+          },
+          unscramble: {
+            slug: 'unscramble',
+            title: 'Unscramble',
+            description: 'See the clue. Put the letters back in order.'
+          }
+        },
+        lineUp: {
+          slug: 'line-up',
+          minimumSequenceLength: 3,
+          maxLoadedSequences: 3
+        },
+        unscramble: {
+          slug: 'unscramble',
+          minTileCount: 3,
+          maxTileCount: 18,
+          maxUnitCount: 14,
+          maxLoadedWords: 5
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'line-up')).toBeEnabled();
+  await expect(gameStatus(page, 'line-up')).toHaveText('1 sequences ready');
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('line-up');
+  });
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.slug === 'line-up'
+      && run.currentSequenceCategoryId === 88
+      && run.lineupSequenceWordIds.length === 4
+      && run.lineupOrderWordIds.length === 4);
+  });
+
+  await expect(page.locator('[data-ll-wordset-lineup-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-lineup-stage]')).toHaveAttribute('data-lineup-mode', 'line-up');
+  await expect(page.locator('[data-ll-wordset-lineup-progress]')).toHaveText('Sequence 1 of 1');
+  await expect(page.locator('[data-ll-wordset-lineup-category]')).toHaveText('Plant Cycle');
+  await expect(page.locator('[data-ll-wordset-lineup-card]')).toHaveCount(4);
+  await expect(page.locator('[data-ll-wordset-game-canvas]')).toBeHidden();
+
+  const lineUpState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(lineUpState.lineupSequenceWordIds).toEqual([301, 302, 303, 304]);
+  expect([...lineUpState.lineupOrderWordIds].sort((left, right) => left - right)).toEqual([301, 302, 303, 304]);
+  expect(lineUpState.lineupSequenceLocked).toBe(false);
+
+  await closeRunPopup(page);
+
+  await expect(gameLaunchButton(page, 'unscramble')).toBeEnabled();
+  await expect(gameStatus(page, 'unscramble')).toHaveText('5 words ready');
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('unscramble');
+  });
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.slug === 'unscramble'
+      && run.lineupOrderWordIds.length >= 3
+      && !run.lineupSequenceLocked);
+  });
+
+  await expect(page.locator('[data-ll-wordset-lineup-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-lineup-stage]')).toHaveAttribute('data-lineup-mode', 'unscramble');
+  await expect(page.locator('[data-ll-wordset-lineup-progress]')).toHaveText('Word 1 of 5');
+  await expect(page.locator('[data-ll-wordset-lineup-prompt]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-lineup-prompt-text]')).toHaveText(/Clue [1-5]/);
+  const unscrambleState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(unscrambleState.lineupOrderWordIds.length).toBeGreaterThanOrEqual(3);
+  await expect(page.locator('[data-ll-wordset-unscramble-tile]')).toHaveCount(unscrambleState.lineupOrderWordIds.length);
+  await expect(page.locator('[data-ll-wordset-unscramble-skip]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-lineup-check]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-game-canvas]')).toBeHidden();
 
   await closeRunPopup(page);
 });
