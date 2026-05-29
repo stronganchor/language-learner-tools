@@ -224,6 +224,8 @@ Representative E2E coverage areas:
   - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints.
 - `tests/e2e/specs/listening-visualizer-regression.spec.js`
   - Verifies Listening visualizer warmup/resume behavior and countdown-hide recovery.
+- `tests/e2e/specs/offline-app-shell-launcher.spec.js`
+  - Verifies the offline app launcher filters/sorts/selects categories, launches the real shell wiring, and exercises the sync panel sign-in, manual sync, and disconnect flow against a fake progress tracker.
 - `tests/e2e/specs/practice-option-constraints.spec.js`
   - Verifies Practice mode answer option counts/constraints across category setups.
 - `tests/e2e/specs/quiz-launch-config.spec.js`
@@ -260,7 +262,7 @@ Representative E2E coverage areas:
   - Content lessons and mixed lesson-grid behavior.
   - Prompt-card recorder permissions plus real media upload beyond the local WordPress-backed queue fixture, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
   - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
-  - Offline app shell launch/sync behavior.
+  - Offline app service-worker/install behavior and real remote snapshot sync edge cases.
   - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.

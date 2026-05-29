@@ -50,6 +50,28 @@ function buildOfflineShellMarkup() {
             </div>
             <div id="ll-offline-category-empty" hidden>No categories are available in this offline app.</div>
           </section>
+
+          <section id="ll-offline-sync-panel" hidden>
+            <div id="ll-offline-sync-status"></div>
+            <div id="ll-offline-sync-meta"></div>
+            <div id="ll-offline-sync-feedback" hidden></div>
+            <button id="ll-offline-sync-connect" type="button"></button>
+            <button id="ll-offline-sync-now" type="button" hidden></button>
+            <button id="ll-offline-sync-disconnect" type="button" hidden></button>
+            <div id="ll-offline-sync-sheet" hidden>
+              <form id="ll-offline-sync-form">
+                <h2 id="ll-offline-sync-sheet-title"></h2>
+                <label for="ll-offline-sync-identifier">Username or email</label>
+                <input id="ll-offline-sync-identifier" type="text" />
+                <label for="ll-offline-sync-password">Password</label>
+                <input id="ll-offline-sync-password" type="password" />
+                <button id="ll-offline-sync-password-toggle" type="button"></button>
+                <button id="ll-offline-sync-submit" type="submit"></button>
+                <button id="ll-offline-sync-cancel" type="button"></button>
+                <div id="ll-offline-sync-sheet-feedback" hidden></div>
+              </form>
+            </div>
+          </section>
         </section>
 
         <div id="ll-tools-flashcard-popup" style="display:none;">
@@ -74,15 +96,17 @@ function buildOfflineShellMarkup() {
   `;
 }
 
-async function mountOfflineLauncher(page) {
+async function mountOfflineLauncher(page, options = {}) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   const errors = [];
   page.on('pageerror', (error) => {
     errors.push(error.message);
   });
   await page.setContent(buildOfflineShellMarkup(), { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => {
+  await page.evaluate((mountOptions) => {
     window.__offlineLaunches = [];
+    window.__offlineSyncRequests = [];
+    window.__offlineSyncCalls = [];
     window.initFlashcardWidget = function initFlashcardWidget(catNames, mode) {
       const flashData = window.llToolsFlashcardsData || {};
       window.__offlineLaunches.push({
@@ -91,6 +115,85 @@ async function mountOfflineLauncher(page) {
         plan: flashData.lastLaunchPlan ? Object.assign({}, flashData.lastLaunchPlan) : null
       });
       return Promise.resolve();
+    };
+
+    const syncState = {
+      connected: false,
+      pending: 0,
+      device_id: 'fixture-device',
+      profile_id: 'fixture-profile',
+      auth: {}
+    };
+
+    window.LLFlashcards = {
+      ProgressTracker: {
+        getSyncState() {
+          return JSON.parse(JSON.stringify(syncState));
+        },
+        setOfflineSyncSession(session) {
+          syncState.connected = true;
+          syncState.auth = {
+            token: session.auth_token || '',
+            expires_at: session.expires_at || '',
+            user: session.user || null
+          };
+        },
+        clearOfflineSyncSession() {
+          syncState.connected = false;
+          syncState.pending = 0;
+          syncState.auth = {};
+        },
+        syncFromServer(syncOptions = {}) {
+          window.__offlineSyncCalls.push({
+            wordIds: Array.isArray(syncOptions.wordIds) ? syncOptions.wordIds.slice() : []
+          });
+          syncState.pending = 0;
+          syncState.auth.last_sync_at = '2026-05-29T00:00:00Z';
+          return Promise.resolve({
+            failed: false,
+            data: {
+              state: {
+                wordset_id: 777,
+                category_ids: [11],
+                starred_word_ids: [],
+                star_mode: 'normal',
+                fast_transitions: false
+              }
+            }
+          });
+        }
+      }
+    };
+
+    window.fetch = async (_url, requestOptions = {}) => {
+      const body = requestOptions.body;
+      const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
+      const payload = {};
+      if (body && typeof body.forEach === 'function') {
+        body.forEach((value, key) => {
+          payload[key] = String(value);
+        });
+      }
+      window.__offlineSyncRequests.push({ action, payload });
+
+      const data = action === 'fixture_login'
+        ? {
+            auth_token: 'fixture-token',
+            expires_at: '2099-01-01T00:00:00Z',
+            user: {
+              id: 42,
+              display_name: 'Offline Learner',
+              login: 'offline-learner'
+            }
+          }
+        : {};
+
+      return {
+        ok: true,
+        async text() {
+          return JSON.stringify({ success: true, data });
+        }
+      };
     };
 
     window.llToolsOfflineData = {
@@ -103,6 +206,20 @@ async function mountOfflineLauncher(page) {
       },
       app: {
         title: 'Offline Starter',
+        sync: mountOptions.enableSync
+          ? {
+              enabled: true,
+              ajaxUrl: '/wp-admin/admin-ajax.php',
+              loginAction: 'fixture_login',
+              logoutAction: 'fixture_logout',
+              messages: {
+                connectedAsLabel: 'Connected as %s',
+                syncIdleLabel: 'All caught up',
+                syncInProgressLabel: 'Syncing...',
+                syncSignedOutLabel: 'Disconnected locally'
+              }
+            }
+          : {},
         launcher: {
           categories: [
             {
@@ -163,7 +280,7 @@ async function mountOfflineLauncher(page) {
         }
       }
     };
-  });
+  }, options);
   await page.addScriptTag({ content: offlineAppSource });
   const cardCount = await page.locator('#ll-offline-category-grid .ll-wordset-card').count();
   if (cardCount === 0 && errors.length) {
@@ -206,4 +323,60 @@ test('offline app launcher filters, sorts, selects, and launches the real shell 
   expect(launch.lastLaunchPlan.session_word_ids).toEqual([]);
   expect(launch.userStudyState.wordset_id).toBe(777);
   expect(launch.userStudyState.category_ids).toEqual([11, 22]);
+});
+
+test('offline app sync panel signs in, syncs, and disconnects through the real shell wiring', async ({ page }) => {
+  await mountOfflineLauncher(page, { enableSync: true });
+
+  const status = page.locator('#ll-offline-sync-status');
+  const meta = page.locator('#ll-offline-sync-meta');
+  const feedback = page.locator('#ll-offline-sync-feedback');
+  const sheet = page.locator('#ll-offline-sync-sheet');
+
+  await expect(page.locator('#ll-offline-sync-panel')).toBeVisible();
+  await expect(status).toHaveText('Local progress only');
+  await expect(page.locator('#ll-offline-sync-connect')).toBeVisible();
+  await expect(page.locator('#ll-offline-sync-now')).toBeHidden();
+
+  await page.locator('#ll-offline-sync-connect').click();
+  await expect(sheet).toBeVisible();
+  await expect(page.locator('#ll-offline-sync-sheet-title')).toHaveText('Connect to Sync');
+
+  await page.locator('#ll-offline-sync-identifier').fill('learner@example.com');
+  await page.locator('#ll-offline-sync-password').fill('secret-password');
+  await page.locator('#ll-offline-sync-password-toggle').click();
+  await expect(page.locator('#ll-offline-sync-password')).toHaveAttribute('type', 'text');
+  await page.locator('#ll-offline-sync-submit').click();
+
+  await expect(sheet).toBeHidden();
+  await expect(status).toHaveText('Connected as Offline Learner');
+  await expect(meta).toHaveText('All caught up');
+  await expect(feedback).toHaveText('All caught up');
+  await expect(page.locator('#ll-offline-sync-now')).toBeVisible();
+  await expect(page.locator('#ll-offline-sync-disconnect')).toBeVisible();
+
+  await page.locator('#ll-offline-sync-now').click();
+  await expect(feedback).toHaveText('All caught up');
+
+  const synced = await page.evaluate(() => ({
+    requests: window.__offlineSyncRequests,
+    calls: window.__offlineSyncCalls,
+    categoryIds: window.llToolsFlashcardsData.userStudyState.category_ids
+  }));
+  expect(synced.requests.map((request) => request.action)).toContain('fixture_login');
+  expect(synced.requests.find((request) => request.action === 'fixture_login').payload).toMatchObject({
+    identifier: 'learner@example.com',
+    device_id: 'fixture-device',
+    profile_id: 'fixture-profile'
+  });
+  expect(synced.calls.length).toBeGreaterThanOrEqual(2);
+  expect(synced.calls[0].wordIds).toEqual([101, 102, 103, 104, 105, 201, 202, 203, 204, 205]);
+  expect(synced.categoryIds).toEqual([11]);
+
+  await page.locator('#ll-offline-sync-disconnect').click();
+  await expect(status).toHaveText('Local progress only');
+  await expect(feedback).toHaveText('Disconnected locally');
+
+  const actions = await page.evaluate(() => window.__offlineSyncRequests.map((request) => request.action));
+  expect(actions).toContain('fixture_logout');
 });

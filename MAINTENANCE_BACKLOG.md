@@ -20,7 +20,9 @@ decisions, and documentation upkeep.
      creation now has frontend Playwright coverage for a teacher-role user,
      including the limited-role `admin-post.php` path and selected-class
      redirect.
-   - Offline app shell launch/sync behavior.
+   - Offline app shell launcher and sync-panel wiring now have self-contained
+     browser coverage; remaining offline gaps are service-worker/install
+     behavior and real remote snapshot sync edge cases.
    - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,
