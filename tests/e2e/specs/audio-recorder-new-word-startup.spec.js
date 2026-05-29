@@ -1,18 +1,7 @@
 const { test, expect } = require('@playwright/test');
-const { createWpPage, deleteWpPage, ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin');
+const { mountNewWordRecorderFixture } = require('../helpers/audio-recorder-fixture');
 
 test.describe.configure({ timeout: 240000 });
-
-async function createRecorderPage(page, title) {
-  return createWpPage(page, {
-    title,
-    content: '[audio_recording_interface allow_new_words="1"]'
-  });
-}
-
-async function deletePage(page, pageId) {
-  await deleteWpPage(page, pageId);
-}
 
 async function installFakeRecorderRuntime(page) {
   await page.addInitScript(() => {
@@ -163,161 +152,117 @@ async function installFakeRecorderRuntime(page) {
   });
 }
 
+async function openNewWordPanelIfNeeded(page) {
+  const overlay = page.locator('#ll-new-word-overlay');
+  if (await overlay.isVisible()) {
+    return;
+  }
+
+  const newWordToggle = page.locator('#ll-new-word-toggle');
+  if (
+    (await newWordToggle.count()) > 0
+    && await newWordToggle.isVisible()
+    && await newWordToggle.isEnabled()
+  ) {
+    await newWordToggle.click();
+  }
+}
+
 test('new-word recorder shows startup state immediately and defers preparation until save', async ({ page }) => {
-  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page);
 
-  await ensureLoggedIntoAdmin(page);
+  await openNewWordPanelIfNeeded(page);
 
-  const title = `Recorder Startup ${Date.now()}`;
-  const createdPage = await createRecorderPage(page, title);
-  const ajaxActions = [];
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  const recordIndicator = page.locator('#ll-new-word-recording-indicator');
+  const levelMeter = page.locator('#ll-new-word-recording-meter');
 
-  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
-    const postData = route.request().postData() || '';
-    if (postData.includes('ll_prepare_new_word_recording')) {
-      ajaxActions.push('prepare');
+  await expect(recordButton).toBeVisible({ timeout: 30000 });
+  await recordButton.click();
+
+  await expect(recordButton).toHaveClass(/starting/);
+  await expect(recordIndicator).toHaveClass(/is-starting/);
+  await expect.poll(() => page.evaluate(() => window.__llStartupTestState.prepareRequests)).toBe(0);
+
+  await page.evaluate(() => {
+    if (typeof window.__llResolveRecorderMic === 'function') {
+      window.__llResolveRecorderMic();
     }
-    await route.continue();
   });
 
-  await installFakeRecorderRuntime(page);
-
-  try {
-    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
-
-    const newWordToggle = page.locator('#ll-new-word-toggle');
-    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
-      await newWordToggle.click();
-    }
-
-    const recordButton = page.locator('#ll-new-word-record-btn');
-    const recordIndicator = page.locator('#ll-new-word-recording-indicator');
-    const levelMeter = page.locator('#ll-new-word-recording-meter');
-
-    await expect(recordButton).toBeVisible({ timeout: 30000 });
-    await recordButton.click();
-
-    await expect(recordButton).toHaveClass(/starting/);
-    await expect(recordIndicator).toHaveClass(/is-starting/);
-    await expect.poll(() => ajaxActions.length).toBe(0);
-
-    await page.evaluate(() => {
-      if (typeof window.__llResolveRecorderMic === 'function') {
-        window.__llResolveRecorderMic();
-      }
+  await expect(recordButton).toHaveClass(/recording/);
+  await expect(recordButton).not.toHaveClass(/starting/);
+  await expect(recordIndicator).not.toHaveClass(/is-starting/);
+  await expect(recordIndicator).toHaveClass(/is-live/);
+  await expect(levelMeter).toBeVisible();
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('#ll-new-word-recording-meter .ll-recording-meter-bar'))
+        .some((bar) => parseFloat(bar.style.getPropertyValue('--level') || '0') > 0.08);
     });
-
-    await expect(recordButton).toHaveClass(/recording/);
-    await expect(recordButton).not.toHaveClass(/starting/);
-    await expect(recordIndicator).not.toHaveClass(/is-starting/);
-    await expect(recordIndicator).toHaveClass(/is-live/);
-    await expect(levelMeter).toBeVisible();
-    await expect.poll(async () => {
-      return await page.evaluate(() => {
-        return Array.from(document.querySelectorAll('#ll-new-word-recording-meter .ll-recording-meter-bar'))
-          .some((bar) => parseFloat(bar.style.getPropertyValue('--level') || '0') > 0.08);
-      });
-    }).toBe(true);
-    await expect.poll(() => ajaxActions.length).toBe(0);
-  } finally {
-    await deletePage(page, createdPage.id);
-  }
+  }).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__llStartupTestState.prepareRequests)).toBe(0);
 });
 
 test('new-word redo keeps entered text and translation intact', async ({ page }) => {
-  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
-
-  await ensureLoggedIntoAdmin(page);
-
-  const title = `Recorder Redo Preserve ${Date.now()}`;
-  const createdPage = await createRecorderPage(page, title);
-
-  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
-    const postData = route.request().postData() || '';
-    if (postData.includes('ll_transcribe_recording')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          data: {
-            transcript: 'auto transcript',
-            translation: 'auto translation'
-          }
-        })
-      });
-      return;
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page, {
+    transcribeData: {
+      transcript: 'auto transcript',
+      translation: 'auto translation'
     }
-    await route.continue();
   });
 
-  await installFakeRecorderRuntime(page);
+  await openNewWordPanelIfNeeded(page);
 
-  try {
-    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+  const targetInput = page.locator('#ll-new-word-text-target');
+  const translationInput = page.locator('#ll-new-word-text-translation');
+  const recordButton = page.locator('#ll-new-word-record-btn');
 
-    const newWordToggle = page.locator('#ll-new-word-toggle');
-    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
-      await newWordToggle.click();
+  await expect(targetInput).toBeVisible({ timeout: 30000 });
+  await targetInput.fill('entered word');
+  await translationInput.fill('entered translation');
+
+  await recordButton.click();
+  await page.evaluate(() => {
+    if (typeof window.__llResolveRecorderMic === 'function') {
+      window.__llResolveRecorderMic();
+    }
+  });
+  await expect(recordButton).toHaveClass(/recording/);
+
+  await recordButton.click();
+
+  const redoSelectorHandle = await page.waitForFunction(() => {
+    const isVisible = (node) => {
+      return !!node
+        && node instanceof HTMLElement
+        && node.offsetParent !== null
+        && window.getComputedStyle(node).visibility !== 'hidden';
+    };
+
+    const reviewRedo = document.querySelector('#ll-review-redo');
+    if (isVisible(reviewRedo)) {
+      return '#ll-review-redo';
     }
 
-    const targetInput = page.locator('#ll-new-word-text-target');
-    const translationInput = page.locator('#ll-new-word-text-translation');
-    const recordButton = page.locator('#ll-new-word-record-btn');
+    const inlineRedo = document.querySelector('#ll-new-word-redo-btn');
+    if (isVisible(inlineRedo)) {
+      return '#ll-new-word-redo-btn';
+    }
 
-    await expect(targetInput).toBeVisible({ timeout: 30000 });
-    await targetInput.fill('entered word');
-    await translationInput.fill('entered translation');
+    return false;
+  });
+  const redoSelector = await redoSelectorHandle.jsonValue();
+  await page.locator(redoSelector).click();
 
-    await recordButton.click();
-    await page.evaluate(() => {
-      if (typeof window.__llResolveRecorderMic === 'function') {
-        window.__llResolveRecorderMic();
-      }
-    });
-    await expect(recordButton).toHaveClass(/recording/);
-
-    await recordButton.click();
-
-    const redoSelectorHandle = await page.waitForFunction(() => {
-      const isVisible = (node) => {
-        return !!node
-          && node instanceof HTMLElement
-          && node.offsetParent !== null
-          && window.getComputedStyle(node).visibility !== 'hidden';
-      };
-
-      const reviewRedo = document.querySelector('#ll-review-redo');
-      if (isVisible(reviewRedo)) {
-        return '#ll-review-redo';
-      }
-
-      const inlineRedo = document.querySelector('#ll-new-word-redo-btn');
-      if (isVisible(inlineRedo)) {
-        return '#ll-new-word-redo-btn';
-      }
-
-      return false;
-    });
-    const redoSelector = await redoSelectorHandle.jsonValue();
-    await page.locator(redoSelector).click();
-
-    await expect(targetInput).toHaveValue('entered word');
-    await expect(translationInput).toHaveValue('entered translation');
-    await expect(recordButton).toBeVisible();
-  } finally {
-    await deletePage(page, createdPage.id);
-  }
+  await expect(targetInput).toHaveValue('entered word');
+  await expect(translationInput).toHaveValue('entered translation');
+  await expect(recordButton).toBeVisible();
 });
 
 test('new-word recorder shows a visible error when no microphone is available', async ({ page }) => {
-  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
-
-  await ensureLoggedIntoAdmin(page);
-
-  const title = `Recorder No Mic ${Date.now()}`;
-  const createdPage = await createRecorderPage(page, title);
-
   await page.addInitScript(() => {
     const mediaDevices = {
       getUserMedia() {
@@ -337,68 +282,51 @@ test('new-word recorder shows a visible error when no microphone is available', 
       navigator.mediaDevices = mediaDevices;
     }
   });
+  await mountNewWordRecorderFixture(page);
 
-  try {
-    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+  await openNewWordPanelIfNeeded(page);
 
-    const newWordToggle = page.locator('#ll-new-word-toggle');
-    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
-      await newWordToggle.click();
-    }
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  const status = page.locator('#ll-new-word-status');
 
-    const recordButton = page.locator('#ll-new-word-record-btn');
-    const status = page.locator('#ll-new-word-status');
+  await expect(recordButton).toBeVisible({ timeout: 30000 });
+  await recordButton.click();
 
-    await expect(recordButton).toBeVisible({ timeout: 30000 });
-    await recordButton.click();
-
-    await expect(status).toBeVisible({ timeout: 30000 });
-    await expect(status).toContainText(/No microphone found|No input devices detected|Could not access microphone/i);
-    await expect(recordButton).not.toHaveClass(/recording/);
-    await expect(recordButton).not.toHaveClass(/starting/);
-  } finally {
-    await deletePage(page, createdPage.id);
-  }
+  await expect(status).toBeVisible({ timeout: 30000 });
+  await expect(status).toContainText(/No microphone found|No input devices detected|Could not access microphone/i);
+  await expect(recordButton).not.toHaveClass(/recording/);
+  await expect(recordButton).not.toHaveClass(/starting/);
 });
 
 test('new-word recorder closes from the header button and backdrop on non-fullscreen layouts', async ({ page }) => {
-  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
-
-  await ensureLoggedIntoAdmin(page);
   await page.setViewportSize({ width: 1280, height: 900 });
+  await mountNewWordRecorderFixture(page);
 
-  const title = `Recorder Dismiss ${Date.now()}`;
-  const createdPage = await createRecorderPage(page, title);
+  await openNewWordPanelIfNeeded(page);
 
-  try {
-    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+  const overlay = page.locator('#ll-new-word-overlay');
+  const panel = page.locator('#ll-new-word-panel');
+  const backdrop = page.locator('.ll-new-word-overlay-backdrop');
+  const closeButton = page.locator('#ll-new-word-back');
+  const newWordToggle = page.locator('#ll-new-word-toggle');
 
-    const newWordToggle = page.locator('#ll-new-word-toggle');
-    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
-      await newWordToggle.click();
-    }
+  await expect(overlay).toBeVisible({ timeout: 30000 });
+  await expect(panel).toBeVisible();
+  await expect(closeButton).toBeVisible();
+  await expect(page.getByRole('button', { name: /back to existing words/i })).toHaveCount(0);
 
-    const overlay = page.locator('#ll-new-word-overlay');
-    const panel = page.locator('#ll-new-word-panel');
-    const backdrop = page.locator('.ll-new-word-overlay-backdrop');
-    const closeButton = page.locator('#ll-new-word-back');
+  await backdrop.click({ position: { x: 20, y: 20 } });
+  await expect(overlay).toBeHidden();
 
-    await expect(overlay).toBeVisible({ timeout: 30000 });
-    await expect(panel).toBeVisible();
-    await expect(closeButton).toBeVisible();
-    await expect(page.getByRole('button', { name: /back to existing words/i })).toHaveCount(0);
-
-    await backdrop.click({ position: { x: 20, y: 20 } });
-    await expect(overlay).toBeHidden();
-
-    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
-      await newWordToggle.click();
-    }
-
-    await expect(overlay).toBeVisible();
-    await closeButton.click();
-    await expect(overlay).toBeHidden();
-  } finally {
-    await deletePage(page, createdPage.id);
+  if (
+    (await newWordToggle.count()) > 0
+    && await newWordToggle.isVisible()
+    && await newWordToggle.isEnabled()
+  ) {
+    await newWordToggle.click();
   }
+
+  await expect(overlay).toBeVisible();
+  await closeButton.click();
+  await expect(overlay).toBeHidden();
 });
