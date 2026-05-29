@@ -3578,3 +3578,23 @@ msgstr "Huruf sebelumnya"
 #: includes/shortcodes/word-grid-shortcode.php:6043
 msgid "Next letter"
 msgstr "Huruf berikutnya"
+
+#. ll-tools-public-key: edde503143d38ba46ff9c4c3aa730cf95d1f12b6
+#: includes/pages/vocab-lesson-pages.php:3163
+msgid "Category settings were saved. This category no longer has a vocab lesson page for the current setup."
+msgstr "Pengaturan kategori disimpan. Kategori ini tidak lagi memiliki halaman pelajaran kosakata untuk pengaturan saat ini."
+
+#. ll-tools-public-key: 6df2eadc36a465f73e7e591fc2da209a9df86612
+#: includes/pages/wordset-pages.php:15578
+msgid "Ready"
+msgstr "Siap"
+
+#. ll-tools-public-key: a1ee46b2b9cd7b0b549972c08c855596e7ed56ed
+#: includes/pages/wordset-pages.php:15579
+msgid "Upload permission required"
+msgstr "Izin unggah diperlukan"
+
+#. ll-tools-public-key: 05860685d26d8d0f45af748c2ba0822fd502c6a8
+#: includes/pages/wordset-pages.php:15594
+msgid "Generate lesson pages"
+msgstr "Buat halaman pelajaran"

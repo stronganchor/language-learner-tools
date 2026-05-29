@@ -3571,3 +3571,23 @@ msgstr "이전 글자"
 #: includes/shortcodes/word-grid-shortcode.php:6043
 msgid "Next letter"
 msgstr "다음 글자"
+
+#. ll-tools-public-key: edde503143d38ba46ff9c4c3aa730cf95d1f12b6
+#: includes/pages/vocab-lesson-pages.php:3163
+msgid "Category settings were saved. This category no longer has a vocab lesson page for the current setup."
+msgstr "카테고리 설정이 저장되었습니다. 이 카테고리는 현재 설정에서 더 이상 어휘 학습 페이지가 없습니다."
+
+#. ll-tools-public-key: 6df2eadc36a465f73e7e591fc2da209a9df86612
+#: includes/pages/wordset-pages.php:15578
+msgid "Ready"
+msgstr "준비됨"
+
+#. ll-tools-public-key: a1ee46b2b9cd7b0b549972c08c855596e7ed56ed
+#: includes/pages/wordset-pages.php:15579
+msgid "Upload permission required"
+msgstr "업로드 권한 필요"
+
+#. ll-tools-public-key: 05860685d26d8d0f45af748c2ba0822fd502c6a8
+#: includes/pages/wordset-pages.php:15594
+msgid "Generate lesson pages"
+msgstr "학습 페이지 생성"
