@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-05-29T04:33:30+00:00\n"
+"POT-Creation-Date: 2026-05-30T04:32:32+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -116,7 +116,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:540
 #: includes/admin/export-import.php:3778
 #: includes/admin/word-option-rules-admin.php:1935
-#: includes/pages/wordset-pages.php:10281
+#: includes/pages/wordset-pages.php:10291
 msgid "Import"
 msgstr ""
 
@@ -127,7 +127,7 @@ msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:165
 #: includes/admin/admin-dashboard-menu.php:558
-#: includes/pages/wordset-pages.php:10344
+#: includes/pages/wordset-pages.php:10354
 msgid "Offline App Export"
 msgstr ""
 
@@ -219,10 +219,10 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:36
 #: includes/admin/teacher-classes-page.php:37
 #: includes/admin/teacher-classes-page.php:538
-#: includes/pages/wordset-pages.php:8951
-#: includes/pages/wordset-pages.php:9027
-#: includes/pages/wordset-pages.php:10071
-#: includes/pages/wordset-pages.php:16621
+#: includes/pages/wordset-pages.php:8961
+#: includes/pages/wordset-pages.php:9037
+#: includes/pages/wordset-pages.php:10081
+#: includes/pages/wordset-pages.php:16631
 #: includes/teacher-classes.php:26
 msgid "Classes"
 msgstr ""
@@ -277,8 +277,8 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:102
 #: includes/admin/user-progress-report.php:956
 #: includes/pages/wordset-editor.php:2820
-#: includes/pages/wordset-pages.php:15871
-#: includes/pages/wordset-pages.php:16093
+#: includes/pages/wordset-pages.php:15881
+#: includes/pages/wordset-pages.php:16103
 #: includes/post-types/words-post-type.php:21
 #: includes/post-types/words-post-type.php:26
 msgid "Words"
@@ -337,7 +337,7 @@ msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:394
 #: includes/admin/admin-dashboard-menu.php:819
-#: includes/pages/wordset-pages.php:10305
+#: includes/pages/wordset-pages.php:10315
 #: language-learner-tools.php:817
 msgid "Settings"
 msgstr ""
@@ -525,7 +525,7 @@ msgid "Lower-frequency admin pages for lesson and taxonomy maintenance."
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:936
-#: includes/pages/wordset-pages.php:10278
+#: includes/pages/wordset-pages.php:10288
 msgid "Advanced"
 msgstr ""
 
@@ -761,7 +761,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:143
 #: includes/admin/audio-processor-admin.php:164
 #: includes/admin/ipa-keyboard-admin.php:261
-#: includes/pages/wordset-pages.php:15938
+#: includes/pages/wordset-pages.php:15948
 #: includes/shortcodes/dictionary-shortcode.php:39
 #: includes/shortcodes/word-grid-shortcode.php:3449
 #: templates/vocab-lesson-template.php:363
@@ -804,7 +804,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:155
 #: includes/admin/audio-processor-admin.php:722
 #: includes/pages/wordset-editor.php:3067
-#: includes/pages/wordset-pages.php:13289
+#: includes/pages/wordset-pages.php:13299
 #: includes/shortcodes/word-grid-shortcode.php:5069
 msgid "Edit word"
 msgstr ""
@@ -839,11 +839,11 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:1641
 #: includes/pages/wordset-editor.php:3016
 #: includes/pages/wordset-editor.php:3055
-#: includes/pages/wordset-pages.php:9558
-#: includes/pages/wordset-pages.php:15857
-#: includes/pages/wordset-pages.php:16212
-#: includes/pages/wordset-pages.php:16214
-#: includes/pages/wordset-pages.php:17635
+#: includes/pages/wordset-pages.php:9568
+#: includes/pages/wordset-pages.php:15867
+#: includes/pages/wordset-pages.php:16222
+#: includes/pages/wordset-pages.php:16224
+#: includes/pages/wordset-pages.php:17648
 #: includes/post-types/word-audio-post-type.php:113
 #: includes/post-types/words-post-type.php:22
 #: includes/privacy.php:387
@@ -1003,8 +1003,8 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:298
 #: includes/admin/word-option-rules-admin.php:1628
 #: includes/admin/word-option-rules-admin.php:1806
-#: includes/pages/wordset-pages.php:9266
-#: includes/pages/wordset-pages.php:9301
+#: includes/pages/wordset-pages.php:9276
+#: includes/pages/wordset-pages.php:9311
 msgid "Remove"
 msgstr ""
 
@@ -1018,8 +1018,8 @@ msgstr ""
 #: includes/admin/recording-types-admin.php:163
 #: includes/admin/teacher-classes-page.php:643
 #: includes/admin/teacher-classes-page.php:674
-#: includes/pages/wordset-pages.php:9070
-#: includes/pages/wordset-pages.php:15807
+#: includes/pages/wordset-pages.php:9080
+#: includes/pages/wordset-pages.php:15817
 #: includes/shortcodes/site-tools-shortcode.php:1257
 msgid "Delete"
 msgstr ""
@@ -1370,11 +1370,11 @@ msgstr ""
 #: includes/admin/user-progress-report.php:955
 #: includes/admin/word-option-rules-admin.php:1370
 #: includes/pages/wordset-editor.php:2861
-#: includes/pages/wordset-pages.php:12446
-#: includes/pages/wordset-pages.php:15858
-#: includes/pages/wordset-pages.php:16137
-#: includes/pages/wordset-pages.php:16218
-#: includes/pages/wordset-pages.php:16226
+#: includes/pages/wordset-pages.php:12456
+#: includes/pages/wordset-pages.php:15868
+#: includes/pages/wordset-pages.php:16147
+#: includes/pages/wordset-pages.php:16228
+#: includes/pages/wordset-pages.php:16236
 #: includes/post-types/prompt-card-post-type.php:694
 #: includes/privacy.php:389
 #: includes/privacy.php:478
@@ -1396,9 +1396,9 @@ msgstr ""
 #: includes/pages/wordset-editor.php:2867
 #: includes/pages/wordset-editor.php:2877
 #: includes/pages/wordset-editor.php:2885
-#: includes/pages/wordset-pages.php:9505
-#: includes/pages/wordset-pages.php:15873
-#: includes/pages/wordset-pages.php:17338
+#: includes/pages/wordset-pages.php:9515
+#: includes/pages/wordset-pages.php:15883
+#: includes/pages/wordset-pages.php:17351
 msgid "All"
 msgstr ""
 
@@ -1467,9 +1467,9 @@ msgstr ""
 #: includes/admin/split-word-admin.php:397
 #: includes/admin/user-progress-report.php:992
 #: includes/pages/wordset-editor.php:2865
-#: includes/pages/wordset-pages.php:15886
-#: includes/pages/wordset-pages.php:16256
-#: includes/pages/wordset-pages.php:16264
+#: includes/pages/wordset-pages.php:15896
+#: includes/pages/wordset-pages.php:16266
+#: includes/pages/wordset-pages.php:16274
 #: includes/privacy.php:395
 #: includes/privacy.php:484
 msgid "Status"
@@ -1507,7 +1507,7 @@ msgstr ""
 #: includes/admin/bulk-translation-admin.php:216
 #: includes/admin/ipa-keyboard-admin.php:276
 #: includes/admin/ipa-keyboard-admin.php:404
-#: includes/pages/wordset-pages.php:15837
+#: includes/pages/wordset-pages.php:15847
 #: includes/post-types/prompt-card-post-type.php:550
 #: includes/shortcodes/image-copyright-grid-shortcode.php:204
 #: templates/vocab-lesson-template.php:513
@@ -1659,7 +1659,7 @@ msgstr[1] ""
 
 #: includes/admin/bulk-word-import-admin.php:560
 #: includes/admin/prompt-audio-import-admin.php:355
-#: includes/pages/wordset-pages.php:6267
+#: includes/pages/wordset-pages.php:6277
 msgid "%d empty line was ignored."
 msgid_plural "%d empty lines were ignored."
 msgstr[0] ""
@@ -2188,9 +2188,9 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:695
 #: includes/admin/uploads/audio-upload-form.php:404
 #: includes/admin/uploads/image-upload-form.php:582
-#: includes/pages/wordset-pages.php:10269
-#: includes/pages/wordset-pages.php:10751
-#: includes/pages/wordset-pages.php:14687
+#: includes/pages/wordset-pages.php:10279
+#: includes/pages/wordset-pages.php:10761
+#: includes/pages/wordset-pages.php:14697
 #: includes/post-types/dictionary-entry-post-type.php:1777
 #: includes/post-types/words-post-type.php:989
 #: includes/taxonomies/wordset-taxonomy.php:1311
@@ -2520,8 +2520,8 @@ msgstr ""
 #: includes/admin/duplicate-category-words-admin.php:789
 #: includes/pages/wordset-editor.php:2739
 #: includes/pages/wordset-editor.php:2998
-#: includes/pages/wordset-pages.php:12474
-#: includes/pages/wordset-pages.php:12481
+#: includes/pages/wordset-pages.php:12484
+#: includes/pages/wordset-pages.php:12491
 msgid "New category name"
 msgstr ""
 
@@ -2736,12 +2736,12 @@ msgid "Back to export page"
 msgstr ""
 
 #: includes/admin/export-import.php:175
-#: includes/pages/wordset-pages.php:9203
+#: includes/pages/wordset-pages.php:9213
 msgid "Copied"
 msgstr ""
 
 #: includes/admin/export-import.php:176
-#: includes/pages/wordset-pages.php:9204
+#: includes/pages/wordset-pages.php:9214
 msgid "Copy failed"
 msgstr ""
 
@@ -2849,7 +2849,7 @@ msgstr ""
 #: includes/admin/uploads/image-upload-form.php:703
 #: includes/admin/word-option-rules-admin.php:1640
 #: includes/admin/word-option-rules-admin.php:1683
-#: includes/pages/wordset-pages.php:10302
+#: includes/pages/wordset-pages.php:10312
 #: includes/post-types/content-lesson-post-type.php:1219
 #: includes/shortcodes/editor-hub-shortcode.php:1082
 #: includes/taxonomies/word-category-taxonomy.php:1166
@@ -3008,7 +3008,7 @@ msgid "Import failed: could not write extracted files."
 msgstr ""
 
 #: includes/admin/export-import.php:1541
-#: includes/pages/wordset-pages.php:9497
+#: includes/pages/wordset-pages.php:9507
 msgid "Paused"
 msgstr ""
 
@@ -3131,7 +3131,7 @@ msgstr ""
 #: includes/admin/offline-app-export.php:1278
 #: includes/admin/orphan-media-admin.php:1476
 #: includes/api/automation-rest.php:3517
-#: includes/pages/wordset-pages.php:5422
+#: includes/pages/wordset-pages.php:5432
 msgid "ZipArchive is not available on this server."
 msgstr ""
 
@@ -3264,8 +3264,8 @@ msgstr ""
 #: includes/admin/export-import.php:11799
 #: includes/admin/export-import.php:11831
 #: includes/lib/wordset-language-settings.php:1099
-#: includes/pages/wordset-pages.php:12235
-#: includes/pages/wordset-pages.php:15292
+#: includes/pages/wordset-pages.php:12245
+#: includes/pages/wordset-pages.php:15302
 msgid "Recording text"
 msgstr ""
 
@@ -3675,7 +3675,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:463
 #: includes/admin/teacher-classes-page.php:568
 #: includes/admin/word-option-rules-admin.php:1358
-#: includes/pages/wordset-pages.php:8996
+#: includes/pages/wordset-pages.php:9006
 #: includes/post-types/content-lesson-post-type.php:1178
 #: includes/privacy.php:391
 #: includes/privacy.php:480
@@ -4039,12 +4039,12 @@ msgstr ""
 
 #: includes/admin/export-import.php:4170
 #: includes/admin/user-progress-report.php:932
-#: includes/pages/wordset-pages.php:9645
-#: includes/pages/wordset-pages.php:15865
+#: includes/pages/wordset-pages.php:9655
 #: includes/pages/wordset-pages.php:15875
-#: includes/pages/wordset-pages.php:15876
-#: includes/pages/wordset-pages.php:15879
-#: includes/pages/wordset-pages.php:16068
+#: includes/pages/wordset-pages.php:15885
+#: includes/pages/wordset-pages.php:15886
+#: includes/pages/wordset-pages.php:15889
+#: includes/pages/wordset-pages.php:16078
 msgid "New"
 msgstr ""
 
@@ -5209,10 +5209,10 @@ msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:805
 #: includes/admin/image-aspect-normalizer-admin.php:866
-#: includes/pages/vocab-lesson-pages.php:3078
-#: includes/pages/vocab-lesson-pages.php:3256
-#: includes/pages/vocab-lesson-pages.php:3299
-#: includes/pages/vocab-lesson-pages.php:3417
+#: includes/pages/vocab-lesson-pages.php:3085
+#: includes/pages/vocab-lesson-pages.php:3263
+#: includes/pages/vocab-lesson-pages.php:3306
+#: includes/pages/vocab-lesson-pages.php:3424
 msgid "Category not found."
 msgstr ""
 
@@ -5527,10 +5527,10 @@ msgstr ""
 #: includes/admin/site-sync-admin.php:1122
 #: includes/lib/interlinear.php:1679
 #: includes/lib/interlinear.php:1683
-#: includes/pages/wordset-pages.php:9528
-#: includes/pages/wordset-pages.php:9562
-#: includes/pages/wordset-pages.php:17529
-#: includes/pages/wordset-pages.php:17658
+#: includes/pages/wordset-pages.php:9538
+#: includes/pages/wordset-pages.php:9572
+#: includes/pages/wordset-pages.php:17542
+#: includes/pages/wordset-pages.php:17671
 #: includes/shortcodes/audio-credit-grid-shortcode.php:321
 #: includes/shortcodes/dictionary-shortcode.php:1966
 #: includes/shortcodes/flashcard-widget.php:430
@@ -5772,7 +5772,7 @@ msgid "Blocked mappings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:290
-#: includes/pages/vocab-lesson-pages.php:4229
+#: includes/pages/vocab-lesson-pages.php:4236
 #: includes/pages/wordset-editor.php:3286
 #: templates/vocab-lesson-template.php:570
 msgid "Undo"
@@ -5905,14 +5905,14 @@ msgstr ""
 #: includes/admin/user-progress-report.php:951
 #: includes/pages/wordset-editor.php:3020
 #: includes/pages/wordset-editor.php:3074
-#: includes/pages/wordset-pages.php:10272
-#: includes/pages/wordset-pages.php:11949
-#: includes/pages/wordset-pages.php:14026
-#: includes/pages/wordset-pages.php:14275
-#: includes/pages/wordset-pages.php:15803
+#: includes/pages/wordset-pages.php:10282
+#: includes/pages/wordset-pages.php:11959
+#: includes/pages/wordset-pages.php:14036
+#: includes/pages/wordset-pages.php:14285
 #: includes/pages/wordset-pages.php:15813
-#: includes/pages/wordset-pages.php:15870
-#: includes/pages/wordset-pages.php:16092
+#: includes/pages/wordset-pages.php:15823
+#: includes/pages/wordset-pages.php:15880
+#: includes/pages/wordset-pages.php:16102
 #: includes/post-types/word-audio-post-type.php:114
 #: includes/post-types/word-image-post-type.php:955
 #: includes/post-types/words-post-type.php:987
@@ -6307,10 +6307,10 @@ msgid "%1$d words ready to convert"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:426
-#: includes/pages/wordset-pages.php:15824
-#: includes/pages/wordset-pages.php:15903
-#: includes/pages/wordset-pages.php:16185
-#: includes/pages/wordset-pages.php:16849
+#: includes/pages/wordset-pages.php:15834
+#: includes/pages/wordset-pages.php:15913
+#: includes/pages/wordset-pages.php:16195
+#: includes/pages/wordset-pages.php:16859
 #: includes/shortcodes/flashcard-widget.php:470
 #: templates/flashcard-widget-template.php:50
 #: templates/offline-app-shell-template.php:819
@@ -6319,8 +6319,8 @@ msgid "Select all"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:427
-#: includes/pages/wordset-pages.php:16394
-#: includes/pages/wordset-pages.php:16903
+#: includes/pages/wordset-pages.php:16404
+#: includes/pages/wordset-pages.php:16913
 #: includes/shortcodes/flashcard-widget.php:469
 #: templates/offline-app-shell-template.php:842
 msgid "Clear selection"
@@ -6484,9 +6484,9 @@ msgstr ""
 #: includes/lib/wordset-language-settings.php:1168
 #: includes/pages/wordset-editor.php:990
 #: includes/pages/wordset-games.php:3060
-#: includes/pages/wordset-pages.php:9559
-#: includes/pages/wordset-pages.php:15299
-#: includes/pages/wordset-pages.php:17639
+#: includes/pages/wordset-pages.php:9569
+#: includes/pages/wordset-pages.php:15309
+#: includes/pages/wordset-pages.php:17652
 #: includes/shortcodes/editor-hub-shortcode.php:644
 #: includes/shortcodes/editor-hub-shortcode.php:645
 #: includes/shortcodes/editor-hub-shortcode.php:1039
@@ -7295,7 +7295,7 @@ msgid "App Name"
 msgstr ""
 
 #: includes/admin/offline-app-export.php:732
-#: includes/pages/wordset-pages.php:14069
+#: includes/pages/wordset-pages.php:14079
 msgid "Used in the offline app shell and Android build metadata."
 msgstr ""
 
@@ -7405,7 +7405,7 @@ msgid "One or more selected categories are not available in the selected word se
 msgstr ""
 
 #: includes/admin/offline-app-export.php:1300
-#: includes/pages/wordset-pages.php:6194
+#: includes/pages/wordset-pages.php:6204
 msgid "Offline app export did not produce a zip file."
 msgstr ""
 
@@ -7469,8 +7469,8 @@ msgstr ""
 
 #: includes/admin/offline-app-export.php:1593
 #: includes/login-window.php:2381
-#: includes/pages/wordset-pages.php:10843
-#: includes/pages/wordset-pages.php:13891
+#: includes/pages/wordset-pages.php:10853
+#: includes/pages/wordset-pages.php:13901
 #: templates/offline-app-shell-template.php:682
 msgid "Username or email"
 msgstr ""
@@ -7486,7 +7486,7 @@ msgstr ""
 #: includes/login-window.php:2161
 #: includes/login-window.php:2163
 #: includes/login-window.php:2559
-#: includes/pages/wordset-pages.php:17401
+#: includes/pages/wordset-pages.php:17414
 #: templates/offline-app-shell-template.php:702
 msgid "Sign in"
 msgstr ""
@@ -7526,7 +7526,7 @@ msgstr ""
 
 #. translators: %s: word set name
 #: includes/admin/offline-app-export.php:1639
-#: includes/pages/wordset-pages.php:9097
+#: includes/pages/wordset-pages.php:9107
 msgid "Word set: %s"
 msgstr ""
 
@@ -7869,7 +7869,7 @@ msgstr ""
 #: includes/admin/orphan-media-admin.php:1777
 #: includes/admin/uploads/audio-upload-form.php:520
 #: includes/admin/uploads/image-upload-form.php:699
-#: includes/pages/wordset-pages.php:10299
+#: includes/pages/wordset-pages.php:10309
 #: includes/taxonomies/word-category-taxonomy.php:1171
 #: includes/taxonomies/word-category-taxonomy.php:1939
 #: includes/taxonomies/word-category-taxonomy.php:2045
@@ -8450,8 +8450,8 @@ msgstr ""
 
 #: includes/admin/site-sync-admin.php:647
 #: includes/admin/site-sync-admin.php:1925
-#: includes/pages/wordset-pages.php:9561
-#: includes/pages/wordset-pages.php:17655
+#: includes/pages/wordset-pages.php:9571
+#: includes/pages/wordset-pages.php:17668
 #: templates/vocab-lesson-template.php:356
 msgid "Retry"
 msgstr ""
@@ -9173,12 +9173,12 @@ msgid "Create a class"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:546
-#: includes/pages/wordset-pages.php:8979
+#: includes/pages/wordset-pages.php:8989
 msgid "Create a word set before creating classes."
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:554
-#: includes/pages/wordset-pages.php:8987
+#: includes/pages/wordset-pages.php:8997
 msgid "Class name"
 msgstr ""
 
@@ -9193,7 +9193,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:600
 #: includes/admin/teacher-classes-page.php:639
 #: includes/admin/teacher-classes-page.php:693
-#: includes/pages/wordset-pages.php:9007
+#: includes/pages/wordset-pages.php:9017
 #: includes/user-roles/teacher-role.php:36
 msgid "Teacher"
 msgstr ""
@@ -9203,7 +9203,7 @@ msgid "Administrators can create the class for any existing user. The selected u
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:620
-#: includes/pages/wordset-pages.php:9019
+#: includes/pages/wordset-pages.php:9029
 msgid "Create class"
 msgstr ""
 
@@ -9212,7 +9212,7 @@ msgid "No classes exist yet. Create one to start inviting learners."
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:632
-#: includes/pages/wordset-pages.php:9027
+#: includes/pages/wordset-pages.php:9037
 msgid "Your classes"
 msgstr ""
 
@@ -9223,13 +9223,13 @@ msgstr ""
 
 #: includes/admin/teacher-classes-page.php:641
 #: includes/admin/teacher-classes-page.php:699
-#: includes/pages/wordset-pages.php:9105
+#: includes/pages/wordset-pages.php:9115
 msgid "Students"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:642
 #: includes/admin/teacher-classes-page.php:665
-#: includes/pages/wordset-pages.php:9062
+#: includes/pages/wordset-pages.php:9072
 msgid "Open"
 msgstr ""
 
@@ -9239,12 +9239,12 @@ msgid "Not set"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:669
-#: includes/pages/wordset-pages.php:9064
+#: includes/pages/wordset-pages.php:9074
 msgid "Delete %s?"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:701
-#: includes/pages/wordset-pages.php:9109
+#: includes/pages/wordset-pages.php:9119
 msgid "30d rounds"
 msgstr ""
 
@@ -9257,21 +9257,21 @@ msgid "Mastered words"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:711
-#: includes/pages/wordset-pages.php:14196
-#: includes/pages/wordset-pages.php:14375
-#: includes/pages/wordset-pages.php:15836
-#: includes/pages/wordset-pages.php:15894
+#: includes/pages/wordset-pages.php:14206
+#: includes/pages/wordset-pages.php:14385
+#: includes/pages/wordset-pages.php:15846
+#: includes/pages/wordset-pages.php:15904
 msgid "Hard words"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:713
-#: includes/pages/wordset-pages.php:9188
+#: includes/pages/wordset-pages.php:9198
 msgid "Signup link"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:714
-#: includes/pages/wordset-pages.php:15567
-#: includes/pages/wordset-pages.php:15578
+#: includes/pages/wordset-pages.php:15577
+#: includes/pages/wordset-pages.php:15588
 msgid "Ready"
 msgstr ""
 
@@ -9304,17 +9304,17 @@ msgid "Administrators can add an existing learner account to this class immediat
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:751
-#: includes/pages/wordset-pages.php:9134
+#: includes/pages/wordset-pages.php:9144
 msgid "No eligible learner accounts are currently available to assign."
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:758
-#: includes/pages/wordset-pages.php:9143
+#: includes/pages/wordset-pages.php:9153
 msgid "Learner account"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:760
-#: includes/pages/wordset-pages.php:9145
+#: includes/pages/wordset-pages.php:9155
 msgid "Select a learner account"
 msgstr ""
 
@@ -9335,7 +9335,7 @@ msgid "Learner email"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:787
-#: includes/pages/wordset-pages.php:9177
+#: includes/pages/wordset-pages.php:9187
 msgid "learner@example.com"
 msgstr ""
 
@@ -9356,13 +9356,13 @@ msgid "Share this link with a learner who does not have an account yet. The lear
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:806
-#: includes/pages/wordset-pages.php:9213
+#: includes/pages/wordset-pages.php:9223
 msgid "Student progress"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:810
 #: includes/admin/user-progress-report.php:756
-#: includes/pages/wordset-pages.php:9226
+#: includes/pages/wordset-pages.php:9236
 #: includes/user-roles/learner-role.php:13
 msgid "Learner"
 msgstr ""
@@ -9370,7 +9370,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:811
 #: includes/admin/user-progress-report.php:757
 #: includes/login-window.php:2441
-#: includes/pages/wordset-pages.php:9232
+#: includes/pages/wordset-pages.php:9242
 msgid "Email"
 msgstr ""
 
@@ -9383,8 +9383,8 @@ msgstr ""
 #: includes/admin/user-progress-report.php:765
 #: includes/admin/user-progress-report.php:926
 #: includes/admin/user-progress-report.php:957
-#: includes/pages/wordset-pages.php:9113
-#: includes/pages/wordset-pages.php:9244
+#: includes/pages/wordset-pages.php:9123
+#: includes/pages/wordset-pages.php:9254
 msgid "Studied"
 msgstr ""
 
@@ -9392,18 +9392,18 @@ msgstr ""
 #: includes/admin/user-progress-report.php:766
 #: includes/admin/user-progress-report.php:928
 #: includes/admin/user-progress-report.php:958
-#: includes/pages/wordset-pages.php:9117
-#: includes/pages/wordset-pages.php:9250
+#: includes/pages/wordset-pages.php:9127
+#: includes/pages/wordset-pages.php:9260
 msgid "Mastered"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:815
 #: includes/admin/user-progress-report.php:767
 #: includes/admin/user-progress-report.php:934
-#: includes/pages/wordset-pages.php:9121
-#: includes/pages/wordset-pages.php:9256
-#: includes/pages/wordset-pages.php:9650
-#: includes/pages/wordset-pages.php:15867
+#: includes/pages/wordset-pages.php:9131
+#: includes/pages/wordset-pages.php:9266
+#: includes/pages/wordset-pages.php:9660
+#: includes/pages/wordset-pages.php:15877
 msgid "Hard"
 msgstr ""
 
@@ -9413,18 +9413,18 @@ msgid "Last Activity (UTC)"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:823
-#: includes/pages/wordset-pages.php:9217
+#: includes/pages/wordset-pages.php:9227
 msgid "No learners have joined this class yet."
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:843
-#: includes/pages/wordset-pages.php:9294
+#: includes/pages/wordset-pages.php:9304
 msgid "Remove %s from this class?"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:191
 #: includes/pages/wordset-editor.php:332
-#: includes/pages/wordset-pages.php:11818
+#: includes/pages/wordset-pages.php:11828
 msgid "Category creation is not available right now."
 msgstr ""
 
@@ -9659,7 +9659,7 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:525
 #: includes/admin/uploads/image-upload-form.php:704
-#: includes/pages/wordset-pages.php:14441
+#: includes/pages/wordset-pages.php:14451
 #: includes/taxonomies/word-category-taxonomy.php:1168
 #: includes/taxonomies/word-category-taxonomy.php:1945
 #: includes/taxonomies/word-category-taxonomy.php:2051
@@ -10080,8 +10080,8 @@ msgid "Words Needing Attention"
 msgstr ""
 
 #: includes/admin/user-progress-report.php:993
-#: includes/pages/wordset-pages.php:16275
-#: includes/pages/wordset-pages.php:16287
+#: includes/pages/wordset-pages.php:16285
+#: includes/pages/wordset-pages.php:16297
 msgid "Difficulty"
 msgstr ""
 
@@ -10363,7 +10363,7 @@ msgid "Remove pair: %s"
 msgstr ""
 
 #: includes/admin/word-option-rules-admin.php:1864
-#: includes/pages/wordset-pages.php:9488
+#: includes/pages/wordset-pages.php:9498
 msgid "Locked"
 msgstr ""
 
@@ -10408,9 +10408,9 @@ msgid "Apply to word set"
 msgstr ""
 
 #: includes/admin/word-option-rules-admin.php:1955
-#: includes/pages/wordset-pages.php:15812
-#: includes/pages/wordset-pages.php:15989
-#: includes/pages/wordset-pages.php:17426
+#: includes/pages/wordset-pages.php:15822
+#: includes/pages/wordset-pages.php:15999
+#: includes/pages/wordset-pages.php:17439
 #: includes/shortcodes/audio-recording-shortcode.php:1137
 #: includes/shortcodes/editor-hub-shortcode.php:1007
 #: includes/shortcodes/site-tools-shortcode.php:945
@@ -10848,10 +10848,10 @@ msgstr ""
 
 #: includes/cli/cli-support.php:411
 #: includes/cli/cli-support.php:908
-#: includes/pages/wordset-pages.php:12950
-#: includes/pages/wordset-pages.php:13180
-#: includes/pages/wordset-pages.php:13361
-#: includes/pages/wordset-pages.php:13408
+#: includes/pages/wordset-pages.php:12960
+#: includes/pages/wordset-pages.php:13190
+#: includes/pages/wordset-pages.php:13371
+#: includes/pages/wordset-pages.php:13418
 #: includes/post-types/words-post-type.php:1222
 #: includes/shortcodes/audio-recording-shortcode.php:1224
 #: includes/shortcodes/audio-recording-shortcode.php:1256
@@ -11366,7 +11366,7 @@ msgstr ""
 
 #: includes/lib/interlinear.php:1729
 #: includes/pages/wordset-pages.php:2095
-#: includes/pages/wordset-pages.php:10660
+#: includes/pages/wordset-pages.php:10670
 #: includes/taxonomies/wordset-taxonomy.php:3089
 msgid "Translation language"
 msgstr ""
@@ -11487,21 +11487,21 @@ msgstr ""
 msgid "You cannot edit internal review notes for this lesson."
 msgstr ""
 
-#: includes/lib/public-static-cache.php:1207
+#: includes/lib/public-static-cache.php:1236
 msgid "Clear LL cache"
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:1212
+#: includes/lib/public-static-cache.php:1241
 msgid "LL cache cleared (%d)"
 msgstr ""
 
-#: includes/lib/public-static-cache.php:1231
+#: includes/lib/public-static-cache.php:1260
 msgid "You are not allowed to clear LL Tools caches."
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:1267
+#: includes/lib/public-static-cache.php:1296
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
 msgstr[0] ""
@@ -12131,8 +12131,8 @@ msgid "Other symbols"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:114
-#: includes/pages/wordset-pages.php:15814
-#: includes/pages/wordset-pages.php:16707
+#: includes/pages/wordset-pages.php:15824
+#: includes/pages/wordset-pages.php:16717
 #: includes/shortcodes/flashcard-widget.php:481
 #: includes/shortcodes/quiz-pages-shortcodes.php:998
 #: templates/flashcard-widget-template.php:174
@@ -12305,7 +12305,7 @@ msgid "%s (Universal-2)"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:350
-#: includes/pages/wordset-pages.php:6028
+#: includes/pages/wordset-pages.php:6038
 msgid "Hosted STT API requires an HTTPS endpoint URL."
 msgstr ""
 
@@ -12338,18 +12338,18 @@ msgstr ""
 #: includes/pages/wordset-games.php:1794
 #: includes/pages/wordset-games.php:1797
 #: includes/pages/wordset-games.php:3063
-#: includes/pages/wordset-pages.php:12169
+#: includes/pages/wordset-pages.php:12179
 msgid "Written text"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:743
 #: includes/lib/wordset-language-settings.php:761
-#: includes/pages/wordset-pages.php:12182
+#: includes/pages/wordset-pages.php:12192
 msgid "Any learner who can view this word set"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:746
-#: includes/pages/wordset-pages.php:12183
+#: includes/pages/wordset-pages.php:12193
 msgid "Managers and admins only"
 msgstr ""
 
@@ -12370,43 +12370,43 @@ msgid "This STT model is configured to return normal text, so the speaking game 
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1064
-#: includes/pages/wordset-pages.php:12222
-#: includes/pages/wordset-pages.php:12341
+#: includes/pages/wordset-pages.php:12232
+#: includes/pages/wordset-pages.php:12351
 msgid "Local browser model"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1067
-#: includes/pages/wordset-pages.php:12223
-#: includes/pages/wordset-pages.php:12342
+#: includes/pages/wordset-pages.php:12233
+#: includes/pages/wordset-pages.php:12352
 msgid "Hosted STT API"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1070
-#: includes/pages/wordset-pages.php:12221
-#: includes/pages/wordset-pages.php:12340
+#: includes/pages/wordset-pages.php:12231
+#: includes/pages/wordset-pages.php:12350
 msgid "AssemblyAI"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1073
-#: includes/pages/wordset-pages.php:12339
+#: includes/pages/wordset-pages.php:12349
 msgid "Built-in audio matcher"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1076
-#: includes/pages/wordset-pages.php:12220
-#: includes/pages/wordset-pages.php:12338
-#: includes/pages/wordset-pages.php:15289
+#: includes/pages/wordset-pages.php:12230
+#: includes/pages/wordset-pages.php:12348
+#: includes/pages/wordset-pages.php:15299
 msgid "Disabled"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1083
-#: includes/pages/wordset-pages.php:12199
+#: includes/pages/wordset-pages.php:12209
 msgid "Secondary transcription field"
 msgstr ""
 
 #. translators: %s: transcription mode label, e.g. IPA
 #: includes/lib/wordset-language-settings.php:1090
-#: includes/pages/wordset-pages.php:12234
+#: includes/pages/wordset-pages.php:12244
 msgid "Secondary transcription field (%s)"
 msgstr ""
 
@@ -12476,8 +12476,8 @@ msgstr ""
 #: includes/lib/wordset-language-settings.php:1201
 #: includes/lib/wordset-language-settings.php:1213
 #: includes/lib/wordset-language-settings.php:1218
-#: includes/pages/wordset-pages.php:10293
-#: includes/pages/wordset-pages.php:12206
+#: includes/pages/wordset-pages.php:10303
+#: includes/pages/wordset-pages.php:12216
 msgid "Transcription"
 msgstr ""
 
@@ -12553,8 +12553,8 @@ msgid "Too many sign-up attempts from this connection. Please try again in a few
 msgstr ""
 
 #: includes/login-window.php:938
-#: includes/pages/wordset-pages.php:7214
-#: includes/pages/wordset-pages.php:7521
+#: includes/pages/wordset-pages.php:7224
+#: includes/pages/wordset-pages.php:7531
 msgid "Please enter a valid email address."
 msgstr ""
 
@@ -12679,9 +12679,9 @@ msgstr ""
 #: includes/login-window.php:2244
 #: includes/login-window.php:2362
 #: includes/login-window.php:2552
-#: includes/pages/wordset-pages.php:16000
-#: includes/pages/wordset-pages.php:16026
-#: includes/pages/wordset-pages.php:17430
+#: includes/pages/wordset-pages.php:16010
+#: includes/pages/wordset-pages.php:16036
+#: includes/pages/wordset-pages.php:17443
 msgid "Create account"
 msgstr ""
 
@@ -12720,8 +12720,8 @@ msgstr ""
 #: includes/login-window.php:2480
 #: includes/login-window.php:2482
 #: includes/login-window.php:2492
-#: includes/pages/wordset-pages.php:13185
-#: includes/pages/wordset-pages.php:15806
+#: includes/pages/wordset-pages.php:13195
+#: includes/pages/wordset-pages.php:15816
 msgid "Hide"
 msgstr ""
 
@@ -12791,13 +12791,13 @@ msgid "Texts"
 msgstr ""
 
 #: includes/pages/content-lesson-pages.php:330
-#: includes/pages/wordset-pages.php:16729
+#: includes/pages/wordset-pages.php:16739
 msgid "Main Lessons"
 msgstr ""
 
 #: includes/pages/content-lesson-pages.php:333
 #: includes/pages/wordset-pages.php:3238
-#: includes/pages/wordset-pages.php:15934
+#: includes/pages/wordset-pages.php:15944
 msgid "Open lesson"
 msgstr ""
 
@@ -12891,8 +12891,8 @@ msgid "Create a new dictionary page?"
 msgstr ""
 
 #: includes/pages/editor-hub-page.php:16
-#: includes/pages/wordset-pages.php:10048
-#: includes/pages/wordset-pages.php:14663
+#: includes/pages/wordset-pages.php:10058
+#: includes/pages/wordset-pages.php:14673
 #: includes/shortcodes/site-tools-shortcode.php:898
 msgid "Editor Hub"
 msgstr ""
@@ -12942,7 +12942,7 @@ msgstr ""
 #: includes/pages/quiz-pages.php:530
 #: includes/pages/vocab-lesson-pages.php:1811
 #: includes/pages/vocab-lesson-pages.php:1962
-#: includes/shortcodes/flashcard-widget.php:1284
+#: includes/shortcodes/flashcard-widget.php:1375
 msgid "Invalid category."
 msgstr ""
 
@@ -12953,7 +12953,7 @@ msgstr ""
 
 #: includes/pages/quiz-pages.php:900
 #: includes/pages/vocab-lesson-pages.php:2738
-#: includes/pages/wordset-pages.php:9554
+#: includes/pages/wordset-pages.php:9564
 #: includes/shortcodes/audio-recording-shortcode.php:1566
 #: includes/shortcodes/audio-recording-shortcode.php:1591
 #: includes/shortcodes/quiz-pages-shortcodes.php:892
@@ -13035,7 +13035,7 @@ msgid "Create a new recording page?"
 msgstr ""
 
 #: includes/pages/site-tools-page.php:16
-#: includes/pages/wordset-pages.php:10082
+#: includes/pages/wordset-pages.php:10092
 #: includes/shortcodes/site-tools-shortcode.php:887
 #: includes/shortcodes/site-tools-shortcode.php:1029
 msgid "Site Tools"
@@ -13086,7 +13086,7 @@ msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:1393
 #: includes/pages/vocab-lesson-pages.php:1466
-#: includes/pages/wordset-pages.php:9553
+#: includes/pages/wordset-pages.php:9563
 #: includes/shortcodes/quiz-pages-shortcodes.php:948
 #: templates/flashcard-widget-template.php:123
 #: templates/offline-app-shell-template.php:922
@@ -13095,17 +13095,17 @@ msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:1394
 #: includes/pages/vocab-lesson-pages.php:1467
-#: includes/pages/wordset-pages.php:9660
-#: includes/pages/wordset-pages.php:15891
-#: includes/pages/wordset-pages.php:16327
-#: includes/pages/wordset-pages.php:16338
-#: includes/pages/wordset-pages.php:16339
+#: includes/pages/wordset-pages.php:9670
+#: includes/pages/wordset-pages.php:15901
+#: includes/pages/wordset-pages.php:16337
+#: includes/pages/wordset-pages.php:16348
+#: includes/pages/wordset-pages.php:16349
 msgid "Wrong"
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:1437
 #: includes/pages/vocab-lesson-pages.php:1458
-#: includes/pages/wordset-pages.php:15881
+#: includes/pages/wordset-pages.php:15891
 #: includes/shortcodes/flashcard-widget.php:398
 #: includes/shortcodes/flashcard-widget.php:403
 #: includes/shortcodes/word-audio-shortcode.php:188
@@ -13140,45 +13140,45 @@ msgstr ""
 msgid "Lesson word option rules"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3052
+#: includes/pages/vocab-lesson-pages.php:3059
 msgid "Category settings saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3069
-#: includes/pages/vocab-lesson-pages.php:3408
+#: includes/pages/vocab-lesson-pages.php:3076
+#: includes/pages/vocab-lesson-pages.php:3415
 msgid "You do not have permission to update this category."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3072
-#: includes/pages/vocab-lesson-pages.php:3400
+#: includes/pages/vocab-lesson-pages.php:3079
+#: includes/pages/vocab-lesson-pages.php:3407
 #: includes/pages/wordset-pages.php:1316
-#: includes/pages/wordset-pages.php:5052
-#: includes/pages/wordset-pages.php:5103
-#: includes/pages/wordset-pages.php:5173
-#: includes/pages/wordset-pages.php:5229
-#: includes/pages/wordset-pages.php:5314
-#: includes/pages/wordset-pages.php:5410
-#: includes/pages/wordset-pages.php:6300
-#: includes/pages/wordset-pages.php:6447
-#: includes/pages/wordset-pages.php:7882
-#: includes/pages/wordset-pages.php:7988
+#: includes/pages/wordset-pages.php:5062
+#: includes/pages/wordset-pages.php:5113
+#: includes/pages/wordset-pages.php:5183
+#: includes/pages/wordset-pages.php:5239
+#: includes/pages/wordset-pages.php:5324
+#: includes/pages/wordset-pages.php:5420
+#: includes/pages/wordset-pages.php:6310
+#: includes/pages/wordset-pages.php:6457
+#: includes/pages/wordset-pages.php:7892
+#: includes/pages/wordset-pages.php:7998
 #: includes/shortcodes/site-tools-shortcode.php:421
 msgid "Your session expired. Please try again."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3075
-#: includes/pages/vocab-lesson-pages.php:3392
-#: includes/pages/vocab-lesson-pages.php:3428
+#: includes/pages/vocab-lesson-pages.php:3082
+#: includes/pages/vocab-lesson-pages.php:3399
+#: includes/pages/vocab-lesson-pages.php:3435
 msgid "This lesson no longer matches that word set category."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3081
-#: includes/pages/vocab-lesson-pages.php:3236
-#: includes/pages/vocab-lesson-pages.php:3382
-#: includes/pages/vocab-lesson-pages.php:4070
-#: includes/pages/vocab-lesson-pages.php:4079
-#: includes/pages/vocab-lesson-pages.php:4082
-#: includes/pages/vocab-lesson-pages.php:4085
+#: includes/pages/vocab-lesson-pages.php:3088
+#: includes/pages/vocab-lesson-pages.php:3243
+#: includes/pages/vocab-lesson-pages.php:3389
+#: includes/pages/vocab-lesson-pages.php:4077
+#: includes/pages/vocab-lesson-pages.php:4086
+#: includes/pages/vocab-lesson-pages.php:4089
+#: includes/pages/vocab-lesson-pages.php:4092
 #: templates/content-lesson-template.php:32
 #: templates/content-lesson-template.php:40
 #: templates/vocab-lesson-print-template.php:107
@@ -13186,167 +13186,167 @@ msgstr ""
 msgid "Lesson not found."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3084
+#: includes/pages/vocab-lesson-pages.php:3091
 msgid "Unable to save this category right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3163
+#: includes/pages/vocab-lesson-pages.php:3170
 msgid "Category settings were saved. This category no longer has a vocab lesson page for the current setup."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3195
-#: includes/pages/wordset-pages.php:9524
+#: includes/pages/vocab-lesson-pages.php:3202
+#: includes/pages/wordset-pages.php:9534
 msgid "Move earlier"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3196
-#: includes/pages/wordset-pages.php:9525
+#: includes/pages/vocab-lesson-pages.php:3203
+#: includes/pages/wordset-pages.php:9535
 msgid "Move later"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3197
+#: includes/pages/vocab-lesson-pages.php:3204
 msgid "Remove from print"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3198
+#: includes/pages/vocab-lesson-pages.php:3205
 msgid "Add back to print"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3199
+#: includes/pages/vocab-lesson-pages.php:3206
 #: templates/vocab-lesson-print-template.php:136
 msgid "Restore all"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3200
+#: includes/pages/vocab-lesson-pages.php:3207
 #: templates/vocab-lesson-print-template.php:145
 msgid "Removed"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3201
+#: includes/pages/vocab-lesson-pages.php:3208
 msgid "All words removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3202
+#: includes/pages/vocab-lesson-pages.php:3209
 msgid "Restore one or more words to print this lesson."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3223
-#: includes/pages/vocab-lesson-pages.php:4062
+#: includes/pages/vocab-lesson-pages.php:3230
+#: includes/pages/vocab-lesson-pages.php:4069
 msgid "Missing lesson."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3229
-#: includes/pages/vocab-lesson-pages.php:3360
-#: includes/pages/vocab-lesson-pages.php:4065
+#: includes/pages/vocab-lesson-pages.php:3236
+#: includes/pages/vocab-lesson-pages.php:3367
+#: includes/pages/vocab-lesson-pages.php:4072
 #: includes/shortcodes/dictionary-shortcode.php:2391
 msgid "Invalid request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3243
+#: includes/pages/vocab-lesson-pages.php:3250
 msgid "Lesson category is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3249
+#: includes/pages/vocab-lesson-pages.php:3256
 msgid "You do not have permission to edit this category title."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3264
+#: includes/pages/vocab-lesson-pages.php:3271
 #: templates/vocab-lesson-template.php:362
 msgid "Enter a category title."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3291
+#: includes/pages/vocab-lesson-pages.php:3298
 #: templates/vocab-lesson-template.php:365
 msgid "Unable to save this category title right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3314
+#: includes/pages/vocab-lesson-pages.php:3321
 #: templates/vocab-lesson-template.php:364
 msgid "Category title saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3551
-#: includes/pages/vocab-lesson-pages.php:3626
+#: includes/pages/vocab-lesson-pages.php:3558
+#: includes/pages/vocab-lesson-pages.php:3633
 #: templates/vocab-lesson-template.php:373
 msgid "Changes saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4076
+#: includes/pages/vocab-lesson-pages.php:4083
 msgid "Lesson metadata is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4091
+#: includes/pages/vocab-lesson-pages.php:4098
 #: includes/shortcodes/word-grid-shortcode.php:7116
 #: includes/shortcodes/word-grid-shortcode.php:7128
 msgid "Lesson terms are missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4177
+#: includes/pages/vocab-lesson-pages.php:4184
 msgid "%d vocab lesson page was restored."
 msgid_plural "%d vocab lesson pages were restored."
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: restored lesson page count, 2: failed lesson page count
-#: includes/pages/vocab-lesson-pages.php:4188
+#: includes/pages/vocab-lesson-pages.php:4195
 msgid "Restored %1$d vocab lesson pages. %2$d could not be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4193
+#: includes/pages/vocab-lesson-pages.php:4200
 msgid "No trashed vocab lesson pages were waiting to be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4195
+#: includes/pages/vocab-lesson-pages.php:4202
 msgid "Vocab lesson pages could not be restored right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4212
+#: includes/pages/vocab-lesson-pages.php:4219
 msgid "%d vocab lesson page was moved to the Trash. Use Undo to restore it if this was unintentional."
 msgid_plural "%d vocab lesson pages were moved to the Trash. Use Undo to restore them if this was unintentional."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/vocab-lesson-pages.php:4231
+#: includes/pages/vocab-lesson-pages.php:4238
 msgid "View Trash"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4240
+#: includes/pages/vocab-lesson-pages.php:4247
 msgid "You do not have permission to restore vocab lesson pages."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4380
+#: includes/pages/vocab-lesson-pages.php:4387
 msgid "You do not have permission to update vocab lesson settings."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4384
+#: includes/pages/vocab-lesson-pages.php:4391
 msgid "Invalid vocab lesson settings request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4430
+#: includes/pages/vocab-lesson-pages.php:4437
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4445
+#: includes/pages/vocab-lesson-pages.php:4452
 msgid "Vocab Lesson Settings"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4446
+#: includes/pages/vocab-lesson-pages.php:4453
 msgid "Choose which word sets should get vocab lesson pages at /{wordset}/{category} (and a wordset landing page at /{wordset}). Saving will sync pages automatically."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4461
+#: includes/pages/vocab-lesson-pages.php:4468
 msgid "No word sets found yet."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4465
+#: includes/pages/vocab-lesson-pages.php:4472
 msgid "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4469
+#: includes/pages/vocab-lesson-pages.php:4476
 msgid "Save Settings & Sync"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4470
+#: includes/pages/vocab-lesson-pages.php:4477
 msgid "Sync Now"
 msgstr ""
 
@@ -13435,8 +13435,8 @@ msgid "Title: %1$s -> %2$s"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:326
-#: includes/pages/wordset-pages.php:11784
-#: includes/pages/wordset-pages.php:11898
+#: includes/pages/wordset-pages.php:11794
+#: includes/pages/wordset-pages.php:11908
 msgid "Enter a category name."
 msgstr ""
 
@@ -13445,7 +13445,7 @@ msgid "You do not have permission to create categories for this word set."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:345
-#: includes/pages/wordset-pages.php:11829
+#: includes/pages/wordset-pages.php:11839
 msgid "Unable to create that category right now."
 msgstr ""
 
@@ -13490,19 +13490,19 @@ msgid "Dictionary entry"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:724
-#: includes/pages/wordset-pages.php:9682
-#: includes/pages/wordset-pages.php:15860
-#: includes/pages/wordset-pages.php:16237
+#: includes/pages/wordset-pages.php:9692
+#: includes/pages/wordset-pages.php:15870
+#: includes/pages/wordset-pages.php:16247
 msgid "POS"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:753
 #: includes/pages/wordset-pages.php:3503
-#: includes/pages/wordset-pages.php:14757
-#: includes/pages/wordset-pages.php:15912
+#: includes/pages/wordset-pages.php:14767
 #: includes/pages/wordset-pages.php:15922
-#: includes/pages/wordset-pages.php:15931
-#: includes/pages/wordset-pages.php:16082
+#: includes/pages/wordset-pages.php:15932
+#: includes/pages/wordset-pages.php:15941
+#: includes/pages/wordset-pages.php:16092
 #: includes/shortcodes/editor-hub-shortcode.php:515
 #: includes/shortcodes/editor-hub-shortcode.php:1059
 #: includes/shortcodes/flashcard-widget.php:412
@@ -13711,8 +13711,8 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:2412
 #: includes/pages/wordset-editor.php:2871
-#: includes/pages/wordset-pages.php:10765
-#: includes/pages/wordset-pages.php:15353
+#: includes/pages/wordset-pages.php:10775
+#: includes/pages/wordset-pages.php:15363
 #: includes/taxonomies/word-category-taxonomy.php:826
 #: includes/taxonomies/word-category-taxonomy.php:853
 #: includes/taxonomies/wordset-taxonomy.php:3147
@@ -13720,10 +13720,10 @@ msgid "Private"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:2552
-#: includes/pages/wordset-pages.php:11044
-#: includes/pages/wordset-pages.php:11954
-#: includes/pages/wordset-pages.php:15360
-#: includes/pages/wordset-pages.php:15466
+#: includes/pages/wordset-pages.php:11054
+#: includes/pages/wordset-pages.php:11964
+#: includes/pages/wordset-pages.php:15370
+#: includes/pages/wordset-pages.php:15476
 msgid "%d category"
 msgid_plural "%d categories"
 msgstr[0] ""
@@ -13782,7 +13782,7 @@ msgid "1 selected"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:2815
-#: includes/pages/wordset-pages.php:15816
+#: includes/pages/wordset-pages.php:15826
 msgid "%d selected"
 msgstr ""
 
@@ -13961,7 +13961,7 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:3053
 #: includes/pages/wordset-pages.php:3993
-#: includes/pages/wordset-pages.php:15826
+#: includes/pages/wordset-pages.php:15836
 msgid "Select %s"
 msgstr ""
 
@@ -14059,8 +14059,8 @@ msgid "Hear the word. Pop the matching bubble."
 msgstr ""
 
 #: includes/pages/wordset-games.php:263
-#: includes/pages/wordset-pages.php:9492
-#: includes/pages/wordset-pages.php:17300
+#: includes/pages/wordset-pages.php:9502
+#: includes/pages/wordset-pages.php:17313
 msgid "Open speaking settings"
 msgstr ""
 
@@ -14099,8 +14099,8 @@ msgstr ""
 
 #: includes/pages/wordset-games.php:2094
 #: includes/pages/wordset-games.php:4172
-#: includes/pages/wordset-pages.php:9522
-#: includes/pages/wordset-pages.php:17513
+#: includes/pages/wordset-pages.php:9532
+#: includes/pages/wordset-pages.php:17526
 msgid "Put the cards in the correct order."
 msgstr ""
 
@@ -14159,7 +14159,7 @@ msgstr ""
 #: includes/pages/wordset-games.php:3303
 #: includes/pages/wordset-games.php:3856
 #: includes/pages/wordset-games.php:4090
-#: includes/pages/wordset-pages.php:9936
+#: includes/pages/wordset-pages.php:9946
 #: templates/wordset-page-template.php:14
 #: templates/wordset-page-template.php:35
 msgid "Word set not found."
@@ -14282,13 +14282,13 @@ msgid "Choose a valid category."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:1146
-#: includes/pages/wordset-pages.php:11572
-#: includes/pages/wordset-pages.php:11866
+#: includes/pages/wordset-pages.php:11582
+#: includes/pages/wordset-pages.php:11876
 msgid "Delete child categories first."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:1153
-#: includes/pages/wordset-pages.php:11574
+#: includes/pages/wordset-pages.php:11584
 msgid "Remove or move the words in this category first."
 msgstr ""
 
@@ -14298,7 +14298,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:1177
 #: includes/pages/wordset-pages.php:1329
-#: includes/pages/wordset-pages.php:5167
+#: includes/pages/wordset-pages.php:5177
 msgid "You do not have permission to manage this category."
 msgstr ""
 
@@ -14321,14 +14321,14 @@ msgid "Unable to find that category."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:1313
-#: includes/pages/wordset-pages.php:5110
-#: includes/pages/wordset-pages.php:5235
-#: includes/pages/wordset-pages.php:5320
-#: includes/pages/wordset-pages.php:5416
-#: includes/pages/wordset-pages.php:5434
-#: includes/pages/wordset-pages.php:6306
-#: includes/pages/wordset-pages.php:7888
-#: includes/pages/wordset-pages.php:7991
+#: includes/pages/wordset-pages.php:5120
+#: includes/pages/wordset-pages.php:5245
+#: includes/pages/wordset-pages.php:5330
+#: includes/pages/wordset-pages.php:5426
+#: includes/pages/wordset-pages.php:5444
+#: includes/pages/wordset-pages.php:6316
+#: includes/pages/wordset-pages.php:7898
+#: includes/pages/wordset-pages.php:8001
 #: includes/taxonomies/wordset-taxonomy.php:547
 #: includes/taxonomies/wordset-taxonomy.php:552
 msgid "Unable to find that word set."
@@ -14352,19 +14352,19 @@ msgid "Unable to create the preview lesson right now."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:1500
-#: includes/pages/wordset-pages.php:5151
-#: includes/pages/wordset-pages.php:11923
+#: includes/pages/wordset-pages.php:5161
+#: includes/pages/wordset-pages.php:11933
 msgid "Category updated."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:1502
-#: includes/pages/wordset-pages.php:5139
+#: includes/pages/wordset-pages.php:5149
 msgid "Category hidden."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:1504
-#: includes/pages/wordset-pages.php:5145
-#: includes/pages/wordset-pages.php:11884
+#: includes/pages/wordset-pages.php:5155
+#: includes/pages/wordset-pages.php:11894
 msgid "Category deleted."
 msgstr ""
 
@@ -14372,7 +14372,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:1597
 #: includes/pages/wordset-pages.php:3163
 #: includes/pages/wordset-pages.php:3973
-#: includes/pages/wordset-pages.php:15805
+#: includes/pages/wordset-pages.php:15815
 msgid "Not public yet."
 msgstr ""
 
@@ -14429,7 +14429,7 @@ msgid "Open %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:3255
-#: includes/pages/wordset-pages.php:15933
+#: includes/pages/wordset-pages.php:15943
 msgid "Main lesson"
 msgstr ""
 
@@ -14438,8 +14438,8 @@ msgid "Lesson actions for %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:3499
-#: includes/pages/wordset-pages.php:14753
-#: includes/pages/wordset-pages.php:15928
+#: includes/pages/wordset-pages.php:14763
+#: includes/pages/wordset-pages.php:15938
 #: includes/shortcodes/flashcard-widget.php:408
 #: includes/shortcodes/flashcard-widget.php:413
 #: includes/shortcodes/flashcard-widget.php:418
@@ -14460,8 +14460,8 @@ msgid "Practice"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:3500
-#: includes/pages/wordset-pages.php:14754
-#: includes/pages/wordset-pages.php:15929
+#: includes/pages/wordset-pages.php:14764
+#: includes/pages/wordset-pages.php:15939
 #: includes/shortcodes/flashcard-widget.php:409
 #: includes/shortcodes/flashcard-widget.php:414
 #: includes/shortcodes/flashcard-widget.php:474
@@ -14480,8 +14480,8 @@ msgid "Learn"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:3501
-#: includes/pages/wordset-pages.php:14755
-#: includes/pages/wordset-pages.php:15930
+#: includes/pages/wordset-pages.php:14765
+#: includes/pages/wordset-pages.php:15940
 #: includes/shortcodes/flashcard-widget.php:416
 #: includes/shortcodes/flashcard-widget.php:475
 #: includes/shortcodes/flashcard-widget.php:558
@@ -14493,8 +14493,8 @@ msgid "Listen"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:3502
-#: includes/pages/wordset-pages.php:14756
-#: includes/pages/wordset-pages.php:15932
+#: includes/pages/wordset-pages.php:14766
+#: includes/pages/wordset-pages.php:15942
 #: includes/shortcodes/flashcard-widget.php:389
 #: includes/shortcodes/flashcard-widget.php:410
 #: includes/shortcodes/flashcard-widget.php:415
@@ -14515,22 +14515,22 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:4016
 #: includes/pages/wordset-pages.php:4025
-#: includes/pages/wordset-pages.php:15827
+#: includes/pages/wordset-pages.php:15837
 msgid "Hide %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4020
-#: includes/pages/wordset-pages.php:15809
+#: includes/pages/wordset-pages.php:15819
 msgid "Category management for %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4033
-#: includes/pages/wordset-pages.php:15828
+#: includes/pages/wordset-pages.php:15838
 msgid "Delete %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4038
-#: includes/pages/wordset-pages.php:15808
+#: includes/pages/wordset-pages.php:15818
 msgid "Delete this category and any linked vocab lesson? This cannot be undone."
 msgstr ""
 
@@ -14541,23 +14541,23 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:4106
-#: includes/pages/wordset-pages.php:15804
+#: includes/pages/wordset-pages.php:15814
 msgid "Not public"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4126
-#: includes/pages/wordset-pages.php:15830
+#: includes/pages/wordset-pages.php:15840
 msgid "Quiz modes for %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4131
-#: includes/pages/wordset-pages.php:15831
+#: includes/pages/wordset-pages.php:15841
 #: includes/shortcodes/flashcard-widget.php:490
 msgid "%1$s: %2$s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4158
-#: includes/pages/wordset-pages.php:12019
+#: includes/pages/wordset-pages.php:12029
 msgid "Add Category"
 msgstr ""
 
@@ -14565,880 +14565,880 @@ msgstr ""
 msgid "Create a fresh lesson category."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5022
+#: includes/pages/wordset-pages.php:5032
 msgid "the selected category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5026
+#: includes/pages/wordset-pages.php:5036
 msgid "Progress was reset for %s."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5033
+#: includes/pages/wordset-pages.php:5043
 msgid "Progress was reset for all categories in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5039
+#: includes/pages/wordset-pages.php:5049
 msgid "Progress was reset."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5046
+#: includes/pages/wordset-pages.php:5056
 msgid "You do not have permission to reset progress."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5058
+#: includes/pages/wordset-pages.php:5068
 msgid "Please choose a valid category with recorded progress."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5064
+#: includes/pages/wordset-pages.php:5074
 msgid "Reset all categories requires progress in at least two categories."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5070
+#: includes/pages/wordset-pages.php:5080
 msgid "Unable to reset progress right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5085
+#: includes/pages/wordset-pages.php:5095
 msgid "Lesson pages are now enabled for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5096
+#: includes/pages/wordset-pages.php:5106
 msgid "You do not have permission to enable lesson pages."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5116
+#: includes/pages/wordset-pages.php:5126
 msgid "Unable to enable lesson pages right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5179
+#: includes/pages/wordset-pages.php:5189
 msgid "This category still has content attached."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5185
+#: includes/pages/wordset-pages.php:5195
 msgid "Unable to open that lesson preview right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5191
+#: includes/pages/wordset-pages.php:5201
 msgid "Unable to update that category right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5212
+#: includes/pages/wordset-pages.php:5222
 msgid "Word set settings were updated."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5223
+#: includes/pages/wordset-pages.php:5233
 msgid "You do not have permission to manage this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5247
+#: includes/pages/wordset-pages.php:5257
 msgid "Unable to update word set settings right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5272
+#: includes/pages/wordset-pages.php:5282
 msgid "Word set manager access removed."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5279
+#: includes/pages/wordset-pages.php:5289
 msgid "Word set manager access enabled for %s."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5280
-#: includes/pages/wordset-pages.php:7719
+#: includes/pages/wordset-pages.php:5290
+#: includes/pages/wordset-pages.php:7729
 msgid "Word set manager access enabled."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5287
+#: includes/pages/wordset-pages.php:5297
 msgid "Word set manager invitation sent to %s."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5288
+#: includes/pages/wordset-pages.php:5298
 msgid "Word set manager invitation sent."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5294
+#: includes/pages/wordset-pages.php:5304
 msgid "Word set manager access updated."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5308
+#: includes/pages/wordset-pages.php:5318
 msgid "You do not have permission to manage word set managers for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5326
-#: includes/pages/wordset-pages.php:7357
+#: includes/pages/wordset-pages.php:5336
+#: includes/pages/wordset-pages.php:7367
 #: includes/taxonomies/wordset-taxonomy.php:613
 msgid "Unable to find that user."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5332
+#: includes/pages/wordset-pages.php:5342
 msgid "Enter an existing username or email address to enable manager access."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5338
+#: includes/pages/wordset-pages.php:5348
 msgid "Enter a valid email address for the manager invite."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5344
-#: includes/pages/wordset-pages.php:7583
+#: includes/pages/wordset-pages.php:5354
+#: includes/pages/wordset-pages.php:7593
 msgid "The word set manager invitation email could not be sent."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5350
+#: includes/pages/wordset-pages.php:5360
 #: includes/taxonomies/wordset-taxonomy.php:634
 msgid "Add another manager before removing the last manager for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5356
+#: includes/pages/wordset-pages.php:5366
 msgid "Word set manager access could not be updated."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5368
+#: includes/pages/wordset-pages.php:5378
 msgid "Unable to update word set manager access right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5383
+#: includes/pages/wordset-pages.php:5393
 msgid "Offline app export is ready to download."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5404
+#: includes/pages/wordset-pages.php:5414
 msgid "You do not have permission to export offline apps for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5428
+#: includes/pages/wordset-pages.php:5438
 msgid "Unable to export an offline app right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5604
+#: includes/pages/wordset-pages.php:5614
 #: includes/taxonomies/wordset-taxonomy.php:3722
 msgid "Category prerequisites were not saved because the submitted prerequisite data was incomplete. Refresh and save again."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5631
+#: includes/pages/wordset-pages.php:5641
 #: includes/taxonomies/wordset-taxonomy.php:3750
 msgid "cycle detected"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:5637
+#: includes/pages/wordset-pages.php:5647
 #: includes/taxonomies/wordset-taxonomy.php:3755
 msgid "Category prerequisites were not saved because they contain a loop (%s). Remove the cycle and save again."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6174
-#: includes/pages/wordset-pages.php:6181
+#: includes/pages/wordset-pages.php:6184
+#: includes/pages/wordset-pages.php:6191
 msgid "Offline app export is not available right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6242
+#: includes/pages/wordset-pages.php:6252
 msgid "%d word was imported."
 msgid_plural "%d words were imported."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6248
+#: includes/pages/wordset-pages.php:6258
 msgid "%d duplicate was skipped."
 msgid_plural "%d duplicates were skipped."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6251
+#: includes/pages/wordset-pages.php:6261
 msgid "Re-run with \"Allow duplicate titles\" to import them anyway."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6255
+#: includes/pages/wordset-pages.php:6265
 msgid "%d duplicate title was imported because duplicate override was enabled."
 msgid_plural "%d duplicate titles were imported because duplicate override was enabled."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6261
+#: includes/pages/wordset-pages.php:6271
 msgid "%d line was skipped because it did not include a prompt and answer pair."
 msgid_plural "%d lines were skipped because they did not include prompt and answer pairs."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6273
+#: includes/pages/wordset-pages.php:6283
 msgid "%d item failed during creation."
 msgid_plural "%d items failed during creation."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6278
+#: includes/pages/wordset-pages.php:6288
 msgid "No words were imported."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6294
+#: includes/pages/wordset-pages.php:6304
 msgid "You do not have permission to import into this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6312
+#: includes/pages/wordset-pages.php:6322
 msgid "Unable to use that category."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6318
+#: includes/pages/wordset-pages.php:6328
 msgid "Paste at least one prompt and answer pair to import."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6324
+#: includes/pages/wordset-pages.php:6334
 msgid "No valid prompt and answer pairs were found. Use one pair per line (tab-separated is recommended)."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6334
+#: includes/pages/wordset-pages.php:6344
 msgid "That paste is too large for the frontend importer. Keep each import under %s, split the list into smaller batches, and try again."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6346
+#: includes/pages/wordset-pages.php:6356
 msgid "That paste has too many valid rows for the frontend importer. Keep each import to %d row or fewer, split the list into smaller batches, and try again."
 msgid_plural "That paste has too many valid rows for the frontend importer. Keep each import to %d rows or fewer, split the list into smaller batches, and try again."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6354
+#: includes/pages/wordset-pages.php:6364
 msgid "Unable to import words right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6384
+#: includes/pages/wordset-pages.php:6394
 msgid "New word set created from this template."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6389
+#: includes/pages/wordset-pages.php:6399
 msgid "%d category copied."
 msgid_plural "%d categories copied."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6395
+#: includes/pages/wordset-pages.php:6405
 msgid "%d image copied."
 msgid_plural "%d images copied."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6400
+#: includes/pages/wordset-pages.php:6410
 msgid "Non-language word set settings were copied too."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6404
+#: includes/pages/wordset-pages.php:6414
 msgid "%d category could not be copied."
 msgid_plural "%d categories could not be copied."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6410
+#: includes/pages/wordset-pages.php:6420
 msgid "%d image could not be copied."
 msgid_plural "%d images could not be copied."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:6415
+#: includes/pages/wordset-pages.php:6425
 msgid "Set the new word set language next."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6441
+#: includes/pages/wordset-pages.php:6451
 msgid "You do not have permission to create a new word set from this template."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6453
+#: includes/pages/wordset-pages.php:6463
 #: includes/wordset-templates.php:257
 msgid "Unable to find that template word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6459
+#: includes/pages/wordset-pages.php:6469
 #: includes/wordset-templates.php:263
 msgid "Enter a name for the new word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6465
+#: includes/pages/wordset-pages.php:6475
 msgid "Unable to create a word set from this template right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6911
+#: includes/pages/wordset-pages.php:6921
 msgid "Template creation is not available right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:6933
+#: includes/pages/wordset-pages.php:6943
 msgid "The new word set was created, but it could not be opened automatically."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7099
-#: includes/pages/wordset-pages.php:7105
-#: includes/pages/wordset-pages.php:7110
+#: includes/pages/wordset-pages.php:7109
 #: includes/pages/wordset-pages.php:7115
-#: includes/pages/wordset-pages.php:7126
+#: includes/pages/wordset-pages.php:7120
+#: includes/pages/wordset-pages.php:7125
+#: includes/pages/wordset-pages.php:7136
 msgid "This recorder invitation link is invalid."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7123
-#: includes/pages/wordset-pages.php:7303
+#: includes/pages/wordset-pages.php:7133
+#: includes/pages/wordset-pages.php:7313
 msgid "This recorder invitation no longer matches an available word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7129
+#: includes/pages/wordset-pages.php:7139
 msgid "This recorder invitation link has expired."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7219
+#: includes/pages/wordset-pages.php:7229
 msgid "Could not create a recorder invitation link right now."
 msgstr ""
 
 #. translators: 1: site name, 2: word set name
-#: includes/pages/wordset-pages.php:7236
+#: includes/pages/wordset-pages.php:7246
 msgid "[%1$s] Recorder invitation for %2$s"
 msgstr ""
 
 #. translators: 1: site name, 2: word set name
-#: includes/pages/wordset-pages.php:7244
+#: includes/pages/wordset-pages.php:7254
 msgid "You have been invited on %1$s to record audio for the word set \"%2$s\"."
 msgstr ""
 
 #. translators: %s: manager display name
-#: includes/pages/wordset-pages.php:7252
+#: includes/pages/wordset-pages.php:7262
 msgid "Word set manager: %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7257
+#: includes/pages/wordset-pages.php:7267
 msgid "Open this link to create or connect a recorder account for this word set:"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7276
-#: includes/pages/wordset-pages.php:7918
+#: includes/pages/wordset-pages.php:7286
+#: includes/pages/wordset-pages.php:7928
 msgid "The recorder invitation email could not be sent."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7293
-#: includes/pages/wordset-pages.php:7600
+#: includes/pages/wordset-pages.php:7303
+#: includes/pages/wordset-pages.php:7610
 msgid "Please sign in with a valid user account."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7298
+#: includes/pages/wordset-pages.php:7308
 msgid "Please continue with the invited recorder email address."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7308
+#: includes/pages/wordset-pages.php:7318
 msgid "Recorder access could not be enabled right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7350
+#: includes/pages/wordset-pages.php:7360
 msgid "Word set manager access could not be updated right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7413
-#: includes/pages/wordset-pages.php:7419
-#: includes/pages/wordset-pages.php:7424
+#: includes/pages/wordset-pages.php:7423
 #: includes/pages/wordset-pages.php:7429
-#: includes/pages/wordset-pages.php:7440
+#: includes/pages/wordset-pages.php:7434
+#: includes/pages/wordset-pages.php:7439
+#: includes/pages/wordset-pages.php:7450
 msgid "This word set manager invitation link is invalid."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7437
-#: includes/pages/wordset-pages.php:7610
+#: includes/pages/wordset-pages.php:7447
+#: includes/pages/wordset-pages.php:7620
 msgid "This word set manager invitation no longer matches an available word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7443
+#: includes/pages/wordset-pages.php:7453
 msgid "This word set manager invitation link has expired."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7526
+#: includes/pages/wordset-pages.php:7536
 msgid "Could not create a word set manager invitation link right now."
 msgstr ""
 
 #. translators: 1: site name, 2: word set name
-#: includes/pages/wordset-pages.php:7543
+#: includes/pages/wordset-pages.php:7553
 msgid "[%1$s] Word set manager invitation for %2$s"
 msgstr ""
 
 #. translators: 1: site name, 2: word set name
-#: includes/pages/wordset-pages.php:7551
+#: includes/pages/wordset-pages.php:7561
 msgid "You have been invited on %1$s to manage the word set \"%2$s\"."
 msgstr ""
 
 #. translators: %s: manager display name
-#: includes/pages/wordset-pages.php:7559
+#: includes/pages/wordset-pages.php:7569
 msgid "Invited by: %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7564
+#: includes/pages/wordset-pages.php:7574
 msgid "Open this link to create or connect a word set manager account for this word set:"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7605
+#: includes/pages/wordset-pages.php:7615
 msgid "Please continue with the invited word set manager email address."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7621
+#: includes/pages/wordset-pages.php:7631
 msgid "Word set manager access could not be enabled right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7840
+#: includes/pages/wordset-pages.php:7850
 msgid "Recorder assignment removed for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7847
+#: includes/pages/wordset-pages.php:7857
 msgid "Recorder access enabled for %s and assigned to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7848
+#: includes/pages/wordset-pages.php:7858
 msgid "Recorder access enabled and assigned to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7855
+#: includes/pages/wordset-pages.php:7865
 msgid "Recorder invitation sent to %s."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7856
+#: includes/pages/wordset-pages.php:7866
 msgid "Recorder invitation sent."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7862
+#: includes/pages/wordset-pages.php:7872
 msgid "Recorder assignment updated for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7876
+#: includes/pages/wordset-pages.php:7886
 msgid "You do not have permission to manage recorder access for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7894
-#: includes/pages/wordset-pages.php:7994
+#: includes/pages/wordset-pages.php:7904
+#: includes/pages/wordset-pages.php:8004
 msgid "Unable to find that recorder user."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7900
-#: includes/pages/wordset-pages.php:7997
+#: includes/pages/wordset-pages.php:7910
+#: includes/pages/wordset-pages.php:8007
 msgid "The selected user does not have the Audio Recorder role."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7906
+#: includes/pages/wordset-pages.php:7916
 msgid "Enter an existing username or email address to enable recorder access."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7912
+#: includes/pages/wordset-pages.php:7922
 msgid "Enter a valid email address for the recorder invite."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7924
+#: includes/pages/wordset-pages.php:7934
 msgid "Recorder access could not be updated for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7936
+#: includes/pages/wordset-pages.php:7946
 msgid "Unable to update recorder access right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7971
+#: includes/pages/wordset-pages.php:7981
 msgid "Recorder queue updated. Recording prompts saved."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7974
+#: includes/pages/wordset-pages.php:7984
 msgid "Recorder queue settings saved."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7977
+#: includes/pages/wordset-pages.php:7987
 msgid "Recorder queue updated. Hidden word restored."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7980
+#: includes/pages/wordset-pages.php:7990
 msgid "Recorder queue updated. Word hidden for that recorder."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:7985
+#: includes/pages/wordset-pages.php:7995
 msgid "You do not have permission to update recorder queues for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8000
+#: includes/pages/wordset-pages.php:8010
 msgid "That recorder is not assigned to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8003
+#: includes/pages/wordset-pages.php:8013
 msgid "Unable to identify that queue item."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8006
+#: includes/pages/wordset-pages.php:8016
 msgid "Unable to save prompts for that queue item."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8009
+#: includes/pages/wordset-pages.php:8019
 msgid "Unable to update the recorder queue right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8048
+#: includes/pages/wordset-pages.php:8058
 msgid "Audio upload (match existing words)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8049
+#: includes/pages/wordset-pages.php:8059
 msgid "Audio upload"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8054
+#: includes/pages/wordset-pages.php:8064
 msgid "%1$s: %2$d file succeeded."
 msgid_plural "%1$s: %2$d files succeeded."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:8061
-#: includes/pages/wordset-pages.php:8099
+#: includes/pages/wordset-pages.php:8071
+#: includes/pages/wordset-pages.php:8109
 msgid "%d file failed."
 msgid_plural "%d files failed."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:8066
+#: includes/pages/wordset-pages.php:8076
 msgid "Audio upload completed with no processed files."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8093
+#: includes/pages/wordset-pages.php:8103
 msgid "Image upload: %d file succeeded."
 msgid_plural "Image upload: %d files succeeded."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:8104
+#: includes/pages/wordset-pages.php:8114
 msgid "Image upload completed with no processed files."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8402
+#: includes/pages/wordset-pages.php:8412
 msgid "Ask another manager or administrator to remove your manager access."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8943
-#: includes/pages/wordset-pages.php:16006
-#: includes/pages/wordset-pages.php:16423
-#: includes/pages/wordset-pages.php:16463
-#: includes/pages/wordset-pages.php:17314
+#: includes/pages/wordset-pages.php:8953
+#: includes/pages/wordset-pages.php:16016
+#: includes/pages/wordset-pages.php:16433
+#: includes/pages/wordset-pages.php:16473
+#: includes/pages/wordset-pages.php:17327
 #: templates/content-lesson-template.php:114
 #: templates/content-lesson-template.php:123
 #: templates/vocab-lesson-template.php:435
 msgid "Back to %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8958
+#: includes/pages/wordset-pages.php:8968
 msgid "Sign in to manage classes"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8959
+#: includes/pages/wordset-pages.php:8969
 msgid "Use your teacher account to open classes, invite learners, and review class progress."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8960
-#: includes/pages/wordset-pages.php:16617
+#: includes/pages/wordset-pages.php:8970
+#: includes/pages/wordset-pages.php:16627
 msgid "Open classes"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8968
+#: includes/pages/wordset-pages.php:8978
 msgid "Classes are available to teacher and administrator accounts only."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:8975
+#: includes/pages/wordset-pages.php:8985
 msgid "New class"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9033
+#: includes/pages/wordset-pages.php:9043
 msgid "Create a class to start inviting learners."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9057
+#: includes/pages/wordset-pages.php:9067
 msgid "%d student"
 msgid_plural "%d students"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:9085
+#: includes/pages/wordset-pages.php:9095
 msgid "Choose a class to see invites and student progress."
 msgstr ""
 
 #. translators: %s: teacher display name
-#: includes/pages/wordset-pages.php:9094
+#: includes/pages/wordset-pages.php:9104
 #: includes/teacher-classes.php:1214
 msgid "Teacher: %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9130
+#: includes/pages/wordset-pages.php:9140
 msgid "Add existing learner"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9155
+#: includes/pages/wordset-pages.php:9165
 msgid "Add learner"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9164
+#: includes/pages/wordset-pages.php:9174
 msgid "Invite learner"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9172
+#: includes/pages/wordset-pages.php:9182
 msgid "Existing learner email"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9181
+#: includes/pages/wordset-pages.php:9191
 msgid "Send invite"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9190
+#: includes/pages/wordset-pages.php:9200
 msgid "New learner accounts created from this link join the class automatically."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9202
-#: includes/pages/wordset-pages.php:9205
+#: includes/pages/wordset-pages.php:9212
+#: includes/pages/wordset-pages.php:9215
 msgid "Copy link"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9238
+#: includes/pages/wordset-pages.php:9248
 msgid "30d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9262
-#: includes/pages/wordset-pages.php:15888
-#: includes/pages/wordset-pages.php:15909
-#: includes/pages/wordset-pages.php:16155
-#: includes/pages/wordset-pages.php:16353
-#: includes/pages/wordset-pages.php:16361
+#: includes/pages/wordset-pages.php:9272
+#: includes/pages/wordset-pages.php:15898
+#: includes/pages/wordset-pages.php:15919
+#: includes/pages/wordset-pages.php:16165
+#: includes/pages/wordset-pages.php:16363
+#: includes/pages/wordset-pages.php:16371
 msgid "Last"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9477
-#: includes/pages/wordset-pages.php:17380
+#: includes/pages/wordset-pages.php:9487
+#: includes/pages/wordset-pages.php:17393
 msgid "Checking game availability..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9478
-#: includes/pages/wordset-pages.php:17700
+#: includes/pages/wordset-pages.php:9488
+#: includes/pages/wordset-pages.php:17713
 msgid "Preparing game..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9479
-#: includes/pages/wordset-pages.php:17381
+#: includes/pages/wordset-pages.php:9489
+#: includes/pages/wordset-pages.php:17394
 msgid "Sign in to play with your in-progress words."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9480
+#: includes/pages/wordset-pages.php:9490
 msgid "Unable to load games right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9481
+#: includes/pages/wordset-pages.php:9491
 msgid "%d words ready"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9482
+#: includes/pages/wordset-pages.php:9492
 msgid "%d sequences ready"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9483
+#: includes/pages/wordset-pages.php:9493
 msgid "Need %1$d more words to unlock this game."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9484
+#: includes/pages/wordset-pages.php:9494
 msgid "Need %1$d more learned words to unlock this game."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9485
+#: includes/pages/wordset-pages.php:9495
 msgid "This word set does not have a playable mix of picture cards yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9486
+#: includes/pages/wordset-pages.php:9496
 msgid "Each Line-Up sequence needs at least %d cards."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9487
-#: includes/pages/wordset-pages.php:17394
+#: includes/pages/wordset-pages.php:9497
+#: includes/pages/wordset-pages.php:17407
 msgctxt "launch game action"
 msgid "Play"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9489
-#: includes/pages/wordset-pages.php:17387
+#: includes/pages/wordset-pages.php:9499
+#: includes/pages/wordset-pages.php:17400
 msgid "Eligible words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9490
+#: includes/pages/wordset-pages.php:9500
 msgid "Speaking games are hidden because the speaking service for this word set is not responding on this device."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9491
+#: includes/pages/wordset-pages.php:9501
 msgid "Speaking games are hidden because this word set speaking setup is not available right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9493
-#: includes/pages/wordset-pages.php:16610
-#: includes/pages/wordset-pages.php:17322
+#: includes/pages/wordset-pages.php:9503
+#: includes/pages/wordset-pages.php:16620
+#: includes/pages/wordset-pages.php:17335
 #: templates/offline-app-shell-template.php:724
 #: templates/vocab-lesson-template.php:1021
 msgid "Games"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9494
-#: includes/pages/wordset-pages.php:17457
+#: includes/pages/wordset-pages.php:9504
+#: includes/pages/wordset-pages.php:17470
 msgid "Replay prompt"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9495
-#: includes/pages/wordset-pages.php:17480
+#: includes/pages/wordset-pages.php:9505
+#: includes/pages/wordset-pages.php:17493
 msgid "Pause run"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9496
+#: includes/pages/wordset-pages.php:9506
 msgid "Resume"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9498
+#: includes/pages/wordset-pages.php:9508
 msgid "Paused after %d rounds without input."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9499
-#: includes/pages/wordset-pages.php:17442
+#: includes/pages/wordset-pages.php:9509
+#: includes/pages/wordset-pages.php:17455
 msgid "Coins"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9500
-#: includes/pages/wordset-pages.php:17447
+#: includes/pages/wordset-pages.php:9510
+#: includes/pages/wordset-pages.php:17460
 msgid "Lives"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9501
-#: includes/pages/wordset-pages.php:17669
+#: includes/pages/wordset-pages.php:9511
+#: includes/pages/wordset-pages.php:17682
 msgid "Move left"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9502
-#: includes/pages/wordset-pages.php:17687
+#: includes/pages/wordset-pages.php:9512
+#: includes/pages/wordset-pages.php:17700
 msgid "Move right"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9503
-#: includes/pages/wordset-pages.php:17677
+#: includes/pages/wordset-pages.php:9513
+#: includes/pages/wordset-pages.php:17690
 msgid "Fire"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9504
-#: includes/pages/wordset-pages.php:17329
-#: includes/pages/wordset-pages.php:17330
-#: includes/pages/wordset-pages.php:17331
+#: includes/pages/wordset-pages.php:9514
+#: includes/pages/wordset-pages.php:17342
+#: includes/pages/wordset-pages.php:17343
+#: includes/pages/wordset-pages.php:17344
 msgid "Words per game"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9506
-#: includes/pages/wordset-pages.php:17341
+#: includes/pages/wordset-pages.php:9516
+#: includes/pages/wordset-pages.php:17354
 msgid "All available words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9507
+#: includes/pages/wordset-pages.php:9517
 msgid "Run Complete"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9508
+#: includes/pages/wordset-pages.php:9518
 msgid "Coins: %1$d · Prompts: %2$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9509
+#: includes/pages/wordset-pages.php:9519
 msgid "You win"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9510
+#: includes/pages/wordset-pages.php:9520
 msgid "Completed: %1$d of %2$d · Coins: %3$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9511
-#: includes/pages/wordset-pages.php:17705
+#: includes/pages/wordset-pages.php:9521
+#: includes/pages/wordset-pages.php:17718
 #: includes/shortcodes/quiz-pages-shortcodes.php:1001
 #: templates/flashcard-widget-template.php:177
 #: templates/offline-app-shell-template.php:976
 msgid "Replay"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9512
+#: includes/pages/wordset-pages.php:9522
 msgid "New game"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9513
-#: includes/pages/wordset-pages.php:17706
+#: includes/pages/wordset-pages.php:9523
+#: includes/pages/wordset-pages.php:17719
 msgid "Back to games"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9514
+#: includes/pages/wordset-pages.php:9524
 msgid "Leave this game? Your current run will be lost."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9515
-#: includes/pages/wordset-pages.php:17492
+#: includes/pages/wordset-pages.php:9525
+#: includes/pages/wordset-pages.php:17505
 msgid "Wordset game board"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9516
+#: includes/pages/wordset-pages.php:9526
 msgid "Space Shooter game board"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9517
+#: includes/pages/wordset-pages.php:9527
 msgid "Bubble Pop game board"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9518
+#: includes/pages/wordset-pages.php:9528
 msgid "Line-Up sequence board"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9519
+#: includes/pages/wordset-pages.php:9529
 msgid "Unscramble game board"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9520
+#: includes/pages/wordset-pages.php:9530
 msgid "Speaking practice panel"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9521
+#: includes/pages/wordset-pages.php:9531
 msgid "Word Stack game board"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9523
-#: includes/pages/wordset-pages.php:17510
+#: includes/pages/wordset-pages.php:9533
+#: includes/pages/wordset-pages.php:17523
 msgid "Sequence %1$d of %2$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9526
-#: includes/pages/wordset-pages.php:17526
+#: includes/pages/wordset-pages.php:9536
+#: includes/pages/wordset-pages.php:17539
 msgid "Shuffle"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9527
-#: includes/pages/wordset-pages.php:17528
+#: includes/pages/wordset-pages.php:9537
+#: includes/pages/wordset-pages.php:17541
 msgid "Check"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9529
+#: includes/pages/wordset-pages.php:9539
 msgid "Finish"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9530
+#: includes/pages/wordset-pages.php:9540
 msgid "Correct order."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9531
+#: includes/pages/wordset-pages.php:9541
 msgid "Not quite yet. %1$d of %2$d are in the right place."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9532
+#: includes/pages/wordset-pages.php:9542
 msgid "Line-Up complete"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9533
+#: includes/pages/wordset-pages.php:9543
 msgid "Perfect: %1$d of %2$d · Retries: %3$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9534
+#: includes/pages/wordset-pages.php:9544
 msgid "Put the tiles back in the right order."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9535
 #: includes/pages/wordset-pages.php:9545
+#: includes/pages/wordset-pages.php:9555
 msgid "Word %1$d of %2$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9536
-#: includes/pages/wordset-pages.php:17519
+#: includes/pages/wordset-pages.php:9546
+#: includes/pages/wordset-pages.php:17532
 msgid "Clue"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9537
+#: includes/pages/wordset-pages.php:9547
 msgid "%1$d of %2$d letters are in the right place."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9538
+#: includes/pages/wordset-pages.php:9548
 msgid "Solved."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9539
-#: includes/pages/wordset-pages.php:17527
+#: includes/pages/wordset-pages.php:9549
+#: includes/pages/wordset-pages.php:17540
 #: includes/shortcodes/audio-recording-shortcode.php:1774
 #: includes/shortcodes/editor-hub-shortcode.php:1073
 #: includes/shortcodes/editor-hub-shortcode.php:1146
@@ -15446,252 +15446,252 @@ msgstr ""
 msgid "Skip"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9540
+#: includes/pages/wordset-pages.php:9550
 msgid "Fixed tile"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9541
+#: includes/pages/wordset-pages.php:9551
 msgid "Unscramble complete"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9542
+#: includes/pages/wordset-pages.php:9552
 msgid "Solved: %1$d of %2$d · Moves: %3$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9543
+#: includes/pages/wordset-pages.php:9553
 msgid "Checking speaking game connection..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9544
+#: includes/pages/wordset-pages.php:9554
 msgid "Speaking practice is unavailable on this device right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9546
+#: includes/pages/wordset-pages.php:9556
 msgid "Say the word for this picture."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9547
+#: includes/pages/wordset-pages.php:9557
 msgid "Say the word for this prompt."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9548
-#: includes/pages/wordset-pages.php:17537
+#: includes/pages/wordset-pages.php:9558
+#: includes/pages/wordset-pages.php:17550
 msgid "Get ready..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9549
+#: includes/pages/wordset-pages.php:9559
 msgid "Listening..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9550
+#: includes/pages/wordset-pages.php:9560
 #: includes/shortcodes/audio-recording-shortcode.php:1431
 #: includes/shortcodes/word-grid-shortcode.php:3531
 msgid "Transcribing..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9551
-#: includes/pages/wordset-pages.php:9573
+#: includes/pages/wordset-pages.php:9561
+#: includes/pages/wordset-pages.php:9583
 msgid "Matching your audio..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9552
+#: includes/pages/wordset-pages.php:9562
 #: templates/flashcard-widget-template.php:42
 #: templates/flashcard-widget-template.php:55
 #: templates/offline-app-shell-template.php:866
 msgid "Start"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9555
+#: includes/pages/wordset-pages.php:9565
 msgid "Try again"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9556
-#: includes/pages/wordset-pages.php:17575
+#: includes/pages/wordset-pages.php:9566
+#: includes/pages/wordset-pages.php:17588
 msgid "You said"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9557
-#: includes/pages/wordset-pages.php:17631
+#: includes/pages/wordset-pages.php:9567
+#: includes/pages/wordset-pages.php:17644
 msgid "Target"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9560
+#: includes/pages/wordset-pages.php:9570
 msgid "Similarity"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9563
-#: includes/pages/wordset-pages.php:9576
+#: includes/pages/wordset-pages.php:9573
+#: includes/pages/wordset-pages.php:9586
 msgid "Microphone access failed."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9564
+#: includes/pages/wordset-pages.php:9574
 msgid "Transcription failed. Try again."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9565
+#: includes/pages/wordset-pages.php:9575
 msgid "That was too quiet. Try again."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9566
+#: includes/pages/wordset-pages.php:9576
 msgid "This browser cannot record audio for speaking practice."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9567
+#: includes/pages/wordset-pages.php:9577
 msgid "Speaking round complete"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9568
+#: includes/pages/wordset-pages.php:9578
 msgid "Right: %1$d · Close: %2$d · Wrong: %3$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9569
-#: includes/pages/wordset-pages.php:17495
+#: includes/pages/wordset-pages.php:9579
+#: includes/pages/wordset-pages.php:17508
 msgid "%1$d left"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9570
-#: includes/pages/wordset-pages.php:17496
+#: includes/pages/wordset-pages.php:9580
+#: includes/pages/wordset-pages.php:17509
 msgid "Mic ready"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9571
+#: includes/pages/wordset-pages.php:9581
 msgid "Listening for the next word..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9572
+#: includes/pages/wordset-pages.php:9582
 msgid "Checking your word..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9574
+#: includes/pages/wordset-pages.php:9584
 msgid "No clear word detected."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9575
+#: includes/pages/wordset-pages.php:9585
 msgid "No match yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9577
-#: includes/pages/wordset-pages.php:17499
+#: includes/pages/wordset-pages.php:9587
+#: includes/pages/wordset-pages.php:17512
 msgid "Heard"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9578
+#: includes/pages/wordset-pages.php:9588
 msgid "You cleared the stack"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9579
+#: includes/pages/wordset-pages.php:9589
 msgid "The stack reached the top"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9580
+#: includes/pages/wordset-pages.php:9590
 msgid "Time ran out"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9581
+#: includes/pages/wordset-pages.php:9591
 msgid "Cleared: %1$d of %2$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9635
-#: includes/pages/wordset-pages.php:15863
-#: includes/pages/wordset-pages.php:15877
-#: includes/pages/wordset-pages.php:16054
+#: includes/pages/wordset-pages.php:9645
+#: includes/pages/wordset-pages.php:15873
+#: includes/pages/wordset-pages.php:15887
+#: includes/pages/wordset-pages.php:16064
 msgid "Learned"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9640
-#: includes/pages/wordset-pages.php:15864
-#: includes/pages/wordset-pages.php:15878
-#: includes/pages/wordset-pages.php:16061
+#: includes/pages/wordset-pages.php:9650
+#: includes/pages/wordset-pages.php:15874
+#: includes/pages/wordset-pages.php:15888
+#: includes/pages/wordset-pages.php:16071
 msgid "In progress"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9655
-#: includes/pages/wordset-pages.php:15890
-#: includes/pages/wordset-pages.php:16301
-#: includes/pages/wordset-pages.php:16312
-#: includes/pages/wordset-pages.php:16313
+#: includes/pages/wordset-pages.php:9665
+#: includes/pages/wordset-pages.php:15900
+#: includes/pages/wordset-pages.php:16311
+#: includes/pages/wordset-pages.php:16322
+#: includes/pages/wordset-pages.php:16323
 msgid "Seen"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9669
+#: includes/pages/wordset-pages.php:9679
 msgid "Word table key"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9670
+#: includes/pages/wordset-pages.php:9680
 msgid "Key"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9720
-#: includes/pages/wordset-pages.php:15821
+#: includes/pages/wordset-pages.php:9730
+#: includes/pages/wordset-pages.php:15831
 msgid "New words only"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9723
-#: includes/pages/wordset-pages.php:15822
+#: includes/pages/wordset-pages.php:9733
+#: includes/pages/wordset-pages.php:15832
 msgid "In progress only"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9726
-#: includes/pages/wordset-pages.php:15823
+#: includes/pages/wordset-pages.php:9736
+#: includes/pages/wordset-pages.php:15833
 msgid "Learned only"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9728
-#: includes/pages/wordset-pages.php:16873
+#: includes/pages/wordset-pages.php:9738
+#: includes/pages/wordset-pages.php:16883
 msgid "Priority words only"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9912
+#: includes/pages/wordset-pages.php:9922
 msgid "Choose word set button image"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:9913
+#: includes/pages/wordset-pages.php:9923
 msgid "Use image"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10060
-#: includes/pages/wordset-pages.php:10287
-#: includes/pages/wordset-pages.php:14673
+#: includes/pages/wordset-pages.php:10070
+#: includes/pages/wordset-pages.php:10297
+#: includes/pages/wordset-pages.php:14683
 #: includes/shortcodes/site-tools-shortcode.php:909
 msgid "Recorder"
 msgstr ""
 
 #. translators: %s: word set name
-#: includes/pages/wordset-pages.php:10132
+#: includes/pages/wordset-pages.php:10142
 msgid "Manage %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10165
+#: includes/pages/wordset-pages.php:10175
 msgid "User menu"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10174
+#: includes/pages/wordset-pages.php:10184
 msgid "Signed in"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10179
-#: includes/pages/wordset-pages.php:10185
+#: includes/pages/wordset-pages.php:10189
+#: includes/pages/wordset-pages.php:10195
 msgid "Log out"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10188
+#: includes/pages/wordset-pages.php:10198
 msgid "Guest"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10215
+#: includes/pages/wordset-pages.php:10225
 msgid "Log in"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10219
+#: includes/pages/wordset-pages.php:10229
 msgid "Sign up"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10263
+#: includes/pages/wordset-pages.php:10273
 #: templates/offline-app-shell-template.php:720
 msgid "Study"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10266
+#: includes/pages/wordset-pages.php:10276
 #: includes/shortcodes/language-switcher-shortcode.php:864
 #: includes/shortcodes/language-switcher-shortcode.php:888
 #: includes/shortcodes/language-switcher-shortcode.php:894
@@ -15702,1580 +15702,1580 @@ msgstr ""
 msgid "Language"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10275
+#: includes/pages/wordset-pages.php:10285
 msgid "Editor"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10284
+#: includes/pages/wordset-pages.php:10294
 msgid "Template"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10290
-#: includes/pages/wordset-pages.php:10338
-#: includes/pages/wordset-pages.php:13569
+#: includes/pages/wordset-pages.php:10300
+#: includes/pages/wordset-pages.php:10348
+#: includes/pages/wordset-pages.php:13579
 msgid "Recorder Queues"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10296
+#: includes/pages/wordset-pages.php:10306
 msgid "Offline App"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10311
+#: includes/pages/wordset-pages.php:10321
 msgid "Study Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10314
+#: includes/pages/wordset-pages.php:10324
 msgid "Language Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10317
+#: includes/pages/wordset-pages.php:10327
 msgid "Word Set Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10320
+#: includes/pages/wordset-pages.php:10330
 msgid "Manage Categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10323
+#: includes/pages/wordset-pages.php:10333
 msgid "Wordset Editor"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10326
-#: includes/pages/wordset-pages.php:11036
+#: includes/pages/wordset-pages.php:10336
+#: includes/pages/wordset-pages.php:11046
 msgid "Advanced Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10329
-#: includes/pages/wordset-pages.php:12497
+#: includes/pages/wordset-pages.php:10339
+#: includes/pages/wordset-pages.php:12507
 msgid "Import Words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10332
-#: includes/pages/wordset-pages.php:12594
+#: includes/pages/wordset-pages.php:10342
+#: includes/pages/wordset-pages.php:12604
 msgid "Create Word Set From Template"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10335
-#: includes/pages/wordset-pages.php:13789
+#: includes/pages/wordset-pages.php:10345
+#: includes/pages/wordset-pages.php:13799
 msgid "Recorder Access"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10341
+#: includes/pages/wordset-pages.php:10351
 msgid "Transcription Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10347
-#: includes/pages/wordset-pages.php:16567
+#: includes/pages/wordset-pages.php:10357
+#: includes/pages/wordset-pages.php:16577
 msgid "Image Upload"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10350
-#: includes/pages/wordset-pages.php:16569
+#: includes/pages/wordset-pages.php:10360
+#: includes/pages/wordset-pages.php:16579
 msgid "Audio Upload"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10353
-#: includes/pages/wordset-pages.php:14681
-#: includes/pages/wordset-pages.php:16460
+#: includes/pages/wordset-pages.php:10363
+#: includes/pages/wordset-pages.php:14691
+#: includes/pages/wordset-pages.php:16470
 msgid "Word Set Tools"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10359
+#: includes/pages/wordset-pages.php:10369
 msgid "Practice preferences, learning modes, and next activities."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10362
+#: includes/pages/wordset-pages.php:10372
 msgid "Target language, translation labels, and recording text behavior."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10365
+#: includes/pages/wordset-pages.php:10375
 msgid "Public/private visibility and manager access for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10368
+#: includes/pages/wordset-pages.php:10378
 msgid "Create, rename, translate, re-parent, and safely delete categories in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10371
+#: includes/pages/wordset-pages.php:10381
 msgid "Search words, filter media states, bulk-edit categories and statuses, and undo recent editor actions."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10374
+#: includes/pages/wordset-pages.php:10384
 msgid "Category ordering, profile image and intro, answer text styling, grammar options, and game image sizing."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10377
+#: includes/pages/wordset-pages.php:10387
 msgid "Create words quickly from pasted prompt and answer pairs."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10380
+#: includes/pages/wordset-pages.php:10390
 msgid "Copy this word set's isolated categories and images into a new word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10383
+#: includes/pages/wordset-pages.php:10393
 msgid "Assign and review audio recorder access for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10386
+#: includes/pages/wordset-pages.php:10396
 msgid "Review each recorder's live queue and manage hidden words without leaving the front end."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10389
+#: includes/pages/wordset-pages.php:10399
 msgid "Choose whether lesson transcription uses AssemblyAI or a localhost model in your browser."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10392
+#: includes/pages/wordset-pages.php:10402
 msgid "Export this word set as a standalone offline learner app bundle."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10395
+#: includes/pages/wordset-pages.php:10405
 msgid "Upload images and optionally create draft words here."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10398
+#: includes/pages/wordset-pages.php:10408
 msgid "Upload audio and create or match word records."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10532
+#: includes/pages/wordset-pages.php:10542
 msgid "Choose a tool for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10599
+#: includes/pages/wordset-pages.php:10609
 #: includes/taxonomies/wordset-taxonomy.php:3046
 msgid "target language"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10600
+#: includes/pages/wordset-pages.php:10610
 #: includes/taxonomies/wordset-taxonomy.php:3047
 msgid "translation language"
 msgstr ""
 
 #. translators: 1: source language label, 2: destination language label
-#: includes/pages/wordset-pages.php:10604
-#: includes/pages/wordset-pages.php:10606
+#: includes/pages/wordset-pages.php:10614
+#: includes/pages/wordset-pages.php:10616
 #: includes/taxonomies/wordset-taxonomy.php:3050
 #: includes/taxonomies/wordset-taxonomy.php:3052
 msgid "%1$s to %2$s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10630
+#: includes/pages/wordset-pages.php:10640
 msgid "Language and labels"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10641
+#: includes/pages/wordset-pages.php:10651
 msgid "Word set languages"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10645
+#: includes/pages/wordset-pages.php:10655
 #: includes/taxonomies/wordset-taxonomy.php:3080
 msgid "Target language"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10655
+#: includes/pages/wordset-pages.php:10665
 #: includes/taxonomies/wordset-taxonomy.php:3083
 msgid "Enter the language being learned in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10669
+#: includes/pages/wordset-pages.php:10679
 msgid "Enter the helper or known language used for translations in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10675
+#: includes/pages/wordset-pages.php:10685
 msgid "Storage and recording text"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10679
+#: includes/pages/wordset-pages.php:10689
 #: includes/taxonomies/wordset-taxonomy.php:3098
 msgid "Word title language"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10681
+#: includes/pages/wordset-pages.php:10691
 #: includes/taxonomies/wordset-taxonomy.php:3100
 msgid "Target (language being learned)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10682
+#: includes/pages/wordset-pages.php:10692
 msgid "Translation (helper or known language)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10685
+#: includes/pages/wordset-pages.php:10695
 msgid "Controls whether word post titles are stored in the target language or the translation language for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10690
+#: includes/pages/wordset-pages.php:10700
 #: includes/taxonomies/wordset-taxonomy.php:3110
 msgid "Recording pronunciation text"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10692
+#: includes/pages/wordset-pages.php:10702
 #: includes/taxonomies/wordset-taxonomy.php:3112
 msgid "IPA (phonetic)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10693
+#: includes/pages/wordset-pages.php:10703
 #: includes/taxonomies/wordset-taxonomy.php:3113
 msgid "Transliteration (romanized text)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10694
+#: includes/pages/wordset-pages.php:10704
 #: includes/taxonomies/wordset-taxonomy.php:3114
 msgid "Transcription (other notation)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10697
+#: includes/pages/wordset-pages.php:10707
 msgid "Choose how the secondary recording text field behaves in this word set. Transliteration is better for romanized systems that do not need IPA formatting."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10703
+#: includes/pages/wordset-pages.php:10713
 msgid "Category labels"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10712
+#: includes/pages/wordset-pages.php:10722
 #: includes/taxonomies/wordset-taxonomy.php:3124
 msgid "Enable translated category names for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10714
+#: includes/pages/wordset-pages.php:10724
 msgid "When enabled, learners can see category names from the translated category field."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10718
+#: includes/pages/wordset-pages.php:10728
 #: includes/taxonomies/wordset-taxonomy.php:3132
 msgid "Translate category names from"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10724
+#: includes/pages/wordset-pages.php:10734
 #: includes/taxonomies/wordset-taxonomy.php:3138
 msgid "Choose whether this word set’s category titles start in the target language or the translation language."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10728
+#: includes/pages/wordset-pages.php:10738
 msgid "Save Language Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10761
+#: includes/pages/wordset-pages.php:10771
 #: includes/taxonomies/word-category-taxonomy.php:823
 #: includes/taxonomies/word-category-taxonomy.php:848
 #: includes/taxonomies/wordset-taxonomy.php:3144
 msgid "Visibility"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10762
+#: includes/pages/wordset-pages.php:10772
 msgid "Word set visibility"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10764
-#: includes/pages/wordset-pages.php:15353
+#: includes/pages/wordset-pages.php:10774
+#: includes/pages/wordset-pages.php:15363
 #: includes/taxonomies/word-category-taxonomy.php:825
 #: includes/taxonomies/word-category-taxonomy.php:852
 #: includes/taxonomies/wordset-taxonomy.php:3146
 msgid "Public"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10768
+#: includes/pages/wordset-pages.php:10778
 msgid "Private word sets are only visible to assigned managers and administrators in this first pass."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10774
+#: includes/pages/wordset-pages.php:10784
 msgid "This word set is currently private."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10775
+#: includes/pages/wordset-pages.php:10785
 msgid "This word set is currently public."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10780
+#: includes/pages/wordset-pages.php:10790
 msgid "Save Word Set Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10786
+#: includes/pages/wordset-pages.php:10796
 msgid "Word Set Managers"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10789
+#: includes/pages/wordset-pages.php:10799
 msgid "No word set managers are currently assigned. Add a manager below so this word set has a front-end owner."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10822
+#: includes/pages/wordset-pages.php:10832
 msgid "Remove Manager"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10832
+#: includes/pages/wordset-pages.php:10842
 msgid "Add Existing User"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10853
+#: includes/pages/wordset-pages.php:10863
 msgid "Find an existing user by username or email, add the Word Set Manager role, and allow that person to manage this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10856
+#: includes/pages/wordset-pages.php:10866
 msgid "Add Manager"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10862
+#: includes/pages/wordset-pages.php:10872
 msgid "Invite Manager By Email"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10873
+#: includes/pages/wordset-pages.php:10883
 msgid "Manager email"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10883
+#: includes/pages/wordset-pages.php:10893
 msgid "This sends a signup link that creates or connects a Word Set Manager account and assigns that person to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:10886
+#: includes/pages/wordset-pages.php:10896
 msgid "Send Manager Invite"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11027
-#: includes/pages/wordset-pages.php:15410
+#: includes/pages/wordset-pages.php:11037
+#: includes/pages/wordset-pages.php:15420
 #: includes/taxonomies/wordset-taxonomy.php:2343
 msgid "Manual order"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11028
-#: includes/pages/wordset-pages.php:15412
+#: includes/pages/wordset-pages.php:11038
+#: includes/pages/wordset-pages.php:15422
 #: includes/taxonomies/wordset-taxonomy.php:2410
 #: templates/vocab-lesson-template.php:936
 msgid "Prerequisites"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11029
+#: includes/pages/wordset-pages.php:11039
 msgid "Alphabetical"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11052
-#: includes/pages/wordset-pages.php:15422
+#: includes/pages/wordset-pages.php:11062
+#: includes/pages/wordset-pages.php:15432
 msgid "%d grammar feature"
 msgid_plural "%d grammar features"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:11059
-#: includes/pages/wordset-pages.php:15436
+#: includes/pages/wordset-pages.php:11069
+#: includes/pages/wordset-pages.php:15446
 msgid "Original audio kept"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11073
+#: includes/pages/wordset-pages.php:11083
 msgid "Category Ordering"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11075
+#: includes/pages/wordset-pages.php:11085
 msgid "These controls affect lesson order, recommended study flow, and prerequisite gating for this word set only."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11081
+#: includes/pages/wordset-pages.php:11091
 msgid "Profile"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11084
+#: includes/pages/wordset-pages.php:11094
 msgid "Word set profile image"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11103
+#: includes/pages/wordset-pages.php:11113
 msgid "No image selected yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11111
+#: includes/pages/wordset-pages.php:11121
 #: includes/shortcodes/word-grid-shortcode.php:5084
 msgid "Choose image"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11114
+#: includes/pages/wordset-pages.php:11124
 msgid "Remove image"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11117
+#: includes/pages/wordset-pages.php:11127
 msgid "Use a 16:9 landscape image. It appears on the word set page and in [ll_wordset_buttons] thumbnail cards."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11121
-#: includes/pages/wordset-pages.php:15430
+#: includes/pages/wordset-pages.php:11131
+#: includes/pages/wordset-pages.php:15440
 msgid "Intro blurb"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11129
+#: includes/pages/wordset-pages.php:11139
 msgid "Short learner-facing context for this word set, such as where the language is spoken or what course material these quizzes complement."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11134
+#: includes/pages/wordset-pages.php:11144
 msgid "Audio Processing"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11137
+#: includes/pages/wordset-pages.php:11147
 msgid "Keep original audio for reprocessing"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11140
+#: includes/pages/wordset-pages.php:11150
 msgid "Stores the unprocessed source for new recorder and audio-upload recordings so the Audio Processor can rerun trimming, noise reduction, and loudness from the original source later."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11145
+#: includes/pages/wordset-pages.php:11155
 msgid "Games and Answer Cards"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11149
+#: includes/pages/wordset-pages.php:11159
 #: includes/taxonomies/wordset-taxonomy.php:3196
 msgid "Word games image size"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11151
+#: includes/pages/wordset-pages.php:11161
 #: includes/taxonomies/wordset-taxonomy.php:3198
 msgid "Default (4 picture cards)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11152
+#: includes/pages/wordset-pages.php:11162
 #: includes/taxonomies/wordset-taxonomy.php:3199
 msgid "Large (3 picture cards)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11155
+#: includes/pages/wordset-pages.php:11165
 msgid "Controls Space Shooter and Bubble Pop. Large uses 3 picture cards at a time so images can render bigger."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11160
+#: includes/pages/wordset-pages.php:11170
 #: includes/taxonomies/wordset-taxonomy.php:3240
 msgid "Answer option text font"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11162
+#: includes/pages/wordset-pages.php:11172
 #: includes/taxonomies/wordset-taxonomy.php:3210
 msgid "Default (site/theme/device font)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11171
+#: includes/pages/wordset-pages.php:11181
 msgid "No site fonts were detected on this screen yet. Add a font via theme/Use Any Font, or set the LL Tools font stylesheet URL in settings, then reload this page."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11176
+#: includes/pages/wordset-pages.php:11186
 #: includes/taxonomies/wordset-taxonomy.php:3219
 msgid "Saved font \"%s\" is not currently detected on this site, so it is not selectable until the font is loaded again."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11182
+#: includes/pages/wordset-pages.php:11192
 msgid "This font is also used for this word set’s lesson and word-grid word text where supported."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11188
+#: includes/pages/wordset-pages.php:11198
 #: includes/taxonomies/wordset-taxonomy.php:3249
 msgid "Answer option text weight"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11197
+#: includes/pages/wordset-pages.php:11207
 msgid "Default weight for text answer options and supported lesson text."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11202
+#: includes/pages/wordset-pages.php:11212
 #: includes/taxonomies/wordset-taxonomy.php:3258
 msgid "Answer option text size"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11214
+#: includes/pages/wordset-pages.php:11224
 msgid "Preferred size for quiz text answer cards. LL Tools still shrinks text when needed for smaller screens or longer words."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11219
+#: includes/pages/wordset-pages.php:11229
 msgid "Answer option preview"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11225
+#: includes/pages/wordset-pages.php:11235
 msgid "Grammar Tags"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11230
+#: includes/pages/wordset-pages.php:11240
 msgid "Enable grammatical gender"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11232
+#: includes/pages/wordset-pages.php:11242
 msgid "Adds gender controls, badges, and bulk-edit options for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11234
+#: includes/pages/wordset-pages.php:11244
 #: includes/taxonomies/wordset-taxonomy.php:3283
 msgid "Gender options"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11237
+#: includes/pages/wordset-pages.php:11247
 msgid "One option per line, for example: masculine, feminine, neuter."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11243
+#: includes/pages/wordset-pages.php:11253
 msgid "Enable plurality"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11245
+#: includes/pages/wordset-pages.php:11255
 msgid "Adds singular/plural-style tags to the editor for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11247
+#: includes/pages/wordset-pages.php:11257
 #: includes/taxonomies/wordset-taxonomy.php:3345
 msgid "Plurality options"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11250
+#: includes/pages/wordset-pages.php:11260
 msgid "One option per line, for example: singular, plural, dual."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11256
+#: includes/pages/wordset-pages.php:11266
 msgid "Enable verb tense"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11258
+#: includes/pages/wordset-pages.php:11268
 msgid "Adds tense tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11260
+#: includes/pages/wordset-pages.php:11270
 #: includes/taxonomies/wordset-taxonomy.php:3362
 msgid "Verb tense options"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11263
+#: includes/pages/wordset-pages.php:11273
 msgid "One option per line, for example: present, past, future."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11269
+#: includes/pages/wordset-pages.php:11279
 msgid "Enable verb mood"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11271
+#: includes/pages/wordset-pages.php:11281
 msgid "Adds mood tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11273
+#: includes/pages/wordset-pages.php:11283
 #: includes/taxonomies/wordset-taxonomy.php:3379
 msgid "Verb mood options"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11276
+#: includes/pages/wordset-pages.php:11286
 msgid "One option per line, for example: indicative, subjunctive, imperative."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11282
+#: includes/pages/wordset-pages.php:11292
 msgid "Gender Symbols and Colors"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11286
+#: includes/pages/wordset-pages.php:11296
 #: includes/taxonomies/wordset-taxonomy.php:3292
 msgid "Masculine symbol"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11289
+#: includes/pages/wordset-pages.php:11299
 #: includes/taxonomies/wordset-taxonomy.php:3295
 msgid "Paste an SVG, emoji, or text. Leave empty to use the default masculine icon."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11294
+#: includes/pages/wordset-pages.php:11304
 #: includes/taxonomies/wordset-taxonomy.php:3301
 msgid "Feminine symbol"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11297
+#: includes/pages/wordset-pages.php:11307
 #: includes/taxonomies/wordset-taxonomy.php:3304
 msgid "Paste an SVG, emoji, or text. Leave empty to use the default feminine icon."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11302
+#: includes/pages/wordset-pages.php:11312
 #: includes/taxonomies/wordset-taxonomy.php:3310
 msgid "Masculine color"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11305
+#: includes/pages/wordset-pages.php:11315
 #: includes/taxonomies/wordset-taxonomy.php:3313
 msgid "Color used for masculine gender badges."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11310
+#: includes/pages/wordset-pages.php:11320
 #: includes/taxonomies/wordset-taxonomy.php:3319
 msgid "Feminine color"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11313
+#: includes/pages/wordset-pages.php:11323
 #: includes/taxonomies/wordset-taxonomy.php:3322
 msgid "Color used for feminine gender badges."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11318
+#: includes/pages/wordset-pages.php:11328
 #: includes/taxonomies/wordset-taxonomy.php:3328
 msgid "Additional gender color"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11321
+#: includes/pages/wordset-pages.php:11331
 #: includes/taxonomies/wordset-taxonomy.php:3331
 msgid "Color used for custom gender options beyond masculine and feminine."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11327
+#: includes/pages/wordset-pages.php:11337
 msgid "Save Advanced Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11629
+#: includes/pages/wordset-pages.php:11639
 msgid "Choose a valid parent category."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11635
+#: includes/pages/wordset-pages.php:11645
 msgid "Parent category must belong to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11638
+#: includes/pages/wordset-pages.php:11648
 msgid "A category cannot be its own parent."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11643
+#: includes/pages/wordset-pages.php:11653
 msgid "A category cannot move underneath one of its own children."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11741
+#: includes/pages/wordset-pages.php:11751
 msgid "Unable to delete the linked vocab lesson right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11763
+#: includes/pages/wordset-pages.php:11773
 msgid "You do not have permission to manage categories for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11770
+#: includes/pages/wordset-pages.php:11780
 msgid "Choose a valid category action."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11812
+#: includes/pages/wordset-pages.php:11822
 msgid "That category already exists in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11838
+#: includes/pages/wordset-pages.php:11848
 msgid "Category created."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11847
+#: includes/pages/wordset-pages.php:11857
 msgid "Choose a category from this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11880
+#: includes/pages/wordset-pages.php:11890
 msgid "Unable to delete that category right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11962
+#: includes/pages/wordset-pages.php:11972
 msgid "%d translation saved"
 msgid_plural "%d translations saved"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:11971
+#: includes/pages/wordset-pages.php:11981
 msgid "%d hidden from study"
 msgid_plural "%d hidden from study"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:11980
+#: includes/pages/wordset-pages.php:11990
 msgid "Create Category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11982
+#: includes/pages/wordset-pages.php:11992
 msgid "Categories created here stay scoped to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11995
-#: includes/pages/wordset-pages.php:12089
+#: includes/pages/wordset-pages.php:12005
+#: includes/pages/wordset-pages.php:12099
 msgid "Category name"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12001
-#: includes/pages/wordset-pages.php:12101
+#: includes/pages/wordset-pages.php:12011
+#: includes/pages/wordset-pages.php:12111
 msgid "Translated name"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12004
+#: includes/pages/wordset-pages.php:12014
 msgid "Shown when category translations are enabled for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12008
-#: includes/pages/wordset-pages.php:12113
+#: includes/pages/wordset-pages.php:12018
+#: includes/pages/wordset-pages.php:12123
 msgid "Parent category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12010
-#: includes/pages/wordset-pages.php:12115
+#: includes/pages/wordset-pages.php:12020
+#: includes/pages/wordset-pages.php:12125
 msgid "Top level"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12025
+#: includes/pages/wordset-pages.php:12035
 msgid "Existing Categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12027
+#: includes/pages/wordset-pages.php:12037
 msgid "Rename categories, update translated names, move them under a different parent, or delete empty categories."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12031
+#: includes/pages/wordset-pages.php:12041
 msgid "No isolated categories are attached to this word set yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12044
+#: includes/pages/wordset-pages.php:12054
 msgid "Delete this category and any linked vocab lesson?"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12081
+#: includes/pages/wordset-pages.php:12091
 msgid "Hidden from study"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12126
+#: includes/pages/wordset-pages.php:12136
 msgid "Save Category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12134
+#: includes/pages/wordset-pages.php:12144
 msgid "Delete Empty Category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12217
+#: includes/pages/wordset-pages.php:12227
 msgid "Lesson Transcription Provider"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12218
+#: includes/pages/wordset-pages.php:12228
 msgid "Lesson transcription provider"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12226
+#: includes/pages/wordset-pages.php:12236
 msgid "AssemblyAI keeps the current server-side captions workflow. Local browser model sends lesson audio from this browser to a localhost service on the computer you are using right now. Hosted STT API sends lesson audio from WordPress to your own model endpoint."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12231
+#: includes/pages/wordset-pages.php:12241
 msgid "Custom STT Output"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12232
+#: includes/pages/wordset-pages.php:12242
 msgid "Local model output field"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12238
+#: includes/pages/wordset-pages.php:12248
 msgid "Use the secondary field when your local or hosted model returns IPA, transliteration, or another alternate transcription instead of normal word text."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12243
+#: includes/pages/wordset-pages.php:12253
 msgid "Custom STT Endpoint"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12244
+#: includes/pages/wordset-pages.php:12254
 msgid "Local transcription endpoint URL"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12258
+#: includes/pages/wordset-pages.php:12268
 msgid "Expected request: POST multipart/form-data with an \"audio\" file field. Expected response: JSON containing one of predicted_ipa, ipa, transcript, or text."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12261
+#: includes/pages/wordset-pages.php:12271
 msgid "Local browser mode calls this URL from the browser. Hosted STT API mode calls this URL from WordPress server-side, which keeps any API token off the page."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12266
+#: includes/pages/wordset-pages.php:12276
 msgid "Hosted API Token"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12267
+#: includes/pages/wordset-pages.php:12277
 msgid "Hosted STT API token"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12275
+#: includes/pages/wordset-pages.php:12285
 msgid "Optional bearer token for your hosted STT endpoint"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12280
+#: includes/pages/wordset-pages.php:12290
 msgid "Optional but recommended for Hosted STT API mode. WordPress will send this token to your endpoint as both Authorization: Bearer and X-LL-Tools-Token."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12283
-#: includes/pages/wordset-pages.php:12403
+#: includes/pages/wordset-pages.php:12293
+#: includes/pages/wordset-pages.php:12413
 msgid "Save Transcription Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12288
+#: includes/pages/wordset-pages.php:12298
 msgid "Offline App STT Bundle"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12289
+#: includes/pages/wordset-pages.php:12299
 msgid "Offline app STT bundle path"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12297
+#: includes/pages/wordset-pages.php:12307
 msgid "Absolute path to the mobile-ready STT model folder or file"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12302
+#: includes/pages/wordset-pages.php:12312
 msgid "Reserved for future mobile STT support. Offline app exports currently do not copy or enable this bundle."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12305
+#: includes/pages/wordset-pages.php:12315
 msgid "You can keep the path here for later, but exported learner apps currently ship without offline speaking."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12310
+#: includes/pages/wordset-pages.php:12320
 msgid "Speaking Practice Game"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12313
+#: includes/pages/wordset-pages.php:12323
 msgid "Enable speaking practice in Games"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12316
+#: includes/pages/wordset-pages.php:12326
 msgid "This game shows a picture or prompt text, listens for the learner to say the word, runs STT, and compares the result to the chosen target."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12321
+#: includes/pages/wordset-pages.php:12331
 msgid "Speaking Games Access"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12322
+#: includes/pages/wordset-pages.php:12332
 msgid "Who can view speaking games"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12330
+#: includes/pages/wordset-pages.php:12340
 msgid "Users who do not match this access setting will not see speaking games on the Games page."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12335
+#: includes/pages/wordset-pages.php:12345
 msgid "Speaking Game STT Provider"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12336
+#: includes/pages/wordset-pages.php:12346
 msgid "Speaking game STT provider"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12345
+#: includes/pages/wordset-pages.php:12355
 msgid "Built-in audio matcher compares learner audio directly to each word's isolation recording (no STT transcript required). AssemblyAI transcribes both the learner audio and each word's saved isolation recording, then caches the saved recording transcript for reuse. Local browser model reuses the endpoint and output format above. Hosted STT API reuses the same endpoint, output format, and token, but routes the audio through WordPress server-side."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12348
+#: includes/pages/wordset-pages.php:12358
 msgid "If speaking practice is enabled and no provider is selected, LL Tools now defaults to the built-in audio matcher."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12353
+#: includes/pages/wordset-pages.php:12363
 msgid "Speaking Game AssemblyAI Language"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12354
+#: includes/pages/wordset-pages.php:12364
 msgid "Speaking game AssemblyAI language or model profile"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12378
+#: includes/pages/wordset-pages.php:12388
 msgid "This only applies when the speaking game provider is AssemblyAI. LL Tools will use the same AssemblyAI mode for both the learner recording and the saved reference recording, then cache the saved transcript on the audio post for later attempts."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12381
+#: includes/pages/wordset-pages.php:12391
 msgid "For short isolation clips, choosing a specific language is usually faster and more reliable than multilingual auto-detection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12386
+#: includes/pages/wordset-pages.php:12396
 msgid "Speaking Game Comparison Target"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12387
+#: includes/pages/wordset-pages.php:12397
 msgid "Speaking game comparison target"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12395
+#: includes/pages/wordset-pages.php:12405
 msgid "Written text matches the saved text on the word's isolation recording. IPA works with a model that returns the secondary transcription field. Cached reference STT compares the learner transcript to a cached transcript generated from the saved isolation audio with the same server-side STT provider."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12421
+#: includes/pages/wordset-pages.php:12431
 msgid "Bulk Import"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12432
+#: includes/pages/wordset-pages.php:12442
 msgid "Paste Prompt + Answer Pairs"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12434
+#: includes/pages/wordset-pages.php:12444
 msgid "Quizlet-style tab-separated lines work best. Supported separators: tab, =>, ::, |"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12436
+#: includes/pages/wordset-pages.php:12446
 msgid "Prompt and answer pairs"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12442
+#: includes/pages/wordset-pages.php:12452
 msgid ""
 "merhaba[TAB]hello\n"
 "nasilsin[TAB]how are you"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12447
+#: includes/pages/wordset-pages.php:12457
 msgid "Existing category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12449
+#: includes/pages/wordset-pages.php:12459
 msgid "No category (optional)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12465
+#: includes/pages/wordset-pages.php:12475
 #: includes/shortcodes/audio-recording-shortcode.php:1551
 #: includes/shortcodes/word-grid-shortcode.php:5644
 msgid "Hidden"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12472
+#: includes/pages/wordset-pages.php:12482
 msgid "Or create a new category (new name takes priority):"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12483
+#: includes/pages/wordset-pages.php:12493
 msgid "Bulk import assumes text-to-text (prompt -> translation, answer -> word title) and publishes items by default."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12491
+#: includes/pages/wordset-pages.php:12501
 msgid "Allow duplicate titles in this word set (do not skip matches)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12494
+#: includes/pages/wordset-pages.php:12504
 msgid "Leave this off to skip duplicates and review the import count first."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12522
+#: includes/pages/wordset-pages.php:12532
 msgid "Create New Word Set"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12526
+#: includes/pages/wordset-pages.php:12536
 msgid "This template currently includes %1$d categories and %2$d images. Words, audio, and learner progress are not copied."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12534
+#: includes/pages/wordset-pages.php:12544
 msgid "Add isolated categories or word images to this word set before using it as a template."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12547
+#: includes/pages/wordset-pages.php:12557
 msgid "New word set details"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12551
+#: includes/pages/wordset-pages.php:12561
 msgid "Word set name"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12564
+#: includes/pages/wordset-pages.php:12574
 msgid "Slug (optional)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12571
+#: includes/pages/wordset-pages.php:12581
 msgid "new-word-set"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12579
+#: includes/pages/wordset-pages.php:12589
 msgid "Copy options"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12588
+#: includes/pages/wordset-pages.php:12598
 msgid "Copy non-language word set settings too (visibility, study tools, category order, and transcription settings)."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12591
+#: includes/pages/wordset-pages.php:12601
 msgid "Language, translation labels, and category translation settings are intentionally left blank on the new word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:12620
-#: includes/pages/wordset-pages.php:12707
+#: includes/pages/wordset-pages.php:12630
+#: includes/pages/wordset-pages.php:12717
 msgid "Untitled word"
 msgstr ""
 
 #. translators: %s: recording type labels
-#: includes/pages/wordset-pages.php:13099
+#: includes/pages/wordset-pages.php:13109
 msgid "Types: %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13102
-#: includes/pages/wordset-pages.php:13111
+#: includes/pages/wordset-pages.php:13112
+#: includes/pages/wordset-pages.php:13121
 msgid "Types: filtered"
 msgstr ""
 
 #. translators: %s: recording type labels
-#: includes/pages/wordset-pages.php:13108
+#: includes/pages/wordset-pages.php:13118
 msgid "Skipping: %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13113
+#: includes/pages/wordset-pages.php:13123
 msgid "Types: all"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13116
+#: includes/pages/wordset-pages.php:13126
 msgid "Can add new words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13119
+#: includes/pages/wordset-pages.php:13129
 msgid "Recorder processes audio"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13185
+#: includes/pages/wordset-pages.php:13195
 #: includes/shortcodes/audio-recording-shortcode.php:1460
 msgid "Unhide"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13248
+#: includes/pages/wordset-pages.php:13258
 msgid "Recording prompts"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13276
+#: includes/pages/wordset-pages.php:13286
 msgid "Suggested phrasing for the recorder"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13282
+#: includes/pages/wordset-pages.php:13292
 msgid "Save prompts"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13293
+#: includes/pages/wordset-pages.php:13303
 msgid "Not in the current queue right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13383
-#: includes/pages/wordset-pages.php:13420
-#: includes/pages/wordset-pages.php:15389
+#: includes/pages/wordset-pages.php:13393
+#: includes/pages/wordset-pages.php:13430
+#: includes/pages/wordset-pages.php:15399
 msgid "%d word"
 msgid_plural "%d words"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:13463
+#: includes/pages/wordset-pages.php:13473
 msgid "Change queue settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13477
+#: includes/pages/wordset-pages.php:13487
 msgid "Only include types"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13478
+#: includes/pages/wordset-pages.php:13488
 msgid "Leave all unchecked to include every recording type."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13492
+#: includes/pages/wordset-pages.php:13502
 msgid "Skipped types"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13493
+#: includes/pages/wordset-pages.php:13503
 msgid "These are hidden from the recorder queue unless the only-include list is set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13509
+#: includes/pages/wordset-pages.php:13519
 msgid "Allow this recorder to record new words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13514
+#: includes/pages/wordset-pages.php:13524
 msgid "Recorder processes audio before saving"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13517
+#: includes/pages/wordset-pages.php:13527
 msgid "Shows the recorder the audio processing review step for trimming, noise reduction, and loudness before the recording is saved."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13522
+#: includes/pages/wordset-pages.php:13532
 msgid "Save queue settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13573
+#: includes/pages/wordset-pages.php:13583
 msgid "Review hidden recorder queue items and restore anything that should be recordable again."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13574
+#: includes/pages/wordset-pages.php:13584
 msgid "Review each assigned recorder's queue by category, edit prompt wording, and tune their recording settings from one place."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13581
+#: includes/pages/wordset-pages.php:13591
 msgid "%d recorder"
 msgid_plural "%d recorders"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:13589
-#: includes/pages/wordset-pages.php:13663
+#: includes/pages/wordset-pages.php:13599
+#: includes/pages/wordset-pages.php:13673
 msgid "%d queued word"
 msgid_plural "%d queued words"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:13597
+#: includes/pages/wordset-pages.php:13607
 msgid "Back to queue"
 msgstr ""
 
 #. translators: %d: hidden queue item count
-#: includes/pages/wordset-pages.php:13600
-#: includes/pages/wordset-pages.php:13673
+#: includes/pages/wordset-pages.php:13610
+#: includes/pages/wordset-pages.php:13683
 msgid "Hidden (%d)"
 msgid_plural "Hidden (%d)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:13610
+#: includes/pages/wordset-pages.php:13620
 msgid "No audio recorder users are assigned to this word set yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13613
+#: includes/pages/wordset-pages.php:13623
 msgid "Open Recorder Access"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13695
+#: includes/pages/wordset-pages.php:13705
 msgid "Back to categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13712
+#: includes/pages/wordset-pages.php:13722
 msgid "That category is no longer in this recorder queue."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13728
+#: includes/pages/wordset-pages.php:13738
 msgid "Queue by Category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13730
+#: includes/pages/wordset-pages.php:13740
 msgid "No words currently need recordings for this recorder."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13749
+#: includes/pages/wordset-pages.php:13759
 msgid "Hidden by Category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13751
+#: includes/pages/wordset-pages.php:13761
 msgid "No hidden words for this recorder."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13792
+#: includes/pages/wordset-pages.php:13802
 msgid "Assigned Tutors / Recorders"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13795
+#: includes/pages/wordset-pages.php:13805
 msgid "No audio recorder users are currently assigned to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13826
+#: includes/pages/wordset-pages.php:13836
 msgid "Unassign"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13835
+#: includes/pages/wordset-pages.php:13845
 msgid "Assign Existing Recorder"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13838
+#: includes/pages/wordset-pages.php:13848
 msgid "No users currently have the Audio Recorder role. Use the options below to upgrade an existing account or invite a new recorder."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13849
+#: includes/pages/wordset-pages.php:13859
 msgid "Audio recorder user"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13851
+#: includes/pages/wordset-pages.php:13861
 msgid "Select a recorder user"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13870
+#: includes/pages/wordset-pages.php:13880
 msgid "Assigning a recorder locks their recording interface to this word set and resets any stale category filter."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13873
+#: includes/pages/wordset-pages.php:13883
 msgid "Assign Recorder"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13880
+#: includes/pages/wordset-pages.php:13890
 msgid "Upgrade Existing User"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13901
+#: includes/pages/wordset-pages.php:13911
 msgid "Find an existing user by username or email, add the Audio Recorder role, and assign them to this word set in one step."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13904
+#: includes/pages/wordset-pages.php:13914
 msgid "Enable Recorder Access"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13910
+#: includes/pages/wordset-pages.php:13920
 msgid "Invite Recorder By Email"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13921
+#: includes/pages/wordset-pages.php:13931
 msgid "Recorder email"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13931
+#: includes/pages/wordset-pages.php:13941
 msgid "This sends a special signup link that creates or connects a recorder account and assigns that person to this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13934
+#: includes/pages/wordset-pages.php:13944
 msgid "Send Recorder Invite"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13959
+#: includes/pages/wordset-pages.php:13969
 msgid "This upload tool is unavailable right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14004
+#: includes/pages/wordset-pages.php:14014
 msgid "Offline app bundle"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14006
+#: includes/pages/wordset-pages.php:14016
 msgid "Export this word set as a standalone learner app bundle with local study content, games, and local-first progress sync."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14010
+#: includes/pages/wordset-pages.php:14020
 msgid "ZipArchive is not available on this server, so offline app exports cannot run yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14012
+#: includes/pages/wordset-pages.php:14022
 msgid "This word set does not have any categories with published words available for offline export yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14027
+#: includes/pages/wordset-pages.php:14037
 msgid "All exportable categories are selected by default. Uncheck any categories you do not want to include in this offline app."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14028
+#: includes/pages/wordset-pages.php:14038
 msgid "Offline export categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14055
+#: includes/pages/wordset-pages.php:14065
 msgid "Bundle details"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14059
+#: includes/pages/wordset-pages.php:14069
 msgid "App name"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14074
+#: includes/pages/wordset-pages.php:14084
 msgid "Android app ID suffix"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14083
+#: includes/pages/wordset-pages.php:14093
 msgid "Letters, numbers, underscores, and dots are allowed. The exporter sanitizes this automatically."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14088
+#: includes/pages/wordset-pages.php:14098
 msgid "Version name"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14102
+#: includes/pages/wordset-pages.php:14112
 msgid "Version code"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14114
+#: includes/pages/wordset-pages.php:14124
 msgid "Increase this integer when distributing an updated Android build."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14120
+#: includes/pages/wordset-pages.php:14130
 msgid "Export notes"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14122
+#: includes/pages/wordset-pages.php:14132
 msgid "Uses current site icon"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14122
+#: includes/pages/wordset-pages.php:14132
 msgid "No site icon set"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14123
+#: includes/pages/wordset-pages.php:14133
 msgid "Offline speaking disabled in exports"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14129
+#: includes/pages/wordset-pages.php:14139
 msgid "This export uses the current site icon automatically. Advanced one-off icon overrides can stay in the dashboard exporter until we migrate that piece too."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14130
+#: includes/pages/wordset-pages.php:14140
 msgid "No site icon is set for this site, so the Android builder keeps its default launcher icon unless you add one later."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14134
+#: includes/pages/wordset-pages.php:14144
 msgid "The offline bundle includes the standalone shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then link a site account later to sync study state and progress."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14136
+#: includes/pages/wordset-pages.php:14146
 msgid "Export Offline App"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14192
-#: includes/pages/wordset-pages.php:14359
-#: includes/pages/wordset-pages.php:15832
+#: includes/pages/wordset-pages.php:14202
+#: includes/pages/wordset-pages.php:14369
+#: includes/pages/wordset-pages.php:15842
 msgid "New words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14193
-#: includes/pages/wordset-pages.php:14363
-#: includes/pages/wordset-pages.php:15833
+#: includes/pages/wordset-pages.php:14203
+#: includes/pages/wordset-pages.php:14373
+#: includes/pages/wordset-pages.php:15843
 msgid "In progress words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14194
-#: includes/pages/wordset-pages.php:14367
-#: includes/pages/wordset-pages.php:15834
+#: includes/pages/wordset-pages.php:14204
+#: includes/pages/wordset-pages.php:14377
+#: includes/pages/wordset-pages.php:15844
 msgid "Learned words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14195
-#: includes/pages/wordset-pages.php:14371
-#: includes/pages/wordset-pages.php:15810
-#: includes/pages/wordset-pages.php:15835
+#: includes/pages/wordset-pages.php:14205
+#: includes/pages/wordset-pages.php:14381
+#: includes/pages/wordset-pages.php:15820
+#: includes/pages/wordset-pages.php:15845
 msgid "Starred words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14202
+#: includes/pages/wordset-pages.php:14212
 msgid "Upcoming activities"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14312
-#: includes/pages/wordset-pages.php:15850
+#: includes/pages/wordset-pages.php:14322
+#: includes/pages/wordset-pages.php:15860
 msgid "Remove activity"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14319
-#: includes/pages/wordset-pages.php:15849
+#: includes/pages/wordset-pages.php:14329
+#: includes/pages/wordset-pages.php:15859
 msgid "No upcoming activities yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14353
+#: includes/pages/wordset-pages.php:14363
 msgid "Study priorities"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14355
+#: includes/pages/wordset-pages.php:14365
 msgid "Select one focus (optional)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14356
+#: includes/pages/wordset-pages.php:14366
 msgid "Study priority focus"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14382
-#: includes/pages/wordset-pages.php:14383
+#: includes/pages/wordset-pages.php:14392
+#: includes/pages/wordset-pages.php:14393
 msgid "Transition speed"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14384
+#: includes/pages/wordset-pages.php:14394
 msgid "Standard"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14385
+#: includes/pages/wordset-pages.php:14395
 msgid "Faster"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14390
+#: includes/pages/wordset-pages.php:14400
 msgid "Learning goals"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14391
+#: includes/pages/wordset-pages.php:14401
 #: includes/privacy.php:303
 msgid "Enabled modes"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14414
+#: includes/pages/wordset-pages.php:14424
 msgid "Quiz display"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14424
+#: includes/pages/wordset-pages.php:14434
 msgid "Sign language"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14433
+#: includes/pages/wordset-pages.php:14443
 msgid "Use sign language quiz defaults and disable audio requirements for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14436
+#: includes/pages/wordset-pages.php:14446
 msgid "Categories default to image prompts with image answer options. Category quiz settings can still use image prompts with text answers."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14450
+#: includes/pages/wordset-pages.php:14460
 #: includes/taxonomies/wordset-taxonomy.php:3188
 msgid "Automatically play the audio for text + audio answer options during quizzes."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14453
+#: includes/pages/wordset-pages.php:14463
 #: includes/taxonomies/wordset-taxonomy.php:3190
 msgid "When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14458
+#: includes/pages/wordset-pages.php:14468
 msgid "Lesson and word-grid text"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14467
+#: includes/pages/wordset-pages.php:14477
 msgid "Hide word text on lesson pages and word grids when the category quiz uses only images or audio."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14470
+#: includes/pages/wordset-pages.php:14480
 #: includes/taxonomies/wordset-taxonomy.php:3159
 msgid "Categories can override this in their quiz settings."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14475
+#: includes/pages/wordset-pages.php:14485
 msgid "Recorder text"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14477
+#: includes/pages/wordset-pages.php:14487
 #: includes/taxonomies/wordset-taxonomy.php:3165
 msgid "Recorder text visibility"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14481
+#: includes/pages/wordset-pages.php:14491
 #: includes/taxonomies/wordset-taxonomy.php:3167
 msgid "Follow lesson/grid text setting"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14482
+#: includes/pages/wordset-pages.php:14492
 #: includes/taxonomies/wordset-taxonomy.php:3168
 msgid "Show word text in recorder"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14483
+#: includes/pages/wordset-pages.php:14493
 #: includes/taxonomies/wordset-taxonomy.php:3169
 msgid "Hide word text in recorder"
 msgstr ""
 
 #. translators: %s: effective recorder text state.
-#: includes/pages/wordset-pages.php:14490
+#: includes/pages/wordset-pages.php:14500
 msgid "Current effective recorder state: %s."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14491
+#: includes/pages/wordset-pages.php:14501
 msgid "hidden"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14491
+#: includes/pages/wordset-pages.php:14501
 msgid "shown"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:14499
+#: includes/pages/wordset-pages.php:14509
 msgid "Save Study Settings"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15205
+#: includes/pages/wordset-pages.php:15215
 msgid "This will permanently delete your progress for all categories in this word set. This cannot be undone. Continue?"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15206
+#: includes/pages/wordset-pages.php:15216
 msgid "This will permanently delete your progress for %s. This cannot be undone. Continue?"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15207
+#: includes/pages/wordset-pages.php:15217
 msgid "Reset progress for %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15309
+#: includes/pages/wordset-pages.php:15319
 msgid "%d mode enabled"
 msgid_plural "%d modes enabled"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15316
+#: includes/pages/wordset-pages.php:15326
 msgid "%d activity queued"
 msgid_plural "%d activities queued"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15333
+#: includes/pages/wordset-pages.php:15343
 msgid "Add target language"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15338
+#: includes/pages/wordset-pages.php:15348
 msgid "Category translations"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15369
+#: includes/pages/wordset-pages.php:15379
 msgid "%d hidden"
 msgid_plural "%d hidden"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15394
+#: includes/pages/wordset-pages.php:15404
 msgid "%d missing audio"
 msgid_plural "%d missing audio"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15427
+#: includes/pages/wordset-pages.php:15437
 msgid "Profile image"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15433
+#: includes/pages/wordset-pages.php:15443
 msgid "Large images"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15444
+#: includes/pages/wordset-pages.php:15454
 msgid "Defaults"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15455
-#: includes/pages/wordset-pages.php:15545
+#: includes/pages/wordset-pages.php:15465
+#: includes/pages/wordset-pages.php:15555
 msgid "%d category ready"
 msgid_plural "%d categories ready"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15458
+#: includes/pages/wordset-pages.php:15468
 msgid "No categories yet"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15472
+#: includes/pages/wordset-pages.php:15482
 msgid "%d image"
 msgid_plural "%d images"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15482
+#: includes/pages/wordset-pages.php:15492
 msgid "No template content yet"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15494
+#: includes/pages/wordset-pages.php:15504
 msgid "%d recorder assigned"
 msgid_plural "%d recorders assigned"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15497
-#: includes/pages/wordset-pages.php:15511
+#: includes/pages/wordset-pages.php:15507
+#: includes/pages/wordset-pages.php:15521
 msgid "No recorders assigned"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15508
+#: includes/pages/wordset-pages.php:15518
 msgid "%d recorder ready"
 msgid_plural "%d recorders ready"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:15525
-#: includes/pages/wordset-pages.php:15526
+#: includes/pages/wordset-pages.php:15535
+#: includes/pages/wordset-pages.php:15536
 msgid "Not ready"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15541
+#: includes/pages/wordset-pages.php:15551
 msgid "Zip unavailable"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15548
+#: includes/pages/wordset-pages.php:15558
 msgid "No exportable categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15551
+#: includes/pages/wordset-pages.php:15561
 msgid "Admin permission required"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15568
-#: includes/pages/wordset-pages.php:15579
+#: includes/pages/wordset-pages.php:15578
+#: includes/pages/wordset-pages.php:15589
 msgid "Upload permission required"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15586
+#: includes/pages/wordset-pages.php:15596
 msgid "Enable lesson pages"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15594
+#: includes/pages/wordset-pages.php:15604
 msgid "Generate lesson pages"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15799
-#: includes/pages/wordset-pages.php:15800
-#: includes/pages/wordset-pages.php:16713
+#: includes/pages/wordset-pages.php:15809
+#: includes/pages/wordset-pages.php:15810
+#: includes/pages/wordset-pages.php:16723
 #: includes/shortcodes/flashcard-widget.php:482
 #: templates/offline-app-shell-template.php:743
 msgid "Loading next recommendation..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15801
+#: includes/pages/wordset-pages.php:15811
 #: includes/shortcodes/flashcard-widget.php:484
 msgid "Recommended: %1$s in %2$s (%3$d words)."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15802
+#: includes/pages/wordset-pages.php:15812
 #: includes/shortcodes/flashcard-widget.php:485
 msgid "Recommended: %1$s in %2$s."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15811
+#: includes/pages/wordset-pages.php:15821
 #: includes/shortcodes/flashcard-widget.php:438
 #: includes/shortcodes/quiz-pages-shortcodes.php:992
 #: templates/flashcard-widget-template.php:168
@@ -17283,125 +17283,125 @@ msgstr ""
 msgid "Repeat"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15815
-#: includes/pages/wordset-pages.php:16876
+#: includes/pages/wordset-pages.php:15825
+#: includes/pages/wordset-pages.php:16886
 #: includes/shortcodes/flashcard-widget.php:467
 #: templates/offline-app-shell-template.php:824
 msgid "Select categories to study together"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15817
+#: includes/pages/wordset-pages.php:15827
 msgid "%1$d selected · %2$d words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15818
-#: includes/pages/wordset-pages.php:15851
+#: includes/pages/wordset-pages.php:15828
+#: includes/pages/wordset-pages.php:15861
 #: includes/shortcodes/flashcard-widget.php:434
 #: includes/shortcodes/flashcard-widget.php:472
 #: includes/shortcodes/flashcard-widget.php:486
 msgid "%d words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15819
-#: includes/pages/wordset-pages.php:15892
-#: includes/pages/wordset-pages.php:16882
-#: includes/pages/wordset-pages.php:16885
+#: includes/pages/wordset-pages.php:15829
+#: includes/pages/wordset-pages.php:15902
+#: includes/pages/wordset-pages.php:16892
+#: includes/pages/wordset-pages.php:16895
 msgid "Starred only"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15820
-#: includes/pages/wordset-pages.php:16887
-#: includes/pages/wordset-pages.php:16890
+#: includes/pages/wordset-pages.php:15830
+#: includes/pages/wordset-pages.php:16897
+#: includes/pages/wordset-pages.php:16900
 msgid "Hard words only"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15825
-#: includes/pages/wordset-pages.php:15904
+#: includes/pages/wordset-pages.php:15835
+#: includes/pages/wordset-pages.php:15914
 #: includes/shortcodes/flashcard-widget.php:471
 #: templates/flashcard-widget-template.php:49
 #: templates/offline-app-shell-template.php:860
 msgid "Deselect all"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15829
+#: includes/pages/wordset-pages.php:15839
 msgid "Starred words in %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15838
-#: includes/pages/wordset-pages.php:15940
+#: includes/pages/wordset-pages.php:15848
+#: includes/pages/wordset-pages.php:15950
 msgid "Unable to save right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15839
+#: includes/pages/wordset-pages.php:15849
 msgid "Select at least one category."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15840
+#: includes/pages/wordset-pages.php:15850
 msgid "No quiz words are available for this selection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15841
+#: includes/pages/wordset-pages.php:15851
 msgid "No starred words are available for this selection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15842
+#: includes/pages/wordset-pages.php:15852
 msgid "No hard words are available for this selection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15843
+#: includes/pages/wordset-pages.php:15853
 msgid "No new words are available for this selection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15844
+#: includes/pages/wordset-pages.php:15854
 msgid "No in progress words are available for this selection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15845
+#: includes/pages/wordset-pages.php:15855
 msgid "No learned words are available for this selection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15846
+#: includes/pages/wordset-pages.php:15856
 msgid "No starred hard words are available for this selection."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15847
-#: includes/pages/wordset-pages.php:16441
+#: includes/pages/wordset-pages.php:15857
+#: includes/pages/wordset-pages.php:16451
 msgid "No hidden categories in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15848
-#: includes/pages/wordset-pages.php:16431
-#: includes/pages/wordset-pages.php:16595
+#: includes/pages/wordset-pages.php:15858
+#: includes/pages/wordset-pages.php:16441
+#: includes/pages/wordset-pages.php:16605
 msgid "Hidden Categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15852
-#: includes/pages/wordset-pages.php:16014
-#: includes/pages/wordset-pages.php:16091
-#: includes/pages/wordset-pages.php:16143
+#: includes/pages/wordset-pages.php:15862
+#: includes/pages/wordset-pages.php:16024
+#: includes/pages/wordset-pages.php:16101
+#: includes/pages/wordset-pages.php:16153
 #: includes/shortcodes/editor-hub-shortcode.php:1102
 msgid "Progress"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15853
-#: includes/pages/wordset-pages.php:16040
+#: includes/pages/wordset-pages.php:15863
+#: includes/pages/wordset-pages.php:16050
 msgid "Loading progress..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15854
+#: includes/pages/wordset-pages.php:15864
 msgid "Progress is unavailable right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15855
+#: includes/pages/wordset-pages.php:15865
 msgid "Selected categories (%d)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15856
+#: includes/pages/wordset-pages.php:15866
 msgid "All categories (%d)"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15859
-#: includes/pages/wordset-pages.php:16245
+#: includes/pages/wordset-pages.php:15869
+#: includes/pages/wordset-pages.php:16255
 #: includes/post-types/dictionary-entry-post-type.php:1319
 #: includes/shortcodes/editor-hub-shortcode.php:514
 #: includes/shortcodes/editor-hub-shortcode.php:1058
@@ -17410,465 +17410,465 @@ msgstr ""
 msgid "Part of speech"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15861
-#: includes/pages/wordset-pages.php:16149
+#: includes/pages/wordset-pages.php:15871
+#: includes/pages/wordset-pages.php:16159
 msgid "Activity"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15862
-#: includes/pages/wordset-pages.php:16143
+#: includes/pages/wordset-pages.php:15872
+#: includes/pages/wordset-pages.php:16153
 msgid "Word Progress"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15866
-#: includes/pages/wordset-pages.php:15885
-#: includes/pages/wordset-pages.php:16203
+#: includes/pages/wordset-pages.php:15876
+#: includes/pages/wordset-pages.php:15895
+#: includes/pages/wordset-pages.php:16213
 msgid "Starred"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15868
-#: includes/pages/wordset-pages.php:16044
+#: includes/pages/wordset-pages.php:15878
+#: includes/pages/wordset-pages.php:16054
 msgid "Last 14 days"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15869
+#: includes/pages/wordset-pages.php:15879
 msgid "No activity yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15872
-#: includes/pages/wordset-pages.php:16163
-#: includes/pages/wordset-pages.php:16376
+#: includes/pages/wordset-pages.php:15882
+#: includes/pages/wordset-pages.php:16173
+#: includes/pages/wordset-pages.php:16386
 msgid "No data yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15874
+#: includes/pages/wordset-pages.php:15884
 msgid "Hardest"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15880
+#: includes/pages/wordset-pages.php:15890
 msgid "Play audio for %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15882
+#: includes/pages/wordset-pages.php:15892
 #: includes/shortcodes/flashcard-widget.php:407
 #: includes/shortcodes/word-grid-shortcode.php:3443
 #: includes/shortcodes/word-grid-shortcode.php:5582
 msgid "Star word"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15883
+#: includes/pages/wordset-pages.php:15893
 #: includes/shortcodes/word-grid-shortcode.php:3444
 #: includes/shortcodes/word-grid-shortcode.php:5581
 msgid "Unstar word"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15884
+#: includes/pages/wordset-pages.php:15894
 msgid "Any"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15887
-#: includes/pages/wordset-pages.php:16239
-#: includes/pages/wordset-pages.php:16251
+#: includes/pages/wordset-pages.php:15897
+#: includes/pages/wordset-pages.php:16249
+#: includes/pages/wordset-pages.php:16261
 #: includes/shortcodes/dictionary-shortcode.php:2301
 msgid "Filter by part of speech"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15889
-#: includes/pages/wordset-pages.php:16286
+#: includes/pages/wordset-pages.php:15899
+#: includes/pages/wordset-pages.php:16296
 msgid "Difficulty Score"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15893
+#: includes/pages/wordset-pages.php:15903
 msgid "Unstarred only"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15895
-#: includes/pages/wordset-pages.php:16188
+#: includes/pages/wordset-pages.php:15905
+#: includes/pages/wordset-pages.php:16198
 msgid "Clear filters"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15896
+#: includes/pages/wordset-pages.php:15906
 msgid "Last 24h"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15897
+#: includes/pages/wordset-pages.php:15907
 msgid "Last 7d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15898
+#: includes/pages/wordset-pages.php:15908
 msgid "Last 30d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15899
+#: includes/pages/wordset-pages.php:15909
 msgid "Older"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15900
 #: includes/pages/wordset-pages.php:15910
+#: includes/pages/wordset-pages.php:15920
 msgid "Never"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15901
+#: includes/pages/wordset-pages.php:15911
 msgid "Sort ascending"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15902
+#: includes/pages/wordset-pages.php:15912
 msgid "Sort descending"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15905
+#: includes/pages/wordset-pages.php:15915
 msgid "Select all: %1$s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15906
+#: includes/pages/wordset-pages.php:15916
 msgid "Deselect all: %1$s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15907
+#: includes/pages/wordset-pages.php:15917
 msgid "Filtered words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15908
-#: includes/pages/wordset-pages.php:16382
+#: includes/pages/wordset-pages.php:15918
+#: includes/pages/wordset-pages.php:16392
 msgid "%d selected words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15911
+#: includes/pages/wordset-pages.php:15921
 msgid "%1$d rounds, %2$d words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15913
-#: includes/pages/wordset-pages.php:16083
+#: includes/pages/wordset-pages.php:15923
+#: includes/pages/wordset-pages.php:16093
 msgid "Only words with marked gender are counted."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15914
+#: includes/pages/wordset-pages.php:15924
 msgid "%d tracked words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15915
+#: includes/pages/wordset-pages.php:15925
 msgid "Tracked"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15916
+#: includes/pages/wordset-pages.php:15926
 msgid "Not started"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15917
+#: includes/pages/wordset-pages.php:15927
 #: includes/shortcodes/flashcard-widget.php:435
 #: includes/shortcodes/flashcard-widget.php:441
 msgid "Level 1"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15918
+#: includes/pages/wordset-pages.php:15928
 #: includes/shortcodes/flashcard-widget.php:436
 #: includes/shortcodes/flashcard-widget.php:439
 #: includes/shortcodes/flashcard-widget.php:442
 msgid "Level 2"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15919
+#: includes/pages/wordset-pages.php:15929
 #: includes/shortcodes/flashcard-widget.php:437
 #: includes/shortcodes/flashcard-widget.php:440
 msgid "Level 3"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15920
+#: includes/pages/wordset-pages.php:15930
 msgid "Last practiced"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15921
+#: includes/pages/wordset-pages.php:15931
 #: includes/privacy.php:411
 #: includes/shortcodes/flashcard-widget.php:432
 msgid "Gender progress"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15923
+#: includes/pages/wordset-pages.php:15933
 #: includes/taxonomies/wordset-taxonomy.php:2409
 #: templates/vocab-lesson-template.php:946
 msgid "Level"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15924
+#: includes/pages/wordset-pages.php:15934
 msgid "Show gender progress in the tables"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15925
+#: includes/pages/wordset-pages.php:15935
 msgid "Show general progress in the tables"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15926
+#: includes/pages/wordset-pages.php:15936
 msgid "Filter gender"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15927
+#: includes/pages/wordset-pages.php:15937
 msgid "Filter level"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15935
+#: includes/pages/wordset-pages.php:15945
 msgid "Load more"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15936
+#: includes/pages/wordset-pages.php:15946
 msgid "Loading more cards..."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15937
-#: includes/pages/wordset-pages.php:16974
-#: includes/pages/wordset-pages.php:16981
+#: includes/pages/wordset-pages.php:15947
+#: includes/pages/wordset-pages.php:16984
+#: includes/pages/wordset-pages.php:16991
 msgid "Could not load more cards right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15939
+#: includes/pages/wordset-pages.php:15949
 msgid "Saved!"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15985
+#: includes/pages/wordset-pages.php:15995
 msgid "Sign in or create an account"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15987
+#: includes/pages/wordset-pages.php:15997
 msgid "Use the invited email address to manage this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15988
+#: includes/pages/wordset-pages.php:15998
 msgid "Use an account to save your progress and keep learning from this page."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15993
-#: includes/pages/wordset-pages.php:15999
+#: includes/pages/wordset-pages.php:16003
+#: includes/pages/wordset-pages.php:16009
 msgid "Create manager account"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15994
-#: includes/pages/wordset-pages.php:16025
-#: includes/pages/wordset-pages.php:17429
+#: includes/pages/wordset-pages.php:16004
+#: includes/pages/wordset-pages.php:16035
+#: includes/pages/wordset-pages.php:17442
 msgid "Create learner account"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:15996
+#: includes/pages/wordset-pages.php:16006
 msgid "This invite can create or connect a Word Set Manager account for this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16020
+#: includes/pages/wordset-pages.php:16030
 msgid "Sign in to view progress"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16021
+#: includes/pages/wordset-pages.php:16031
 msgid "Use your account to view wordset progress and keep your learning history."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16022
-#: includes/pages/wordset-pages.php:16650
+#: includes/pages/wordset-pages.php:16032
+#: includes/pages/wordset-pages.php:16660
 msgid "Open progress"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16113
+#: includes/pages/wordset-pages.php:16123
 msgid "Reset all categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16119
-#: includes/pages/wordset-pages.php:16125
+#: includes/pages/wordset-pages.php:16129
+#: includes/pages/wordset-pages.php:16135
 #: includes/shortcodes/word-grid-shortcode.php:5078
 msgid "Search categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16173
+#: includes/pages/wordset-pages.php:16183
 #: includes/shortcodes/word-grid-shortcode.php:5118
 msgid "Search words"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16179
-#: includes/pages/wordset-pages.php:16773
-#: includes/pages/wordset-pages.php:16779
+#: includes/pages/wordset-pages.php:16189
+#: includes/pages/wordset-pages.php:16783
+#: includes/pages/wordset-pages.php:16789
 #: templates/offline-app-shell-template.php:754
 #: templates/offline-app-shell-template.php:760
 msgid "Search words or translations"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16198
-#: includes/pages/wordset-pages.php:16207
+#: includes/pages/wordset-pages.php:16208
+#: includes/pages/wordset-pages.php:16217
 msgid "Filter star status"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16220
-#: includes/pages/wordset-pages.php:16232
+#: includes/pages/wordset-pages.php:16230
+#: includes/pages/wordset-pages.php:16242
 msgid "Filter category"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16258
-#: includes/pages/wordset-pages.php:16270
+#: includes/pages/wordset-pages.php:16268
+#: includes/pages/wordset-pages.php:16280
 msgid "Filter status"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16280
-#: includes/pages/wordset-pages.php:16296
+#: includes/pages/wordset-pages.php:16290
+#: includes/pages/wordset-pages.php:16306
 msgid "Filter difficulty score"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16306
-#: includes/pages/wordset-pages.php:16322
+#: includes/pages/wordset-pages.php:16316
+#: includes/pages/wordset-pages.php:16332
 msgid "Filter seen count"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16332
-#: includes/pages/wordset-pages.php:16348
+#: includes/pages/wordset-pages.php:16342
+#: includes/pages/wordset-pages.php:16358
 msgid "Filter wrong count"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16355
-#: includes/pages/wordset-pages.php:16367
+#: includes/pages/wordset-pages.php:16365
+#: includes/pages/wordset-pages.php:16377
 msgid "Filter last seen"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16435
+#: includes/pages/wordset-pages.php:16445
 msgid "Sign in to manage hidden categories."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16448
+#: includes/pages/wordset-pages.php:16458
 msgid "Unhide %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16462
+#: includes/pages/wordset-pages.php:16472
 msgid "Back to word set tools"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16513
+#: includes/pages/wordset-pages.php:16523
 msgid "Sign in to open word set tools."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16567
+#: includes/pages/wordset-pages.php:16577
 msgid "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16569
+#: includes/pages/wordset-pages.php:16579
 msgid "Bulk upload audio files and create or match draft words in this word set."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16574
+#: includes/pages/wordset-pages.php:16584
 msgid "No settings tools are available for this word set right now."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16606
+#: includes/pages/wordset-pages.php:16616
 msgid "Open games"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16628
+#: includes/pages/wordset-pages.php:16638
 msgid "Update Language Learner Tools to version %s"
 msgstr ""
 
 #. translators: %s: available plugin version
-#: includes/pages/wordset-pages.php:16631
+#: includes/pages/wordset-pages.php:16641
 #: language-learner-tools.php:631
 msgid "Update to %s"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16636
+#: includes/pages/wordset-pages.php:16646
 msgid "Word set tools"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16695
+#: includes/pages/wordset-pages.php:16705
 #: templates/vocab-lesson-template.php:1238
 msgid "Quiz modes"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16718
+#: includes/pages/wordset-pages.php:16728
 msgid "Remove recommendation"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16743
+#: includes/pages/wordset-pages.php:16753
 msgid "Lesson pages are not enabled for this word set yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16764
+#: includes/pages/wordset-pages.php:16774
 msgid "No lesson categories yet."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16786
+#: includes/pages/wordset-pages.php:16796
 #: templates/vocab-lesson-template.php:973
 msgid "Clear search"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16802
-#: includes/pages/wordset-pages.php:16803
+#: includes/pages/wordset-pages.php:16812
+#: includes/pages/wordset-pages.php:16813
 #: includes/shortcodes/word-grid-shortcode.php:5079
 #: templates/offline-app-shell-template.php:772
 #: templates/offline-app-shell-template.php:773
 msgid "Sort categories"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16813
+#: includes/pages/wordset-pages.php:16823
 #: templates/offline-app-shell-template.php:788
 msgid "Default"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16817
+#: includes/pages/wordset-pages.php:16827
 #: includes/shortcodes/word-grid-shortcode.php:5081
 #: templates/offline-app-shell-template.php:792
 msgid "A-Z"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16821
+#: includes/pages/wordset-pages.php:16831
 #: templates/offline-app-shell-template.php:796
 msgid "Z-A"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16825
+#: includes/pages/wordset-pages.php:16835
 #: templates/offline-app-shell-template.php:800
 msgid "More learned"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16829
+#: includes/pages/wordset-pages.php:16839
 #: templates/offline-app-shell-template.php:804
 msgid "Less learned"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16833
+#: includes/pages/wordset-pages.php:16843
 #: templates/offline-app-shell-template.php:808
 msgid "Recently studied"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16837
+#: includes/pages/wordset-pages.php:16847
 #: templates/offline-app-shell-template.php:812
 msgid "Not recently studied"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:16862
+#: includes/pages/wordset-pages.php:16872
 #: includes/shortcodes/flashcard-widget.php:487
 msgid "No categories match this search."
 msgstr ""
 
 #. translators: %s: number of words per game
-#: includes/pages/wordset-pages.php:17344
+#: includes/pages/wordset-pages.php:17357
 msgid "%s words per game"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:17424
+#: includes/pages/wordset-pages.php:17437
 msgid "Sign in to play games"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:17425
+#: includes/pages/wordset-pages.php:17438
 msgid "Games use your in-progress words and save results to your practice history."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:17437
+#: includes/pages/wordset-pages.php:17450
 msgid "Wordset game"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:17563
-#: includes/pages/wordset-pages.php:17567
+#: includes/pages/wordset-pages.php:17576
+#: includes/pages/wordset-pages.php:17580
 msgid "Start recording"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:17580
+#: includes/pages/wordset-pages.php:17593
 msgid "Play your recording"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:17605
+#: includes/pages/wordset-pages.php:17618
 msgid "Correct audio"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:17610
+#: includes/pages/wordset-pages.php:17623
 msgid "Play correct audio"
 msgstr ""
 
@@ -20451,6 +20451,10 @@ msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:519
 msgid "Female and male symbols icon"
+msgstr ""
+
+#: includes/shortcodes/flashcard-widget.php:1352
+msgid "Too many flashcard category requests. Please try again shortly."
 msgstr ""
 
 #: includes/shortcodes/image-copyright-grid-shortcode.php:168

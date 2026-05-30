@@ -26538,3 +26538,8 @@ msgstr "Andere Sprachen"
 #: includes/shortcodes/word-grid-shortcode.php:3464 includes/shortcodes/word-grid-shortcode.php:5115
 msgid "Download audio"
 msgstr "Audio herunterladen"
+
+#. ll-tools-public-key: 510eef8a5ff19572913102e9dc6319124fb22272
+#: includes/shortcodes/flashcard-widget.php:1352
+msgid "Too many flashcard category requests. Please try again shortly."
+msgstr "Zu viele Lernkarten-Kategorieanfragen. Bitte versuche es in Kürze erneut."

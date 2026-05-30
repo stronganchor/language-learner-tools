@@ -3598,3 +3598,13 @@ msgstr "Se requiere permiso para subir archivos"
 #: includes/pages/wordset-pages.php:15594
 msgid "Generate lesson pages"
 msgstr "Generar páginas de lecciones"
+
+#. ll-tools-public-key: 022e5d066b1cf9cbbf0f9db9a286792fd6d3f33b
+#: includes/pages/wordset-pages.php:15596
+msgid "Enable lesson pages"
+msgstr "Activar páginas de lecciones"
+
+#. ll-tools-public-key: 510eef8a5ff19572913102e9dc6319124fb22272
+#: includes/shortcodes/flashcard-widget.php:1352
+msgid "Too many flashcard category requests. Please try again shortly."
+msgstr "Demasiadas solicitudes de categorías de tarjetas de estudio. Inténtalo de nuevo en breve."
