@@ -507,9 +507,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $first_word_id = $this->create_word($wordset_id, [$category_id], 'Old Fast First', 'First Translation');
         $second_word_id = $this->create_word($wordset_id, [$category_id], 'Old Fast Second', 'Second Translation');
         $third_word_id = $this->create_word($wordset_id, [$category_id], 'Already Correct', 'Third Translation');
+        $parenthetical_word_id = $this->create_word($wordset_id, [$category_id], 'Old Parent (hint)', 'Parenthetical Translation');
         $blocked_wordset_id = $this->ensure_term('wordset', 'REST Fast Title Blocked Wordset', 'rest-fast-title-blocked-wordset');
         $blocked_word_id = $this->create_word($blocked_wordset_id, [$category_id], 'Blocked Word', 'Blocked Translation');
         $first_slug = (string) get_post_field('post_name', $first_word_id);
+        $parenthetical_slug = (string) get_post_field('post_name', $parenthetical_word_id);
 
         wp_set_current_user($admin_id);
 
@@ -531,6 +533,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                     'title' => 'Already Correct',
                 ],
                 [
+                    'word_id' => $parenthetical_word_id,
+                    'old_title' => 'Old Parent (hint)',
+                    'title' => 'New Parent',
+                ],
+                [
                     'word_id' => $blocked_word_id,
                     'title' => 'Should Not Change',
                 ],
@@ -544,8 +551,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(200, $dry_run->get_status());
         $dry_data = $dry_run->get_data();
         $this->assertIsArray($dry_data);
-        $this->assertSame(3, (int) ($dry_data['matched_count'] ?? 0));
-        $this->assertSame(1, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame(4, (int) ($dry_data['matched_count'] ?? 0));
+        $this->assertSame(2, (int) ($dry_data['changed_count'] ?? 0));
         $this->assertSame(0, (int) ($dry_data['updated_count'] ?? 0));
         $this->assertSame(1, (int) ($dry_data['unchanged_count'] ?? 0));
         $this->assertSame(2, (int) ($dry_data['skipped_count'] ?? 0));
@@ -556,10 +563,12 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(200, $update->get_status());
         $data = $update->get_data();
         $this->assertIsArray($data);
-        $this->assertSame(1, (int) ($data['changed_count'] ?? 0));
-        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame(2, (int) ($data['changed_count'] ?? 0));
+        $this->assertSame(2, (int) ($data['updated_count'] ?? 0));
         $this->assertSame('New Fast First', get_the_title($first_word_id));
         $this->assertSame($first_slug, (string) get_post_field('post_name', $first_word_id));
+        $this->assertSame('New Parent', get_the_title($parenthetical_word_id));
+        $this->assertSame($parenthetical_slug, (string) get_post_field('post_name', $parenthetical_word_id));
         $this->assertSame('Old Fast Second', get_the_title($second_word_id));
         $this->assertSame('Already Correct', get_the_title($third_word_id));
         $this->assertSame('Blocked Word', get_the_title($blocked_word_id));

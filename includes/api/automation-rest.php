@@ -1347,6 +1347,12 @@ function ll_tools_rest_automation_sanitize_word_title_value($value): string {
         : trim(sanitize_text_field($value));
 }
 
+function ll_tools_rest_automation_sanitize_word_title_guard_value($value): string {
+    $value = is_scalar($value) ? (string) $value : '';
+
+    return trim(sanitize_text_field($value));
+}
+
 function ll_tools_rest_automation_fetch_word_title_records(int $wordset_id, array $word_ids): array {
     global $wpdb;
 
@@ -1527,7 +1533,7 @@ function ll_tools_rest_automation_word_title_updates(WP_REST_Request $request) {
             'word_id' => $word_id,
             'title' => $word_title,
             'has_old_title' => $has_old_title,
-            'old_title' => $has_old_title ? ll_tools_rest_automation_sanitize_word_title_value($raw_old_title) : '',
+            'old_title' => $has_old_title ? ll_tools_rest_automation_sanitize_word_title_guard_value($raw_old_title) : '',
         ];
     }
 
