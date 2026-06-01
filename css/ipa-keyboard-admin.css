@@ -379,6 +379,12 @@
     color: var(--ll-ipa-muted);
 }
 
+.ll-ipa-orthography-prediction-source {
+    margin-top: 4px;
+    color: var(--ll-ipa-muted);
+    font-size: 12px;
+}
+
 .ll-ipa-orthography-word-meta {
     display: grid;
     gap: 4px;
@@ -401,6 +407,8 @@
 }
 
 .ll-ipa-orthography-issue-actions {
+    display: grid;
+    gap: 8px;
     width: 170px;
 }
 

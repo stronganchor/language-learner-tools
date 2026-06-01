@@ -1922,7 +1922,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 6;
+    return 7;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -1958,6 +1958,10 @@ function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
         'unapproved_ipa_symbol' => [
             'label' => __('Unapproved IPA symbol', 'll-tools-text-domain'),
             'description' => __('Flags symbols outside the approved IPA inventory for this workflow.', 'll-tools-text-domain'),
+        ],
+        'orthography_mismatch' => [
+            'label' => __('Orthography mismatch', 'll-tools-text-domain'),
+            'description' => __('Flags saved IPA and orthography text that do not agree with the active conversion profile.', 'll-tools-text-domain'),
         ],
     ];
 }
@@ -2406,6 +2410,397 @@ function ll_tools_ipa_orthography_normalize_word_text(string $text, string $lang
             : sanitize_text_field($text),
         $language
     );
+}
+
+function ll_tools_ipa_orthography_profile_compare_key(string $text, string $language = ''): string {
+    $text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
+        ? ll_tools_word_grid_sanitize_non_ipa_text($text)
+        : sanitize_text_field($text);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = ll_tools_ipa_orthography_mb_lower($text, $language);
+    $text = preg_replace('/[?.!,:;()\[\]{}]+/u', ' ', (string) $text);
+    $text = preg_replace('/\s+/u', ' ', (string) $text);
+    return ll_tools_ipa_orthography_unicode_normalize(trim((string) $text), defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16);
+}
+
+function ll_tools_ipa_orthography_profile_meta_key(): string {
+    return 'll_wordset_ipa_orthography_profile';
+}
+
+function ll_tools_ipa_orthography_unicode_normalize(string $text, int $form = 16): string {
+    if (class_exists('Normalizer')) {
+        $normalized = Normalizer::normalize($text, $form);
+        if (is_string($normalized)) {
+            return $normalized;
+        }
+    }
+
+    return $text;
+}
+
+function ll_tools_ipa_orthography_mb_lower(string $text, string $language = ''): string {
+    if (function_exists('ll_tools_word_grid_lowercase')) {
+        return (string) ll_tools_word_grid_lowercase($text, $language);
+    }
+    return function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+}
+
+function ll_tools_ipa_orthography_mb_upper(string $text): string {
+    return function_exists('mb_strtoupper') ? mb_strtoupper($text, 'UTF-8') : strtoupper($text);
+}
+
+function ll_tools_ipa_orthography_get_profile_key(int $wordset_id): string {
+    if ($wordset_id <= 0) {
+        return '';
+    }
+
+    $explicit = sanitize_key((string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+    if ($explicit !== '') {
+        return $explicit;
+    }
+
+    $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
+    if (!($wordset instanceof WP_Term)) {
+        return '';
+    }
+
+    $haystack = implode(' ', [
+        (string) $wordset->slug,
+        (string) $wordset->name,
+        ll_tools_ipa_orthography_get_wordset_language($wordset_id),
+    ]);
+    $haystack = function_exists('remove_accents') ? remove_accents($haystack) : $haystack;
+    $haystack = strtolower($haystack);
+
+    if ((strpos($haystack, 'genc-palu') !== false || (strpos($haystack, 'genc') !== false && strpos($haystack, 'palu') !== false))
+        && (strpos($haystack, 'zaz') !== false || strpos($haystack, 'genc') !== false)) {
+        return 'zazaki_genc_palu';
+    }
+
+    return '';
+}
+
+function ll_tools_ipa_orthography_get_conversion_profile(int $wordset_id): array {
+    $profile_key = ll_tools_ipa_orthography_get_profile_key($wordset_id);
+    if ($profile_key !== 'zazaki_genc_palu') {
+        return [];
+    }
+
+    return [
+        'key' => 'zazaki_genc_palu',
+        'label' => __('Genç-Palu Zazaki', 'll-tools-text-domain'),
+        'short_label' => __('Genç-Palu', 'll-tools-text-domain'),
+        'status' => 'draft',
+        'direction' => 'ipa_to_orthography',
+        'description' => __('Uses the Genç-Palu IPA-to-orthography conversion profile, including lexical and phrase exceptions.', 'll-tools-text-domain'),
+    ];
+}
+
+function ll_tools_ipa_orthography_profile_replacements(string $text, array $replacements): string {
+    foreach ($replacements as $from => $to) {
+        $text = str_replace((string) $from, (string) $to, $text);
+    }
+    return $text;
+}
+
+function ll_tools_ipa_orthography_profile_strip_terminal_punctuation(string $text): string {
+    return trim((string) preg_replace('/[.!?]+$/u', '', trim($text)));
+}
+
+function ll_tools_ipa_orthography_profile_sentence_case(string $text): string {
+    return (string) preg_replace_callback('/^(\P{L}*)(\p{L})(.*)$/us', static function (array $matches): string {
+        return (string) $matches[1] . ll_tools_ipa_orthography_mb_upper((string) $matches[2]) . (string) $matches[3];
+    }, $text, 1);
+}
+
+function ll_tools_ipa_orthography_profile_clean_genc_palu_ipa(string $value): string {
+    $text = ll_tools_ipa_orthography_unicode_normalize($value, defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16);
+    $text = preg_replace('/[əᵊ]/u', "ɨ̆", $text);
+    $text = preg_replace('/[ˈˌ]+/u', '', (string) $text);
+    $text = str_replace(['’', '‘'], "'", (string) $text);
+
+    $text = ll_tools_ipa_orthography_profile_replacements($text, [
+        'qʷʰ' => 'QW_SEG',
+        'qʷ' => 'QW_SEG',
+        'ɢʷ' => 'GW_SEG',
+        'ɟʷ' => 'GW_SEG',
+        'gʷ' => 'GW_SEG',
+        'c͡çʷ' => 'KW_SEG',
+        'cʷʰ' => 'KW_SEG',
+        'cʷ' => 'KW_SEG',
+        'kʷʰ' => 'KW_SEG',
+        'kʷ' => 'KW_SEG',
+        't̪͡ʃ' => 'T_AFFR',
+        'd̪͡ʒ' => 'D_AFFR',
+        't͡ʃ' => 'T_AFFR',
+        'd͡ʒ' => 'D_AFFR',
+        'c͡ç' => 'K_AFFR',
+        't̪͡ʙ̥̆' => 'TP_SEG',
+        't̪͡ʙ̥̆' => 'TP_SEG',
+        't̪͡ʙ̥' => 'TP_SEG',
+        't̪͡ʙ̥' => 'TP_SEG',
+        't̪͡p' => 'TP_SEG',
+        't̪͡p' => 'TP_SEG',
+        'd̪͡ʙ̆' => 'DB_SEG',
+        'd̪͡ʙ' => 'DB_SEG',
+        'd̪͡b' => 'DB_SEG',
+        'r̥' => 'R_SEG',
+        'ɾ' => 'R_SEG',
+        'ɹ' => 'R_SEG',
+        'r' => 'R_SEG',
+        'c' => 'K_STOP_SEG',
+        'ɨ̯j' => 'II_Y_GLIDE',
+        'ɨj' => 'II_Y_GLIDE',
+        'ij' => 'IY_GLIDE',
+        'i̯j' => 'IY_GLIDE',
+        'j' => 'J_GLIDE',
+    ]);
+
+    return $text;
+}
+
+function ll_tools_ipa_orthography_profile_convert_genc_palu_word(string $word): string {
+    $word = trim($word);
+    if ($word === '') {
+        return '';
+    }
+
+    $word = trim($word, " \t\n\r\0\x0B.,!?;:\"()[]{}");
+    $text = ll_tools_ipa_orthography_profile_clean_genc_palu_ipa($word);
+    $text = ll_tools_ipa_orthography_unicode_normalize($text, defined('Normalizer::FORM_D') ? Normalizer::FORM_D : 4);
+    $text = ll_tools_ipa_orthography_profile_replacements($text, [
+        "a\u{0303}" => 'A_NAS_SEG',
+        "æ\u{0303}" => 'AE_NAS_SEG',
+        "e\u{0303}" => 'E_NAS_SEG',
+        "ɛ\u{0303}" => 'EH_NAS_SEG',
+        "i\u{0303}" => 'I_NAS_SEG',
+        "ɨ\u{0303}" => 'II_NAS_SEG',
+        "o\u{0303}" => 'O_NAS_SEG',
+        "u\u{0303}" => 'U_NAS_SEG',
+        "ʊ\u{0303}" => 'UU_NAS_SEG',
+        "ɨ\u{0306}" => 'BRIEF_DOTLESS_I_SEG',
+    ]);
+    $text = preg_replace('/[\x{02B0}\x{02D0}\x{0303}\x{031C}\x{031D}\x{031E}\x{031F}\x{0320}\x{0324}\x{0325}\x{0329}\x{032A}\x{032C}\x{032F}\x{0330}\x{0331}\x{035C}\x{0361}\x{0306}\x{0308}]/u', '', (string) $text);
+    $text = (string) preg_replace('/^ʔ/u', '', $text);
+    $text = str_replace('y', "\u{E000}", $text);
+
+    $text = ll_tools_ipa_orthography_profile_replacements($text, [
+        'QW_SEG' => 'qw',
+        'KW_SEG' => 'kw',
+        'GW_SEG' => 'gw',
+        'R_SEG' => 'r',
+        'K_STOP_SEG' => 'k',
+        'TP_SEG' => 'tw',
+        'DB_SEG' => 'dw',
+        'T_AFFR' => 'Ç_SEG',
+        'D_AFFR' => 'C_SEG',
+        'K_AFFR' => 'K_SEG',
+        'ʕ' => "'",
+        'ʔ' => "'",
+        'ʡ' => "'",
+        'ɢ' => "'g",
+        'ɟ' => 'g',
+        'ħ' => "'h",
+        'ʜ' => "'h",
+        'н' => "'h",
+        'ɭ' => "'l",
+        'ŋ' => 'ng',
+        'ɲ' => 'ny',
+        'nʲ' => 'ny',
+        'nj' => 'ny',
+        'ʃ' => 'ş',
+        'ʒ' => 'j',
+        'χ' => 'x',
+        'x' => 'x',
+        'ʁ' => 'ğ',
+        'q' => 'q',
+        'k' => 'k',
+        'g' => 'g',
+        'd' => 'd',
+        't' => 't',
+        'p' => 'p',
+        'b' => 'b',
+        'f' => 'f',
+        'v' => 'v',
+        's' => 's',
+        'z' => 'z',
+        'h' => 'h',
+        'm' => 'm',
+        'n' => 'n',
+        'l' => 'l',
+        'ɫ' => 'l',
+        'ʎ' => 'l',
+        'w' => 'w',
+        'ʷ' => 'w',
+        'ʲ' => 'y',
+        'II_Y_GLIDE' => 'ıy',
+        'IY_GLIDE' => 'iy',
+        'J_GLIDE' => 'y',
+    ]);
+
+    $text = ll_tools_ipa_orthography_profile_replacements($text, [
+        'æ' => 'â',
+        'e' => 'ê',
+        'ɛ' => 'e',
+        'ɨ' => 'ı',
+        'ø' => 'ö',
+        'ʊ' => 'u',
+        'u' => 'û',
+        'ə' => 'e',
+        'ɔ' => 'o',
+        'A_NAS_SEG' => 'a',
+        'AE_NAS_SEG' => 'a',
+        'E_NAS_SEG' => 'e',
+        'EH_NAS_SEG' => 'e',
+        'I_NAS_SEG' => 'i',
+        'II_NAS_SEG' => 'ı',
+        'O_NAS_SEG' => 'o',
+        'U_NAS_SEG' => 'u',
+        'UU_NAS_SEG' => 'u',
+        "\u{E000}" => 'ü',
+        'BRIEF_DOTLESS_I_SEG' => '',
+    ]);
+
+    $text = str_replace('ɪ', 'I_NEAR', $text);
+    if (substr($text, -6) === 'I_NEAR') {
+        $final_dotless_i = substr($text, 0, -6) . 'ı';
+        $final_e = substr($text, 0, -6) . 'e';
+        $final_key = ll_tools_ipa_orthography_unicode_normalize(
+            ll_tools_ipa_orthography_mb_lower(str_replace(['Ç_SEG', 'C_SEG', 'K_SEG'], ['ç', 'c', 'k'], $final_dotless_i)),
+            defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16
+        );
+        $text = in_array($final_key, ['cı', 'mı', 'owı', 'pwırı'], true) ? $final_dotless_i : $final_e;
+    }
+    $text = str_replace('I_NEAR', 'ı', $text);
+
+    $text = ll_tools_ipa_orthography_profile_replacements($text, [
+        'Ç_SEG' => 'ç',
+        'C_SEG' => 'c',
+        'K_SEG' => 'k',
+        'nggw' => 'ngw',
+        'ngg' => 'ng',
+        'gg' => 'g',
+        "''" => "'",
+        'rrr' => 'rr',
+        'yyy' => 'yy',
+    ]);
+
+    $key = ll_tools_ipa_orthography_unicode_normalize(ll_tools_ipa_orthography_mb_lower($text), defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16);
+    $overrides = [
+        'cinê' => 'cini',
+        'ciniüê' => 'cinyê',
+        'cinyê' => 'cini',
+        'cinyyê' => 'cinyê',
+        'cinyi' => 'cini',
+        'fıstıqû' => 'fistıqû',
+        'fıstıqûna' => 'fistıqûna',
+        'fıstûn' => 'fistûn',
+        'fıstûna' => 'fistûna',
+        'fıstûne' => 'fistûne',
+        'fıstûnê' => 'fistûnê',
+        'fıstıx' => 'fistix',
+        'kye' => 'kiye',
+        'mwerık' => 'mwerik',
+        'mwerıkık' => 'mwerikik',
+        'mwerıke' => 'mwerike',
+        'mwerıko' => 'mweriko',
+        'otobûs' => 'otobüs',
+        'otobûsa' => 'otobüsa',
+        'rezıl' => 'rezil',
+        'rezıla' => 'rezila',
+        'tişort' => 'tişört',
+        'mers' => 'merz',
+        'miçık' => 'mirçık',
+        'miçk' => 'mirçık',
+        'miçıkû' => 'mirçıkû',
+        'miçkû' => 'mirçıkû',
+        'çân' => 'çând',
+        'kera' => 'kerra',
+        'kerawa' => 'kerrawa',
+        'kerawo' => 'kerrawo',
+        'kere' => 'kerre',
+        'kerê' => 'kerrê',
+        'kerêy' => 'kerrêy',
+        'kerayın' => 'kerrayin',
+        'kero' => 'kerro',
+        'kerû' => 'kerrû',
+        'perena' => 'perrena',
+        'zere' => 'zerre',
+        'zerê' => 'zerrê',
+    ];
+    if (isset($overrides[$key])) {
+        $text = $overrides[$key];
+    }
+
+    return ll_tools_ipa_orthography_unicode_normalize($text, defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16);
+}
+
+function ll_tools_ipa_orthography_profile_apply_genc_palu_phrase_exceptions(array $words): array {
+    $out = [];
+    $count = count($words);
+    for ($i = 0; $i < $count;) {
+        $current = ll_tools_ipa_orthography_mb_lower((string) ($words[$i] ?? ''));
+        $next = ll_tools_ipa_orthography_mb_lower((string) ($words[$i + 1] ?? ''));
+        if ($current === 'des' && $next === 'erzen') {
+            $out[] = 'dest';
+            $out[] = 'erzen';
+            $i += 2;
+            continue;
+        }
+
+        $out[] = (string) $words[$i];
+        $i++;
+    }
+
+    return $out;
+}
+
+function ll_tools_ipa_orthography_profile_convert_ipa_to_text(string $ipa_text, int $wordset_id, string $recording_type = ''): array {
+    $profile = ll_tools_ipa_orthography_get_conversion_profile($wordset_id);
+    if (empty($profile)) {
+        return [
+            'text' => '',
+            'complete' => false,
+            'matched_tokens' => 0,
+            'token_count' => 0,
+            'profile' => [],
+        ];
+    }
+
+    $parts = preg_split('/\s+/u', trim($ipa_text), -1, PREG_SPLIT_NO_EMPTY);
+    if (empty($parts)) {
+        return [
+            'text' => '',
+            'complete' => false,
+            'matched_tokens' => 0,
+            'token_count' => 0,
+            'profile' => $profile,
+        ];
+    }
+
+    $words = [];
+    foreach ((array) $parts as $part) {
+        $word = ll_tools_ipa_orthography_profile_convert_genc_palu_word((string) $part);
+        if ($word !== '') {
+            $words[] = $word;
+        }
+    }
+    $words = ll_tools_ipa_orthography_profile_apply_genc_palu_phrase_exceptions($words);
+    $text = ll_tools_ipa_orthography_profile_sentence_case(implode(' ', $words));
+    if ($recording_type === 'introduction') {
+        $text = ll_tools_ipa_orthography_profile_strip_terminal_punctuation($text) . '.';
+    } elseif ($recording_type === 'question') {
+        $text = ll_tools_ipa_orthography_profile_strip_terminal_punctuation($text) . '?';
+    }
+    $complete = $text !== '' && preg_match("/^[A-Za-zÂÇÊÛâçêûÜüÖöĞğİıŞş'?.!,:;() -]*$/u", $text) === 1;
+
+    return [
+        'text' => $text,
+        'complete' => $complete,
+        'matched_tokens' => count($parts),
+        'token_count' => count($parts),
+        'profile' => $profile,
+    ];
 }
 
 function ll_tools_ipa_orthography_apply_surface_trill_policy(string $segment, string $output): string {
@@ -3306,6 +3701,41 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
     ];
 }
 
+function ll_tools_ipa_orthography_get_recording_type_slug(int $recording_id): string {
+    if ($recording_id <= 0) {
+        return '';
+    }
+    if (function_exists('ll_tools_word_grid_get_primary_recording_type_slug')) {
+        return (string) ll_tools_word_grid_get_primary_recording_type_slug($recording_id);
+    }
+
+    $terms = wp_get_post_terms($recording_id, 'recording_type', ['fields' => 'slugs']);
+    if (is_wp_error($terms) || empty($terms)) {
+        return '';
+    }
+
+    return (string) $terms[0];
+}
+
+function ll_tools_ipa_orthography_convert_ipa_to_best_text(
+    string $ipa_text,
+    array $rules,
+    int $wordset_id,
+    int $recording_id = 0
+): array {
+    $recording_type = ll_tools_ipa_orthography_get_recording_type_slug($recording_id);
+    $profile_prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text($ipa_text, $wordset_id, $recording_type);
+    if (!empty($profile_prediction['complete']) && (string) ($profile_prediction['text'] ?? '') !== '') {
+        $profile_prediction['source'] = 'profile';
+        return $profile_prediction;
+    }
+
+    $prediction = ll_tools_ipa_orthography_convert_ipa_to_text($ipa_text, $rules, $wordset_id);
+    $prediction['source'] = 'rules';
+    $prediction['profile'] = [];
+    return $prediction;
+}
+
 function ll_tools_ipa_orthography_build_recording_payload_for_wordset(int $recording_id, int $wordset_id, array $word_info): array {
     return ll_tools_ipa_keyboard_build_recording_payload(
         $recording_id,
@@ -3314,6 +3744,86 @@ function ll_tools_ipa_orthography_build_recording_payload_for_wordset(int $recor
         ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), 'ipa'),
         $wordset_id
     );
+}
+
+function ll_tools_ipa_orthography_build_profile_contradiction_rows(int $wordset_id, array $exception_word_ids): array {
+    $profile = ll_tools_ipa_orthography_get_conversion_profile($wordset_id);
+    if (empty($profile)) {
+        return [];
+    }
+
+    $word_ids = ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id);
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $recording_ids = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'post_parent__in' => $word_ids,
+        'no_found_rows' => true,
+    ]);
+    if (empty($recording_ids)) {
+        return [];
+    }
+
+    $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
+    $word_display = ll_tools_ipa_keyboard_get_word_display_map($word_ids);
+    $rows = [];
+
+    foreach ((array) $recording_ids as $recording_id) {
+        $recording_id = (int) $recording_id;
+        if ($recording_id <= 0) {
+            continue;
+        }
+
+        $word_id = (int) wp_get_post_parent_id($recording_id);
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $recording_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
+            ? ll_tools_word_grid_sanitize_non_ipa_text((string) get_post_meta($recording_id, 'recording_text', true))
+            : sanitize_text_field((string) get_post_meta($recording_id, 'recording_text', true));
+        $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), 'ipa');
+        if ($recording_text === '' || $recording_ipa === '') {
+            continue;
+        }
+
+        $prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text(
+            $recording_ipa,
+            $wordset_id,
+            ll_tools_ipa_orthography_get_recording_type_slug($recording_id)
+        );
+        $predicted_text = (string) ($prediction['text'] ?? '');
+        if (empty($prediction['complete']) || $predicted_text === '') {
+            continue;
+        }
+
+        $actual_norm = ll_tools_ipa_orthography_profile_compare_key($recording_text, $language);
+        $predicted_norm = ll_tools_ipa_orthography_profile_compare_key($predicted_text, $language);
+        if ($predicted_norm === '' || $predicted_norm === $actual_norm) {
+            continue;
+        }
+
+        $payload = ll_tools_ipa_orthography_build_recording_payload_for_wordset(
+            $recording_id,
+            $wordset_id,
+            (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => ''])
+        );
+        $payload['predicted_text'] = $predicted_text;
+        $payload['prediction_source'] = 'profile';
+        $payload['prediction_source_label'] = (string) ($profile['label'] ?? __('Conversion profile', 'll-tools-text-domain'));
+        $payload['approved_exception'] = in_array($word_id, $exception_word_ids, true);
+        $payload['conflict_count'] = 1;
+        $payload['can_convert'] = true;
+        $payload['can_apply_suggestion'] = true;
+        $rows[$recording_id] = $payload;
+    }
+
+    return array_values($rows);
 }
 
 function ll_tools_ipa_orthography_build_contradiction_rows(
@@ -3332,7 +3842,12 @@ function ll_tools_ipa_orthography_build_contradiction_rows(
             continue;
         }
 
-        $prediction = ll_tools_ipa_orthography_convert_ipa_to_text((string) ($row['recording_ipa'] ?? ''), $engine_rules, $wordset_id);
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
+            (string) ($row['recording_ipa'] ?? ''),
+            $engine_rules,
+            $wordset_id,
+            $recording_id
+        );
         $predicted_text = (string) ($prediction['text'] ?? '');
         $actual_norm = ll_tools_ipa_orthography_normalize_word_text((string) ($row['recording_text'] ?? ''), $language);
         $predicted_norm = ll_tools_ipa_orthography_normalize_word_text($predicted_text, $language);
@@ -3348,9 +3863,14 @@ function ll_tools_ipa_orthography_build_contradiction_rows(
                 (array) ($row['word_info'] ?? ['word_text' => '', 'translation' => ''])
             );
             $payload['predicted_text'] = $predicted_text;
+            $payload['prediction_source'] = (string) ($prediction['source'] ?? 'rules');
+            $payload['prediction_source_label'] = !empty($prediction['profile']['label'])
+                ? (string) $prediction['profile']['label']
+                : __('Current rules', 'll-tools-text-domain');
             $payload['approved_exception'] = in_array($word_id, $exception_word_ids, true);
             $payload['conflict_count'] = 1;
             $payload['can_convert'] = !empty($prediction['complete']) && $predicted_text !== '';
+            $payload['can_apply_suggestion'] = $payload['can_convert'];
             $rows[$word_id] = $payload;
             continue;
         }
@@ -3437,13 +3957,17 @@ function ll_tools_ipa_orthography_build_conversion_candidates(int $wordset_id, a
             continue;
         }
 
-        $prediction = ll_tools_ipa_orthography_convert_ipa_to_text($recording_ipa, $engine_rules, $wordset_id);
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($recording_ipa, $engine_rules, $wordset_id, $recording_id);
         $payload = ll_tools_ipa_orthography_build_recording_payload_for_wordset(
             $recording_id,
             $wordset_id,
             (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => ''])
         );
         $payload['predicted_text'] = (string) ($prediction['text'] ?? '');
+        $payload['prediction_source'] = (string) ($prediction['source'] ?? 'rules');
+        $payload['prediction_source_label'] = !empty($prediction['profile']['label'])
+            ? (string) $prediction['profile']['label']
+            : __('Current rules', 'll-tools-text-domain');
         $payload['can_convert'] = !empty($prediction['complete']) && $payload['predicted_text'] !== '';
         $payload['status'] = $payload['can_convert'] ? 'ready' : 'needs_rules';
         $candidates[] = $payload;
@@ -3477,7 +4001,7 @@ function ll_tools_ipa_orthography_apply_conversion_to_word(int $wordset_id, int 
     }
 
     $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), 'ipa');
-    $prediction = ll_tools_ipa_orthography_convert_ipa_to_text($recording_ipa, $engine_rules, $wordset_id);
+    $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($recording_ipa, $engine_rules, $wordset_id, $recording_id);
     $predicted_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
         ? ll_tools_word_grid_sanitize_non_ipa_text((string) ($prediction['text'] ?? ''))
         : sanitize_text_field((string) ($prediction['text'] ?? ''));
@@ -3509,6 +4033,56 @@ function ll_tools_ipa_orthography_apply_conversion_to_word(int $wordset_id, int 
     ];
 }
 
+function ll_tools_ipa_orthography_apply_suggestion_to_recording(int $wordset_id, int $recording_id, array $engine_rules) {
+    $recording_id = (int) $recording_id;
+    $wordset_id = (int) $wordset_id;
+    $recording = get_post($recording_id);
+    if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio') {
+        return new WP_Error('invalid_recording', __('Invalid recording.', 'll-tools-text-domain'));
+    }
+
+    $word_id = (int) $recording->post_parent;
+    if ($word_id <= 0 || !has_term($wordset_id, 'wordset', $word_id)) {
+        return new WP_Error('invalid_wordset', __('Recording does not belong to this word set.', 'll-tools-text-domain'));
+    }
+
+    $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), 'ipa');
+    if ($recording_ipa === '') {
+        return new WP_Error('missing_ipa', __('No IPA transcription is available for this recording.', 'll-tools-text-domain'));
+    }
+
+    $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($recording_ipa, $engine_rules, $wordset_id, $recording_id);
+    $predicted_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
+        ? ll_tools_word_grid_sanitize_non_ipa_text((string) ($prediction['text'] ?? ''))
+        : sanitize_text_field((string) ($prediction['text'] ?? ''));
+    if (empty($prediction['complete']) || $predicted_text === '') {
+        return new WP_Error('conversion_failed', __('Current rules cannot suggest a written transcription for this recording yet.', 'll-tools-text-domain'));
+    }
+
+    $recording_payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, [
+        'recording_text' => $predicted_text,
+    ]);
+    if (empty($recording_payload)) {
+        return new WP_Error('recording_update_failed', __('Failed to save the suggested recording text.', 'll-tools-text-domain'));
+    }
+
+    return [
+        'word_id' => $word_id,
+        'recording_id' => $recording_id,
+        'predicted_text' => $predicted_text,
+        'prediction_source' => (string) ($prediction['source'] ?? 'rules'),
+        'recording' => (array) ($recording_payload['recording'] ?? []),
+    ];
+}
+
+function ll_tools_ipa_orthography_build_engine_rules_for_wordset(int $wordset_id): array {
+    $training_rows = ll_tools_ipa_orthography_collect_training_rows($wordset_id);
+    $stats = ll_tools_ipa_orthography_collect_rule_stats($wordset_id, $training_rows);
+    $auto_rules = ll_tools_ipa_orthography_build_auto_rules_from_stats($stats);
+    $auto_rules = ll_tools_ipa_orthography_filter_auto_rules($auto_rules, ll_tools_ipa_orthography_get_blocklist($wordset_id));
+    return ll_tools_ipa_orthography_prepare_engine_rules($auto_rules, ll_tools_ipa_orthography_get_manual_rules($wordset_id), $wordset_id);
+}
+
 function ll_tools_ipa_keyboard_build_orthography_data(int $wordset_id): array {
     $transcription = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
     if ((string) ($transcription['mode'] ?? 'ipa') !== 'ipa') {
@@ -3535,7 +4109,18 @@ function ll_tools_ipa_keyboard_build_orthography_data(int $wordset_id): array {
     $visible_auto_rules = ll_tools_ipa_orthography_filter_auto_rules($raw_auto_rules, $blocklist);
     $engine_rules = ll_tools_ipa_orthography_prepare_engine_rules($visible_auto_rules, $manual_rules, $wordset_id);
     $exception_word_ids = ll_tools_ipa_orthography_get_exception_word_ids($wordset_id);
-    $contradictions = ll_tools_ipa_orthography_build_contradiction_rows($wordset_id, $training_rows, $engine_rules, $exception_word_ids);
+    $profile_contradictions = ll_tools_ipa_orthography_build_profile_contradiction_rows($wordset_id, $exception_word_ids);
+    $profile_recording_ids = [];
+    foreach ($profile_contradictions as $row) {
+        $profile_recording_ids[(int) ($row['recording_id'] ?? 0)] = true;
+    }
+    $rule_contradictions = array_values(array_filter(
+        ll_tools_ipa_orthography_build_contradiction_rows($wordset_id, $training_rows, $engine_rules, $exception_word_ids),
+        static function (array $row) use ($profile_recording_ids): bool {
+            return empty($profile_recording_ids[(int) ($row['recording_id'] ?? 0)]);
+        }
+    ));
+    $contradictions = array_values(array_merge($profile_contradictions, $rule_contradictions));
     $conversion_candidates = ll_tools_ipa_orthography_build_conversion_candidates($wordset_id, $engine_rules);
     $active_contradiction_count = 0;
     $approved_contradiction_count = 0;
@@ -3552,6 +4137,7 @@ function ll_tools_ipa_keyboard_build_orthography_data(int $wordset_id): array {
         'rules' => ll_tools_ipa_orthography_build_rule_payload($raw_auto_rules, $visible_auto_rules, $manual_rules, $blocklist),
         'contradictions' => $contradictions,
         'conversion_candidates' => $conversion_candidates,
+        'conversion_profile' => ll_tools_ipa_orthography_get_conversion_profile($wordset_id),
         'stats' => [
             'rule_count' => count($raw_auto_rules),
             'training_pair_count' => count($training_rows),
@@ -4013,10 +4599,39 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
         }
     }
 
+    $recording_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
+        ? ll_tools_word_grid_sanitize_non_ipa_text((string) get_post_meta($recording_id, 'recording_text', true))
+        : sanitize_text_field((string) get_post_meta($recording_id, 'recording_text', true));
+
+    if (!in_array('orthography_mismatch', $disabled_builtin_rules, true) && $recording_text !== '') {
+        $profile_prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text(
+            $recording_ipa,
+            $wordset_id,
+            ll_tools_ipa_orthography_get_recording_type_slug($recording_id)
+        );
+        $profile_text = (string) ($profile_prediction['text'] ?? '');
+        if (!empty($profile_prediction['complete']) && $profile_text !== '') {
+            $actual_norm = ll_tools_ipa_orthography_profile_compare_key($recording_text, ll_tools_ipa_orthography_get_wordset_language($wordset_id));
+            $predicted_norm = ll_tools_ipa_orthography_profile_compare_key($profile_text, ll_tools_ipa_orthography_get_wordset_language($wordset_id));
+            if ($predicted_norm !== '' && $predicted_norm !== $actual_norm) {
+                $add_issue(
+                    $issue_map,
+                    'builtin:orthography_mismatch',
+                    'orthography_mismatch',
+                    'builtin',
+                    (string) ($builtin_rules['orthography_mismatch']['label'] ?? ''),
+                    sprintf(
+                        /* translators: %s is the suggested written transcription. */
+                        __('Saved text does not match the conversion profile. Suggested text: %s', 'll-tools-text-domain'),
+                        $profile_text
+                    ),
+                    $profile_text
+                );
+            }
+        }
+    }
+
     if (!in_array('unapproved_ipa_symbol', $disabled_builtin_rules, true)) {
-        $recording_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
-            ? ll_tools_word_grid_sanitize_non_ipa_text((string) get_post_meta($recording_id, 'recording_text', true))
-            : sanitize_text_field((string) get_post_meta($recording_id, 'recording_text', true));
         foreach ($segment_tokens as $token) {
             $token = (string) $token;
             $unapproved_symbol = ll_tools_ipa_keyboard_token_has_unapproved_ipa_symbol($token, $approved_ipa_symbols);
@@ -5347,6 +5962,39 @@ function ll_tools_toggle_ipa_keyboard_orthography_exception_handler() {
     wp_send_json_success(ll_tools_ipa_keyboard_build_orthography_response($wordset_id));
 }
 
+add_action('wp_ajax_ll_tools_apply_ipa_keyboard_orthography_suggestion', 'll_tools_apply_ipa_keyboard_orthography_suggestion_handler');
+function ll_tools_apply_ipa_keyboard_orthography_suggestion_handler() {
+    check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+    }
+
+    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    $recording_id = (int) ($_POST['recording_id'] ?? 0);
+    if ($wordset_id <= 0 || $recording_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
+        wp_send_json_error(__('Missing data', 'll-tools-text-domain'), 400);
+    }
+
+    if (!ll_tools_ipa_keyboard_get_wordset_term($wordset_id)) {
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
+    }
+
+    $result = ll_tools_ipa_orthography_apply_suggestion_to_recording(
+        $wordset_id,
+        $recording_id,
+        ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id)
+    );
+    if (is_wp_error($result)) {
+        wp_send_json_error($result->get_error_message(), 400);
+    }
+
+    ll_tools_ipa_keyboard_remember_wordset($wordset_id);
+    $response = ll_tools_ipa_keyboard_build_orthography_response($wordset_id);
+    $response['applied_suggestion'] = $result;
+    wp_send_json_success($response);
+}
+
 add_action('wp_ajax_ll_tools_convert_ipa_keyboard_orthography_words', 'll_tools_convert_ipa_keyboard_orthography_words_handler');
 function ll_tools_convert_ipa_keyboard_orthography_words_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
@@ -5375,11 +6023,7 @@ function ll_tools_convert_ipa_keyboard_orthography_words_handler() {
         wp_send_json_error(__('No words selected', 'll-tools-text-domain'), 400);
     }
 
-    $training_rows = ll_tools_ipa_orthography_collect_training_rows($wordset_id);
-    $stats = ll_tools_ipa_orthography_collect_rule_stats($wordset_id, $training_rows);
-    $auto_rules = ll_tools_ipa_orthography_build_auto_rules_from_stats($stats);
-    $auto_rules = ll_tools_ipa_orthography_filter_auto_rules($auto_rules, ll_tools_ipa_orthography_get_blocklist($wordset_id));
-    $engine_rules = ll_tools_ipa_orthography_prepare_engine_rules($auto_rules, ll_tools_ipa_orthography_get_manual_rules($wordset_id), $wordset_id);
+    $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
 
     $converted = [];
     $errors = [];

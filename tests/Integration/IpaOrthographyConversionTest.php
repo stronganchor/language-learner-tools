@@ -150,6 +150,61 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('ara', (string) ($prediction['text'] ?? ''));
     }
 
+    public function test_genc_palu_profile_uses_phrase_exception_and_flags_mismatch(): void
+    {
+        $wordset_id = $this->createWordset('Genç-Palu Profile');
+        $word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
+        $recording_id = $this->createRecording($word_id, 'des erzen', 'dɛs ɛɾzɛn');
+
+        $prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text('dɛs ɛɾzɛn', $wordset_id);
+        $this->assertTrue((bool) ($prediction['complete'] ?? false));
+        $this->assertSame('Dest erzen', (string) ($prediction['text'] ?? ''));
+        $this->assertNotSame(
+            ll_tools_ipa_orthography_profile_compare_key('dest erzen'),
+            ll_tools_ipa_orthography_profile_compare_key('desterzen')
+        );
+
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($validation['active'] ?? []));
+        $this->assertContains('orthography_mismatch', $codes);
+
+        $data = ll_tools_ipa_keyboard_build_orthography_data($wordset_id);
+        $rows = (array) ($data['contradictions'] ?? []);
+        $this->assertCount(1, $rows);
+        $this->assertSame($recording_id, (int) ($rows[0]['recording_id'] ?? 0));
+        $this->assertSame('Dest erzen', (string) ($rows[0]['predicted_text'] ?? ''));
+        $this->assertSame('profile', (string) ($rows[0]['prediction_source'] ?? ''));
+        $this->assertTrue((bool) ($rows[0]['can_apply_suggestion'] ?? false));
+    }
+
+    public function test_apply_orthography_suggestion_handler_updates_recording_text(): void
+    {
+        $wordset_id = $this->createWordset('Genç-Palu Suggestion');
+        $word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
+        $recording_id = $this->createRecording($word_id, 'des erzen', 'dɛs ɛɾzɛn');
+
+        $user_id = $this->createViewerUser();
+        wp_set_current_user($user_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'recording_id' => $recording_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_apply_ipa_keyboard_orthography_suggestion_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame('Dest erzen', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame(0, (int) (($response['data']['orthography']['stats']['active_contradiction_count'] ?? 0)));
+    }
+
     public function test_word_exception_marks_contradiction_as_approved(): void
     {
         $wordset_id = $this->createWordset('Orthography Exceptions');

@@ -2413,6 +2413,7 @@
 
     function renderOrthographySummary(orthography) {
         const stats = orthography && orthography.stats ? orthography.stats : {};
+        const profile = orthography && orthography.conversion_profile ? orthography.conversion_profile : {};
         const $grid = $('<div>', { class: 'll-ipa-orthography-stat-grid' });
         [
             {
@@ -2426,6 +2427,10 @@
             {
                 label: t('orthographySummaryQueue', 'Missing text'),
                 value: parseInt(stats.candidate_count, 10) || 0
+            },
+            {
+                label: t('orthographySummaryProfile', 'Profile'),
+                value: profile && profile.short_label ? profile.short_label : t('orthographySummaryProfileNone', 'Generic')
             }
         ].forEach(function (card) {
             const $item = $('<div>', { class: 'll-ipa-orthography-stat' });
@@ -2704,9 +2709,17 @@
             $tr.append($('<td>', {
                 text: row && row.recording_text ? row.recording_text : '—'
             }));
-            $tr.append($('<td>', {
+            const $predictedCell = $('<td>');
+            $predictedCell.append($('<div>', {
                 text: row && row.predicted_text ? row.predicted_text : t('orthographyConvertCannot', 'Needs more rules')
             }));
+            if (row && row.prediction_source_label) {
+                $predictedCell.append($('<div>', {
+                    class: 'll-ipa-orthography-prediction-source',
+                    text: row.prediction_source_label
+                }));
+            }
+            $tr.append($predictedCell);
             const $actions = $('<td>', { class: 'll-ipa-orthography-issue-actions' });
             if (approved) {
                 $actions.append($('<span>', {
@@ -2715,6 +2728,14 @@
                 }));
             }
             if (currentCanEdit) {
+                if (row && row.can_apply_suggestion && row.recording_id) {
+                    $actions.append($('<button>', {
+                        type: 'button',
+                        class: 'button button-primary ll-ipa-orthography-suggestion-apply',
+                        text: t('orthographyIssueApplySuggestion', 'Use suggestion'),
+                        'data-recording-id': row.recording_id
+                    }));
+                }
                 $actions.append($('<button>', {
                     type: 'button',
                     class: 'button button-secondary ll-ipa-orthography-exception-toggle',
@@ -3487,6 +3508,36 @@
             handleOrthographyRefreshResponse(response, t('saved', 'Saved.'));
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    });
+
+    $orthographyIssues.on('click', '.ll-ipa-orthography-suggestion-apply', function () {
+        const $btn = $(this);
+        const recordingId = parseInt($btn.attr('data-recording-id'), 10) || 0;
+        if (!recordingId) {
+            return;
+        }
+
+        $btn.prop('disabled', true);
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_apply_ipa_keyboard_orthography_suggestion',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: recordingId
+        }).done(function (response) {
+            if (!handleOrthographyRefreshResponse(response, t('orthographyIssueSuggestionApplied', 'Suggestion saved.'))) {
+                return;
+            }
+            const data = response.data || {};
+            if (data.applied_suggestion && data.applied_suggestion.recording) {
+                replaceSearchRowByRecordingId(recordingId, data.applied_suggestion.recording);
+            }
+            markTabsDirty(['map', 'symbols', 'search']);
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
+            $btn.prop('disabled', !currentCanEdit);
         });
     });
 
