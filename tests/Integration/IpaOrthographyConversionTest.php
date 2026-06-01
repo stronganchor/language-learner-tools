@@ -198,17 +198,27 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertContains('orthography_mismatch', $codes);
     }
 
-    public function test_genc_palu_profile_tolerates_final_near_i_but_rejects_near_i_as_orthographic_i(): void
+    public function test_genc_palu_profile_uses_lexical_final_near_i_overrides_without_broad_auto_accept(): void
     {
         $wordset_id = $this->createWordset('Genç-Palu Near I Profile');
         $ipa = "\u{0283}\u{026A} m\u{02B7}\u{025B}\u{027E}\u{026A}k\u{02B0}";
 
         $prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text($ipa, $wordset_id);
         $this->assertTrue((bool) ($prediction['complete'] ?? false));
-        $this->assertSame('Şe mwerık', (string) ($prediction['text'] ?? ''));
+        $this->assertSame('Şı mwerık', (string) ($prediction['text'] ?? ''));
 
         $accepted_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Şı mwerık', $ipa, $wordset_id);
         $this->assertTrue((bool) ($accepted_detail['matches'] ?? false));
+
+        $lexical_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Maze', "maz\u{026A}", $wordset_id);
+        $this->assertFalse((bool) ($lexical_detail['matches'] ?? true));
+        $this->assertSame('Mazı', (string) ($lexical_detail['suggested_text'] ?? ''));
+        $this->assertSame(['e'], $this->collectSpanText('Maze', (array) ($lexical_detail['actual_spans'] ?? [])));
+        $this->assertSame(['ı'], $this->collectSpanText((string) ($lexical_detail['suggested_text'] ?? ''), (array) ($lexical_detail['suggested_spans'] ?? [])));
+
+        $unresolved_pronoun_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Yı', "j\u{026A}", $wordset_id);
+        $this->assertFalse((bool) ($unresolved_pronoun_detail['matches'] ?? true));
+        $this->assertSame('Ye', (string) ($unresolved_pronoun_detail['suggested_text'] ?? ''));
 
         $detail = ll_tools_ipa_orthography_profile_mismatch_detail('Şı mwerik', $ipa, $wordset_id);
         $this->assertFalse((bool) ($detail['matches'] ?? true));

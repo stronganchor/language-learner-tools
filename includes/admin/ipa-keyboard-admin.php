@@ -2528,24 +2528,7 @@ function ll_tools_ipa_orthography_profile_words_equivalent(
         return true;
     }
 
-    if (!ll_tools_ipa_orthography_ipa_word_has_final_near_i($ipa_word)) {
-        return false;
-    }
-
-    $actual_length = ll_tools_ipa_orthography_strlen($actual_key);
-    $suggested_length = ll_tools_ipa_orthography_strlen($suggested_key);
-    if ($actual_length <= 0 || $actual_length !== $suggested_length) {
-        return false;
-    }
-
-    $actual_last = ll_tools_ipa_orthography_substr($actual_key, -1, 1);
-    $suggested_last = ll_tools_ipa_orthography_substr($suggested_key, -1, 1);
-    if (!in_array($actual_last, ['e', 'ı'], true) || !in_array($suggested_last, ['e', 'ı'], true)) {
-        return false;
-    }
-
-    return ll_tools_ipa_orthography_substr($actual_key, 0, $actual_length - 1)
-        === ll_tools_ipa_orthography_substr($suggested_key, 0, $suggested_length - 1);
+    return false;
 }
 
 function ll_tools_ipa_orthography_diff_span_pair(
@@ -2891,7 +2874,7 @@ function ll_tools_ipa_orthography_profile_convert_genc_palu_word(string $word): 
             ll_tools_ipa_orthography_mb_lower(str_replace(['Ç_SEG', 'C_SEG', 'K_SEG'], ['ç', 'c', 'k'], $final_dotless_i)),
             defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16
         );
-        $text = in_array($final_key, ['cı', 'mı', 'owı', 'pwırı'], true) ? $final_dotless_i : $final_e;
+        $text = in_array($final_key, ['cı', 'mı', 'owı', 'pwırı', 'şı', 'tı', 'mazı', 'qıncelı', 'çartelı', 'nyûnı'], true) ? $final_dotless_i : $final_e;
     }
     $text = str_replace('I_NEAR', 'ı', $text);
 
