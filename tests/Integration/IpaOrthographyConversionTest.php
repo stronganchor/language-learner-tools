@@ -198,6 +198,31 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertContains('orthography_mismatch', $codes);
     }
 
+    public function test_genc_palu_profile_tolerates_final_near_i_but_rejects_near_i_as_orthographic_i(): void
+    {
+        $wordset_id = $this->createWordset('Genç-Palu Near I Profile');
+        $ipa = "\u{0283}\u{026A} m\u{02B7}\u{025B}\u{027E}\u{026A}k\u{02B0}";
+
+        $prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text($ipa, $wordset_id);
+        $this->assertTrue((bool) ($prediction['complete'] ?? false));
+        $this->assertSame('Şe mwerık', (string) ($prediction['text'] ?? ''));
+
+        $accepted_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Şı mwerık', $ipa, $wordset_id);
+        $this->assertTrue((bool) ($accepted_detail['matches'] ?? false));
+
+        $detail = ll_tools_ipa_orthography_profile_mismatch_detail('Şı mwerik', $ipa, $wordset_id);
+        $this->assertFalse((bool) ($detail['matches'] ?? true));
+        $this->assertSame('Şı mwerık', (string) ($detail['suggested_text'] ?? ''));
+        $this->assertSame(['i'], $this->collectSpanText('Şı mwerik', (array) ($detail['actual_spans'] ?? [])));
+        $this->assertSame(['ı'], $this->collectSpanText((string) ($detail['suggested_text'] ?? ''), (array) ($detail['suggested_spans'] ?? [])));
+        $this->assertSame(["\u{026A}"], $this->collectSpanText($ipa, (array) ($detail['ipa_spans'] ?? [])));
+
+        $ipa_suggestions = array_map(static function (array $suggestion): string {
+            return (string) ($suggestion['ipa'] ?? '');
+        }, (array) ($detail['ipa_suggestions'] ?? []));
+        $this->assertContains("\u{0283}\u{026A} m\u{02B7}\u{025B}\u{027E}ik\u{02B0}", $ipa_suggestions);
+    }
+
     public function test_apply_orthography_suggestion_handler_updates_recording_text(): void
     {
         $wordset_id = $this->createWordset('Genç-Palu Suggestion');
@@ -221,6 +246,34 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($response['success'] ?? false));
         $this->assertSame('Dest erzen', (string) get_post_meta($recording_id, 'recording_text', true));
         $this->assertSame(0, (int) (($response['data']['orthography']['stats']['active_contradiction_count'] ?? 0)));
+    }
+
+    public function test_apply_orthography_suggestion_preserves_accepted_final_near_i_choice(): void
+    {
+        $wordset_id = $this->createWordset('Genç-Palu Near I Suggestion');
+        $word_id = $this->createWord($wordset_id, 'Warm clothes', 'Şı mwerik');
+        $recording_id = $this->createRecording(
+            $word_id,
+            'Şı mwerik',
+            "\u{0283}\u{026A} m\u{02B7}\u{025B}\u{027E}\u{026A}k\u{02B0}"
+        );
+
+        $user_id = $this->createViewerUser();
+        wp_set_current_user($user_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'recording_id' => $recording_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_apply_ipa_keyboard_orthography_suggestion_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame('Şı mwerık', (string) get_post_meta($recording_id, 'recording_text', true));
     }
 
     public function test_word_exception_marks_contradiction_as_approved(): void
@@ -338,6 +391,17 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int,array<string,int>> $spans
+     * @return array<int,string>
+     */
+    private function collectSpanText(string $text, array $spans): array
+    {
+        return array_values(array_map(static function (array $span) use ($text): string {
+            return mb_substr($text, (int) ($span['start'] ?? 0), (int) ($span['length'] ?? 0), 'UTF-8');
+        }, $spans));
     }
 
     /**

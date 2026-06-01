@@ -1562,6 +1562,38 @@
     line-height: 1.35;
 }
 
+.ll-ipa-search-orthography-mismatch {
+    display: grid;
+    gap: 5px;
+    margin-top: 7px;
+}
+
+.ll-ipa-search-mismatch-row {
+    display: grid;
+    gap: 2px;
+}
+
+.ll-ipa-search-mismatch-label {
+    color: #92400e;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.ll-ipa-search-mismatch-text,
+.ll-ipa-orthography-mismatch-text {
+    overflow-wrap: anywhere;
+}
+
+.ll-ipa-mismatch-mark {
+    border-radius: 3px;
+    background: #fde68a;
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.35);
+    color: inherit;
+    padding: 0 2px;
+}
+
 .ll-ipa-search-issue-samples {
     display: flex;
     flex-wrap: wrap;
@@ -1597,7 +1629,9 @@
 }
 
 .ll-ipa-issue-toggle,
-.ll-ipa-symbol-approval {
+.ll-ipa-symbol-approval,
+.ll-ipa-search-orthography-apply,
+.ll-ipa-search-ipa-suggestion-apply {
     padding: 0;
     border: 0;
     background: transparent;

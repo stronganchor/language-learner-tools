@@ -418,6 +418,11 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'orthographyIssueApprove' => __('Approve exception', 'll-tools-text-domain'),
             'orthographyIssueRestore' => __('Undo exception', 'll-tools-text-domain'),
             'orthographyIssueApproved' => __('Approved exception', 'll-tools-text-domain'),
+            'orthographyIssueApplySuggestion' => __('Use suggested orthography', 'll-tools-text-domain'),
+            'orthographyIssueApplyIpaSuggestion' => __('Use IPA: %1$s', 'll-tools-text-domain'),
+            'orthographyIssueSuggestionApplied' => __('Suggestion saved.', 'll-tools-text-domain'),
+            'orthographyIssueIpaSuggestionApplied' => __('IPA suggestion saved.', 'll-tools-text-domain'),
+            'orthographyIssueSaveFirst' => __('Saved local edits. Click the suggestion again to apply it.', 'll-tools-text-domain'),
             'orthographyConvertTitle' => __('Words missing written text', 'll-tools-text-domain'),
             'orthographyConvertDescription' => __('Apply the current rules to words that have IPA saved but still need written text.', 'll-tools-text-domain'),
             'orthographyConvertEmpty' => __('No words are waiting for IPA-to-orthography conversion.', 'll-tools-text-domain'),
@@ -2423,6 +2428,222 @@ function ll_tools_ipa_orthography_profile_compare_key(string $text, string $lang
     return ll_tools_ipa_orthography_unicode_normalize(trim((string) $text), defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16);
 }
 
+function ll_tools_ipa_orthography_strlen(string $text): int {
+    return function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
+}
+
+function ll_tools_ipa_orthography_substr(string $text, int $start, ?int $length = null): string {
+    if (function_exists('mb_substr')) {
+        return $length === null ? mb_substr($text, $start, null, 'UTF-8') : mb_substr($text, $start, $length, 'UTF-8');
+    }
+    return $length === null ? substr($text, $start) : substr($text, $start, $length);
+}
+
+function ll_tools_ipa_orthography_split_nonspace_spans(string $text): array {
+    if ($text === '' || !preg_match_all('/\S+/u', $text, $matches, PREG_OFFSET_CAPTURE)) {
+        return [];
+    }
+
+    $parts = [];
+    foreach ((array) ($matches[0] ?? []) as $match) {
+        $token = (string) ($match[0] ?? '');
+        $byte_offset = max(0, (int) ($match[1] ?? 0));
+        $parts[] = [
+            'text' => $token,
+            'start' => ll_tools_ipa_orthography_strlen(substr($text, 0, $byte_offset)),
+            'length' => ll_tools_ipa_orthography_strlen($token),
+        ];
+    }
+    return $parts;
+}
+
+function ll_tools_ipa_orthography_replace_char_span(string $text, int $start, int $length, string $replacement): string {
+    return ll_tools_ipa_orthography_substr($text, 0, $start)
+        . $replacement
+        . ll_tools_ipa_orthography_substr($text, $start + $length);
+}
+
+function ll_tools_ipa_orthography_replace_first(string $text, string $search, string $replace): string {
+    if ($search === '') {
+        return $text;
+    }
+    $pos = function_exists('mb_strpos') ? mb_strpos($text, $search, 0, 'UTF-8') : strpos($text, $search);
+    if ($pos === false) {
+        return $text;
+    }
+    return ll_tools_ipa_orthography_replace_char_span($text, (int) $pos, ll_tools_ipa_orthography_strlen($search), $replace);
+}
+
+function ll_tools_ipa_orthography_chars(string $text): array {
+    if ($text === '') {
+        return [];
+    }
+    $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+    return is_array($chars) ? array_values($chars) : str_split($text);
+}
+
+function ll_tools_ipa_orthography_ends_with_any(string $text, array $suffixes): bool {
+    foreach ($suffixes as $suffix) {
+        $suffix = (string) $suffix;
+        if ($suffix === '') {
+            continue;
+        }
+        $length = ll_tools_ipa_orthography_strlen($suffix);
+        if (ll_tools_ipa_orthography_strlen($text) >= $length
+            && ll_tools_ipa_orthography_substr($text, -$length) === $suffix) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function ll_tools_ipa_orthography_ipa_word_has_final_near_i(string $ipa_word): bool {
+    $tokens = ll_tools_ipa_orthography_tokenize_segment($ipa_word, 'ipa');
+    $tokens = array_values(array_filter($tokens, static function ($token): bool {
+        return !function_exists('ll_tools_word_grid_is_ipa_stress_marker')
+            || !ll_tools_word_grid_is_ipa_stress_marker((string) $token, 'ipa');
+    }));
+    if (empty($tokens)) {
+        return false;
+    }
+
+    $last = (string) end($tokens);
+    if (function_exists('ll_tools_ipa_keyboard_extract_token_base')) {
+        $last = ll_tools_ipa_keyboard_extract_token_base($last, 'ipa');
+    }
+    $last = preg_replace('/[\x{02B0}\x{02D0}\x{0300}-\x{036F}]/u', '', (string) $last);
+    return $last === 'ɪ' || ll_tools_ipa_orthography_ends_with_any((string) $last, ['ɪ']);
+}
+
+function ll_tools_ipa_orthography_profile_words_equivalent(
+    string $actual_word,
+    string $suggested_word,
+    string $ipa_word,
+    string $language = ''
+): bool {
+    $actual_key = ll_tools_ipa_orthography_profile_compare_key($actual_word, $language);
+    $suggested_key = ll_tools_ipa_orthography_profile_compare_key($suggested_word, $language);
+    if ($actual_key === $suggested_key) {
+        return true;
+    }
+
+    if (!ll_tools_ipa_orthography_ipa_word_has_final_near_i($ipa_word)) {
+        return false;
+    }
+
+    $actual_length = ll_tools_ipa_orthography_strlen($actual_key);
+    $suggested_length = ll_tools_ipa_orthography_strlen($suggested_key);
+    if ($actual_length <= 0 || $actual_length !== $suggested_length) {
+        return false;
+    }
+
+    $actual_last = ll_tools_ipa_orthography_substr($actual_key, -1, 1);
+    $suggested_last = ll_tools_ipa_orthography_substr($suggested_key, -1, 1);
+    if (!in_array($actual_last, ['e', 'ı'], true) || !in_array($suggested_last, ['e', 'ı'], true)) {
+        return false;
+    }
+
+    return ll_tools_ipa_orthography_substr($actual_key, 0, $actual_length - 1)
+        === ll_tools_ipa_orthography_substr($suggested_key, 0, $suggested_length - 1);
+}
+
+function ll_tools_ipa_orthography_diff_span_pair(
+    string $actual,
+    string $suggested,
+    int $actual_start,
+    int $suggested_start,
+    string $language = ''
+): array {
+    $actual_chars = ll_tools_ipa_orthography_chars($actual);
+    $suggested_chars = ll_tools_ipa_orthography_chars($suggested);
+    $actual_compare = ll_tools_ipa_orthography_chars(ll_tools_ipa_orthography_mb_lower($actual, $language));
+    $suggested_compare = ll_tools_ipa_orthography_chars(ll_tools_ipa_orthography_mb_lower($suggested, $language));
+
+    $prefix = 0;
+    $max_prefix = min(count($actual_compare), count($suggested_compare));
+    while ($prefix < $max_prefix && $actual_compare[$prefix] === $suggested_compare[$prefix]) {
+        $prefix++;
+    }
+
+    $suffix = 0;
+    while (
+        $suffix < (count($actual_compare) - $prefix)
+        && $suffix < (count($suggested_compare) - $prefix)
+        && $actual_compare[count($actual_compare) - 1 - $suffix] === $suggested_compare[count($suggested_compare) - 1 - $suffix]
+    ) {
+        $suffix++;
+    }
+
+    $actual_length = max(0, count($actual_chars) - $prefix - $suffix);
+    $suggested_length = max(0, count($suggested_chars) - $prefix - $suffix);
+
+    return [
+        'actual' => $actual_length > 0 ? [
+            'start' => $actual_start + $prefix,
+            'length' => $actual_length,
+        ] : null,
+        'suggested' => $suggested_length > 0 ? [
+            'start' => $suggested_start + $prefix,
+            'length' => $suggested_length,
+        ] : null,
+        'actual_diff' => $actual_length > 0 ? implode('', array_slice($actual_chars, $prefix, $actual_length)) : '',
+        'suggested_diff' => $suggested_length > 0 ? implode('', array_slice($suggested_chars, $prefix, $suggested_length)) : '',
+    ];
+}
+
+function ll_tools_ipa_orthography_find_ipa_symbol_span(string $ipa_word, string $symbol, int $word_start): ?array {
+    if ($symbol === '') {
+        return null;
+    }
+    $pos = function_exists('mb_strpos') ? mb_strpos($ipa_word, $symbol, 0, 'UTF-8') : strpos($ipa_word, $symbol);
+    if ($pos === false) {
+        return null;
+    }
+    return [
+        'start' => $word_start + (int) $pos,
+        'length' => ll_tools_ipa_orthography_strlen($symbol),
+    ];
+}
+
+function ll_tools_ipa_orthography_ipa_span_for_mismatch(
+    string $ipa_word,
+    string $actual_diff,
+    string $suggested_diff,
+    int $word_start,
+    int $word_length,
+    string $language = ''
+): array {
+    $actual_key = ll_tools_ipa_orthography_profile_compare_key($actual_diff, $language);
+    $suggested_key = ll_tools_ipa_orthography_profile_compare_key($suggested_diff, $language);
+    $symbols = [];
+
+    if (strpos($suggested_key, 'ı') !== false && strpos($actual_key, 'i') !== false) {
+        $symbols = ['ɪ', 'ɨ'];
+    } elseif (strpos($suggested_key, 'i') !== false && strpos($actual_key, 'ı') !== false) {
+        $symbols = ['i'];
+    } elseif (strpos($suggested_key, 'ny') !== false && strpos($actual_key, 'n') !== false) {
+        $symbols = ['ɲ', 'nʲ'];
+    } elseif (strpos($suggested_key, 'n') !== false && strpos($actual_key, 'ny') !== false) {
+        $symbols = ['n'];
+    } elseif (strpos($suggested_key, 'ş') !== false && strpos($actual_key, 's') !== false) {
+        $symbols = ['ʃ'];
+    } elseif (strpos($suggested_key, 's') !== false && strpos($actual_key, 'ş') !== false) {
+        $symbols = ['s'];
+    }
+
+    foreach ($symbols as $symbol) {
+        $span = ll_tools_ipa_orthography_find_ipa_symbol_span($ipa_word, $symbol, $word_start);
+        if ($span !== null) {
+            return $span;
+        }
+    }
+
+    return [
+        'start' => $word_start,
+        'length' => $word_length,
+    ];
+}
+
 function ll_tools_ipa_orthography_profile_meta_key(): string {
     return 'll_wordset_ipa_orthography_profile';
 }
@@ -2698,10 +2919,6 @@ function ll_tools_ipa_orthography_profile_convert_genc_palu_word(string $word): 
         'fıstûnê' => 'fistûnê',
         'fıstıx' => 'fistix',
         'kye' => 'kiye',
-        'mwerık' => 'mwerik',
-        'mwerıkık' => 'mwerikik',
-        'mwerıke' => 'mwerike',
-        'mwerıko' => 'mweriko',
         'otobûs' => 'otobüs',
         'otobûsa' => 'otobüsa',
         'rezıl' => 'rezil',
@@ -2799,6 +3016,319 @@ function ll_tools_ipa_orthography_profile_convert_ipa_to_text(string $ipa_text, 
         'token_count' => count($parts),
         'profile' => $profile,
     ];
+}
+
+function ll_tools_ipa_orthography_profile_replace_suggested_tokens(string $suggested_text, array $suggested_parts, array $replacement_tokens): string {
+    $result = $suggested_text;
+    for ($index = count($suggested_parts) - 1; $index >= 0; $index--) {
+        if (!array_key_exists($index, $replacement_tokens)) {
+            continue;
+        }
+        $part = (array) $suggested_parts[$index];
+        $result = ll_tools_ipa_orthography_replace_char_span(
+            $result,
+            (int) ($part['start'] ?? 0),
+            (int) ($part['length'] ?? 0),
+            (string) $replacement_tokens[$index]
+        );
+    }
+    return $result;
+}
+
+function ll_tools_ipa_orthography_build_ipa_text_from_parts(string $ipa_text, array $ipa_parts, array $replacement_words): string {
+    $result = $ipa_text;
+    for ($index = count($ipa_parts) - 1; $index >= 0; $index--) {
+        if (!array_key_exists($index, $replacement_words)) {
+            continue;
+        }
+        $part = (array) $ipa_parts[$index];
+        $result = ll_tools_ipa_orthography_replace_char_span(
+            $result,
+            (int) ($part['start'] ?? 0),
+            (int) ($part['length'] ?? 0),
+            (string) $replacement_words[$index]
+        );
+    }
+    return $result;
+}
+
+function ll_tools_ipa_orthography_profile_word_ipa_variants(array $mismatch, string $language = ''): array {
+    $ipa_word = (string) ($mismatch['ipa_word'] ?? '');
+    $actual_key = ll_tools_ipa_orthography_profile_compare_key((string) ($mismatch['actual_diff'] ?? ''), $language);
+    $suggested_key = ll_tools_ipa_orthography_profile_compare_key((string) ($mismatch['suggested_diff'] ?? ''), $language);
+    if ($ipa_word === '' || $actual_key === '' || $suggested_key === '') {
+        return [];
+    }
+
+    $variants = [];
+    $add_variant = static function (string $candidate) use (&$variants, $ipa_word): void {
+        if ($candidate !== '' && $candidate !== $ipa_word && !in_array($candidate, $variants, true)) {
+            $variants[] = $candidate;
+        }
+    };
+
+    if (strpos($suggested_key, 'ı') !== false && strpos($actual_key, 'i') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ɪ', 'i'));
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ɨ', 'i'));
+    }
+    if (strpos($suggested_key, 'i') !== false && strpos($actual_key, 'ı') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'i', 'ɪ'));
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'i', 'ɨ'));
+    }
+    if (strpos($suggested_key, 'ı') !== false && strpos($actual_key, 'e') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ɪ', 'ɛ'));
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ɨ', 'ɛ'));
+    }
+    if (strpos($suggested_key, 'e') !== false && strpos($actual_key, 'ı') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ɛ', 'ɪ'));
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'e', 'ɪ'));
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ɛ', 'ɨ'));
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'e', 'ɨ'));
+    }
+    if (strpos($suggested_key, 'ny') !== false && strpos($actual_key, 'n') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ɲ', 'n'));
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'nʲ', 'n'));
+    }
+    if (strpos($suggested_key, 'n') !== false && strpos($actual_key, 'ny') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'n', 'ɲ'));
+    }
+    if (strpos($suggested_key, 'ş') !== false && strpos($actual_key, 's') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 'ʃ', 's'));
+    }
+    if (strpos($suggested_key, 's') !== false && strpos($actual_key, 'ş') !== false) {
+        $add_variant(ll_tools_ipa_orthography_replace_first($ipa_word, 's', 'ʃ'));
+    }
+
+    return array_slice($variants, 0, 4);
+}
+
+function ll_tools_ipa_orthography_profile_ipa_suggestions(
+    string $actual_text,
+    string $ipa_text,
+    int $wordset_id,
+    string $recording_type,
+    array $detail,
+    int $limit = 4
+): array {
+    $mismatches = array_values((array) ($detail['word_mismatches'] ?? []));
+    $ipa_parts = ll_tools_ipa_orthography_split_nonspace_spans($ipa_text);
+    if (empty($mismatches) || empty($ipa_parts)) {
+        return [];
+    }
+
+    $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
+    $options_by_index = [];
+    foreach ($mismatches as $mismatch) {
+        if (!is_array($mismatch)) {
+            continue;
+        }
+        $word_index = (int) ($mismatch['word_index'] ?? -1);
+        if ($word_index < 0 || !isset($ipa_parts[$word_index])) {
+            continue;
+        }
+        $variants = ll_tools_ipa_orthography_profile_word_ipa_variants($mismatch, $language);
+        if (!empty($variants)) {
+            $options_by_index[$word_index] = array_values(array_unique(array_merge(
+                (array) ($options_by_index[$word_index] ?? []),
+                $variants
+            )));
+        }
+    }
+
+    if (empty($options_by_index)) {
+        return [];
+    }
+
+    $replacement_sets = [[]];
+    foreach ($options_by_index as $word_index => $variants) {
+        $next_sets = [];
+        foreach ($replacement_sets as $set) {
+            foreach (array_slice($variants, 0, $limit) as $variant) {
+                $next = $set;
+                $next[(int) $word_index] = (string) $variant;
+                $next_sets[] = $next;
+                if (count($next_sets) >= $limit * 2) {
+                    break 2;
+                }
+            }
+        }
+        $replacement_sets = $next_sets;
+    }
+
+    $suggestions = [];
+    foreach ($replacement_sets as $replacement_words) {
+        $candidate_ipa = ll_tools_ipa_orthography_build_ipa_text_from_parts($ipa_text, $ipa_parts, $replacement_words);
+        if ($candidate_ipa === '' || $candidate_ipa === $ipa_text) {
+            continue;
+        }
+        $candidate_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            $actual_text,
+            $candidate_ipa,
+            $wordset_id,
+            $recording_type,
+            null,
+            false
+        );
+        if (empty($candidate_detail['matches'])) {
+            continue;
+        }
+        $suggestions[] = [
+            'ipa' => $candidate_ipa,
+            'label' => $candidate_ipa,
+        ];
+        if (count($suggestions) >= $limit) {
+            break;
+        }
+    }
+
+    $seen = [];
+    return array_values(array_filter($suggestions, static function (array $suggestion) use (&$seen): bool {
+        $ipa = (string) ($suggestion['ipa'] ?? '');
+        if ($ipa === '' || isset($seen[$ipa])) {
+            return false;
+        }
+        $seen[$ipa] = true;
+        return true;
+    }));
+}
+
+function ll_tools_ipa_orthography_profile_mismatch_detail(
+    string $actual_text,
+    string $ipa_text,
+    int $wordset_id,
+    string $recording_type = '',
+    ?array $prediction = null,
+    bool $include_ipa_suggestions = true
+): array {
+    $prediction = $prediction ?? ll_tools_ipa_orthography_profile_convert_ipa_to_text($ipa_text, $wordset_id, $recording_type);
+    $suggested_text = (string) ($prediction['text'] ?? '');
+    if (empty($prediction['complete']) || $suggested_text === '') {
+        return [
+            'actual_text' => $actual_text,
+            'suggested_text' => $suggested_text,
+            'canonical_suggested_text' => $suggested_text,
+            'ipa_text' => $ipa_text,
+            'matches' => false,
+            'actual_spans' => [],
+            'suggested_spans' => [],
+            'ipa_spans' => [],
+            'word_mismatches' => [],
+            'ipa_suggestions' => [],
+        ];
+    }
+
+    $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
+    $actual_parts = ll_tools_ipa_orthography_split_nonspace_spans($actual_text);
+    $suggested_parts = ll_tools_ipa_orthography_split_nonspace_spans($suggested_text);
+    $ipa_parts = ll_tools_ipa_orthography_split_nonspace_spans($ipa_text);
+    $actual_spans = [];
+    $suggested_spans = [];
+    $ipa_spans = [];
+    $word_mismatches = [];
+    $replacement_tokens = [];
+    $matches = true;
+
+    if (count($actual_parts) !== count($suggested_parts) || count($suggested_parts) !== count($ipa_parts)) {
+        $matches = ll_tools_ipa_orthography_profile_compare_key($actual_text, $language)
+            === ll_tools_ipa_orthography_profile_compare_key($suggested_text, $language);
+        if (!$matches) {
+            foreach ($actual_parts as $part) {
+                $actual_spans[] = [
+                    'start' => (int) ($part['start'] ?? 0),
+                    'length' => (int) ($part['length'] ?? 0),
+                ];
+            }
+            foreach ($suggested_parts as $part) {
+                $suggested_spans[] = [
+                    'start' => (int) ($part['start'] ?? 0),
+                    'length' => (int) ($part['length'] ?? 0),
+                ];
+            }
+            foreach ($ipa_parts as $part) {
+                $ipa_spans[] = [
+                    'start' => (int) ($part['start'] ?? 0),
+                    'length' => (int) ($part['length'] ?? 0),
+                ];
+            }
+        }
+    } else {
+        foreach ($suggested_parts as $index => $suggested_part) {
+            $actual_part = (array) ($actual_parts[$index] ?? []);
+            $ipa_part = (array) ($ipa_parts[$index] ?? []);
+            $actual_word = (string) ($actual_part['text'] ?? '');
+            $suggested_word = (string) ($suggested_part['text'] ?? '');
+            $ipa_word = (string) ($ipa_part['text'] ?? '');
+
+            if (ll_tools_ipa_orthography_profile_words_equivalent($actual_word, $suggested_word, $ipa_word, $language)) {
+                if (ll_tools_ipa_orthography_profile_compare_key($actual_word, $language)
+                    !== ll_tools_ipa_orthography_profile_compare_key($suggested_word, $language)) {
+                    $replacement_tokens[$index] = $actual_word;
+                }
+                continue;
+            }
+
+            $matches = false;
+            $diff = ll_tools_ipa_orthography_diff_span_pair(
+                $actual_word,
+                $suggested_word,
+                (int) ($actual_part['start'] ?? 0),
+                (int) ($suggested_part['start'] ?? 0),
+                $language
+            );
+            if (is_array($diff['actual'] ?? null)) {
+                $actual_spans[] = $diff['actual'];
+            }
+            if (is_array($diff['suggested'] ?? null)) {
+                $suggested_spans[] = $diff['suggested'];
+            }
+            $ipa_span = ll_tools_ipa_orthography_ipa_span_for_mismatch(
+                $ipa_word,
+                (string) ($diff['actual_diff'] ?? ''),
+                (string) ($diff['suggested_diff'] ?? ''),
+                (int) ($ipa_part['start'] ?? 0),
+                (int) ($ipa_part['length'] ?? 0),
+                $language
+            );
+            $ipa_spans[] = $ipa_span;
+            $word_mismatches[] = [
+                'word_index' => (int) $index,
+                'actual_word' => $actual_word,
+                'suggested_word' => $suggested_word,
+                'ipa_word' => $ipa_word,
+                'actual_diff' => (string) ($diff['actual_diff'] ?? ''),
+                'suggested_diff' => (string) ($diff['suggested_diff'] ?? ''),
+            ];
+        }
+    }
+
+    $adjusted_suggested_text = empty($replacement_tokens)
+        ? $suggested_text
+        : ll_tools_ipa_orthography_profile_replace_suggested_tokens($suggested_text, $suggested_parts, $replacement_tokens);
+
+    $detail = [
+        'actual_text' => $actual_text,
+        'suggested_text' => $adjusted_suggested_text,
+        'canonical_suggested_text' => $suggested_text,
+        'ipa_text' => $ipa_text,
+        'matches' => $matches,
+        'actual_spans' => array_values($actual_spans),
+        'suggested_spans' => array_values($suggested_spans),
+        'ipa_spans' => array_values($ipa_spans),
+        'word_mismatches' => array_values($word_mismatches),
+        'ipa_suggestions' => [],
+    ];
+
+    if ($include_ipa_suggestions && !$matches) {
+        $detail['ipa_suggestions'] = ll_tools_ipa_orthography_profile_ipa_suggestions(
+            $actual_text,
+            $ipa_text,
+            $wordset_id,
+            $recording_type,
+            $detail
+        );
+    }
+
+    return $detail;
 }
 
 function ll_tools_ipa_orthography_apply_surface_trill_policy(string $segment, string $output): string {
@@ -3800,9 +4330,14 @@ function ll_tools_ipa_orthography_build_profile_contradiction_rows(int $wordset_
             continue;
         }
 
-        $actual_norm = ll_tools_ipa_orthography_profile_compare_key($recording_text, $language);
-        $predicted_norm = ll_tools_ipa_orthography_profile_compare_key($predicted_text, $language);
-        if ($predicted_norm === '' || $predicted_norm === $actual_norm) {
+        $mismatch_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            $recording_text,
+            $recording_ipa,
+            $wordset_id,
+            ll_tools_ipa_orthography_get_recording_type_slug($recording_id),
+            $prediction
+        );
+        if (!empty($mismatch_detail['matches'])) {
             continue;
         }
 
@@ -3811,7 +4346,9 @@ function ll_tools_ipa_orthography_build_profile_contradiction_rows(int $wordset_
             $wordset_id,
             (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => ''])
         );
-        $payload['predicted_text'] = $predicted_text;
+        $payload['predicted_text'] = (string) (($mismatch_detail['suggested_text'] ?? '') ?: $predicted_text);
+        $payload['canonical_predicted_text'] = $predicted_text;
+        $payload['orthography_mismatch'] = $mismatch_detail;
         $payload['prediction_source'] = 'profile';
         $payload['prediction_source_label'] = (string) ($profile['label'] ?? __('Conversion profile', 'll-tools-text-domain'));
         $payload['approved_exception'] = in_array($word_id, $exception_word_ids, true);
@@ -4057,6 +4594,27 @@ function ll_tools_ipa_orthography_apply_suggestion_to_recording(int $wordset_id,
         return new WP_Error('conversion_failed', __('Current rules cannot suggest a written transcription for this recording yet.', 'll-tools-text-domain'));
     }
 
+    if ((string) ($prediction['source'] ?? '') === 'profile') {
+        $recording_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
+            ? ll_tools_word_grid_sanitize_non_ipa_text((string) get_post_meta($recording_id, 'recording_text', true))
+            : sanitize_text_field((string) get_post_meta($recording_id, 'recording_text', true));
+        if ($recording_text !== '') {
+            $mismatch_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+                $recording_text,
+                $recording_ipa,
+                $wordset_id,
+                ll_tools_ipa_orthography_get_recording_type_slug($recording_id),
+                $prediction
+            );
+            $adjusted_text = (string) ($mismatch_detail['suggested_text'] ?? '');
+            if ($adjusted_text !== '') {
+                $predicted_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
+                    ? ll_tools_word_grid_sanitize_non_ipa_text($adjusted_text)
+                    : sanitize_text_field($adjusted_text);
+            }
+        }
+    }
+
     $recording_payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, [
         'recording_text' => $predicted_text,
     ]);
@@ -4260,6 +4818,58 @@ function ll_tools_ipa_keyboard_token_is_voiceless_stop_or_affricate(string $toke
     return in_array($first, ['p', 't', 'ʈ', 'c', 'k', 'q', 'ʔ'], true);
 }
 
+function ll_tools_ipa_keyboard_sanitize_orthography_mismatch_detail($raw): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $sanitize_spans = static function ($spans): array {
+        $clean = [];
+        foreach ((array) $spans as $span) {
+            if (!is_array($span)) {
+                continue;
+            }
+            $start = max(0, (int) ($span['start'] ?? 0));
+            $length = max(0, (int) ($span['length'] ?? 0));
+            if ($length <= 0) {
+                continue;
+            }
+            $clean[] = [
+                'start' => $start,
+                'length' => $length,
+            ];
+        }
+        return $clean;
+    };
+
+    $suggestions = [];
+    foreach ((array) ($raw['ipa_suggestions'] ?? []) as $suggestion) {
+        if (!is_array($suggestion)) {
+            continue;
+        }
+        $ipa = sanitize_text_field((string) ($suggestion['ipa'] ?? ''));
+        if ($ipa === '') {
+            continue;
+        }
+        $suggestions[] = [
+            'ipa' => $ipa,
+            'label' => sanitize_text_field((string) (($suggestion['label'] ?? '') ?: $ipa)),
+        ];
+    }
+
+    return [
+        'actual_text' => sanitize_text_field((string) ($raw['actual_text'] ?? '')),
+        'suggested_text' => sanitize_text_field((string) ($raw['suggested_text'] ?? '')),
+        'canonical_suggested_text' => sanitize_text_field((string) ($raw['canonical_suggested_text'] ?? '')),
+        'ipa_text' => sanitize_text_field((string) ($raw['ipa_text'] ?? '')),
+        'matches' => !empty($raw['matches']),
+        'actual_spans' => $sanitize_spans($raw['actual_spans'] ?? []),
+        'suggested_spans' => $sanitize_spans($raw['suggested_spans'] ?? []),
+        'ipa_spans' => $sanitize_spans($raw['ipa_spans'] ?? []),
+        'ipa_suggestions' => array_slice($suggestions, 0, 4),
+    ];
+}
+
 function ll_tools_ipa_keyboard_sanitize_validation_state($raw): array {
     if (!is_array($raw)) {
         return [];
@@ -4284,7 +4894,7 @@ function ll_tools_ipa_keyboard_sanitize_validation_state($raw): array {
             }
         }
 
-        return [
+        $clean_issue = [
             'rule_key' => $rule_key,
             'code' => sanitize_key((string) ($issue['code'] ?? '')),
             'type' => in_array((string) ($issue['type'] ?? ''), ['builtin', 'custom'], true) ? (string) $issue['type'] : 'builtin',
@@ -4307,6 +4917,13 @@ function ll_tools_ipa_keyboard_sanitize_validation_state($raw): array {
                 ];
             }, (array) ($issue['approval_options'] ?? [])))),
         ];
+
+        $mismatch_detail = ll_tools_ipa_keyboard_sanitize_orthography_mismatch_detail($issue['orthography_mismatch'] ?? []);
+        if (!empty($mismatch_detail['actual_text']) || !empty($mismatch_detail['suggested_text']) || !empty($mismatch_detail['ipa_text'])) {
+            $clean_issue['orthography_mismatch'] = $mismatch_detail;
+        }
+
+        return $clean_issue;
     };
 
     $state = [];
@@ -4411,7 +5028,8 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
         string $type,
         string $label,
         string $message,
-        string $sample = ''
+        string $sample = '',
+        array $extra = []
     ): void {
         if (!isset($issues[$rule_key])) {
             $issues[$rule_key] = [
@@ -4423,6 +5041,12 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                 'count' => 0,
                 'samples' => [],
             ];
+        }
+
+        foreach ($extra as $key => $value) {
+            if (is_string($key) && $key !== '') {
+                $issues[$rule_key][$key] = $value;
+            }
         }
 
         $issues[$rule_key]['count'] += 1;
@@ -4609,21 +5233,25 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
         );
         $profile_text = (string) ($profile_prediction['text'] ?? '');
         if (!empty($profile_prediction['complete']) && $profile_text !== '') {
-            $actual_norm = ll_tools_ipa_orthography_profile_compare_key($recording_text, ll_tools_ipa_orthography_get_wordset_language($wordset_id));
-            $predicted_norm = ll_tools_ipa_orthography_profile_compare_key($profile_text, ll_tools_ipa_orthography_get_wordset_language($wordset_id));
-            if ($predicted_norm !== '' && $predicted_norm !== $actual_norm) {
+            $mismatch_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+                $recording_text,
+                $recording_ipa,
+                $wordset_id,
+                ll_tools_ipa_orthography_get_recording_type_slug($recording_id),
+                $profile_prediction
+            );
+            if (empty($mismatch_detail['matches'])) {
                 $add_issue(
                     $issue_map,
                     'builtin:orthography_mismatch',
                     'orthography_mismatch',
                     'builtin',
                     (string) ($builtin_rules['orthography_mismatch']['label'] ?? ''),
-                    sprintf(
-                        /* translators: %s is the suggested written transcription. */
-                        __('Saved text does not match the conversion profile. Suggested text: %s', 'll-tools-text-domain'),
-                        $profile_text
-                    ),
-                    $profile_text
+                    __('Saved text does not match the conversion profile.', 'll-tools-text-domain'),
+                    '',
+                    [
+                        'orthography_mismatch' => $mismatch_detail,
+                    ]
                 );
             }
         }

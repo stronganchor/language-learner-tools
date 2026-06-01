@@ -1614,11 +1614,95 @@
         }
     }
 
+    function normalizeHighlightSpans(spans, text) {
+        const chars = Array.from(text || '');
+        return (Array.isArray(spans) ? spans : []).map(function (span) {
+            const start = Math.max(0, parseInt(span && span.start, 10) || 0);
+            const length = Math.max(0, parseInt(span && span.length, 10) || 0);
+            return {
+                start: Math.min(start, chars.length),
+                end: Math.min(start + length, chars.length)
+            };
+        }).filter(function (span) {
+            return span.end > span.start;
+        }).sort(function (left, right) {
+            return left.start - right.start || right.end - left.end;
+        });
+    }
+
+    function buildHighlightedText(text, spans, className) {
+        const value = (text || '').toString();
+        const chars = Array.from(value);
+        const $wrap = $('<span>', { class: className || 'll-ipa-highlighted-text' });
+        let offset = 0;
+        normalizeHighlightSpans(spans, value).forEach(function (span) {
+            if (span.start > offset) {
+                $wrap.append(document.createTextNode(chars.slice(offset, span.start).join('')));
+            }
+            $wrap.append($('<mark>', {
+                class: 'll-ipa-mismatch-mark',
+                text: chars.slice(span.start, span.end).join('')
+            }));
+            offset = Math.max(offset, span.end);
+        });
+        if (offset < chars.length) {
+            $wrap.append(document.createTextNode(chars.slice(offset).join('')));
+        }
+        if (!chars.length) {
+            $wrap.text('');
+        }
+        return $wrap;
+    }
+
+    function getOrthographyMismatchDetail(issue) {
+        const detail = issue && issue.orthography_mismatch ? issue.orthography_mismatch : null;
+        return detail && typeof detail === 'object' ? detail : null;
+    }
+
+    function buildOrthographyMismatchPreview(issue) {
+        const detail = getOrthographyMismatchDetail(issue);
+        if (!detail) {
+            return null;
+        }
+
+        const $preview = $('<div>', { class: 'll-ipa-search-orthography-mismatch' });
+        const rows = [
+            {
+                label: t('orthographyIssueActual', 'Saved text'),
+                text: detail.actual_text || '',
+                spans: detail.actual_spans || []
+            },
+            {
+                label: t('orthographyIssuePredicted', 'Suggested text'),
+                text: detail.suggested_text || '',
+                spans: detail.suggested_spans || []
+            },
+            {
+                label: t('searchReviewIpaLabel', 'Pronunciation'),
+                text: detail.ipa_text || '',
+                spans: detail.ipa_spans || []
+            }
+        ];
+
+        rows.forEach(function (row) {
+            if (!row.text) {
+                return;
+            }
+            const $row = $('<div>', { class: 'll-ipa-search-mismatch-row' });
+            $row.append($('<span>', { class: 'll-ipa-search-mismatch-label', text: row.label }));
+            $row.append(buildHighlightedText(row.text, row.spans, 'll-ipa-search-mismatch-text'));
+            $preview.append($row);
+        });
+
+        return $preview.children().length ? $preview : null;
+    }
+
     function buildSearchIssueItem(issue, ignored) {
         const $item = $('<div>', {
             class: 'll-ipa-search-issue' + (ignored ? ' is-ignored' : ''),
             'data-rule-key': issue.rule_key || ''
         });
+        const mismatchDetail = getOrthographyMismatchDetail(issue);
         const $header = $('<div>', { class: 'll-ipa-search-issue-header' });
         $header.append($('<span>', { class: 'll-ipa-search-issue-title', text: issue.label || issue.message || t('searchReviewIssues', 'Review warnings') }));
         if (issue.count && parseInt(issue.count, 10) > 1) {
@@ -1628,7 +1712,11 @@
         if (issue.message) {
             $item.append($('<div>', { class: 'll-ipa-search-issue-message', text: issue.message }));
         }
-        if (Array.isArray(issue.samples) && issue.samples.length) {
+        const $mismatchPreview = buildOrthographyMismatchPreview(issue);
+        if ($mismatchPreview) {
+            $item.append($mismatchPreview);
+        }
+        if (!mismatchDetail && Array.isArray(issue.samples) && issue.samples.length) {
             $item.append($('<div>', {
                 class: 'll-ipa-search-issue-samples',
                 html: issue.samples.map(function (sample) {
@@ -1653,6 +1741,27 @@
                     'data-output': output
                 }));
             });
+            if (mismatchDetail && mismatchDetail.suggested_text) {
+                $actions.append($('<button>', {
+                    type: 'button',
+                    class: 'button-link ll-ipa-search-orthography-apply',
+                    text: t('orthographyIssueApplySuggestion', 'Use suggested orthography')
+                }));
+            }
+            if (mismatchDetail && Array.isArray(mismatchDetail.ipa_suggestions)) {
+                mismatchDetail.ipa_suggestions.forEach(function (suggestion) {
+                    const ipa = suggestion && suggestion.ipa ? String(suggestion.ipa) : '';
+                    if (!ipa) {
+                        return;
+                    }
+                    $actions.append($('<button>', {
+                        type: 'button',
+                        class: 'button-link ll-ipa-search-ipa-suggestion-apply',
+                        text: formatText(t('orthographyIssueApplyIpaSuggestion', 'Use IPA: %1$s'), [suggestion.label || ipa]),
+                        'data-ipa': ipa
+                    }));
+                });
+            }
             if (issue.rule_key) {
                 $actions.append($('<button>', {
                     type: 'button',
@@ -2702,17 +2811,32 @@
             });
             $tr.append($('<td>').append(buildOrthographyWordMeta(row)));
             $tr.append($('<td>').append(createAudioButton(row, 'll-ipa-search-audio-btn', { showDownload: true })));
+            const mismatch = row && row.orthography_mismatch ? row.orthography_mismatch : null;
             $tr.append($('<td>', {
-                class: 'll-ipa-orthography-ipa-cell',
-                text: row && row.recording_ipa ? row.recording_ipa : ''
-            }));
-            $tr.append($('<td>', {
-                text: row && row.recording_text ? row.recording_text : '—'
-            }));
+                class: 'll-ipa-orthography-ipa-cell'
+            }).append(buildHighlightedText(
+                row && row.recording_ipa ? row.recording_ipa : '',
+                mismatch && Array.isArray(mismatch.ipa_spans) ? mismatch.ipa_spans : [],
+                'll-ipa-orthography-mismatch-text'
+            )));
+            $tr.append($('<td>').append(row && row.recording_text
+                ? buildHighlightedText(
+                    row.recording_text,
+                    mismatch && Array.isArray(mismatch.actual_spans) ? mismatch.actual_spans : [],
+                    'll-ipa-orthography-mismatch-text'
+                )
+                : document.createTextNode('—')
+            ));
             const $predictedCell = $('<td>');
-            $predictedCell.append($('<div>', {
-                text: row && row.predicted_text ? row.predicted_text : t('orthographyConvertCannot', 'Needs more rules')
-            }));
+            const predictedText = row && row.predicted_text ? row.predicted_text : '';
+            $predictedCell.append($('<div>').append(predictedText
+                ? buildHighlightedText(
+                    predictedText,
+                    mismatch && Array.isArray(mismatch.suggested_spans) ? mismatch.suggested_spans : [],
+                    'll-ipa-orthography-mismatch-text'
+                )
+                : document.createTextNode(t('orthographyConvertCannot', 'Needs more rules'))
+            ));
             if (row && row.prediction_source_label) {
                 $predictedCell.append($('<div>', {
                     class: 'll-ipa-orthography-prediction-source',
@@ -3746,6 +3870,91 @@
                 showLoading: false,
                 successStatus: t('searchApprovedSymbolMapping', 'Approved symbol mapping.')
             });
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    $searchResults.on('click', '.ll-ipa-search-orthography-apply', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
+
+        if (!recordingId || !currentWordsetId || $row.data('llSearchRowSaving')) {
+            return;
+        }
+        if (searchRowHasUnsavedChanges($row)) {
+            autosaveSearchRow($row);
+            setStatus(t('orthographyIssueSaveFirst', 'Saved local edits. Click the suggestion again to apply it.'), false);
+            return;
+        }
+
+        $btn.prop('disabled', true);
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_apply_ipa_keyboard_orthography_suggestion',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: recordingId
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+            const data = response.data || {};
+            if (data.applied_suggestion && data.applied_suggestion.recording) {
+                replaceSearchRowByRecordingId(recordingId, data.applied_suggestion.recording);
+            } else if (data.validation) {
+                updateSearchRowValidation($row, data.validation);
+            }
+            markTabsDirty(['map', 'symbols', 'orthography']);
+            setStatus(t('orthographyIssueSuggestionApplied', 'Suggestion saved.'), false);
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    $searchResults.on('click', '.ll-ipa-search-ipa-suggestion-apply', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
+        const recordingIpa = ($btn.attr('data-ipa') || '').toString();
+
+        if (!recordingId || !currentWordsetId || !recordingIpa || $row.data('llSearchRowSaving')) {
+            return;
+        }
+        if (searchRowHasUnsavedChanges($row)) {
+            autosaveSearchRow($row);
+            setStatus(t('orthographyIssueSaveFirst', 'Saved local edits. Click the suggestion again to apply it.'), false);
+            return;
+        }
+
+        $btn.prop('disabled', true);
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_update_recording_ipa',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: recordingId,
+            recording_ipa: recordingIpa
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+            const data = response.data || {};
+            if (data.recording) {
+                replaceSearchRowByRecordingId(recordingId, data.recording);
+            } else {
+                updateSearchRowValidation($row, data.validation || null);
+            }
+            applyKeyboardSymbols(data.keyboard_symbols || currentKeyboardSymbols);
+            markTabsDirty(['map', 'symbols', 'orthography']);
+            setStatus(t('orthographyIssueIpaSuggestionApplied', 'IPA suggestion saved.'), false);
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
