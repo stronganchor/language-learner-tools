@@ -840,6 +840,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'orthography_conversion' => '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
             'wordset_profile' => '/ll-tools/v1/wordsets/{wordset}/profile',
+            'wordset_translations' => '/ll-tools/v1/wordsets/{wordset}/translations',
             'prompt_cards' => '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
@@ -870,6 +871,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
                 '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
                 '/ll-tools/v1/wordsets/{wordset}/profile',
+                '/ll-tools/v1/wordsets/{wordset}/translations',
                 '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
                 '/ll-tools/v1/wordsets/{wordset}/review-notes',
                 '/ll-tools/v1/wordsets/{wordset}/interlinear',
@@ -2188,10 +2190,19 @@ function ll_tools_rest_automation_wordset_profile_payload(WP_Term $wordset_term)
 
     return [
         'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
+        'display_name' => function_exists('ll_tools_get_wordset_display_name')
+            ? ll_tools_get_wordset_display_name($wordset_term)
+            : (string) $wordset_term->name,
         'language_code' => (string) ($profile['language_code'] ?? ''),
         'target_language' => (string) ($profile['language_code'] ?? ''),
         'translation_language' => (string) ($profile['translation_language'] ?? ''),
         'profile_blurb' => (string) ($profile['profile_blurb'] ?? ''),
+        'display_profile_blurb' => function_exists('ll_tools_get_wordset_profile_blurb')
+            ? ll_tools_get_wordset_profile_blurb((int) $wordset_term->term_id, ['use_locale' => true])
+            : (string) ($profile['profile_blurb'] ?? ''),
+        'translations' => function_exists('ll_tools_get_entity_translations')
+            ? ll_tools_get_entity_translations('term', (int) $wordset_term->term_id)
+            : [],
         'profile_image' => [
             'attachment_id' => $attachment_id,
             'url' => (string) ($image['url'] ?? ''),
@@ -2255,6 +2266,662 @@ function ll_tools_rest_automation_profile_uploaded_image_id(WP_REST_Request $req
     }
 
     return $attachment_id;
+}
+
+function ll_tools_rest_automation_translation_supported_fields(): array {
+    return [
+        'wordset' => ['name', 'profile_blurb'],
+        'category' => ['name'],
+        'lesson' => ['title', 'excerpt'],
+    ];
+}
+
+function ll_tools_rest_automation_normalize_translation_entity_type($type): string {
+    $type = sanitize_key((string) $type);
+    $aliases = [
+        'word_set' => 'wordset',
+        'word-category' => 'category',
+        'word_category' => 'category',
+        'category_name' => 'category',
+        'vocab_lesson' => 'lesson',
+        'content_lesson' => 'lesson',
+        'll_vocab_lesson' => 'lesson',
+        'll_content_lesson' => 'lesson',
+    ];
+    if (isset($aliases[$type])) {
+        $type = $aliases[$type];
+    }
+
+    return in_array($type, ['wordset', 'category', 'lesson'], true) ? $type : '';
+}
+
+function ll_tools_rest_automation_normalize_translation_field(string $entity_type, $field): string {
+    $field = function_exists('ll_tools_normalize_entity_translation_field')
+        ? ll_tools_normalize_entity_translation_field($field)
+        : sanitize_key((string) $field);
+
+    if (($entity_type === 'wordset' || $entity_type === 'category') && $field === 'title') {
+        $field = 'name';
+    } elseif ($entity_type === 'lesson' && $field === 'name') {
+        $field = 'title';
+    }
+
+    $supported = ll_tools_rest_automation_translation_supported_fields();
+    return in_array($field, (array) ($supported[$entity_type] ?? []), true) ? $field : '';
+}
+
+function ll_tools_rest_automation_translation_locale_from_request(WP_REST_Request $request): string {
+    $locale = ll_tools_rest_automation_request_string($request, 'locale');
+    if ($locale === '') {
+        $locale = ll_tools_rest_automation_request_string($request, 'language');
+    }
+
+    if (function_exists('ll_tools_normalize_entity_translation_locale')) {
+        $locale = ll_tools_normalize_entity_translation_locale($locale);
+    }
+
+    if ($locale === '' && function_exists('ll_tools_current_entity_translation_locale')) {
+        $locale = ll_tools_current_entity_translation_locale();
+    }
+
+    return $locale;
+}
+
+function ll_tools_rest_automation_translation_add_fields(array &$updates, string $entity_type, string $locale, array $fields): void {
+    $locale = function_exists('ll_tools_normalize_entity_translation_locale')
+        ? ll_tools_normalize_entity_translation_locale($locale)
+        : sanitize_key($locale);
+    if ($locale === '') {
+        return;
+    }
+
+    foreach ($fields as $field => $value) {
+        if (!is_scalar($value)) {
+            continue;
+        }
+
+        $field = ll_tools_rest_automation_normalize_translation_field($entity_type, $field);
+        if ($field === '') {
+            continue;
+        }
+
+        if (!isset($updates[$locale])) {
+            $updates[$locale] = [];
+        }
+        $updates[$locale][$field] = (string) $value;
+    }
+}
+
+function ll_tools_rest_automation_translation_item_updates(array $item, string $entity_type, string $default_locale): array {
+    $updates = [];
+
+    $translations = isset($item['translations']) && is_array($item['translations']) ? $item['translations'] : [];
+    if (!empty($translations)) {
+        $looks_like_field_map = false;
+        foreach (array_keys($translations) as $key) {
+            if (ll_tools_rest_automation_normalize_translation_field($entity_type, (string) $key) !== '') {
+                $looks_like_field_map = true;
+                break;
+            }
+        }
+
+        if ($looks_like_field_map) {
+            ll_tools_rest_automation_translation_add_fields($updates, $entity_type, $default_locale, $translations);
+        } else {
+            foreach ($translations as $locale => $fields) {
+                if (is_array($fields)) {
+                    ll_tools_rest_automation_translation_add_fields($updates, $entity_type, (string) $locale, $fields);
+                }
+            }
+        }
+    }
+
+    if (isset($item['fields']) && is_array($item['fields'])) {
+        $locale = isset($item['locale']) && is_scalar($item['locale'])
+            ? (string) $item['locale']
+            : $default_locale;
+        ll_tools_rest_automation_translation_add_fields($updates, $entity_type, $locale, $item['fields']);
+    }
+
+    $direct_locale = isset($item['locale']) && is_scalar($item['locale'])
+        ? (string) $item['locale']
+        : $default_locale;
+    ll_tools_rest_automation_translation_add_fields($updates, $entity_type, $direct_locale, $item);
+
+    return $updates;
+}
+
+function ll_tools_rest_automation_translation_collect_group_items($raw_items, string $entity_type): array {
+    if (!is_array($raw_items)) {
+        return [];
+    }
+
+    $items = [];
+    foreach ($raw_items as $key => $raw_item) {
+        if (is_array($raw_item)) {
+            $item = $raw_item;
+        } elseif (is_scalar($raw_item)) {
+            $item = ['name' => (string) $raw_item];
+            if ($entity_type === 'lesson') {
+                $item = ['title' => (string) $raw_item];
+            }
+        } else {
+            continue;
+        }
+
+        $item['type'] = $entity_type;
+        if (is_string($key) && !is_numeric($key)) {
+            if ($entity_type === 'category' && empty($item['category']) && empty($item['slug']) && empty($item['id'])) {
+                $item['category'] = $key;
+            } elseif ($entity_type === 'lesson' && empty($item['lesson']) && empty($item['slug']) && empty($item['id'])) {
+                $item['lesson'] = $key;
+            }
+        }
+        $items[] = $item;
+    }
+
+    return $items;
+}
+
+function ll_tools_rest_automation_translation_collect_items(WP_REST_Request $request): array {
+    $items = [];
+    $raw_items = $request->get_param('items');
+    if (is_array($raw_items)) {
+        if (ll_tools_rest_automation_array_is_list($raw_items)) {
+            foreach ($raw_items as $item) {
+                if (is_array($item)) {
+                    $items[] = $item;
+                }
+            }
+        } else {
+            foreach ($raw_items as $key => $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                if (!isset($item['type']) && is_string($key)) {
+                    $item['type'] = $key;
+                }
+                $items[] = $item;
+            }
+        }
+    }
+
+    $wordset = $request->get_param('wordset_translation');
+    if (!is_array($wordset)) {
+        $wordset = $request->get_param('wordset_fields');
+    }
+    if (!is_array($wordset)) {
+        $wordset = $request->get_param('wordset_data');
+    }
+    if (is_array($wordset)) {
+        $wordset['type'] = 'wordset';
+        $items[] = $wordset;
+    }
+
+    $items = array_merge(
+        $items,
+        ll_tools_rest_automation_translation_collect_group_items($request->get_param('categories'), 'category'),
+        ll_tools_rest_automation_translation_collect_group_items($request->get_param('lessons'), 'lesson')
+    );
+
+    return $items;
+}
+
+function ll_tools_rest_automation_translation_category_ids_for_wordset(int $wordset_id): array {
+    $ids = [];
+    $post_statuses = ['publish', 'future', 'draft', 'pending', 'private'];
+    if (function_exists('ll_tools_get_word_category_ids_for_wordset_posts')) {
+        $ids = array_merge(
+            $ids,
+            ll_tools_get_word_category_ids_for_wordset_posts($wordset_id, ['words'], $post_statuses)
+        );
+    }
+
+    if (defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
+        $owned = get_terms([
+            'taxonomy' => 'word-category',
+            'hide_empty' => false,
+            'fields' => 'ids',
+            'meta_query' => [
+                [
+                    'key' => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+                    'value' => (string) $wordset_id,
+                    'compare' => '=',
+                ],
+            ],
+        ]);
+        if (!is_wp_error($owned)) {
+            $ids = array_merge($ids, (array) $owned);
+        }
+    }
+
+    return ll_tools_rest_automation_prepare_id_list($ids);
+}
+
+function ll_tools_rest_automation_translation_category_belongs_to_wordset(WP_Term $category, int $wordset_id): bool {
+    if ($wordset_id <= 0 || $category->taxonomy !== 'word-category') {
+        return false;
+    }
+
+    if (defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
+        $owner_id = (int) get_term_meta((int) $category->term_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, true);
+        if ($owner_id === $wordset_id) {
+            return true;
+        }
+    }
+
+    return in_array((int) $category->term_id, ll_tools_rest_automation_translation_category_ids_for_wordset($wordset_id), true);
+}
+
+function ll_tools_rest_automation_translation_resolve_category(WP_Term $wordset_term, array $item) {
+    $wordset_id = (int) $wordset_term->term_id;
+    $term = null;
+    $category_id = absint($item['id'] ?? ($item['term_id'] ?? ($item['category_id'] ?? 0)));
+    if ($category_id > 0) {
+        $term = get_term($category_id, 'word-category');
+    }
+
+    if (!$term instanceof WP_Term || is_wp_error($term)) {
+        $spec = '';
+        foreach (['category', 'category_slug', 'slug', 'name', 'title', 'label'] as $key) {
+            if (isset($item[$key]) && is_scalar($item[$key]) && trim((string) $item[$key]) !== '') {
+                $spec = trim((string) $item[$key]);
+                break;
+            }
+        }
+
+        if ($spec !== '' && function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
+            $term = ll_tools_resolve_word_category_term_for_wordsets($spec, [$wordset_id]);
+        } elseif ($spec !== '' && function_exists('ll_tools_resolve_word_category_term')) {
+            $term = ll_tools_resolve_word_category_term($spec);
+        }
+    }
+
+    if (!$term instanceof WP_Term || is_wp_error($term)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_translation_category_not_found',
+            __('Unable to resolve a word category for the translation item.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $term->term_id, $wordset_id, false);
+        if ($effective_id > 0 && $effective_id !== (int) $term->term_id) {
+            $effective = get_term($effective_id, 'word-category');
+            if ($effective instanceof WP_Term && !is_wp_error($effective)) {
+                $term = $effective;
+            }
+        }
+    }
+
+    if (!ll_tools_rest_automation_translation_category_belongs_to_wordset($term, $wordset_id)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_translation_category_forbidden',
+            __('That word category is not part of this word set.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return $term;
+}
+
+function ll_tools_rest_automation_translation_lesson_posts_for_wordset(int $wordset_id): array {
+    $meta_query = ['relation' => 'OR'];
+    if (defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')) {
+        $meta_query[] = [
+            'key' => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+            'value' => (string) $wordset_id,
+            'compare' => '=',
+        ];
+    }
+    if (defined('LL_TOOLS_CONTENT_LESSON_WORDSET_META')) {
+        $meta_query[] = [
+            'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+            'value' => (string) $wordset_id,
+            'compare' => '=',
+        ];
+    }
+    if (count($meta_query) < 2) {
+        return [];
+    }
+
+    $posts = get_posts([
+        'post_type' => ['ll_vocab_lesson', 'll_content_lesson'],
+        'post_status' => 'any',
+        'posts_per_page' => -1,
+        'orderby' => 'title',
+        'order' => 'ASC',
+        'meta_query' => $meta_query,
+    ]);
+
+    return array_values(array_filter((array) $posts, static function ($post): bool {
+        return $post instanceof WP_Post;
+    }));
+}
+
+function ll_tools_rest_automation_translation_lesson_belongs_to_wordset(WP_Post $post, int $wordset_id): bool {
+    if (!in_array($post->post_type, ['ll_vocab_lesson', 'll_content_lesson'], true)) {
+        return false;
+    }
+
+    $meta_key = $post->post_type === 'll_vocab_lesson'
+        ? (defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META') ? LL_TOOLS_VOCAB_LESSON_WORDSET_META : '')
+        : (defined('LL_TOOLS_CONTENT_LESSON_WORDSET_META') ? LL_TOOLS_CONTENT_LESSON_WORDSET_META : '');
+
+    return $meta_key !== '' && (int) get_post_meta((int) $post->ID, $meta_key, true) === $wordset_id;
+}
+
+function ll_tools_rest_automation_translation_resolve_lesson(WP_Term $wordset_term, array $item) {
+    $wordset_id = (int) $wordset_term->term_id;
+    $post = null;
+    $post_id = absint($item['id'] ?? ($item['post_id'] ?? ($item['lesson_id'] ?? 0)));
+    if ($post_id > 0) {
+        $post = get_post($post_id);
+    }
+
+    if (!$post instanceof WP_Post) {
+        $spec = '';
+        foreach (['lesson', 'post_slug', 'lesson_slug', 'slug', 'title', 'name'] as $key) {
+            if (isset($item[$key]) && is_scalar($item[$key]) && trim((string) $item[$key]) !== '') {
+                $spec = trim((string) $item[$key]);
+                break;
+            }
+        }
+
+        if ($spec !== '') {
+            foreach (ll_tools_rest_automation_translation_lesson_posts_for_wordset($wordset_id) as $candidate) {
+                if (
+                    strcasecmp((string) $candidate->post_name, sanitize_title($spec)) === 0
+                    || strcasecmp((string) get_the_title($candidate), $spec) === 0
+                ) {
+                    $post = $candidate;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!$post instanceof WP_Post) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_translation_lesson_not_found',
+            __('Unable to resolve a lesson for the translation item.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    if (!ll_tools_rest_automation_translation_lesson_belongs_to_wordset($post, $wordset_id)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_translation_lesson_forbidden',
+            __('That lesson is not part of this word set.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return $post;
+}
+
+function ll_tools_rest_automation_translation_term_payload(WP_Term $term, string $entity_type, int $wordset_id, string $locale): array {
+    $base = ll_tools_rest_automation_term_summary($term);
+    $base['entity_type'] = $entity_type;
+    $base['translations'] = function_exists('ll_tools_get_entity_translations')
+        ? ll_tools_get_entity_translations('term', (int) $term->term_id)
+        : [];
+
+    if ($entity_type === 'wordset') {
+        $base['display_name'] = function_exists('ll_tools_get_wordset_display_name')
+            ? ll_tools_get_wordset_display_name($term, ['locale' => $locale])
+            : (string) $term->name;
+        $base['profile_blurb'] = function_exists('ll_tools_get_wordset_profile_blurb')
+            ? ll_tools_get_wordset_profile_blurb((int) $term->term_id, ['use_locale' => false])
+            : '';
+        $base['display_profile_blurb'] = function_exists('ll_tools_get_wordset_profile_blurb')
+            ? ll_tools_get_wordset_profile_blurb((int) $term->term_id, ['use_locale' => true, 'locale' => $locale])
+            : (string) ($base['profile_blurb'] ?? '');
+    } elseif ($entity_type === 'category') {
+        $base['display_name'] = function_exists('ll_tools_get_category_display_name')
+            ? ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id], 'site_language' => $locale])
+            : (string) $term->name;
+        $base['legacy_translation'] = (string) get_term_meta((int) $term->term_id, 'term_translation', true);
+    }
+
+    return $base;
+}
+
+function ll_tools_rest_automation_translation_lesson_payload(WP_Post $post, string $locale): array {
+    $fallback_excerpt = trim((string) $post->post_excerpt);
+    if ($fallback_excerpt === '') {
+        $fallback_excerpt = wp_trim_words(wp_strip_all_tags((string) $post->post_content), 28);
+    }
+
+    return [
+        'entity_type' => 'lesson',
+        'id' => (int) $post->ID,
+        'post_type' => (string) $post->post_type,
+        'slug' => (string) $post->post_name,
+        'title' => (string) get_the_title($post),
+        'display_title' => function_exists('ll_tools_get_lesson_display_title')
+            ? ll_tools_get_lesson_display_title($post, ['fallback' => (string) get_the_title($post), 'locale' => $locale])
+            : (string) get_the_title($post),
+        'excerpt' => $fallback_excerpt,
+        'display_excerpt' => function_exists('ll_tools_get_lesson_display_excerpt')
+            ? ll_tools_get_lesson_display_excerpt($post, $fallback_excerpt, ['locale' => $locale])
+            : $fallback_excerpt,
+        'translations' => function_exists('ll_tools_get_entity_translations')
+            ? ll_tools_get_entity_translations('post', (int) $post->ID)
+            : [],
+    ];
+}
+
+function ll_tools_rest_automation_wordset_translations_payload(WP_Term $wordset_term, string $locale): array {
+    $wordset_id = (int) $wordset_term->term_id;
+    $categories = [];
+    foreach (ll_tools_rest_automation_translation_category_ids_for_wordset($wordset_id) as $category_id) {
+        $term = get_term((int) $category_id, 'word-category');
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            $categories[] = ll_tools_rest_automation_translation_term_payload($term, 'category', $wordset_id, $locale);
+        }
+    }
+
+    usort($categories, static function (array $left, array $right): int {
+        return strnatcasecmp((string) ($left['display_name'] ?? $left['name'] ?? ''), (string) ($right['display_name'] ?? $right['name'] ?? ''));
+    });
+
+    $lessons = [];
+    foreach (ll_tools_rest_automation_translation_lesson_posts_for_wordset($wordset_id) as $post) {
+        $lessons[] = ll_tools_rest_automation_translation_lesson_payload($post, $locale);
+    }
+
+    usort($lessons, static function (array $left, array $right): int {
+        return strnatcasecmp((string) ($left['display_title'] ?? $left['title'] ?? ''), (string) ($right['display_title'] ?? $right['title'] ?? ''));
+    });
+
+    return [
+        'generated_at_gmt' => gmdate('c'),
+        'locale' => $locale,
+        'supported_fields' => ll_tools_rest_automation_translation_supported_fields(),
+        'wordset' => ll_tools_rest_automation_translation_term_payload($wordset_term, 'wordset', $wordset_id, $locale),
+        'categories' => $categories,
+        'lessons' => $lessons,
+    ];
+}
+
+function ll_tools_rest_automation_wordset_translations(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $locale = ll_tools_rest_automation_translation_locale_from_request($request);
+    $method = strtoupper((string) $request->get_method());
+    if ($method === 'GET') {
+        return rest_ensure_response(ll_tools_rest_automation_wordset_translations_payload($wordset_term, $locale));
+    }
+
+    if (!function_exists('ll_tools_update_entity_translations')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_translation_unavailable',
+            __('Entity translation helpers are not available.', 'll-tools-text-domain'),
+            500
+        );
+    }
+
+    $items = ll_tools_rest_automation_translation_collect_items($request);
+    if (empty($items)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_translation_missing_items',
+            __('Provide wordset, categories, lessons, or items to update translations.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $dry_run = (bool) rest_sanitize_boolean($request->get_param('dry_run'));
+    $resolved_items = [];
+    $errors = [];
+    foreach ($items as $index => $item) {
+        $entity_type = ll_tools_rest_automation_normalize_translation_entity_type($item['type'] ?? ($item['entity_type'] ?? ($item['object_type'] ?? '')));
+        if ($entity_type === '') {
+            $errors[] = [
+                'index' => (int) $index,
+                'message' => __('Translation items must include type wordset, category, or lesson.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $updates = ll_tools_rest_automation_translation_item_updates($item, $entity_type, $locale);
+        if (empty($updates)) {
+            $errors[] = [
+                'index' => (int) $index,
+                'type' => $entity_type,
+                'message' => __('Translation item does not contain any supported translated fields.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        if ($entity_type === 'wordset') {
+            $resolved_items[] = [
+                'entity_type' => 'wordset',
+                'object_type' => 'term',
+                'object_id' => (int) $wordset_term->term_id,
+                'label' => (string) $wordset_term->slug,
+                'updates' => $updates,
+            ];
+            continue;
+        }
+
+        if ($entity_type === 'category') {
+            $term = ll_tools_rest_automation_translation_resolve_category($wordset_term, $item);
+            if (is_wp_error($term)) {
+                $errors[] = [
+                    'index' => (int) $index,
+                    'type' => 'category',
+                    'message' => $term->get_error_message(),
+                    'code' => $term->get_error_code(),
+                ];
+                continue;
+            }
+
+            $resolved_items[] = [
+                'entity_type' => 'category',
+                'object_type' => 'term',
+                'object_id' => (int) $term->term_id,
+                'label' => (string) $term->slug,
+                'updates' => $updates,
+            ];
+            continue;
+        }
+
+        $post = ll_tools_rest_automation_translation_resolve_lesson($wordset_term, $item);
+        if (is_wp_error($post)) {
+            $errors[] = [
+                'index' => (int) $index,
+                'type' => 'lesson',
+                'message' => $post->get_error_message(),
+                'code' => $post->get_error_code(),
+            ];
+            continue;
+        }
+
+        $resolved_items[] = [
+            'entity_type' => 'lesson',
+            'object_type' => 'post',
+            'object_id' => (int) $post->ID,
+            'label' => (string) $post->post_name,
+            'updates' => $updates,
+        ];
+    }
+
+    if (!empty($errors)) {
+        return new WP_Error(
+            'll_tools_rest_translation_invalid_items',
+            __('One or more translation items could not be applied.', 'll-tools-text-domain'),
+            [
+                'status' => 400,
+                'errors' => $errors,
+            ]
+        );
+    }
+
+    $results = [];
+    $changed_wordset_ids = [];
+    $changed_category_ids = [];
+    $changed_post_ids = [];
+    foreach ($resolved_items as $resolved) {
+        $result = ll_tools_update_entity_translations(
+            (string) $resolved['object_type'],
+            (int) $resolved['object_id'],
+            (array) $resolved['updates'],
+            $dry_run
+        );
+        $changed = !empty($result['changed']);
+        if ($changed && !$dry_run) {
+            if ($resolved['entity_type'] === 'category') {
+                $changed_category_ids[] = (int) $resolved['object_id'];
+            } elseif ($resolved['entity_type'] === 'lesson') {
+                $changed_post_ids[] = (int) $resolved['object_id'];
+            }
+            $changed_wordset_ids[] = (int) $wordset_term->term_id;
+        }
+
+        $results[] = [
+            'entity_type' => (string) $resolved['entity_type'],
+            'object_type' => (string) $resolved['object_type'],
+            'object_id' => (int) $resolved['object_id'],
+            'label' => (string) $resolved['label'],
+            'changed' => $changed,
+            'updates' => (array) $resolved['updates'],
+            'before' => (array) ($result['before'] ?? []),
+            'after' => (array) ($result['after'] ?? []),
+        ];
+    }
+
+    if (!$dry_run) {
+        if (!empty($changed_category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+            ll_tools_bump_category_cache_version(array_values(array_unique($changed_category_ids)));
+        }
+        foreach (array_values(array_unique($changed_post_ids)) as $post_id) {
+            clean_post_cache((int) $post_id);
+        }
+        if (!empty($changed_post_ids) && function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
+            ll_tools_invalidate_wordset_page_lesson_cache();
+        }
+        if (!empty($changed_wordset_ids) && function_exists('ll_tools_bump_wordset_cache_epoch')) {
+            ll_tools_bump_wordset_cache_epoch(array_values(array_unique($changed_wordset_ids)));
+        }
+    }
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'changed' => !empty(array_filter($results, static function (array $result): bool {
+            return !empty($result['changed']);
+        })),
+        'changed_count' => count(array_filter($results, static function (array $result): bool {
+            return !empty($result['changed']);
+        })),
+        'results' => $results,
+        'after' => ll_tools_rest_automation_wordset_translations_payload($wordset_term, $locale),
+    ]);
 }
 
 function ll_tools_rest_automation_wordset_profile(WP_REST_Request $request) {
@@ -4376,6 +5043,34 @@ function ll_tools_rest_register_automation_routes(): void {
             'translation_language' => [
                 'required' => false,
                 'type' => 'string',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/translations', [
+        'methods' => [WP_REST_Server::READABLE, WP_REST_Server::CREATABLE, WP_REST_Server::EDITABLE],
+        'callback' => 'll_tools_rest_automation_wordset_translations',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'locale' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'items' => [
+                'required' => false,
+            ],
+            'wordset_translation' => [
+                'required' => false,
+            ],
+            'categories' => [
+                'required' => false,
+            ],
+            'lessons' => [
+                'required' => false,
             ],
         ],
     ]);

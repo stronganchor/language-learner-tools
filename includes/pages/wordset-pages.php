@@ -121,7 +121,9 @@ function ll_tools_get_wordset_page_display_title($wordset): string {
         return $fallback_title;
     }
 
-    $name = trim((string) $wordset_term->name);
+    $name = function_exists('ll_tools_get_wordset_display_name')
+        ? trim((string) ll_tools_get_wordset_display_name($wordset_term))
+        : trim((string) $wordset_term->name);
     if ($name === '' || ll_tools_wordset_page_uses_generic_default_title($wordset_term)) {
         return $fallback_title;
     }
@@ -2015,7 +2017,7 @@ function ll_tools_get_wordset_button_image_preview_data($wordset, string $size =
     ];
 }
 
-function ll_tools_get_wordset_profile_summary($wordset, string $image_size = 'large', bool $masked_image = true): array {
+function ll_tools_get_wordset_profile_summary($wordset, string $image_size = 'large', bool $masked_image = true, bool $localized_text = false): array {
     $wordset_term = ll_tools_resolve_wordset_term($wordset);
     if (!$wordset_term || is_wp_error($wordset_term)) {
         return [
@@ -2038,7 +2040,7 @@ function ll_tools_get_wordset_profile_summary($wordset, string $image_size = 'la
         ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
         : (defined('LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY') ? (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, true) : '');
     $profile_blurb = function_exists('ll_tools_get_wordset_profile_blurb')
-        ? ll_tools_get_wordset_profile_blurb($wordset_id)
+        ? ll_tools_get_wordset_profile_blurb($wordset_id, ['use_locale' => $localized_text])
         : '';
     $image = ll_tools_get_wordset_button_image_preview_data($wordset_id, $image_size, $masked_image);
 
@@ -2072,7 +2074,7 @@ function ll_tools_wordset_page_render_profile_section(WP_Term $wordset_term, arr
                 <img
                     class="ll-wordset-profile__image"
                     src="<?php echo esc_url($image_url); ?>"
-                    alt="<?php echo esc_attr($image_title !== '' ? $image_title : $wordset_term->name); ?>"
+                    alt="<?php echo esc_attr($image_title !== '' ? $image_title : (function_exists('ll_tools_get_wordset_display_name') ? ll_tools_get_wordset_display_name($wordset_term) : $wordset_term->name)); ?>"
                     loading="eager"
                     decoding="async"
                 />
@@ -14709,7 +14711,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
         : (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, true);
     $wordset_profile = function_exists('ll_tools_get_wordset_profile_summary')
-        ? ll_tools_get_wordset_profile_summary($wordset_term, 'large', true)
+        ? ll_tools_get_wordset_profile_summary($wordset_term, 'large', true, true)
         : [];
     $category_translation_enabled = function_exists('ll_tools_is_wordset_category_translation_enabled')
         ? (bool) ll_tools_is_wordset_category_translation_enabled([$wordset_id], true)
@@ -15774,7 +15776,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'view' => $normalized_view,
         'wordsetId' => $wordset_id,
         'wordsetSlug' => (string) $wordset_term->slug,
-        'wordsetName' => (string) $wordset_term->name,
+        'wordsetName' => function_exists('ll_tools_get_wordset_display_name')
+            ? (string) ll_tools_get_wordset_display_name($wordset_term)
+            : (string) $wordset_term->name,
         'initialMainCategorySort' => $saved_main_category_sort,
         'mainCategorySortCookieName' => ll_tools_wordset_page_get_main_sort_cookie_name($wordset_id),
         'links' => $localized_links,

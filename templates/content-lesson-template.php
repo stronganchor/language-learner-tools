@@ -50,7 +50,9 @@ $wordset = function_exists('ll_tools_get_content_lesson_wordset_term')
     ? ll_tools_get_content_lesson_wordset_term($lesson_id)
     : null;
 $wordset_id = ($wordset instanceof WP_Term) ? (int) $wordset->term_id : 0;
-$wordset_name = ($wordset instanceof WP_Term) ? (string) $wordset->name : '';
+$wordset_name = ($wordset instanceof WP_Term)
+    ? (function_exists('ll_tools_get_wordset_display_name') ? ll_tools_get_wordset_display_name($wordset) : (string) $wordset->name)
+    : '';
 $wordset_url = ($wordset instanceof WP_Term && function_exists('ll_tools_get_wordset_page_view_url'))
     ? (string) ll_tools_get_wordset_page_view_url($wordset)
     : (($wordset instanceof WP_Term && $wordset->slug !== '') ? trailingslashit(home_url($wordset->slug)) : '');
@@ -77,13 +79,11 @@ $related_vocab_items = function_exists('ll_tools_get_content_lesson_related_voca
     : [];
 $lesson_title = get_the_title();
 $lesson_excerpt = has_excerpt() ? get_the_excerpt() : '';
-if ($is_corpus_text) {
-    if (function_exists('ll_tools_get_content_lesson_localized_title')) {
-        $lesson_title = ll_tools_get_content_lesson_localized_title($lesson_id, (string) $lesson_title);
-    }
-    if (function_exists('ll_tools_get_content_lesson_localized_excerpt')) {
-        $lesson_excerpt = ll_tools_get_content_lesson_localized_excerpt($lesson_id, (string) $lesson_excerpt);
-    }
+if (function_exists('ll_tools_get_lesson_display_title')) {
+    $lesson_title = ll_tools_get_lesson_display_title($lesson_id, ['fallback' => (string) $lesson_title]);
+}
+if (function_exists('ll_tools_get_lesson_display_excerpt')) {
+    $lesson_excerpt = ll_tools_get_lesson_display_excerpt($lesson_id, (string) $lesson_excerpt);
 }
 $print_source_url = ($is_corpus_text && function_exists('ll_tools_get_content_lesson_print_source_url'))
     ? ll_tools_get_content_lesson_print_source_url($lesson_id)

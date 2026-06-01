@@ -235,10 +235,18 @@ function ll_tools_sanitize_wordset_profile_blurb($value): string {
     return substr($value, 0, 2400);
 }
 
-function ll_tools_get_wordset_profile_blurb($wordset): string {
+function ll_tools_get_wordset_profile_blurb($wordset, array $args = []): string {
     $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
     if ($wordset_id <= 0) {
         return '';
+    }
+
+    $use_locale = array_key_exists('use_locale', $args) ? (bool) $args['use_locale'] : false;
+    if ($use_locale && function_exists('ll_tools_get_entity_translation')) {
+        $translated = ll_tools_get_entity_translation('term', $wordset_id, 'profile_blurb', $args);
+        if ($translated !== '') {
+            return $translated;
+        }
     }
 
     return ll_tools_sanitize_wordset_profile_blurb(

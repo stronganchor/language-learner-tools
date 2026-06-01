@@ -31,7 +31,7 @@ if ($ll_vocab_lesson_print_requested) {
     $print_wordset = ($print_wordset_id > 0) ? get_term($print_wordset_id, 'wordset') : null;
     $print_category = ($print_category_id > 0) ? get_term($print_category_id, 'word-category') : null;
     $print_display_name = ($print_category instanceof WP_Term && !is_wp_error($print_category) && function_exists('ll_tools_get_category_display_name'))
-        ? ll_tools_get_category_display_name($print_category)
+        ? ll_tools_get_category_display_name($print_category, ['wordset_ids' => $print_wordset_id > 0 ? [$print_wordset_id] : []])
         : (($print_category instanceof WP_Term && !is_wp_error($print_category)) ? $print_category->name : (($print_post instanceof WP_Post) ? get_the_title($print_post) : ''));
     $print_settings = function_exists('ll_tools_get_vocab_lesson_print_request_settings')
         ? ll_tools_get_vocab_lesson_print_request_settings()
@@ -100,7 +100,7 @@ if (have_posts()) {
     $display_name = '';
     if ($category && !is_wp_error($category)) {
         $display_name = function_exists('ll_tools_get_category_display_name')
-            ? ll_tools_get_category_display_name($category)
+            ? ll_tools_get_category_display_name($category, ['wordset_ids' => $wordset_id > 0 ? [$wordset_id] : []])
             : $category->name;
     }
     if ($display_name === '') {
@@ -139,7 +139,9 @@ if (have_posts()) {
         ? ll_tools_get_vocab_lesson_split_category_url((int) $wordset_id, (int) $category_id, (int) $post_id)
         : '';
 
-    $wordset_name = ($wordset && !is_wp_error($wordset)) ? $wordset->name : '';
+    $wordset_name = ($wordset && !is_wp_error($wordset))
+        ? (function_exists('ll_tools_get_wordset_display_name') ? ll_tools_get_wordset_display_name($wordset) : $wordset->name)
+        : '';
     $wordset_slug = ($wordset && !is_wp_error($wordset)) ? $wordset->slug : '';
     $wordset_url = ($wordset instanceof WP_Term && !is_wp_error($wordset) && function_exists('ll_tools_get_wordset_page_view_url'))
         ? (string) ll_tools_get_wordset_page_view_url($wordset)

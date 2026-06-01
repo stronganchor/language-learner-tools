@@ -115,16 +115,12 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
     $display_media_type = $lesson_kind === 'corpus_text' ? 'text' : $media_type;
     $fallback_title = (string) get_the_title($lesson);
     $fallback_excerpt = ll_tools_get_content_lesson_excerpt($lesson);
-    $localized_title = $fallback_title;
-    $localized_excerpt = $fallback_excerpt;
-    if ($lesson_kind === 'corpus_text') {
-        if (function_exists('ll_tools_get_content_lesson_localized_title')) {
-            $localized_title = ll_tools_get_content_lesson_localized_title((int) $lesson->ID, $fallback_title);
-        }
-        if (function_exists('ll_tools_get_content_lesson_localized_excerpt')) {
-            $localized_excerpt = ll_tools_get_content_lesson_localized_excerpt((int) $lesson->ID, $fallback_excerpt);
-        }
-    }
+    $localized_title = function_exists('ll_tools_get_lesson_display_title')
+        ? ll_tools_get_lesson_display_title($lesson, ['fallback' => $fallback_title])
+        : $fallback_title;
+    $localized_excerpt = function_exists('ll_tools_get_lesson_display_excerpt')
+        ? ll_tools_get_lesson_display_excerpt($lesson, $fallback_excerpt)
+        : $fallback_excerpt;
 
     return [
         'id' => (int) $lesson->ID,

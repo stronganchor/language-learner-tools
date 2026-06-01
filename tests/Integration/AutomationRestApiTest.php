@@ -162,6 +162,102 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame("Complements Aleph with Beth videos.\nIncludes early reading practice.", (string) ($read_data['profile_blurb'] ?? ''));
     }
 
+    public function test_wordset_translations_rest_route_updates_locale_entity_text(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Translation Wordset', 'rest-translation-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Translation Category', 'rest-translation-category');
+        $this->create_word($wordset_id, [$category_id], 'REST Translation Word', 'Original translation');
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Original Content Lesson',
+            'post_excerpt' => 'Original content lesson excerpt.',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META, 'audio');
+
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'locale' => 'tr_TR',
+            'wordset_translation' => [
+                'name' => 'Turkish Wordset Name',
+                'profile_blurb' => "Turkish learner intro.\nSecond line.",
+            ],
+            'categories' => [
+                [
+                    'id' => $category_id,
+                    'name' => 'Turkish Category Name',
+                ],
+            ],
+            'lessons' => [
+                [
+                    'id' => $lesson_id,
+                    'title' => 'Turkish Lesson Name',
+                    'excerpt' => 'Turkish lesson excerpt.',
+                ],
+            ],
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-translation-wordset/translations', $payload + [
+            'dry_run' => true,
+        ]);
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertSame(3, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame([], ll_tools_get_entity_translations('term', $wordset_id));
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-translation-wordset/translations', $payload);
+        $this->assertSame(200, $update->get_status());
+        $update_data = $update->get_data();
+        $this->assertIsArray($update_data);
+        $this->assertSame(3, (int) ($update_data['changed_count'] ?? 0));
+        $translated_category_id = $category_id;
+        foreach ((array) ($update_data['results'] ?? []) as $result) {
+            if (is_array($result) && (string) ($result['entity_type'] ?? '') === 'category') {
+                $translated_category_id = (int) ($result['object_id'] ?? $category_id);
+                break;
+            }
+        }
+
+        $wordset = get_term($wordset_id, 'wordset');
+        $category = get_term($translated_category_id, 'word-category');
+        $lesson = get_post($lesson_id);
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $this->assertInstanceOf(WP_Term::class, $category);
+        $this->assertInstanceOf(WP_Post::class, $lesson);
+
+        $this->assertSame('Turkish Wordset Name', ll_tools_get_wordset_display_name($wordset, ['locale' => 'tr_TR']));
+        $this->assertSame("Turkish learner intro.\nSecond line.", ll_tools_get_wordset_profile_blurb($wordset_id, [
+            'use_locale' => true,
+            'locale' => 'tr_TR',
+        ]));
+        $this->assertSame('Turkish Category Name', ll_tools_get_category_display_name($category, [
+            'wordset_ids' => [$wordset_id],
+            'site_language' => 'tr_TR',
+        ]));
+        $this->assertSame('Turkish Lesson Name', ll_tools_get_lesson_display_title($lesson, [
+            'locale' => 'tr_TR',
+            'fallback' => 'Original Content Lesson',
+        ]));
+        $this->assertSame('Turkish lesson excerpt.', ll_tools_get_lesson_display_excerpt($lesson, 'Original content lesson excerpt.', [
+            'locale' => 'tr_TR',
+        ]));
+
+        $read = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-translation-wordset/translations', [
+            'locale' => 'tr_TR',
+        ]);
+        $this->assertSame(200, $read->get_status());
+        $read_data = $read->get_data();
+        $this->assertIsArray($read_data);
+        $this->assertSame('Turkish Wordset Name', (string) ($read_data['wordset']['display_name'] ?? ''));
+        $this->assertSame("Turkish learner intro.\nSecond line.", (string) ($read_data['wordset']['display_profile_blurb'] ?? ''));
+        $this->assertSame('Turkish Category Name', (string) ($read_data['categories'][0]['display_name'] ?? ''));
+        $this->assertSame('Turkish Lesson Name', (string) ($read_data['lessons'][0]['display_title'] ?? ''));
+    }
+
     public function test_orthography_conversion_rest_route_sets_profile_and_manual_rules(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

@@ -321,8 +321,12 @@ function ll_tools_get_wordset_button_items(bool $hide_empty = false): array {
 
             $left_term = $left['term'] ?? null;
             $right_term = $right['term'] ?? null;
-            $left_name = ($left_term instanceof WP_Term) ? (string) $left_term->name : '';
-            $right_name = ($right_term instanceof WP_Term) ? (string) $right_term->name : '';
+            $left_name = ($left_term instanceof WP_Term)
+                ? (function_exists('ll_tools_get_wordset_display_name') ? ll_tools_get_wordset_display_name($left_term) : (string) $left_term->name)
+                : '';
+            $right_name = ($right_term instanceof WP_Term)
+                ? (function_exists('ll_tools_get_wordset_display_name') ? ll_tools_get_wordset_display_name($right_term) : (string) $right_term->name)
+                : '';
 
             return strnatcasecmp($left_name, $right_name);
         });
@@ -381,6 +385,9 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                 if (!$term instanceof WP_Term || $lesson_count <= 0) {
                     continue;
                 }
+                $term_name = function_exists('ll_tools_get_wordset_display_name')
+                    ? ll_tools_get_wordset_display_name($term)
+                    : (string) $term->name;
 
                 $url = function_exists('ll_tools_get_wordset_page_view_url')
                     ? (string) ll_tools_get_wordset_page_view_url($term)
@@ -405,13 +412,13 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                     ? sprintf(
                         /* translators: 1: word set name, 2: lesson count label. */
                         __('%1$s, private word set, %2$s', 'll-tools-text-domain'),
-                        $term->name,
+                        $term_name,
                         $count_label
                     )
                     : sprintf(
                         /* translators: 1: word set name, 2: lesson count label. */
                         __('%1$s, %2$s', 'll-tools-text-domain'),
-                        $term->name,
+                        $term_name,
                         $count_label
                     );
                 $button_classes = [
@@ -434,7 +441,7 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                             </span>
                         <?php endif; ?>
                         <span class="ll-wordset-buttons-shortcode__label-wrap">
-                            <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term->name); ?></span>
+                            <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term_name); ?></span>
                             <?php if ($is_private) : ?>
                                 <span class="ll-wordset-buttons-shortcode__privacy-badge" aria-hidden="true" title="<?php echo esc_attr($privacy_label); ?>"></span>
                             <?php endif; ?>

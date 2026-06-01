@@ -99,6 +99,7 @@ includes/
     php-compat.php            # Compatibility helpers for older PHP runtimes
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
+    entity-translations.php   # Locale-keyed wordset/category/lesson display text translations
     wordset-language-settings.php # Per-wordset target/title/translation language settings
     audio-originals.php       # Optional preserved-original audio helpers
     custom-stt-endpoint.php   # Wordset-scoped custom STT endpoint validation/storage
@@ -375,7 +376,7 @@ Core settings live in `includes/admin/settings.php`:
   embedded quiz compatibility.
 - `/lesson/<slug>` content lesson pages (handled by `includes/pages/content-lesson-pages.php`).
 - `/wp-json/ll-tools/v1/...` REST automation routes (handled by `includes/api/automation-rest.php`).
-  - Includes status, wordset creation/reports/missing-meta/bulk-update/word-option-rules/review-notes, and import preview/start/process/discard/result routes.
+  - Includes status, wordset creation/reports/missing-meta/bulk-update/word-option-rules/review-notes/entity translations, and import preview/start/process/discard/result routes.
 
 # Flashcard widget architecture
 ## PHP controller
@@ -473,6 +474,7 @@ Core settings live in `includes/admin/settings.php`:
 - If conflict filtering leaves fewer cards than the desired option count, keep conflicts blocked (do not force-add conflicting cards).
 - All admin and public UI strings should remain i18n-detectable (Loco Translate compatible): wrap PHP/template strings in WordPress i18n helpers using `ll-tools-text-domain`, and pass JS UI copy through localized data/messages instead of hardcoded literals.
 - Tier-2 public UI translations are tracked through `languages/tier2-public-ui-sources.php`, the generated `languages/tier2-public-ui-strings.json` manifest, and `scripts/check-public-i18n.php`; mixed-purpose source files should use public-only line ranges so manager/admin strings do not enter the tier-2 coverage set.
+- Wordset/category/lesson content labels that vary by site UI language use locale-keyed entity translation maps in `ll_tools_entity_translations`; bulk reads/writes go through `/wp-json/ll-tools/v1/wordsets/{wordset}/translations`.
 - Public static caches must exclude logged-in users, wp-admin, admin-ajax, REST/API, POST requests, preview/customizer requests, and error/redirect responses; anonymous cache keys should normalize noisy args such as `ll_locale_nonce` and `ll_tools_auth`.
 - Public static cache writes must keep the configured max-byte guard, and MISS responses should not receive public cache headers until storage succeeds.
 - Anonymous public AJAX surfaces that can rebuild expensive payloads should be cache-aware and resource-guarded: preserve cheap cache hits, but throttle or cap cache misses and oversized batch requests.

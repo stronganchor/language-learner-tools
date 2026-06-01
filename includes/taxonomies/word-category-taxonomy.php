@@ -999,7 +999,7 @@ function ll_tools_get_category_display_name($term, array $args = []) {
             'site_language' => (string) ($opts['site_language'] ?? ''),
             'meta_key' => (string) ($opts['meta_key'] ?? 'term_translation'),
             'wordset_ids' => array_values(array_map('intval', (array) ($opts['wordset_ids'] ?? []))),
-            'schema' => 2,
+            'schema' => 3,
         ]));
         $cache_group = 'll_tools_quiz_category';
         $cache_ttl = 6 * HOUR_IN_SECONDS;
@@ -1017,12 +1017,20 @@ function ll_tools_get_category_display_name($term, array $args = []) {
     }
 
     $display = $term->name;
+    if (function_exists('ll_tools_get_entity_translation')) {
+        $localized_display = ll_tools_get_entity_translation('term', (int) $term->term_id, 'name', [
+            'site_language' => (string) ($opts['site_language'] ?? ''),
+        ]);
+        if ($localized_display !== '') {
+            $display = $localized_display;
+        }
+    }
 
     $use_translations = $opts['enable_translation']
         && $opts['target_language'] !== ''
         && strpos($opts['site_language'], $opts['target_language']) === 0;
 
-    if ($use_translations) {
+    if ($display === $term->name && $use_translations) {
         $maybe = get_term_meta($term->term_id, $opts['meta_key'], true);
         if (is_string($maybe) && $maybe !== '') {
             $display = $maybe;
