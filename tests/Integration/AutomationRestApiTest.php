@@ -458,6 +458,45 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('New Post Title', (string) ($updated['word_title'] ?? ''));
     }
 
+    public function test_bulk_update_route_can_apply_distinct_word_title_updates(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Distinct Word Updates Wordset', 'rest-distinct-word-updates-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Distinct Word Updates Category', 'rest-distinct-word-updates-category');
+
+        $first_word_id = $this->create_word($wordset_id, [$category_id], 'Old First Title', 'First Translation');
+        $second_word_id = $this->create_word($wordset_id, [$category_id], 'Old Second Title', 'Second Translation');
+
+        wp_set_current_user($admin_id);
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-distinct-word-updates-wordset/bulk-update', [
+            'updates' => [
+                [
+                    'word_id' => $first_word_id,
+                    'field' => 'word_title',
+                    'value' => 'New First Title',
+                ],
+                [
+                    'word_id' => $second_word_id,
+                    'set' => [
+                        'field' => 'word_title',
+                        'value' => 'New Second Title',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame('updates', (string) ($data['batch_mode'] ?? ''));
+        $this->assertSame(2, (int) ($data['matched_count'] ?? 0));
+        $this->assertSame(2, (int) ($data['updated_count'] ?? 0));
+        $this->assertEmpty((array) ($data['errors'] ?? []));
+        $this->assertSame('New First Title', get_the_title($first_word_id));
+        $this->assertSame('New Second Title', get_the_title($second_word_id));
+    }
+
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

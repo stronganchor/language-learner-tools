@@ -1078,6 +1078,11 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
         return $wordset_term;
     }
 
+    $distinct_updates = $request->get_param('updates');
+    if (is_array($distinct_updates) && !empty($distinct_updates)) {
+        return ll_tools_rest_automation_word_bulk_update_distinct($request, $wordset_term, $distinct_updates);
+    }
+
     $set_args = ll_tools_rest_automation_parse_set_value($request);
     if (is_wp_error($set_args)) {
         return $set_args;
@@ -1193,6 +1198,141 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
     }
 
     $summary['resume_state'] = $resume_state;
+
+    return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_automation_word_bulk_update_distinct(WP_REST_Request $request, WP_Term $wordset_term, array $updates) {
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(0);
+    }
+
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $max_updates = 250;
+    $updates = array_values($updates);
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => [
+            'id' => (int) $wordset_term->term_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'batch_mode' => 'updates',
+        'input_count' => count($updates),
+        'max_updates' => $max_updates,
+        'matched_count' => 0,
+        'updated_count' => 0,
+        'matched_rows' => [],
+        'updated' => [],
+        'errors' => [],
+    ];
+
+    if (count($updates) > $max_updates) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_too_many_word_updates',
+            sprintf(
+                /* translators: %d: maximum update count */
+                __('Too many word updates in one request. Maximum is %d.', 'll-tools-text-domain'),
+                $max_updates
+            )
+        ), 400);
+    }
+
+    foreach ($updates as $index => $update) {
+        $update = is_array($update) ? $update : [];
+        $word_spec = trim((string) ($update['word'] ?? $update['word_id'] ?? ''));
+        $field = sanitize_key((string) ($update['field'] ?? ''));
+        $value = (string) ($update['value'] ?? '');
+        if (isset($update['set'])) {
+            $set = $update['set'];
+            if (is_array($set)) {
+                $field = sanitize_key((string) ($set['field'] ?? $field));
+                $value = (string) ($set['value'] ?? $value);
+            } elseif (is_string($set) && strpos($set, '=') !== false) {
+                [$set_field, $set_value] = explode('=', $set, 2);
+                $field = sanitize_key((string) $set_field);
+                $value = (string) $set_value;
+            }
+        }
+
+        if ($word_spec === '') {
+            $summary['errors'][] = [
+                'index' => $index,
+                'message' => __('Missing word identifier.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+        if ($field === '' || !in_array($field, ll_tools_cli_supported_update_fields(), true)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word' => $word_spec,
+                'message' => sprintf(
+                    /* translators: %s: field name */
+                    __('Unsupported update field: %s', 'll-tools-text-domain'),
+                    $field
+                ),
+            ];
+            continue;
+        }
+
+        $word_id = ll_tools_cli_resolve_word_id((int) $wordset_term->term_id, $word_spec);
+        if (is_wp_error($word_id)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word' => $word_spec,
+                'message' => $word_id->get_error_message(),
+            ];
+            continue;
+        }
+
+        $word_id = (int) $word_id;
+        $before_rows = ll_tools_cli_get_word_rows((int) $wordset_term->term_id, [$word_id]);
+        $before = $before_rows[0] ?? [];
+        if (empty($before)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => __('Unable to load the current word state.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $summary['matched_count']++;
+        $summary['matched_rows'][] = ll_tools_cli_prepare_word_rows_for_output([$before])[0] ?? [];
+
+        if ($dry_run) {
+            continue;
+        }
+
+        $update_result = ll_tools_cli_apply_word_field_update(
+            (int) $wordset_term->term_id,
+            $word_id,
+            $field,
+            $value
+        );
+
+        if (is_wp_error($update_result)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => $update_result->get_error_message(),
+            ];
+            continue;
+        }
+
+        $summary['updated'][] = [
+            'word_id' => (int) ($update_result['word_id'] ?? 0),
+            'word_slug' => (string) ($update_result['word_slug'] ?? ''),
+            'changed' => !empty($update_result['changed']),
+            'changed_keys' => array_values(array_map('strval', (array) ($update_result['changed_keys'] ?? []))),
+            'before' => ll_tools_cli_prepare_word_rows_for_output([(array) ($update_result['before'] ?? [])])[0] ?? [],
+            'after' => ll_tools_cli_prepare_word_rows_for_output([(array) ($update_result['after'] ?? [])])[0] ?? [],
+        ];
+        if (!empty($update_result['changed'])) {
+            $summary['updated_count']++;
+        }
+    }
 
     return rest_ensure_response($summary);
 }

@@ -376,6 +376,7 @@ Body fields:
 
 - `set` required
   - Either `"field=value"` or `{ "field": "...", "value": "..." }`
+- `updates` optional array for distinct per-word updates; each item accepts `word` or `word_id` plus `field`/`value` or `set`
 - `category` optional
 - `word` optional
 - `where_missing` optional list or comma-separated string
@@ -389,6 +390,10 @@ Body fields:
 Responses include `total_matched_count`, `matched_count`, `batch.has_more`, and
 the next `resume_state`. For writes, prefer resume-state pagination over a large
 `offset` so retries do not repeat rows that were already processed.
+
+When `updates` is present, the route applies those distinct updates directly and
+does not use `set`, `category`, `limit`, `offset`, or `resume_state`. This mode is
+capped at 250 updates per request.
 
 Supported update fields:
 
