@@ -599,7 +599,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 2.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|transcriptions|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 1.25;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
@@ -835,6 +835,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'create_wordset' => '/ll-tools/v1/wordsets',
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
             'bulk_update' => '/ll-tools/v1/wordsets/{wordset}/bulk-update',
+            'word_title_updates' => '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
@@ -867,6 +868,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/cache/static/purge',
                 '/ll-tools/v1/wordsets',
                 '/ll-tools/v1/wordsets/{wordset}/bulk-update',
+                '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
                 '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
@@ -1333,6 +1335,311 @@ function ll_tools_rest_automation_word_bulk_update_distinct(WP_REST_Request $req
             $summary['updated_count']++;
         }
     }
+
+    return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_automation_sanitize_word_title_value($value): string {
+    $value = is_scalar($value) ? (string) $value : '';
+
+    return function_exists('ll_sanitize_word_title_text')
+        ? ll_sanitize_word_title_text($value)
+        : trim(sanitize_text_field($value));
+}
+
+function ll_tools_rest_automation_fetch_word_title_records(int $wordset_id, array $word_ids): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if ($wordset_id <= 0 || empty($word_ids)) {
+        return [];
+    }
+
+    $records = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $id_placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
+        $sql = $wpdb->prepare(
+            "SELECT DISTINCT p.ID, p.post_title, p.post_name
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->term_relationships} tr ON p.ID = tr.object_id
+             INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+             WHERE p.ID IN ($id_placeholders)
+               AND p.post_type = %s
+               AND p.post_status <> %s
+               AND tt.taxonomy = %s
+               AND tt.term_id = %d",
+            array_merge($chunk, ['words', 'trash', 'wordset', $wordset_id])
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        foreach ((array) $rows as $row) {
+            $word_id = (int) ($row['ID'] ?? 0);
+            if ($word_id <= 0) {
+                continue;
+            }
+            $records[$word_id] = [
+                'word_id' => $word_id,
+                'word_title' => (string) ($row['post_title'] ?? ''),
+                'word_slug' => (string) ($row['post_name'] ?? ''),
+            ];
+        }
+    }
+
+    return $records;
+}
+
+function ll_tools_rest_automation_update_word_title_direct(int $word_id, string $word_title) {
+    global $wpdb;
+
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return new WP_Error('ll_tools_rest_invalid_word_title_update_id', __('Missing word ID.', 'll-tools-text-domain'));
+    }
+
+    $result = $wpdb->update(
+        $wpdb->posts,
+        [
+            'post_title' => $word_title,
+            'post_modified' => current_time('mysql'),
+            'post_modified_gmt' => current_time('mysql', true),
+        ],
+        [
+            'ID' => $word_id,
+        ],
+        [
+            '%s',
+            '%s',
+            '%s',
+        ],
+        [
+            '%d',
+        ]
+    );
+
+    if ($result === false) {
+        return new WP_Error(
+            'll_tools_rest_word_title_update_failed',
+            __('Failed to update the word title.', 'll-tools-text-domain')
+        );
+    }
+
+    return (int) $result;
+}
+
+function ll_tools_rest_automation_word_title_updates(WP_REST_Request $request) {
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(0);
+    }
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $raw_updates = $request->get_param('updates');
+    $raw_updates = is_array($raw_updates) ? array_values($raw_updates) : [];
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $max_updates = 1000;
+    $started = microtime(true);
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => [
+            'id' => (int) $wordset_term->term_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'batch_mode' => 'word_title_updates',
+        'input_count' => count($raw_updates),
+        'max_updates' => $max_updates,
+        'matched_count' => 0,
+        'changed_count' => 0,
+        'updated_count' => 0,
+        'unchanged_count' => 0,
+        'skipped_count' => 0,
+        'updated' => [],
+        'skipped' => [],
+        'errors' => [],
+    ];
+
+    if (empty($raw_updates)) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_missing_word_title_updates',
+            __('Provide one or more word title updates.', 'll-tools-text-domain')
+        ), 400);
+    }
+
+    if (count($raw_updates) > $max_updates) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_too_many_word_title_updates',
+            sprintf(
+                /* translators: %d: maximum update count */
+                __('Too many word title updates in one request. Maximum is %d.', 'll-tools-text-domain'),
+                $max_updates
+            )
+        ), 400);
+    }
+
+    $updates = [];
+    $seen_word_ids = [];
+    foreach ($raw_updates as $index => $update) {
+        $update = is_array($update) ? $update : [];
+        $raw_word_id = $update['word_id'] ?? $update['id'] ?? '';
+        $word_id = is_scalar($raw_word_id) ? (int) $raw_word_id : 0;
+        if ($word_id <= 0) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'message' => __('Missing word ID.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        if (isset($seen_word_ids[$word_id])) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => __('Duplicate word ID in this batch.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+        $seen_word_ids[$word_id] = true;
+
+        $has_title = array_key_exists('title', $update) || array_key_exists('word_title', $update) || array_key_exists('post_title', $update);
+        $raw_title = $update['title'] ?? $update['word_title'] ?? $update['post_title'] ?? '';
+        $word_title = ll_tools_rest_automation_sanitize_word_title_value($raw_title);
+        if (!$has_title || $word_title === '') {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => __('Missing replacement title.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $has_old_title = array_key_exists('old_title', $update) || array_key_exists('old_word_title', $update) || array_key_exists('old_post_title', $update);
+        $raw_old_title = $update['old_title'] ?? $update['old_word_title'] ?? $update['old_post_title'] ?? '';
+
+        $updates[] = [
+            'index' => $index,
+            'word_id' => $word_id,
+            'title' => $word_title,
+            'has_old_title' => $has_old_title,
+            'old_title' => $has_old_title ? ll_tools_rest_automation_sanitize_word_title_value($raw_old_title) : '',
+        ];
+    }
+
+    if (empty($updates)) {
+        $summary['elapsed_seconds'] = round(microtime(true) - $started, 3);
+        return rest_ensure_response($summary);
+    }
+
+    $records = ll_tools_rest_automation_fetch_word_title_records(
+        (int) $wordset_term->term_id,
+        array_map(static function (array $update): int {
+            return (int) $update['word_id'];
+        }, $updates)
+    );
+
+    $changes = [];
+    foreach ($updates as $update) {
+        $word_id = (int) $update['word_id'];
+        $record = $records[$word_id] ?? null;
+        if (!is_array($record)) {
+            $summary['skipped'][] = [
+                'index' => (int) $update['index'],
+                'word_id' => $word_id,
+                'reason' => 'not_in_wordset',
+            ];
+            $summary['skipped_count']++;
+            continue;
+        }
+
+        $current_title = (string) ($record['word_title'] ?? '');
+        $summary['matched_count']++;
+
+        if (!empty($update['has_old_title']) && $current_title !== (string) $update['old_title']) {
+            $summary['skipped'][] = [
+                'index' => (int) $update['index'],
+                'word_id' => $word_id,
+                'word_slug' => (string) ($record['word_slug'] ?? ''),
+                'reason' => 'old_title_mismatch',
+                'current_title' => $current_title,
+                'expected_old_title' => (string) $update['old_title'],
+                'requested_title' => (string) $update['title'],
+            ];
+            $summary['skipped_count']++;
+            continue;
+        }
+
+        if ($current_title === (string) $update['title']) {
+            $summary['unchanged_count']++;
+            continue;
+        }
+
+        $changes[] = [
+            'index' => (int) $update['index'],
+            'word_id' => $word_id,
+            'word_slug' => (string) ($record['word_slug'] ?? ''),
+            'before_title' => $current_title,
+            'after_title' => (string) $update['title'],
+        ];
+    }
+
+    $summary['changed_count'] = count($changes);
+
+    if (!$dry_run && !empty($changes)) {
+        $changed_word_ids = [];
+        foreach ($changes as $change) {
+            $word_id = (int) $change['word_id'];
+            $result = ll_tools_rest_automation_update_word_title_direct($word_id, (string) $change['after_title']);
+            if (is_wp_error($result)) {
+                $summary['errors'][] = [
+                    'index' => (int) $change['index'],
+                    'word_id' => $word_id,
+                    'message' => $result->get_error_message(),
+                ];
+                continue;
+            }
+
+            $summary['updated'][] = [
+                'index' => (int) $change['index'],
+                'word_id' => $word_id,
+                'word_slug' => (string) $change['word_slug'],
+                'changed' => true,
+                'before_title' => (string) $change['before_title'],
+                'after_title' => (string) $change['after_title'],
+            ];
+            $summary['updated_count']++;
+            $changed_word_ids[] = $word_id;
+        }
+
+        $changed_word_ids = array_values(array_unique(array_filter(array_map('intval', $changed_word_ids))));
+        foreach ($changed_word_ids as $changed_word_id) {
+            clean_post_cache($changed_word_id);
+        }
+        if (!empty($changed_word_ids) && function_exists('ll_tools_word_grid_bump_category_cache_for_words')) {
+            ll_tools_word_grid_bump_category_cache_for_words($changed_word_ids);
+        }
+        if (!empty($changed_word_ids) && function_exists('ll_tools_purge_public_static_cache_once')) {
+            ll_tools_purge_public_static_cache_once(['wordset_ids' => [(int) $wordset_term->term_id]]);
+        }
+        if (!empty($changed_word_ids) && function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
+            ll_tools_purge_wordset_buttons_shortcode_cache_once();
+        }
+    }
+
+    if ($dry_run) {
+        $summary['updated'] = array_map(static function (array $change): array {
+            return $change + [
+                'changed' => true,
+            ];
+        }, $changes);
+    }
+
+    $summary['elapsed_seconds'] = round(microtime(true) - $started, 3);
 
     return rest_ensure_response($summary);
 }
@@ -5122,6 +5429,12 @@ function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/bulk-update', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_word_bulk_update',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-title-updates', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_word_title_updates',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
     ]);
 

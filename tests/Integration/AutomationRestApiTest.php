@@ -54,6 +54,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/corpus-texts/import', (string) ($data['routes']['corpus_text_import'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/{slug}', (string) ($data['routes']['corpus_text'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', (string) ($data['routes']['orthography_conversion'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-title-updates', (string) ($data['routes']['word_title_updates'] ?? ''));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void
@@ -495,6 +496,75 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertEmpty((array) ($data['errors'] ?? []));
         $this->assertSame('New First Title', get_the_title($first_word_id));
         $this->assertSame('New Second Title', get_the_title($second_word_id));
+    }
+
+    public function test_word_title_updates_route_applies_guarded_fast_title_updates(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Fast Title Wordset', 'rest-fast-title-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Fast Title Category', 'rest-fast-title-category');
+
+        $first_word_id = $this->create_word($wordset_id, [$category_id], 'Old Fast First', 'First Translation');
+        $second_word_id = $this->create_word($wordset_id, [$category_id], 'Old Fast Second', 'Second Translation');
+        $third_word_id = $this->create_word($wordset_id, [$category_id], 'Already Correct', 'Third Translation');
+        $blocked_wordset_id = $this->ensure_term('wordset', 'REST Fast Title Blocked Wordset', 'rest-fast-title-blocked-wordset');
+        $blocked_word_id = $this->create_word($blocked_wordset_id, [$category_id], 'Blocked Word', 'Blocked Translation');
+        $first_slug = (string) get_post_field('post_name', $first_word_id);
+
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'updates' => [
+                [
+                    'word_id' => $first_word_id,
+                    'old_title' => 'Old Fast First',
+                    'title' => 'New Fast First',
+                ],
+                [
+                    'word_id' => $second_word_id,
+                    'old_title' => 'Wrong Old Title',
+                    'title' => 'New Fast Second',
+                ],
+                [
+                    'word_id' => $third_word_id,
+                    'old_title' => 'Already Correct',
+                    'title' => 'Already Correct',
+                ],
+                [
+                    'word_id' => $blocked_word_id,
+                    'title' => 'Should Not Change',
+                ],
+            ],
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-fast-title-wordset/word-title-updates', $payload + [
+            'dry_run' => true,
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertSame(3, (int) ($dry_data['matched_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame(0, (int) ($dry_data['updated_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['unchanged_count'] ?? 0));
+        $this->assertSame(2, (int) ($dry_data['skipped_count'] ?? 0));
+        $this->assertSame('Old Fast First', get_the_title($first_word_id));
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-fast-title-wordset/word-title-updates', $payload);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['changed_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame('New Fast First', get_the_title($first_word_id));
+        $this->assertSame($first_slug, (string) get_post_field('post_name', $first_word_id));
+        $this->assertSame('Old Fast Second', get_the_title($second_word_id));
+        $this->assertSame('Already Correct', get_the_title($third_word_id));
+        $this->assertSame('Blocked Word', get_the_title($blocked_word_id));
+        $this->assertSame('old_title_mismatch', (string) ($data['skipped'][0]['reason'] ?? ''));
+        $this->assertSame('not_in_wordset', (string) ($data['skipped'][1]['reason'] ?? ''));
     }
 
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void

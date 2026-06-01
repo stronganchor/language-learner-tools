@@ -122,13 +122,22 @@ Routes:
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
 - `POST /wordsets/{wordset}/bulk-update`
+- `POST /wordsets/{wordset}/word-title-updates`
 - `POST /wordsets/{wordset}/transcriptions`
 - `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
+- `GET /wordsets/{wordset}/orthography-conversion`
+- `POST /wordsets/{wordset}/orthography-conversion`
+- `PUT /wordsets/{wordset}/orthography-conversion`
+- `PATCH /wordsets/{wordset}/orthography-conversion`
 - `GET /wordsets/{wordset}/profile`
 - `POST /wordsets/{wordset}/profile`
 - `PUT /wordsets/{wordset}/profile`
 - `PATCH /wordsets/{wordset}/profile`
+- `GET /wordsets/{wordset}/translations`
+- `POST /wordsets/{wordset}/translations`
+- `PUT /wordsets/{wordset}/translations`
+- `PATCH /wordsets/{wordset}/translations`
 - `POST /wordsets/{wordset}/prompt-cards`
 - `GET /wordsets/{wordset}/report`
 - `GET /wordsets/{wordset}/report-summary`
@@ -240,6 +249,28 @@ curl -u codex-temp:YOUR_PASSWORD \
     "limit": 10
   }'
 ```
+
+Fast guarded word-title maintenance:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/word-title-updates \
+  -d '{
+    "dry_run": true,
+    "updates": [
+      { "word_id": 123, "old_title": "Old title", "title": "New title" },
+      { "word_id": 456, "old_title": "Second old title", "title": "Second new title" }
+    ]
+  }'
+```
+
+This endpoint is for title-only maintenance where each row already has a known
+word ID. It preserves slugs, skips rows whose `old_title` no longer matches,
+updates only `post_title`, and performs cache cleanup once for the batch. Use
+the generic `/bulk-update` route for metadata changes or word resolution by
+slug/title.
 
 Dry-run staged word-option groups by category slug and word slugs:
 
