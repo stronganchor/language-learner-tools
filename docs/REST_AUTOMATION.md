@@ -392,6 +392,7 @@ the next `resume_state`. For writes, prefer resume-state pagination over a large
 
 Supported update fields:
 
+- `word_text`
 - `word_translation`
 - `word_note`
 - `dictionary_entry_title`

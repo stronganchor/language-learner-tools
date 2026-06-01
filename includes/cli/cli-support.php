@@ -62,6 +62,7 @@ function ll_tools_cli_supported_missing_fields(): array {
 
 function ll_tools_cli_supported_update_fields(): array {
     return [
+        'word_text',
         'word_translation',
         'word_note',
         'dictionary_entry_title',
@@ -579,6 +580,33 @@ function ll_tools_cli_resume_mark_processed(string $path, array &$resume_state, 
     return ll_tools_cli_write_json_file($path, $resume_state);
 }
 
+function ll_tools_cli_update_word_text(int $word_id, string $word_text) {
+    $word_text = function_exists('ll_sanitize_word_title_text')
+        ? ll_sanitize_word_title_text($word_text)
+        : trim(sanitize_text_field($word_text));
+    $display_values = function_exists('ll_tools_word_grid_resolve_display_text')
+        ? ll_tools_word_grid_resolve_display_text($word_id)
+        : [
+            'store_in_title' => true,
+        ];
+    $store_in_title = !empty($display_values['store_in_title']);
+
+    if ($store_in_title) {
+        return wp_update_post([
+            'ID' => $word_id,
+            'post_title' => $word_text,
+        ], true);
+    }
+
+    if ($word_text !== '') {
+        update_post_meta($word_id, 'word_translation', $word_text);
+    } else {
+        delete_post_meta($word_id, 'word_translation');
+    }
+
+    return true;
+}
+
 function ll_tools_cli_update_word_translation(int $word_id, string $translation_text): void {
     $translation_text = trim($translation_text);
     $display_values = function_exists('ll_tools_word_grid_resolve_display_text')
@@ -638,6 +666,13 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
     $current_pos = sanitize_title((string) ($before['part_of_speech'] ?? ''));
 
     switch ($field) {
+        case 'word_text':
+            $word_text_result = ll_tools_cli_update_word_text($word_id, $value);
+            if (is_wp_error($word_text_result)) {
+                return $word_text_result;
+            }
+            break;
+
         case 'word_translation':
             ll_tools_cli_update_word_translation($word_id, $value);
             break;
@@ -857,6 +892,7 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
     }
 
     $compare_keys = [
+        'word_text',
         'word_translation',
         'word_note',
         'dictionary_entry_title',

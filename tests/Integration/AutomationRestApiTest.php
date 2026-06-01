@@ -398,6 +398,36 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) ($resume_data['matched_count'] ?? 0));
     }
 
+    public function test_bulk_update_route_can_update_word_text(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Word Text Update Wordset', 'rest-word-text-update-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Word Text Update Category', 'rest-word-text-update-category');
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Old Word Text', 'Existing Translation');
+
+        wp_set_current_user($admin_id);
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-word-text-update-wordset/bulk-update', [
+            'set' => [
+                'field' => 'word_text',
+                'value' => 'New Word Text',
+            ],
+            'word' => (string) $word_id,
+        ]);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['matched_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame('New Word Text', get_the_title($word_id));
+        $this->assertSame('Existing Translation', (string) get_post_meta($word_id, 'word_translation', true));
+        $this->assertContains('word_text', (array) ($data['updated'][0]['changed_keys'] ?? []));
+        $updated = (array) (($data['updated'][0]['after'] ?? []));
+        $this->assertSame('New Word Text', (string) ($updated['word_text'] ?? ''));
+    }
+
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
