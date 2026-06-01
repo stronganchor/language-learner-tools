@@ -62,6 +62,8 @@ function ll_tools_cli_supported_missing_fields(): array {
 
 function ll_tools_cli_supported_update_fields(): array {
     return [
+        'post_title',
+        'word_title',
         'word_text',
         'word_translation',
         'word_note',
@@ -402,6 +404,7 @@ function ll_tools_cli_build_word_row(int $wordset_id, int $word_id, array $ui_op
         'word_id' => $word_id,
         'word_slug' => (string) $word_post->post_name,
         'title' => (string) get_the_title($word_id),
+        'word_title' => (string) get_the_title($word_id),
         'word_text' => trim((string) ($item['word_text'] ?? '')),
         'word_translation' => trim((string) ($item['word_translation'] ?? '')),
         'word_note' => trim((string) ($item['word_note'] ?? '')),
@@ -505,6 +508,7 @@ function ll_tools_cli_prepare_word_rows_for_output(array $rows): array {
         return [
             'word_id' => (int) ($row['word_id'] ?? 0),
             'word_slug' => (string) ($row['word_slug'] ?? ''),
+            'word_title' => (string) ($row['word_title'] ?? $row['title'] ?? ''),
             'word_text' => (string) ($row['word_text'] ?? ''),
             'word_translation' => (string) ($row['word_translation'] ?? ''),
             'category_slug' => (string) ($row['category_slug'] ?? ''),
@@ -607,6 +611,17 @@ function ll_tools_cli_update_word_text(int $word_id, string $word_text) {
     return true;
 }
 
+function ll_tools_cli_update_word_title(int $word_id, string $word_title) {
+    $word_title = function_exists('ll_sanitize_word_title_text')
+        ? ll_sanitize_word_title_text($word_title)
+        : trim(sanitize_text_field($word_title));
+
+    return wp_update_post([
+        'ID' => $word_id,
+        'post_title' => $word_title,
+    ], true);
+}
+
 function ll_tools_cli_update_word_translation(int $word_id, string $translation_text): void {
     $translation_text = trim($translation_text);
     $display_values = function_exists('ll_tools_word_grid_resolve_display_text')
@@ -666,6 +681,14 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
     $current_pos = sanitize_title((string) ($before['part_of_speech'] ?? ''));
 
     switch ($field) {
+        case 'post_title':
+        case 'word_title':
+            $word_title_result = ll_tools_cli_update_word_title($word_id, $value);
+            if (is_wp_error($word_title_result)) {
+                return $word_title_result;
+            }
+            break;
+
         case 'word_text':
             $word_text_result = ll_tools_cli_update_word_text($word_id, $value);
             if (is_wp_error($word_text_result)) {
@@ -892,6 +915,7 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
     }
 
     $compare_keys = [
+        'word_title',
         'word_text',
         'word_translation',
         'word_note',

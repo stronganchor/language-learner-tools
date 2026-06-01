@@ -392,6 +392,7 @@ the next `resume_state`. For writes, prefer resume-state pagination over a large
 
 Supported update fields:
 
+- `word_title` / `post_title` (direct WordPress post title)
 - `word_text`
 - `word_translation`
 - `word_note`
