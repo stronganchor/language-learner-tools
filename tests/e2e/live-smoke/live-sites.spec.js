@@ -310,7 +310,7 @@ async function navigateViaMostLessonsWordsetButton(page, navigationConfig) {
     }).then(() => {
       clickNavigationResolved = true;
     }).catch(() => null),
-    target.click({ force: true, timeout: navigationTimeoutMs })
+    target.click({ force: true, noWaitAfter: true, timeout: navigationTimeoutMs })
   ]);
 
   if (!clickNavigationResolved && page.url() === currentUrl) {

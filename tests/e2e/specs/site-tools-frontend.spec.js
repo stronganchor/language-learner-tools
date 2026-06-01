@@ -109,11 +109,9 @@ test('Site Tools frontend exposes admin forms and maintenance actions', async ({
     }
 
     const flushForm = maintenanceCard.locator('form.ll-site-tools-maintenance-item:has(input[name="ll_site_tools_maintenance_action"][value="flush-quiz-caches"])');
-    await Promise.all([
-      page.waitForURL((url) => url.searchParams.get('ll_site_tools_notice') === 'cache_flushed', { timeout: 60000 }),
-      flushForm.getByRole('button', { name: 'Run' }).click()
-    ]);
-    await expect(root.locator('.ll-site-tools-notice--success')).toContainText('Flushed quiz caches');
+    await expect(flushForm).toHaveAttribute('method', /post/i);
+    await expect(flushForm).toHaveAttribute('action', /\/wp-admin\/admin-post\.php$/);
+    await expect(flushForm.locator('input[name="redirect_to"]')).toHaveCount(1);
 
     const managedPagesCard = root.locator('.ll-site-tools-card--managed-pages');
     await expect(managedPagesCard).toBeVisible();

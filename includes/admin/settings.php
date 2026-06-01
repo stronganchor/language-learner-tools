@@ -203,23 +203,63 @@ function ll_tools_purge_legacy_word_audio_meta() {
 }
 
 function ll_tools_bump_word_category_cache() {
-    if ( ! function_exists( 'll_tools_bump_category_cache_version' ) ) {
+    global $wpdb;
+
+    if ( ! function_exists( 'll_tools_bump_category_cache_epoch' ) ) {
         return 0;
     }
 
-    $terms = get_terms( array(
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-        'fields'     => 'ids',
+    $term_count = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->term_taxonomy} WHERE taxonomy = %s",
+        'word-category'
     ) );
 
-    if ( is_wp_error( $terms ) || empty( $terms ) ) {
+    if ( $term_count < 1 ) {
         return 0;
     }
 
-    ll_tools_bump_category_cache_version( $terms );
+    $cache_meta_key = '_ll_wc_cache_version';
+    $wpdb->query( $wpdb->prepare(
+        "UPDATE {$wpdb->termmeta} tm
+        INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_id = tm.term_id
+        SET tm.meta_value = GREATEST(1, CAST(tm.meta_value AS UNSIGNED)) + 1
+        WHERE tt.taxonomy = %s
+          AND tm.meta_key = %s",
+        'word-category',
+        $cache_meta_key
+    ) );
 
-    return count( $terms );
+    $wpdb->query( $wpdb->prepare(
+        "INSERT INTO {$wpdb->termmeta} (term_id, meta_key, meta_value)
+        SELECT tt.term_id, %s, 2
+        FROM {$wpdb->term_taxonomy} tt
+        LEFT JOIN {$wpdb->termmeta} tm
+          ON tm.term_id = tt.term_id
+         AND tm.meta_key = %s
+        WHERE tt.taxonomy = %s
+          AND tm.meta_id IS NULL",
+        $cache_meta_key,
+        $cache_meta_key,
+        'word-category'
+    ) );
+
+    $wordset_ids = array();
+    if ( defined( 'LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY' ) ) {
+        $wordset_ids = $wpdb->get_col( $wpdb->prepare(
+            "SELECT DISTINCT CAST(owner.meta_value AS UNSIGNED)
+            FROM {$wpdb->term_taxonomy} tt
+            INNER JOIN {$wpdb->termmeta} owner ON owner.term_id = tt.term_id
+            WHERE tt.taxonomy = %s
+              AND owner.meta_key = %s
+              AND CAST(owner.meta_value AS UNSIGNED) > 0",
+            'word-category',
+            LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+        ) );
+    }
+
+    ll_tools_bump_category_cache_epoch( $wordset_ids );
+
+    return $term_count;
 }
 
 function ll_tools_flush_quiz_word_caches() {

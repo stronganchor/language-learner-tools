@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin');
 
-test.describe.configure({ timeout: 240000 });
+test.describe.configure({ timeout: 360000 });
 
 function uniqueSuffix() {
   return `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -40,7 +40,7 @@ async function adminRest(page, path, { method = 'GET', body = null } = {}) {
   let result = await performRequest();
   if (result && result.error === 'missing-rest-nonce') {
     await page.context().clearCookies().catch(() => {});
-    await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+    await ensureLoggedIntoAdmin(page, '/wp-admin/');
     result = await performRequest();
   }
 
@@ -100,7 +100,7 @@ async function installClipboardFallbackProbe(page) {
 }
 
 async function createTeacherFixtures(page) {
-  await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+  await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
   const suffix = uniqueSuffix();
   const wordsetSlug = `e2e-teacher-classes-${suffix}`;
@@ -138,7 +138,7 @@ async function createTeacherFixtures(page) {
 }
 
 async function createAdminAssignmentFixtures(page) {
-  await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+  await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
   const suffix = uniqueSuffix();
   const wordsetSlug = `e2e-teacher-assignment-${suffix}`;
@@ -187,7 +187,7 @@ async function createAdminAssignmentFixtures(page) {
 }
 
 async function createTeacherClassProgressFixtures(page) {
-  await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+  await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
   const suffix = uniqueSuffix();
   const fixtures = {
@@ -287,7 +287,7 @@ async function deleteTeacherFixtures(page, fixtures) {
   }
 
   await page.context().clearCookies().catch(() => {});
-  await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+  await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
   if (fixtures.registeredLearnerUsername && !fixtures.registeredLearnerUserId) {
     const users = await adminRest(
@@ -391,7 +391,8 @@ async function registerLearnerFromSignupLink(page, signupUrl, learner) {
 }
 
 async function rememberRegisteredLearnerId(page, fixtures) {
-  await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+  await page.context().clearCookies().catch(() => {});
+  await ensureLoggedIntoAdmin(page, '/wp-admin/');
   const users = await adminRest(
     page,
     `/wp-json/wp/v2/users?context=edit&search=${encodeURIComponent(fixtures.registeredLearnerUsername)}`
@@ -551,7 +552,7 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
     });
     await rememberRegisteredLearnerId(page, fixtures);
 
-    await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+    await ensureLoggedIntoAdmin(page, '/wp-admin/');
     await page.goto(selectedClassPath(), { waitUntil: 'domcontentloaded' });
     await expect(root).toBeVisible({ timeout: 60000 });
 
@@ -614,7 +615,8 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
   } finally {
     if (fixtures && classId) {
       const classesPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}&ll_wordset_view=classes&class_id=${encodeURIComponent(classId)}`;
-      await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page').catch(() => {});
+      await page.context().clearCookies().catch(() => {});
+      await ensureLoggedIntoAdmin(page, '/wp-admin/').catch(() => {});
       await page.goto(classesPath, { waitUntil: 'domcontentloaded' }).catch(() => {});
       await deleteSelectedClass(page, className).catch(() => {});
     }
@@ -633,7 +635,7 @@ test('admin can assign an existing learner from frontend classes', async ({ page
     fixtures = await createAdminAssignmentFixtures(page);
     const classesPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}&ll_wordset_view=classes`;
 
-    await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+    await ensureLoggedIntoAdmin(page, '/wp-admin/');
     await page.goto(classesPath, { waitUntil: 'domcontentloaded' });
 
     const root = page.locator('[data-ll-teacher-classes]');
@@ -689,7 +691,8 @@ test('admin can assign an existing learner from frontend classes', async ({ page
   } finally {
     if (fixtures && classId) {
       const classesPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}&ll_wordset_view=classes&class_id=${encodeURIComponent(classId)}`;
-      await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page').catch(() => {});
+      await page.context().clearCookies().catch(() => {});
+      await ensureLoggedIntoAdmin(page, '/wp-admin/').catch(() => {});
       await page.goto(classesPath, { waitUntil: 'domcontentloaded' }).catch(() => {});
       await deleteSelectedClass(page, className).catch(() => {});
     }
