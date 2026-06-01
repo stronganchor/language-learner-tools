@@ -1652,6 +1652,10 @@ function ll_tools_ipa_keyboard_validation_scan_option_key(): string {
     return 'll_tools_transcription_validation_scan_version';
 }
 
+if (!defined('LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK')) {
+    define('LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK', 'll_tools_ipa_keyboard_update_recording_validation_async');
+}
+
 function ll_tools_ipa_keyboard_auto_review_meta_key(): string {
     return 'll_auto_transcription_needs_review';
 }
@@ -5342,6 +5346,8 @@ function ll_tools_ipa_keyboard_update_recording_validation(int $recording_id): a
         return [];
     }
 
+    ll_tools_ipa_keyboard_clear_scheduled_recording_validation($recording_id);
+
     $wordset_ids = ll_tools_ipa_keyboard_get_recording_wordset_ids($recording_id);
     $state = [];
     $active_issue_count = 0;
@@ -5382,6 +5388,50 @@ function ll_tools_ipa_keyboard_update_recording_validation(int $recording_id): a
     }
 
     return $state;
+}
+
+function ll_tools_ipa_keyboard_clear_scheduled_recording_validation(int $recording_id): void {
+    $recording_id = (int) $recording_id;
+    if ($recording_id <= 0 || !function_exists('wp_next_scheduled') || !function_exists('wp_unschedule_event')) {
+        return;
+    }
+
+    $args = [$recording_id];
+    while ($timestamp = wp_next_scheduled(LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, $args)) {
+        $unscheduled = wp_unschedule_event((int) $timestamp, LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, $args);
+        if ($unscheduled === false) {
+            break;
+        }
+    }
+}
+
+function ll_tools_ipa_keyboard_schedule_recording_validation(int $recording_id, int $delay_seconds = 8): void {
+    $recording_id = (int) $recording_id;
+    if ($recording_id <= 0) {
+        return;
+    }
+
+    $recording = get_post($recording_id);
+    if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio') {
+        return;
+    }
+
+    $delay_seconds = (int) apply_filters('ll_tools_ipa_keyboard_validation_delay_seconds', $delay_seconds, $recording_id);
+    $delay_seconds = max(1, $delay_seconds);
+    $args = [$recording_id];
+    if (wp_next_scheduled(LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, $args)) {
+        return;
+    }
+
+    $scheduled = wp_schedule_single_event(time() + $delay_seconds, LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, $args);
+    if ($scheduled === false && !(function_exists('wp_doing_ajax') && wp_doing_ajax())) {
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+    }
+}
+
+add_action(LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, 'll_tools_ipa_keyboard_run_scheduled_recording_validation', 10, 1);
+function ll_tools_ipa_keyboard_run_scheduled_recording_validation($recording_id): void {
+    ll_tools_ipa_keyboard_update_recording_validation((int) $recording_id);
 }
 
 function ll_tools_ipa_keyboard_rescan_wordset_validations(int $wordset_id): int {
@@ -5532,12 +5582,12 @@ function ll_tools_ipa_keyboard_sync_validation_on_word_audio_save($post_id, $pos
         return;
     }
 
-    ll_tools_ipa_keyboard_update_recording_validation((int) $post_id);
+    ll_tools_ipa_keyboard_schedule_recording_validation((int) $post_id);
 }
 add_action('save_post_word_audio', 'll_tools_ipa_keyboard_sync_validation_on_word_audio_save', 25, 3);
 
 function ll_tools_ipa_keyboard_sync_validation_on_recording_meta_change($meta_ids, $object_id, $meta_key, $meta_value = null): void {
-    if ((string) $meta_key !== 'recording_ipa') {
+    if (!in_array((string) $meta_key, ['recording_text', 'recording_ipa'], true)) {
         return;
     }
 
@@ -5546,7 +5596,7 @@ function ll_tools_ipa_keyboard_sync_validation_on_recording_meta_change($meta_id
         return;
     }
 
-    ll_tools_ipa_keyboard_update_recording_validation((int) $object_id);
+    ll_tools_ipa_keyboard_schedule_recording_validation((int) $object_id);
 }
 add_action('added_post_meta', 'll_tools_ipa_keyboard_sync_validation_on_recording_meta_change', 10, 4);
 add_action('updated_post_meta', 'll_tools_ipa_keyboard_sync_validation_on_recording_meta_change', 10, 4);
@@ -5572,7 +5622,7 @@ function ll_tools_ipa_keyboard_sync_validation_on_wordset_term_change($object_id
     ]);
 
     foreach ((array) $recording_ids as $recording_id) {
-        ll_tools_ipa_keyboard_update_recording_validation((int) $recording_id);
+        ll_tools_ipa_keyboard_schedule_recording_validation((int) $recording_id);
     }
 }
 add_action('set_object_terms', 'll_tools_ipa_keyboard_sync_validation_on_wordset_term_change', 10, 6);

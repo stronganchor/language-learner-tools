@@ -180,6 +180,34 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($rows[0]['can_apply_suggestion'] ?? false));
     }
 
+    public function test_recording_meta_change_queues_validation_until_scheduled_hook_runs(): void
+    {
+        $wordset_id = $this->createWordset('genc-palu Async Validation');
+        $word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
+        $recording_id = $this->createRecording(
+            $word_id,
+            'des erzen',
+            "d\u{025B}s \u{025B}\u{027E}z\u{025B}n"
+        );
+
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, [$recording_id]));
+        $this->assertSame('', (string) get_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), true));
+        $this->assertSame(
+            ['active' => [], 'ignored' => []],
+            ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id)
+        );
+
+        do_action(LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, $recording_id);
+
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_IPA_KEYBOARD_VALIDATION_HOOK, [$recording_id]));
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($validation['active'] ?? []));
+        $this->assertContains('orthography_mismatch', $codes);
+        $this->assertGreaterThan(0, (int) get_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), true));
+    }
+
     public function test_genc_palu_profile_keeps_palatal_nasal_distinct_from_plain_n(): void
     {
         $wordset_id = $this->createWordset('Genç-Palu Nasal Profile');
