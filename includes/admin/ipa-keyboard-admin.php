@@ -2918,6 +2918,7 @@ function ll_tools_ipa_orthography_profile_convert_genc_palu_word(string $word): 
         'kerawa' => 'kerrawa',
         'kerawo' => 'kerrawo',
         'kere' => 'kerre',
+        'xwı' => 'xwe',
         'kerê' => 'kerrê',
         'kerêy' => 'kerrêy',
         'kerayın' => 'kerrayin',

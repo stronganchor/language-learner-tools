@@ -210,6 +210,12 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $accepted_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Şı mwerık', $ipa, $wordset_id);
         $this->assertTrue((bool) ($accepted_detail['matches'] ?? false));
 
+        $xwe_prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text("\u{03C7}\u{02B7}\u{0268}", $wordset_id);
+        $this->assertTrue((bool) ($xwe_prediction['complete'] ?? false));
+        $this->assertSame('Xwe', (string) ($xwe_prediction['text'] ?? ''));
+        $xwe_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Xwe', "\u{03C7}\u{02B7}\u{0268}", $wordset_id);
+        $this->assertTrue((bool) ($xwe_detail['matches'] ?? false));
+
         $lexical_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Maze', "maz\u{026A}", $wordset_id);
         $this->assertFalse((bool) ($lexical_detail['matches'] ?? true));
         $this->assertSame('Mazı', (string) ($lexical_detail['suggested_text'] ?? ''));
