@@ -180,6 +180,24 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($rows[0]['can_apply_suggestion'] ?? false));
     }
 
+    public function test_genc_palu_profile_keeps_palatal_nasal_distinct_from_plain_n(): void
+    {
+        $wordset_id = $this->createWordset('Genç-Palu Nasal Profile');
+        $word_id = $this->createWord($wordset_id, 'Woman', 'cini');
+        $recording_id = $this->createRecording($word_id, 'cini', 'd͡ʒiɲi');
+
+        $this->assertSame('cini', ll_tools_ipa_orthography_profile_convert_genc_palu_word('d͡ʒini'));
+        $this->assertSame('cinyi', ll_tools_ipa_orthography_profile_convert_genc_palu_word('d͡ʒiɲi'));
+
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($validation['active'] ?? []));
+
+        $this->assertContains('orthography_mismatch', $codes);
+    }
+
     public function test_apply_orthography_suggestion_handler_updates_recording_text(): void
     {
         $wordset_id = $this->createWordset('Genç-Palu Suggestion');

@@ -53,6 +53,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/corpus-texts/asset', (string) ($data['routes']['corpus_text_asset'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/import', (string) ($data['routes']['corpus_text_import'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/{slug}', (string) ($data['routes']['corpus_text'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', (string) ($data['routes']['orthography_conversion'] ?? ''));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void
@@ -159,6 +160,58 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame($attachment_id, (int) ($read_data['profile_image_attachment_id'] ?? 0));
         $this->assertSame('he', (string) ($read_data['language_code'] ?? ''));
         $this->assertSame("Complements Aleph with Beth videos.\nIncludes early reading practice.", (string) ($read_data['profile_blurb'] ?? ''));
+    }
+
+    public function test_orthography_conversion_rest_route_sets_profile_and_manual_rules(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Orthography Wordset', 'rest-orthography-wordset');
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'profile_key' => 'zazaki_genc_palu',
+            'manual_rules' => [
+                'ɲ' => [
+                    'any' => 'ny',
+                ],
+                'n' => [
+                    'any' => 'n',
+                ],
+            ],
+            'replace_manual_rules' => true,
+            'rescan_validations' => false,
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/wordsets/rest-orthography-wordset/orthography-conversion',
+            array_merge($payload, ['dry_run' => true])
+        );
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['changed'] ?? false));
+        $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+
+        $update = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/wordsets/rest-orthography-wordset/orthography-conversion',
+            $payload
+        );
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertContains('profile_key', (array) ($data['changed_keys'] ?? []));
+        $this->assertContains('manual_rules', (array) ($data['changed_keys'] ?? []));
+        $this->assertSame('zazaki_genc_palu', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+
+        $read = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-orthography-wordset/orthography-conversion');
+        $this->assertSame(200, $read->get_status());
+        $read_data = $read->get_data();
+        $this->assertIsArray($read_data);
+        $this->assertSame('zazaki_genc_palu', (string) ($read_data['profile_key'] ?? ''));
+        $this->assertSame('ny', (string) ($read_data['manual_rules']['ɲ']['any'] ?? ''));
+        $this->assertSame('n', (string) ($read_data['manual_rules']['n']['any'] ?? ''));
     }
 
     public function test_create_wordset_route_can_clone_template_and_assign_manager(): void

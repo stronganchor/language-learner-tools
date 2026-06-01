@@ -2689,9 +2689,7 @@ function ll_tools_ipa_orthography_profile_convert_genc_palu_word(string $word): 
     $overrides = [
         'cinê' => 'cini',
         'ciniüê' => 'cinyê',
-        'cinyê' => 'cini',
         'cinyyê' => 'cinyê',
-        'cinyi' => 'cini',
         'fıstıqû' => 'fistıqû',
         'fıstıqûna' => 'fistıqûna',
         'fıstûn' => 'fistûn',

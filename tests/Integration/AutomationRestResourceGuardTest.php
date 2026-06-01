@@ -34,6 +34,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             '/ll-tools/v1/wordsets/spanish/bulk-update' => 'll_tools_bulk-update',
             '/ll-tools/v1/wordsets/spanish/transcriptions' => 'll_tools_transcriptions',
             '/ll-tools/v1/wordsets/spanish/word-option-rules' => 'll_tools_word-option-rules',
+            '/ll-tools/v1/wordsets/spanish/orthography-conversion' => 'll_tools_orthography-conversion',
             '/ll-tools/v1/wordsets/spanish/prompt-cards' => 'll_tools_prompt-cards',
             '/ll-tools/v1/wordsets/spanish/review-notes' => 'll_tools_review-notes',
             '/ll-tools/v1/wordsets/spanish/interlinear' => 'll_tools_interlinear',
@@ -82,6 +83,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
         $automationRoutes = array_map('strval', (array) ($resourceGuard['automation_write_routes'] ?? []));
 
         $this->assertContains('/ll-tools/v1/cache/static/purge', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', $automationRoutes);
         $this->assertContains('/ll-tools/v1/imports/{job_id}/process', $automationRoutes);
         $this->assertContains('/ll-tools/v1/corpus-texts/import', $automationRoutes);
     }

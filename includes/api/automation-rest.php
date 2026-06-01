@@ -17,6 +17,12 @@ function ll_tools_rest_automation_load_word_option_rules_helpers(): void {
     }
 }
 
+function ll_tools_rest_automation_load_orthography_helpers(): void {
+    if (!function_exists('ll_tools_ipa_orthography_get_conversion_profile')) {
+        require_once LL_TOOLS_BASE_PATH . 'includes/admin/ipa-keyboard-admin.php';
+    }
+}
+
 function ll_tools_rest_automation_get_route_path(): string {
     $rest_route = isset($_GET['rest_route']) ? wp_unslash((string) $_GET['rest_route']) : '';
     if ($rest_route !== '') {
@@ -593,7 +599,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 2.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 1.25;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
@@ -832,6 +838,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
+            'orthography_conversion' => '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
             'wordset_profile' => '/ll-tools/v1/wordsets/{wordset}/profile',
             'prompt_cards' => '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
@@ -861,6 +868,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/bulk-update',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
+                '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
                 '/ll-tools/v1/wordsets/{wordset}/profile',
                 '/ll-tools/v1/wordsets/{wordset}/prompt-cards',
                 '/ll-tools/v1/wordsets/{wordset}/review-notes',
@@ -2333,6 +2341,139 @@ function ll_tools_rest_automation_wordset_profile(WP_REST_Request $request) {
         'changed_keys' => $changed_keys,
         'before' => $before,
         'after' => ll_tools_rest_automation_wordset_profile_payload($wordset_term),
+    ]);
+}
+
+function ll_tools_rest_automation_orthography_conversion_payload(WP_Term $wordset_term): array {
+    ll_tools_rest_automation_load_orthography_helpers();
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $stored_profile_key = sanitize_key((string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+    $manual_rules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
+
+    return [
+        'generated_at_gmt' => gmdate('c'),
+        'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
+        'profile_key' => ll_tools_ipa_orthography_get_profile_key($wordset_id),
+        'stored_profile_key' => $stored_profile_key,
+        'conversion_profile' => ll_tools_ipa_orthography_get_conversion_profile($wordset_id),
+        'available_profiles' => [
+            [
+                'key' => 'zazaki_genc_palu',
+                'label' => __('Genç-Palu Zazaki', 'll-tools-text-domain'),
+            ],
+        ],
+        'manual_rules' => $manual_rules,
+        'manual_rule_count' => count($manual_rules),
+    ];
+}
+
+function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_orthography_helpers();
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $method = strtoupper((string) $request->get_method());
+    $before = ll_tools_rest_automation_orthography_conversion_payload($wordset_term);
+    if ($method === 'GET') {
+        return rest_ensure_response($before);
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $changed_keys = [];
+    $rescan_count = 0;
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['profile_key', 'profile', 'conversion_profile', 'clear_profile'])) {
+        $clear_profile = rest_sanitize_boolean($request->get_param('clear_profile'));
+        $raw_profile_key = $clear_profile
+            ? ''
+            : sanitize_key((string) ll_tools_rest_automation_first_request_param($request, ['profile_key', 'profile', 'conversion_profile']));
+        if ($raw_profile_key !== '' && $raw_profile_key !== 'zazaki_genc_palu') {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_orthography_profile_invalid',
+                __('Unsupported orthography conversion profile.', 'll-tools-text-domain'),
+                400
+            );
+        }
+
+        if ((string) ($before['stored_profile_key'] ?? '') !== $raw_profile_key) {
+            $changed_keys[] = 'profile_key';
+            if (!$dry_run) {
+                if ($raw_profile_key === '') {
+                    delete_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key());
+                } else {
+                    update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), $raw_profile_key);
+                }
+            }
+        }
+    }
+
+    $current_manual_rules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
+    $next_manual_rules = $current_manual_rules;
+    if (rest_sanitize_boolean($request->get_param('clear_manual_rules'))) {
+        $next_manual_rules = [];
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['manual_rules', 'mappings', 'ipa_to_orthography'])) {
+        $raw_rules = ll_tools_rest_automation_first_request_param($request, ['manual_rules', 'mappings', 'ipa_to_orthography']);
+        if (!is_array($raw_rules)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_orthography_rules_invalid',
+                __('Manual orthography rules must be an object keyed by IPA segment.', 'll-tools-text-domain'),
+                400
+            );
+        }
+
+        $incoming_rules = ll_tools_ipa_orthography_sanitize_manual_rules($raw_rules, $wordset_id);
+        if (rest_sanitize_boolean($request->get_param('replace_manual_rules'))) {
+            $next_manual_rules = $incoming_rules;
+        } else {
+            foreach ($incoming_rules as $segment => $contexts) {
+                if (!isset($next_manual_rules[$segment]) || !is_array($next_manual_rules[$segment])) {
+                    $next_manual_rules[$segment] = [];
+                }
+                foreach ((array) $contexts as $context => $output) {
+                    $next_manual_rules[$segment][$context] = $output;
+                }
+            }
+            $next_manual_rules = ll_tools_ipa_orthography_sanitize_manual_rules($next_manual_rules, $wordset_id);
+        }
+    }
+
+    if ($next_manual_rules !== $current_manual_rules) {
+        $changed_keys[] = 'manual_rules';
+        if (!$dry_run) {
+            if (empty($next_manual_rules)) {
+                delete_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key());
+            } else {
+                update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), $next_manual_rules);
+            }
+        }
+    }
+
+    $changed_keys = array_values(array_unique($changed_keys));
+    if (!$dry_run && !empty($changed_keys)) {
+        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+            ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+        }
+        if (rest_sanitize_boolean($request->get_param('rescan_validations')) || !ll_tools_rest_automation_request_has_any_param($request, ['rescan_validations'])) {
+            $rescan_count = ll_tools_ipa_keyboard_rescan_wordset_validations($wordset_id);
+        }
+    }
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
+        'changed' => !empty($changed_keys),
+        'changed_keys' => $changed_keys,
+        'rescan_count' => $rescan_count,
+        'before' => $before,
+        'after' => $dry_run ? $before : ll_tools_rest_automation_orthography_conversion_payload($wordset_term),
     ]);
 }
 
@@ -4186,6 +4327,12 @@ function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-option-rules', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_word_option_rules',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/orthography-conversion', [
+        'methods' => [WP_REST_Server::READABLE, WP_REST_Server::CREATABLE, WP_REST_Server::EDITABLE],
+        'callback' => 'll_tools_rest_automation_orthography_conversion',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
     ]);
 
