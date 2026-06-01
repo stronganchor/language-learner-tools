@@ -1659,6 +1659,23 @@
         return detail && typeof detail === 'object' ? detail : null;
     }
 
+    function findOrthographyMismatchIssue(issues) {
+        const list = Array.isArray(issues) ? issues : [];
+        for (let index = 0; index < list.length; index++) {
+            const issue = list[index] || {};
+            const code = (issue.code || '').toString();
+            const ruleKey = (issue.rule_key || '').toString();
+            if ((code === 'orthography_mismatch' || ruleKey === 'builtin:orthography_mismatch') && getOrthographyMismatchDetail(issue)) {
+                return issue;
+            }
+        }
+        return null;
+    }
+
+    function getOrthographyMismatchDetailFromIssues(issues) {
+        return getOrthographyMismatchDetail(findOrthographyMismatchIssue(issues));
+    }
+
     function buildOrthographyMismatchPreview(issue) {
         const detail = getOrthographyMismatchDetail(issue);
         if (!detail) {
@@ -1712,10 +1729,6 @@
         if (issue.message) {
             $item.append($('<div>', { class: 'll-ipa-search-issue-message', text: issue.message }));
         }
-        const $mismatchPreview = buildOrthographyMismatchPreview(issue);
-        if ($mismatchPreview) {
-            $item.append($mismatchPreview);
-        }
         if (!mismatchDetail && Array.isArray(issue.samples) && issue.samples.length) {
             $item.append($('<div>', {
                 class: 'll-ipa-search-issue-samples',
@@ -1741,28 +1754,7 @@
                     'data-output': output
                 }));
             });
-            if (mismatchDetail && mismatchDetail.suggested_text) {
-                $actions.append($('<button>', {
-                    type: 'button',
-                    class: 'button-link ll-ipa-search-orthography-apply',
-                    text: t('orthographyIssueApplySuggestion', 'Use suggested orthography')
-                }));
-            }
-            if (mismatchDetail && Array.isArray(mismatchDetail.ipa_suggestions)) {
-                mismatchDetail.ipa_suggestions.forEach(function (suggestion) {
-                    const ipa = suggestion && suggestion.ipa ? String(suggestion.ipa) : '';
-                    if (!ipa) {
-                        return;
-                    }
-                    $actions.append($('<button>', {
-                        type: 'button',
-                        class: 'button-link ll-ipa-search-ipa-suggestion-apply',
-                        text: formatText(t('orthographyIssueApplyIpaSuggestion', 'Use IPA: %1$s'), [suggestion.label || ipa]),
-                        'data-ipa': ipa
-                    }));
-                });
-            }
-            if (issue.rule_key) {
+            if (!mismatchDetail && issue.rule_key) {
                 $actions.append($('<button>', {
                     type: 'button',
                     class: 'button-link ll-ipa-issue-toggle',
@@ -1995,7 +1987,75 @@
         );
     }
 
-    function buildSearchFieldBlock(cellClass, $input, field, reviewFields, reviewNote, label) {
+    function buildSearchInputHighlight($input, mismatchDetail, field) {
+        const detail = mismatchDetail && typeof mismatchDetail === 'object' ? mismatchDetail : null;
+        if (!detail || detail.matches) {
+            return null;
+        }
+
+        const value = ($input.val() || '').toString();
+        const referenceText = field === 'recording_text'
+            ? (detail.actual_text || '')
+            : (detail.ipa_text || '');
+        const spans = field === 'recording_text'
+            ? (detail.actual_spans || [])
+            : (detail.ipa_spans || []);
+
+        if (!value || referenceText !== value || !normalizeHighlightSpans(spans, value).length) {
+            return null;
+        }
+
+        return $('<div>', {
+            class: 'll-ipa-search-input-highlight',
+            'aria-hidden': 'true'
+        }).append(buildHighlightedText(value, spans, 'll-ipa-search-input-highlight-text'));
+    }
+
+    function buildSearchFieldInputWrap($input, mismatchDetail, field) {
+        const $wrap = $('<div>', { class: 'll-ipa-search-field-wrap' });
+        const $highlight = buildSearchInputHighlight($input, mismatchDetail, field);
+        if ($highlight) {
+            $wrap.addClass('ll-ipa-search-field-wrap--highlighted').append($highlight);
+        }
+        return $wrap.append($input);
+    }
+
+    function buildSearchFieldSuggestions(mismatchDetail, field) {
+        const detail = mismatchDetail && typeof mismatchDetail === 'object' ? mismatchDetail : null;
+        if (!detail || detail.matches || !currentCanEdit) {
+            return null;
+        }
+
+        const $suggestions = $('<div>', { class: 'll-ipa-search-field-suggestions' });
+        const labelTemplate = t('orthographyIssueInlineChangeTo', 'Change to: %s');
+
+        if (field === 'recording_text' && detail.suggested_text) {
+            $suggestions.append($('<button>', {
+                type: 'button',
+                class: 'll-ipa-search-suggestion-chip ll-ipa-search-suggestion-chip--orthography ll-ipa-search-orthography-apply',
+                text: formatText(labelTemplate, [detail.suggested_text])
+            }));
+        }
+
+        if (field === 'recording_ipa' && Array.isArray(detail.ipa_suggestions)) {
+            detail.ipa_suggestions.forEach(function (suggestion) {
+                const ipa = suggestion && suggestion.ipa ? String(suggestion.ipa) : '';
+                if (!ipa) {
+                    return;
+                }
+                $suggestions.append($('<button>', {
+                    type: 'button',
+                    class: 'll-ipa-search-suggestion-chip ll-ipa-search-suggestion-chip--ipa ll-ipa-search-ipa-suggestion-apply',
+                    text: formatText(labelTemplate, [suggestion.label || ipa]),
+                    'data-ipa': ipa
+                }));
+            });
+        }
+
+        return $suggestions.children().length ? $suggestions : null;
+    }
+
+    function buildSearchFieldBlock(cellClass, $input, field, reviewFields, reviewNote, label, mismatchDetail) {
         const $block = $('<div>', {
             class: 'll-ipa-search-field-block ' + cellClass,
             'data-field-label': label || ''
@@ -2005,8 +2065,12 @@
             class: 'll-ipa-search-field-label',
             text: label || ''
         }));
-        const $wrap = $('<div>', { class: 'll-ipa-search-field-wrap' }).append($input);
+        const $wrap = buildSearchFieldInputWrap($input, mismatchDetail, field);
         $editor.append($wrap);
+        const $suggestions = buildSearchFieldSuggestions(mismatchDetail, field);
+        if ($suggestions) {
+            $editor.append($suggestions);
+        }
         const $review = $('<div>', { class: 'll-ipa-search-field-review-panel' });
         if (reviewNote && getSearchReviewNoteField(reviewFields) === field) {
             $review.append(buildSearchFieldReviewNote(reviewNote));
@@ -2022,7 +2086,7 @@
         return $block;
     }
 
-    function buildSearchTranscriptionCell($textInput, $ipaInput, reviewFields, reviewNote) {
+    function buildSearchTranscriptionCell($textInput, $ipaInput, reviewFields, reviewNote, mismatchDetail) {
         const transcription = getTranscription();
         const textLabel = t('searchReviewTextLabel', 'Orthography');
         const ipaLabel = transcription.symbols_column_label || t('pronunciationLabel', 'Pronunciation');
@@ -2032,8 +2096,8 @@
         });
         return $cell.append(
             $('<div>', { class: 'll-ipa-search-transcription-stack' })
-                .append(buildSearchFieldBlock('ll-ipa-search-text-cell', $textInput, 'recording_text', reviewFields, reviewNote, textLabel))
-                .append(buildSearchFieldBlock('ll-ipa-search-ipa-cell', $ipaInput, 'recording_ipa', reviewFields, reviewNote, ipaLabel))
+                .append(buildSearchFieldBlock('ll-ipa-search-text-cell', $textInput, 'recording_text', reviewFields, reviewNote, textLabel, mismatchDetail))
+                .append(buildSearchFieldBlock('ll-ipa-search-ipa-cell', $ipaInput, 'recording_ipa', reviewFields, reviewNote, ipaLabel, mismatchDetail))
         );
     }
 
@@ -2132,6 +2196,7 @@
         const transcription = getTranscription();
         const textValue = rec && rec.recording_text ? rec.recording_text : '';
         const ipaValue = rec && rec.recording_ipa ? rec.recording_ipa : '';
+        const mismatchDetail = getOrthographyMismatchDetailFromIssues(issues);
 
         const $metaCell = $('<td>', { class: 'll-ipa-search-meta-cell' });
         const $metaWrap = $('<div>', { class: 'll-ipa-search-meta' });
@@ -2210,7 +2275,7 @@
             'data-review-ipa': reviewFields.recording_ipa ? '1' : '0'
         })
             .append($metaCell)
-            .append(buildSearchTranscriptionCell($textInput, $ipaInput, reviewFields, reviewNote))
+            .append(buildSearchTranscriptionCell($textInput, $ipaInput, reviewFields, reviewNote, mismatchDetail))
             .append($issueCell)
             .append($actionCell);
     }
@@ -3054,6 +3119,35 @@
         }
     }
 
+    function refreshSearchRowInlineMismatch($row, activeIssues) {
+        const mismatchDetail = getOrthographyMismatchDetailFromIssues(activeIssues);
+        [
+            { field: 'recording_text', selector: '.ll-ipa-search-text-cell' },
+            { field: 'recording_ipa', selector: '.ll-ipa-search-ipa-cell' }
+        ].forEach(function (entry) {
+            const $block = $row.find(entry.selector).first();
+            const $input = getSearchRowInputForField($row, entry.field);
+            if (!$block.length || !$input.length) {
+                return;
+            }
+
+            const $oldWrap = $input.closest('.ll-ipa-search-field-wrap');
+            const $newWrap = buildSearchFieldInputWrap($input.detach(), mismatchDetail, entry.field);
+            if ($oldWrap.length) {
+                $oldWrap.replaceWith($newWrap);
+            } else {
+                $block.find('.ll-ipa-search-field-editor').first().append($newWrap);
+            }
+            $block.find('.ll-ipa-search-field-suggestions').remove();
+            const $suggestions = buildSearchFieldSuggestions(mismatchDetail, entry.field);
+            if ($suggestions) {
+                $newWrap.after($suggestions);
+            }
+            syncSearchInputHighlight($input.get(0));
+        });
+        setSearchRowDirtyState($row, searchRowHasUnsavedChanges($row));
+    }
+
     function updateSearchRowValidation($row, validation) {
         const active = validation && Array.isArray(validation.active) ? validation.active : [];
         const ignored = validation && Array.isArray(validation.ignored) ? validation.ignored : [];
@@ -3061,6 +3155,17 @@
         if ($cell.length) {
             $cell.empty().append(buildIssuesCellData(active, ignored).html());
         }
+        refreshSearchRowInlineMismatch($row, active);
+    }
+
+    function syncSearchInputHighlight(input) {
+        const $input = $(input);
+        const $highlight = $input.closest('.ll-ipa-search-field-wrap').find('.ll-ipa-search-input-highlight').first();
+        if (!$highlight.length) {
+            return;
+        }
+        $highlight.scrollTop(input.scrollTop || 0);
+        $highlight.scrollLeft(input.scrollLeft || 0);
     }
 
     function replaceSearchRow($row, rec) {
@@ -3119,9 +3224,14 @@
         return values.recordingText !== values.savedText || values.recordingIpa !== values.savedIpa;
     }
 
+    function setSearchRowDirtyState($row, dirty) {
+        $row.toggleClass('is-search-row-dirty', !!dirty);
+    }
+
     function updateSearchRowSavedValues($row) {
         $row.find('.ll-ipa-search-text-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-text-input').first().val() || '').toString());
         $row.find('.ll-ipa-search-ipa-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-ipa-input').first().val() || '').toString());
+        setSearchRowDirtyState($row, false);
     }
 
     function setSearchRowInputsDisabled($row, disabled) {
@@ -3137,6 +3247,53 @@
         $state.removeClass('is-idle is-saving is-saved is-error');
         $state.addClass('is-' + state);
         $state.find('.ll-ipa-search-save-label').text(label || '');
+    }
+
+    function getSearchRowInputForField($row, field) {
+        return field === 'recording_text'
+            ? $row.find('.ll-ipa-search-text-input').first()
+            : $row.find('.ll-ipa-search-ipa-input').first();
+    }
+
+    function captureSearchRowFocusState($row, field) {
+        const focusField = field === 'recording_text'
+            ? 'recording_text'
+            : (field === 'recording_ipa' ? 'recording_ipa' : '');
+        if (!focusField) {
+            return null;
+        }
+
+        const $input = getSearchRowInputForField($row, focusField);
+        const input = $input.get(0);
+        if (!input) {
+            return null;
+        }
+
+        return {
+            field: focusField,
+            start: typeof input.selectionStart === 'number' ? input.selectionStart : null,
+            end: typeof input.selectionEnd === 'number' ? input.selectionEnd : null
+        };
+    }
+
+    function restoreSearchRowFocusState($row, focusState) {
+        if (!focusState || !focusState.field) {
+            return;
+        }
+
+        const $input = getSearchRowInputForField($row, focusState.field);
+        const input = $input.get(0);
+        if (!input || input.disabled) {
+            return;
+        }
+
+        input.focus();
+        if (typeof input.setSelectionRange === 'function'
+            && typeof focusState.start === 'number'
+            && typeof focusState.end === 'number') {
+            input.setSelectionRange(focusState.start, focusState.end);
+        }
+        syncSearchInputHighlight(input);
     }
 
     function queuePendingSearchReviewState(recordingId, needsReview, reviewField) {
@@ -3218,7 +3375,7 @@
         });
     }
 
-    function autosaveSearchRow($row) {
+    function autosaveSearchRow($row, options) {
         if (!$row.length || !currentCanEdit) {
             return;
         }
@@ -3229,6 +3386,7 @@
         }
 
         if (!searchRowHasUnsavedChanges($row)) {
+            setSearchRowDirtyState($row, false);
             return;
         }
 
@@ -3237,6 +3395,7 @@
             return;
         }
 
+        const focusState = captureSearchRowFocusState($row, options && options.restoreFocusField);
         $row.data('llSearchRowSaving', true);
         $row.data('llSearchRowPending', false);
         setSearchRowInputsDisabled($row, true);
@@ -3262,11 +3421,13 @@
             if (data.recording) {
                 const $newRow = replaceSearchRow($row, data.recording);
                 setSearchRowSaveState($newRow, 'saved', t('saved', 'Saved.'));
+                restoreSearchRowFocusState($newRow, focusState);
             } else {
                 updateSearchRowSavedValues($row);
                 updateSearchRowValidation($row, data.validation || null);
                 setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
                 setSearchRowInputsDisabled($row, false);
+                restoreSearchRowFocusState($row, focusState);
             }
             applyKeyboardSymbols(data.keyboard_symbols || currentKeyboardSymbols);
 
@@ -3780,15 +3941,22 @@
         if ($(this).hasClass('ll-ipa-search-ipa-input')) {
             normalizeIpaInputElement(this);
         }
+        syncSearchInputHighlight(this);
 
         const $row = $(this).closest('tr');
         if (!$row.length || $row.data('llSearchRowSaving')) {
             return;
         }
 
-        if (searchRowHasUnsavedChanges($row)) {
+        const hasUnsavedChanges = searchRowHasUnsavedChanges($row);
+        setSearchRowDirtyState($row, hasUnsavedChanges);
+        if (hasUnsavedChanges) {
             setSearchRowSaveState($row, 'idle', '');
         }
+    });
+
+    $searchResults.on('scroll', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {
+        syncSearchInputHighlight(this);
     });
 
     $searchResults.on('focusout', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {
@@ -3804,10 +3972,17 @@
 
         window.setTimeout(function () {
             const activeElement = document.activeElement;
-            if (activeElement && $row.has(activeElement).length) {
+            const activeIsSearchInput = activeElement
+                && $row.has(activeElement).length
+                && $(activeElement).is('.ll-ipa-search-text-input, .ll-ipa-search-ipa-input');
+            if (activeElement && $row.has(activeElement).length && !activeIsSearchInput) {
                 return;
             }
-            autosaveSearchRow($row);
+            autosaveSearchRow($row, {
+                restoreFocusField: activeIsSearchInput && $(activeElement).hasClass('ll-ipa-search-text-input')
+                    ? 'recording_text'
+                    : (activeIsSearchInput ? 'recording_ipa' : '')
+            });
         }, 0);
     });
 

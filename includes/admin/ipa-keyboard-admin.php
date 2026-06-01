@@ -420,6 +420,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'orthographyIssueApproved' => __('Approved exception', 'll-tools-text-domain'),
             'orthographyIssueApplySuggestion' => __('Use suggested orthography', 'll-tools-text-domain'),
             'orthographyIssueApplyIpaSuggestion' => __('Use IPA: %1$s', 'll-tools-text-domain'),
+            'orthographyIssueInlineChangeTo' => __('Change to: %s', 'll-tools-text-domain'),
             'orthographyIssueSuggestionApplied' => __('Suggestion saved.', 'll-tools-text-domain'),
             'orthographyIssueIpaSuggestionApplied' => __('IPA suggestion saved.', 'll-tools-text-domain'),
             'orthographyIssueSaveFirst' => __('Saved local edits. Click the suggestion again to apply it.', 'll-tools-text-domain'),
