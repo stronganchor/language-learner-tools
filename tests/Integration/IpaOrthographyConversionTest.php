@@ -216,6 +216,26 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $xwe_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Xwe', "\u{03C7}\u{02B7}\u{0268}", $wordset_id);
         $this->assertTrue((bool) ($xwe_detail['matches'] ?? false));
 
+        $kweli_prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text("k\u{02B7}\u{02B0}\u{025B}l\u{026A}", $wordset_id);
+        $this->assertTrue((bool) ($kweli_prediction['complete'] ?? false));
+        $this->assertSame('Kwelı', (string) ($kweli_prediction['text'] ?? ''));
+
+        $this->assertSame('Mase', (string) (ll_tools_ipa_orthography_profile_convert_ipa_to_text("mas\u{026A}", $wordset_id)['text'] ?? ''));
+        $this->assertSame('Merre', (string) (ll_tools_ipa_orthography_profile_convert_ipa_to_text("m\u{025B}r\u{026A}", $wordset_id)['text'] ?? ''));
+        $final_e_cases = [
+            'Kwe' => "k\u{02B7}\u{02B0}\u{026A}",
+            'Dıje' => "d\u{0268}\u{0292}\u{026A}",
+            'Vıştıre' => "v\u{0268}\u{0283}t\u{0268}r\u{026A}",
+            'Mefte' => "m\u{025B}ft\u{026A}",
+            'Perde' => "p\u{025B}rd\u{026A}",
+            'Resine' => "r\u{025B}sin\u{026A}",
+            'Kılse' => "k\u{0268}ls\u{026A}",
+            'Yege' => "j\u{025B}g\u{026A}",
+        ];
+        foreach ($final_e_cases as $expected_text => $case_ipa) {
+            $this->assertSame($expected_text, (string) (ll_tools_ipa_orthography_profile_convert_ipa_to_text($case_ipa, $wordset_id)['text'] ?? ''));
+        }
+
         $lexical_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Maze', "maz\u{026A}", $wordset_id);
         $this->assertFalse((bool) ($lexical_detail['matches'] ?? true));
         $this->assertSame('Mazı', (string) ($lexical_detail['suggested_text'] ?? ''));

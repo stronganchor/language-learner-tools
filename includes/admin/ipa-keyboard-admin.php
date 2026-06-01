@@ -2874,7 +2874,7 @@ function ll_tools_ipa_orthography_profile_convert_genc_palu_word(string $word): 
             ll_tools_ipa_orthography_mb_lower(str_replace(['Ç_SEG', 'C_SEG', 'K_SEG'], ['ç', 'c', 'k'], $final_dotless_i)),
             defined('Normalizer::FORM_C') ? Normalizer::FORM_C : 16
         );
-        $text = in_array($final_key, ['cı', 'mı', 'owı', 'pwırı', 'şı', 'tı', 'mazı', 'qıncelı', 'çartelı', 'nyûnı'], true) ? $final_dotless_i : $final_e;
+        $text = in_array($final_key, ['cı', 'mı', 'owı', 'pwırı', 'şı', 'tı', 'mazı', 'qıncelı', 'çartelı', 'nyûnı', 'kwelı'], true) ? $final_dotless_i : $final_e;
     }
     $text = str_replace('I_NEAR', 'ı', $text);
 
@@ -2918,6 +2918,7 @@ function ll_tools_ipa_orthography_profile_convert_genc_palu_word(string $word): 
         'kerawa' => 'kerrawa',
         'kerawo' => 'kerrawo',
         'kere' => 'kerre',
+        'mere' => 'merre',
         'xwı' => 'xwe',
         'kerê' => 'kerrê',
         'kerêy' => 'kerrêy',
