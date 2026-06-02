@@ -26543,3 +26543,143 @@ msgstr "Audio herunterladen"
 #: includes/shortcodes/flashcard-widget.php:1352
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr "Zu viele Lernkarten-Kategorieanfragen. Bitte versuche es in Kürze erneut."
+
+#: includes/admin/ipa-keyboard-admin.php:421
+msgid "Use suggested orthography"
+msgstr "Vorgeschlagene Orthografie verwenden"
+
+#: includes/admin/ipa-keyboard-admin.php:422
+msgid "Use IPA: %1$s"
+msgstr "IPA verwenden: %1$s"
+
+#: includes/admin/ipa-keyboard-admin.php:423
+msgid "Change to: %s"
+msgstr "Ändern zu: %s"
+
+#: includes/admin/ipa-keyboard-admin.php:424
+msgid "Suggestion saved."
+msgstr "Vorschlag gespeichert."
+
+#: includes/admin/ipa-keyboard-admin.php:425
+msgid "IPA suggestion saved."
+msgstr "IPA-Vorschlag gespeichert."
+
+#: includes/admin/ipa-keyboard-admin.php:426
+msgid "Saved local edits. Click the suggestion again to apply it."
+msgstr "Lokale Änderungen gespeichert. Klicke erneut auf den Vorschlag, um ihn anzuwenden."
+
+#: includes/admin/ipa-keyboard-admin.php:1973
+msgid "Orthography mismatch"
+msgstr "Orthografie stimmt nicht überein"
+
+#: includes/admin/ipa-keyboard-admin.php:1974
+msgid "Flags saved IPA and orthography text that do not agree with the active conversion profile."
+msgstr "Markiert gespeicherte IPA- und Orthografietexte, die nicht zum aktiven Konvertierungsprofil passen."
+
+#: includes/admin/ipa-keyboard-admin.php:2700 includes/api/automation-rest.php:3483
+msgid "Genç-Palu Zazaki"
+msgstr "Genç-Palu-Zazaki"
+
+#: includes/admin/ipa-keyboard-admin.php:2701
+msgid "Genç-Palu"
+msgstr "Genç-Palu"
+
+#: includes/admin/ipa-keyboard-admin.php:2704
+msgid "Uses the Genç-Palu IPA-to-orthography conversion profile, including lexical and phrase exceptions."
+msgstr "Verwendet das Genç-Palu-IPA-zu-Orthografie-Konvertierungsprofil einschließlich lexikalischer und Phrasenausnahmen."
+
+#: includes/admin/ipa-keyboard-admin.php:4343
+msgid "Conversion profile"
+msgstr "Konvertierungsprofil"
+
+#: includes/admin/ipa-keyboard-admin.php:4394 includes/admin/ipa-keyboard-admin.php:4495
+msgid "Current rules"
+msgstr "Aktuelle Regeln"
+
+#: includes/admin/ipa-keyboard-admin.php:4571
+msgid "Recording does not belong to this word set."
+msgstr "Die Aufnahme gehört nicht zu diesem Vokabelset."
+
+#: includes/admin/ipa-keyboard-admin.php:4576
+msgid "No IPA transcription is available for this recording."
+msgstr "Für diese Aufnahme ist keine IPA-Transkription verfügbar."
+
+#: includes/admin/ipa-keyboard-admin.php:4584
+msgid "Current rules cannot suggest a written transcription for this recording yet."
+msgstr "Die aktuellen Regeln können für diese Aufnahme noch keine schriftliche Transkription vorschlagen."
+
+#: includes/admin/ipa-keyboard-admin.php:4612
+msgid "Failed to save the suggested recording text."
+msgstr "Der vorgeschlagene Aufnahmetext konnte nicht gespeichert werden."
+
+#: includes/admin/ipa-keyboard-admin.php:5240
+msgid "Saved text does not match the conversion profile."
+msgstr "Der gespeicherte Text passt nicht zum Konvertierungsprofil."
+
+#: includes/api/automation-rest.php:1238
+msgid "Too many word updates in one request. Maximum is %d."
+msgstr "Zu viele Vokabelaktualisierungen in einer Anfrage. Maximum ist %d."
+
+#: includes/api/automation-rest.php:1430
+msgid "Failed to update the word title."
+msgstr "Der Vokabeltitel konnte nicht aktualisiert werden."
+
+#: includes/api/automation-rest.php:1477
+msgid "Provide one or more word title updates."
+msgstr "Gib eine oder mehrere Vokabeltitel-Aktualisierungen an."
+
+#: includes/api/automation-rest.php:1486
+msgid "Too many word title updates in one request. Maximum is %d."
+msgstr "Zu viele Vokabeltitel-Aktualisierungen in einer Anfrage. Maximum ist %d."
+
+#: includes/api/automation-rest.php:1510
+msgid "Duplicate word ID in this batch."
+msgstr "Doppelte Vokabel-ID in diesem Stapel."
+
+#: includes/api/automation-rest.php:1523
+msgid "Missing replacement title."
+msgstr "Ersatztitel fehlt."
+
+#: includes/api/automation-rest.php:2996
+msgid "Unable to resolve a word category for the translation item."
+msgstr "Für das Übersetzungselement konnte keine Vokabelkategorie ermittelt werden."
+
+#: includes/api/automation-rest.php:3014
+msgid "That word category is not part of this word set."
+msgstr "Diese Vokabelkategorie gehört nicht zu diesem Vokabelset."
+
+#: includes/api/automation-rest.php:3101
+msgid "Unable to resolve a lesson for the translation item."
+msgstr "Für das Übersetzungselement konnte keine Lektion ermittelt werden."
+
+#: includes/api/automation-rest.php:3109
+msgid "That lesson is not part of this word set."
+msgstr "Diese Lektion gehört nicht zu diesem Vokabelset."
+
+#: includes/api/automation-rest.php:3217
+msgid "Entity translation helpers are not available."
+msgstr "Hilfsfunktionen für Entitätsübersetzungen sind nicht verfügbar."
+
+#: includes/api/automation-rest.php:3226
+msgid "Provide wordset, categories, lessons, or items to update translations."
+msgstr "Gib Vokabelset, Kategorien, Lektionen oder Elemente an, um Übersetzungen zu aktualisieren."
+
+#: includes/api/automation-rest.php:3239
+msgid "Translation items must include type wordset, category, or lesson."
+msgstr "Übersetzungselemente müssen den Typ wordset, category oder lesson enthalten."
+
+#: includes/api/automation-rest.php:3249
+msgid "Translation item does not contain any supported translated fields."
+msgstr "Das Übersetzungselement enthält keine unterstützten übersetzten Felder."
+
+#: includes/api/automation-rest.php:3310
+msgid "One or more translation items could not be applied."
+msgstr "Ein oder mehrere Übersetzungselemente konnten nicht angewendet werden."
+
+#: includes/api/automation-rest.php:3518
+msgid "Unsupported orthography conversion profile."
+msgstr "Nicht unterstütztes Orthografie-Konvertierungsprofil."
+
+#: includes/api/automation-rest.php:3546
+msgid "Manual orthography rules must be an object keyed by IPA segment."
+msgstr "Manuelle Orthografieregeln müssen ein Objekt sein, das nach IPA-Segmenten indexiert ist."

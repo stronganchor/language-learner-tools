@@ -26377,3 +26377,143 @@ msgstr "Sesi indir"
 #: includes/shortcodes/flashcard-widget.php:1352
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr "Çok fazla bilgi kartı kategorisi isteği var. Lütfen kısa süre sonra yeniden dene."
+
+#: includes/admin/ipa-keyboard-admin.php:421
+msgid "Use suggested orthography"
+msgstr "Önerilen yazımı kullan"
+
+#: includes/admin/ipa-keyboard-admin.php:422
+msgid "Use IPA: %1$s"
+msgstr "IPA kullan: %1$s"
+
+#: includes/admin/ipa-keyboard-admin.php:423
+msgid "Change to: %s"
+msgstr "Şuna değiştir: %s"
+
+#: includes/admin/ipa-keyboard-admin.php:424
+msgid "Suggestion saved."
+msgstr "Öneri kaydedildi."
+
+#: includes/admin/ipa-keyboard-admin.php:425
+msgid "IPA suggestion saved."
+msgstr "IPA önerisi kaydedildi."
+
+#: includes/admin/ipa-keyboard-admin.php:426
+msgid "Saved local edits. Click the suggestion again to apply it."
+msgstr "Yerel düzenlemeler kaydedildi. Uygulamak için öneriye tekrar tıkla."
+
+#: includes/admin/ipa-keyboard-admin.php:1973
+msgid "Orthography mismatch"
+msgstr "Yazım uyumsuzluğu"
+
+#: includes/admin/ipa-keyboard-admin.php:1974
+msgid "Flags saved IPA and orthography text that do not agree with the active conversion profile."
+msgstr "Aktif dönüşüm profiliyle uyuşmayan kayıtlı IPA ve yazım metnini işaretler."
+
+#: includes/admin/ipa-keyboard-admin.php:2700 includes/api/automation-rest.php:3483
+msgid "Genç-Palu Zazaki"
+msgstr "Genç-Palu Zazakicesi"
+
+#: includes/admin/ipa-keyboard-admin.php:2701
+msgid "Genç-Palu"
+msgstr "Genç-Palu"
+
+#: includes/admin/ipa-keyboard-admin.php:2704
+msgid "Uses the Genç-Palu IPA-to-orthography conversion profile, including lexical and phrase exceptions."
+msgstr "Sözlüksel ve ifade istisnaları dahil Genç-Palu IPA'dan yazıma dönüşüm profilini kullanır."
+
+#: includes/admin/ipa-keyboard-admin.php:4343
+msgid "Conversion profile"
+msgstr "Dönüşüm profili"
+
+#: includes/admin/ipa-keyboard-admin.php:4394 includes/admin/ipa-keyboard-admin.php:4495
+msgid "Current rules"
+msgstr "Geçerli kurallar"
+
+#: includes/admin/ipa-keyboard-admin.php:4571
+msgid "Recording does not belong to this word set."
+msgstr "Bu ses kaydı bu kelime setine ait değil."
+
+#: includes/admin/ipa-keyboard-admin.php:4576
+msgid "No IPA transcription is available for this recording."
+msgstr "Bu ses kaydı için IPA transkripsiyonu yok."
+
+#: includes/admin/ipa-keyboard-admin.php:4584
+msgid "Current rules cannot suggest a written transcription for this recording yet."
+msgstr "Geçerli kurallar bu ses kaydı için henüz yazılı transkripsiyon öneremez."
+
+#: includes/admin/ipa-keyboard-admin.php:4612
+msgid "Failed to save the suggested recording text."
+msgstr "Önerilen kayıt metni kaydedilemedi."
+
+#: includes/admin/ipa-keyboard-admin.php:5240
+msgid "Saved text does not match the conversion profile."
+msgstr "Kaydedilen metin dönüşüm profiliyle eşleşmiyor."
+
+#: includes/api/automation-rest.php:1238
+msgid "Too many word updates in one request. Maximum is %d."
+msgstr "Bir istekte çok fazla kelime güncellemesi var. En fazla %d."
+
+#: includes/api/automation-rest.php:1430
+msgid "Failed to update the word title."
+msgstr "Kelime başlığı güncellenemedi."
+
+#: includes/api/automation-rest.php:1477
+msgid "Provide one or more word title updates."
+msgstr "Bir veya daha fazla kelime başlığı güncellemesi sağla."
+
+#: includes/api/automation-rest.php:1486
+msgid "Too many word title updates in one request. Maximum is %d."
+msgstr "Bir istekte çok fazla kelime başlığı güncellemesi var. En fazla %d."
+
+#: includes/api/automation-rest.php:1510
+msgid "Duplicate word ID in this batch."
+msgstr "Bu grupta yinelenen kelime kimliği var."
+
+#: includes/api/automation-rest.php:1523
+msgid "Missing replacement title."
+msgstr "Yeni başlık eksik."
+
+#: includes/api/automation-rest.php:2996
+msgid "Unable to resolve a word category for the translation item."
+msgstr "Çeviri öğesi için kelime kategorisi çözümlenemedi."
+
+#: includes/api/automation-rest.php:3014
+msgid "That word category is not part of this word set."
+msgstr "Bu kelime kategorisi bu kelime setinin parçası değil."
+
+#: includes/api/automation-rest.php:3101
+msgid "Unable to resolve a lesson for the translation item."
+msgstr "Çeviri öğesi için ders çözümlenemedi."
+
+#: includes/api/automation-rest.php:3109
+msgid "That lesson is not part of this word set."
+msgstr "Bu ders bu kelime setinin parçası değil."
+
+#: includes/api/automation-rest.php:3217
+msgid "Entity translation helpers are not available."
+msgstr "Varlık çevirisi yardımcıları kullanılamıyor."
+
+#: includes/api/automation-rest.php:3226
+msgid "Provide wordset, categories, lessons, or items to update translations."
+msgstr "Çevirileri güncellemek için kelime seti, kategoriler, dersler veya öğeler sağla."
+
+#: includes/api/automation-rest.php:3239
+msgid "Translation items must include type wordset, category, or lesson."
+msgstr "Çeviri öğeleri wordset, category veya lesson türünü içermelidir."
+
+#: includes/api/automation-rest.php:3249
+msgid "Translation item does not contain any supported translated fields."
+msgstr "Çeviri öğesi desteklenen hiçbir çevrilmiş alan içermiyor."
+
+#: includes/api/automation-rest.php:3310
+msgid "One or more translation items could not be applied."
+msgstr "Bir veya daha fazla çeviri öğesi uygulanamadı."
+
+#: includes/api/automation-rest.php:3518
+msgid "Unsupported orthography conversion profile."
+msgstr "Desteklenmeyen yazım dönüşüm profili."
+
+#: includes/api/automation-rest.php:3546
+msgid "Manual orthography rules must be an object keyed by IPA segment."
+msgstr "Manuel yazım kuralları IPA segmentine göre anahtarlanmış bir nesne olmalıdır."

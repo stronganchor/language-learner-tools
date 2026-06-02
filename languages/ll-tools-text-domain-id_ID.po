@@ -3608,3 +3608,28 @@ msgstr "Aktifkan halaman pelajaran"
 #: includes/shortcodes/flashcard-widget.php:1352
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr "Terlalu banyak permintaan kategori kartu belajar. Coba lagi sebentar lagi."
+
+#. ll-tools-public-key: 043f68fceaa4b3a7ec14d3bfea78d474e9168538
+#: includes/pages/content-lesson-pages.php:667
+msgid "Saving review note..."
+msgstr "Menyimpan catatan tinjauan..."
+
+#. ll-tools-public-key: 136399d2999d6e5629fcaff29bfecfc5691a78bd
+#: includes/pages/wordset-pages.php:10144
+msgid "Manage %s"
+msgstr "Kelola %s"
+
+#. ll-tools-public-key: 44a71d2543b88f78c4184cc52ee69d4fb26b36dc
+#: includes/pages/wordset-pages.php:1502
+msgid "Category updated."
+msgstr "Kategori diperbarui."
+
+#. ll-tools-public-key: ded380a148f96d11e236e05ffe38ae7fa8dd8c93
+#: templates/vocab-lesson-template.php:1310
+msgid "Open main lesson"
+msgstr "Buka pelajaran utama"
+
+#. ll-tools-public-key: 126a2209662358558416611c28c89b7b362dd26e
+#: templates/vocab-lesson-template.php:357
+msgid "Unable to load this lesson right now."
+msgstr "Pelajaran ini belum bisa dimuat saat ini."
