@@ -441,6 +441,7 @@ Supported update fields:
 - `word_title` / `post_title` (direct WordPress post title)
 - `word_text`
 - `word_translation`
+- `word_english_meaning` (direct helper/known-language translation meta)
 - `word_note`
 - `dictionary_entry_title`
 - `part_of_speech`
@@ -448,6 +449,11 @@ Supported update fields:
 - `grammatical_plurality`
 - `verb_tense`
 - `verb_mood`
+
+For title-as-translation wordsets, `word_translation` can be the target-language
+storage slot rather than the helper-language translation. Use
+`word_english_meaning` for direct Turkish/helper translation recovery or repair
+passes when you do not want the endpoint to apply display-mode title swapping.
 
 `resume_state` is the REST equivalent of the CLI `--resume-file` feature. Send
 back the response's `resume_state` object on the next request to skip words that

@@ -2195,8 +2195,9 @@ function ll_tools_word_grid_resolve_display_text(int $word_id): array {
         : true;
     $word_title = get_the_title($word_id);
     $word_translation = get_post_meta($word_id, 'word_translation', true);
+    $legacy_translation = get_post_meta($word_id, 'word_english_meaning', true);
     if ($store_in_title && $word_translation === '') {
-        $word_translation = get_post_meta($word_id, 'word_english_meaning', true);
+        $word_translation = $legacy_translation;
     }
 
     if ($store_in_title) {
@@ -2204,7 +2205,7 @@ function ll_tools_word_grid_resolve_display_text(int $word_id): array {
         $translation_text = $word_translation;
     } else {
         $word_text = $word_translation;
-        $translation_text = $word_title;
+        $translation_text = trim((string) $legacy_translation) !== '' ? $legacy_translation : $word_title;
     }
 
     if (function_exists('ll_tools_decode_display_entities')) {

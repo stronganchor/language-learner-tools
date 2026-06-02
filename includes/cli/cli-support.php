@@ -66,6 +66,7 @@ function ll_tools_cli_supported_update_fields(): array {
         'word_title',
         'word_text',
         'word_translation',
+        'word_english_meaning',
         'word_note',
         'dictionary_entry_title',
         'part_of_speech',
@@ -407,6 +408,7 @@ function ll_tools_cli_build_word_row(int $wordset_id, int $word_id, array $ui_op
         'word_title' => (string) get_the_title($word_id),
         'word_text' => trim((string) ($item['word_text'] ?? '')),
         'word_translation' => trim((string) ($item['word_translation'] ?? '')),
+        'word_english_meaning' => trim((string) get_post_meta($word_id, 'word_english_meaning', true)),
         'word_note' => trim((string) ($item['word_note'] ?? '')),
         'dictionary_entry_id' => (int) ($item['dictionary_entry']['id'] ?? 0),
         'dictionary_entry_title' => trim((string) ($item['dictionary_entry']['title'] ?? '')),
@@ -511,6 +513,7 @@ function ll_tools_cli_prepare_word_rows_for_output(array $rows): array {
             'word_title' => (string) ($row['word_title'] ?? $row['title'] ?? ''),
             'word_text' => (string) ($row['word_text'] ?? ''),
             'word_translation' => (string) ($row['word_translation'] ?? ''),
+            'word_english_meaning' => (string) ($row['word_english_meaning'] ?? ''),
             'category_slug' => (string) ($row['category_slug'] ?? ''),
             'part_of_speech' => (string) ($row['part_of_speech'] ?? ''),
             'grammatical_gender' => (string) ($row['grammatical_gender'] ?? ''),
@@ -698,6 +701,14 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
 
         case 'word_translation':
             ll_tools_cli_update_word_translation($word_id, $value);
+            break;
+
+        case 'word_english_meaning':
+            if ($value === '') {
+                delete_post_meta($word_id, 'word_english_meaning');
+            } else {
+                update_post_meta($word_id, 'word_english_meaning', sanitize_text_field($value));
+            }
             break;
 
         case 'word_note':
@@ -918,6 +929,7 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
         'word_title',
         'word_text',
         'word_translation',
+        'word_english_meaning',
         'word_note',
         'dictionary_entry_title',
         'part_of_speech',

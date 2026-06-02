@@ -429,6 +429,55 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('New Word Text', (string) ($updated['word_text'] ?? ''));
     }
 
+    public function test_bulk_update_route_can_update_helper_translation_directly(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Helper Translation Wordset', 'rest-helper-translation-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Helper Translation Category', 'rest-helper-translation-category');
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Target Title', 'Target Text');
+        update_post_meta($word_id, 'word_english_meaning', 'Old Helper');
+
+        wp_set_current_user($admin_id);
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-helper-translation-wordset/bulk-update', [
+            'set' => [
+                'field' => 'word_english_meaning',
+                'value' => 'New Helper',
+            ],
+            'word' => (string) $word_id,
+        ]);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame('Target Title', get_the_title($word_id));
+        $this->assertSame('Target Text', (string) get_post_meta($word_id, 'word_translation', true));
+        $this->assertSame('New Helper', (string) get_post_meta($word_id, 'word_english_meaning', true));
+        $this->assertContains('word_english_meaning', (array) ($data['updated'][0]['changed_keys'] ?? []));
+    }
+
+    public function test_display_text_uses_helper_translation_when_title_role_is_translation(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'REST Display Helper Wordset', 'rest-display-helper-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Display Helper Category', 'rest-display-helper-category');
+        update_term_meta(
+            $wordset_id,
+            defined('LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY') ? LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY : 'll_wordset_word_title_language_role',
+            'translation'
+        );
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Target Title', 'Target Text');
+        update_post_meta($word_id, 'word_english_meaning', 'Helper Translation');
+
+        $display = ll_tools_word_grid_resolve_display_text($word_id);
+
+        $this->assertSame('Target Text', (string) ($display['word_text'] ?? ''));
+        $this->assertSame('Helper Translation', (string) ($display['translation_text'] ?? ''));
+        $this->assertFalse((bool) ($display['store_in_title'] ?? true));
+    }
+
     public function test_bulk_update_route_can_update_word_title_directly(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
