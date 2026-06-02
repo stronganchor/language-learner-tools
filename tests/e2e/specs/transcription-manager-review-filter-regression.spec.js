@@ -314,6 +314,8 @@ test('reviewed rows stay visible until the transcription search is manually refr
 
   const reviewTextToggle = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle');
   const reviewTextStatus = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-review-status');
+  const reviewIpaToggle = rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle');
+  const reviewIpaStatus = rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-review-status');
   await reviewTextToggle.click();
 
   await expect(reviewTextToggle).toBeDisabled();
@@ -323,7 +325,12 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(reviewTextStatus).toHaveClass(/is-saving/);
   await expect(reviewTextStatus).toHaveAttribute('aria-busy', 'true');
   await expect(reviewTextStatus.locator('.ll-ipa-search-review-status-label')).toHaveText('Saving...');
-  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle')).toBeDisabled();
+  await expect(reviewIpaToggle).toBeEnabled();
+  await reviewIpaToggle.click();
+  await expect(reviewIpaToggle).toBeDisabled();
+  await expect(reviewIpaToggle).toHaveClass(/is-saving/);
+  await expect(reviewIpaStatus).toHaveClass(/is-saving/);
+  await expect(reviewIpaStatus.locator('.ll-ipa-search-review-status-label')).toHaveText('Saving...');
   await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '1');
 
   await page.evaluate(() => {
@@ -337,17 +344,18 @@ test('reviewed rows stay visible until the transcription search is manually refr
 
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toHaveAttribute('data-recording-id', '101');
-  await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '0');
+  await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '1');
   await expect(rows.nth(0).locator('.ll-ipa-search-review')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-action-toggle')).toHaveCount(0);
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-toggle')).toHaveCount(2);
-  await expect(rows.nth(0).locator('.ll-ipa-search-review-status.is-needs-review')).toHaveCount(0);
-  await expect(rows.nth(0).locator('.ll-ipa-search-review-status.is-reviewed')).toHaveCount(2);
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-review-status.is-reviewed')).toHaveCount(1);
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-review-status.is-needs-review')).toHaveCount(1);
   await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as needing review');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as reviewed');
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(0);
   await expect(rows.nth(1)).toHaveAttribute('data-recording-id', '202');
   await expect(rows.nth(1)).toHaveAttribute('data-needs-review', '1');
-  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Reviewed.');
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Marked for review.');
 
   await page.evaluate(() => {
     window.__llTranscriptionManagerMock.holdReviewStateRequests = true;
@@ -362,8 +370,8 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(flagTextToggle).toHaveClass(/is-saving/);
   await expect(flagTextStatus).toHaveClass(/is-saving/);
   await expect(flagTextStatus.locator('.ll-ipa-search-review-status-label')).toHaveText('Saving...');
-  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle')).toBeDisabled();
-  await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '0');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle')).toBeEnabled();
+  await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '1');
 
   await page.evaluate(() => {
     const mock = window.__llTranscriptionManagerMock;
@@ -389,7 +397,226 @@ test('reviewed rows stay visible until the transcription search is manually refr
   expect(actions).toEqual([
     'll_tools_search_ipa_keyboard_recordings',
     'll_tools_set_ipa_keyboard_transcription_review_state',
+    'll_tools_set_ipa_keyboard_transcription_review_state',
     'll_tools_set_ipa_keyboard_transcription_review_state'
+  ]);
+});
+
+test('transcription autosave keeps fields editable and preserves newer edits', async ({ page }) => {
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup());
+  await page.evaluate(() => {
+    try {
+      window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+      window.localStorage.removeItem('llTranscriptionManagerLastTab');
+    } catch (error) {
+      // Ignore storage cleanup failures in the test harness.
+    }
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function buildRecording(recording) {
+      return Object.assign({}, recording, {
+        word_text: 'Alpha',
+        word_translation: '',
+        word_edit_link: '',
+        recording_translation: '',
+        categories: [],
+        issues: [],
+        ignored_issues: [],
+        issue_count: 0,
+        ignored_issue_count: 0,
+        needs_review: false,
+        review_fields: {
+          recording_text: false,
+          recording_ipa: false
+        },
+        review_note: '',
+        image: {},
+        audio_url: '',
+        audio_label: 'Play recording'
+      });
+    }
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'search',
+      initialSearch: {
+        query: '',
+        scope: 'both',
+        issues_only: false,
+        review_only: false,
+        exact_transcription: false,
+        page: 1
+      },
+      i18n: {}
+    };
+
+    window.__llAutosaveResponsivenessMock = {
+      recording: {
+        recording_id: 101,
+        word_id: 55,
+        recording_text: 'alpha',
+        recording_ipa: 'alpha ipa'
+      },
+      postCalls: [],
+      pendingUpdateRequests: []
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const requestData = Object.assign({}, data);
+      window.__llAutosaveResponsivenessMock.postCalls.push({
+        url: String(url || ''),
+        data: requestData
+      });
+
+      window.setTimeout(function () {
+        const mock = window.__llAutosaveResponsivenessMock;
+
+        if (requestData.action === 'll_tools_search_ipa_keyboard_recordings') {
+          deferred.resolve({
+            success: true,
+            data: {
+              wordset: {
+                id: 7,
+                name: 'Autosave Wordset'
+              },
+              transcription: {
+                mode: 'ipa',
+                symbols_column_label: 'IPA'
+              },
+              results: [clone(buildRecording(mock.recording))],
+              total_matches: 1,
+              shown_count: 1,
+              has_more: false,
+              current_page: 1,
+              total_pages: 1,
+              per_page: 100,
+              page_start: 1,
+              page_end: 1,
+              issues_only: false,
+              review_only: false,
+              exact_transcription: false,
+              can_edit: true,
+              validation_config: {
+                supports_rules: true,
+                builtin_rules: [],
+                custom_rules: []
+              }
+            }
+          });
+          return;
+        }
+
+        if (requestData.action === 'll_tools_update_ipa_keyboard_recording') {
+          mock.pendingUpdateRequests.push({
+            finish() {
+              mock.recording = Object.assign({}, mock.recording, {
+                recording_text: String(requestData.recording_text || ''),
+                recording_ipa: String(requestData.recording_ipa || '')
+              });
+              const row = buildRecording(mock.recording);
+              deferred.resolve({
+                success: true,
+                data: {
+                  recording: clone(row),
+                  validation: {
+                    active: [],
+                    ignored: []
+                  },
+                  keyboard_symbols: [],
+                  transcription: {
+                    mode: 'ipa',
+                    symbols_column_label: 'IPA'
+                  }
+                }
+              });
+            }
+          });
+          return;
+        }
+
+        deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
+      }, 0);
+
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  const row = page.locator('#ll-ipa-search-results tbody tr').first();
+  const textInput = row.locator('.ll-ipa-search-text-input');
+  const ipaInput = row.locator('.ll-ipa-search-ipa-input');
+  await expect(textInput).toHaveValue('alpha');
+  await expect(ipaInput).toHaveValue('alpha ipa');
+
+  await textInput.fill('alpha edited');
+  await page.locator('#ll-ipa-search-btn').focus();
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__llAutosaveResponsivenessMock.pendingUpdateRequests.length;
+  })).toBe(1);
+
+  await expect(textInput).toBeEnabled();
+  await expect(ipaInput).toBeEnabled();
+  await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saving...');
+
+  await ipaInput.fill('ipa edited');
+  await page.evaluate(() => {
+    const pending = window.__llAutosaveResponsivenessMock.pendingUpdateRequests.shift();
+    if (pending) {
+      pending.finish();
+    }
+  });
+
+  await expect(ipaInput).toHaveValue('ipa edited');
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__llAutosaveResponsivenessMock.pendingUpdateRequests.length;
+  })).toBe(1);
+
+  await page.evaluate(() => {
+    const pending = window.__llAutosaveResponsivenessMock.pendingUpdateRequests.shift();
+    if (pending) {
+      pending.finish();
+    }
+  });
+
+  await expect(textInput).toHaveValue('alpha edited');
+  await expect(ipaInput).toHaveValue('ipa edited');
+  await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saved.');
+
+  const updatePayloads = await page.evaluate(() => {
+    return window.__llAutosaveResponsivenessMock.postCalls
+      .filter(call => call.data.action === 'll_tools_update_ipa_keyboard_recording')
+      .map(call => ({
+        recording_text: call.data.recording_text,
+        recording_ipa: call.data.recording_ipa
+      }));
+  });
+  expect(updatePayloads).toEqual([
+    {
+      recording_text: 'alpha edited',
+      recording_ipa: 'alpha ipa'
+    },
+    {
+      recording_text: 'alpha edited',
+      recording_ipa: 'ipa edited'
+    }
   ]);
 });
 
@@ -426,6 +653,9 @@ test('orthography mismatch warnings render inline field highlights and suggestio
       const actualSpan = apostropheIndex >= 0
         ? { start: apostropheIndex, length: 1 }
         : { start: Math.max(0, iIndex), length: 1 };
+      const actualSpans = Array.isArray(recording.actual_spans) ? recording.actual_spans : [actualSpan];
+      const suggestedSpans = Array.isArray(recording.suggested_spans) ? recording.suggested_spans : [{ start: 3, length: 1 }];
+      const ipaSpans = Array.isArray(recording.ipa_spans) ? recording.ipa_spans : [{ start: 5, length: 1 }];
 
       return {
         rule_key: 'builtin:orthography_mismatch',
@@ -441,9 +671,9 @@ test('orthography mismatch warnings render inline field highlights and suggestio
           canonical_suggested_text: 'Ez nızûnû',
           ipa_text: String(recording.recording_ipa || ''),
           matches: false,
-          actual_spans: [actualSpan],
-          suggested_spans: [{ start: 3, length: 1 }],
-          ipa_spans: [{ start: 5, length: 1 }],
+          actual_spans: actualSpans,
+          suggested_spans: suggestedSpans,
+          ipa_spans: ipaSpans,
           ipa_suggestions: [
             { ipa: 'ʔɛz nɨzunu', label: 'ʔɛz nɨzunu' },
             { ipa: 'ʔɛz nɪzunu', label: 'ʔɛz nɪzunu' }
@@ -645,6 +875,42 @@ test('orthography mismatch warnings render inline field highlights and suggestio
       .map(call => call.data.recording_ipa);
   });
   expect(updateCalls).toEqual(['ʔɛz nɪzunu']);
+  await page.evaluate(() => {
+    window.__llOrthographyInlineMock.recording = {
+      recording_id: 101,
+      word_id: 55,
+      recording_text: 'cini xwe xwe vuna agmi ber biqafniten kerg nivecen teber',
+      recording_ipa: 'dzini xwe xwe vuna agmi ber biqafniten kerg nivecen teber',
+      actual_spans: [
+        { start: 0, length: 1 },
+        { start: 5, length: 3 },
+        { start: 9, length: 3 },
+        { start: 18, length: 4 },
+        { start: 27, length: 10 }
+      ],
+      suggested_spans: [
+        { start: 0, length: 1 },
+        { start: 5, length: 3 },
+        { start: 9, length: 3 },
+        { start: 18, length: 4 },
+        { start: 27, length: 10 }
+      ],
+      ipa_spans: [
+        { start: 0, length: 5 },
+        { start: 6, length: 3 },
+        { start: 10, length: 3 },
+        { start: 19, length: 4 },
+        { start: 28, length: 10 }
+      ]
+    };
+    window.__llOrthographyInlineMock.includeIssue = true;
+  });
+  await page.locator('#ll-ipa-search-btn').click();
+
+  await expect(row.locator('.ll-ipa-search-issue-title')).toHaveText('Orthography mismatch');
+  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-mismatch-mark')).toHaveCount(0);
+  await expect(row.locator('.ll-ipa-search-ipa-cell .ll-ipa-mismatch-mark')).toHaveCount(0);
+  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveCount(1);
 });
 
 test('unapproved IPA symbol warnings offer a wordset approval mapping action', async ({ page }) => {

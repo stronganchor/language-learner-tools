@@ -59,6 +59,9 @@
     let letterMapRefreshTimer = null;
     let letterMapRefreshRequestId = 0;
     let pendingSearchReviewState = {};
+    const searchReviewFields = ['recording_text', 'recording_ipa'];
+    const maxInlineMismatchMarks = 4;
+    const maxInlineMismatchCoverage = 0.35;
     let currentKeyboardSymbols = [];
     let activeIpaKeyboardInput = null;
     let $activeIpaKeyboard = $();
@@ -1630,6 +1633,30 @@
         });
     }
 
+    function shouldRenderInlineMismatchHighlight(spans, text) {
+        const value = (text || '').toString();
+        const chars = Array.from(value);
+        const normalized = normalizeHighlightSpans(spans, value);
+        if (!normalized.length) {
+            return false;
+        }
+        if (normalized.length > maxInlineMismatchMarks) {
+            return false;
+        }
+
+        let covered = 0;
+        let offset = 0;
+        normalized.forEach(function (span) {
+            const start = Math.max(offset, span.start);
+            if (span.end > start) {
+                covered += span.end - start;
+                offset = span.end;
+            }
+        });
+
+        return !chars.length || (covered / chars.length) <= maxInlineMismatchCoverage;
+    }
+
     function buildHighlightedText(text, spans, className) {
         const value = (text || '').toString();
         const chars = Array.from(value);
@@ -1875,6 +1902,60 @@
         return $row.find(getSearchReviewFieldSelector(field) + ' .ll-ipa-search-field-review-action').first();
     }
 
+    function normalizeSearchReviewField(field) {
+        return field === 'recording_text' ? 'recording_text' : 'recording_ipa';
+    }
+
+    function getSearchReviewSavingFields($row) {
+        const raw = $row && $row.length ? $row.data('llSearchReviewSavingFields') : null;
+        const fields = {};
+        if (raw && typeof raw === 'object') {
+            searchReviewFields.forEach(function (field) {
+                if (raw[field]) {
+                    fields[field] = true;
+                }
+            });
+        }
+        return fields;
+    }
+
+    function setSearchReviewSavingFields($row, fields) {
+        if (!$row || !$row.length) {
+            return;
+        }
+
+        const activeFields = searchReviewFields.filter(function (field) {
+            return fields && fields[field];
+        });
+        if (activeFields.length) {
+            const nextFields = {};
+            activeFields.forEach(function (field) {
+                nextFields[field] = true;
+            });
+            $row
+                .data('llSearchReviewSavingFields', nextFields)
+                .addClass('is-review-saving')
+                .attr('data-review-saving-fields', activeFields.join(' '));
+            return;
+        }
+
+        $row
+            .removeData('llSearchReviewSavingFields')
+            .removeClass('is-review-saving')
+            .removeAttr('data-review-saving-fields');
+    }
+
+    function searchReviewFieldIsSaving($row, field) {
+        const savingFields = getSearchReviewSavingFields($row);
+        return !!savingFields[normalizeSearchReviewField(field)];
+    }
+
+    function searchReviewStateIsSaving($row) {
+        return searchReviewFields.some(function (field) {
+            return searchReviewFieldIsSaving($row, field);
+        });
+    }
+
     function getReviewToggleButtonText(nextNeedsReview) {
         return nextNeedsReview
             ? t('searchReviewMarkAsNeedsReview', 'Mark as needing review')
@@ -1915,16 +1996,12 @@
             return;
         }
 
-        const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
+        const field = normalizeSearchReviewField(reviewField);
+        const savingFields = getSearchReviewSavingFields($row);
         if (saving) {
             const $action = getSearchReviewAction($row, field);
-            $row
-                .data('llSearchReviewSaving', true)
-                .addClass('is-review-saving')
-                .attr('data-review-saving-field', field);
-            $row.find('.ll-ipa-review-toggle')
-                .prop('disabled', true)
-                .attr('aria-disabled', 'true');
+            savingFields[field] = true;
+            setSearchReviewSavingFields($row, savingFields);
 
             if ($action.length) {
                 const $status = $action.find('.ll-ipa-search-review-status').first();
@@ -1938,6 +2015,8 @@
                 if ($toggle.length) {
                     $toggle
                         .addClass('is-saving')
+                        .prop('disabled', true)
+                        .attr('aria-disabled', 'true')
                         .attr('aria-busy', 'true')
                         .text(t('saving', 'Saving...'));
                 }
@@ -1945,30 +2024,24 @@
             return;
         }
 
-        const savedField = ($row.attr('data-review-saving-field') || field).toString() === 'recording_text'
-            ? 'recording_text'
-            : 'recording_ipa';
-        const currentNeedsReview = savedField === 'recording_text'
+        delete savingFields[field];
+        const currentNeedsReview = field === 'recording_text'
             ? ($row.attr('data-review-text') || '0') === '1'
             : ($row.attr('data-review-ipa') || '0') === '1';
-        const $restoreAction = getSearchReviewAction($row, savedField);
+        const $restoreAction = getSearchReviewAction($row, field);
 
-        $row
-            .removeData('llSearchReviewSaving')
-            .removeClass('is-review-saving')
-            .removeAttr('data-review-saving-field');
-        $row.find('.ll-ipa-review-toggle').each(function () {
-            restoreReviewToggleButton($(this));
-        });
+        setSearchReviewSavingFields($row, savingFields);
 
         if ($restoreAction.length) {
             const $status = $restoreAction.find('.ll-ipa-search-review-status').first();
+            const $toggle = $restoreAction.find('.ll-ipa-review-toggle').first();
             $restoreAction.removeClass('is-saving');
             if ($status.length) {
                 $status.replaceWith(buildSearchReviewStatus(currentNeedsReview));
             } else {
                 $restoreAction.prepend(buildSearchReviewStatus(currentNeedsReview));
             }
+            restoreReviewToggleButton($toggle);
         }
     }
 
@@ -2001,7 +2074,7 @@
             ? (detail.actual_spans || [])
             : (detail.ipa_spans || []);
 
-        if (!value || referenceText !== value || !normalizeHighlightSpans(spans, value).length) {
+        if (!value || referenceText !== value || !shouldRenderInlineMismatchHighlight(spans, value)) {
             return null;
         }
 
@@ -3234,10 +3307,6 @@
         setSearchRowDirtyState($row, false);
     }
 
-    function setSearchRowInputsDisabled($row, disabled) {
-        $row.find('.ll-ipa-search-text-input, .ll-ipa-search-ipa-input').prop('disabled', !!disabled || !currentCanEdit);
-    }
-
     function setSearchRowSaveState($row, state, label) {
         const $state = $row.find('.ll-ipa-search-save-state').first();
         if (!$state.length) {
@@ -3296,48 +3365,95 @@
         syncSearchInputHighlight(input);
     }
 
+    function getPendingSearchReviewStates(recordingId) {
+        const key = String(recordingId || '');
+        if (!key || !pendingSearchReviewState[key] || typeof pendingSearchReviewState[key] !== 'object') {
+            return {};
+        }
+        return pendingSearchReviewState[key];
+    }
+
+    function hasPendingSearchReviewState(recordingId) {
+        const states = getPendingSearchReviewStates(recordingId);
+        return searchReviewFields.some(function (field) {
+            return !!states[field];
+        });
+    }
+
     function queuePendingSearchReviewState(recordingId, needsReview, reviewField) {
         if (!recordingId) {
             return;
         }
 
-        const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
-        pendingSearchReviewState[String(recordingId)] = {
+        const key = String(recordingId);
+        const field = normalizeSearchReviewField(reviewField);
+        if (!pendingSearchReviewState[key] || typeof pendingSearchReviewState[key] !== 'object') {
+            pendingSearchReviewState[key] = {};
+        }
+        pendingSearchReviewState[key][field] = {
             needsReview: !!needsReview,
             reviewField: field
         };
         setSearchReviewSavingStateByRecordingId(recordingId, field, true);
     }
 
-    function clearPendingSearchReviewState(recordingId) {
+    function clearPendingSearchReviewState(recordingId, reviewField) {
         if (!recordingId) {
             return;
         }
 
         const key = String(recordingId);
-        const state = pendingSearchReviewState[key] || {};
-        delete pendingSearchReviewState[key];
-        if (state.reviewField) {
-            setSearchReviewSavingStateByRecordingId(recordingId, state.reviewField, false);
+        const states = getPendingSearchReviewStates(recordingId);
+        const fields = reviewField
+            ? [normalizeSearchReviewField(reviewField)]
+            : searchReviewFields.slice();
+        fields.forEach(function (field) {
+            if (states[field]) {
+                setSearchReviewSavingStateByRecordingId(recordingId, field, false);
+                delete states[field];
+            }
+        });
+        if (!searchReviewFields.some(function (field) {
+            return !!states[field];
+        })) {
+            delete pendingSearchReviewState[key];
         }
     }
 
     function flushPendingSearchReviewState(recordingId) {
         const key = String(recordingId || '');
-        if (!key || !Object.prototype.hasOwnProperty.call(pendingSearchReviewState, key)) {
+        if (!key || !hasPendingSearchReviewState(recordingId)) {
             return;
         }
 
-        const state = pendingSearchReviewState[key] || {};
-        delete pendingSearchReviewState[key];
-        submitSearchReviewState(recordingId, !!state.needsReview, state.reviewField || 'recording_ipa');
+        const $row = getSearchRowByRecordingId(recordingId);
+        if ($row.length && searchReviewStateIsSaving($row)) {
+            return;
+        }
+
+        const states = getPendingSearchReviewStates(recordingId);
+        const field = searchReviewFields.find(function (fieldKey) {
+            return !!states[fieldKey];
+        });
+        if (!field) {
+            delete pendingSearchReviewState[key];
+            return;
+        }
+
+        const state = states[field] || {};
+        delete states[field];
+        if (!hasPendingSearchReviewState(recordingId)) {
+            delete pendingSearchReviewState[key];
+        }
+        submitSearchReviewState(recordingId, !!state.needsReview, state.reviewField || field);
     }
 
     function submitSearchReviewState(recordingId, needsReview, reviewField) {
         if (!recordingId || !currentWordsetId || !currentCanEdit) {
             return $.Deferred().reject().promise();
         }
-        const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
+        const field = normalizeSearchReviewField(reviewField);
+        let requestSucceeded = false;
 
         setSearchReviewSavingStateByRecordingId(recordingId, field, true);
         setStatus(t('saving', 'Saving...'), false);
@@ -3350,10 +3466,12 @@
             needs_review: needsReview ? 1 : 0
         }).done(function (response) {
             if (!response || response.success !== true) {
+                clearPendingSearchReviewState(recordingId);
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
             }
 
+            requestSucceeded = true;
             const data = response.data || {};
             if (data.transcription) {
                 applyTranscriptionConfig(data.transcription);
@@ -3369,14 +3487,18 @@
                 false
             );
         }).fail(function () {
+            clearPendingSearchReviewState(recordingId);
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
             setSearchReviewSavingStateByRecordingId(recordingId, field, false);
+            if (requestSucceeded) {
+                flushPendingSearchReviewState(recordingId);
+            }
         });
     }
 
     function autosaveSearchRow($row, options) {
-        if (!$row.length || !currentCanEdit) {
+        if (!$row.length || !$row.closest('html').length || !currentCanEdit) {
             return;
         }
 
@@ -3398,7 +3520,6 @@
         const focusState = captureSearchRowFocusState($row, options && options.restoreFocusField);
         $row.data('llSearchRowSaving', true);
         $row.data('llSearchRowPending', false);
-        setSearchRowInputsDisabled($row, true);
         setSearchRowSaveState($row, 'saving', t('saving', 'Saving...'));
 
         $.post(ajaxUrl, {
@@ -3417,7 +3538,18 @@
             }
 
             const data = response.data || {};
+            const latestValues = getSearchRowValues($row);
+            const rowChangedAfterSubmit = latestValues.recordingText !== values.recordingText
+                || latestValues.recordingIpa !== values.recordingIpa;
             markTabsDirty(['map', 'symbols', 'orthography']);
+
+            if (rowChangedAfterSubmit) {
+                $row.data('llSearchRowPending', true);
+                setSearchRowDirtyState($row, true);
+                setSearchRowSaveState($row, 'saving', t('saving', 'Saving...'));
+                return;
+            }
+
             if (data.recording) {
                 const $newRow = replaceSearchRow($row, data.recording);
                 setSearchRowSaveState($newRow, 'saved', t('saved', 'Saved.'));
@@ -3426,12 +3558,11 @@
                 updateSearchRowSavedValues($row);
                 updateSearchRowValidation($row, data.validation || null);
                 setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
-                setSearchRowInputsDisabled($row, false);
                 restoreSearchRowFocusState($row, focusState);
             }
             applyKeyboardSymbols(data.keyboard_symbols || currentKeyboardSymbols);
 
-            if (Object.prototype.hasOwnProperty.call(pendingSearchReviewState, String(values.recordingId))) {
+            if (hasPendingSearchReviewState(values.recordingId)) {
                 flushPendingSearchReviewState(values.recordingId);
                 return;
             }
@@ -3443,12 +3574,9 @@
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
             $row.data('llSearchRowSaving', false);
-            if ($row.closest('html').length) {
-                setSearchRowInputsDisabled($row, false);
-                if ($row.data('llSearchRowPending')) {
-                    $row.data('llSearchRowPending', false);
-                    autosaveSearchRow($row);
-                }
+            if ($row.closest('html').length && $row.data('llSearchRowPending')) {
+                $row.data('llSearchRowPending', false);
+                autosaveSearchRow($row);
             }
         });
     }
@@ -3944,12 +4072,16 @@
         syncSearchInputHighlight(this);
 
         const $row = $(this).closest('tr');
-        if (!$row.length || $row.data('llSearchRowSaving')) {
+        if (!$row.length) {
             return;
         }
 
         const hasUnsavedChanges = searchRowHasUnsavedChanges($row);
         setSearchRowDirtyState($row, hasUnsavedChanges);
+        if ($row.data('llSearchRowSaving')) {
+            $row.data('llSearchRowPending', hasUnsavedChanges);
+            return;
+        }
         if (hasUnsavedChanges) {
             setSearchRowSaveState($row, 'idle', '');
         }
@@ -3995,7 +4127,7 @@
             ? 'recording_text'
             : 'recording_ipa';
 
-        if (!recordingId || !currentWordsetId || $row.data('llSearchReviewSaving')) {
+        if (!recordingId || !currentWordsetId || searchReviewFieldIsSaving($row, reviewField)) {
             return;
         }
 
@@ -4007,6 +4139,11 @@
         if (searchRowHasUnsavedChanges($row)) {
             queuePendingSearchReviewState(recordingId, nextNeedsReview, reviewField);
             autosaveSearchRow($row);
+            return;
+        }
+
+        if (searchReviewStateIsSaving($row)) {
+            queuePendingSearchReviewState(recordingId, nextNeedsReview, reviewField);
             return;
         }
 
