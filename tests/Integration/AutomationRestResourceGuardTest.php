@@ -33,6 +33,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             '/ll-tools/v1/wordsets' => 'll_tools_wordset_create',
             '/ll-tools/v1/wordsets/spanish/bulk-update' => 'll_tools_bulk-update',
             '/ll-tools/v1/wordsets/spanish/word-title-updates' => 'll_tools_word-title-updates',
+            '/ll-tools/v1/wordsets/spanish/word-helper-updates' => 'll_tools_word-helper-updates',
             '/ll-tools/v1/wordsets/spanish/transcriptions' => 'll_tools_transcriptions',
             '/ll-tools/v1/wordsets/spanish/word-option-rules' => 'll_tools_word-option-rules',
             '/ll-tools/v1/wordsets/spanish/orthography-conversion' => 'll_tools_orthography-conversion',
@@ -109,6 +110,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
         $this->assertContains('/wp/v2/users/me', $authProbeRoutes);
         $this->assertContains('/ll-tools/v1/cache/static/purge', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', $automationRoutes);
         $this->assertContains('/ll-tools/v1/imports/{job_id}/process', $automationRoutes);
         $this->assertContains('/ll-tools/v1/corpus-texts/import', $automationRoutes);
 
@@ -117,6 +119,12 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             : [];
         $this->assertSame(5, (int) ($titleBatch['default_write_limit'] ?? 0));
         $this->assertSame(10, (int) ($titleBatch['max_write_limit'] ?? 0));
+
+        $helperBatch = is_array($resourceGuard['word_helper_updates_batch'] ?? null)
+            ? $resourceGuard['word_helper_updates_batch']
+            : [];
+        $this->assertSame(10, (int) ($helperBatch['default_write_limit'] ?? 0));
+        $this->assertSame(25, (int) ($helperBatch['max_write_limit'] ?? 0));
     }
 
     private function setAuthorizationHeader(): void

@@ -518,6 +518,10 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'default' => $dry_run ? 50 : 5,
             'max' => $dry_run ? 100 : 10,
         ],
+        'word_helper_updates' => [
+            'default' => $dry_run ? 50 : 10,
+            'max' => $dry_run ? 100 : 25,
+        ],
         'missing_meta' => [
             'default' => 100,
             'max' => 250,
@@ -612,7 +616,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 5.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|transcriptions|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|transcriptions|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 5.0;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
@@ -850,6 +854,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
             'bulk_update' => '/ll-tools/v1/wordsets/{wordset}/bulk-update',
             'word_title_updates' => '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
+            'word_helper_updates' => '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
@@ -888,6 +893,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets',
                 '/ll-tools/v1/wordsets/{wordset}/bulk-update',
                 '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
+                '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
                 '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
@@ -914,6 +920,12 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 'max_write_limit' => ll_tools_rest_automation_batch_limit('word_title_updates', false)['max'],
                 'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_title_updates', true)['default'],
                 'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_title_updates', true)['max'],
+            ],
+            'word_helper_updates_batch' => [
+                'default_write_limit' => ll_tools_rest_automation_batch_limit('word_helper_updates', false)['default'],
+                'max_write_limit' => ll_tools_rest_automation_batch_limit('word_helper_updates', false)['max'],
+                'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_helper_updates', true)['default'],
+                'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_helper_updates', true)['max'],
             ],
             'missing_meta_batch' => [
                 'default_limit' => ll_tools_rest_automation_batch_limit('missing_meta', false)['default'],
@@ -1647,6 +1659,315 @@ function ll_tools_rest_automation_word_title_updates(WP_REST_Request $request) {
                 'changed' => true,
                 'before_title' => (string) $change['before_title'],
                 'after_title' => (string) $change['after_title'],
+            ];
+            $summary['updated_count']++;
+            $changed_word_ids[] = $word_id;
+        }
+
+        $changed_word_ids = array_values(array_unique(array_filter(array_map('intval', $changed_word_ids))));
+        foreach ($changed_word_ids as $changed_word_id) {
+            clean_post_cache($changed_word_id);
+        }
+        if (!empty($changed_word_ids) && function_exists('ll_tools_word_grid_bump_category_cache_for_words')) {
+            ll_tools_word_grid_bump_category_cache_for_words($changed_word_ids);
+        }
+        if (!empty($changed_word_ids) && function_exists('ll_tools_purge_public_static_cache_once')) {
+            ll_tools_purge_public_static_cache_once(['wordset_ids' => [(int) $wordset_term->term_id]]);
+        }
+        if (!empty($changed_word_ids) && function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
+            ll_tools_purge_wordset_buttons_shortcode_cache_once();
+        }
+    }
+
+    if ($dry_run) {
+        $summary['updated'] = array_map(static function (array $change): array {
+            return $change + [
+                'changed' => true,
+            ];
+        }, $changes);
+    }
+
+    $summary['elapsed_seconds'] = round(microtime(true) - $started, 3);
+
+    return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_automation_sanitize_helper_translation_value($value): string {
+    $value = is_scalar($value) ? (string) $value : '';
+
+    return trim(sanitize_text_field($value));
+}
+
+function ll_tools_rest_automation_find_helper_translation_value(array $update, array $keys, bool &$has_value): string {
+    foreach ($keys as $key) {
+        if (!is_string($key) || $key === '') {
+            continue;
+        }
+        if (array_key_exists($key, $update)) {
+            $has_value = true;
+            return ll_tools_rest_automation_sanitize_helper_translation_value($update[$key]);
+        }
+    }
+
+    $has_value = false;
+    return '';
+}
+
+function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) {
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(0);
+    }
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $raw_updates = $request->get_param('updates');
+    $raw_updates = is_array($raw_updates) ? array_values($raw_updates) : [];
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $batch_settings = ll_tools_rest_automation_batch_limit('word_helper_updates', $dry_run);
+    $max_updates = (int) $batch_settings['max'];
+    $started = microtime(true);
+    $supported_fields = ['word_translation', 'word_english_meaning'];
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => [
+            'id' => (int) $wordset_term->term_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'batch_mode' => 'word_helper_updates',
+        'input_count' => count($raw_updates),
+        'max_updates' => $max_updates,
+        'batch' => [
+            'default_limit' => (int) $batch_settings['default'],
+            'max_limit' => (int) $batch_settings['max'],
+        ],
+        'matched_count' => 0,
+        'changed_count' => 0,
+        'updated_count' => 0,
+        'unchanged_count' => 0,
+        'skipped_count' => 0,
+        'updated' => [],
+        'skipped' => [],
+        'errors' => [],
+    ];
+
+    if (empty($raw_updates)) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_missing_word_helper_updates',
+            __('Provide one or more word helper translation updates.', 'll-tools-text-domain')
+        ), 400);
+    }
+
+    if (count($raw_updates) > $max_updates) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_too_many_word_helper_updates',
+            sprintf(
+                /* translators: %d: maximum update count */
+                __('Too many word helper translation updates in one request. Maximum is %d.', 'll-tools-text-domain'),
+                $max_updates
+            )
+        ), 400);
+    }
+
+    $updates = [];
+    $seen_word_ids = [];
+    foreach ($raw_updates as $index => $update) {
+        $update = is_array($update) ? $update : [];
+        $raw_word_id = $update['word_id'] ?? $update['id'] ?? '';
+        $word_id = is_scalar($raw_word_id) ? (int) $raw_word_id : 0;
+        if ($word_id <= 0) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'message' => __('Missing word ID.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        if (isset($seen_word_ids[$word_id])) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => __('Duplicate word ID in this batch.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+        $seen_word_ids[$word_id] = true;
+
+        $requested_values = [];
+        $guard_values = [];
+
+        $has_word_translation = false;
+        $word_translation = ll_tools_rest_automation_find_helper_translation_value($update, ['word_translation', 'translation'], $has_word_translation);
+        if ($has_word_translation) {
+            $requested_values['word_translation'] = $word_translation;
+        }
+
+        $has_word_english_meaning = false;
+        $word_english_meaning = ll_tools_rest_automation_find_helper_translation_value($update, ['word_english_meaning', 'helper_translation', 'known_language_translation', 'english_meaning'], $has_word_english_meaning);
+        if ($has_word_english_meaning) {
+            $requested_values['word_english_meaning'] = $word_english_meaning;
+        }
+
+        if (array_key_exists('value', $update)) {
+            $field = sanitize_key((string) ($update['field'] ?? ''));
+            if (!in_array($field, $supported_fields, true)) {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'word_id' => $word_id,
+                    'message' => __('Use field=word_translation or field=word_english_meaning with value.', 'll-tools-text-domain'),
+                ];
+                continue;
+            }
+            $requested_values[$field] = ll_tools_rest_automation_sanitize_helper_translation_value($update['value']);
+        }
+
+        $has_old_word_translation = false;
+        $old_word_translation = ll_tools_rest_automation_find_helper_translation_value($update, ['old_word_translation', 'old_translation', 'expected_word_translation'], $has_old_word_translation);
+        if ($has_old_word_translation) {
+            $guard_values['word_translation'] = $old_word_translation;
+        }
+
+        $has_old_word_english_meaning = false;
+        $old_word_english_meaning = ll_tools_rest_automation_find_helper_translation_value($update, ['old_word_english_meaning', 'old_helper_translation', 'expected_word_english_meaning', 'expected_helper_translation'], $has_old_word_english_meaning);
+        if ($has_old_word_english_meaning) {
+            $guard_values['word_english_meaning'] = $old_word_english_meaning;
+        }
+
+        if (empty($requested_values)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => __('Missing helper translation value.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $updates[] = [
+            'index' => $index,
+            'word_id' => $word_id,
+            'values' => $requested_values,
+            'guards' => $guard_values,
+        ];
+    }
+
+    if (empty($updates)) {
+        $summary['elapsed_seconds'] = round(microtime(true) - $started, 3);
+        return rest_ensure_response($summary);
+    }
+
+    $records = ll_tools_rest_automation_fetch_word_title_records(
+        (int) $wordset_term->term_id,
+        array_map(static function (array $update): int {
+            return (int) $update['word_id'];
+        }, $updates)
+    );
+
+    $changes = [];
+    foreach ($updates as $update) {
+        $word_id = (int) $update['word_id'];
+        $record = $records[$word_id] ?? null;
+        if (!is_array($record)) {
+            $summary['skipped'][] = [
+                'index' => (int) $update['index'],
+                'word_id' => $word_id,
+                'reason' => 'not_in_wordset',
+            ];
+            $summary['skipped_count']++;
+            continue;
+        }
+
+        $before = [
+            'word_translation' => (string) get_post_meta($word_id, 'word_translation', true),
+            'word_english_meaning' => (string) get_post_meta($word_id, 'word_english_meaning', true),
+        ];
+        $after = $before;
+        $summary['matched_count']++;
+
+        $guard_mismatch = '';
+        foreach ((array) ($update['guards'] ?? []) as $field => $expected_value) {
+            $field = (string) $field;
+            if (!array_key_exists($field, $before) || (string) $before[$field] === (string) $expected_value) {
+                continue;
+            }
+            $guard_mismatch = $field;
+            break;
+        }
+
+        if ($guard_mismatch !== '') {
+            $summary['skipped'][] = [
+                'index' => (int) $update['index'],
+                'word_id' => $word_id,
+                'word_slug' => (string) ($record['word_slug'] ?? ''),
+                'word_title' => (string) ($record['word_title'] ?? ''),
+                'reason' => 'old_value_mismatch',
+                'field' => $guard_mismatch,
+                'current_value' => (string) $before[$guard_mismatch],
+                'expected_old_value' => (string) ($update['guards'][$guard_mismatch] ?? ''),
+            ];
+            $summary['skipped_count']++;
+            continue;
+        }
+
+        $changed_keys = [];
+        foreach ((array) ($update['values'] ?? []) as $field => $value) {
+            $field = (string) $field;
+            if (!array_key_exists($field, $after)) {
+                continue;
+            }
+            $value = (string) $value;
+            if ((string) $after[$field] === $value) {
+                continue;
+            }
+            $after[$field] = $value;
+            $changed_keys[] = $field;
+        }
+
+        if (empty($changed_keys)) {
+            $summary['unchanged_count']++;
+            continue;
+        }
+
+        $changes[] = [
+            'index' => (int) $update['index'],
+            'word_id' => $word_id,
+            'word_slug' => (string) ($record['word_slug'] ?? ''),
+            'word_title' => (string) ($record['word_title'] ?? ''),
+            'changed_keys' => array_values(array_unique($changed_keys)),
+            'before' => $before,
+            'after' => $after,
+        ];
+    }
+
+    $summary['changed_count'] = count($changes);
+
+    if (!$dry_run && !empty($changes)) {
+        $changed_word_ids = [];
+        foreach ($changes as $change) {
+            $word_id = (int) $change['word_id'];
+            foreach ((array) ($change['changed_keys'] ?? []) as $field) {
+                $field = (string) $field;
+                $value = (string) (($change['after'][$field] ?? ''));
+                if ($value === '') {
+                    delete_post_meta($word_id, $field);
+                } else {
+                    update_post_meta($word_id, $field, $value);
+                }
+            }
+
+            $summary['updated'][] = [
+                'index' => (int) $change['index'],
+                'word_id' => $word_id,
+                'word_slug' => (string) $change['word_slug'],
+                'word_title' => (string) $change['word_title'],
+                'changed' => true,
+                'changed_keys' => array_values(array_map('strval', (array) ($change['changed_keys'] ?? []))),
+                'before' => (array) ($change['before'] ?? []),
+                'after' => (array) ($change['after'] ?? []),
             ];
             $summary['updated_count']++;
             $changed_word_ids[] = $word_id;
@@ -5471,6 +5792,12 @@ function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-title-updates', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_word_title_updates',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-helper-updates', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_word_helper_updates',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
     ]);
 

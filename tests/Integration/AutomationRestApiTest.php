@@ -55,6 +55,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/corpus-texts/{slug}', (string) ($data['routes']['corpus_text'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', (string) ($data['routes']['orthography_conversion'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-title-updates', (string) ($data['routes']['word_title_updates'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', (string) ($data['routes']['word_helper_updates'] ?? ''));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void
@@ -649,6 +650,110 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertIsArray($data);
         $this->assertSame('ll_tools_rest_too_many_word_title_updates', (string) ($data['code'] ?? ''));
         $this->assertStringContainsString('10', (string) ($data['message'] ?? ''));
+    }
+
+    public function test_word_helper_updates_route_updates_translation_meta_with_stale_guards(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Fast Helper Wordset', 'rest-fast-helper-wordset');
+        $blocked_wordset_id = $this->ensure_term('wordset', 'REST Blocked Helper Wordset', 'rest-blocked-helper-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Fast Helper Category', 'rest-fast-helper-category');
+
+        $changed_word_id = $this->create_word($wordset_id, [$category_id], 'Helper Changed', 'Old Target');
+        $guarded_word_id = $this->create_word($wordset_id, [$category_id], 'Helper Guarded', 'Guarded Target');
+        $unchanged_word_id = $this->create_word($wordset_id, [$category_id], 'Helper Same', 'Same Target');
+        $blocked_word_id = $this->create_word($blocked_wordset_id, [$category_id], 'Blocked Helper', 'Blocked Target');
+        update_post_meta($changed_word_id, 'word_english_meaning', 'Old Helper');
+        update_post_meta($guarded_word_id, 'word_english_meaning', 'Guarded Helper');
+        update_post_meta($unchanged_word_id, 'word_english_meaning', 'Same Helper');
+        update_post_meta($blocked_word_id, 'word_english_meaning', 'Blocked Helper');
+
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'updates' => [
+                [
+                    'word_id' => $changed_word_id,
+                    'old_word_translation' => 'Old Target',
+                    'word_translation' => 'New Target',
+                    'old_word_english_meaning' => 'Old Helper',
+                    'word_english_meaning' => 'New Helper',
+                ],
+                [
+                    'word_id' => $guarded_word_id,
+                    'old_helper_translation' => 'Not Current Helper',
+                    'word_english_meaning' => 'Should Not Apply',
+                ],
+                [
+                    'word_id' => $unchanged_word_id,
+                    'word_translation' => 'Same Target',
+                    'word_english_meaning' => 'Same Helper',
+                ],
+                [
+                    'word_id' => $blocked_word_id,
+                    'word_english_meaning' => 'Should Not Apply',
+                ],
+            ],
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-fast-helper-wordset/word-helper-updates', $payload + [
+            'dry_run' => true,
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertArrayNotHasKey('matched_rows', $dry_data);
+        $this->assertSame('word_helper_updates', (string) ($dry_data['batch_mode'] ?? ''));
+        $this->assertSame(3, (int) ($dry_data['matched_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame(0, (int) ($dry_data['updated_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['unchanged_count'] ?? 0));
+        $this->assertSame(2, (int) ($dry_data['skipped_count'] ?? 0));
+        $this->assertSame('Old Target', (string) get_post_meta($changed_word_id, 'word_translation', true));
+        $this->assertSame('Old Helper', (string) get_post_meta($changed_word_id, 'word_english_meaning', true));
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-fast-helper-wordset/word-helper-updates', $payload);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['changed_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame('New Target', (string) get_post_meta($changed_word_id, 'word_translation', true));
+        $this->assertSame('New Helper', (string) get_post_meta($changed_word_id, 'word_english_meaning', true));
+        $this->assertSame('Guarded Helper', (string) get_post_meta($guarded_word_id, 'word_english_meaning', true));
+        $this->assertSame('Blocked Helper', (string) get_post_meta($blocked_word_id, 'word_english_meaning', true));
+        $this->assertContains('word_translation', (array) ($data['updated'][0]['changed_keys'] ?? []));
+        $this->assertContains('word_english_meaning', (array) ($data['updated'][0]['changed_keys'] ?? []));
+        $this->assertSame('old_value_mismatch', (string) ($data['skipped'][0]['reason'] ?? ''));
+        $this->assertSame('not_in_wordset', (string) ($data['skipped'][1]['reason'] ?? ''));
+    }
+
+    public function test_word_helper_updates_route_rejects_oversized_write_batches(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $this->ensure_term('wordset', 'REST Fast Helper Limit Wordset', 'rest-fast-helper-limit-wordset');
+
+        wp_set_current_user($admin_id);
+
+        $updates = [];
+        for ($index = 0; $index < 26; $index++) {
+            $updates[] = [
+                'word_id' => 2000 + $index,
+                'word_english_meaning' => 'Helper ' . $index,
+            ];
+        }
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-fast-helper-limit-wordset/word-helper-updates', [
+            'updates' => $updates,
+        ]);
+        $data = $response->get_data();
+
+        $this->assertSame(400, $response->get_status());
+        $this->assertIsArray($data);
+        $this->assertSame('ll_tools_rest_too_many_word_helper_updates', (string) ($data['code'] ?? ''));
+        $this->assertStringContainsString('25', (string) ($data['message'] ?? ''));
     }
 
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void

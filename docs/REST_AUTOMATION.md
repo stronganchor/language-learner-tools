@@ -25,8 +25,10 @@ For a normal Codex session against a live LL Tools site:
 8. Then call `GET /wordsets/{wordset}/report-summary` to confirm the exact
    target wordset and current coverage without running the heavier full report.
 9. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
-10. Use `POST /wordsets/{wordset}/bulk-update` with `dry_run=true` before any
-   write operation.
+10. Use the narrowest write route for the job, with `dry_run=true` first:
+    `word-title-updates` for title-only maintenance, `word-helper-updates` for
+    helper/known-language translation repair, and `bulk-update` for small mixed
+    metadata edits.
 11. Re-run the same request without `dry_run` to apply changes. The server
     applies write batches in small chunks by default, so keep the returned
     `resume_state` and repeat until `batch.has_more` is false.
@@ -55,6 +57,9 @@ the server with image, media, or metadata updates:
   of 10. Dry runs default to 50 rows, with a hard default max of 100.
 - `word-title-updates` defaults to 5 write rows per request, with a hard
   default max of 10. Dry runs default to 50 rows, with a hard default max of
+  100.
+- `word-helper-updates` defaults to 10 write rows per request, with a hard
+  default max of 25. Dry runs default to 50 rows, with a hard default max of
   100.
 - `missing-meta` returns a paged response by default: 100 rows per request, with
   a hard default max of 250.
@@ -132,6 +137,7 @@ Routes:
 - `GET /wordsets/{wordset}/missing-meta`
 - `POST /wordsets/{wordset}/bulk-update`
 - `POST /wordsets/{wordset}/word-title-updates`
+- `POST /wordsets/{wordset}/word-helper-updates`
 - `POST /wordsets/{wordset}/transcriptions`
 - `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
@@ -277,10 +283,44 @@ curl -u codex-temp:YOUR_PASSWORD \
 
 This endpoint is for title-only maintenance where each row already has a known
 word ID. It preserves slugs, skips rows whose `old_title` no longer matches,
-updates only `post_title`, and performs cache cleanup once for the batch. Use
-the generic `/bulk-update` route for metadata changes or word resolution by
-slug/title. On live sites, send title updates in small chunks and honor
-`Retry-After` exactly; do not parallelize this endpoint.
+updates only `post_title`, and performs cache cleanup once for the batch. On
+live sites, send title updates in small chunks and honor `Retry-After` exactly;
+do not parallelize this endpoint.
+
+Fast guarded helper/known-language translation maintenance:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/word-helper-updates \
+  -d '{
+    "dry_run": true,
+    "updates": [
+      {
+        "word_id": 123,
+        "old_word_english_meaning": "Bad helper text",
+        "word_english_meaning": "Fixed helper text"
+      },
+      {
+        "word_id": 456,
+        "old_word_translation": "Bad stored translation",
+        "word_translation": "Fixed stored translation",
+        "word_english_meaning": "Fixed helper text"
+      }
+    ]
+  }'
+```
+
+Use this endpoint for broad repair of `word_translation` or
+`word_english_meaning` when each row already has a known word ID. It validates
+that each word belongs to the requested wordset, supports optional old-value
+guards, writes only those two meta keys, returns a compact before/after payload,
+and performs cache cleanup once for the batch. Do not use the generic
+`/bulk-update` route for large live helper-translation repair: that route
+rebuilds full editor rows and can be much heavier per word. Keep calls serial
+and honor `Retry-After`; if the live site is slow, add a client-side delay after
+successful writes too.
 
 Dry-run staged word-option groups by category slug and word slugs:
 
@@ -454,6 +494,9 @@ For title-as-translation wordsets, `word_translation` can be the target-language
 storage slot rather than the helper-language translation. Use
 `word_english_meaning` for direct Turkish/helper translation recovery or repair
 passes when you do not want the endpoint to apply display-mode title swapping.
+For broad live repair of `word_translation` or `word_english_meaning`, prefer
+`POST /wordsets/{wordset}/word-helper-updates` because it avoids full row
+rebuilds and coalesces cache cleanup.
 
 `resume_state` is the REST equivalent of the CLI `--resume-file` feature. Send
 back the response's `resume_state` object on the next request to skip words that
@@ -465,6 +508,28 @@ Typical uses:
 - backfilling `grammatical_gender`
 - attaching `dictionary_entry_title`
 - updating `word_note` without resending the entire word row
+
+### `POST /wordsets/{wordset}/word-helper-updates`
+
+Updates helper/known-language translation metadata for words that already have
+known word IDs. This route is intended for efficient live repair of corrupted or
+missing `word_translation` and `word_english_meaning` values.
+
+Body fields:
+
+- `updates` required array
+- `word_id` or `id` required per update
+- `word_translation` optional direct stored translation value
+- `word_english_meaning` optional direct helper/known-language value
+- `value` plus `field=word_translation` or `field=word_english_meaning`
+  optional alternative syntax
+- `old_word_translation` optional stale-value guard
+- `old_word_english_meaning` optional stale-value guard
+- `dry_run` optional boolean
+
+Dry runs and writes return compact `before` and `after` values for only the two
+supported fields. The write cap defaults to 10 rows and is capped at 25 rows
+unless the site customizes the REST automation filters.
 
 ### `POST /wordsets/{wordset}/transcriptions`
 
