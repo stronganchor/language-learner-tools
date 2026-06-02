@@ -651,6 +651,12 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
   await expect(page.locator('.ll-wordset-card--lazy-placeholder[data-cat-id]')).toHaveCount(0);
   await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
   await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview')).toHaveCount(4);
+  await expect(page.locator('[data-ll-wordset-main-grid] > .ll-wordset-card--lazy-placeholder')).toHaveCount(1);
+  await expect(page.locator('[data-ll-wordset-load-more-placeholders] > .ll-wordset-card--lazy-placeholder')).toHaveCount(0);
+  const initialMainGridOrder = await page.locator('[data-ll-wordset-main-grid] > .ll-wordset-card').evaluateAll((cards) => cards.map((card) => (
+    card.getAttribute('data-cat-id') || `shell:${card.getAttribute('data-ll-wordset-lazy-shell-id') || ''}`
+  )));
+  expect(initialMainGridOrder).toEqual(['11', 'shell:22']);
 
   await page.mouse.wheel(0, 2000);
 

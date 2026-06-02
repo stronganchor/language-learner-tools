@@ -1207,6 +1207,7 @@
             + shellIdAttr
             + ' data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '"'
             + (inline ? ' data-ll-wordset-inline-placeholder="true"' : ' data-ll-wordset-lazy-shell-type="category"')
+            + (inline ? '' : ' data-ll-wordset-load-more-placeholder="true"')
             + ' aria-hidden="true">'
             + '  <div class="ll-wordset-card__top">'
             + '    <span class="ll-wordset-card__select-box" aria-hidden="true"></span>'
@@ -7791,7 +7792,7 @@
         const openLessonLabel = String(i18n.openLessonLabel || '').trim();
 
         return ''
-            + '<article class="ll-wordset-card ll-wordset-card--content ll-wordset-card--lazy-placeholder ll-wordset-card--lazy-content-shell" role="listitem" data-ll-wordset-lazy-shell-type="content" aria-hidden="true">'
+            + '<article class="ll-wordset-card ll-wordset-card--content ll-wordset-card--lazy-placeholder ll-wordset-card--lazy-content-shell" role="listitem" data-ll-wordset-lazy-shell-type="content" data-ll-wordset-load-more-placeholder="true" aria-hidden="true">'
             + '  <div class="ll-wordset-card__top">'
             + '    <span class="ll-wordset-card__content-top-spacer" aria-hidden="true"></span>'
             + '    ' + titleMarkup
@@ -7832,7 +7833,7 @@
 
     function buildGenericLazyCardPlaceholderMarkup() {
         return ''
-            + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder" aria-hidden="true">'
+            + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder" data-ll-wordset-load-more-placeholder="true" aria-hidden="true">'
             + '  <div class="ll-wordset-card__top">'
             + '    <span class="ll-wordset-card__select-box ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
             + '    <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
@@ -7866,11 +7867,51 @@
         return html;
     }
 
-    function syncLazyCardsPlaceholders(options) {
-        if (!$lazyCardsPlaceholders.length) {
+    function removeLazyCardsLoadMorePlaceholders() {
+        if ($grid.length) {
+            $grid.children('[data-ll-wordset-load-more-placeholder="true"]').remove();
+        }
+    }
+
+    function clearLazyCardsPlaceholders() {
+        lazyCardsPlaceholderCount = 0;
+        lazyCardsPlaceholderShellOffset = -1;
+        removeLazyCardsLoadMorePlaceholders();
+        if ($lazyCardsPlaceholders.length) {
+            $lazyCardsPlaceholders
+                .empty()
+                .prop('hidden', true)
+                .removeAttr('data-placeholder-count');
+        }
+    }
+
+    function renderLazyCardsPlaceholdersInMainGrid(count) {
+        if (!$grid.length) {
             return;
         }
 
+        const markup = buildLazyCardsPlaceholderMarkup(count);
+        if (!markup) {
+            return;
+        }
+
+        const parsedNodes = $.parseHTML(String(markup), document, true) || [];
+        if (!parsedNodes.length) {
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        parsedNodes.forEach(function (node) {
+            if (node && node.nodeType === 1) {
+                fragment.appendChild(node);
+            }
+        });
+        if (fragment.childNodes.length) {
+            $grid[0].appendChild(fragment);
+        }
+    }
+
+    function syncLazyCardsPlaceholders(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const hasError = !!opts.error;
         const searchActive = isMainCategorySearchActive();
@@ -7878,24 +7919,29 @@
         const hasMore = hasPendingLazyCards();
 
         if (!hasMore || hasError || searchActive || inlineSortedPlaceholders) {
-            lazyCardsPlaceholderCount = 0;
-            lazyCardsPlaceholderShellOffset = -1;
-            $lazyCardsPlaceholders.empty().prop('hidden', true);
+            clearLazyCardsPlaceholders();
             return;
         }
 
         const remaining = Math.max(0, lazyCardsTotalCount - lazyCardsLoadedCount);
         const nextCount = Math.max(1, Math.min(remaining, getLazyCardsPlaceholderColumnCount()));
         const shellOffset = getLazyCardShellOffset();
-        if (nextCount !== lazyCardsPlaceholderCount || shellOffset !== lazyCardsPlaceholderShellOffset) {
-            $lazyCardsPlaceholders.html(buildLazyCardsPlaceholderMarkup(nextCount));
+        const renderedCount = $grid.length
+            ? $grid.children('[data-ll-wordset-load-more-placeholder="true"]').length
+            : 0;
+        if (nextCount !== lazyCardsPlaceholderCount || shellOffset !== lazyCardsPlaceholderShellOffset || renderedCount !== nextCount) {
+            removeLazyCardsLoadMorePlaceholders();
+            renderLazyCardsPlaceholdersInMainGrid(nextCount);
             lazyCardsPlaceholderCount = nextCount;
             lazyCardsPlaceholderShellOffset = shellOffset;
         }
 
-        $lazyCardsPlaceholders
-            .prop('hidden', false)
-            .attr('data-placeholder-count', String(nextCount));
+        if ($lazyCardsPlaceholders.length) {
+            $lazyCardsPlaceholders
+                .empty()
+                .prop('hidden', true)
+                .attr('data-placeholder-count', String(nextCount));
+        }
     }
 
     function stopLazyCardsAutoLoadPolling() {
@@ -8008,6 +8054,8 @@
         if (!$grid.length || !html) {
             return;
         }
+
+        clearLazyCardsPlaceholders();
 
         const parsedNodes = $.parseHTML(String(html), document, true) || [];
         if (!parsedNodes.length) {
