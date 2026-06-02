@@ -30,15 +30,18 @@ For a normal Codex session against a live LL Tools site:
 11. Re-run the same request without `dry_run` to apply changes. The server
     applies write batches in small chunks by default, so keep the returned
     `resume_state` and repeat until `batch.has_more` is false.
-12. For word-option groups, call
+12. Keep automation calls serial. If the server returns `429`, wait at least
+    the `Retry-After` header value before retrying. On slow live sites, add a
+    larger client-side delay even after successful write requests.
+13. For word-option groups, call
     `POST /wordsets/{wordset}/word-option-rules` with `dry_run=true` before
     applying the same payload without `dry_run`.
-13. For bundle imports, preview with `POST /imports/preview`, start with
+14. For bundle imports, preview with `POST /imports/preview`, start with
     `POST /imports/start`, then poll `POST /imports/{job_id}/process` until the
     job is completed.
-14. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
+15. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
     undo availability, and the import history entry ID.
-15. Delete or downgrade the temporary user when the session is complete.
+16. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -50,10 +53,16 @@ the server with image, media, or metadata updates:
 
 - `bulk-update` defaults to 10 write rows per request, with a hard default max
   of 10. Dry runs default to 50 rows, with a hard default max of 100.
+- `word-title-updates` defaults to 5 write rows per request, with a hard
+  default max of 10. Dry runs default to 50 rows, with a hard default max of
+  100.
 - `missing-meta` returns a paged response by default: 100 rows per request, with
   a hard default max of 250.
 - Basic-auth REST writes to `/wp/v2/media`, `/wp/v2/word_images`, and
   `/wp/v2/words` are serialized by a lightweight resource guard.
+- Basic-auth probes to `/wp/v2/users/me` and `GET /automation/status` are also
+  paced by the same guard so automation scripts do not fill the PHP-FPM pool
+  with repeated auth/status checks while a write is already running.
 - Basic-auth automation writes that can mutate or rebuild larger LL Tools
   surfaces are also serialized, including static-cache purge, wordset writes,
   import preview/start/process/discard, and corpus-text asset/import routes.
@@ -270,7 +279,8 @@ This endpoint is for title-only maintenance where each row already has a known
 word ID. It preserves slugs, skips rows whose `old_title` no longer matches,
 updates only `post_title`, and performs cache cleanup once for the batch. Use
 the generic `/bulk-update` route for metadata changes or word resolution by
-slug/title.
+slug/title. On live sites, send title updates in small chunks and honor
+`Retry-After` exactly; do not parallelize this endpoint.
 
 Dry-run staged word-option groups by category slug and word slugs:
 

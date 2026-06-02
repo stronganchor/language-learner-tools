@@ -514,6 +514,10 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'default' => $dry_run ? 50 : 10,
             'max' => $dry_run ? 100 : 10,
         ],
+        'word_title_updates' => [
+            'default' => $dry_run ? 50 : 5,
+            'max' => $dry_run ? 100 : 10,
+        ],
         'missing_meta' => [
             'default' => 100,
             'max' => 250,
@@ -574,11 +578,11 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     }
 
     $method = strtoupper((string) $request->get_method());
-    if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
-        return [];
-    }
-
-    if (rest_sanitize_boolean($request->get_param('dry_run'))) {
+    $is_write = in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true);
+    $route = (string) $request->get_route();
+    $is_auth_probe = in_array($method, ['GET', 'HEAD'], true)
+        && in_array($route, ['/ll-tools/v1/automation/status', '/wp/v2/users/me'], true);
+    if (!$is_write && !$is_auth_probe) {
         return [];
     }
 
@@ -586,31 +590,40 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
         return [];
     }
 
-    $route = (string) $request->get_route();
-    $resource = '';
-    $delay_seconds = 1.25;
+    if ($is_write && rest_sanitize_boolean($request->get_param('dry_run'))) {
+        return [];
+    }
 
-    if (preg_match('#^/wp/v2/(media|word_images|words)(?:/\d+)?$#', $route, $matches)) {
+    $resource = '';
+    $delay_seconds = 5.0;
+
+    if ($route === '/ll-tools/v1/automation/status') {
+        $resource = 'll_tools_automation_status';
+        $delay_seconds = 2.0;
+    } elseif ($route === '/wp/v2/users/me') {
+        $resource = 'wp_users_me';
+        $delay_seconds = 2.0;
+    } elseif (preg_match('#^/wp/v2/(media|word_images|words)(?:/\d+)?$#', $route, $matches)) {
         $resource = (string) $matches[1];
-        $delay_seconds = in_array($resource, ['media', 'word_images'], true) ? 2.0 : 1.25;
+        $delay_seconds = in_array($resource, ['media', 'word_images'], true) ? 5.0 : 3.0;
     } elseif ($route === '/ll-tools/v1/cache/static/purge') {
         $resource = 'll_tools_static_cache_purge';
-        $delay_seconds = 2.0;
+        $delay_seconds = 5.0;
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
-        $delay_seconds = 2.0;
+        $delay_seconds = 5.0;
     } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|transcriptions|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
-        $delay_seconds = 1.25;
+        $delay_seconds = 5.0;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
         $resource = 'll_tools_import_' . sanitize_key((string) $matches[1]);
-        $delay_seconds = 2.0;
+        $delay_seconds = 5.0;
     } elseif (preg_match('#^/ll-tools/v1/imports/[^/]+/(process|discard)$#', $route, $matches)) {
         $resource = 'll_tools_import_' . sanitize_key((string) $matches[1]);
-        $delay_seconds = 2.0;
+        $delay_seconds = 5.0;
     } elseif (preg_match('#^/ll-tools/v1/corpus-texts/(asset|import)$#', $route, $matches)) {
         $resource = 'll_tools_corpus_text_' . sanitize_key((string) $matches[1]);
-        $delay_seconds = 2.0;
+        $delay_seconds = 5.0;
     }
 
     if ($resource === '') {
@@ -618,7 +631,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     }
 
     return [
-        'scope' => (string) apply_filters('ll_tools_rest_resource_guard_scope', 'll_tools_rest_automation_write', $request, $resource),
+        'scope' => (string) apply_filters('ll_tools_rest_resource_guard_scope', 'll_tools_rest_automation', $request, $resource),
         'resource' => $resource,
         'route' => $route,
         'delay_seconds' => max(0.1, (float) apply_filters('ll_tools_rest_resource_guard_delay_seconds', $delay_seconds, $request, $resource)),
@@ -786,9 +799,10 @@ add_filter('rest_post_dispatch', 'll_tools_rest_resource_guard_release', 999, 3)
 add_filter('rest_request_after_callbacks', 'll_tools_rest_resource_guard_release', 999, 3);
 
 function ll_tools_rest_resource_guard_clear_state(): void {
-    $scope = 'll_tools_rest_automation_write';
-    delete_option(ll_tools_rest_resource_guard_option_name($scope, 'lock'));
-    delete_option(ll_tools_rest_resource_guard_option_name($scope, 'next'));
+    foreach (['ll_tools_rest_automation', 'll_tools_rest_automation_write'] as $scope) {
+        delete_option(ll_tools_rest_resource_guard_option_name($scope, 'lock'));
+        delete_option(ll_tools_rest_resource_guard_option_name($scope, 'next'));
+    }
     $GLOBALS['ll_tools_rest_resource_guard_locks'] = [];
 }
 
@@ -859,6 +873,11 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
         ],
         'resource_guard' => [
             'retry_status' => 429,
+            'shared_scope' => 'll_tools_rest_automation',
+            'auth_probe_routes' => [
+                '/ll-tools/v1/automation/status',
+                '/wp/v2/users/me',
+            ],
             'core_write_routes' => [
                 '/wp/v2/media',
                 '/wp/v2/word_images',
@@ -889,6 +908,12 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 'max_write_limit' => ll_tools_rest_automation_batch_limit('bulk_update', false)['max'],
                 'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('bulk_update', true)['default'],
                 'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('bulk_update', true)['max'],
+            ],
+            'word_title_updates_batch' => [
+                'default_write_limit' => ll_tools_rest_automation_batch_limit('word_title_updates', false)['default'],
+                'max_write_limit' => ll_tools_rest_automation_batch_limit('word_title_updates', false)['max'],
+                'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_title_updates', true)['default'],
+                'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_title_updates', true)['max'],
             ],
             'missing_meta_batch' => [
                 'default_limit' => ll_tools_rest_automation_batch_limit('missing_meta', false)['default'],
@@ -1447,7 +1472,8 @@ function ll_tools_rest_automation_word_title_updates(WP_REST_Request $request) {
     $raw_updates = $request->get_param('updates');
     $raw_updates = is_array($raw_updates) ? array_values($raw_updates) : [];
     $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
-    $max_updates = 1000;
+    $batch_settings = ll_tools_rest_automation_batch_limit('word_title_updates', $dry_run);
+    $max_updates = (int) $batch_settings['max'];
     $started = microtime(true);
 
     $summary = [
@@ -1461,6 +1487,10 @@ function ll_tools_rest_automation_word_title_updates(WP_REST_Request $request) {
         'batch_mode' => 'word_title_updates',
         'input_count' => count($raw_updates),
         'max_updates' => $max_updates,
+        'batch' => [
+            'default_limit' => (int) $batch_settings['default'],
+            'max_limit' => (int) $batch_settings['max'],
+        ],
         'matched_count' => 0,
         'changed_count' => 0,
         'updated_count' => 0,

@@ -576,6 +576,32 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('not_in_wordset', (string) ($data['skipped'][1]['reason'] ?? ''));
     }
 
+    public function test_word_title_updates_route_rejects_oversized_write_batches(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $this->ensure_term('wordset', 'REST Fast Title Limit Wordset', 'rest-fast-title-limit-wordset');
+
+        wp_set_current_user($admin_id);
+
+        $updates = [];
+        for ($index = 0; $index < 11; $index++) {
+            $updates[] = [
+                'word_id' => 1000 + $index,
+                'title' => 'New Title ' . $index,
+            ];
+        }
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-fast-title-limit-wordset/word-title-updates', [
+            'updates' => $updates,
+        ]);
+        $data = $response->get_data();
+
+        $this->assertSame(400, $response->get_status());
+        $this->assertIsArray($data);
+        $this->assertSame('ll_tools_rest_too_many_word_title_updates', (string) ($data['code'] ?? ''));
+        $this->assertStringContainsString('10', (string) ($data['message'] ?? ''));
+    }
+
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

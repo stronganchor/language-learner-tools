@@ -32,6 +32,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             '/ll-tools/v1/cache/static/purge' => 'll_tools_static_cache_purge',
             '/ll-tools/v1/wordsets' => 'll_tools_wordset_create',
             '/ll-tools/v1/wordsets/spanish/bulk-update' => 'll_tools_bulk-update',
+            '/ll-tools/v1/wordsets/spanish/word-title-updates' => 'll_tools_word-title-updates',
             '/ll-tools/v1/wordsets/spanish/transcriptions' => 'll_tools_transcriptions',
             '/ll-tools/v1/wordsets/spanish/word-option-rules' => 'll_tools_word-option-rules',
             '/ll-tools/v1/wordsets/spanish/orthography-conversion' => 'll_tools_orthography-conversion',
@@ -52,8 +53,28 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
 
             $this->assertSame($resource, (string) ($policy['resource'] ?? ''), $route);
             $this->assertSame($route, (string) ($policy['route'] ?? ''), $route);
-            $this->assertSame('ll_tools_rest_automation_write', (string) ($policy['scope'] ?? ''), $route);
-            $this->assertGreaterThanOrEqual(0.1, (float) ($policy['delay_seconds'] ?? 0), $route);
+            $this->assertSame('ll_tools_rest_automation', (string) ($policy['scope'] ?? ''), $route);
+            $this->assertGreaterThanOrEqual(3.0, (float) ($policy['delay_seconds'] ?? 0), $route);
+        }
+    }
+
+    public function test_basic_auth_guard_policy_covers_authentication_probe_routes(): void
+    {
+        $this->setAuthorizationHeader();
+
+        $expected = [
+            '/ll-tools/v1/automation/status' => 'll_tools_automation_status',
+            '/wp/v2/users/me' => 'wp_users_me',
+        ];
+
+        foreach ($expected as $route => $resource) {
+            $request = new WP_REST_Request('GET', $route);
+            $policy = ll_tools_rest_resource_guard_policy($request);
+
+            $this->assertSame($resource, (string) ($policy['resource'] ?? ''), $route);
+            $this->assertSame($route, (string) ($policy['route'] ?? ''), $route);
+            $this->assertSame('ll_tools_rest_automation', (string) ($policy['scope'] ?? ''), $route);
+            $this->assertGreaterThanOrEqual(2.0, (float) ($policy['delay_seconds'] ?? 0), $route);
         }
     }
 
@@ -80,12 +101,22 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
         $this->assertIsArray($data);
         $resourceGuard = $data['resource_guard'] ?? [];
         $this->assertIsArray($resourceGuard);
+        $this->assertSame('ll_tools_rest_automation', (string) ($resourceGuard['shared_scope'] ?? ''));
         $automationRoutes = array_map('strval', (array) ($resourceGuard['automation_write_routes'] ?? []));
+        $authProbeRoutes = array_map('strval', (array) ($resourceGuard['auth_probe_routes'] ?? []));
 
+        $this->assertContains('/ll-tools/v1/automation/status', $authProbeRoutes);
+        $this->assertContains('/wp/v2/users/me', $authProbeRoutes);
         $this->assertContains('/ll-tools/v1/cache/static/purge', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', $automationRoutes);
         $this->assertContains('/ll-tools/v1/imports/{job_id}/process', $automationRoutes);
         $this->assertContains('/ll-tools/v1/corpus-texts/import', $automationRoutes);
+
+        $titleBatch = is_array($resourceGuard['word_title_updates_batch'] ?? null)
+            ? $resourceGuard['word_title_updates_batch']
+            : [];
+        $this->assertSame(5, (int) ($titleBatch['default_write_limit'] ?? 0));
+        $this->assertSame(10, (int) ($titleBatch['max_write_limit'] ?? 0));
     }
 
     private function setAuthorizationHeader(): void
