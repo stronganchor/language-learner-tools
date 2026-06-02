@@ -2017,8 +2017,7 @@
                         .addClass('is-saving')
                         .prop('disabled', true)
                         .attr('aria-disabled', 'true')
-                        .attr('aria-busy', 'true')
-                        .text(t('saving', 'Saving...'));
+                        .attr('aria-busy', 'true');
                 }
             }
             return;
@@ -2106,7 +2105,9 @@
             $suggestions.append($('<button>', {
                 type: 'button',
                 class: 'll-ipa-search-suggestion-chip ll-ipa-search-suggestion-chip--orthography ll-ipa-search-orthography-apply',
-                text: formatText(labelTemplate, [detail.suggested_text])
+                text: formatText(labelTemplate, [detail.suggested_text]),
+                'data-suggestion-field': 'recording_text',
+                'data-suggestion-value': detail.suggested_text
             }));
         }
 
@@ -2120,7 +2121,9 @@
                     type: 'button',
                     class: 'll-ipa-search-suggestion-chip ll-ipa-search-suggestion-chip--ipa ll-ipa-search-ipa-suggestion-apply',
                     text: formatText(labelTemplate, [suggestion.label || ipa]),
-                    'data-ipa': ipa
+                    'data-ipa': ipa,
+                    'data-suggestion-field': 'recording_ipa',
+                    'data-suggestion-value': ipa
                 }));
             });
         }
@@ -3365,6 +3368,37 @@
         syncSearchInputHighlight(input);
     }
 
+    function applyInlineSearchSuggestion($row, field, value) {
+        if (!$row.length || !currentCanEdit) {
+            return false;
+        }
+
+        const normalizedField = normalizeSearchReviewField(field);
+        const nextValue = (value || '').toString();
+        if (nextValue === '') {
+            return false;
+        }
+
+        const $input = getSearchRowInputForField($row, normalizedField);
+        const input = $input.get(0);
+        if (!input) {
+            return false;
+        }
+
+        $input.val(nextValue);
+        const $fieldBlock = $row.find(getSearchReviewFieldSelector(normalizedField)).first();
+        $fieldBlock.find('.ll-ipa-search-field-suggestions').remove();
+
+        const $wrap = $input.closest('.ll-ipa-search-field-wrap');
+        $wrap.removeClass('ll-ipa-search-field-wrap--highlighted');
+        $wrap.find('.ll-ipa-search-input-highlight').remove();
+        syncSearchInputHighlight(input);
+
+        setSearchRowDirtyState($row, searchRowHasUnsavedChanges($row));
+        autosaveSearchRow($row, { restoreFocusField: normalizedField });
+        return true;
+    }
+
     function getPendingSearchReviewStates(recordingId) {
         const key = String(recordingId || '');
         if (!key || !pendingSearchReviewState[key] || typeof pendingSearchReviewState[key] !== 'object') {
@@ -4189,89 +4223,19 @@
         });
     });
 
-    $searchResults.on('click', '.ll-ipa-search-orthography-apply', function () {
+    $searchResults.on('click', '.ll-ipa-search-suggestion-chip', function () {
         const $btn = $(this);
         const $row = $btn.closest('tr');
         const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
+        const suggestionField = ($btn.attr('data-suggestion-field') || '').toString();
+        const fallbackValue = $btn.hasClass('ll-ipa-search-ipa-suggestion-apply')
+            ? ($btn.attr('data-ipa') || '').toString()
+            : '';
+        const suggestionValue = ($btn.attr('data-suggestion-value') || fallbackValue).toString();
 
-        if (!recordingId || !currentWordsetId || $row.data('llSearchRowSaving')) {
+        if (!recordingId || !currentWordsetId || !applyInlineSearchSuggestion($row, suggestionField, suggestionValue)) {
             return;
         }
-        if (searchRowHasUnsavedChanges($row)) {
-            autosaveSearchRow($row);
-            setStatus(t('orthographyIssueSaveFirst', 'Saved local edits. Click the suggestion again to apply it.'), false);
-            return;
-        }
-
-        $btn.prop('disabled', true);
-        setStatus(t('saving', 'Saving...'), false);
-        $.post(ajaxUrl, {
-            action: 'll_tools_apply_ipa_keyboard_orthography_suggestion',
-            nonce: nonce,
-            wordset_id: currentWordsetId,
-            recording_id: recordingId
-        }).done(function (response) {
-            if (!response || response.success !== true) {
-                setStatus(t('error', 'Something went wrong. Please try again.'), true);
-                return;
-            }
-            const data = response.data || {};
-            if (data.applied_suggestion && data.applied_suggestion.recording) {
-                replaceSearchRowByRecordingId(recordingId, data.applied_suggestion.recording);
-            } else if (data.validation) {
-                updateSearchRowValidation($row, data.validation);
-            }
-            markTabsDirty(['map', 'symbols', 'orthography']);
-            setStatus(t('orthographyIssueSuggestionApplied', 'Suggestion saved.'), false);
-        }).fail(function () {
-            setStatus(t('error', 'Something went wrong. Please try again.'), true);
-        }).always(function () {
-            $btn.prop('disabled', false);
-        });
-    });
-
-    $searchResults.on('click', '.ll-ipa-search-ipa-suggestion-apply', function () {
-        const $btn = $(this);
-        const $row = $btn.closest('tr');
-        const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
-        const recordingIpa = ($btn.attr('data-ipa') || '').toString();
-
-        if (!recordingId || !currentWordsetId || !recordingIpa || $row.data('llSearchRowSaving')) {
-            return;
-        }
-        if (searchRowHasUnsavedChanges($row)) {
-            autosaveSearchRow($row);
-            setStatus(t('orthographyIssueSaveFirst', 'Saved local edits. Click the suggestion again to apply it.'), false);
-            return;
-        }
-
-        $btn.prop('disabled', true);
-        setStatus(t('saving', 'Saving...'), false);
-        $.post(ajaxUrl, {
-            action: 'll_tools_update_recording_ipa',
-            nonce: nonce,
-            wordset_id: currentWordsetId,
-            recording_id: recordingId,
-            recording_ipa: recordingIpa
-        }).done(function (response) {
-            if (!response || response.success !== true) {
-                setStatus(t('error', 'Something went wrong. Please try again.'), true);
-                return;
-            }
-            const data = response.data || {};
-            if (data.recording) {
-                replaceSearchRowByRecordingId(recordingId, data.recording);
-            } else {
-                updateSearchRowValidation($row, data.validation || null);
-            }
-            applyKeyboardSymbols(data.keyboard_symbols || currentKeyboardSymbols);
-            markTabsDirty(['map', 'symbols', 'orthography']);
-            setStatus(t('orthographyIssueIpaSuggestionApplied', 'IPA suggestion saved.'), false);
-        }).fail(function () {
-            setStatus(t('error', 'Something went wrong. Please try again.'), true);
-        }).always(function () {
-            $btn.prop('disabled', false);
-        });
     });
 
     $searchResults.on('click', '.ll-ipa-issue-toggle', function () {

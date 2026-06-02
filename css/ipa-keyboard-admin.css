@@ -1441,22 +1441,7 @@
 }
 
 .ll-ipa-review-toggle.is-saving {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    cursor: progress;
-    opacity: 0.9;
-}
-
-.ll-ipa-review-toggle.is-saving::before {
-    content: "";
-    width: 11px;
-    height: 11px;
-    border-radius: 999px;
-    border: 2px solid rgba(3, 105, 161, 0.24);
-    border-top-color: #0369a1;
-    box-sizing: border-box;
-    animation: ll-ipa-search-save-spin 0.7s linear infinite;
+    display: none;
 }
 
 .ll-ipa-search-actions {
