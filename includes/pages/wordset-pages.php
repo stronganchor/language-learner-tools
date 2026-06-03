@@ -1636,6 +1636,7 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
     $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
+    $inactive_user_id = $include_inactive ? max(0, (int) get_current_user_id()) : 0;
     $cache_key = ll_tools_wordset_page_build_cache_key('category_rows', [
         'wordset_id' => $wordset_id,
         'min_words' => $min_words,
@@ -1644,18 +1645,17 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
         'cache_context' => $cache_context_sig,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
-        'preview_schema' => 3,
+        'preview_schema' => 4,
         'inactive' => $include_inactive ? 1 : 0,
+        'inactive_user_id' => $inactive_user_id,
     ]);
-    if (!$include_inactive) {
-        $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
-        if (is_array($cached)) {
-            return $cached;
-        }
-    } elseif (array_key_exists($cache_key, $request_cache)) {
-        return is_array($request_cache[$cache_key]) ? $request_cache[$cache_key] : [];
+    $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
+    if (is_array($cached)) {
+        return $cached;
     }
-    $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_category_rows_cache_ttl', HOUR_IN_SECONDS);
+    $cache_ttl = $include_inactive
+        ? ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_inactive_category_rows_cache_ttl', 10 * MINUTE_IN_SECONDS)
+        : ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_category_rows_cache_ttl', HOUR_IN_SECONDS);
 
     $counts = function_exists('ll_tools_get_vocab_lesson_deepest_counts_for_wordset')
         ? ll_tools_get_vocab_lesson_deepest_counts_for_wordset($wordset_id)
@@ -1753,10 +1753,6 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
     }
 
     if (empty($rows)) {
-        if ($include_inactive) {
-            $request_cache[$cache_key] = [];
-            return [];
-        }
         return ll_tools_wordset_page_store_cached_payload($cache_key, [], $cache_ttl, $request_cache);
     }
 
@@ -1781,11 +1777,6 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
         if (!empty($ordered_rows)) {
             $rows = $ordered_rows;
         }
-    }
-
-    if ($include_inactive) {
-        $request_cache[$cache_key] = $rows;
-        return $rows;
     }
 
     return ll_tools_wordset_page_store_cached_payload($cache_key, $rows, $cache_ttl, $request_cache);
@@ -2976,7 +2967,7 @@ function ll_tools_wordset_page_collect_gender_supported_lookup(int $wordset_id, 
 }
 
 function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limit = 2, array $args = []): array {
-    static $guest_request_cache = [];
+    static $category_request_cache = [];
 
     $wordset = get_term($wordset_id, 'wordset');
     if (!$wordset || is_wp_error($wordset)) {
@@ -2986,9 +2977,15 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
     $defer_previews = !empty($args['defer_previews']);
     $include_inactive = ll_tools_wordset_page_current_user_can_preview_inactive_categories($wordset_id);
     $use_guest_cache = !is_user_logged_in();
-    $guest_cache_key = '';
-    $guest_cache_ttl = 0;
-    if ($use_guest_cache) {
+    $cache_user_id = max(0, (int) get_current_user_id());
+    $use_user_cache = (
+        !$use_guest_cache
+        && $cache_user_id > 0
+        && (bool) apply_filters('ll_tools_wordset_page_user_categories_cache_enabled', true, $wordset_id, $include_inactive)
+    );
+    $category_cache_key = '';
+    $category_cache_ttl = 0;
+    if ($use_guest_cache || $use_user_cache) {
         $translation_enabled = function_exists('ll_tools_is_category_translation_enabled')
             ? (ll_tools_is_category_translation_enabled([$wordset_id]) ? '1' : '0')
             : ((bool) get_option('ll_enable_category_translation', 0) ? '1' : '0');
@@ -3001,8 +2998,8 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
             ? max(1, (int) ll_tools_get_wordset_cache_epoch())
             : 1;
-        $guest_cache_key = ll_tools_wordset_page_build_cache_key('categories', [
-            'schema' => 3,
+        $category_cache_args = [
+            'schema' => 4,
             'wordset_id' => $wordset_id,
             'preview_limit' => max(1, (int) $preview_limit),
             'preview_mode' => $defer_previews ? 'deferred' : 'eager',
@@ -3011,12 +3008,21 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'translation_target' => $translation_target,
             'category_epoch' => $category_epoch,
             'wordset_epoch' => $wordset_epoch,
-        ]);
-        $cached = ll_tools_wordset_page_get_cached_payload($guest_cache_key, $guest_request_cache);
+        ];
+        $category_cache_namespace = 'categories';
+        if ($use_user_cache) {
+            $category_cache_namespace = 'categories_user';
+            $category_cache_args['user_id'] = $cache_user_id;
+            $category_cache_args['include_inactive'] = $include_inactive ? 1 : 0;
+        }
+        $category_cache_key = ll_tools_wordset_page_build_cache_key($category_cache_namespace, $category_cache_args);
+        $cached = ll_tools_wordset_page_get_cached_payload($category_cache_key, $category_request_cache);
         if (is_array($cached)) {
             return $cached;
         }
-        $guest_cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_categories_cache_ttl', 30 * MINUTE_IN_SECONDS);
+        $category_cache_ttl = $use_user_cache
+            ? ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_user_categories_cache_ttl', 10 * MINUTE_IN_SECONDS)
+            : ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_categories_cache_ttl', 30 * MINUTE_IN_SECONDS);
     }
 
     $rows = ll_tools_get_wordset_page_category_rows($wordset_id, $preview_limit, $include_inactive);
@@ -3199,8 +3205,8 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
 
     $items = apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);
 
-    if ($use_guest_cache) {
-        return ll_tools_wordset_page_store_cached_payload($guest_cache_key, $items, $guest_cache_ttl, $guest_request_cache);
+    if ($category_cache_key !== '') {
+        return ll_tools_wordset_page_store_cached_payload($category_cache_key, $items, $category_cache_ttl, $category_request_cache);
     }
 
     return $items;

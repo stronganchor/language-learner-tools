@@ -1002,6 +1002,16 @@ add_action('admin_init', function () {
     }
 
     if (!$force && $current_mtime === $last_mtime) return;
+    if (!$force) {
+        ll_tools_schedule_quiz_page_full_sync();
+        update_option($opt_key, $current_mtime, false);
+
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[LL Tools] Quiz page re-sync scheduled after source change (mtime=' . $current_mtime . ').');
+        }
+        return;
+    }
+
     if (get_transient('ll_tools_autopage_resync_running')) return;
 
     set_transient('ll_tools_autopage_resync_running', 1, 5 * MINUTE_IN_SECONDS);

@@ -129,6 +129,33 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_inactive_category_nonce', $html);
     }
 
+    public function test_inactive_category_cache_keeps_action_nonces_user_scoped(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $inactive_category_id = (int) $fixture['inactive_category_id'];
+
+        $first_admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($first_admin_id);
+        $first_inactive_category = $this->findWordsetPageCategory($wordset_id, $inactive_category_id);
+        $this->assertIsArray($first_inactive_category);
+        $first_nonce = (string) ($first_inactive_category['inactive_action_nonce'] ?? '');
+        $this->assertNotSame('', $first_nonce);
+
+        $second_admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($second_admin_id);
+        $second_inactive_category = $this->findWordsetPageCategory($wordset_id, $inactive_category_id);
+        $this->assertIsArray($second_inactive_category);
+        $second_nonce = (string) ($second_inactive_category['inactive_action_nonce'] ?? '');
+
+        $this->assertNotSame('', $second_nonce);
+        $this->assertNotSame($first_nonce, $second_nonce);
+        $this->assertSame(
+            wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $inactive_category_id),
+            $second_nonce
+        );
+    }
+
     public function test_logged_in_viewer_gets_hide_icon_for_visible_inactive_card(): void
     {
         $fixture = $this->createWordsetFixture();
@@ -206,6 +233,17 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $deleted_term = get_term($category_id, 'word-category');
         $this->assertTrue($deleted_term === null || is_wp_error($deleted_term));
         $this->assertNull(get_post($lesson_id));
+    }
+
+    private function findWordsetPageCategory(int $wordset_id, int $category_id): ?array
+    {
+        foreach (ll_tools_get_wordset_page_categories($wordset_id, 2) as $category) {
+            if ((int) ($category['id'] ?? 0) === $category_id) {
+                return $category;
+            }
+        }
+
+        return null;
     }
 
     public function test_inactive_category_action_process_deletes_image_only_category_and_lesson_without_deleting_image(): void
