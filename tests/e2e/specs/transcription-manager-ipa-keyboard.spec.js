@@ -290,10 +290,12 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
         const label = group.querySelector('.ll-ipa-inline-keyboard-label');
         const row = group.querySelector('.ll-ipa-inline-keyboard-row');
         const groupRect = group.getBoundingClientRect();
+        const keyboardRect = keyboard.getBoundingClientRect();
         const rowRect = row.getBoundingClientRect();
         const labelStyle = window.getComputedStyle(label);
         const groupStyle = window.getComputedStyle(group);
         return {
+          sectionOffset: Math.round(groupRect.left - keyboardRect.left),
           contentOffset: Math.round(rowRect.left - groupRect.left),
           sectionBorderWidth: groupStyle.borderBottomWidth,
           labelDividerWidth: labelStyle.borderRightWidth
@@ -305,6 +307,7 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
   expect(keyboardTableLayout.borderTopStyle).toBe('solid');
   expect(keyboardTableLayout.rowGap).toBe('0px');
   for (const group of keyboardTableLayout.groups) {
+    expect(group.sectionOffset).toBe(keyboardTableLayout.groups[0].sectionOffset);
     expect(group.contentOffset).toBe(keyboardTableLayout.groups[0].contentOffset);
     expect(group.sectionBorderWidth).toBe('1px');
     expect(group.labelDividerWidth).toBe('1px');

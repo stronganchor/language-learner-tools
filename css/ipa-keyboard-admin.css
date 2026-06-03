@@ -1205,24 +1205,6 @@ body.ll-ipa-keyboard-open {
     outline-offset: 2px;
 }
 
-@media (min-width: 900px) {
-    .ll-ipa-inline-keyboard {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="vowels"] {
-        border-right: 1px solid var(--ll-ipa-border);
-    }
-
-    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="signs"],
-    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="consonants"],
-    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="rare"],
-    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="other"],
-    .ll-ipa-inline-keyboard-optional-toggle-wrap {
-        grid-column: 1 / -1;
-    }
-}
-
 .ll-ipa-symbol-menu {
     position: absolute;
     z-index: 100080;
