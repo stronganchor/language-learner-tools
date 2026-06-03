@@ -270,6 +270,9 @@ function ll_tools_dictionary_static_cache_normalize_query_args(?array $raw_args 
     }
 
     $search = ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_q'] ?? '');
+    if (function_exists('ll_tools_dictionary_normalize_public_search')) {
+        $search = ll_tools_dictionary_normalize_public_search($search);
+    }
     $page = ll_tools_dictionary_static_cache_positive_int_value($normalized['ll_dictionary_page'] ?? '');
     $letter = isset($normalized['ll_dictionary_letter'])
         ? ll_tools_dictionary_static_cache_letter_value($normalized['ll_dictionary_letter'])
@@ -281,6 +284,18 @@ function ll_tools_dictionary_static_cache_normalize_query_args(?array $raw_args 
         ? ll_tools_dictionary_normalize_source_id($source_id)
         : sanitize_title($source_id);
     $dialect = ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_dialect'] ?? '');
+    if (
+        $search !== ''
+        && function_exists('ll_tools_dictionary_live_search_length')
+        && function_exists('ll_tools_dictionary_live_search_min_chars')
+        && ll_tools_dictionary_live_search_length($search) < ll_tools_dictionary_live_search_min_chars()
+        && $letter === ''
+        && $pos_slug === ''
+        && $source_id === ''
+        && $dialect === ''
+    ) {
+        $search = '';
+    }
 
     $display_args = [];
     if ($search !== '') {

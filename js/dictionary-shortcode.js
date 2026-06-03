@@ -3,7 +3,7 @@
     const ajaxUrl = typeof config.ajaxUrl === 'string' ? config.ajaxUrl : '';
     const nonce = typeof config.nonce === 'string' ? config.nonce : '';
     const minChars = Number.isFinite(Number(config.minChars)) ? Math.max(1, Number(config.minChars)) : 2;
-    const debounceMs = Number.isFinite(Number(config.debounceMs)) ? Math.max(80, Number(config.debounceMs)) : 160;
+    const debounceMs = Number.isFinite(Number(config.debounceMs)) ? Math.max(300, Number(config.debounceMs)) : 400;
     const loadingCards = Number.isFinite(Number(config.loadingCards)) ? Math.max(1, Math.min(4, Number(config.loadingCards))) : 3;
     const cacheSize = Number.isFinite(Number(config.cacheSize)) ? Math.max(0, Math.min(64, Number(config.cacheSize))) : 24;
     const loadingLabel = typeof config.loadingLabel === 'string' && config.loadingLabel

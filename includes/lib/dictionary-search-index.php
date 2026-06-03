@@ -508,66 +508,73 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $kind_where = " AND l.lookup_kind = 'translation'";
     }
 
-    $case_sql = "
-        CASE
-            WHEN l.lookup_kind = 'headword' AND l.lookup_value = %s THEN 0
-            WHEN l.lookup_kind = 'translation' AND l.lookup_value = %s THEN 1
-            WHEN l.lookup_kind = 'headword' AND l.lookup_value LIKE %s THEN 2
-            WHEN l.lookup_kind = 'translation' AND l.lookup_value LIKE %s THEN 3
-    ";
-    $case_params = [
-        $lookup,
+    $run_lookup_query = static function (bool $contains_only) use (
+        $wpdb,
+        $table,
+        $status_placeholders,
+        $statuses,
+        $kind_where,
         $lookup,
         $prefix_lookup,
-        $prefix_lookup,
-    ];
+        $contains_lookup,
+        $limit
+    ): array {
+        if ($contains_only) {
+            $where_sql = 'l.lookup_value LIKE %s';
+            $where_params = [$contains_lookup];
+            $case_sql = "
+                CASE
+                    WHEN l.lookup_kind = 'headword' AND l.lookup_value LIKE %s THEN 4
+                    WHEN l.lookup_kind = 'translation' AND l.lookup_value LIKE %s THEN 5
+                    ELSE 9
+                END
+            ";
+            $case_params = [$contains_lookup, $contains_lookup];
+        } else {
+            $where_sql = '(l.lookup_value = %s OR l.lookup_value LIKE %s)';
+            $where_params = [$lookup, $prefix_lookup];
+            $case_sql = "
+                CASE
+                    WHEN l.lookup_kind = 'headword' AND l.lookup_value = %s THEN 0
+                    WHEN l.lookup_kind = 'translation' AND l.lookup_value = %s THEN 1
+                    WHEN l.lookup_kind = 'headword' AND l.lookup_value LIKE %s THEN 2
+                    WHEN l.lookup_kind = 'translation' AND l.lookup_value LIKE %s THEN 3
+                    ELSE 9
+                END
+            ";
+            $case_params = [$lookup, $lookup, $prefix_lookup, $prefix_lookup];
+        }
 
-    $where_sql = '(l.lookup_value = %s OR l.lookup_value LIKE %s';
-    $where_params = [
-        $lookup,
-        $prefix_lookup,
-    ];
-
-    if ($use_contains) {
-        $case_sql .= "
-            WHEN l.lookup_kind = 'headword' AND l.lookup_value LIKE %s THEN 4
-            WHEN l.lookup_kind = 'translation' AND l.lookup_value LIKE %s THEN 5
+        $sql = "
+            SELECT l.entry_id
+            FROM {$table} l
+            INNER JOIN {$wpdb->posts} p
+                    ON p.ID = l.entry_id
+            WHERE p.post_type = 'll_dictionary_entry'
+              AND p.post_status IN ({$status_placeholders})
+              {$kind_where}
+              AND {$where_sql}
+            GROUP BY l.entry_id, p.post_title
+            ORDER BY
+                MIN({$case_sql}) ASC,
+                MIN(l.value_length) ASC,
+                p.post_title ASC,
+                l.entry_id ASC
         ";
-        $case_params[] = $contains_lookup;
-        $case_params[] = $contains_lookup;
-        $where_sql .= ' OR l.lookup_value LIKE %s';
-        $where_params[] = $contains_lookup;
+
+        $params = array_merge($statuses, $where_params, $case_params);
+        if ($limit > 0) {
+            $sql .= "\nLIMIT %d";
+            $params[] = $limit;
+        }
+
+        return array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+    };
+
+    $ids = $run_lookup_query(false);
+    if (empty($ids) && $use_contains) {
+        $ids = $run_lookup_query(true);
     }
-
-    $case_sql .= '
-            ELSE 9
-        END
-    ';
-    $where_sql .= ')';
-
-    $sql = "
-        SELECT l.entry_id
-        FROM {$table} l
-        INNER JOIN {$wpdb->posts} p
-                ON p.ID = l.entry_id
-        WHERE p.post_type = 'll_dictionary_entry'
-          AND p.post_status IN ({$status_placeholders})
-          {$kind_where}
-          AND {$where_sql}
-        GROUP BY l.entry_id, p.post_title
-        ORDER BY
-            MIN({$case_sql}) ASC,
-            MIN(l.value_length) ASC,
-            p.post_title ASC,
-            l.entry_id ASC
-    ";
-
-    $params = array_merge($statuses, $where_params, $case_params);
-    if ($limit > 0) {
-        $sql .= "\nLIMIT %d";
-        $params[] = $limit;
-    }
-    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
 
     if (function_exists('ll_tools_dictionary_browser_store_cached_payload')) {
         return ll_tools_dictionary_browser_store_cached_payload(

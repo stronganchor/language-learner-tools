@@ -2371,6 +2371,58 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
 }
 
 /**
+ * Return the minimum normalized length before the postmeta fallback may use contains search.
+ */
+function ll_tools_dictionary_postmeta_contains_fallback_min_chars(): int {
+    $min_chars = (int) apply_filters('ll_tools_dictionary_postmeta_contains_fallback_min_chars', 3);
+
+    return max(3, $min_chars);
+}
+
+/**
+ * Determine whether the legacy postmeta fallback may use broad contains matching.
+ *
+ * The public dictionary should normally use the lookup table or exact/prefix
+ * postmeta checks only. Contains matching against wp_postmeta is intentionally
+ * reserved for staff/debug contexts or explicit site opt-in.
+ *
+ * @param string[] $statuses Allowed post statuses.
+ */
+function ll_tools_dictionary_allow_postmeta_contains_fallback(
+    string $search,
+    array $statuses,
+    string $search_scope = 'all',
+    int $wordset_id = 0,
+    string $pos_slug = '',
+    int $limit = 0
+): bool {
+    $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+        ? ll_tools_dictionary_entry_normalize_lookup_value($search)
+        : strtolower(trim($search));
+    $search_norm = ll_tools_dictionary_normalize_search_text($search);
+    $lookup_length = function_exists('mb_strlen')
+        ? max((int) mb_strlen($lookup, 'UTF-8'), (int) mb_strlen($search_norm, 'UTF-8'))
+        : max(strlen($lookup), strlen($search_norm));
+    if ($lookup_length < ll_tools_dictionary_postmeta_contains_fallback_min_chars()) {
+        return false;
+    }
+
+    $allowed = function_exists('current_user_can')
+        && (current_user_can('view_ll_tools') || current_user_can('edit_posts'));
+
+    return (bool) apply_filters(
+        'll_tools_dictionary_allow_postmeta_contains_fallback',
+        $allowed,
+        $search,
+        $statuses,
+        $search_scope,
+        $wordset_id,
+        $pos_slug,
+        $limit
+    );
+}
+
+/**
  * Query dictionary-entry candidate IDs from stored lookup/search meta.
  *
  * @param string[] $statuses Allowed post statuses.
@@ -2405,10 +2457,14 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
     $wordset_id = max(0, $wordset_id);
     $pos_slug = sanitize_title($pos_slug);
     $limit = max(0, $limit);
-    $lookup_length = function_exists('mb_strlen')
-        ? max((int) mb_strlen($lookup, 'UTF-8'), (int) mb_strlen($search_norm, 'UTF-8'))
-        : max(strlen($lookup), strlen($search_norm));
-    $use_contains = ($lookup_length >= 3);
+    $allow_contains = ll_tools_dictionary_allow_postmeta_contains_fallback(
+        $search,
+        $statuses,
+        $search_scope,
+        $wordset_id,
+        $pos_slug,
+        $limit
+    );
 
     $cache_args = [
         'search' => $search,
@@ -2417,131 +2473,158 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         'wordset_id' => $wordset_id,
         'pos_slug' => $pos_slug,
         'limit' => $limit,
+        'allow_contains' => $allow_contains ? 1 : 0,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('search_meta_entry_ids', $cache_args, $request_cache);
     if (is_array($cached)) {
         return array_values(array_filter(array_map('intval', $cached)));
     }
 
-    $joins = [];
-    $where = ["p.post_type = 'll_dictionary_entry'"];
-    $params = [];
-
     $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
-    $where[] = "p.post_status IN ({$status_placeholders})";
-    $params = array_merge($params, $statuses);
-
-    if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
-        $joins[] = "
-            LEFT JOIN {$wpdb->postmeta} scope_meta
-                   ON scope_meta.post_id = p.ID
-                  AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
-        ";
-        $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
-        $params[] = '%|' . $wordset_id . '|%';
-    }
-
-    if ($pos_slug !== '') {
-        $joins[] = "
-            INNER JOIN {$wpdb->postmeta} pos_meta
-                    ON pos_meta.post_id = p.ID
-                   AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
-        ";
-        $where[] = 'pos_meta.meta_value = %s';
-        $params[] = $pos_slug;
-    }
-
-    $search_clauses = [];
-    $case_sql = [];
-    $case_params = [];
     $lookup_prefix = $wpdb->esc_like($lookup) . '%';
     $lookup_contains = '%' . $wpdb->esc_like($lookup) . '%';
     $norm_contains = '%' . $wpdb->esc_like($search_norm) . '%';
 
-    if ($search_scope === 'all' || $search_scope === 'headword') {
-        $joins[] = "
-            LEFT JOIN {$wpdb->postmeta} lookup_title
-                   ON lookup_title.post_id = p.ID
-                  AND lookup_title.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY) . "'
-        ";
-        $search_clauses[] = 'lookup_title.meta_value = %s';
-        $params[] = $lookup;
-        $search_clauses[] = 'lookup_title.meta_value LIKE %s';
-        $params[] = $lookup_prefix;
+    $run_meta_query = static function (bool $contains_only) use (
+        $wpdb,
+        $statuses,
+        $status_placeholders,
+        $search_scope,
+        $wordset_id,
+        $pos_slug,
+        $lookup,
+        $lookup_prefix,
+        $lookup_contains,
+        $search_norm,
+        $norm_contains,
+        $limit
+    ): array {
+        $joins = [];
+        $where = ["p.post_type = 'll_dictionary_entry'"];
+        $params = [];
 
-        $case_sql[] = 'WHEN lookup_title.meta_value = %s THEN 0';
-        $case_params[] = $lookup;
-        $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 2';
-        $case_params[] = $lookup_prefix;
+        $where[] = "p.post_status IN ({$status_placeholders})";
+        $params = array_merge($params, $statuses);
 
-        if ($use_contains) {
-            $search_clauses[] = 'lookup_title.meta_value LIKE %s';
-            $params[] = $lookup_contains;
-            $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 4';
-            $case_params[] = $lookup_contains;
+        if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
+            $joins[] = "
+                LEFT JOIN {$wpdb->postmeta} scope_meta
+                       ON scope_meta.post_id = p.ID
+                      AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
+            ";
+            $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
+            $params[] = '%|' . $wordset_id . '|%';
         }
-    }
 
-    if ($search_scope !== 'headword') {
-        $joins[] = "
-            LEFT JOIN {$wpdb->postmeta} lookup_translation
-                   ON lookup_translation.post_id = p.ID
-                  AND lookup_translation.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TRANSLATION_META_KEY) . "'
-        ";
-        $search_clauses[] = 'lookup_translation.meta_value = %s';
-        $params[] = $lookup;
-        $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
-        $params[] = $lookup_prefix;
+        if ($pos_slug !== '') {
+            $joins[] = "
+                INNER JOIN {$wpdb->postmeta} pos_meta
+                        ON pos_meta.post_id = p.ID
+                       AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
+            ";
+            $where[] = 'pos_meta.meta_value = %s';
+            $params[] = $pos_slug;
+        }
 
-        $case_sql[] = 'WHEN lookup_translation.meta_value = %s THEN 1';
-        $case_params[] = $lookup;
-        $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 3';
-        $case_params[] = $lookup_prefix;
+        $search_clauses = [];
+        $case_sql = [];
+        $case_params = [];
 
-        if ($use_contains) {
-            $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
-            $params[] = $lookup_contains;
-            $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 5';
-            $case_params[] = $lookup_contains;
+        if ($search_scope === 'all' || $search_scope === 'headword') {
+            $joins[] = "
+                LEFT JOIN {$wpdb->postmeta} lookup_title
+                       ON lookup_title.post_id = p.ID
+                      AND lookup_title.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY) . "'
+            ";
 
-            if ($search_norm !== '') {
-                $joins[] = "
-                    LEFT JOIN {$wpdb->postmeta} search_index
-                           ON search_index.post_id = p.ID
-                          AND search_index.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY) . "'
-                ";
-                $search_clauses[] = 'search_index.meta_value LIKE %s';
-                $params[] = $norm_contains;
-                $case_sql[] = 'WHEN search_index.meta_value LIKE %s THEN 6';
-                $case_params[] = $norm_contains;
+            if ($contains_only) {
+                $search_clauses[] = 'lookup_title.meta_value LIKE %s';
+                $params[] = $lookup_contains;
+                $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 4';
+                $case_params[] = $lookup_contains;
+            } else {
+                $search_clauses[] = 'lookup_title.meta_value = %s';
+                $params[] = $lookup;
+                $search_clauses[] = 'lookup_title.meta_value LIKE %s';
+                $params[] = $lookup_prefix;
+
+                $case_sql[] = 'WHEN lookup_title.meta_value = %s THEN 0';
+                $case_params[] = $lookup;
+                $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 2';
+                $case_params[] = $lookup_prefix;
             }
         }
+
+        if ($search_scope !== 'headword') {
+            $joins[] = "
+                LEFT JOIN {$wpdb->postmeta} lookup_translation
+                       ON lookup_translation.post_id = p.ID
+                      AND lookup_translation.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TRANSLATION_META_KEY) . "'
+            ";
+
+            if ($contains_only) {
+                $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
+                $params[] = $lookup_contains;
+                $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 5';
+                $case_params[] = $lookup_contains;
+
+                if ($search_norm !== '') {
+                    $joins[] = "
+                        LEFT JOIN {$wpdb->postmeta} search_index
+                               ON search_index.post_id = p.ID
+                              AND search_index.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY) . "'
+                    ";
+                    $search_clauses[] = 'search_index.meta_value LIKE %s';
+                    $params[] = $norm_contains;
+                    $case_sql[] = 'WHEN search_index.meta_value LIKE %s THEN 6';
+                    $case_params[] = $norm_contains;
+                }
+            } else {
+                $search_clauses[] = 'lookup_translation.meta_value = %s';
+                $params[] = $lookup;
+                $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
+                $params[] = $lookup_prefix;
+
+                $case_sql[] = 'WHEN lookup_translation.meta_value = %s THEN 1';
+                $case_params[] = $lookup;
+                $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 3';
+                $case_params[] = $lookup_prefix;
+            }
+        }
+
+        if (empty($search_clauses)) {
+            return [];
+        }
+
+        $where[] = '(' . implode(' OR ', $search_clauses) . ')';
+        $order_sql = empty($case_sql)
+            ? 'p.post_title ASC'
+            : "CASE\n                        " . implode("\n                        ", $case_sql) . "\n                        ELSE 7\n                    END,\n                    p.post_title ASC";
+
+        $sql = "
+            SELECT DISTINCT p.ID
+            FROM {$wpdb->posts} p
+            " . implode("\n", array_values(array_unique($joins))) . "
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY {$order_sql}
+        ";
+        if ($limit > 0) {
+            $sql .= "\nLIMIT %d";
+            $case_params[] = $limit;
+        }
+
+        return array_values(array_filter(array_map('intval', (array) $wpdb->get_col(
+            $wpdb->prepare($sql, array_merge($params, $case_params))
+        ))));
+    };
+
+    $ids = $run_meta_query(false);
+    if ($allow_contains) {
+        $contains_ids = $run_meta_query(true);
+        if (!empty($contains_ids)) {
+            $ids = array_values(array_unique(array_merge($ids, $contains_ids)));
+        }
     }
-
-    if (empty($search_clauses)) {
-        return [];
-    }
-
-    $where[] = '(' . implode(' OR ', $search_clauses) . ')';
-    $order_sql = empty($case_sql)
-        ? 'p.post_title ASC'
-        : "CASE\n                    " . implode("\n                    ", $case_sql) . "\n                    ELSE 7\n                END,\n                p.post_title ASC";
-
-    $sql = "
-        SELECT DISTINCT p.ID
-        FROM {$wpdb->posts} p
-        " . implode("\n", array_values(array_unique($joins))) . "
-        WHERE " . implode(' AND ', $where) . "
-        ORDER BY {$order_sql}
-    ";
-    if ($limit > 0) {
-        $sql .= "\nLIMIT %d";
-        $case_params[] = $limit;
-    }
-
-    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col(
-        $wpdb->prepare($sql, array_merge($params, $case_params))
-    ))));
 
     return ll_tools_dictionary_browser_store_cached_payload(
         'search_meta_entry_ids',

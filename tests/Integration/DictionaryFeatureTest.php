@@ -493,6 +493,35 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('https://example.com/sozluk/', (string) ($data['url'] ?? ''));
     }
 
+    public function test_dictionary_shortcode_ignores_direct_one_character_search_without_filters(): void
+    {
+        wp_set_current_user(0);
+
+        $_GET = [
+            'll_dictionary_q' => 'a',
+        ];
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $html = do_shortcode('[ll_dictionary]');
+        } finally {
+            remove_filter('query', $capture);
+            $_GET = [];
+        }
+
+        $this->assertStringNotContainsString('No entries found.', $html);
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringNotContainsString('lookup_title.meta_value', $queries_sql);
+        $this->assertStringNotContainsString('lookup_translation.meta_value', $queries_sql);
+        $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
+    }
+
     public function test_dictionary_live_search_clamps_anonymous_page_cache_keys(): void
     {
         wp_set_current_user(0);
@@ -1005,6 +1034,78 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $limited_lookup_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table('ruec', ['publish'], 'all', 1);
         $this->assertCount(1, $limited_lookup_ids);
+    }
+
+    public function test_dictionary_postmeta_search_fallback_avoids_contains_search_by_default(): void
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Roj, Ruecarek',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY, 'roj, ruecarek');
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TRANSLATION_META_KEY, 'sunlight');
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY, 'roj ruecarek sunlight');
+        ll_tools_bump_dictionary_browser_cache_version();
+        wp_set_current_user(0);
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $ids = ll_tools_dictionary_query_entry_ids_from_search_meta('uecar', ['publish'], 'all', 0, '', 10);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame([], $ids);
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString('lookup_title.meta_value LIKE', $queries_sql);
+        $this->assertStringContainsString("LIKE 'uecar%'", $queries_sql);
+        $this->assertStringNotContainsString("LIKE '%uecar%'", $queries_sql);
+        $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
+    }
+
+    public function test_dictionary_postmeta_contains_search_requires_explicit_opt_in(): void
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Roj, Ruecarek',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY, 'roj, ruecarek');
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TRANSLATION_META_KEY, 'sunlight');
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY, 'roj ruecarek sunlight');
+        ll_tools_bump_dictionary_browser_cache_version();
+        wp_set_current_user(0);
+
+        $allow_contains = static function (): bool {
+            return true;
+        };
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('ll_tools_dictionary_allow_postmeta_contains_fallback', $allow_contains);
+        add_filter('query', $capture);
+        try {
+            $ids = ll_tools_dictionary_query_entry_ids_from_search_meta('uecar', ['publish'], 'all', 0, '', 10);
+        } finally {
+            remove_filter('query', $capture);
+            remove_filter('ll_tools_dictionary_allow_postmeta_contains_fallback', $allow_contains);
+        }
+
+        $this->assertSame([$entry_id], $ids);
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString("LIKE 'uecar%'", $queries_sql);
+        $this->assertStringContainsString("LIKE '%uecar%'", $queries_sql);
+        $this->assertStringContainsString('search_index.meta_value', $queries_sql);
     }
 
     public function test_dictionary_search_scope_limits_headwords_and_language_specific_translations(): void
