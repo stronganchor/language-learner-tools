@@ -1575,6 +1575,8 @@ body.ll-ipa-keyboard-open {
 }
 
 .ll-ipa-search-save-state {
+    box-sizing: border-box;
+    min-width: 92px;
     min-height: 32px;
     display: inline-flex;
     align-items: center;
@@ -1596,8 +1598,14 @@ body.ll-ipa-keyboard-open {
     flex: 0 0 16px;
 }
 
+.ll-ipa-search-save-label {
+    display: inline-block;
+    min-width: 5.75em;
+    text-align: left;
+}
+
 .ll-ipa-search-save-state.is-idle .ll-ipa-search-save-label {
-    display: none;
+    visibility: hidden;
 }
 
 .ll-ipa-search-save-state.is-saving {
@@ -2074,7 +2082,7 @@ body.ll-ipa-keyboard-open {
     }
 
     .ll-ipa-search-save-state {
-        min-height: 0;
+        min-height: 28px;
         font-size: 11px;
         gap: 4px;
     }

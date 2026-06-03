@@ -601,6 +601,7 @@ test('transcription autosave keeps fields editable and preserves newer edits', a
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.unroute('**/*');
   await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
   await page.evaluate(() => {
     try {
       window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
@@ -756,6 +757,30 @@ test('transcription autosave keeps fields editable and preserves newer edits', a
   await expect(textInput).toHaveValue('alpha');
   await expect(ipaInput).toHaveValue('alpha ipa');
 
+  const getAutosaveLayout = async () => row.evaluate((rowElement) => {
+    const saveState = rowElement.querySelector('.ll-ipa-search-save-state');
+    const saveLabel = rowElement.querySelector('.ll-ipa-search-save-label');
+    const saveIndicator = rowElement.querySelector('.ll-ipa-search-save-indicator');
+    const actionCell = rowElement.querySelector('.ll-ipa-search-action-cell');
+    const labelStyle = window.getComputedStyle(saveLabel);
+    return {
+      actionCellHeight: Math.round(actionCell.getBoundingClientRect().height),
+      indicatorWidth: Math.round(saveIndicator.getBoundingClientRect().width),
+      labelDisplay: labelStyle.display,
+      labelVisibility: labelStyle.visibility,
+      labelWidth: Math.round(saveLabel.getBoundingClientRect().width),
+      rowHeight: Math.round(rowElement.getBoundingClientRect().height),
+      saveStateHeight: Math.round(saveState.getBoundingClientRect().height),
+      saveStateWidth: Math.round(saveState.getBoundingClientRect().width)
+    };
+  });
+  const idleLayout = await getAutosaveLayout();
+  expect(idleLayout.indicatorWidth).toBeGreaterThanOrEqual(16);
+  expect(idleLayout.labelDisplay).not.toBe('none');
+  expect(idleLayout.labelVisibility).toBe('hidden');
+  expect(idleLayout.labelWidth).toBeGreaterThanOrEqual(60);
+  expect(idleLayout.saveStateHeight).toBeGreaterThanOrEqual(32);
+
   await textInput.fill('alpha edited');
   await page.locator('#ll-ipa-search-btn').focus();
   await expect.poll(async () => page.evaluate(() => {
@@ -765,6 +790,12 @@ test('transcription autosave keeps fields editable and preserves newer edits', a
   await expect(textInput).toBeEnabled();
   await expect(ipaInput).toBeEnabled();
   await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saving...');
+  const savingLayout = await getAutosaveLayout();
+  expect(savingLayout.labelVisibility).toBe('visible');
+  expect(Math.abs(savingLayout.rowHeight - idleLayout.rowHeight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(savingLayout.actionCellHeight - idleLayout.actionCellHeight)).toBeLessThanOrEqual(1);
+  expect(savingLayout.saveStateHeight).toBe(idleLayout.saveStateHeight);
+  expect(savingLayout.saveStateWidth).toBe(idleLayout.saveStateWidth);
 
   await ipaInput.fill('ipa edited');
   await page.evaluate(() => {
@@ -789,6 +820,11 @@ test('transcription autosave keeps fields editable and preserves newer edits', a
   await expect(textInput).toHaveValue('alpha edited');
   await expect(ipaInput).toHaveValue('ipa edited');
   await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saved.');
+  const savedLayout = await getAutosaveLayout();
+  expect(Math.abs(savedLayout.rowHeight - savingLayout.rowHeight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(savedLayout.actionCellHeight - savingLayout.actionCellHeight)).toBeLessThanOrEqual(1);
+  expect(savedLayout.saveStateHeight).toBe(savingLayout.saveStateHeight);
+  expect(savedLayout.saveStateWidth).toBe(savingLayout.saveStateWidth);
 
   const updatePayloads = await page.evaluate(() => {
     return window.__llAutosaveResponsivenessMock.postCalls
