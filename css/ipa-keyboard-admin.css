@@ -1089,28 +1089,36 @@ body.ll-ipa-keyboard-open {
 .ll-ipa-inline-keyboard {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 7px 14px;
+    gap: 0;
     align-items: start;
     max-height: var(--ll-ipa-keyboard-max-height, 360px);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 2px;
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 8px;
+    background: #ffffff;
 }
 
 .ll-ipa-inline-keyboard-group {
     display: grid;
-    grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
-    gap: 8px;
-    align-items: start;
+    grid-template-columns: minmax(118px, 118px) minmax(0, 1fr);
+    align-items: stretch;
     min-width: 0;
+    border-bottom: 1px solid var(--ll-ipa-border);
+    background: #ffffff;
 }
 
 .ll-ipa-inline-keyboard-label {
+    display: flex;
+    align-items: flex-start;
     color: var(--ll-ipa-muted);
     font-size: 12px;
     font-weight: 600;
     line-height: 1.3;
-    padding-top: 8px;
+    padding: 10px 10px;
+    border-right: 1px solid var(--ll-ipa-border);
+    background: var(--ll-ipa-bg-soft);
 }
 
 .ll-ipa-inline-keyboard-row {
@@ -1118,15 +1126,23 @@ body.ll-ipa-keyboard-open {
     flex-wrap: wrap;
     gap: 5px;
     min-width: 0;
+    padding: 6px;
 }
 
 .ll-ipa-inline-keyboard-optional-toggle-wrap {
     min-width: 0;
+    padding: 6px;
+    border-bottom: 1px solid var(--ll-ipa-border);
+    background: #ffffff;
+}
+
+.ll-ipa-inline-keyboard > :last-child {
+    border-bottom: 0;
 }
 
 .ll-ipa-inline-keyboard-optional-toggle {
     box-sizing: border-box;
-    max-width: 100%;
+    width: 100%;
     min-height: 32px;
     padding: 5px 10px;
     border: 1px dashed var(--ll-ipa-border-strong) !important;
@@ -1194,8 +1210,15 @@ body.ll-ipa-keyboard-open {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="vowels"] {
+        border-right: 1px solid var(--ll-ipa-border);
+    }
+
     .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="signs"],
-    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="consonants"] {
+    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="consonants"],
+    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="rare"],
+    .ll-ipa-inline-keyboard-group[data-ll-ipa-keyboard-group="other"],
+    .ll-ipa-inline-keyboard-optional-toggle-wrap {
         grid-column: 1 / -1;
     }
 }
@@ -2092,7 +2115,15 @@ body.ll-ipa-keyboard-open {
     }
 
     .ll-ipa-inline-keyboard {
-        gap: 8px;
+        gap: 0;
+    }
+
+    .ll-ipa-inline-keyboard-group {
+        grid-template-columns: minmax(92px, 92px) minmax(0, 1fr);
+    }
+
+    .ll-ipa-inline-keyboard-label {
+        padding: 9px 8px;
     }
 
     .ll-ipa-inline-keyboard-row {

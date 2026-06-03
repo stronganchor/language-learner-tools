@@ -280,6 +280,35 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
   expect(stickyKeyboardLayout.inputAboveKeyboard).toBe(true);
   expect(stickyKeyboardLayout.bodyPadded).toBe(true);
   await expect(page.locator('.ll-ipa-inline-keyboard-label').first()).toHaveText('Diacritics and signs');
+  const keyboardTableLayout = await page.locator('[data-ll-ipa-inline-keyboard]').evaluate((keyboard) => {
+    const keyboardStyle = window.getComputedStyle(keyboard);
+    return {
+      borderTopWidth: keyboardStyle.borderTopWidth,
+      borderTopStyle: keyboardStyle.borderTopStyle,
+      rowGap: keyboardStyle.rowGap,
+      groups: Array.from(keyboard.querySelectorAll('.ll-ipa-inline-keyboard-group')).map((group) => {
+        const label = group.querySelector('.ll-ipa-inline-keyboard-label');
+        const row = group.querySelector('.ll-ipa-inline-keyboard-row');
+        const groupRect = group.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        const labelStyle = window.getComputedStyle(label);
+        const groupStyle = window.getComputedStyle(group);
+        return {
+          contentOffset: Math.round(rowRect.left - groupRect.left),
+          sectionBorderWidth: groupStyle.borderBottomWidth,
+          labelDividerWidth: labelStyle.borderRightWidth
+        };
+      })
+    };
+  });
+  expect(keyboardTableLayout.borderTopWidth).toBe('1px');
+  expect(keyboardTableLayout.borderTopStyle).toBe('solid');
+  expect(keyboardTableLayout.rowGap).toBe('0px');
+  for (const group of keyboardTableLayout.groups) {
+    expect(group.contentOffset).toBe(keyboardTableLayout.groups[0].contentOffset);
+    expect(group.sectionBorderWidth).toBe('1px');
+    expect(group.labelDividerWidth).toBe('1px');
+  }
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʲ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʷ"]')).toHaveCount(1);
