@@ -405,7 +405,19 @@
             class: 'll-ipa-inline-keyboard-wrap',
             'data-ll-ipa-inline-keyboard-wrap': '1'
         }).append($panel);
-        $field.after($activeIpaKeyboard);
+
+        const $searchFieldBlock = $field.closest('.ll-ipa-search-field-block');
+        const $reviewPanel = $searchFieldBlock.length
+            ? $searchFieldBlock.find('.ll-ipa-search-field-review-panel').first()
+            : $();
+        const $fieldWrap = $field.closest('.ll-ipa-search-field-wrap');
+        if ($reviewPanel.length) {
+            $reviewPanel.after($activeIpaKeyboard);
+        } else if ($fieldWrap.length) {
+            $fieldWrap.after($activeIpaKeyboard);
+        } else {
+            $field.after($activeIpaKeyboard);
+        }
         activeIpaKeyboardInput = $field.get(0);
     }
 
@@ -2059,6 +2071,61 @@
         );
     }
 
+    function buildTrashIconSvg() {
+        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    function buildConfirmIconSvg() {
+        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    function buildCancelIconSvg() {
+        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+    }
+
+    function buildSearchDeleteRecordingControls() {
+        const deleteLabel = t('searchDeleteRecording', 'Delete recording');
+        const confirmLabel = t('searchDeleteRecordingConfirm', 'Move recording to Trash');
+        const cancelLabel = t('searchDeleteRecordingCancel', 'Cancel');
+
+        return $('<div>', { class: 'll-ipa-search-recording-delete' })
+            .append($('<button>', {
+                type: 'button',
+                class: 'll-ipa-search-recording-delete-toggle',
+                'aria-label': deleteLabel,
+                title: deleteLabel,
+                html: buildTrashIconSvg()
+            }))
+            .append($('<div>', {
+                class: 'll-ipa-search-recording-delete-confirm',
+                hidden: true
+            })
+                .append($('<span>', {
+                    class: 'll-ipa-search-recording-delete-confirm-icon',
+                    'aria-hidden': 'true',
+                    html: buildTrashIconSvg()
+                }))
+                .append($('<span>', {
+                    class: 'll-ipa-search-recording-delete-confirm-text',
+                    text: t('searchDeleteRecordingPrompt', 'Delete this recording?')
+                }))
+                .append($('<div>', { class: 'll-ipa-search-recording-delete-confirm-actions' })
+                    .append($('<button>', {
+                        type: 'button',
+                        class: 'll-ipa-search-recording-delete-confirm-action ll-ipa-search-recording-delete-confirm-action--danger',
+                        'aria-label': confirmLabel,
+                        title: confirmLabel,
+                        html: buildConfirmIconSvg()
+                    }))
+                    .append($('<button>', {
+                        type: 'button',
+                        class: 'll-ipa-search-recording-delete-cancel',
+                        'aria-label': cancelLabel,
+                        title: cancelLabel,
+                        html: buildCancelIconSvg()
+                    }))));
+    }
+
     function buildSearchInputHighlight($input, mismatchDetail, field) {
         const detail = mismatchDetail && typeof mismatchDetail === 'object' ? mismatchDetail : null;
         if (!detail || detail.matches) {
@@ -2143,10 +2210,6 @@
         }));
         const $wrap = buildSearchFieldInputWrap($input, mismatchDetail, field);
         $editor.append($wrap);
-        const $suggestions = buildSearchFieldSuggestions(mismatchDetail, field);
-        if ($suggestions) {
-            $editor.append($suggestions);
-        }
         const $review = $('<div>', { class: 'll-ipa-search-field-review-panel' });
         if (reviewNote && getSearchReviewNoteField(reviewFields) === field) {
             $review.append(buildSearchFieldReviewNote(reviewNote));
@@ -2155,10 +2218,14 @@
         if ($reviewAction) {
             $review.append($reviewAction);
         }
-        $block.append($editor);
         if ($review.children().length) {
-            $block.append($review);
+            $editor.append($review);
         }
+        const $suggestions = buildSearchFieldSuggestions(mismatchDetail, field);
+        if ($suggestions) {
+            $editor.append($suggestions);
+        }
+        $block.append($editor);
         return $block;
     }
 
@@ -2335,6 +2402,9 @@
             .append($('<span>', { class: 'll-ipa-search-save-label' }));
         const $actionCell = $('<td>', { class: 'll-ipa-search-action-cell' });
         const $actionWrap = $('<div>', { class: 'll-ipa-search-actions' }).append($saveState);
+        if (currentCanEdit) {
+            $actionWrap.append(buildSearchDeleteRecordingControls());
+        }
         $actionCell.append($actionWrap);
 
         const $issueCell = $('<td>', {
@@ -3283,6 +3353,80 @@
         return replaceSearchRow($row, rec);
     }
 
+    function setSearchDeleteSavingState($row, saving) {
+        if (!$row || !$row.length) {
+            return;
+        }
+
+        const isSaving = !!saving;
+        $row.toggleClass('is-search-row-deleting', isSaving);
+        $row.find('.ll-ipa-search-recording-delete-toggle, .ll-ipa-search-recording-delete-confirm-action, .ll-ipa-search-recording-delete-cancel')
+            .prop('disabled', isSaving)
+            .attr('aria-disabled', isSaving ? 'true' : 'false');
+        if (isSaving) {
+            $row.attr('aria-busy', 'true');
+        } else {
+            $row.removeAttr('aria-busy');
+            $row.find('.ll-ipa-search-recording-delete-toggle, .ll-ipa-search-recording-delete-confirm-action, .ll-ipa-search-recording-delete-cancel')
+                .removeAttr('aria-disabled');
+        }
+    }
+
+    function removeDeletedSearchRow($row) {
+        if (!$row || !$row.length) {
+            return false;
+        }
+
+        if (activeIpaKeyboardInput && $row.has(activeIpaKeyboardInput).length) {
+            hideIpaKeyboard();
+        }
+        $row.remove();
+        return $searchResults.find('tr[data-recording-id]').length > 0;
+    }
+
+    function submitSearchDeleteRecording($row) {
+        if (!$row || !$row.length || !currentCanEdit || !currentWordsetId) {
+            return;
+        }
+
+        const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
+        if (!recordingId || $row.hasClass('is-search-row-deleting')) {
+            return;
+        }
+
+        if ($row.data('llSearchRowSaving') || searchReviewStateIsSaving($row)) {
+            setStatus(t('searchDeleteWaitForSave', 'Wait for the current save to finish before deleting this recording.'), true);
+            return;
+        }
+
+        setSearchDeleteSavingState($row, true);
+        setStatus(t('searchDeletingRecording', 'Deleting recording...'), false);
+
+        $.post(ajaxUrl, {
+            action: 'll_tools_delete_ipa_keyboard_recording',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: recordingId
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setSearchDeleteSavingState($row, false);
+                setStatus(t('searchDeleteRecordingError', 'Unable to delete recording.'), true);
+                return;
+            }
+
+            markTabsDirty(['map', 'symbols', 'orthography']);
+            removeDeletedSearchRow($row);
+            loadSearch(currentWordsetId, true, {
+                quietStatus: true,
+                showLoading: false,
+                successStatus: t('searchDeletedRecording', 'Recording moved to Trash.')
+            });
+        }).fail(function () {
+            setSearchDeleteSavingState($row, false);
+            setStatus(t('searchDeleteRecordingError', 'Unable to delete recording.'), true);
+        });
+    }
+
     function getSearchRowValues($row) {
         const $textInput = $row.find('.ll-ipa-search-text-input').first();
         const $ipaInput = $row.find('.ll-ipa-search-ipa-input').first();
@@ -4150,6 +4294,35 @@
                     : (activeIsSearchInput ? 'recording_ipa' : '')
             });
         }, 0);
+    });
+
+    $searchResults.on('click', '.ll-ipa-search-recording-delete-toggle', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        if (!$row.length || $btn.prop('disabled')) {
+            return;
+        }
+
+        $row.find('.ll-ipa-search-recording-delete-confirm').first().prop('hidden', false);
+    });
+
+    $searchResults.on('click', '.ll-ipa-search-recording-delete-cancel', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        if (!$row.length || $btn.prop('disabled')) {
+            return;
+        }
+
+        $row.find('.ll-ipa-search-recording-delete-confirm').first().prop('hidden', true);
+    });
+
+    $searchResults.on('click', '.ll-ipa-search-recording-delete-confirm-action', function () {
+        const $btn = $(this);
+        if ($btn.prop('disabled')) {
+            return;
+        }
+
+        submitSearchDeleteRecording($btn.closest('tr'));
     });
 
     $searchResults.on('click', '.ll-ipa-review-toggle', function () {

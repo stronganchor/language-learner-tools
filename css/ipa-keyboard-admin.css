@@ -1055,7 +1055,7 @@
 }
 
 .ll-ipa-search-table col.ll-ipa-search-col-actions {
-    width: 92px;
+    width: 142px;
 }
 
 .ll-ipa-search-table .ll-ipa-search-input-field {
@@ -1197,7 +1197,7 @@
 }
 
 .ll-ipa-search-action-cell {
-    width: 116px;
+    width: 142px;
 }
 
 .ll-ipa-search-field-wrap {
@@ -1234,6 +1234,11 @@
     min-width: 0;
 }
 
+.ll-ipa-search-field-editor {
+    display: grid;
+    gap: 6px;
+}
+
 .ll-ipa-search-field-label {
     color: var(--ll-ipa-muted);
     font-size: 11px;
@@ -1241,7 +1246,7 @@
     line-height: 1.2;
     letter-spacing: 0;
     text-transform: uppercase;
-    margin-bottom: 4px;
+    margin: 0;
 }
 
 .ll-ipa-search-field-review-panel {
@@ -1448,6 +1453,124 @@
     display: grid;
     gap: 6px;
     justify-items: start;
+}
+
+.ll-ipa-search-recording-delete {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    width: 100%;
+}
+
+.ll-ipa-search-recording-delete-toggle,
+.ll-ipa-search-recording-delete-confirm-action,
+.ll-ipa-search-recording-delete-cancel {
+    box-sizing: border-box;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+    background-image: none;
+    color: #334155;
+    cursor: pointer;
+    box-shadow: none;
+    text-shadow: none;
+    text-transform: none;
+    appearance: none;
+}
+
+.ll-ipa-search-recording-delete-toggle,
+.ll-ipa-search-recording-delete-confirm-action--danger {
+    border-color: #fecaca;
+    background: #fff7ed;
+    color: #b91c1c;
+}
+
+.ll-ipa-search-recording-delete-toggle:hover:not(:disabled),
+.ll-ipa-search-recording-delete-toggle:focus-visible:not(:disabled),
+.ll-ipa-search-recording-delete-confirm-action--danger:hover:not(:disabled),
+.ll-ipa-search-recording-delete-confirm-action--danger:focus-visible:not(:disabled) {
+    border-color: #dc2626;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.ll-ipa-search-recording-delete-cancel:hover:not(:disabled),
+.ll-ipa-search-recording-delete-cancel:focus-visible:not(:disabled) {
+    border-color: #64748b;
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.ll-ipa-search-recording-delete-toggle svg,
+.ll-ipa-search-recording-delete-confirm-action svg,
+.ll-ipa-search-recording-delete-cancel svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.ll-ipa-search-recording-delete-confirm[hidden] {
+    display: none !important;
+}
+
+.ll-ipa-search-recording-delete-confirm {
+    box-sizing: border-box;
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fff7ed;
+}
+
+.ll-ipa-search-recording-delete-confirm-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.ll-ipa-search-recording-delete-confirm-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.ll-ipa-search-recording-delete-confirm-text {
+    min-width: 0;
+    color: #7f1d1d;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.ll-ipa-search-recording-delete-confirm-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.ll-ipa-search-recording-delete-toggle:disabled,
+.ll-ipa-search-recording-delete-confirm-action:disabled,
+.ll-ipa-search-recording-delete-cancel:disabled {
+    cursor: wait;
+    opacity: 0.58;
 }
 
 .ll-ipa-search-save-state {
@@ -1798,7 +1921,7 @@
     }
 
     .ll-ipa-search-table col.ll-ipa-search-col-actions {
-        width: 84px;
+        width: 120px;
     }
 }
 

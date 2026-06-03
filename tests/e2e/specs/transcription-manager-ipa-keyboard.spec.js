@@ -75,7 +75,12 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
       ignored_issues: [],
       issue_count: 0,
       ignored_issue_count: 0,
-      needs_review: false,
+      needs_review: true,
+      review_fields: {
+        recording_text: false,
+        recording_ipa: true
+      },
+      review_note: '',
       image: {},
       audio_url: '',
       audio_label: 'Play recording'
@@ -240,6 +245,18 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
 
   await ipaInput.click();
   await expect(page.locator('[data-ll-ipa-inline-keyboard]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as reviewed');
+  const reviewKeyboardOrder = await page.locator('.ll-ipa-search-ipa-cell').first().evaluate((cell) => {
+    const wrap = cell.querySelector('.ll-ipa-search-field-wrap');
+    const review = cell.querySelector('.ll-ipa-search-field-review-panel');
+    const keyboard = cell.querySelector('[data-ll-ipa-inline-keyboard-wrap]');
+    return {
+      reviewAfterField: !!(wrap && review && (wrap.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      keyboardAfterReview: !!(review && keyboard && (review.compareDocumentPosition(keyboard) & Node.DOCUMENT_POSITION_FOLLOWING))
+    };
+  });
+  expect(reviewKeyboardOrder.reviewAfterField).toBe(true);
+  expect(reviewKeyboardOrder.keyboardAfterReview).toBe(true);
   await expect(page.locator('.ll-ipa-inline-keyboard-label').first()).toHaveText('Diacritics and signs');
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʲ"]')).toHaveCount(1);

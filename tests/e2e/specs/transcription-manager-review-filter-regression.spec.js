@@ -404,6 +404,181 @@ test('reviewed rows stay visible until the transcription search is manually refr
   ]);
 });
 
+test('recording rows expose a trash confirmation and delete through the transcription manager action', async ({ page }) => {
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    try {
+      window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+      window.localStorage.removeItem('llTranscriptionManagerLastTab');
+    } catch (error) {
+      // Ignore storage cleanup failures in the test harness.
+    }
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function buildRecording() {
+      return {
+        recording_id: 303,
+        word_id: 77,
+        word_text: 'Gamma',
+        word_translation: '',
+        word_edit_link: '',
+        recording_text: 'gamma',
+        recording_translation: '',
+        recording_ipa: 'gamma',
+        categories: [],
+        issues: [],
+        ignored_issues: [],
+        issue_count: 0,
+        ignored_issue_count: 0,
+        needs_review: false,
+        review_fields: {
+          recording_text: false,
+          recording_ipa: false
+        },
+        review_note: '',
+        image: {},
+        audio_url: '',
+        audio_label: 'Play recording'
+      };
+    }
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'search',
+      initialSearch: {
+        query: '',
+        scope: 'both',
+        issues_only: false,
+        review_only: false,
+        exact_transcription: false,
+        page: 1
+      },
+      i18n: {}
+    };
+
+    window.__llTranscriptionDeleteMock = {
+      recordings: [buildRecording()],
+      postCalls: []
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const requestData = Object.assign({}, data);
+      window.__llTranscriptionDeleteMock.postCalls.push({
+        url: String(url || ''),
+        data: requestData
+      });
+
+      window.setTimeout(function () {
+        const mock = window.__llTranscriptionDeleteMock;
+        if (requestData.action === 'll_tools_search_ipa_keyboard_recordings') {
+          const results = mock.recordings.map(clone);
+          deferred.resolve({
+            success: true,
+            data: {
+              wordset: {
+                id: 7,
+                name: 'Delete Wordset'
+              },
+              transcription: {
+                mode: 'ipa',
+                symbols_column_label: 'Pronunciation'
+              },
+              results,
+              total_matches: results.length,
+              shown_count: results.length,
+              has_more: false,
+              current_page: 1,
+              total_pages: 1,
+              per_page: 100,
+              page_start: results.length ? 1 : 0,
+              page_end: results.length ? results.length : 0,
+              issues_only: false,
+              review_only: false,
+              exact_transcription: false,
+              can_edit: true,
+              validation_config: {
+                supports_rules: true,
+                builtin_rules: [],
+                custom_rules: []
+              }
+            }
+          });
+          return;
+        }
+
+        if (requestData.action === 'll_tools_delete_ipa_keyboard_recording') {
+          const recordingId = parseInt(requestData.recording_id, 10) || 0;
+          mock.recordings = mock.recordings.filter(function (recording) {
+            return recording.recording_id !== recordingId;
+          });
+          deferred.resolve({
+            success: true,
+            data: {
+              message: 'Recording moved to Trash.',
+              recording_id: recordingId,
+              word_id: 77,
+              has_remaining_recordings: false
+            }
+          });
+          return;
+        }
+
+        deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
+      }, 0);
+
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  const rows = page.locator('#ll-ipa-search-results tbody tr');
+  await expect(rows).toHaveCount(1);
+  const row = rows.first();
+  const deleteToggle = row.locator('.ll-ipa-search-recording-delete-toggle');
+  await expect(deleteToggle).toHaveAttribute('aria-label', 'Delete recording');
+  await expect(row.locator('.ll-ipa-search-recording-delete-confirm')).toBeHidden();
+
+  await deleteToggle.click();
+  await expect(row.locator('.ll-ipa-search-recording-delete-confirm')).toBeVisible();
+  await expect(row.locator('.ll-ipa-search-recording-delete-confirm-text')).toHaveText('Delete this recording?');
+  await row.locator('.ll-ipa-search-recording-delete-confirm-action').click();
+
+  await expect(page.locator('#ll-ipa-search-results tbody tr')).toHaveCount(0);
+  await expect(page.locator('#ll-ipa-search-results .ll-ipa-empty')).toHaveText('No recordings matched this search.');
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Recording moved to Trash.');
+
+  const actions = await page.evaluate(() => {
+    return window.__llTranscriptionDeleteMock.postCalls.map(function (call) {
+      return call.data.action;
+    });
+  });
+
+  expect(actions).toEqual([
+    'll_tools_search_ipa_keyboard_recordings',
+    'll_tools_delete_ipa_keyboard_recording',
+    'll_tools_search_ipa_keyboard_recordings'
+  ]);
+});
+
 test('transcription autosave keeps fields editable and preserves newer edits', async ({ page }) => {
   await page.route('**/*', route => route.fulfill({
     status: 200,

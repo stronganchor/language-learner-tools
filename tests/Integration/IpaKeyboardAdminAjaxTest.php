@@ -263,6 +263,50 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($clearedRecording['needs_review'] ?? true));
     }
 
+    public function test_delete_recording_handler_moves_recording_to_trash(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Transcription Delete Wordset');
+        $category = wp_insert_term('Transcription Delete Category', 'word-category');
+        $this->assertIsArray($category);
+        $category_id = (int) ($category['term_id'] ?? 0);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Delete me',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Delete me Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'delete me');
+        update_post_meta($recording_id, 'recording_ipa', 'delete me');
+
+        wp_set_current_user($user_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'recording_id' => $recording_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_delete_ipa_keyboard_recording_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+        $this->assertSame('trash', get_post_status($recording_id));
+        $this->assertSame('draft', get_post_status($word_id));
+        $this->assertSame($recording_id, (int) (($response['data'] ?? [])['recording_id'] ?? 0));
+        $this->assertSame($word_id, (int) (($response['data'] ?? [])['word_id'] ?? 0));
+        $this->assertFalse((bool) (($response['data'] ?? [])['has_remaining_recordings'] ?? true));
+    }
+
     public function test_validation_flags_bad_dental_marks_and_unapproved_symbols(): void
     {
         $wordset_id = $this->create_wordset('IPA Validation Wordset');
