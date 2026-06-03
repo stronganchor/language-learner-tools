@@ -215,6 +215,46 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_public_static_cache_allows_wordset_routes_that_resolve_as_home(): void
+    {
+        $old_show_on_front = get_option('show_on_front');
+        $old_page_on_front = get_option('page_on_front');
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Static Cache Wordset Host',
+            'post_content' => '',
+        ]);
+        $term = wp_insert_term('Public Static Cache Home Wordset', 'wordset');
+        $this->assertIsArray($term);
+        $this->assertFalse(is_wp_error($term));
+
+        $wordset = get_term((int) ($term['term_id'] ?? 0), 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        update_option('show_on_front', 'page');
+        update_option('page_on_front', $page_id);
+        wp_set_current_user(0);
+        $_GET = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/';
+
+        try {
+            $this->go_to('/');
+            set_query_var('ll_wordset_page', (string) $wordset->slug);
+            set_query_var('ll_wordset_view', '');
+
+            $this->assertTrue(is_front_page() || is_home());
+            $this->assertTrue(ll_tools_is_wordset_page_context());
+            $this->assertTrue(ll_tools_public_static_cache_has_safe_request_shape());
+        } finally {
+            update_option('show_on_front', $old_show_on_front);
+            update_option('page_on_front', $old_page_on_front);
+            set_query_var('ll_wordset_page', '');
+            set_query_var('ll_wordset_view', '');
+        }
+    }
+
     public function test_public_static_cache_store_writes_when_php_status_is_unset(): void
     {
         $dir = ll_tools_public_static_cache_dir();

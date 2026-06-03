@@ -234,7 +234,8 @@ function ll_tools_public_static_cache_has_safe_request_shape(): bool {
     if (is_user_logged_in()) {
         return false;
     }
-    if (is_front_page() || is_home()) {
+    $is_wordset_page_request = function_exists('ll_tools_is_wordset_page_context') && ll_tools_is_wordset_page_context();
+    if (!$is_wordset_page_request && (is_front_page() || is_home())) {
         return false;
     }
     if (is_preview() || (function_exists('is_customize_preview') && is_customize_preview())) {
