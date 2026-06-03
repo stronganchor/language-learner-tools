@@ -26640,6 +26640,23 @@ msgstr "Doppelte Vokabel-ID in diesem Stapel."
 msgid "Missing replacement title."
 msgstr "Ersatztitel fehlt."
 
+#: includes/api/automation-rest.php:1762
+msgid "Provide one or more word helper translation updates."
+msgstr "Gib eine oder mehrere Aktualisierungen für Vokabel-Hilfsübersetzungen an."
+
+#. translators: %d: maximum update count
+#: includes/api/automation-rest.php:1771
+msgid "Too many word helper translation updates in one request. Maximum is %d."
+msgstr "Zu viele Aktualisierungen für Vokabel-Hilfsübersetzungen in einer Anfrage. Maximum ist %d."
+
+#: includes/api/automation-rest.php:1822
+msgid "Use field=word_translation or field=word_english_meaning with value."
+msgstr "Verwende field=word_translation oder field=word_english_meaning mit value."
+
+#: includes/api/automation-rest.php:1845
+msgid "Missing helper translation value."
+msgstr "Wert der Hilfsübersetzung fehlt."
+
 #: includes/api/automation-rest.php:2996
 msgid "Unable to resolve a word category for the translation item."
 msgstr "Für das Übersetzungselement konnte keine Vokabelkategorie ermittelt werden."

@@ -26474,6 +26474,23 @@ msgstr "Bu grupta yinelenen kelime kimliği var."
 msgid "Missing replacement title."
 msgstr "Yeni başlık eksik."
 
+#: includes/api/automation-rest.php:1762
+msgid "Provide one or more word helper translation updates."
+msgstr "Bir veya daha fazla kelime yardımcı çevirisi güncellemesi sağla."
+
+#. translators: %d: maximum update count
+#: includes/api/automation-rest.php:1771
+msgid "Too many word helper translation updates in one request. Maximum is %d."
+msgstr "Bir istekte çok fazla kelime yardımcı çevirisi güncellemesi var. En fazla %d."
+
+#: includes/api/automation-rest.php:1822
+msgid "Use field=word_translation or field=word_english_meaning with value."
+msgstr "value ile birlikte field=word_translation veya field=word_english_meaning kullan."
+
+#: includes/api/automation-rest.php:1845
+msgid "Missing helper translation value."
+msgstr "Yardımcı çeviri değeri eksik."
+
 #: includes/api/automation-rest.php:2996
 msgid "Unable to resolve a word category for the translation item."
 msgstr "Çeviri öğesi için kelime kategorisi çözümlenemedi."
