@@ -6104,6 +6104,7 @@ function ll_tools_ipa_keyboard_search_recordings(
 
     $word_display = ll_tools_ipa_keyboard_get_word_display_map($word_ids);
     $matches = [];
+    $has_query = ($query !== '');
 
     foreach ((array) $recording_ids as $recording_id) {
         $recording_id = (int) $recording_id;
@@ -6112,10 +6113,34 @@ function ll_tools_ipa_keyboard_search_recordings(
         }
 
         $word_id = (int) wp_get_post_parent_id($recording_id);
+        $word_info = (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => '']);
+        if (!$has_query) {
+            if ($issues_only) {
+                $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+                if (empty($validation['active'])) {
+                    continue;
+                }
+            }
+
+            if ($review_only && !ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id)) {
+                continue;
+            }
+
+            $matches[] = [
+                'recording_id' => $recording_id,
+                'word_id' => $word_id,
+                'word_info' => $word_info,
+                'word_text' => (string) ($word_info['word_text'] ?? ''),
+                'recording_text' => (string) get_post_meta($recording_id, 'recording_text', true),
+                'payload' => null,
+            ];
+            continue;
+        }
+
         $payload = ll_tools_ipa_keyboard_build_search_row_payload(
             $recording_id,
             $wordset_id,
-            (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => '']),
+            $word_info,
             $transcription_mode
         );
 
@@ -6131,7 +6156,14 @@ function ll_tools_ipa_keyboard_search_recordings(
             continue;
         }
 
-        $matches[] = $payload;
+        $matches[] = [
+            'recording_id' => $recording_id,
+            'word_id' => $word_id,
+            'word_info' => $word_info,
+            'word_text' => (string) ($payload['word_text'] ?? ''),
+            'recording_text' => (string) ($payload['recording_text'] ?? ''),
+            'payload' => $payload,
+        ];
     }
 
     usort($matches, static function (array $left, array $right): int {
@@ -6147,7 +6179,19 @@ function ll_tools_ipa_keyboard_search_recordings(
     $total_pages = max(1, (int) ceil($total_matches / $per_page));
     $current_page = min($page, $total_pages);
     $offset = max(0, ($current_page - 1) * $per_page);
-    $results = array_slice($matches, $offset, $per_page);
+    $page_matches = array_slice($matches, $offset, $per_page);
+    $results = array_map(static function (array $match) use ($wordset_id, $transcription_mode): array {
+        if (is_array($match['payload'] ?? null)) {
+            return (array) $match['payload'];
+        }
+
+        return ll_tools_ipa_keyboard_build_search_row_payload(
+            (int) ($match['recording_id'] ?? 0),
+            $wordset_id,
+            (array) ($match['word_info'] ?? ['word_text' => '', 'translation' => '']),
+            $transcription_mode
+        );
+    }, $page_matches);
     $page_start = $total_matches > 0 ? ($offset + 1) : 0;
     $page_end = $total_matches > 0 ? ($offset + count($results)) : 0;
 
