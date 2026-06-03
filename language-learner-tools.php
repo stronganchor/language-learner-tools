@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.5.5
+Version: 6.5.6
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,7 +19,7 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.5.5');
+define('LL_TOOLS_VERSION', '6.5.6');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
@@ -174,15 +174,31 @@ function ll_tools_filter_update_detection_strategies($strategies) {
  * Front-end page requests don't need PUC hooks and object setup.
  */
 function ll_tools_should_boot_update_checker() {
-    if (is_admin()) {
-        return true;
-    }
-
     if (function_exists('wp_doing_cron') && wp_doing_cron()) {
         return true;
     }
 
     if (defined('WP_CLI') && WP_CLI) {
+        return true;
+    }
+
+    if (!is_admin()) {
+        return false;
+    }
+
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+        return false;
+    }
+
+    global $pagenow;
+    $admin_page = is_string($pagenow ?? null) ? (string) $pagenow : '';
+    if (in_array($admin_page, ['plugins.php', 'plugin-install.php', 'update-core.php', 'update.php', 'admin-post.php'], true)) {
+        return true;
+    }
+
+    $settings_slug = defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings';
+    $request_page = isset($_GET['page']) ? sanitize_key(wp_unslash((string) $_GET['page'])) : '';
+    if ($request_page !== '' && in_array($request_page, [$settings_slug, 'language-learning-tools-settings'], true)) {
         return true;
     }
 
