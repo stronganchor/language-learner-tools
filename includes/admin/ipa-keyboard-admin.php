@@ -6020,14 +6020,20 @@ function ll_tools_ipa_keyboard_recording_matches_search(
     return false;
 }
 
-function ll_tools_ipa_keyboard_build_search_row_payload(int $recording_id, int $wordset_id, array $word_info, string $transcription_mode = ''): array {
+function ll_tools_ipa_keyboard_build_search_row_payload(
+    int $recording_id,
+    int $wordset_id,
+    array $word_info,
+    string $transcription_mode = '',
+    bool $refresh_validation = false
+): array {
     if ($transcription_mode === '') {
         $transcription_mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     }
     $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $transcription_mode);
     $payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, (int) wp_get_post_parent_id($recording_id), $word_info, $recording_ipa, $wordset_id);
     $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
-    if (!empty($validation['active']) || !empty($validation['ignored'])) {
+    if ($refresh_validation && (!empty($validation['active']) || !empty($validation['ignored']))) {
         ll_tools_ipa_keyboard_update_recording_validation($recording_id);
         $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
     }

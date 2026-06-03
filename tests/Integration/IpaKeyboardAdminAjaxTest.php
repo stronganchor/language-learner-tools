@@ -413,7 +413,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) ($recording['issue_count'] ?? -1));
     }
 
-    public function test_search_row_payload_refreshes_stale_unapproved_symbol_warning(): void
+    public function test_search_row_payload_uses_cached_validation_unless_refresh_requested(): void
     {
         $wordset_id = $this->create_wordset('Stale Validation Search Wordset');
         $word_id = self::factory()->post->create([
@@ -453,6 +453,15 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             'word_text' => 'Fresh IPA',
             'translation' => '',
         ]);
+
+        $this->assertSame('unapproved_ipa_symbol', (string) (($payload['issues'][0]['code'] ?? '')));
+        $this->assertSame(1, (int) ($payload['issue_count'] ?? -1));
+        $this->assertSame('1', (string) get_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), true));
+
+        $payload = ll_tools_ipa_keyboard_build_search_row_payload($recording_id, $wordset_id, [
+            'word_text' => 'Fresh IPA',
+            'translation' => '',
+        ], '', true);
 
         $this->assertSame([], (array) ($payload['issues'] ?? []));
         $this->assertSame(0, (int) ($payload['issue_count'] ?? -1));
