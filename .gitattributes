@@ -1,5 +1,5 @@
 /.gitignore export-ignore
-/.gitattributes export-ignore
+/.gitattributes export-ignore text eol=lf
 /.vscode export-ignore
 /AGENTS.md export-ignore
 /CODEBASE_ARCHITECTURE.md export-ignore
@@ -15,5 +15,5 @@
 /languages/*.po~ export-ignore
 
 # Keep bash test runner scripts runnable under LF-only shells.
-/tests/bin/run-tests.sh text eol=lf
+/tests/bin/*.sh text eol=lf
 /scripts/*.sh text eol=lf
