@@ -260,23 +260,45 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Turkish Lesson Name', (string) ($read_data['lessons'][0]['display_title'] ?? ''));
     }
 
-    public function test_orthography_conversion_rest_route_sets_profile_and_manual_rules(): void
+    public function test_orthography_conversion_rest_route_sets_manual_rules_settings_and_exceptions(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         $wordset_id = $this->ensure_term('wordset', 'REST Orthography Wordset', 'rest-orthography-wordset');
         wp_set_current_user($admin_id);
 
         $payload = [
-            'profile_key' => 'zazaki_genc_palu',
             'manual_rules' => [
-                'ɲ' => [
-                    'any' => 'ny',
+                'x' => [
+                    'any' => 'q',
                 ],
                 'n' => [
                     'any' => 'n',
                 ],
             ],
+            'orthography_settings' => [
+                'word_overrides' => [
+                    'sq' => 'se',
+                ],
+                'phrase_overrides' => [
+                    [
+                        'from' => ['des', 'erzen'],
+                        'to' => ['dest', 'erzen'],
+                    ],
+                ],
+                'optional_matches' => [
+                    [
+                        'ipa' => 'x',
+                        'orthography' => 'q',
+                    ],
+                ],
+                'recording_type_punctuation' => [
+                    'question' => '?',
+                ],
+                'sentence_case' => true,
+            ],
+            'exception_word_ids' => [77, 12, 77],
             'replace_manual_rules' => true,
+            'replace_orthography_settings' => true,
             'rescan_validations' => false,
         ];
 
@@ -289,7 +311,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $dry_data = $dry_run->get_data();
         $this->assertIsArray($dry_data);
         $this->assertTrue((bool) ($dry_data['changed'] ?? false));
-        $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+        $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_settings_meta_key(), true));
+        $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_exception_word_ids_meta_key(), true));
 
         $update = $this->dispatch_ll_tools_rest_request(
             'POST',
@@ -299,17 +322,25 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(200, $update->get_status());
         $data = $update->get_data();
         $this->assertIsArray($data);
-        $this->assertContains('profile_key', (array) ($data['changed_keys'] ?? []));
         $this->assertContains('manual_rules', (array) ($data['changed_keys'] ?? []));
-        $this->assertSame('zazaki_genc_palu', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+        $this->assertContains('orthography_settings', (array) ($data['changed_keys'] ?? []));
+        $this->assertContains('exception_word_ids', (array) ($data['changed_keys'] ?? []));
 
         $read = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-orthography-wordset/orthography-conversion');
         $this->assertSame(200, $read->get_status());
         $read_data = $read->get_data();
         $this->assertIsArray($read_data);
-        $this->assertSame('zazaki_genc_palu', (string) ($read_data['profile_key'] ?? ''));
-        $this->assertSame('ny', (string) ($read_data['manual_rules']['ɲ']['any'] ?? ''));
+        $this->assertSame('', (string) ($read_data['profile_key'] ?? ''));
+        $this->assertSame('q', (string) ($read_data['manual_rules']['x']['any'] ?? ''));
         $this->assertSame('n', (string) ($read_data['manual_rules']['n']['any'] ?? ''));
+        $this->assertSame('se', (string) ($read_data['orthography_settings']['word_overrides']['sq'] ?? ''));
+        $this->assertSame(['des', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['from'] ?? []));
+        $this->assertSame(['dest', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['to'] ?? []));
+        $this->assertSame('x', (string) ($read_data['orthography_settings']['optional_matches'][0]['ipa'] ?? ''));
+        $this->assertSame('q', (string) ($read_data['orthography_settings']['optional_matches'][0]['orthography'] ?? ''));
+        $this->assertSame('?', (string) ($read_data['orthography_settings']['recording_type_punctuation']['question'] ?? ''));
+        $this->assertTrue((bool) ($read_data['orthography_settings']['sentence_case'] ?? false));
+        $this->assertSame([12, 77], array_map('intval', (array) ($read_data['exception_word_ids'] ?? [])));
     }
 
     public function test_create_wordset_route_can_clone_template_and_assign_manager(): void

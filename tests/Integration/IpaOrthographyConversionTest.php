@@ -118,7 +118,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) (($response['data']['orthography']['stats']['candidate_count'] ?? 0)));
     }
 
-    public function test_surface_trill_auto_rule_defaults_to_single_r(): void
+    public function test_surface_trill_rule_is_not_changed_by_language_specific_policy(): void
     {
         $wordset_id = $this->createWordset('Orthography Surface Trill');
         $engine_rules = ll_tools_ipa_orthography_prepare_engine_rules(
@@ -147,18 +147,24 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $prediction = ll_tools_ipa_orthography_convert_ipa_to_text('ara', $engine_rules, $wordset_id);
 
         $this->assertTrue((bool) ($prediction['complete'] ?? false));
-        $this->assertSame('ara', (string) ($prediction['text'] ?? ''));
+        $this->assertSame('arra', (string) ($prediction['text'] ?? ''));
     }
 
-    public function test_genc_palu_profile_uses_phrase_exception_and_flags_mismatch(): void
+    public function test_wordset_phrase_override_drives_conversion_and_flags_mismatch(): void
     {
-        $wordset_id = $this->createWordset('Genç-Palu Profile');
+        $wordset_id = $this->createWordset('Phrase Override');
+        $this->configureDesErzenFixture($wordset_id);
         $word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
         $recording_id = $this->createRecording($word_id, 'des erzen', 'dɛs ɛɾzɛn');
 
-        $prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text('dɛs ɛɾzɛn', $wordset_id);
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
+            'dɛs ɛɾzɛn',
+            ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id),
+            $wordset_id,
+            $recording_id
+        );
         $this->assertTrue((bool) ($prediction['complete'] ?? false));
-        $this->assertSame('Dest erzen', (string) ($prediction['text'] ?? ''));
+        $this->assertSame('dest erzen', (string) ($prediction['text'] ?? ''));
         $this->assertNotSame(
             ll_tools_ipa_orthography_profile_compare_key('dest erzen'),
             ll_tools_ipa_orthography_profile_compare_key('desterzen')
@@ -175,14 +181,15 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $rows = (array) ($data['contradictions'] ?? []);
         $this->assertCount(1, $rows);
         $this->assertSame($recording_id, (int) ($rows[0]['recording_id'] ?? 0));
-        $this->assertSame('Dest erzen', (string) ($rows[0]['predicted_text'] ?? ''));
-        $this->assertSame('profile', (string) ($rows[0]['prediction_source'] ?? ''));
+        $this->assertSame('dest erzen', (string) ($rows[0]['predicted_text'] ?? ''));
+        $this->assertSame('rules', (string) ($rows[0]['prediction_source'] ?? ''));
         $this->assertTrue((bool) ($rows[0]['can_apply_suggestion'] ?? false));
     }
 
     public function test_recording_meta_change_queues_validation_until_scheduled_hook_runs(): void
     {
-        $wordset_id = $this->createWordset('genc-palu Async Validation');
+        $wordset_id = $this->createWordset('Async Validation');
+        $this->configureDesErzenFixture($wordset_id);
         $word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
         $recording_id = $this->createRecording(
             $word_id,
@@ -233,88 +240,55 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertContains("c\u{0361}\u{02B0}\u{025B}", array_values((array) ($tie_bar_issue['samples'] ?? [])));
     }
 
-    public function test_genc_palu_profile_keeps_palatal_nasal_distinct_from_plain_n(): void
+    public function test_word_overrides_and_optional_matches_are_wordset_settings(): void
     {
-        $wordset_id = $this->createWordset('Genç-Palu Nasal Profile');
-        $word_id = $this->createWord($wordset_id, 'Woman', 'cini');
-        $recording_id = $this->createRecording($word_id, 'cini', 'd͡ʒiɲi');
+        $wordset_id = $this->createWordset('Configurable Orthography Settings');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            's' => ['any' => 's'],
+            't' => ['any' => 'tw'],
+            'ɨ' => ['any' => 'ı'],
+        ]);
+        $this->setOrthographySettings($wordset_id, [
+            'word_overrides' => [
+                'sı' => 'se',
+                'twı' => 'twe',
+            ],
+            'optional_matches' => [
+                [
+                    'ipa' => "ɨ\u{0306}",
+                    'orthography' => 'ı',
+                ],
+            ],
+        ]);
 
-        $this->assertSame('cini', ll_tools_ipa_orthography_profile_convert_genc_palu_word('d͡ʒini'));
-        $this->assertSame('cinyi', ll_tools_ipa_orthography_profile_convert_genc_palu_word('d͡ʒiɲi'));
-
-        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
-        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
-        $codes = array_map(static function (array $issue): string {
-            return (string) ($issue['code'] ?? '');
-        }, (array) ($validation['active'] ?? []));
-
-        $this->assertContains('orthography_mismatch', $codes);
-    }
-
-    public function test_genc_palu_profile_uses_lexical_final_near_i_overrides_without_broad_auto_accept(): void
-    {
-        $wordset_id = $this->createWordset('Genç-Palu Near I Profile');
-        $ipa = "\u{0283}\u{026A} m\u{02B7}\u{025B}\u{027E}\u{026A}k\u{02B0}";
-
-        $prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text($ipa, $wordset_id);
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
+            "s\u{0268} t\u{0268}",
+            ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id),
+            $wordset_id
+        );
         $this->assertTrue((bool) ($prediction['complete'] ?? false));
-        $this->assertSame('Şı mwerık', (string) ($prediction['text'] ?? ''));
+        $this->assertSame('se twe', (string) ($prediction['text'] ?? ''));
 
-        $accepted_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Şı mwerık', $ipa, $wordset_id);
-        $this->assertTrue((bool) ($accepted_detail['matches'] ?? false));
-
-        $xwe_prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text("\u{03C7}\u{02B7}\u{0268}", $wordset_id);
-        $this->assertTrue((bool) ($xwe_prediction['complete'] ?? false));
-        $this->assertSame('Xwe', (string) ($xwe_prediction['text'] ?? ''));
-        $xwe_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Xwe', "\u{03C7}\u{02B7}\u{0268}", $wordset_id);
-        $this->assertTrue((bool) ($xwe_detail['matches'] ?? false));
-
-        $kweli_prediction = ll_tools_ipa_orthography_profile_convert_ipa_to_text("k\u{02B7}\u{02B0}\u{025B}l\u{026A}", $wordset_id);
-        $this->assertTrue((bool) ($kweli_prediction['complete'] ?? false));
-        $this->assertSame('Kwelı', (string) ($kweli_prediction['text'] ?? ''));
-
-        $this->assertSame('Mase', (string) (ll_tools_ipa_orthography_profile_convert_ipa_to_text("mas\u{026A}", $wordset_id)['text'] ?? ''));
-        $this->assertSame('Merre', (string) (ll_tools_ipa_orthography_profile_convert_ipa_to_text("m\u{025B}r\u{026A}", $wordset_id)['text'] ?? ''));
-        $final_e_cases = [
-            'Kwe' => "k\u{02B7}\u{02B0}\u{026A}",
-            'Dıje' => "d\u{0268}\u{0292}\u{026A}",
-            'Vıştıre' => "v\u{0268}\u{0283}t\u{0268}r\u{026A}",
-            'Mefte' => "m\u{025B}ft\u{026A}",
-            'Perde' => "p\u{025B}rd\u{026A}",
-            'Resine' => "r\u{025B}sin\u{026A}",
-            'Kılse' => "k\u{0268}ls\u{026A}",
-            'Yege' => "j\u{025B}g\u{026A}",
+        $brief_ipa = "b\u{02B7}\u{0268}\u{0306}\u{027E}e";
+        $manual_prediction = [
+            'text' => 'Bwırê',
+            'complete' => true,
+            'matched_tokens' => 1,
+            'token_count' => 1,
         ];
-        foreach ($final_e_cases as $expected_text => $case_ipa) {
-            $this->assertSame($expected_text, (string) (ll_tools_ipa_orthography_profile_convert_ipa_to_text($case_ipa, $wordset_id)['text'] ?? ''));
-        }
+        $with_dotless_i = ll_tools_ipa_orthography_profile_mismatch_detail('Bwırê', $brief_ipa, $wordset_id, '', $manual_prediction);
+        $this->assertTrue((bool) ($with_dotless_i['matches'] ?? false));
+        $this->assertSame('Bwırê', (string) ($with_dotless_i['suggested_text'] ?? ''));
 
-        $lexical_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Maze', "maz\u{026A}", $wordset_id);
-        $this->assertFalse((bool) ($lexical_detail['matches'] ?? true));
-        $this->assertSame('Mazı', (string) ($lexical_detail['suggested_text'] ?? ''));
-        $this->assertSame(['e'], $this->collectSpanText('Maze', (array) ($lexical_detail['actual_spans'] ?? [])));
-        $this->assertSame(['ı'], $this->collectSpanText((string) ($lexical_detail['suggested_text'] ?? ''), (array) ($lexical_detail['suggested_spans'] ?? [])));
-
-        $unresolved_pronoun_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Yı', "j\u{026A}", $wordset_id);
-        $this->assertFalse((bool) ($unresolved_pronoun_detail['matches'] ?? true));
-        $this->assertSame('Ye', (string) ($unresolved_pronoun_detail['suggested_text'] ?? ''));
-
-        $detail = ll_tools_ipa_orthography_profile_mismatch_detail('Şı mwerik', $ipa, $wordset_id);
-        $this->assertFalse((bool) ($detail['matches'] ?? true));
-        $this->assertSame('Şı mwerık', (string) ($detail['suggested_text'] ?? ''));
-        $this->assertSame(['i'], $this->collectSpanText('Şı mwerik', (array) ($detail['actual_spans'] ?? [])));
-        $this->assertSame(['ı'], $this->collectSpanText((string) ($detail['suggested_text'] ?? ''), (array) ($detail['suggested_spans'] ?? [])));
-        $this->assertSame(["\u{026A}"], $this->collectSpanText($ipa, (array) ($detail['ipa_spans'] ?? [])));
-
-        $ipa_suggestions = array_map(static function (array $suggestion): string {
-            return (string) ($suggestion['ipa'] ?? '');
-        }, (array) ($detail['ipa_suggestions'] ?? []));
-        $this->assertContains("\u{0283}\u{026A} m\u{02B7}\u{025B}\u{027E}ik\u{02B0}", $ipa_suggestions);
+        $without_dotless_i = ll_tools_ipa_orthography_profile_mismatch_detail('Bwrê', $brief_ipa, $wordset_id, '', $manual_prediction);
+        $this->assertTrue((bool) ($without_dotless_i['matches'] ?? false));
+        $this->assertSame('Bwrê', (string) ($without_dotless_i['suggested_text'] ?? ''));
     }
 
     public function test_apply_orthography_suggestion_handler_updates_recording_text(): void
     {
-        $wordset_id = $this->createWordset('Genç-Palu Suggestion');
+        $wordset_id = $this->createWordset('Phrase Override Suggestion');
+        $this->configureDesErzenFixture($wordset_id);
         $word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
         $recording_id = $this->createRecording($word_id, 'des erzen', 'dɛs ɛɾzɛn');
 
@@ -333,18 +307,31 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         });
 
         $this->assertTrue((bool) ($response['success'] ?? false));
-        $this->assertSame('Dest erzen', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('dest erzen', (string) get_post_meta($recording_id, 'recording_text', true));
         $this->assertSame(0, (int) (($response['data']['orthography']['stats']['active_contradiction_count'] ?? 0)));
     }
 
-    public function test_apply_orthography_suggestion_preserves_accepted_final_near_i_choice(): void
+    public function test_apply_orthography_suggestion_preserves_configured_optional_match_choice(): void
     {
-        $wordset_id = $this->createWordset('Genç-Palu Near I Suggestion');
-        $word_id = $this->createWord($wordset_id, 'Warm clothes', 'Şı mwerik');
+        $wordset_id = $this->createWordset('Optional Match Suggestion');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'a' => ['any' => 'a'],
+            'x' => ['any' => 'q'],
+            'b' => ['any' => 'b'],
+        ]);
+        $this->setOrthographySettings($wordset_id, [
+            'optional_matches' => [
+                [
+                    'ipa' => 'x',
+                    'orthography' => 'q',
+                ],
+            ],
+        ]);
+        $word_id = $this->createWord($wordset_id, 'Optional middle segment', 'ab');
         $recording_id = $this->createRecording(
             $word_id,
-            'Şı mwerik',
-            "\u{0283}\u{026A} m\u{02B7}\u{025B}\u{027E}\u{026A}k\u{02B0}"
+            'ab',
+            'axb'
         );
 
         $user_id = $this->createViewerUser();
@@ -362,25 +349,25 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         });
 
         $this->assertTrue((bool) ($response['success'] ?? false));
-        $this->assertSame('Şı mwerık', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('ab', (string) get_post_meta($recording_id, 'recording_text', true));
     }
 
     public function test_word_exception_marks_contradiction_as_approved(): void
     {
         $wordset_id = $this->createWordset('Orthography Exceptions');
+        $this->configureDesErzenFixture($wordset_id);
 
-        $contradicting_word_id = $this->createWordWithRecording($wordset_id, 'Gloss 1', 'maš', 'maš', 'maʃ');
-        $this->createWordWithRecording($wordset_id, 'Gloss 2', 'sha', 'sha', 'ʃa');
-        $this->createWordWithRecording($wordset_id, 'Gloss 3', 'ma', 'ma', 'ma');
-
-        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
-            'ʃ' => [
-                'any' => 'sh',
-            ],
-        ]);
+        $contradicting_word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
+        $contradicting_recording_id = $this->createRecording($contradicting_word_id, 'des erzen', 'dɛs ɛɾzɛn');
 
         $before = ll_tools_ipa_keyboard_build_orthography_data($wordset_id);
         $this->assertSame(1, (int) (($before['stats']['active_contradiction_count'] ?? 0)));
+        ll_tools_ipa_keyboard_update_recording_validation($contradicting_recording_id);
+        $before_validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($contradicting_recording_id, $wordset_id);
+        $before_codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($before_validation['active'] ?? []));
+        $this->assertContains('orthography_mismatch', $before_codes);
 
         ll_tools_ipa_orthography_update_exception_word_id($wordset_id, $contradicting_word_id, true);
 
@@ -391,6 +378,45 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $rows = (array) ($after['contradictions'] ?? []);
         $this->assertCount(1, $rows);
         $this->assertTrue((bool) ($rows[0]['approved_exception'] ?? false));
+
+        ll_tools_ipa_keyboard_update_recording_validation($contradicting_recording_id);
+        $after_validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($contradicting_recording_id, $wordset_id);
+        $after_codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($after_validation['active'] ?? []));
+        $this->assertNotContains('orthography_mismatch', $after_codes);
+    }
+
+    /**
+     * @param array<string,mixed> $settings
+     */
+    private function setOrthographySettings(int $wordset_id, array $settings): void
+    {
+        update_term_meta(
+            $wordset_id,
+            ll_tools_ipa_orthography_settings_meta_key(),
+            ll_tools_ipa_orthography_sanitize_settings($settings, $wordset_id)
+        );
+    }
+
+    private function configureDesErzenFixture(int $wordset_id): void
+    {
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'd' => ['any' => 'd'],
+            'ɛ' => ['any' => 'e'],
+            's' => ['any' => 's'],
+            'ɾ' => ['any' => 'r'],
+            'z' => ['any' => 'z'],
+            'n' => ['any' => 'n'],
+        ]);
+        $this->setOrthographySettings($wordset_id, [
+            'phrase_overrides' => [
+                [
+                    'from' => ['des', 'erzen'],
+                    'to' => ['dest', 'erzen'],
+                ],
+            ],
+        ]);
     }
 
     private function createViewerUser(): int

@@ -3819,23 +3819,19 @@ function ll_tools_rest_automation_orthography_conversion_payload(WP_Term $wordse
     ll_tools_rest_automation_load_orthography_helpers();
 
     $wordset_id = (int) $wordset_term->term_id;
-    $stored_profile_key = sanitize_key((string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
     $manual_rules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
+    $orthography_settings = ll_tools_ipa_orthography_get_settings($wordset_id);
 
     return [
         'generated_at_gmt' => gmdate('c'),
         'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
         'profile_key' => ll_tools_ipa_orthography_get_profile_key($wordset_id),
-        'stored_profile_key' => $stored_profile_key,
         'conversion_profile' => ll_tools_ipa_orthography_get_conversion_profile($wordset_id),
-        'available_profiles' => [
-            [
-                'key' => 'zazaki_genc_palu',
-                'label' => __('Genç-Palu Zazaki', 'll-tools-text-domain'),
-            ],
-        ],
+        'available_profiles' => [],
         'manual_rules' => $manual_rules,
         'manual_rule_count' => count($manual_rules),
+        'orthography_settings' => $orthography_settings,
+        'exception_word_ids' => ll_tools_ipa_orthography_get_exception_word_ids($wordset_id),
     ];
 }
 
@@ -3858,29 +3854,13 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
     $changed_keys = [];
     $rescan_count = 0;
 
-    if (ll_tools_rest_automation_request_has_any_param($request, ['profile_key', 'profile', 'conversion_profile', 'clear_profile'])) {
-        $clear_profile = rest_sanitize_boolean($request->get_param('clear_profile'));
-        $raw_profile_key = $clear_profile
-            ? ''
-            : sanitize_key((string) ll_tools_rest_automation_first_request_param($request, ['profile_key', 'profile', 'conversion_profile']));
-        if ($raw_profile_key !== '' && $raw_profile_key !== 'zazaki_genc_palu') {
+    if (ll_tools_rest_automation_request_has_any_param($request, ['profile_key', 'profile', 'conversion_profile'])
+        && sanitize_key((string) ll_tools_rest_automation_first_request_param($request, ['profile_key', 'profile', 'conversion_profile'])) !== '') {
             return ll_tools_rest_automation_error(
                 'll_tools_rest_orthography_profile_invalid',
-                __('Unsupported orthography conversion profile.', 'll-tools-text-domain'),
+                __('Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead.', 'll-tools-text-domain'),
                 400
             );
-        }
-
-        if ((string) ($before['stored_profile_key'] ?? '') !== $raw_profile_key) {
-            $changed_keys[] = 'profile_key';
-            if (!$dry_run) {
-                if ($raw_profile_key === '') {
-                    delete_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key());
-                } else {
-                    update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), $raw_profile_key);
-                }
-            }
-        }
     }
 
     $current_manual_rules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
@@ -3912,6 +3892,109 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
                 }
             }
             $next_manual_rules = ll_tools_ipa_orthography_sanitize_manual_rules($next_manual_rules, $wordset_id);
+        }
+    }
+
+    $current_settings = ll_tools_ipa_orthography_get_settings($wordset_id);
+    $next_settings = $current_settings;
+    $settings_param_keys = [
+        'orthography_settings',
+        'settings',
+        'word_overrides',
+        'phrase_overrides',
+        'optional_matches',
+        'recording_type_punctuation',
+        'sentence_case',
+        'clear_orthography_settings',
+        'clear_settings',
+    ];
+    if (ll_tools_rest_automation_request_has_any_param($request, $settings_param_keys)) {
+        if (rest_sanitize_boolean($request->get_param('clear_orthography_settings')) || rest_sanitize_boolean($request->get_param('clear_settings'))) {
+            $next_settings = ll_tools_ipa_orthography_settings_defaults();
+        }
+
+        $raw_settings = [];
+        if (ll_tools_rest_automation_request_has_any_param($request, ['orthography_settings', 'settings'])) {
+            $raw_settings = ll_tools_rest_automation_first_request_param($request, ['orthography_settings', 'settings']);
+            if (!is_array($raw_settings)) {
+                return ll_tools_rest_automation_error(
+                    'll_tools_rest_orthography_settings_invalid',
+                    __('Orthography settings must be an object.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+        }
+
+        foreach (['word_overrides', 'phrase_overrides', 'optional_matches', 'recording_type_punctuation', 'sentence_case'] as $setting_key) {
+            if ($request->has_param($setting_key)) {
+                $raw_settings[$setting_key] = $request->get_param($setting_key);
+            }
+        }
+
+        if (!empty($raw_settings)) {
+            $incoming_settings = ll_tools_ipa_orthography_sanitize_settings($raw_settings, $wordset_id);
+            if (rest_sanitize_boolean($request->get_param('replace_orthography_settings')) || rest_sanitize_boolean($request->get_param('replace_settings'))) {
+                $next_settings = $incoming_settings;
+            } else {
+                foreach (['word_overrides', 'recording_type_punctuation'] as $setting_key) {
+                    if (array_key_exists($setting_key, $raw_settings)) {
+                        $next_settings[$setting_key] = array_merge(
+                            (array) ($next_settings[$setting_key] ?? []),
+                            (array) ($incoming_settings[$setting_key] ?? [])
+                        );
+                    }
+                }
+                foreach (['phrase_overrides', 'optional_matches'] as $setting_key) {
+                    if (array_key_exists($setting_key, $raw_settings)) {
+                        $next_settings[$setting_key] = array_merge(
+                            (array) ($next_settings[$setting_key] ?? []),
+                            (array) ($incoming_settings[$setting_key] ?? [])
+                        );
+                    }
+                }
+                if (array_key_exists('sentence_case', $raw_settings)) {
+                    $next_settings['sentence_case'] = (bool) ($incoming_settings['sentence_case'] ?? false);
+                }
+                $next_settings = ll_tools_ipa_orthography_sanitize_settings($next_settings, $wordset_id);
+            }
+        }
+    }
+
+    if ($next_settings !== $current_settings) {
+        $changed_keys[] = 'orthography_settings';
+        if (!$dry_run) {
+            if ($next_settings === ll_tools_ipa_orthography_settings_defaults()) {
+                delete_term_meta($wordset_id, ll_tools_ipa_orthography_settings_meta_key());
+            } else {
+                update_term_meta($wordset_id, ll_tools_ipa_orthography_settings_meta_key(), $next_settings);
+            }
+        }
+    }
+
+    $current_exception_word_ids = ll_tools_ipa_orthography_get_exception_word_ids($wordset_id);
+    $next_exception_word_ids = $current_exception_word_ids;
+    if (rest_sanitize_boolean($request->get_param('clear_exception_word_ids'))) {
+        $next_exception_word_ids = [];
+    }
+    if ($request->has_param('exception_word_ids')) {
+        $raw_exception_word_ids = $request->get_param('exception_word_ids');
+        if (!is_array($raw_exception_word_ids)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_orthography_exception_word_ids_invalid',
+                __('Orthography exception word IDs must be an array.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        $next_exception_word_ids = ll_tools_ipa_orthography_sanitize_exception_word_ids($raw_exception_word_ids);
+    }
+    if ($next_exception_word_ids !== $current_exception_word_ids) {
+        $changed_keys[] = 'exception_word_ids';
+        if (!$dry_run) {
+            if (empty($next_exception_word_ids)) {
+                delete_term_meta($wordset_id, ll_tools_ipa_orthography_exception_word_ids_meta_key());
+            } else {
+                update_term_meta($wordset_id, ll_tools_ipa_orthography_exception_word_ids_meta_key(), $next_exception_word_ids);
+            }
         }
     }
 
