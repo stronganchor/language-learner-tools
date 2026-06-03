@@ -404,7 +404,7 @@ test('reviewed rows stay visible until the transcription search is manually refr
   ]);
 });
 
-test('recording rows expose a trash confirmation and delete through the transcription manager action', async ({ page }) => {
+test('recording rows open the detached word editor and refresh after modal changes', async ({ page }) => {
   await page.route('**/*', route => route.fulfill({
     status: 200,
     contentType: 'text/html',
@@ -472,22 +472,33 @@ test('recording rows expose a trash confirmation and delete through the transcri
       i18n: {}
     };
 
-    window.__llTranscriptionDeleteMock = {
+    window.__llTranscriptionEditMock = {
       recordings: [buildRecording()],
-      postCalls: []
+      postCalls: [],
+      openCalls: []
+    };
+    window.LLToolsWordEditModal = {
+      open(options) {
+        window.__llTranscriptionEditMock.openCalls.push(Object.assign({}, options));
+        return Promise.resolve({
+          wordId: options.wordId,
+          wordsetId: options.wordsetId,
+          recordingId: options.recordingId
+        });
+      }
     };
 
     const $ = window.jQuery;
     $.post = function (url, data) {
       const deferred = $.Deferred();
       const requestData = Object.assign({}, data);
-      window.__llTranscriptionDeleteMock.postCalls.push({
+      window.__llTranscriptionEditMock.postCalls.push({
         url: String(url || ''),
         data: requestData
       });
 
       window.setTimeout(function () {
-        const mock = window.__llTranscriptionDeleteMock;
+        const mock = window.__llTranscriptionEditMock;
         if (requestData.action === 'll_tools_search_ipa_keyboard_recordings') {
           const results = mock.recordings.map(clone);
           deferred.resolve({
@@ -495,7 +506,7 @@ test('recording rows expose a trash confirmation and delete through the transcri
             data: {
               wordset: {
                 id: 7,
-                name: 'Delete Wordset'
+                name: 'Edit Wordset'
               },
               transcription: {
                 mode: 'ipa',
@@ -524,23 +535,6 @@ test('recording rows expose a trash confirmation and delete through the transcri
           return;
         }
 
-        if (requestData.action === 'll_tools_delete_ipa_keyboard_recording') {
-          const recordingId = parseInt(requestData.recording_id, 10) || 0;
-          mock.recordings = mock.recordings.filter(function (recording) {
-            return recording.recording_id !== recordingId;
-          });
-          deferred.resolve({
-            success: true,
-            data: {
-              message: 'Recording moved to Trash.',
-              recording_id: recordingId,
-              word_id: 77,
-              has_remaining_recordings: false
-            }
-          });
-          return;
-        }
-
         deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
       }, 0);
 
@@ -553,28 +547,47 @@ test('recording rows expose a trash confirmation and delete through the transcri
   const rows = page.locator('#ll-ipa-search-results tbody tr');
   await expect(rows).toHaveCount(1);
   const row = rows.first();
-  const deleteToggle = row.locator('.ll-ipa-search-recording-delete-toggle');
-  await expect(deleteToggle).toHaveAttribute('aria-label', 'Delete recording');
-  await expect(row.locator('.ll-ipa-search-recording-delete-confirm')).toBeHidden();
+  await expect(row).toHaveAttribute('data-word-id', '77');
+  const editToggle = row.locator('.ll-ipa-search-word-edit-toggle');
+  await expect(editToggle).toHaveAttribute('aria-label', 'Edit word');
+  await expect(row.locator('.ll-ipa-search-recording-delete-toggle')).toHaveCount(0);
 
-  await deleteToggle.click();
-  await expect(row.locator('.ll-ipa-search-recording-delete-confirm')).toBeVisible();
-  await expect(row.locator('.ll-ipa-search-recording-delete-confirm-text')).toHaveText('Delete this recording?');
-  await row.locator('.ll-ipa-search-recording-delete-confirm-action').click();
+  await editToggle.click();
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Word editor opened.');
+
+  const openCalls = await page.evaluate(() => {
+    return window.__llTranscriptionEditMock.openCalls;
+  });
+  expect(openCalls).toEqual([
+    {
+      wordId: 77,
+      wordsetId: 7,
+      recordingId: 303
+    }
+  ]);
+
+  await page.evaluate(() => {
+    const mock = window.__llTranscriptionEditMock;
+    mock.recordings = [];
+    window.jQuery(document).trigger('lltools:word-grid-recording-deleted', [{
+      wordId: 77,
+      wordsetId: 7,
+      recordingId: 303
+    }]);
+  });
 
   await expect(page.locator('#ll-ipa-search-results tbody tr')).toHaveCount(0);
   await expect(page.locator('#ll-ipa-search-results .ll-ipa-empty')).toHaveText('No recordings matched this search.');
-  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Recording moved to Trash.');
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Transcription rows updated.');
 
   const actions = await page.evaluate(() => {
-    return window.__llTranscriptionDeleteMock.postCalls.map(function (call) {
+    return window.__llTranscriptionEditMock.postCalls.map(function (call) {
       return call.data.action;
     });
   });
 
   expect(actions).toEqual([
     'll_tools_search_ipa_keyboard_recordings',
-    'll_tools_delete_ipa_keyboard_recording',
     'll_tools_search_ipa_keyboard_recordings'
   ]);
 });

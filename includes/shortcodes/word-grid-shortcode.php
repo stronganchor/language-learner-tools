@@ -3573,6 +3573,107 @@ function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, 
     return $config;
 }
 
+function ll_tools_word_edit_modal_enqueue_assets(int $wordset_id = 0): void {
+    $wordset_id = (int) $wordset_id;
+    ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
+    ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style', ['ll-ipa-fonts']);
+
+    $context = ll_tools_word_grid_resolve_context([
+        'wordset' => $wordset_id > 0 ? (string) $wordset_id : '',
+        'editor_context' => '1',
+    ]);
+    ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
+    ll_enqueue_asset_by_timestamp('/js/word-edit-modal.js', 'll-tools-word-edit-modal', ['jquery', 'll-tools-word-grid'], true);
+    wp_localize_script('ll-tools-word-edit-modal', 'llToolsWordEditModalData', [
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('ll_word_edit_modal'),
+        'i18n' => [
+            'openError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
+            'renderError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
+            'missingHost' => __('Word editor modal is not available on this page.', 'll-tools-text-domain'),
+        ],
+    ]);
+}
+
+function ll_tools_word_edit_modal_host_html(int $wordset_id = 0): string {
+    $wordset_id = (int) $wordset_id;
+    $grid_attrs = 'class="word-grid ll-word-grid" data-ll-word-grid data-ll-word-edit-modal-grid="1"';
+    if ($wordset_id > 0) {
+        $grid_attrs .= ' data-ll-wordset-id="' . esc_attr((string) $wordset_id) . '"';
+    }
+
+    return '<div class="ll-word-edit-modal-host" data-ll-word-edit-modal-host aria-live="polite">'
+        . '<div ' . $grid_attrs . '></div>'
+        . '</div>';
+}
+
+function ll_tools_word_edit_modal_build_grid_context(int $word_id, int $wordset_id = 0, int $category_id = 0): array {
+    $word_id = (int) $word_id;
+    $wordset_id = (int) $wordset_id;
+    $category_id = (int) $category_id;
+    if ($word_id <= 0) {
+        return [];
+    }
+    if ($wordset_id <= 0 && function_exists('ll_tools_word_grid_get_wordset_id_for_word')) {
+        $wordset_id = (int) ll_tools_word_grid_get_wordset_id_for_word($word_id);
+    }
+    if ($wordset_id <= 0 || !has_term($wordset_id, 'wordset', $word_id)) {
+        return [];
+    }
+
+    $atts = [
+        'wordset' => (string) $wordset_id,
+        'word_ids' => (string) $word_id,
+        'editor_context' => '1',
+    ];
+    if ($category_id > 0) {
+        $category = get_term($category_id, 'word-category');
+        if ($category instanceof WP_Term && !is_wp_error($category)) {
+            $atts['category'] = (string) $category->slug;
+        }
+    }
+
+    return ll_tools_word_grid_resolve_context($atts);
+}
+
+add_action('wp_ajax_ll_tools_get_word_edit_modal_grid', 'll_tools_word_edit_modal_grid_handler');
+function ll_tools_word_edit_modal_grid_handler() {
+    check_ajax_referer('ll_word_edit_modal', 'nonce');
+
+    $word_id = isset($_POST['word_id']) ? absint($_POST['word_id']) : 0;
+    $wordset_id = isset($_POST['wordset_id']) ? absint($_POST['wordset_id']) : 0;
+    $category_id = isset($_POST['category_id']) ? absint($_POST['category_id']) : 0;
+    $word = $word_id > 0 ? get_post($word_id) : null;
+    if (!($word instanceof WP_Post) || $word->post_type !== 'words') {
+        wp_send_json_error(__('Invalid word.', 'll-tools-text-domain'), 400);
+    }
+
+    $context = ll_tools_word_edit_modal_build_grid_context($word_id, $wordset_id, $category_id);
+    if (empty($context) || !empty($context['access_denied'])) {
+        wp_send_json_error(__('Invalid word editor context.', 'll-tools-text-domain'), 400);
+    }
+
+    $resolved_wordset_id = (int) ($context['wordset_id'] ?? 0);
+    if ($resolved_wordset_id <= 0 || empty($context['can_edit_words'])) {
+        wp_send_json_error(__('Insufficient permissions to edit this word.', 'll-tools-text-domain'), 403);
+    }
+    if (function_exists('ll_tools_word_grid_user_can_manage_word') && !ll_tools_word_grid_user_can_manage_word($word_id, $resolved_wordset_id)) {
+        wp_send_json_error(__('Insufficient permissions to edit this word.', 'll-tools-text-domain'), 403);
+    }
+
+    $html = ll_tools_word_grid_shortcode($context['atts']);
+    if (!is_string($html) || trim($html) === '') {
+        wp_send_json_error(__('Unable to open the word editor.', 'll-tools-text-domain'), 500);
+    }
+
+    wp_send_json_success([
+        'html' => $html,
+        'word_id' => $word_id,
+        'wordset_id' => $resolved_wordset_id,
+        'config' => ll_tools_word_grid_build_base_frontend_config($context),
+    ]);
+}
+
 function ll_tools_word_grid_sanitize_thumbnail_html(string $html): string {
     $html = trim($html);
     if ($html === '') {

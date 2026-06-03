@@ -247,7 +247,12 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
 
     ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
     ll_enqueue_asset_by_timestamp('/css/ipa-keyboard-admin.css', 'll-ipa-keyboard-admin-css', ['ll-ipa-fonts']);
-    ll_enqueue_asset_by_timestamp('/js/ipa-keyboard-admin.js', 'll-ipa-keyboard-admin-js', ['jquery'], true);
+    $admin_script_deps = ['jquery'];
+    if (function_exists('ll_tools_word_edit_modal_enqueue_assets')) {
+        ll_tools_word_edit_modal_enqueue_assets($selected_wordset_id);
+        $admin_script_deps[] = 'll-tools-word-edit-modal';
+    }
+    ll_enqueue_asset_by_timestamp('/js/ipa-keyboard-admin.js', 'll-ipa-keyboard-admin-js', $admin_script_deps, true);
 
     wp_localize_script('ll-ipa-keyboard-admin-js', 'llIpaKeyboardAdmin', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -374,14 +379,12 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchReviewFlagIpa' => __('Mark pronunciation for review', 'll-tools-text-domain'),
             'searchMarkedForReview' => __('Marked for review.', 'll-tools-text-domain'),
             'searchReviewed' => __('Reviewed.', 'll-tools-text-domain'),
-            'searchDeleteRecording' => __('Delete recording', 'll-tools-text-domain'),
-            'searchDeleteRecordingPrompt' => __('Delete this recording?', 'll-tools-text-domain'),
-            'searchDeleteRecordingConfirm' => __('Move recording to Trash', 'll-tools-text-domain'),
-            'searchDeleteRecordingCancel' => __('Cancel', 'll-tools-text-domain'),
-            'searchDeletingRecording' => __('Deleting recording...', 'll-tools-text-domain'),
-            'searchDeletedRecording' => __('Recording moved to Trash.', 'll-tools-text-domain'),
-            'searchDeleteRecordingError' => __('Unable to delete recording.', 'll-tools-text-domain'),
-            'searchDeleteWaitForSave' => __('Wait for the current save to finish before deleting this recording.', 'll-tools-text-domain'),
+            'searchEditWord' => __('Edit word', 'll-tools-text-domain'),
+            'searchOpeningWordEditor' => __('Opening word editor...', 'll-tools-text-domain'),
+            'searchWordEditorOpened' => __('Word editor opened.', 'll-tools-text-domain'),
+            'searchWordEditorError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
+            'searchEditWaitForSave' => __('Wait for the current save to finish before opening the word editor.', 'll-tools-text-domain'),
+            'searchRowsSynced' => __('Transcription rows updated.', 'll-tools-text-domain'),
             'searchExceptionIgnore' => __('Ignore for this transcription', 'll-tools-text-domain'),
             'searchExceptionRestore' => __('Undo exception', 'll-tools-text-domain'),
             'searchApproveSymbolMapping' => __('Approve %1$s symbol and map it to %2$s in orthography', 'll-tools-text-domain'),
@@ -571,6 +574,9 @@ function ll_render_ipa_keyboard_admin_page() {
     echo '</section>';
 
     echo '</div>';
+    if (function_exists('ll_tools_word_edit_modal_host_html')) {
+        echo ll_tools_word_edit_modal_host_html($selected_wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
     echo '</div>';
 }
 
@@ -7074,97 +7080,6 @@ function ll_tools_set_ipa_keyboard_transcription_review_state_handler() {
     wp_send_json_success([
         'recording' => $payload,
         'transcription' => ll_tools_ipa_keyboard_get_transcription_config($wordset_id),
-    ]);
-}
-
-add_action('wp_ajax_ll_tools_delete_ipa_keyboard_recording', 'll_tools_delete_ipa_keyboard_recording_handler');
-function ll_tools_delete_ipa_keyboard_recording_handler() {
-    check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
-
-    if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
-    }
-
-    $recording_id = (int) ($_POST['recording_id'] ?? 0);
-    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
-    if ($recording_id <= 0 || $wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error(__('Missing data', 'll-tools-text-domain'), 400);
-    }
-
-    $recording = get_post($recording_id);
-    if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio' || $recording->post_status === 'trash') {
-        wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
-    }
-    if (!current_user_can('delete_post', $recording_id)) {
-        wp_send_json_error(__('Insufficient permissions to delete this recording.', 'll-tools-text-domain'), 403);
-    }
-
-    $word_id = (int) $recording->post_parent;
-    if ($word_id <= 0 || get_post_type($word_id) !== 'words') {
-        wp_send_json_error(__('Invalid recording parent.', 'll-tools-text-domain'), 400);
-    }
-
-    $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
-    if (is_wp_error($wordset_ids) || !in_array($wordset_id, array_map('intval', (array) $wordset_ids), true)) {
-        wp_send_json_error(__('Recording is outside this word set.', 'll-tools-text-domain'), 400);
-    }
-
-    $category_ids_raw = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-    $category_ids = is_wp_error($category_ids_raw) ? [] : array_values(array_filter(array_map('intval', (array) $category_ids_raw)));
-    if (function_exists('ll_tools_word_grid_normalize_category_id_list')) {
-        $category_ids = ll_tools_word_grid_normalize_category_id_list($category_ids);
-    }
-
-    $deleted = wp_trash_post($recording_id);
-    if (!$deleted) {
-        wp_send_json_error(__('Unable to delete recording.', 'll-tools-text-domain'), 500);
-    }
-
-    if (function_exists('ll_tools_sync_parent_word_status_by_children')) {
-        ll_tools_sync_parent_word_status_by_children($word_id);
-    }
-    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version($category_ids);
-    }
-    if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
-        ll_tools_invalidate_wordset_page_lesson_cache();
-    }
-    if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
-        ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
-    }
-    wp_cache_delete('ll_vocab_lesson_deep_counts_' . $wordset_id, 'll_tools');
-
-    $remaining_recordings = get_posts([
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'post_parent' => $word_id,
-        'posts_per_page' => 1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-    ]);
-
-    if (function_exists('ll_tools_wordset_editor_log_action')) {
-        ll_tools_wordset_editor_log_action(
-            $wordset_id,
-            'recording_trash',
-            sprintf(__('Moved a recording from "%s" to Trash.', 'll-tools-text-domain'), get_the_title($word_id)),
-            [
-                'recording_id' => $recording_id,
-                'word_id' => $word_id,
-                'previous_status' => (string) $recording->post_status,
-                'recording_title' => (string) $recording->post_title,
-            ]
-        );
-    }
-
-    ll_tools_ipa_keyboard_remember_wordset($wordset_id);
-
-    wp_send_json_success([
-        'message' => __('Recording moved to Trash.', 'll-tools-text-domain'),
-        'recording_id' => $recording_id,
-        'word_id' => $word_id,
-        'word_status' => (string) get_post_status($word_id),
-        'has_remaining_recordings' => !empty($remaining_recordings),
     ]);
 }
 

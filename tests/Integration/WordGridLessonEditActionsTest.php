@@ -57,6 +57,37 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $output);
     }
 
+    public function test_detached_word_edit_modal_endpoint_returns_single_word_editor_grid(): void
+    {
+        $fixture = $this->createFixture('word-edit-modal-render');
+        $this->loginEditor();
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_edit_modal'),
+            'word_id' => (string) $fixture['source_word_id'],
+            'wordset_id' => (string) $fixture['wordset_id'],
+            'category_id' => (string) $fixture['category_id'],
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_edit_modal_grid_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+        $data = (array) ($response['data'] ?? []);
+        $html = (string) ($data['html'] ?? '');
+        $this->assertSame((int) $fixture['source_word_id'], (int) ($data['word_id'] ?? 0));
+        $this->assertSame((int) $fixture['wordset_id'], (int) ($data['wordset_id'] ?? 0));
+        $this->assertStringContainsString('data-ll-word-grid', $html);
+        $this->assertStringContainsString('data-word-id="' . (int) $fixture['source_word_id'] . '"', $html);
+        $this->assertStringContainsString('data-ll-word-edit-toggle', $html);
+        $this->assertStringContainsString('data-ll-recording-delete-toggle', $html);
+        $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $html);
+        $this->assertIsArray($data['config'] ?? null);
+        $this->assertNotEmpty((string) (($data['config'] ?? [])['editNonce'] ?? ''));
+    }
+
     public function test_lesson_editor_can_move_word_to_trash(): void
     {
         $fixture = $this->createFixture('lesson-edit-actions-delete-word');

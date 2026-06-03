@@ -8161,6 +8161,13 @@
                     return;
                 }
 
+                $(document).trigger('lltools:word-grid-word-deleted', [{
+                    wordId: wordId,
+                    wordsetId: wordsetId,
+                    item: $item.get(0),
+                    grid: $grid.get(0),
+                    data: (response.data && typeof response.data === 'object') ? response.data : {}
+                }]);
                 setEditPanelOpen($item, false);
                 clearMoveWordCache();
                 $item.addClass('ll-word-item--deleted');
@@ -8232,6 +8239,14 @@
                 if (data.word_status) {
                     $item.attr('data-ll-word-status', data.word_status.toString());
                 }
+                $(document).trigger('lltools:word-grid-recording-deleted', [{
+                    wordId: parseInt($item.data('word-id'), 10) || 0,
+                    wordsetId: wordsetId,
+                    recordingId: recordingId,
+                    item: $item.get(0),
+                    grid: $grid.get(0),
+                    data: data
+                }]);
                 setEditStatus($item, editMessages.recordingDeleted, false);
                 setWordSaveStatus($item, editMessages.recordingDeleted, 'success');
                 scheduleWordSaveStatusClear($item, 1800);
@@ -8330,6 +8345,15 @@
                     $sourceItem.attr('data-ll-word-status', data.source_word_status.toString());
                 }
                 clearMoveWordCache();
+                $(document).trigger('lltools:word-grid-recording-moved', [{
+                    sourceWordId: sourceWordId,
+                    targetWordId: movedTargetId,
+                    wordsetId: wordsetId,
+                    recordingId: recordingId,
+                    item: $sourceItem.get(0),
+                    grid: $grid.get(0),
+                    data: data
+                }]);
                 setWordSaveStatus($sourceItem, editMessages.recordingMoved, 'success');
                 scheduleWordSaveStatusClear($sourceItem, 1800);
             }).fail(function (jqXHR) {

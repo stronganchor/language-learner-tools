@@ -67,6 +67,7 @@
     let $activeIpaKeyboard = $();
     let $activeIpaSymbolMenu = $();
     let suppressSearchBlurSave = false;
+    let searchWordEditorRefreshTimer = null;
 
     function t(key, fallback) {
         if (Object.prototype.hasOwnProperty.call(i18n, key) && typeof i18n[key] === 'string' && i18n[key] !== '') {
@@ -2071,59 +2072,32 @@
         );
     }
 
-    function buildTrashIconSvg() {
-        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    function buildEditIconSvg() {
+        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M12 20h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     }
 
-    function buildConfirmIconSvg() {
-        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    }
+    function buildSearchWordEditControl(rec) {
+        const wordId = parseInt(rec && rec.word_id, 10) || 0;
+        const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
+        if (!wordId) {
+            return null;
+        }
 
-    function buildCancelIconSvg() {
-        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
-    }
+        const editLabel = t('searchEditWord', 'Edit word');
+        const $button = $('<button>', {
+            type: 'button',
+            class: 'll-ipa-search-word-edit-toggle',
+            'aria-label': editLabel,
+            title: editLabel,
+            'data-word-id': wordId,
+            'data-recording-id': recordingId,
+            html: buildEditIconSvg()
+        });
+        if (rec && rec.word_edit_link) {
+            $button.attr('data-word-edit-link', rec.word_edit_link);
+        }
 
-    function buildSearchDeleteRecordingControls() {
-        const deleteLabel = t('searchDeleteRecording', 'Delete recording');
-        const confirmLabel = t('searchDeleteRecordingConfirm', 'Move recording to Trash');
-        const cancelLabel = t('searchDeleteRecordingCancel', 'Cancel');
-
-        return $('<div>', { class: 'll-ipa-search-recording-delete' })
-            .append($('<button>', {
-                type: 'button',
-                class: 'll-ipa-search-recording-delete-toggle',
-                'aria-label': deleteLabel,
-                title: deleteLabel,
-                html: buildTrashIconSvg()
-            }))
-            .append($('<div>', {
-                class: 'll-ipa-search-recording-delete-confirm',
-                hidden: true
-            })
-                .append($('<span>', {
-                    class: 'll-ipa-search-recording-delete-confirm-icon',
-                    'aria-hidden': 'true',
-                    html: buildTrashIconSvg()
-                }))
-                .append($('<span>', {
-                    class: 'll-ipa-search-recording-delete-confirm-text',
-                    text: t('searchDeleteRecordingPrompt', 'Delete this recording?')
-                }))
-                .append($('<div>', { class: 'll-ipa-search-recording-delete-confirm-actions' })
-                    .append($('<button>', {
-                        type: 'button',
-                        class: 'll-ipa-search-recording-delete-confirm-action ll-ipa-search-recording-delete-confirm-action--danger',
-                        'aria-label': confirmLabel,
-                        title: confirmLabel,
-                        html: buildConfirmIconSvg()
-                    }))
-                    .append($('<button>', {
-                        type: 'button',
-                        class: 'll-ipa-search-recording-delete-cancel',
-                        'aria-label': cancelLabel,
-                        title: cancelLabel,
-                        html: buildCancelIconSvg()
-                    }))));
+        return $button;
     }
 
     function buildSearchInputHighlight($input, mismatchDetail, field) {
@@ -2329,6 +2303,7 @@
 
     function buildSearchRow(rec) {
         const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
+        const wordId = parseInt(rec && rec.word_id, 10) || 0;
         const image = rec && rec.image ? rec.image : {};
         const categories = rec && rec.categories ? rec.categories : [];
         const issues = rec && rec.issues ? rec.issues : [];
@@ -2403,7 +2378,10 @@
         const $actionCell = $('<td>', { class: 'll-ipa-search-action-cell' });
         const $actionWrap = $('<div>', { class: 'll-ipa-search-actions' }).append($saveState);
         if (currentCanEdit) {
-            $actionWrap.append(buildSearchDeleteRecordingControls());
+            const $wordEditControl = buildSearchWordEditControl(rec);
+            if ($wordEditControl) {
+                $actionWrap.append($wordEditControl);
+            }
         }
         $actionCell.append($actionWrap);
 
@@ -2416,6 +2394,7 @@
 
         return $('<tr>', {
             'data-recording-id': recordingId,
+            'data-word-id': wordId,
             'data-needs-review': needsReview ? '1' : '0',
             'data-review-text': reviewFields.recording_text ? '1' : '0',
             'data-review-ipa': reviewFields.recording_ipa ? '1' : '0'
@@ -3353,78 +3332,125 @@
         return replaceSearchRow($row, rec);
     }
 
-    function setSearchDeleteSavingState($row, saving) {
+    function setSearchWordEditorOpeningState($row, opening) {
         if (!$row || !$row.length) {
             return;
         }
 
-        const isSaving = !!saving;
-        $row.toggleClass('is-search-row-deleting', isSaving);
-        $row.find('.ll-ipa-search-recording-delete-toggle, .ll-ipa-search-recording-delete-confirm-action, .ll-ipa-search-recording-delete-cancel')
-            .prop('disabled', isSaving)
-            .attr('aria-disabled', isSaving ? 'true' : 'false');
-        if (isSaving) {
+        const isOpening = !!opening;
+        $row.toggleClass('is-search-row-opening-editor', isOpening);
+        $row.find('.ll-ipa-search-word-edit-toggle')
+            .prop('disabled', isOpening)
+            .attr('aria-disabled', isOpening ? 'true' : 'false');
+        if (isOpening) {
             $row.attr('aria-busy', 'true');
         } else {
             $row.removeAttr('aria-busy');
-            $row.find('.ll-ipa-search-recording-delete-toggle, .ll-ipa-search-recording-delete-confirm-action, .ll-ipa-search-recording-delete-cancel')
-                .removeAttr('aria-disabled');
+            $row.find('.ll-ipa-search-word-edit-toggle').removeAttr('aria-disabled');
         }
     }
 
-    function removeDeletedSearchRow($row) {
-        if (!$row || !$row.length) {
-            return false;
-        }
-
-        if (activeIpaKeyboardInput && $row.has(activeIpaKeyboardInput).length) {
-            hideIpaKeyboard();
-        }
-        $row.remove();
-        return $searchResults.find('tr[data-recording-id]').length > 0;
-    }
-
-    function submitSearchDeleteRecording($row) {
+    function openSearchWordEditor($row) {
         if (!$row || !$row.length || !currentCanEdit || !currentWordsetId) {
             return;
         }
 
         const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
-        if (!recordingId || $row.hasClass('is-search-row-deleting')) {
+        const wordId = parseInt($row.attr('data-word-id'), 10) || 0;
+        if (!wordId || $row.hasClass('is-search-row-opening-editor')) {
             return;
         }
 
-        if ($row.data('llSearchRowSaving') || searchReviewStateIsSaving($row)) {
-            setStatus(t('searchDeleteWaitForSave', 'Wait for the current save to finish before deleting this recording.'), true);
+        if ($row.data('llSearchRowSaving') || searchReviewStateIsSaving($row) || searchRowHasUnsavedChanges($row)) {
+            if (searchRowHasUnsavedChanges($row)) {
+                autosaveSearchRow($row);
+            }
+            setStatus(t('searchEditWaitForSave', 'Wait for the current save to finish before opening the word editor.'), true);
             return;
         }
 
-        setSearchDeleteSavingState($row, true);
-        setStatus(t('searchDeletingRecording', 'Deleting recording...'), false);
-
-        $.post(ajaxUrl, {
-            action: 'll_tools_delete_ipa_keyboard_recording',
-            nonce: nonce,
-            wordset_id: currentWordsetId,
-            recording_id: recordingId
-        }).done(function (response) {
-            if (!response || response.success !== true) {
-                setSearchDeleteSavingState($row, false);
-                setStatus(t('searchDeleteRecordingError', 'Unable to delete recording.'), true);
+        const opener = window.LLToolsWordEditModal && window.LLToolsWordEditModal.open;
+        if (typeof opener !== 'function') {
+            const fallbackUrl = ($row.find('.ll-ipa-search-word-edit-toggle').first().attr('data-word-edit-link') || '').toString();
+            if (fallbackUrl) {
+                window.open(fallbackUrl, '_blank', 'noopener');
                 return;
             }
+            setStatus(t('searchWordEditorError', 'Unable to open the word editor.'), true);
+            return;
+        }
 
-            markTabsDirty(['map', 'symbols', 'orthography']);
-            removeDeletedSearchRow($row);
+        setSearchWordEditorOpeningState($row, true);
+        setStatus(t('searchOpeningWordEditor', 'Opening word editor...'), false);
+
+        Promise.resolve(opener({
+            wordId: wordId,
+            wordsetId: currentWordsetId,
+            recordingId: recordingId
+        })).then(function () {
+            setStatus(t('searchWordEditorOpened', 'Word editor opened.'), false);
+        }).catch(function () {
+            setStatus(t('searchWordEditorError', 'Unable to open the word editor.'), true);
+        }).finally(function () {
+            setSearchWordEditorOpeningState($row, false);
+        });
+    }
+
+    function parseEditorEventDetail(detail) {
+        return (detail && typeof detail === 'object') ? detail : {};
+    }
+
+    function editorEventWordsetId(detail) {
+        const info = parseEditorEventDetail(detail);
+        const data = info.data && typeof info.data === 'object' ? info.data : {};
+        return parseInt(info.wordsetId || info.wordset_id || data.wordsetId || data.wordset_id, 10) || 0;
+    }
+
+    function editorEventMatchesVisibleSearchRows(detail) {
+        const info = parseEditorEventDetail(detail);
+        const recordingId = parseInt(info.recordingId || info.recording_id, 10) || 0;
+        if (recordingId && getSearchRowByRecordingId(recordingId).length) {
+            return true;
+        }
+
+        const wordIds = [
+            parseInt(info.wordId || info.word_id, 10) || 0,
+            parseInt(info.sourceWordId || info.source_word_id, 10) || 0,
+            parseInt(info.targetWordId || info.target_word_id, 10) || 0
+        ].filter(function (wordId, index, list) {
+            return wordId > 0 && list.indexOf(wordId) === index;
+        });
+
+        return wordIds.some(function (wordId) {
+            return $searchResults.find('tr[data-word-id="' + wordId + '"]').length > 0;
+        });
+    }
+
+    function refreshSearchAfterWordEditorEvent(detail) {
+        if (currentTab !== 'search' || !currentWordsetId) {
+            return;
+        }
+
+        const wordsetId = editorEventWordsetId(detail);
+        if (wordsetId && wordsetId !== currentWordsetId) {
+            return;
+        }
+        if (!editorEventMatchesVisibleSearchRows(detail)) {
+            return;
+        }
+
+        if (searchWordEditorRefreshTimer) {
+            window.clearTimeout(searchWordEditorRefreshTimer);
+        }
+        searchWordEditorRefreshTimer = window.setTimeout(function () {
+            searchWordEditorRefreshTimer = null;
+            markTabsDirty(['map', 'symbols', 'search', 'orthography']);
             loadSearch(currentWordsetId, true, {
                 quietStatus: true,
                 showLoading: false,
-                successStatus: t('searchDeletedRecording', 'Recording moved to Trash.')
+                successStatus: t('searchRowsSynced', 'Transcription rows updated.')
             });
-        }).fail(function () {
-            setSearchDeleteSavingState($row, false);
-            setStatus(t('searchDeleteRecordingError', 'Unable to delete recording.'), true);
-        });
+        }, 120);
     }
 
     function getSearchRowValues($row) {
@@ -4296,34 +4322,22 @@
         }, 0);
     });
 
-    $searchResults.on('click', '.ll-ipa-search-recording-delete-toggle', function () {
+    $searchResults.on('click', '.ll-ipa-search-word-edit-toggle', function () {
         const $btn = $(this);
         const $row = $btn.closest('tr');
         if (!$row.length || $btn.prop('disabled')) {
             return;
         }
 
-        $row.find('.ll-ipa-search-recording-delete-confirm').first().prop('hidden', false);
+        openSearchWordEditor($row);
     });
 
-    $searchResults.on('click', '.ll-ipa-search-recording-delete-cancel', function () {
-        const $btn = $(this);
-        const $row = $btn.closest('tr');
-        if (!$row.length || $btn.prop('disabled')) {
-            return;
+    $(document).on(
+        'lltools:word-grid-word-updated.llIpaKeyboardAdmin lltools:word-grid-word-deleted.llIpaKeyboardAdmin lltools:word-grid-recording-deleted.llIpaKeyboardAdmin lltools:word-grid-recording-moved.llIpaKeyboardAdmin',
+        function (_event, detail) {
+            refreshSearchAfterWordEditorEvent(detail);
         }
-
-        $row.find('.ll-ipa-search-recording-delete-confirm').first().prop('hidden', true);
-    });
-
-    $searchResults.on('click', '.ll-ipa-search-recording-delete-confirm-action', function () {
-        const $btn = $(this);
-        if ($btn.prop('disabled')) {
-            return;
-        }
-
-        submitSearchDeleteRecording($btn.closest('tr'));
-    });
+    );
 
     $searchResults.on('click', '.ll-ipa-review-toggle', function () {
         const $btn = $(this);
