@@ -142,6 +142,29 @@ final class WordGridIpaKeyboardSortTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_ipa_keyboard_skips_malformed_and_redundant_modified_tie_bar_shortcuts(): void
+    {
+        $wordset_id = $this->createWordset();
+
+        $word_id = $this->createWord($wordset_id, 'Reviewed Modified Tie Bars');
+        $this->createRecording(
+            $word_id,
+            "d\u{032A}\u{0361}b d\u{032A}\u{0361}b\u{02B2} c\u{0361}\u{02B0}\u{025B}"
+        );
+
+        $config = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
+        $groups = [];
+        foreach ((array) ($config['keyboard_groups'] ?? []) as $group) {
+            $groups[(string) ($group['key'] ?? '')] = array_values((array) ($group['symbols'] ?? []));
+        }
+
+        $this->assertContains("d\u{032A}\u{0361}b", $groups['affricates'] ?? []);
+        $this->assertNotContains("d\u{032A}\u{0361}b\u{02B2}", $groups['affricates'] ?? []);
+        $this->assertNotContains("c\u{0361}\u{02B0}\u{025B}", $groups['affricates'] ?? []);
+        $this->assertNotContains("d\u{032A}\u{0361}b\u{02B2}", array_values((array) ($config['keyboard_symbols'] ?? [])));
+        $this->assertNotContains("c\u{0361}\u{02B0}\u{025B}", array_values((array) ($config['keyboard_symbols'] ?? [])));
+    }
+
     private function createWordset(): int
     {
         $term = wp_insert_term('IPA Keyboard Sort ' . wp_generate_password(6, false, false), 'wordset');

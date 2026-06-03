@@ -65,6 +65,7 @@
     let currentKeyboardSymbols = [];
     let activeIpaKeyboardInput = null;
     let $activeIpaKeyboard = $();
+    let activeIpaKeyboardGroups = [];
     let $activeIpaSymbolMenu = $();
     let suppressSearchBlurSave = false;
     let searchWordEditorRefreshTimer = null;
@@ -271,8 +272,11 @@
             $activeIpaKeyboard.remove();
         }
         $activeIpaKeyboard = $();
+        activeIpaKeyboardGroups = [];
         activeIpaKeyboardInput = null;
         suppressSearchBlurSave = false;
+        document.body.style.removeProperty('--ll-ipa-keyboard-bottom-padding');
+        $(document.body).removeClass('ll-ipa-keyboard-open');
     }
 
     function cleanupDetachedIpaKeyboard() {
@@ -342,6 +346,138 @@
         return groups;
     }
 
+    function ipaKeyboardGroupIsOptionalOnTightScreens(group) {
+        const key = (group && group.key ? String(group.key) : '').trim();
+        return key === 'rare' || key === 'other';
+    }
+
+    function filterIpaKeyboardGroupsForViewport(groups, compact) {
+        if (!compact) {
+            return groups;
+        }
+        return groups.filter(function (group) {
+            return !ipaKeyboardGroupIsOptionalOnTightScreens(group);
+        });
+    }
+
+    function buildIpaKeyboardPanel(groups) {
+        const transcription = getTranscription();
+        const $panel = $('<div>', {
+            class: 'll-ipa-inline-keyboard',
+            'data-ll-ipa-inline-keyboard': '1',
+            'aria-label': transcription.keyboard_aria_label || transcription.symbols_column_label || t('pronunciationLabel', 'Pronunciation')
+        });
+
+        groups.forEach(function (group) {
+            const $group = $('<div>', {
+                class: 'll-ipa-inline-keyboard-group',
+                'data-ll-ipa-keyboard-group': (group.key || '').toString()
+            });
+            if (group.label) {
+                $group.append($('<div>', {
+                    class: 'll-ipa-inline-keyboard-label',
+                    text: group.label
+                }));
+            }
+
+            const $row = $('<div>', { class: 'll-ipa-inline-keyboard-row' });
+            group.symbols.forEach(function (symbol) {
+                $row.append(buildIpaKeyboardKey(symbol));
+            });
+            $group.append($row);
+            $panel.append($group);
+        });
+
+        return $panel;
+    }
+
+    function renderIpaKeyboardGroups($wrap, groups, compact) {
+        $wrap
+            .attr('data-ll-ipa-keyboard-compact', compact ? '1' : '0')
+            .empty()
+            .append(buildIpaKeyboardPanel(filterIpaKeyboardGroupsForViewport(groups, compact)));
+    }
+
+    function getIpaKeyboardViewportMaxHeight() {
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        if (!viewportHeight) {
+            return 360;
+        }
+        return Math.max(170, viewportHeight - 84);
+    }
+
+    function getScrollableIpaFieldContainer(input) {
+        const $parents = $(input).parents();
+        for (let index = 0; index < $parents.length; index += 1) {
+            const element = $parents.get(index);
+            if (!element || element === document.body || element === document.documentElement) {
+                continue;
+            }
+            const overflowY = (window.getComputedStyle(element).overflowY || '').toString();
+            if (/(auto|scroll)/.test(overflowY) && element.scrollHeight > element.clientHeight) {
+                return element;
+            }
+        }
+        return null;
+    }
+
+    function ensureActiveIpaFieldVisible() {
+        const input = activeIpaKeyboardInput;
+        if (!input || !$activeIpaKeyboard.length || !document.body.contains(input)) {
+            return;
+        }
+
+        const keyboardHeight = $activeIpaKeyboard.outerHeight() || 0;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        if (!viewportHeight) {
+            return;
+        }
+
+        const margin = 14;
+        const rect = input.getBoundingClientRect();
+        const keyboardTop = viewportHeight - keyboardHeight - margin;
+        let delta = 0;
+        if (rect.bottom > keyboardTop) {
+            delta = rect.bottom - keyboardTop;
+        } else if (rect.top < margin) {
+            delta = rect.top - margin;
+        }
+
+        if (Math.abs(delta) < 1) {
+            return;
+        }
+
+        const scrollContainer = getScrollableIpaFieldContainer(input);
+        if (scrollContainer) {
+            scrollContainer.scrollTop += delta;
+            return;
+        }
+
+        window.scrollBy(0, delta);
+    }
+
+    function fitIpaKeyboardToViewport() {
+        if (!$activeIpaKeyboard.length || !activeIpaKeyboardInput || !document.body.contains(activeIpaKeyboardInput)) {
+            return;
+        }
+
+        const maxHeight = getIpaKeyboardViewportMaxHeight();
+        $activeIpaKeyboard.css('--ll-ipa-keyboard-max-height', maxHeight + 'px');
+        renderIpaKeyboardGroups($activeIpaKeyboard, activeIpaKeyboardGroups, false);
+
+        const hasOptionalGroups = activeIpaKeyboardGroups.some(ipaKeyboardGroupIsOptionalOnTightScreens);
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const tightViewport = viewportHeight > 0 && viewportHeight < 520;
+        if (hasOptionalGroups && (tightViewport || ($activeIpaKeyboard.outerHeight() || 0) > maxHeight)) {
+            renderIpaKeyboardGroups($activeIpaKeyboard, activeIpaKeyboardGroups, true);
+        }
+
+        const keyboardHeight = Math.min($activeIpaKeyboard.outerHeight() || 0, maxHeight);
+        document.body.style.setProperty('--ll-ipa-keyboard-bottom-padding', (keyboardHeight + 18) + 'px');
+        $(document.body).addClass('ll-ipa-keyboard-open');
+        ensureActiveIpaFieldVisible();
+    }
+
     function buildIpaKeyboardKey(symbol) {
         const detail = getSymbolDetail(symbol);
         const display = detail.display || symbol;
@@ -378,48 +514,14 @@
 
         hideIpaKeyboard();
 
-        const transcription = getTranscription();
-        const $panel = $('<div>', {
-            class: 'll-ipa-inline-keyboard',
-            'data-ll-ipa-inline-keyboard': '1',
-            'aria-label': transcription.keyboard_aria_label || transcription.symbols_column_label || t('pronunciationLabel', 'Pronunciation')
-        });
-
-        groups.forEach(function (group) {
-            const $group = $('<div>', { class: 'll-ipa-inline-keyboard-group' });
-            if (group.label) {
-                $group.append($('<div>', {
-                    class: 'll-ipa-inline-keyboard-label',
-                    text: group.label
-                }));
-            }
-
-            const $row = $('<div>', { class: 'll-ipa-inline-keyboard-row' });
-            group.symbols.forEach(function (symbol) {
-                $row.append(buildIpaKeyboardKey(symbol));
-            });
-            $group.append($row);
-            $panel.append($group);
-        });
-
         $activeIpaKeyboard = $('<div>', {
             class: 'll-ipa-inline-keyboard-wrap',
             'data-ll-ipa-inline-keyboard-wrap': '1'
-        }).append($panel);
-
-        const $searchFieldBlock = $field.closest('.ll-ipa-search-field-block');
-        const $reviewPanel = $searchFieldBlock.length
-            ? $searchFieldBlock.find('.ll-ipa-search-field-review-panel').first()
-            : $();
-        const $fieldWrap = $field.closest('.ll-ipa-search-field-wrap');
-        if ($reviewPanel.length) {
-            $reviewPanel.after($activeIpaKeyboard);
-        } else if ($fieldWrap.length) {
-            $fieldWrap.after($activeIpaKeyboard);
-        } else {
-            $field.after($activeIpaKeyboard);
-        }
+        });
+        activeIpaKeyboardGroups = groups;
         activeIpaKeyboardInput = $field.get(0);
+        $admin.append($activeIpaKeyboard);
+        fitIpaKeyboardToViewport();
     }
 
     function insertIpaKeyboardChar(input, symbol) {
@@ -4559,6 +4661,10 @@
 
         hideIpaSymbolContextMenu();
         hideIpaKeyboard();
+    });
+
+    $(window).on('resize.llIpaKeyboardAdmin', function () {
+        window.setTimeout(fitIpaKeyboardToViewport, 0);
     });
 
     function init() {

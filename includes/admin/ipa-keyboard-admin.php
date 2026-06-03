@@ -4762,6 +4762,7 @@ function ll_tools_ipa_keyboard_extract_token_base(string $token, string $mode = 
     }
 
     $base = '';
+    $last_base_char_was_tie_bar = false;
     foreach ($chars as $char) {
         if (function_exists('ll_tools_word_grid_is_ipa_stress_marker') && ll_tools_word_grid_is_ipa_stress_marker($char, $mode)) {
             continue;
@@ -4771,15 +4772,19 @@ function ll_tools_ipa_keyboard_extract_token_base(string $token, string $mode = 
         }
         if (function_exists('ll_tools_word_grid_is_ipa_tie_bar') && ll_tools_word_grid_is_ipa_tie_bar($char, $mode)) {
             $base .= $char;
+            $last_base_char_was_tie_bar = true;
             continue;
         }
         if (function_exists('ll_tools_word_grid_is_ipa_combining_mark') && ll_tools_word_grid_is_ipa_combining_mark($char)) {
             continue;
         }
-        if (function_exists('ll_tools_word_grid_is_ipa_post_modifier') && ll_tools_word_grid_is_ipa_post_modifier($char, $mode)) {
+        if (function_exists('ll_tools_word_grid_is_ipa_post_modifier')
+            && ll_tools_word_grid_is_ipa_post_modifier($char, $mode)
+            && !($last_base_char_was_tie_bar && $char === "\u{10784}")) {
             continue;
         }
         $base .= $char;
+        $last_base_char_was_tie_bar = false;
     }
 
     return trim($base);
@@ -4797,6 +4802,14 @@ function ll_tools_ipa_keyboard_token_base_segment_count(string $token, string $m
     }
 
     return count($segments);
+}
+
+function ll_tools_ipa_keyboard_token_has_malformed_tie_bar(string $token, string $mode = 'ipa'): bool {
+    if (function_exists('ll_tools_secondary_text_keyboard_symbol_has_malformed_tie_bar')) {
+        return ll_tools_secondary_text_keyboard_symbol_has_malformed_tie_bar($token, $mode);
+    }
+
+    return $mode === 'ipa' && preg_match('/[\x{035C}\x{0361}][\x{02B0}-\x{02B8}\x{02D0}\x{02D1}\x{02E0}-\x{02E4}\x{1D2C}-\x{1D6A}\x{1D9B}-\x{1DBF}\x{2070}-\x{209F}\x{10784}\x{0300}-\x{036F}]/u', $token) === 1;
 }
 
 function ll_tools_ipa_keyboard_count_modifier_occurrences(string $token, string $modifier): int {
@@ -5100,7 +5113,8 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
             if (!preg_match('/[\x{035C}\x{0361}]/u', (string) $token)) {
                 continue;
             }
-            if (ll_tools_ipa_keyboard_token_base_segment_count((string) $token, $mode) < 2) {
+            if (ll_tools_ipa_keyboard_token_base_segment_count((string) $token, $mode) < 2
+                || ll_tools_ipa_keyboard_token_has_malformed_tie_bar((string) $token, $mode)) {
                 $add_issue(
                     $issue_map,
                     'builtin:tie_bar_without_pair',

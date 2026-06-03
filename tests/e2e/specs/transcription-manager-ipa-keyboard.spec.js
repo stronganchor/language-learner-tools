@@ -7,6 +7,10 @@ const ipaKeyboardAdminSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/ipa-keyboard-admin.js'),
   'utf8'
 );
+const ipaKeyboardAdminCss = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/ipa-keyboard-admin.css'),
+  'utf8'
+);
 
 function buildMarkup() {
   return `
@@ -51,10 +55,12 @@ function buildMarkup() {
   `;
 }
 
-test('clicking an IPA transcription field opens the inline keyboard and inserts symbols without autosaving', async ({ page }) => {
+test('clicking an IPA transcription field opens the sticky keyboard and inserts symbols without autosaving', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.setViewportSize({ width: 1100, height: 900 });
   await page.setContent(buildMarkup());
   await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
 
   await page.evaluate(() => {
     function clone(value) {
@@ -245,18 +251,22 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
 
   await ipaInput.click();
   await expect(page.locator('[data-ll-ipa-inline-keyboard]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-ipa-inline-keyboard-wrap]')).toHaveCSS('position', 'fixed');
   await expect(page.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as reviewed');
-  const reviewKeyboardOrder = await page.locator('.ll-ipa-search-ipa-cell').first().evaluate((cell) => {
-    const wrap = cell.querySelector('.ll-ipa-search-field-wrap');
-    const review = cell.querySelector('.ll-ipa-search-field-review-panel');
-    const keyboard = cell.querySelector('[data-ll-ipa-inline-keyboard-wrap]');
+  const stickyKeyboardLayout = await page.locator('.ll-ipa-search-ipa-cell').first().evaluate((cell) => {
+    const input = cell.querySelector('.ll-ipa-search-ipa-input');
+    const keyboard = document.querySelector('[data-ll-ipa-inline-keyboard-wrap]');
+    const inputRect = input ? input.getBoundingClientRect() : null;
+    const keyboardRect = keyboard ? keyboard.getBoundingClientRect() : null;
     return {
-      reviewAfterField: !!(wrap && review && (wrap.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)),
-      keyboardAfterReview: !!(review && keyboard && (review.compareDocumentPosition(keyboard) & Node.DOCUMENT_POSITION_FOLLOWING))
+      keyboardInsideCell: !!(keyboard && cell.contains(keyboard)),
+      inputAboveKeyboard: !!(inputRect && keyboardRect && inputRect.bottom <= keyboardRect.top - 6),
+      bodyPadded: document.body.classList.contains('ll-ipa-keyboard-open')
     };
   });
-  expect(reviewKeyboardOrder.reviewAfterField).toBe(true);
-  expect(reviewKeyboardOrder.keyboardAfterReview).toBe(true);
+  expect(stickyKeyboardLayout.keyboardInsideCell).toBe(false);
+  expect(stickyKeyboardLayout.inputAboveKeyboard).toBe(true);
+  expect(stickyKeyboardLayout.bodyPadded).toBe(true);
   await expect(page.locator('.ll-ipa-inline-keyboard-label').first()).toHaveText('Diacritics and signs');
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʲ"]')).toHaveCount(1);
@@ -306,4 +316,17 @@ test('clicking an IPA transcription field opens the inline keyboard and inserts 
     'll_tools_flag_ipa_keyboard_illegal_symbol',
     'll_tools_search_ipa_keyboard_recordings'
   ]);
+
+  await page.setViewportSize({ width: 420, height: 340 });
+  await ipaInput.click();
+  await expect(page.locator('[data-ll-ipa-inline-keyboard-wrap]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-ipa-keyboard-compact="1"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Rare symbols' })).toHaveCount(0);
+  const compactKeyboardLayout = await page.locator('.ll-ipa-search-ipa-input').first().evaluate((input) => {
+    const keyboard = document.querySelector('[data-ll-ipa-inline-keyboard-wrap]');
+    const inputRect = input.getBoundingClientRect();
+    const keyboardRect = keyboard ? keyboard.getBoundingClientRect() : null;
+    return !!(keyboardRect && inputRect.bottom <= keyboardRect.top - 6);
+  });
+  expect(compactKeyboardLayout).toBe(true);
 });

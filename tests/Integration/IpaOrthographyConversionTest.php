@@ -208,6 +208,31 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, (int) get_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), true));
     }
 
+    public function test_validation_flags_modifier_between_tie_bar_and_second_sound(): void
+    {
+        $wordset_id = $this->createWordset('Malformed Tie Bar Validation');
+        $word_id = $this->createWord($wordset_id, 'Bad Tie Bar', '');
+        $recording_id = $this->createRecording($word_id, '', "c\u{0361}\u{02B0}\u{025B}");
+
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $issues = (array) ($validation['active'] ?? []);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, $issues);
+
+        $this->assertContains('tie_bar_without_pair', $codes);
+        $tie_bar_issue = null;
+        foreach ($issues as $issue) {
+            if ((string) ($issue['code'] ?? '') === 'tie_bar_without_pair') {
+                $tie_bar_issue = $issue;
+                break;
+            }
+        }
+        $this->assertIsArray($tie_bar_issue);
+        $this->assertContains("c\u{0361}\u{02B0}\u{025B}", array_values((array) ($tie_bar_issue['samples'] ?? [])));
+    }
+
     public function test_genc_palu_profile_keeps_palatal_nasal_distinct_from_plain_n(): void
     {
         $wordset_id = $this->createWordset('Genç-Palu Nasal Profile');

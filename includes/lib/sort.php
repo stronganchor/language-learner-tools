@@ -512,9 +512,24 @@ if (!function_exists('ll_tools_secondary_text_keyboard_symbol_uses_compact_modif
 if (!function_exists('ll_tools_compact_secondary_text_keyboard_symbols')) {
     function ll_tools_compact_secondary_text_keyboard_symbols(array $symbols, string $mode = 'ipa', bool $sort = true): array {
         $compact = [];
+        $available_symbols = [];
+        foreach ($symbols as $symbol) {
+            $value = trim((string) $symbol);
+            if ($value !== '') {
+                $available_symbols[$value] = true;
+            }
+        }
+
         foreach ($symbols as $symbol) {
             $value = trim((string) $symbol);
             if ($value === '' || in_array($value, $compact, true)) {
+                continue;
+            }
+            if (ll_tools_secondary_text_keyboard_symbol_has_malformed_tie_bar($value, $mode)) {
+                continue;
+            }
+            $base_tie_bar_symbol = ll_tools_secondary_text_keyboard_strip_trailing_shortcut_modifiers($value, $mode);
+            if ($base_tie_bar_symbol !== $value && isset($available_symbols[$base_tie_bar_symbol])) {
                 continue;
             }
             if (ll_tools_secondary_text_keyboard_symbol_uses_compact_modifier($value, $mode)) {
@@ -530,6 +545,90 @@ if (!function_exists('ll_tools_compact_secondary_text_keyboard_symbols')) {
 if (!function_exists('ll_tools_secondary_text_keyboard_symbol_contains_tie_bar')) {
     function ll_tools_secondary_text_keyboard_symbol_contains_tie_bar(string $symbol, string $mode = 'ipa'): bool {
         return $mode === 'ipa' && preg_match('/[\x{035C}\x{0361}]/u', $symbol) === 1;
+    }
+}
+
+if (!function_exists('ll_tools_secondary_text_keyboard_symbol_has_malformed_tie_bar')) {
+    function ll_tools_secondary_text_keyboard_symbol_has_malformed_tie_bar(string $symbol, string $mode = 'ipa'): bool {
+        if ($mode !== 'ipa' || !ll_tools_secondary_text_keyboard_symbol_contains_tie_bar($symbol, $mode)) {
+            return false;
+        }
+
+        $chars = preg_split('//u', $symbol, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$chars) {
+            return false;
+        }
+
+        $has_base_before_tie = false;
+        $tie_needs_base = false;
+        foreach ($chars as $char) {
+            $is_tie_bar = function_exists('ll_tools_word_grid_is_ipa_tie_bar')
+                ? ll_tools_word_grid_is_ipa_tie_bar($char, $mode)
+                : preg_match('/[\x{035C}\x{0361}]/u', $char) === 1;
+            $is_combining_mark = function_exists('ll_tools_word_grid_is_ipa_combining_mark')
+                ? ll_tools_word_grid_is_ipa_combining_mark($char)
+                : preg_match('/[\x{0300}-\x{036F}]/u', $char) === 1;
+            $is_post_modifier = function_exists('ll_tools_word_grid_is_ipa_post_modifier')
+                ? ll_tools_word_grid_is_ipa_post_modifier($char, $mode)
+                : preg_match('/[\x{02B0}-\x{02B8}\x{02D0}\x{02D1}\x{02E0}-\x{02E4}\x{1D2C}-\x{1D6A}\x{1D9B}-\x{1DBF}\x{2070}-\x{209F}\x{10784}]/u', $char) === 1;
+            $is_tie_release_base = $char === "\u{10784}";
+            $is_stress_marker = function_exists('ll_tools_word_grid_is_ipa_stress_marker')
+                ? ll_tools_word_grid_is_ipa_stress_marker($char, $mode)
+                : in_array($char, ["\u{02C8}", "\u{02CC}"], true);
+            $is_separator = function_exists('ll_tools_word_grid_is_ipa_separator')
+                ? ll_tools_word_grid_is_ipa_separator($char, $mode)
+                : ($char === '.' || preg_match('/\s/u', $char) === 1);
+
+            if ($is_tie_bar) {
+                if (!$has_base_before_tie || $tie_needs_base) {
+                    return true;
+                }
+                $tie_needs_base = true;
+                continue;
+            }
+
+            if ($tie_needs_base) {
+                if (!$is_tie_release_base && ($is_combining_mark || $is_post_modifier || $is_stress_marker || $is_separator)) {
+                    return true;
+                }
+                $tie_needs_base = false;
+                $has_base_before_tie = true;
+                continue;
+            }
+
+            if ($is_combining_mark || (!$is_tie_release_base && $is_post_modifier) || $is_stress_marker || $is_separator) {
+                continue;
+            }
+
+            $has_base_before_tie = true;
+        }
+
+        return $tie_needs_base;
+    }
+}
+
+if (!function_exists('ll_tools_secondary_text_keyboard_strip_trailing_shortcut_modifiers')) {
+    function ll_tools_secondary_text_keyboard_strip_trailing_shortcut_modifiers(string $symbol, string $mode = 'ipa'): string {
+        if ($mode !== 'ipa' || $symbol === '' || !ll_tools_secondary_text_keyboard_symbol_contains_tie_bar($symbol, $mode)) {
+            return $symbol;
+        }
+
+        $chars = preg_split('//u', $symbol, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$chars) {
+            return $symbol;
+        }
+
+        $modifiers = array_fill_keys(ll_tools_get_secondary_text_keyboard_compacting_modifier_symbols($mode), true);
+        while (!empty($chars)) {
+            $last = (string) end($chars);
+            if (!isset($modifiers[$last])) {
+                break;
+            }
+            array_pop($chars);
+        }
+
+        $stripped = implode('', $chars);
+        return $stripped !== '' ? $stripped : $symbol;
     }
 }
 
@@ -914,6 +1013,9 @@ if (!function_exists('ll_tools_build_secondary_text_keyboard_groups')) {
             if ($symbol === '' || in_array($symbol, $normalized_symbols, true)) {
                 continue;
             }
+            if (ll_tools_secondary_text_keyboard_symbol_has_malformed_tie_bar($symbol, $mode)) {
+                continue;
+            }
             if (ll_tools_secondary_text_token_has_illegal_symbol($symbol, $illegal_symbols) !== '') {
                 continue;
             }
@@ -953,6 +1055,10 @@ if (!function_exists('ll_tools_build_secondary_text_keyboard_groups')) {
                 : $rare_threshold;
 
             if (ll_tools_secondary_text_keyboard_symbol_contains_tie_bar($symbol, $mode)) {
+                $base_tie_bar_symbol = ll_tools_secondary_text_keyboard_strip_trailing_shortcut_modifiers($symbol, $mode);
+                if ($base_tie_bar_symbol !== $symbol && isset($symbol_set[$base_tie_bar_symbol])) {
+                    continue;
+                }
                 $affricates[] = $symbol;
                 continue;
             }

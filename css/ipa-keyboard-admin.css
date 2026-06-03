@@ -1063,19 +1063,36 @@
     min-width: 0;
 }
 
+body.ll-ipa-keyboard-open {
+    padding-bottom: var(--ll-ipa-keyboard-bottom-padding, 0) !important;
+}
+
 .ll-ipa-inline-keyboard-wrap {
-    margin-top: 8px;
-    padding: 10px;
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    z-index: 100050;
+    box-sizing: border-box;
+    width: min(1120px, calc(100vw - 32px));
+    margin: 0;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
     border: 1px solid var(--ll-ipa-border);
-    border-radius: 10px;
+    border-bottom: 0;
+    border-radius: 10px 10px 0 0;
     background: var(--ll-ipa-bg-soft);
+    box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.14);
     display: grid;
     gap: 10px;
+    transform: translateX(-50%);
 }
 
 .ll-ipa-inline-keyboard {
     display: grid;
     gap: 10px;
+    max-height: var(--ll-ipa-keyboard-max-height, 360px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
 }
 
 .ll-ipa-inline-keyboard-group {
@@ -1128,7 +1145,7 @@
 
 .ll-ipa-symbol-menu {
     position: absolute;
-    z-index: 100000;
+    z-index: 100080;
     min-width: 190px;
     padding: 4px;
     border: 1px solid var(--ll-ipa-border);
@@ -2003,5 +2020,31 @@
     .ll-ipa-search-meta-media {
         grid-template-columns: auto minmax(0, 1fr);
         align-items: center;
+    }
+
+    .ll-ipa-inline-keyboard-wrap {
+        left: 0;
+        right: 0;
+        width: 100vw;
+        max-width: none;
+        padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+        transform: none;
+    }
+
+    .ll-ipa-inline-keyboard {
+        gap: 8px;
+    }
+
+    .ll-ipa-inline-keyboard-row {
+        gap: 5px;
+    }
+
+    .ll-ipa-inline-key {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 4px 8px;
     }
 }
