@@ -393,6 +393,8 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'keyboardFlagIllegalConfirm' => __('Mark %s as illegal for this word set?', 'll-tools-text-domain'),
             'keyboardFlagIllegalSaving' => __('Flagging symbol and rescanning this word set...', 'll-tools-text-domain'),
             'keyboardFlagIllegalSaved' => __('Symbol marked illegal and checks rescanned.', 'll-tools-text-domain'),
+            'keyboardOptionalGroupsShow' => __('Show %s', 'll-tools-text-domain'),
+            'keyboardOptionalGroupsHide' => __('Hide %s', 'll-tools-text-domain'),
             'searchSaveFailed' => __('Save failed', 'll-tools-text-domain'),
             'orthographyLoading' => __('Loading orthography conversion data...', 'll-tools-text-domain'),
             'orthographyUnsupported' => __('IPA-to-orthography conversion is only available when this word set uses IPA transcription mode.', 'll-tools-text-domain'),

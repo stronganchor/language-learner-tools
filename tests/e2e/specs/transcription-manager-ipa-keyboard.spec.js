@@ -125,7 +125,7 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
         modifier_chars: ['ʰ', 'ʲ', 'ʷ', 'ː', '\u0325', '\u032A', '\u0306', '\u0361'],
         modifier_chars_label: 'Diacritics and signs',
         wordset_chars_label: 'Wordset symbols',
-        keyboard_symbols: filterSymbols(['qʰ', 'dʲ', 'tʷ', 'aː', 't͡ʃ', 'ɛ', 'ʃ', 'ɬ', 'ʔ']),
+        keyboard_symbols: filterSymbols(['qʰ', 'dʲ', 'tʷ', 'aː', 't͡ʃ', 'ɛ', 'ʃ', 'ɬ', 'ʔ', 'ǂ']),
         keyboard_groups: [
           {
             key: 'signs',
@@ -151,6 +151,11 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
             key: 'rare',
             label: 'Rare symbols',
             symbols: filterSymbols(['ɬ'])
+          },
+          {
+            key: 'other',
+            label: 'Other symbols',
+            symbols: filterSymbols(['ǂ'])
           }
         ],
         symbol_details: {
@@ -166,6 +171,7 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
           'ɛ': { display: 'ɛ', label: 'open-mid front unrounded vowel' },
           'ʃ': { display: 'ʃ', label: 'voiceless postalveolar fricative' },
           'ɬ': { display: 'ɬ', label: 'voiceless alveolar lateral fricative' },
+          'ǂ': { display: 'ǂ', label: 'alveolar click' },
           'ʔ': { display: 'ʔ', label: 'glottal stop' }
         },
         illegal_symbols: window.__llTranscriptionKeyboardMock.illegalSymbols.slice(),
@@ -249,9 +255,15 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
   const ipaInput = page.locator('.ll-ipa-search-ipa-input').first();
   await expect(ipaInput).toHaveValue('te');
 
-  await ipaInput.click();
+  await ipaInput.evaluate((input) => {
+    input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    input.focus();
+    input.setSelectionRange(0, 2, 'forward');
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+  });
   await expect(page.locator('[data-ll-ipa-inline-keyboard]')).toHaveCount(1);
   await expect(page.locator('[data-ll-ipa-inline-keyboard-wrap]')).toHaveCSS('position', 'fixed');
+  await expect.poll(async () => ipaInput.evaluate((input) => [input.selectionStart, input.selectionEnd])).toEqual([0, 2]);
   await expect(page.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as reviewed');
   const stickyKeyboardLayout = await page.locator('.ll-ipa-search-ipa-cell').first().evaluate((cell) => {
     const input = cell.querySelector('.ll-ipa-search-ipa-input');
@@ -281,16 +293,25 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
   await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Affricates and tie bars' })).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Vowels' })).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Consonants' })).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Rare symbols' })).toHaveCount(0);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Other symbols' })).toHaveCount(0);
+  await expect(page.locator('.ll-ipa-inline-keyboard-optional-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.ll-ipa-inline-keyboard-optional-toggle')).toHaveText('Show Rare symbols / Other symbols');
+  await page.locator('.ll-ipa-inline-keyboard-optional-toggle').click();
+  await expect(page.locator('.ll-ipa-inline-keyboard-optional-toggle')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Rare symbols' })).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-keyboard-label', { hasText: 'Other symbols' })).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="qʰ"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="dʲ"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="tʷ"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="aː"]')).toHaveCount(0);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ɬ"]')).toHaveCount(1);
+  await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ǂ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="t͡ʃ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ɛ"]')).toHaveCount(1);
   await expect(page.locator('.ll-ipa-inline-key[data-ipa-char="ʃ"]')).toHaveAttribute('title', 'voiceless postalveolar fricative');
 
+  await ipaInput.evaluate((input) => input.setSelectionRange(input.value.length, input.value.length));
   await ipaInput.type('ı');
   await expect(ipaInput).toHaveValue('teɪ');
 
@@ -317,6 +338,8 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
     'll_tools_search_ipa_keyboard_recordings'
   ]);
 
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-ll-ipa-inline-keyboard-wrap]')).toHaveCount(0);
   await page.setViewportSize({ width: 420, height: 340 });
   await ipaInput.click();
   await expect(page.locator('[data-ll-ipa-inline-keyboard-wrap]')).toHaveCount(1);

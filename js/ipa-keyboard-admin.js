@@ -66,6 +66,10 @@
     let activeIpaKeyboardInput = null;
     let $activeIpaKeyboard = $();
     let activeIpaKeyboardGroups = [];
+    let ipaOptionalGroupsExpanded = false;
+    let ipaKeyboardMouseInput = null;
+    let ipaKeyboardMouseSelecting = false;
+    let ipaKeyboardShowTimer = null;
     let $activeIpaSymbolMenu = $();
     let suppressSearchBlurSave = false;
     let searchWordEditorRefreshTimer = null;
@@ -268,11 +272,16 @@
 
     function hideIpaKeyboard() {
         hideIpaSymbolContextMenu();
+        if (ipaKeyboardShowTimer) {
+            window.clearTimeout(ipaKeyboardShowTimer);
+            ipaKeyboardShowTimer = null;
+        }
         if ($activeIpaKeyboard.length) {
             $activeIpaKeyboard.remove();
         }
         $activeIpaKeyboard = $();
         activeIpaKeyboardGroups = [];
+        ipaOptionalGroupsExpanded = false;
         activeIpaKeyboardInput = null;
         suppressSearchBlurSave = false;
         document.body.style.removeProperty('--ll-ipa-keyboard-bottom-padding');
@@ -351,13 +360,45 @@
         return key === 'rare' || key === 'other';
     }
 
-    function filterIpaKeyboardGroupsForViewport(groups, compact) {
-        if (!compact) {
-            return groups;
-        }
-        return groups.filter(function (group) {
+    function getPrimaryIpaKeyboardGroups(groups) {
+        return (Array.isArray(groups) ? groups : []).filter(function (group) {
             return !ipaKeyboardGroupIsOptionalOnTightScreens(group);
         });
+    }
+
+    function getOptionalIpaKeyboardGroups(groups) {
+        return (Array.isArray(groups) ? groups : []).filter(ipaKeyboardGroupIsOptionalOnTightScreens);
+    }
+
+    function getIpaKeyboardOptionalGroupsLabel(groups) {
+        const labels = [];
+        getOptionalIpaKeyboardGroups(groups).forEach(function (group) {
+            const label = (group && group.label ? String(group.label) : '').trim();
+            if (label && labels.indexOf(label) === -1) {
+                labels.push(label);
+            }
+        });
+        return labels.join(' / ');
+    }
+
+    function buildIpaKeyboardOptionalToggle(groups) {
+        const label = getIpaKeyboardOptionalGroupsLabel(groups);
+        if (!label) {
+            return $();
+        }
+        const buttonText = ipaOptionalGroupsExpanded
+            ? formatText(t('keyboardOptionalGroupsHide', 'Hide %s'), [label])
+            : formatText(t('keyboardOptionalGroupsShow', 'Show %s'), [label]);
+        return $('<div>', {
+            class: 'll-ipa-inline-keyboard-optional-toggle-wrap',
+            'data-ll-ipa-keyboard-optional-toggle-wrap': '1'
+        }).append($('<button>', {
+            type: 'button',
+            class: 'll-ipa-inline-keyboard-optional-toggle',
+            'data-ll-ipa-keyboard-optional-toggle': '1',
+            'aria-expanded': ipaOptionalGroupsExpanded ? 'true' : 'false',
+            text: buttonText
+        }));
     }
 
     function buildIpaKeyboardPanel(groups) {
@@ -388,14 +429,22 @@
             $panel.append($group);
         });
 
+        const $optionalToggle = buildIpaKeyboardOptionalToggle(activeIpaKeyboardGroups);
+        if ($optionalToggle.length) {
+            $panel.append($optionalToggle);
+        }
+
         return $panel;
     }
 
     function renderIpaKeyboardGroups($wrap, groups, compact) {
+        const primaryGroups = getPrimaryIpaKeyboardGroups(groups);
+        const optionalGroups = ipaOptionalGroupsExpanded ? getOptionalIpaKeyboardGroups(groups) : [];
+        const visibleGroups = primaryGroups.concat(optionalGroups);
         $wrap
             .attr('data-ll-ipa-keyboard-compact', compact ? '1' : '0')
             .empty()
-            .append(buildIpaKeyboardPanel(filterIpaKeyboardGroupsForViewport(groups, compact)));
+            .append(buildIpaKeyboardPanel(visibleGroups));
     }
 
     function getIpaKeyboardViewportMaxHeight() {
@@ -478,6 +527,31 @@
         ensureActiveIpaFieldVisible();
     }
 
+    function captureIpaInputSelection(input) {
+        if (!input || typeof input.selectionStart !== 'number' || typeof input.selectionEnd !== 'number') {
+            return null;
+        }
+        return {
+            value: (input.value || '').toString(),
+            start: input.selectionStart,
+            end: input.selectionEnd,
+            direction: input.selectionDirection || 'none'
+        };
+    }
+
+    function restoreIpaInputSelection(input, selection) {
+        if (!input || !selection || document.activeElement !== input || typeof input.setSelectionRange !== 'function') {
+            return;
+        }
+        const value = (input.value || '').toString();
+        if (value !== selection.value) {
+            return;
+        }
+        const start = Math.min(selection.start, value.length);
+        const end = Math.min(selection.end, value.length);
+        input.setSelectionRange(start, end, selection.direction || 'none');
+    }
+
     function buildIpaKeyboardKey(symbol) {
         const detail = getSymbolDetail(symbol);
         const display = detail.display || symbol;
@@ -512,6 +586,15 @@
             return;
         }
 
+        const input = $field.get(0);
+        const selection = captureIpaInputSelection(input);
+        if (activeIpaKeyboardInput === input && $activeIpaKeyboard.length) {
+            activeIpaKeyboardGroups = groups;
+            fitIpaKeyboardToViewport();
+            restoreIpaInputSelection(input, selection);
+            return;
+        }
+
         hideIpaKeyboard();
 
         $activeIpaKeyboard = $('<div>', {
@@ -519,9 +602,39 @@
             'data-ll-ipa-inline-keyboard-wrap': '1'
         });
         activeIpaKeyboardGroups = groups;
-        activeIpaKeyboardInput = $field.get(0);
+        activeIpaKeyboardInput = input;
         $admin.append($activeIpaKeyboard);
         fitIpaKeyboardToViewport();
+        restoreIpaInputSelection(input, selection);
+    }
+
+    function scheduleIpaKeyboardForInput(input, delay) {
+        if (ipaKeyboardShowTimer) {
+            window.clearTimeout(ipaKeyboardShowTimer);
+        }
+        ipaKeyboardShowTimer = window.setTimeout(function () {
+            ipaKeyboardShowTimer = null;
+            if (!input || !document.body.contains(input) || document.activeElement !== input) {
+                return;
+            }
+            showIpaKeyboardForInput($(input));
+        }, Math.max(0, delay || 0));
+    }
+
+    function handleIpaFieldMouseDown() {
+        ipaKeyboardMouseInput = this;
+        ipaKeyboardMouseSelecting = true;
+        if (ipaKeyboardShowTimer) {
+            window.clearTimeout(ipaKeyboardShowTimer);
+            ipaKeyboardShowTimer = null;
+        }
+    }
+
+    function handleIpaFieldFocus() {
+        if (ipaKeyboardMouseSelecting && ipaKeyboardMouseInput === this) {
+            return;
+        }
+        scheduleIpaKeyboardForInput(this, 0);
     }
 
     function insertIpaKeyboardChar(input, symbol) {
@@ -4312,21 +4425,45 @@
         }
     });
 
-    $symbols.on('focus click', '.ll-ipa-input', function () {
-        showIpaKeyboardForInput($(this));
-    });
+    $symbols.on('mousedown', '.ll-ipa-input', handleIpaFieldMouseDown);
+
+    $symbols.on('focus', '.ll-ipa-input', handleIpaFieldFocus);
 
     $symbols.on('input', '.ll-ipa-input', function () {
         normalizeIpaInputElement(this);
     });
 
-    $searchResults.on('focus click', '.ll-ipa-search-ipa-input', function () {
-        showIpaKeyboardForInput($(this));
+    $searchResults.on('mousedown', '.ll-ipa-search-ipa-input', handleIpaFieldMouseDown);
+
+    $searchResults.on('focus', '.ll-ipa-search-ipa-input', handleIpaFieldFocus);
+
+    $(document).on('mouseup.llIpaKeyboardAdmin', function () {
+        const input = ipaKeyboardMouseInput;
+        const shouldOpen = ipaKeyboardMouseSelecting && input && document.body.contains(input);
+        ipaKeyboardMouseInput = null;
+        ipaKeyboardMouseSelecting = false;
+        if (!shouldOpen) {
+            return;
+        }
+        scheduleIpaKeyboardForInput(input, 0);
     });
 
-    $admin.on('mousedown', '.ll-ipa-inline-key', function (event) {
+    $admin.on('mousedown', '.ll-ipa-inline-key, .ll-ipa-inline-keyboard-optional-toggle', function (event) {
         suppressSearchBlurSave = true;
         event.preventDefault();
+    });
+
+    $admin.on('click', '.ll-ipa-inline-keyboard-optional-toggle', function (event) {
+        const input = activeIpaKeyboardInput;
+        event.preventDefault();
+        event.stopPropagation();
+        ipaOptionalGroupsExpanded = !ipaOptionalGroupsExpanded;
+        hideIpaSymbolContextMenu();
+        fitIpaKeyboardToViewport();
+        if (input && document.body.contains(input)) {
+            input.focus();
+        }
+        suppressSearchBlurSave = false;
     });
 
     $admin.on('click', '.ll-ipa-inline-key', function (event) {
