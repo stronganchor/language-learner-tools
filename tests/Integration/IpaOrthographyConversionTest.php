@@ -602,7 +602,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertNotContains('orthography_mismatch', $this->validationCodes($sentence_recording_id, $wordset_id));
     }
 
-    public function test_issue_search_refreshes_stale_validation_before_returning_results(): void
+    public function test_issue_search_lists_cached_candidates_and_rest_batch_refreshes_stale_validation(): void
     {
         $wordset_id = $this->createWordset('Stale Validation Search');
         update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
@@ -627,12 +627,25 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
                 'ignored' => [],
             ],
         ]);
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
 
         $this->assertContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
 
         $search = ll_tools_ipa_keyboard_search_recordings($wordset_id, '', 'both', true, false, false, 1);
-        $this->assertSame(0, (int) ($search['total_matches'] ?? -1));
+        $this->assertSame(1, (int) ($search['total_matches'] ?? -1));
+        $this->assertContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
+
+        $request = new WP_REST_Request('POST', '/ll-tools/v1/wordsets/' . $wordset_id . '/transcription-validations');
+        $request->set_param('wordset', (string) $wordset_id);
+        $request->set_param('limit', 1);
+        $response = ll_tools_rest_automation_refresh_transcription_validations($request);
+        $this->assertInstanceOf(WP_REST_Response::class, $response);
+        $data = (array) $response->get_data();
+        $this->assertSame(1, (int) ($data['updated_count'] ?? -1));
         $this->assertNotContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
+
+        $search_after_refresh = ll_tools_ipa_keyboard_search_recordings($wordset_id, '', 'both', true, false, false, 1);
+        $this->assertSame(0, (int) ($search_after_refresh['total_matches'] ?? -1));
     }
 
     public function test_manual_rule_outputs_preserve_apostrophes_for_conversion_and_mismatch_detection(): void

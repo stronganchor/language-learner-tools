@@ -6898,7 +6898,7 @@ function ll_tools_ipa_keyboard_get_search_results_per_page(): int {
 }
 
 function ll_tools_ipa_keyboard_get_issue_search_stale_refresh_limit(): int {
-    $limit = (int) apply_filters('ll_tools_ipa_keyboard_issue_search_stale_refresh_limit', 2);
+    $limit = (int) apply_filters('ll_tools_ipa_keyboard_issue_search_stale_refresh_limit', 0);
     return max(0, min(100, $limit));
 }
 
@@ -6923,16 +6923,11 @@ function ll_tools_ipa_keyboard_get_search_recording_ids(array $word_ids, bool $i
 
     if ($issues_only) {
         $args['meta_query'] = [
-            'relation' => 'OR',
             [
                 'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
                 'value' => 0,
                 'compare' => '>',
                 'type' => 'NUMERIC',
-            ],
-            [
-                'key' => ll_tools_ipa_keyboard_validation_state_meta_key(),
-                'compare' => 'EXISTS',
             ],
         ];
     }
