@@ -6890,6 +6890,49 @@ function ll_tools_ipa_keyboard_get_search_results_per_page(): int {
     return max(1, min(500, $per_page));
 }
 
+function ll_tools_ipa_keyboard_get_issue_search_stale_refresh_limit(): int {
+    $limit = (int) apply_filters('ll_tools_ipa_keyboard_issue_search_stale_refresh_limit', 10);
+    return max(0, min(100, $limit));
+}
+
+function ll_tools_ipa_keyboard_get_search_recording_ids(array $word_ids, bool $issues_only = false): array {
+    $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $args = [
+        'post_type' => 'word_audio',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'post_parent__in' => $word_ids,
+        'no_found_rows' => true,
+        'update_post_meta_cache' => true,
+        'update_post_term_cache' => false,
+    ];
+
+    if ($issues_only) {
+        $args['meta_query'] = [
+            'relation' => 'OR',
+            [
+                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
+                'value' => 0,
+                'compare' => '>',
+                'type' => 'NUMERIC',
+            ],
+            [
+                'key' => ll_tools_ipa_keyboard_validation_state_meta_key(),
+                'compare' => 'EXISTS',
+            ],
+        ];
+    }
+
+    return array_values(array_map('intval', get_posts($args)));
+}
+
 function ll_tools_ipa_keyboard_search_recordings(
     int $wordset_id,
     string $query = '',
@@ -6918,14 +6961,7 @@ function ll_tools_ipa_keyboard_search_recordings(
         ];
     }
 
-    $recording_ids = get_posts([
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'post_parent__in' => $word_ids,
-        'no_found_rows' => true,
-    ]);
+    $recording_ids = ll_tools_ipa_keyboard_get_search_recording_ids($word_ids, $issues_only);
     if (empty($recording_ids)) {
         return [
             'results' => [],
@@ -6943,6 +6979,9 @@ function ll_tools_ipa_keyboard_search_recordings(
     $word_display = ll_tools_ipa_keyboard_get_word_display_map($word_ids);
     $matches = [];
     $has_query = ($query !== '');
+    $stale_refreshes_remaining = $issues_only ? ll_tools_ipa_keyboard_get_issue_search_stale_refresh_limit() : 0;
+    $stale_refresh_count = 0;
+    $stale_refresh_deferred_count = 0;
 
     foreach ((array) $recording_ids as $recording_id) {
         $recording_id = (int) $recording_id;
@@ -6956,8 +6995,14 @@ function ll_tools_ipa_keyboard_search_recordings(
             if ($issues_only) {
                 $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, $wordset_id);
                 if (!empty($validation['active']) && ll_tools_ipa_keyboard_validation_result_is_stale($validation)) {
-                    ll_tools_ipa_keyboard_update_recording_validation($recording_id);
-                    $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, $wordset_id);
+                    if ($stale_refreshes_remaining > 0) {
+                        $stale_refreshes_remaining--;
+                        $stale_refresh_count++;
+                        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+                        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, $wordset_id);
+                    } else {
+                        $stale_refresh_deferred_count++;
+                    }
                 }
                 if (empty($validation['active'])) {
                     continue;
@@ -6984,11 +7029,37 @@ function ll_tools_ipa_keyboard_search_recordings(
             $wordset_id,
             $word_info,
             $transcription_mode,
-            $issues_only
+            false
         );
 
-        if ($issues_only && (int) ($payload['issue_count'] ?? 0) <= 0) {
-            continue;
+        if ($issues_only) {
+            $validation = [
+                'has_state' => true,
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => (array) ($payload['issues'] ?? []),
+                'ignored' => (array) ($payload['ignored_issues'] ?? []),
+            ];
+            $state_entry = ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, $wordset_id);
+            if (!empty($state_entry['active']) && ll_tools_ipa_keyboard_validation_result_is_stale($state_entry)) {
+                if ($stale_refreshes_remaining > 0) {
+                    $stale_refreshes_remaining--;
+                    $stale_refresh_count++;
+                    ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+                    $payload = ll_tools_ipa_keyboard_build_search_row_payload(
+                        $recording_id,
+                        $wordset_id,
+                        $word_info,
+                        $transcription_mode,
+                        false
+                    );
+                    $validation['active'] = (array) ($payload['issues'] ?? []);
+                } else {
+                    $stale_refresh_deferred_count++;
+                }
+            }
+            if (empty($validation['active'])) {
+                continue;
+            }
         }
 
         if ($review_only && empty($payload['needs_review'])) {
@@ -7023,7 +7094,7 @@ function ll_tools_ipa_keyboard_search_recordings(
     $current_page = min($page, $total_pages);
     $offset = max(0, ($current_page - 1) * $per_page);
     $page_matches = array_slice($matches, $offset, $per_page);
-    $results = array_map(static function (array $match) use ($wordset_id, $transcription_mode, $issues_only): array {
+    $results = array_map(static function (array $match) use ($wordset_id, $transcription_mode): array {
         if (is_array($match['payload'] ?? null)) {
             return (array) $match['payload'];
         }
@@ -7033,7 +7104,7 @@ function ll_tools_ipa_keyboard_search_recordings(
             $wordset_id,
             (array) ($match['word_info'] ?? ['word_text' => '', 'translation' => '']),
             $transcription_mode,
-            $issues_only
+            false
         );
     }, $page_matches);
     $page_start = $total_matches > 0 ? ($offset + 1) : 0;
@@ -7049,6 +7120,8 @@ function ll_tools_ipa_keyboard_search_recordings(
         'per_page' => $per_page,
         'page_start' => $page_start,
         'page_end' => $page_end,
+        'stale_refresh_count' => $stale_refresh_count,
+        'stale_refresh_deferred_count' => $stale_refresh_deferred_count,
     ];
 }
 
