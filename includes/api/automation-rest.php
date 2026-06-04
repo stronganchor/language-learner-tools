@@ -1713,6 +1713,44 @@ function ll_tools_rest_automation_find_helper_translation_value(array $update, a
     return '';
 }
 
+function ll_tools_rest_automation_sanitize_helper_dictionary_entry_id($value) {
+    $raw = is_scalar($value) ? trim((string) $value) : '';
+    if ($raw === '') {
+        return 0;
+    }
+    if (!preg_match('/^\d+$/', $raw)) {
+        return new WP_Error(
+            'll_tools_rest_invalid_dictionary_entry_id',
+            __('Dictionary entry ID must be a positive integer, or 0 to unlink.', 'll-tools-text-domain')
+        );
+    }
+
+    $entry_id = (int) $raw;
+    if ($entry_id > 0 && function_exists('ll_tools_is_dictionary_entry_id') && !ll_tools_is_dictionary_entry_id($entry_id)) {
+        return new WP_Error(
+            'll_tools_rest_invalid_dictionary_entry_id',
+            __('Invalid dictionary entry ID.', 'll-tools-text-domain')
+        );
+    }
+
+    return max(0, $entry_id);
+}
+
+function ll_tools_rest_automation_find_helper_dictionary_entry_id(array $update, array $keys, bool &$has_value) {
+    foreach ($keys as $key) {
+        if (!is_string($key) || $key === '') {
+            continue;
+        }
+        if (array_key_exists($key, $update)) {
+            $has_value = true;
+            return ll_tools_rest_automation_sanitize_helper_dictionary_entry_id($update[$key]);
+        }
+    }
+
+    $has_value = false;
+    return 0;
+}
+
 function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) {
     if (function_exists('set_time_limit')) {
         @set_time_limit(0);
@@ -1729,7 +1767,7 @@ function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) 
     $batch_settings = ll_tools_rest_automation_batch_limit('word_helper_updates', $dry_run);
     $max_updates = (int) $batch_settings['max'];
     $started = microtime(true);
-    $supported_fields = ['word_translation', 'word_english_meaning'];
+    $supported_fields = ['word_translation', 'word_english_meaning', 'dictionary_entry_id'];
 
     $summary = [
         'generated_at_gmt' => gmdate('c'),
@@ -1813,17 +1851,60 @@ function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) 
             $requested_values['word_english_meaning'] = $word_english_meaning;
         }
 
+        $has_dictionary_entry_id = false;
+        $dictionary_entry_id = ll_tools_rest_automation_find_helper_dictionary_entry_id($update, ['dictionary_entry_id', 'entry_id'], $has_dictionary_entry_id);
+        if (is_wp_error($dictionary_entry_id)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => $dictionary_entry_id->get_error_message(),
+            ];
+            continue;
+        }
+        if ($has_dictionary_entry_id) {
+            if (!function_exists('ll_tools_assign_dictionary_entry_to_word')) {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'word_id' => $word_id,
+                    'message' => __('Dictionary entry helpers are not available.', 'll-tools-text-domain'),
+                ];
+                continue;
+            }
+            $requested_values['dictionary_entry_id'] = (int) $dictionary_entry_id;
+        }
+
         if (array_key_exists('value', $update)) {
             $field = sanitize_key((string) ($update['field'] ?? ''));
             if (!in_array($field, $supported_fields, true)) {
                 $summary['errors'][] = [
                     'index' => $index,
                     'word_id' => $word_id,
-                    'message' => __('Use field=word_translation or field=word_english_meaning with value.', 'll-tools-text-domain'),
+                    'message' => __('Use field=word_translation, field=word_english_meaning, or field=dictionary_entry_id with value.', 'll-tools-text-domain'),
                 ];
                 continue;
             }
-            $requested_values[$field] = ll_tools_rest_automation_sanitize_helper_translation_value($update['value']);
+            if ($field === 'dictionary_entry_id') {
+                if (!function_exists('ll_tools_assign_dictionary_entry_to_word')) {
+                    $summary['errors'][] = [
+                        'index' => $index,
+                        'word_id' => $word_id,
+                        'message' => __('Dictionary entry helpers are not available.', 'll-tools-text-domain'),
+                    ];
+                    continue;
+                }
+                $value_dictionary_entry_id = ll_tools_rest_automation_sanitize_helper_dictionary_entry_id($update['value']);
+                if (is_wp_error($value_dictionary_entry_id)) {
+                    $summary['errors'][] = [
+                        'index' => $index,
+                        'word_id' => $word_id,
+                        'message' => $value_dictionary_entry_id->get_error_message(),
+                    ];
+                    continue;
+                }
+                $requested_values[$field] = (int) $value_dictionary_entry_id;
+            } else {
+                $requested_values[$field] = ll_tools_rest_automation_sanitize_helper_translation_value($update['value']);
+            }
         }
 
         $has_old_word_translation = false;
@@ -1838,11 +1919,29 @@ function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) 
             $guard_values['word_english_meaning'] = $old_word_english_meaning;
         }
 
+        $has_old_dictionary_entry_id = false;
+        $old_dictionary_entry_id = ll_tools_rest_automation_find_helper_dictionary_entry_id(
+            $update,
+            ['old_dictionary_entry_id', 'expected_dictionary_entry_id'],
+            $has_old_dictionary_entry_id
+        );
+        if (is_wp_error($old_dictionary_entry_id)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'word_id' => $word_id,
+                'message' => $old_dictionary_entry_id->get_error_message(),
+            ];
+            continue;
+        }
+        if ($has_old_dictionary_entry_id) {
+            $guard_values['dictionary_entry_id'] = (int) $old_dictionary_entry_id;
+        }
+
         if (empty($requested_values)) {
             $summary['errors'][] = [
                 'index' => $index,
                 'word_id' => $word_id,
-                'message' => __('Missing helper translation value.', 'll-tools-text-domain'),
+                'message' => __('Missing helper translation or dictionary entry value.', 'll-tools-text-domain'),
             ];
             continue;
         }
@@ -1884,6 +1983,9 @@ function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) 
         $before = [
             'word_translation' => (string) get_post_meta($word_id, 'word_translation', true),
             'word_english_meaning' => (string) get_post_meta($word_id, 'word_english_meaning', true),
+            'dictionary_entry_id' => function_exists('ll_tools_get_word_dictionary_entry_id')
+                ? (int) ll_tools_get_word_dictionary_entry_id($word_id)
+                : 0,
         ];
         $after = $before;
         $summary['matched_count']++;
@@ -1919,9 +2021,16 @@ function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) 
             if (!array_key_exists($field, $after)) {
                 continue;
             }
-            $value = (string) $value;
-            if ((string) $after[$field] === $value) {
-                continue;
+            if ($field === 'dictionary_entry_id') {
+                $value = max(0, (int) $value);
+                if ((int) $after[$field] === $value) {
+                    continue;
+                }
+            } else {
+                $value = (string) $value;
+                if ((string) $after[$field] === $value) {
+                    continue;
+                }
             }
             $after[$field] = $value;
             $changed_keys[] = $field;
@@ -1949,14 +2058,46 @@ function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) 
         $changed_word_ids = [];
         foreach ($changes as $change) {
             $word_id = (int) $change['word_id'];
+            $apply_failed = false;
             foreach ((array) ($change['changed_keys'] ?? []) as $field) {
                 $field = (string) $field;
-                $value = (string) (($change['after'][$field] ?? ''));
-                if ($value === '') {
-                    delete_post_meta($word_id, $field);
+                if ($field === 'dictionary_entry_id') {
+                    if (!function_exists('ll_tools_assign_dictionary_entry_to_word')) {
+                        $summary['errors'][] = [
+                            'index' => (int) $change['index'],
+                            'word_id' => $word_id,
+                            'word_slug' => (string) $change['word_slug'],
+                            'message' => __('Dictionary entry helpers are not available.', 'll-tools-text-domain'),
+                        ];
+                        $apply_failed = true;
+                        break;
+                    }
+                    $dictionary_result = ll_tools_assign_dictionary_entry_to_word(
+                        $word_id,
+                        max(0, (int) ($change['after'][$field] ?? 0)),
+                        ''
+                    );
+                    if (is_wp_error($dictionary_result)) {
+                        $summary['errors'][] = [
+                            'index' => (int) $change['index'],
+                            'word_id' => $word_id,
+                            'word_slug' => (string) $change['word_slug'],
+                            'message' => $dictionary_result->get_error_message(),
+                        ];
+                        $apply_failed = true;
+                        break;
+                    }
                 } else {
-                    update_post_meta($word_id, $field, $value);
+                    $value = (string) (($change['after'][$field] ?? ''));
+                    if ($value === '') {
+                        delete_post_meta($word_id, $field);
+                    } else {
+                        update_post_meta($word_id, $field, $value);
+                    }
                 }
+            }
+            if ($apply_failed) {
+                continue;
             }
 
             $summary['updated'][] = [

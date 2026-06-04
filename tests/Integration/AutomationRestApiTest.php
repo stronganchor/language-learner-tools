@@ -804,6 +804,64 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('not_in_wordset', (string) ($data['skipped'][1]['reason'] ?? ''));
     }
 
+    public function test_word_helper_updates_route_links_dictionary_entries_by_id(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Helper Dictionary Wordset', 'rest-helper-dictionary-wordset');
+        $blocked_wordset_id = $this->ensure_term('wordset', 'REST Helper Dictionary Blocked Wordset', 'rest-helper-dictionary-blocked-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Helper Dictionary Category', 'rest-helper-dictionary-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Helper Dictionary Word', 'Dictionary Target');
+        $blocked_word_id = $this->create_word($blocked_wordset_id, [$category_id], 'Blocked Dictionary Word', 'Blocked Target');
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Helper Dictionary Entry',
+        ]);
+
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'updates' => [
+                [
+                    'word_id' => $word_id,
+                    'old_dictionary_entry_id' => 0,
+                    'dictionary_entry_id' => $entry_id,
+                ],
+                [
+                    'word_id' => $blocked_word_id,
+                    'dictionary_entry_id' => $entry_id,
+                ],
+            ],
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-helper-dictionary-wordset/word-helper-updates', $payload + [
+            'dry_run' => true,
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertSame(1, (int) ($dry_data['matched_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame(0, (int) ($dry_data['updated_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['skipped_count'] ?? 0));
+        $this->assertSame('not_in_wordset', (string) ($dry_data['skipped'][0]['reason'] ?? ''));
+        $this->assertSame(0, ll_tools_get_word_dictionary_entry_id($word_id));
+        $this->assertContains('dictionary_entry_id', (array) ($dry_data['updated'][0]['changed_keys'] ?? []));
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-helper-dictionary-wordset/word-helper-updates', $payload);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['changed_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame($entry_id, ll_tools_get_word_dictionary_entry_id($word_id));
+        $this->assertSame(0, ll_tools_get_word_dictionary_entry_id($blocked_word_id));
+        $this->assertContains('dictionary_entry_id', (array) ($data['updated'][0]['changed_keys'] ?? []));
+        $this->assertSame($entry_id, (int) (($data['updated'][0]['after']['dictionary_entry_id'] ?? 0)));
+    }
+
     public function test_word_helper_updates_route_rejects_oversized_write_batches(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
