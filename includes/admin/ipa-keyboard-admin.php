@@ -5419,11 +5419,18 @@ function ll_tools_ipa_orthography_apply_suggestion_to_recording(int $wordset_id,
 }
 
 function ll_tools_ipa_orthography_build_engine_rules_for_wordset(int $wordset_id): array {
+    static $cache = [];
+
+    if (isset($cache[$wordset_id]) && is_array($cache[$wordset_id])) {
+        return $cache[$wordset_id];
+    }
+
     $training_rows = ll_tools_ipa_orthography_collect_training_rows($wordset_id);
     $stats = ll_tools_ipa_orthography_collect_rule_stats($wordset_id, $training_rows);
     $auto_rules = ll_tools_ipa_orthography_build_auto_rules_from_stats($stats);
     $auto_rules = ll_tools_ipa_orthography_filter_auto_rules($auto_rules, ll_tools_ipa_orthography_get_blocklist($wordset_id), $wordset_id);
-    return ll_tools_ipa_orthography_prepare_engine_rules($auto_rules, ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id), $wordset_id);
+    $cache[$wordset_id] = ll_tools_ipa_orthography_prepare_engine_rules($auto_rules, ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id), $wordset_id);
+    return $cache[$wordset_id];
 }
 
 function ll_tools_ipa_keyboard_build_orthography_data(int $wordset_id): array {
@@ -6891,7 +6898,7 @@ function ll_tools_ipa_keyboard_get_search_results_per_page(): int {
 }
 
 function ll_tools_ipa_keyboard_get_issue_search_stale_refresh_limit(): int {
-    $limit = (int) apply_filters('ll_tools_ipa_keyboard_issue_search_stale_refresh_limit', 10);
+    $limit = (int) apply_filters('ll_tools_ipa_keyboard_issue_search_stale_refresh_limit', 2);
     return max(0, min(100, $limit));
 }
 
@@ -6976,7 +6983,26 @@ function ll_tools_ipa_keyboard_search_recordings(
         ];
     }
 
-    $word_display = ll_tools_ipa_keyboard_get_word_display_map($word_ids);
+    $recording_parent_ids = [];
+    $display_word_ids = $word_ids;
+    if ($issues_only) {
+        $display_word_ids = [];
+        foreach ((array) $recording_ids as $recording_id) {
+            $recording_id = (int) $recording_id;
+            if ($recording_id <= 0) {
+                continue;
+            }
+            $parent_id = (int) wp_get_post_parent_id($recording_id);
+            if ($parent_id <= 0) {
+                continue;
+            }
+            $recording_parent_ids[$recording_id] = $parent_id;
+            $display_word_ids[$parent_id] = $parent_id;
+        }
+        $display_word_ids = array_values($display_word_ids);
+    }
+
+    $word_display = ll_tools_ipa_keyboard_get_word_display_map($display_word_ids);
     $matches = [];
     $has_query = ($query !== '');
     $stale_refreshes_remaining = $issues_only ? ll_tools_ipa_keyboard_get_issue_search_stale_refresh_limit() : 0;
@@ -6989,7 +7015,7 @@ function ll_tools_ipa_keyboard_search_recordings(
             continue;
         }
 
-        $word_id = (int) wp_get_post_parent_id($recording_id);
+        $word_id = (int) ($recording_parent_ids[$recording_id] ?? wp_get_post_parent_id($recording_id));
         $word_info = (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => '']);
         if (!$has_query) {
             if ($issues_only) {

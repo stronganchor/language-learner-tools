@@ -616,7 +616,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 5.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|transcriptions|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|transcriptions|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 5.0;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
@@ -856,6 +856,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_title_updates' => '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
             'word_helper_updates' => '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
+            'transcription_validations' => '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'orthography_conversion' => '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
@@ -895,6 +896,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
                 '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
+                '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
                 '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
                 '/ll-tools/v1/wordsets/{wordset}/profile',
@@ -2668,6 +2670,79 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
             'before' => $before,
             'after' => $after,
         ];
+    }
+
+    return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_automation_refresh_transcription_validations(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $limit = max(1, min(100, (int) ($request->get_param('limit') ?: 10)));
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $stale_only = $request->has_param('stale_only')
+        ? rest_sanitize_boolean($request->get_param('stale_only'))
+        : true;
+
+    $word_ids = function_exists('ll_tools_ipa_keyboard_get_word_ids_for_wordset')
+        ? ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id)
+        : [];
+    $candidate_ids = function_exists('ll_tools_ipa_keyboard_get_search_recording_ids')
+        ? ll_tools_ipa_keyboard_get_search_recording_ids((array) $word_ids, true)
+        : [];
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'stale_only' => $stale_only,
+        'limit' => $limit,
+        'wordset' => [
+            'id' => $wordset_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'candidate_count' => count($candidate_ids),
+        'scanned_count' => 0,
+        'matched_count' => 0,
+        'updated_count' => 0,
+        'remaining_stale_count' => 0,
+        'updated_recording_ids' => [],
+    ];
+
+    foreach ((array) $candidate_ids as $recording_id) {
+        $recording_id = (int) $recording_id;
+        if ($recording_id <= 0 || !ll_tools_rest_automation_recording_belongs_to_wordset($recording_id, $wordset_id)) {
+            continue;
+        }
+
+        $summary['scanned_count']++;
+        $validation = function_exists('ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry')
+            ? ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, $wordset_id)
+            : [];
+        $is_stale = function_exists('ll_tools_ipa_keyboard_validation_result_is_stale')
+            && ll_tools_ipa_keyboard_validation_result_is_stale((array) $validation);
+        $has_validation = !empty($validation['active']) || !empty($validation['ignored']);
+        if ($stale_only && (!$has_validation || !$is_stale)) {
+            continue;
+        }
+
+        $summary['matched_count']++;
+        if ($summary['updated_count'] >= $limit) {
+            if ($is_stale) {
+                $summary['remaining_stale_count']++;
+            }
+            continue;
+        }
+
+        if (!$dry_run && function_exists('ll_tools_ipa_keyboard_update_recording_validation')) {
+            ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        }
+        $summary['updated_count']++;
+        $summary['updated_recording_ids'][] = $recording_id;
     }
 
     return rest_ensure_response($summary);
@@ -6067,6 +6142,29 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_update_transcriptions',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/transcription-validations', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_refresh_transcription_validations',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'limit' => [
+                'required' => false,
+                'type' => 'integer',
+                'default' => 10,
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
+            ],
+            'stale_only' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+        ],
     ]);
 
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-option-rules', [
