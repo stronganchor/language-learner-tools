@@ -404,6 +404,173 @@ test('reviewed rows stay visible until the transcription search is manually refr
   ]);
 });
 
+test('search results render a small first chunk and append later rows on demand', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    try {
+      window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+      window.localStorage.removeItem('llTranscriptionManagerLastTab');
+    } catch (error) {
+      // Ignore storage cleanup failures in the test harness.
+    }
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function buildRecording(recordingId, wordText) {
+      return {
+        recording_id: recordingId,
+        word_text: wordText,
+        word_translation: '',
+        word_edit_link: '',
+        recording_text: wordText.toLowerCase(),
+        recording_translation: '',
+        recording_ipa: wordText.toLowerCase(),
+        categories: [],
+        issues: [],
+        ignored_issues: [],
+        issue_count: 0,
+        ignored_issue_count: 0,
+        needs_review: false,
+        review_fields: {
+          recording_text: false,
+          recording_ipa: false
+        },
+        review_note: '',
+        image: {},
+        audio_url: '',
+        audio_label: 'Play recording'
+      };
+    }
+
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'search',
+      initialSearch: {
+        query: '',
+        scope: 'both',
+        issues_only: false,
+        review_only: false,
+        exact_transcription: false,
+        page: 1
+      },
+      searchInitialPerPage: 2,
+      i18n: {}
+    };
+
+    window.__llLazySearchMock = {
+      recordings: [
+        buildRecording(101, 'Alpha'),
+        buildRecording(202, 'Beta'),
+        buildRecording(303, 'Charlie'),
+        buildRecording(404, 'Delta'),
+        buildRecording(505, 'Echo')
+      ],
+      postCalls: []
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const requestData = Object.assign({}, data);
+      window.__llLazySearchMock.postCalls.push({
+        url: String(url || ''),
+        data: requestData
+      });
+
+      window.setTimeout(function () {
+        if (requestData.action !== 'll_tools_search_ipa_keyboard_recordings') {
+          deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
+          return;
+        }
+
+        const perPage = Math.max(1, parseInt(requestData.per_page, 10) || 100);
+        const requestedPage = Math.max(1, parseInt(requestData.search_page, 10) || 1);
+        const totalMatches = window.__llLazySearchMock.recordings.length;
+        const totalPages = Math.max(1, Math.ceil(totalMatches / perPage));
+        const currentPage = Math.min(requestedPage, totalPages);
+        const offset = (currentPage - 1) * perPage;
+        const results = window.__llLazySearchMock.recordings.slice(offset, offset + perPage);
+
+        deferred.resolve({
+          success: true,
+          data: {
+            wordset: {
+              id: 7,
+              name: 'Regression Wordset'
+            },
+            transcription: {
+              mode: 'ipa',
+              symbols_column_label: 'Pronunciation'
+            },
+            results: results.map(clone),
+            total_matches: totalMatches,
+            shown_count: results.length,
+            has_more: currentPage < totalPages,
+            current_page: currentPage,
+            total_pages: totalPages,
+            per_page: perPage,
+            page_start: results.length ? offset + 1 : 0,
+            page_end: results.length ? offset + results.length : 0,
+            issues_only: false,
+            review_only: false,
+            exact_transcription: false,
+            can_edit: true,
+            validation_config: {
+              supports_rules: true,
+              builtin_rules: [],
+              custom_rules: []
+            }
+          }
+        });
+      }, 0);
+
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  await expect(page.locator('.ll-ipa-search-table tbody tr')).toHaveCount(2);
+  await expect(page.locator('#ll-ipa-search-summary')).toHaveText('Showing 1-2 of 5 results');
+  await expect(page.locator('.ll-ipa-search-load-more')).toHaveText('Load more');
+
+  await page.locator('.ll-ipa-search-load-more').click();
+
+  await expect(page.locator('.ll-ipa-search-table tbody tr')).toHaveCount(4);
+  await expect(page.locator('#ll-ipa-search-summary')).toHaveText('Showing 1-4 of 5 results');
+  await expect(page.locator('.ll-ipa-search-word-link')).toHaveText(['Alpha', 'Beta', 'Charlie', 'Delta']);
+
+  const searchCalls = await page.evaluate(() => {
+    return window.__llLazySearchMock.postCalls
+      .filter(call => call.data.action === 'll_tools_search_ipa_keyboard_recordings')
+      .map(call => ({
+        search_page: Number(call.data.search_page),
+        per_page: Number(call.data.per_page)
+      }));
+  });
+
+  expect(searchCalls).toEqual([
+    { search_page: 1, per_page: 2 },
+    { search_page: 2, per_page: 2 }
+  ]);
+});
+
 test('recording rows open the detached word editor and refresh after modal changes', async ({ page }) => {
   await page.route('**/*', route => route.fulfill({
     status: 200,

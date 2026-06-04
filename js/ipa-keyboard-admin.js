@@ -7,6 +7,7 @@
     const i18n = cfg.i18n || {};
     const wordsetStorageKey = 'llTranscriptionManagerLastWordsetId';
     const tabStorageKey = 'llTranscriptionManagerLastTab';
+    const searchPageSize = Math.max(1, Math.min(500, parseInt(cfg.searchInitialPerPage, 10) || 20));
 
     const $admin = $('.ll-ipa-admin').first();
     if (!$admin.length) {
@@ -49,6 +50,7 @@
     let currentAudioButton = null;
     let currentCanEdit = false;
     let currentSearchPage = 1;
+    let currentSearchPayload = null;
     let tabDirty = {
         map: true,
         symbols: true,
@@ -1077,6 +1079,7 @@
             $searchRules.empty();
             $searchResults.empty();
             setSearchSummary('');
+            currentSearchPayload = null;
         } else if (currentTab === 'orthography') {
             $orthographySummary.empty();
             $orthographyRules.empty();
@@ -1118,6 +1121,7 @@
         hideIpaKeyboard();
         currentWordsetId = safeWordsetId;
         currentSearchPage = 1;
+        currentSearchPayload = null;
         if ($wordset.val() !== String(safeWordsetId)) {
             $wordset.val(String(safeWordsetId));
         }
@@ -1185,7 +1189,7 @@
     }
 
     function loadSearch(wordsetId, shouldLoad, options) {
-        const settings = $.extend({ quietStatus: false, showLoading: null, successStatus: null }, options || {});
+        const settings = $.extend({ quietStatus: false, showLoading: null, successStatus: null, append: false }, options || {});
         if (!shouldLoad) {
             return;
         }
@@ -1195,13 +1199,15 @@
         const requestedPage = normalizeSearchPage(settings.page || currentSearchPage);
         currentSearchPage = requestedPage;
         if (settings.showLoading === null) {
-            settings.showLoading = !settings.quietStatus;
+            settings.showLoading = !settings.quietStatus && !settings.append;
         }
         if (settings.showLoading) {
             renderSearchLoading();
+        } else if (settings.append) {
+            setSearchLoadMoreState(true);
         }
         if (!settings.quietStatus) {
-            setStatus(t('searchLoading', 'Searching recordings...'), false);
+            setStatus(settings.append ? t('searchLoadingMore', 'Loading more...') : t('searchLoading', 'Searching recordings...'), false);
         }
         return $.post(ajaxUrl, {
             action: 'll_tools_search_ipa_keyboard_recordings',
@@ -1212,15 +1218,23 @@
             issues_only: searchState.issuesOnly ? 1 : 0,
             review_only: searchState.reviewOnly ? 1 : 0,
             exact_transcription: searchState.exactTranscription ? 1 : 0,
-            search_page: requestedPage
+            search_page: requestedPage,
+            per_page: searchPageSize
         }).done(function (response) {
             if (!response || response.success !== true) {
+                if (settings.append) {
+                    setSearchLoadMoreState(false);
+                }
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
             }
             handleWordsetResponse(response);
             currentSearchPage = normalizeSearchPage(response.data && response.data.current_page ? response.data.current_page : requestedPage);
-            renderSearch(response.data || {});
+            if (settings.append) {
+                appendSearch(response.data || {});
+            } else {
+                renderSearch(response.data || {});
+            }
             tabDirty.search = false;
             if (typeof settings.successStatus === 'string' && settings.successStatus !== '') {
                 setStatus(settings.successStatus, false);
@@ -1231,6 +1245,9 @@
             if (settings.showLoading) {
                 $searchResults.empty();
                 setSearchSummary('');
+                currentSearchPayload = null;
+            } else if (settings.append) {
+                setSearchLoadMoreState(false);
             }
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         });
@@ -1364,6 +1381,43 @@
 
         $nav.append($controls);
         return $nav;
+    }
+
+    function buildSearchLazyControl(payload, loading) {
+        if (!payload || !payload.has_more) {
+            return null;
+        }
+
+        const currentPage = normalizeSearchPage(payload.current_page || currentSearchPage);
+        const $control = $('<div>', { class: 'll-ipa-search-lazy-control' });
+        if (loading) {
+            $control.addClass('is-loading');
+        }
+        $control.append($('<button>', {
+            type: 'button',
+            class: 'button button-secondary ll-ipa-search-load-more',
+            text: loading ? t('searchLoadingMore', 'Loading more...') : t('searchLoadMore', 'Load more'),
+            disabled: !!loading,
+            'data-page': String(currentPage + 1)
+        }));
+
+        return $control;
+    }
+
+    function replaceSearchLazyControl(payload, loading) {
+        $searchResults.children('.ll-ipa-search-lazy-control').remove();
+        const $control = buildSearchLazyControl(payload, loading);
+        if ($control) {
+            $searchResults.append($control);
+        }
+    }
+
+    function setSearchLoadMoreState(loading) {
+        if (!currentSearchPayload) {
+            return;
+        }
+
+        replaceSearchLazyControl(currentSearchPayload, !!loading);
     }
 
     function getSymbolSummaryText(recordingCount, occurrenceCount) {
@@ -2832,6 +2886,9 @@
         const issuesOnly = !!payload.issues_only;
         const reviewOnly = !!payload.review_only;
 
+        currentSearchPayload = $.extend({}, payload, {
+            results: results.slice()
+        });
         renderValidationRules(payload);
         $searchResults.empty();
 
@@ -2845,11 +2902,6 @@
         }
 
         setSearchSummary(buildSearchSummaryText(totalMatches, pageStart, pageEnd, issuesOnly, reviewOnly));
-
-        const $topPagination = buildSearchPagination(payload);
-        if ($topPagination) {
-            $searchResults.append($topPagination);
-        }
 
         const $table = $('<table>', { class: 'widefat striped ll-ipa-search-table' });
         const $colgroup = $('<colgroup>')
@@ -2871,11 +2923,57 @@
         $table.append($colgroup, $thead, $tbody);
         $searchResults.append($table);
 
-        const $bottomPagination = buildSearchPagination(payload);
-        if ($bottomPagination) {
-            $bottomPagination.addClass('is-bottom');
-            $searchResults.append($bottomPagination);
+        replaceSearchLazyControl(currentSearchPayload, false);
+    }
+
+    function appendSearch(payload) {
+        const results = Array.isArray(payload.results) ? payload.results : [];
+        const $table = $searchResults.children('.ll-ipa-search-table').first();
+        const $tbody = $table.children('tbody').first();
+        if (!$table.length || !$tbody.length || !currentSearchPayload) {
+            renderSearch(payload);
+            return;
         }
+
+        const appended = [];
+        const existingIds = {};
+        $tbody.children('tr[data-recording-id]').each(function () {
+            const recordingId = parseInt($(this).attr('data-recording-id'), 10) || 0;
+            if (recordingId > 0) {
+                existingIds[recordingId] = true;
+            }
+        });
+
+        results.forEach(function (rec) {
+            const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
+            if (recordingId > 0 && existingIds[recordingId]) {
+                return;
+            }
+            $tbody.append(buildSearchRow(rec));
+            if (recordingId > 0) {
+                existingIds[recordingId] = true;
+            }
+            appended.push(rec);
+        });
+
+        const previousResults = Array.isArray(currentSearchPayload.results) ? currentSearchPayload.results : [];
+        const pageStart = parseInt(currentSearchPayload.page_start, 10) || parseInt(payload.page_start, 10) || 0;
+        const pageEnd = parseInt(payload.page_end, 10) || pageStart + $tbody.children('tr').length - 1;
+        currentSearchPayload = $.extend({}, currentSearchPayload, payload, {
+            results: previousResults.concat(appended),
+            shown_count: $tbody.children('tr').length,
+            page_start: pageStart,
+            page_end: pageEnd
+        });
+
+        setSearchSummary(buildSearchSummaryText(
+            parseInt(currentSearchPayload.total_matches, 10) || 0,
+            parseInt(currentSearchPayload.page_start, 10) || 0,
+            parseInt(currentSearchPayload.page_end, 10) || 0,
+            !!currentSearchPayload.issues_only,
+            !!currentSearchPayload.review_only
+        ));
+        replaceSearchLazyControl(currentSearchPayload, false);
     }
 
     function loadOrthography(wordsetId, shouldLoad) {
@@ -4564,6 +4662,22 @@
 
         markTabsDirty('search');
         loadSearch(currentWordsetId, true, { page: targetPage });
+    });
+
+    $searchResults.on('click', '.ll-ipa-search-load-more', function () {
+        const $btn = $(this);
+        const fallbackPage = normalizeSearchPage(currentSearchPayload && currentSearchPayload.current_page ? currentSearchPayload.current_page : currentSearchPage) + 1;
+        const targetPage = normalizeSearchPage($btn.attr('data-page') || fallbackPage);
+        if ($btn.prop('disabled') || !currentWordsetId || !targetPage) {
+            return;
+        }
+
+        loadSearch(currentWordsetId, true, {
+            page: targetPage,
+            append: true,
+            quietStatus: true,
+            showLoading: false
+        });
     });
 
     $searchResults.on('input', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {

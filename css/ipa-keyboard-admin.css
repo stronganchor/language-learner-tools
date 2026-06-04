@@ -748,6 +748,20 @@
     font-weight: 600;
 }
 
+.ll-ipa-search-lazy-control {
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+}
+
+.ll-ipa-search-lazy-control .ll-ipa-search-load-more {
+    min-width: 140px;
+}
+
+.ll-ipa-search-lazy-control.is-loading .ll-ipa-search-load-more {
+    cursor: progress;
+}
+
 .ll-ipa-search-pagination-controls {
     display: inline-flex;
     flex-wrap: wrap;

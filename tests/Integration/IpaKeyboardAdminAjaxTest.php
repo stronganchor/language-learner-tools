@@ -179,6 +179,34 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             $this->assertSame('Delta', (string) ($results[1]['word_text'] ?? ''));
 
             $wordAudioQueryCount = 0;
+            $_POST['search_page'] = 1;
+            $_POST['per_page'] = 3;
+            $_REQUEST = $_POST;
+
+            $customPageSizeResponse = $this->runJsonEndpoint(static function (): void {
+                ll_tools_search_ipa_keyboard_recordings_handler();
+            });
+
+            $this->assertTrue((bool) ($customPageSizeResponse['success'] ?? false));
+            $this->assertLessThanOrEqual(3, $wordAudioQueryCount);
+            $customPageSizeData = (array) ($customPageSizeResponse['data'] ?? []);
+            $this->assertSame(5, (int) ($customPageSizeData['total_matches'] ?? 0));
+            $this->assertSame(3, (int) ($customPageSizeData['shown_count'] ?? 0));
+            $this->assertSame(1, (int) ($customPageSizeData['current_page'] ?? 0));
+            $this->assertSame(2, (int) ($customPageSizeData['total_pages'] ?? 0));
+            $this->assertSame(3, (int) ($customPageSizeData['per_page'] ?? 0));
+            $this->assertSame(1, (int) ($customPageSizeData['page_start'] ?? 0));
+            $this->assertSame(3, (int) ($customPageSizeData['page_end'] ?? 0));
+            $this->assertTrue((bool) ($customPageSizeData['has_more'] ?? false));
+
+            $customPageSizeResults = array_values((array) ($customPageSizeData['results'] ?? []));
+            $this->assertCount(3, $customPageSizeResults);
+            $this->assertSame('Alpha', (string) ($customPageSizeResults[0]['word_text'] ?? ''));
+            $this->assertSame('Bravo', (string) ($customPageSizeResults[1]['word_text'] ?? ''));
+            $this->assertSame('Charlie', (string) ($customPageSizeResults[2]['word_text'] ?? ''));
+
+            $wordAudioQueryCount = 0;
+            unset($_POST['per_page']);
             $_POST['search_page'] = 99;
             $_REQUEST = $_POST;
 

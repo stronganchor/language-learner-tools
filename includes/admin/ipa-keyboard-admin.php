@@ -176,6 +176,20 @@ function ll_tools_ipa_keyboard_sanitize_search_page($raw): int {
     return max(1, $page);
 }
 
+function ll_tools_ipa_keyboard_sanitize_search_per_page($raw, int $fallback = 0): int {
+    $per_page = is_scalar($raw) ? (int) $raw : $fallback;
+    if ($per_page <= 0) {
+        return max(0, $fallback);
+    }
+
+    return max(1, min(500, $per_page));
+}
+
+function ll_tools_ipa_keyboard_get_initial_search_results_per_page(): int {
+    $per_page = (int) apply_filters('ll_tools_ipa_keyboard_initial_search_results_per_page', 20);
+    return ll_tools_ipa_keyboard_sanitize_search_per_page($per_page, 20);
+}
+
 function ll_tools_ipa_keyboard_get_transcription_mode_for_wordset(int $wordset_id): string {
     $mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? sanitize_key((string) ll_tools_get_wordset_recording_transcription_mode($wordset_id > 0 ? [$wordset_id] : [], true))
@@ -260,6 +274,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
         'selectedWordsetId' => $selected_wordset_id,
         'initialTab' => ll_tools_ipa_keyboard_get_requested_tab(),
         'initialSearch' => $initial_search,
+        'searchInitialPerPage' => ll_tools_ipa_keyboard_get_initial_search_results_per_page(),
         'i18n' => [
             'loading' => __('Loading transcription data...', 'll-tools-text-domain'),
             'empty' => __('No special characters found for this word set.', 'll-tools-text-domain'),
@@ -324,6 +339,8 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchPaginationCurrentPage' => __('Current page %1$d', 'll-tools-text-domain'),
             'searchPaginationPrevious' => __('Previous', 'll-tools-text-domain'),
             'searchPaginationNext' => __('Next', 'll-tools-text-domain'),
+            'searchLoadMore' => __('Load more', 'll-tools-text-domain'),
+            'searchLoadingMore' => __('Loading more...', 'll-tools-text-domain'),
             'searchWordLabel' => __('Word', 'll-tools-text-domain'),
             'searchImageLabel' => __('Image', 'll-tools-text-domain'),
             'searchTranscriptionsLabel' => __('Transcriptions', 'll-tools-text-domain'),
@@ -7651,7 +7668,10 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
     $review_only = !empty($_POST['review_only']);
     $exact_transcription = !empty($_POST['exact_transcription']);
     $search_page = ll_tools_ipa_keyboard_sanitize_search_page($_POST['search_page'] ?? 1);
-    $results = ll_tools_ipa_keyboard_search_recordings($wordset_id, $query, $scope, $issues_only, $review_only, $exact_transcription, $search_page);
+    $per_page = isset($_POST['per_page'])
+        ? ll_tools_ipa_keyboard_sanitize_search_per_page(wp_unslash($_POST['per_page']))
+        : 0;
+    $results = ll_tools_ipa_keyboard_search_recordings($wordset_id, $query, $scope, $issues_only, $review_only, $exact_transcription, $search_page, $per_page);
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
 
     wp_send_json_success([
