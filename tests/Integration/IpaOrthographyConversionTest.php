@@ -559,6 +559,82 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Nû', (string) ($other_prediction['text'] ?? ''));
     }
 
+    public function test_dictionary_bound_word_override_can_resolve_sentence_token_decision(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Genç-Palu Bread Sentence Exception');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+        $bread_entry_id = $this->createDictionaryEntry('nûn bread');
+        $this->setOrthographySettings($wordset_id, [
+            'word_overrides' => [
+                [
+                    'from' => 'nû',
+                    'to' => 'nûn',
+                    'dictionary_entry_id' => $bread_entry_id,
+                ],
+                [
+                    'from' => 'miçkû',
+                    'to' => 'mirçıkû',
+                ],
+            ],
+            'sentence_case' => true,
+        ]);
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        $sentence_word_id = $this->createWord($wordset_id, 'Bread sentence', 'Nûn mirçıkû');
+        $sentence_ipa = 'nu mit̪͡ʃkʰu';
+        $sentence_recording_id = $this->createRecording($sentence_word_id, 'Nûn mirçıkû', $sentence_ipa);
+        $sentence_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($sentence_ipa, $engine_rules, $wordset_id, $sentence_recording_id);
+
+        $this->assertSame('Nû mirçıkû', (string) ($sentence_prediction['text'] ?? ''));
+
+        $sentence_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Nûn mirçıkû',
+            $sentence_ipa,
+            $wordset_id,
+            'isolation',
+            $sentence_prediction
+        );
+        $this->assertTrue((bool) ($sentence_detail['matches'] ?? false));
+        $this->assertFalse((bool) ($sentence_detail['requires_lexical_decision'] ?? true));
+        $this->assertSame('Nûn mirçıkû', (string) ($sentence_detail['suggested_text'] ?? ''));
+
+        ll_tools_ipa_keyboard_update_recording_validation($sentence_recording_id);
+        $this->assertNotContains('orthography_mismatch', $this->validationCodes($sentence_recording_id, $wordset_id));
+    }
+
+    public function test_issue_search_refreshes_stale_validation_before_returning_results(): void
+    {
+        $wordset_id = $this->createWordset('Stale Validation Search');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'm' => ['any' => 'm'],
+            'a' => ['any' => 'a'],
+        ]);
+        $word_id = $this->createWord($wordset_id, 'Valid item', 'ma');
+        $recording_id = $this->createRecording($word_id, 'ma', 'ma');
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version() - 1,
+                'active' => [
+                    [
+                        'rule_key' => 'builtin:orthography_mismatch',
+                        'code' => 'orthography_mismatch',
+                        'type' => 'builtin',
+                        'label' => 'Orthography mismatch',
+                        'message' => 'Stale issue',
+                        'count' => 1,
+                    ],
+                ],
+                'ignored' => [],
+            ],
+        ]);
+
+        $this->assertContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
+
+        $search = ll_tools_ipa_keyboard_search_recordings($wordset_id, '', 'both', true, false, false, 1);
+        $this->assertSame(0, (int) ($search['total_matches'] ?? -1));
+        $this->assertNotContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
+    }
+
     public function test_manual_rule_outputs_preserve_apostrophes_for_conversion_and_mismatch_detection(): void
     {
         $wordset_id = $this->createWordset('Apostrophe Manual Orthography Rule');
