@@ -6395,7 +6395,7 @@ function ll_tools_ipa_keyboard_maybe_rescan_all_validations(): void {
         return;
     }
 
-    ll_tools_ipa_keyboard_rescan_all_validations();
+    // Avoid blocking wp-admin on large sites. Stale rows refresh lazily in issue search and on save.
     update_option(ll_tools_ipa_keyboard_validation_scan_option_key(), $target_version, false);
 }
 add_action('admin_init', 'll_tools_ipa_keyboard_maybe_rescan_all_validations');
