@@ -104,9 +104,15 @@ decisions, and documentation upkeep.
      where appropriate, and reusing existing strings where the context allows.
    - Audit whether a tier-2 learner locale can be used on public surfaces while
      elevated manager/admin UI falls back to a core full locale such as English.
-   - Add Russian (`ru_RU`) as the first tier-2 public UI PO file, then run the
-     manifest coverage checker and targeted browser smoke checks against public
-     pages.
+   - Active tier-2 public UI PO files now cover Russian (`ru_RU`), Hindi
+     (`hi_IN`), Spanish (`es_ES`), French (`fr_FR`), Portuguese Brazil
+     (`pt_BR`), Indonesian (`id_ID`), Korean (`ko_KR`), and Italian (`it_IT`).
+     Keep using the manifest coverage checker and targeted browser smoke checks
+     when changing public locale coverage.
+   - Planned tier-2 locales without PO files remain Chinese Simplified
+     (`zh_CN`), Arabic (`ar`), and Bengali (`bn_BD`). Add them deliberately from
+     the manifest workflow rather than treating their missing files as ordinary
+     active-locale regressions.
    - Expand `[ll_language_switcher]` display modes for larger tier-2 language
      sets, including compact icon/button triggers and a dropdown or modal list.
 

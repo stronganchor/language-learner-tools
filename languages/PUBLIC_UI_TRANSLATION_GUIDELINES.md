@@ -126,7 +126,28 @@ Before finishing a public UI translation pass, scan for protected-token
 artifacts and empty parsed translations:
 
 ```powershell
-php -r "require_once 'scripts/check-public-i18n.php'; foreach (['es_ES','fr_FR','pt_BR','id_ID','hi_IN','ko_KR','it_IT'] as `$locale) { `$entries = ll_tools_public_i18n_parse_po_file('languages/ll-tools-text-domain-' . `$locale . '.po'); `$bad = []; foreach (`$entries as `$entry) { foreach ((array) (`$entry['msgstr'] ?? []) as `$msgstr) { if (preg_match('/&lt;llph|<llph|LLSPLIT|^\\s*$/u', (string) `$msgstr)) { `$bad[] = (string) (`$entry['msgid'] ?? ''); } } } echo `$locale . ' artifact_or_blank=' . count(`$bad) . PHP_EOL; }"
+$code = @'
+require_once 'scripts/check-public-i18n.php';
+$config = require 'languages/tier2-public-ui-sources.php';
+$locales = array_keys((array) ($config['tier2_locales'] ?? []));
+foreach ($locales as $locale) {
+    $path = 'languages/ll-tools-text-domain-' . $locale . '.po';
+    if (!is_file($path)) {
+        continue;
+    }
+    $entries = ll_tools_public_i18n_parse_po_file($path);
+    $bad = [];
+    foreach ($entries as $entry) {
+        foreach ((array) ($entry['msgstr'] ?? []) as $msgstr) {
+            if (preg_match('/&lt;llph|<llph|LLSPLIT|^\s*$/u', (string) $msgstr)) {
+                $bad[] = (string) ($entry['msgid'] ?? '');
+            }
+        }
+    }
+    echo $locale . ' artifact_or_blank=' . count($bad) . PHP_EOL;
+}
+'@
+php -r "$code"
 ```
 
 Also scan the target locale manually for the known mistranslated concepts above.

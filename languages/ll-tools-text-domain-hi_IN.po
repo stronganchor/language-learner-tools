@@ -3633,3 +3633,63 @@ msgstr "मुख्य पाठ खोलें"
 #: templates/vocab-lesson-template.php:357
 msgid "Unable to load this lesson right now."
 msgstr "अभी यह पाठ लोड नहीं हो पा रहा।"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:567 includes/admin/login-blocks-admin.php:181 includes/admin/login-blocks-admin.php:40 includes/admin/login-blocks-admin.php:41
+msgid "Login Blocks"
+msgstr "लॉगिन ब्लॉक"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:172 includes/admin/admin-dashboard-menu.php:612
+msgid "Fix Word Images"
+msgstr "शब्द चित्र ठीक करें"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:173 includes/admin/admin-dashboard-menu.php:650 includes/admin/recording-types-admin.php:12
+msgid "LL Recording Types"
+msgstr "LL रिकॉर्डिंग प्रकार"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:174 includes/admin/admin-dashboard-menu.php:522 includes/admin/user-progress-report.php:30 includes/admin/user-progress-report.php:31 includes/admin/user-progress-report.php:656
+msgid "Learner Progress"
+msgstr "शिक्षार्थी प्रगति"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:175 includes/admin/admin-dashboard-menu.php:661 includes/admin/api/deepl-api.php:23 includes/admin/api/deepl-api.php:24 includes/admin/api/deepl-api.php:50 includes/admin/bulk-translation-admin.php:49 includes/admin/bulk-translation-admin.php:67
+msgid "DeepL API Key"
+msgstr "DeepL API कुंजी"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:176 includes/admin/admin-dashboard-menu.php:670 includes/admin/api/assemblyai-api.php:19 includes/admin/api/assemblyai-api.php:20 includes/admin/api/assemblyai-api.php:46
+msgid "AssemblyAI API Key"
+msgstr "AssemblyAI API कुंजी"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:177 includes/admin/admin-dashboard-menu.php:679 includes/taxonomies/language-taxonomy.php:239
+msgid "LL Tools Languages"
+msgstr "LL Tools भाषाएँ"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:321
+msgid "Settings page is unavailable."
+msgstr "सेटिंग पेज उपलब्ध नहीं है।"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:326 includes/admin/admin-dashboard-menu.php:911 includes/admin/duplicate-category-words-admin.php:576 includes/admin/image-aspect-normalizer-admin.php:116 includes/admin/image-webp-optimizer-admin.php:1523 includes/admin/split-word-admin.php:289 includes/admin/teacher-classes-page.php:142 includes/admin/user-progress-report.php:585
+msgid "You do not have permission to access this page."
+msgstr "आपके पास इस पेज तक पहुँचने की अनुमति नहीं है।"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:331 includes/admin/admin-dashboard-menu.php:770 includes/admin/admin-dashboard-menu.php:771 includes/admin/uploads/audio-upload-form.php:416 includes/admin/uploads/image-upload-form.php:594 includes/taxonomies/wordset-taxonomy.php:1318 includes/taxonomies/wordset-taxonomy.php:1335 includes/taxonomies/wordset-taxonomy.php:1342
+msgid "Word Sets"
+msgstr "शब्द सेट"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:332
+msgid "Manage the main set grouping for words and quiz filters."
+msgstr "शब्दों और क्विज़ फ़िल्टर के लिए मुख्य सेट समूह प्रबंधित करें।"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:338 includes/admin/admin-dashboard-menu.php:778 includes/admin/admin-dashboard-menu.php:779 includes/taxonomies/word-category-taxonomy.php:582 includes/taxonomies/word-category-taxonomy.php:587
+msgid "Word Categories"
+msgstr "शब्द श्रेणियाँ"

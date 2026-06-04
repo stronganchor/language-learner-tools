@@ -3626,3 +3626,63 @@ msgstr "기본 레슨 열기"
 #: templates/vocab-lesson-template.php:357
 msgid "Unable to load this lesson right now."
 msgstr "지금은 이 레슨을 불러올 수 없습니다."
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:567 includes/admin/login-blocks-admin.php:181 includes/admin/login-blocks-admin.php:40 includes/admin/login-blocks-admin.php:41
+msgid "Login Blocks"
+msgstr "로그인 블록"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:172 includes/admin/admin-dashboard-menu.php:612
+msgid "Fix Word Images"
+msgstr "단어 이미지 수정"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:173 includes/admin/admin-dashboard-menu.php:650 includes/admin/recording-types-admin.php:12
+msgid "LL Recording Types"
+msgstr "LL 녹음 유형"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:174 includes/admin/admin-dashboard-menu.php:522 includes/admin/user-progress-report.php:30 includes/admin/user-progress-report.php:31 includes/admin/user-progress-report.php:656
+msgid "Learner Progress"
+msgstr "학습자 진행 상황"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:175 includes/admin/admin-dashboard-menu.php:661 includes/admin/api/deepl-api.php:23 includes/admin/api/deepl-api.php:24 includes/admin/api/deepl-api.php:50 includes/admin/bulk-translation-admin.php:49 includes/admin/bulk-translation-admin.php:67
+msgid "DeepL API Key"
+msgstr "DeepL API 키"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:176 includes/admin/admin-dashboard-menu.php:670 includes/admin/api/assemblyai-api.php:19 includes/admin/api/assemblyai-api.php:20 includes/admin/api/assemblyai-api.php:46
+msgid "AssemblyAI API Key"
+msgstr "AssemblyAI API 키"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:177 includes/admin/admin-dashboard-menu.php:679 includes/taxonomies/language-taxonomy.php:239
+msgid "LL Tools Languages"
+msgstr "LL Tools 언어"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:321
+msgid "Settings page is unavailable."
+msgstr "설정 페이지를 사용할 수 없습니다."
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:326 includes/admin/admin-dashboard-menu.php:911 includes/admin/duplicate-category-words-admin.php:576 includes/admin/image-aspect-normalizer-admin.php:116 includes/admin/image-webp-optimizer-admin.php:1523 includes/admin/split-word-admin.php:289 includes/admin/teacher-classes-page.php:142 includes/admin/user-progress-report.php:585
+msgid "You do not have permission to access this page."
+msgstr "이 페이지에 접근할 권한이 없습니다."
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:331 includes/admin/admin-dashboard-menu.php:770 includes/admin/admin-dashboard-menu.php:771 includes/admin/uploads/audio-upload-form.php:416 includes/admin/uploads/image-upload-form.php:594 includes/taxonomies/wordset-taxonomy.php:1318 includes/taxonomies/wordset-taxonomy.php:1335 includes/taxonomies/wordset-taxonomy.php:1342
+msgid "Word Sets"
+msgstr "단어 세트"
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:332
+msgid "Manage the main set grouping for words and quiz filters."
+msgstr "단어 및 퀴즈 필터의 기본 세트 그룹을 관리합니다."
+
+#. Supplemental source-backed upkeep batch 2026-06-04.
+#: includes/admin/admin-dashboard-menu.php:338 includes/admin/admin-dashboard-menu.php:778 includes/admin/admin-dashboard-menu.php:779 includes/taxonomies/word-category-taxonomy.php:582 includes/taxonomies/word-category-taxonomy.php:587
+msgid "Word Categories"
+msgstr "단어 카테고리"
