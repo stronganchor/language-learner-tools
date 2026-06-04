@@ -27,6 +27,9 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_register_word_audio_post_type')) {
             ll_tools_register_word_audio_post_type();
         }
+        if (function_exists('ll_tools_register_dictionary_entry_post_type')) {
+            ll_tools_register_dictionary_entry_post_type();
+        }
         if (function_exists('ll_tools_register_wordset_taxonomy')) {
             ll_tools_register_wordset_taxonomy();
         }
@@ -285,6 +288,224 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Bwrê', (string) ($without_dotless_i['suggested_text'] ?? ''));
     }
 
+    public function test_dictionary_bound_word_override_only_applies_to_matching_entry(): void
+    {
+        $wordset_id = $this->createWordset('Dictionary Bound Word Override');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'm' => ['any' => 'm'],
+            'a' => ['any' => 'a'],
+        ]);
+
+        $matching_entry_id = $this->createDictionaryEntry('Lexeme A');
+        $other_entry_id = $this->createDictionaryEntry('Lexeme B');
+        $this->setOrthographySettings($wordset_id, [
+            'word_overrides' => [
+                [
+                    'from' => 'ma',
+                    'to' => 'lexeme-a',
+                    'dictionary_entry_id' => $matching_entry_id,
+                ],
+            ],
+        ]);
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        $unscoped_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('ma', $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($unscoped_prediction['complete'] ?? false));
+        $this->assertSame('ma', (string) ($unscoped_prediction['text'] ?? ''));
+
+        $matching_word_id = $this->createWord($wordset_id, 'Matching lexical item', 'lexeme-a');
+        $this->linkWordToDictionaryEntry($matching_word_id, $matching_entry_id);
+        $matching_recording_id = $this->createRecording($matching_word_id, 'lexeme-a', 'ma');
+        $matching_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
+            'ma',
+            $engine_rules,
+            $wordset_id,
+            $matching_recording_id
+        );
+        $this->assertSame('lexeme-a', (string) ($matching_prediction['text'] ?? ''));
+        ll_tools_ipa_keyboard_update_recording_validation($matching_recording_id);
+        $this->assertNotContains(
+            'orthography_mismatch',
+            $this->validationCodes($matching_recording_id, $wordset_id)
+        );
+
+        $other_word_id = $this->createWord($wordset_id, 'Other lexical item', 'ma');
+        $this->linkWordToDictionaryEntry($other_word_id, $other_entry_id);
+        $other_recording_id = $this->createRecording($other_word_id, 'ma', 'ma');
+        $other_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
+            'ma',
+            $engine_rules,
+            $wordset_id,
+            $other_recording_id
+        );
+        $this->assertSame('ma', (string) ($other_prediction['text'] ?? ''));
+        ll_tools_ipa_keyboard_update_recording_validation($other_recording_id);
+        $this->assertNotContains(
+            'orthography_mismatch',
+            $this->validationCodes($other_recording_id, $wordset_id)
+        );
+
+        $wrong_word_id = $this->createWord($wordset_id, 'Wrong lexical item', 'lexeme-a');
+        $this->linkWordToDictionaryEntry($wrong_word_id, $other_entry_id);
+        $wrong_recording_id = $this->createRecording($wrong_word_id, 'lexeme-a', 'ma');
+        ll_tools_ipa_keyboard_update_recording_validation($wrong_recording_id);
+        $this->assertContains(
+            'orthography_mismatch',
+            $this->validationCodes($wrong_recording_id, $wordset_id)
+        );
+    }
+
+    public function test_zazaki_profile_maps_i_vowels_to_dotless_i_and_flags_dotted_i(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Genç-Palu Profile');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        $this->assertSame('zazaki_genc_palu', ll_tools_ipa_orthography_get_profile_key($wordset_id));
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        $initial_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('ɨna', $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($initial_prediction['complete'] ?? false));
+        $this->assertSame('Ina', (string) ($initial_prediction['text'] ?? ''));
+
+        $near_i_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('mɪna', $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($near_i_prediction['complete'] ?? false));
+        $this->assertSame('Mına', (string) ($near_i_prediction['text'] ?? ''));
+
+        $unresolved_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('mɪ', $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($unresolved_final_prediction['complete'] ?? false));
+        $this->assertSame('Mı', (string) ($unresolved_final_prediction['text'] ?? ''));
+        $this->assertTrue((bool) ($unresolved_final_prediction['requires_lexical_decision'] ?? false));
+
+        $final_e_entry_id = $this->createDictionaryEntry('Final e Lexeme');
+        $final_dotless_entry_id = $this->createDictionaryEntry('Final dotless Lexeme');
+        $this->setOrthographySettings($wordset_id, [
+            'word_overrides' => [
+                [
+                    'from' => 'sı',
+                    'to' => 'se',
+                    'dictionary_entry_id' => $final_e_entry_id,
+                ],
+                [
+                    'from' => 'mı',
+                    'to' => 'mı',
+                    'dictionary_entry_id' => $final_dotless_entry_id,
+                ],
+            ],
+            'sentence_case' => true,
+        ]);
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+
+        $final_e_word_id = $this->createWord($wordset_id, 'Final e lexical item', 'Se');
+        $this->linkWordToDictionaryEntry($final_e_word_id, $final_e_entry_id);
+        $final_e_recording_id = $this->createRecording($final_e_word_id, 'Se', 'sɨ');
+        $final_e_exception = ll_tools_ipa_orthography_convert_ipa_to_best_text('sɨ', $engine_rules, $wordset_id, $final_e_recording_id);
+        $this->assertTrue((bool) ($final_e_exception['complete'] ?? false));
+        $this->assertSame('Se', (string) ($final_e_exception['text'] ?? ''));
+        $this->assertFalse((bool) ($final_e_exception['requires_lexical_decision'] ?? false));
+        ll_tools_ipa_keyboard_update_recording_validation($final_e_recording_id);
+        $this->assertNotContains(
+            'orthography_mismatch',
+            $this->validationCodes($final_e_recording_id, $wordset_id)
+        );
+
+        $final_dotless_word_id = $this->createWord($wordset_id, 'Final dotless lexical item', 'Mı');
+        $this->linkWordToDictionaryEntry($final_dotless_word_id, $final_dotless_entry_id);
+        $final_dotless_recording_id = $this->createRecording($final_dotless_word_id, 'Mı', 'mɪ');
+        $final_dotless_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('mɪ', $engine_rules, $wordset_id, $final_dotless_recording_id);
+        $this->assertTrue((bool) ($final_dotless_prediction['complete'] ?? false));
+        $this->assertSame('Mı', (string) ($final_dotless_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($final_dotless_prediction['requires_lexical_decision'] ?? false));
+        ll_tools_ipa_keyboard_update_recording_validation($final_dotless_recording_id);
+        $this->assertNotContains(
+            'orthography_mismatch',
+            $this->validationCodes($final_dotless_recording_id, $wordset_id)
+        );
+
+        $unbound_final_word_id = $this->createWord($wordset_id, 'Unresolved final high vowel', 'Mı');
+        $unbound_final_recording_id = $this->createRecording($unbound_final_word_id, 'Mı', 'mɪ');
+        $unbound_recording_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('mɪ', $engine_rules, $wordset_id, $unbound_final_recording_id);
+        $this->assertTrue((bool) ($unbound_recording_prediction['requires_lexical_decision'] ?? false));
+        $unbound_mismatch_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Mı', 'mɪ', $wordset_id, 'isolation', $unbound_recording_prediction);
+        $this->assertFalse((bool) ($unbound_mismatch_detail['matches'] ?? true));
+        $raw_unbound_validation = ll_tools_ipa_keyboard_validate_recording_for_wordset($unbound_final_recording_id, $wordset_id, []);
+        $this->assertContains(
+            'orthography_mismatch',
+            array_map(static function (array $issue): string {
+                return (string) ($issue['code'] ?? '');
+            }, (array) ($raw_unbound_validation['active'] ?? []))
+        );
+        ll_tools_ipa_keyboard_update_recording_validation($unbound_final_recording_id);
+        $this->assertContains(
+            'orthography_mismatch',
+            $this->validationCodes($unbound_final_recording_id, $wordset_id)
+        );
+
+        $word_id = $this->createWord($wordset_id, 'Dotted i mismatch', 'İna');
+        $recording_id = $this->createRecording($word_id, 'İna', 'ɨna');
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+
+        $mismatch_issue = null;
+        foreach ((array) ($validation['active'] ?? []) as $issue) {
+            if ((string) ($issue['code'] ?? '') === 'orthography_mismatch') {
+                $mismatch_issue = $issue;
+                break;
+            }
+        }
+
+        $this->assertIsArray($mismatch_issue);
+        $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
+    }
+
+    public function test_manual_rule_outputs_preserve_apostrophes_for_conversion_and_mismatch_detection(): void
+    {
+        $wordset_id = $this->createWordset('Apostrophe Manual Orthography Rule');
+        $hbar = "\u{0127}";
+        update_term_meta(
+            $wordset_id,
+            ll_tools_ipa_orthography_manual_rules_meta_key(),
+            ll_tools_ipa_orthography_sanitize_manual_rules([
+                $hbar => ['any' => "'h"],
+                'a' => ['any' => 'a'],
+            ], $wordset_id)
+        );
+
+        $manual_rules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
+        $this->assertSame("'h", (string) ($manual_rules[$hbar]['any'] ?? ''));
+
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
+            $hbar . 'a',
+            ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id),
+            $wordset_id
+        );
+        $this->assertTrue((bool) ($prediction['complete'] ?? false));
+        $this->assertSame("'ha", (string) ($prediction['text'] ?? ''));
+
+        $matching_word_id = $this->createWord($wordset_id, 'Matching apostrophe h', "'ha");
+        $matching_recording_id = $this->createRecording($matching_word_id, "'ha", $hbar . 'a');
+        ll_tools_ipa_keyboard_update_recording_validation($matching_recording_id);
+        $matching_validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($matching_recording_id, $wordset_id);
+        $matching_codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($matching_validation['active'] ?? []));
+        $this->assertNotContains('orthography_mismatch', $matching_codes);
+
+        $mismatching_word_id = $this->createWord($wordset_id, 'Missing apostrophe h', 'ha');
+        $mismatching_recording_id = $this->createRecording($mismatching_word_id, 'ha', $hbar . 'a');
+        ll_tools_ipa_keyboard_update_recording_validation($mismatching_recording_id);
+        $mismatching_validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($mismatching_recording_id, $wordset_id);
+        $mismatching_codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($mismatching_validation['active'] ?? []));
+        $this->assertContains('orthography_mismatch', $mismatching_codes);
+
+        $data = ll_tools_ipa_keyboard_build_orthography_data($wordset_id);
+        $rows = (array) ($data['contradictions'] ?? []);
+        $this->assertCount(1, $rows);
+        $this->assertSame($mismatching_recording_id, (int) ($rows[0]['recording_id'] ?? 0));
+        $this->assertSame("'ha", (string) ($rows[0]['predicted_text'] ?? ''));
+    }
+
     public function test_apply_orthography_suggestion_handler_updates_recording_text(): void
     {
         $wordset_id = $this->createWordset('Phrase Override Suggestion');
@@ -387,6 +608,36 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertNotContains('orthography_mismatch', $after_codes);
     }
 
+    public function test_word_exception_stops_applying_after_dictionary_entry_relink(): void
+    {
+        $wordset_id = $this->createWordset('Orthography Exception Entry Binding');
+        $this->configureDesErzenFixture($wordset_id);
+        $original_entry_id = $this->createDictionaryEntry('Original Lexeme');
+        $other_entry_id = $this->createDictionaryEntry('Other Lexeme');
+
+        $word_id = $this->createWord($wordset_id, 'Ten eight', 'dest erzen');
+        $this->linkWordToDictionaryEntry($word_id, $original_entry_id);
+        $recording_id = $this->createRecording($word_id, 'des erzen', 'dɛs ɛɾzɛn');
+
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $this->assertContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
+
+        ll_tools_ipa_orthography_update_exception_word_id($wordset_id, $word_id, true);
+        $entry_bindings = ll_tools_ipa_orthography_get_exception_dictionary_entry_ids($wordset_id);
+        $this->assertSame($original_entry_id, (int) ($entry_bindings[$word_id] ?? 0));
+
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $this->assertNotContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
+
+        $this->linkWordToDictionaryEntry($word_id, $other_entry_id);
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $this->assertContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
+
+        $data = ll_tools_ipa_keyboard_build_orthography_data($wordset_id);
+        $this->assertSame(1, (int) (($data['stats']['active_contradiction_count'] ?? 0)));
+        $this->assertSame(0, (int) (($data['stats']['approved_contradiction_count'] ?? 0)));
+    }
+
     /**
      * @param array<string,mixed> $settings
      */
@@ -454,6 +705,22 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         return $word_id;
     }
 
+    private function createDictionaryEntry(string $title): int
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+        $this->assertGreaterThan(0, $entry_id);
+        return (int) $entry_id;
+    }
+
+    private function linkWordToDictionaryEntry(int $word_id, int $entry_id): void
+    {
+        update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $entry_id);
+    }
+
     private function createWordWithRecording(
         int $wordset_id,
         string $translation_label,
@@ -484,6 +751,17 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         }
 
         return $recording_id;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function validationCodes(int $recording_id, int $wordset_id): array
+    {
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        return array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($validation['active'] ?? []));
     }
 
     private function ensureRecordingTypeTerm(string $name, string $slug): void

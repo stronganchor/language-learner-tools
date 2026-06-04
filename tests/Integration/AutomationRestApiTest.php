@@ -264,6 +264,14 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         $wordset_id = $this->ensure_term('wordset', 'REST Orthography Wordset', 'rest-orthography-wordset');
+        if (function_exists('ll_tools_register_dictionary_entry_post_type')) {
+            ll_tools_register_dictionary_entry_post_type();
+        }
+        $exception_entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'REST Orthography Exception Entry',
+        ]);
         wp_set_current_user($admin_id);
 
         $payload = [
@@ -273,6 +281,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                 ],
                 'n' => [
                     'any' => 'n',
+                ],
+                "\u{0127}" => [
+                    'any' => "'h",
                 ],
             ],
             'orthography_settings' => [
@@ -297,6 +308,10 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                 'sentence_case' => true,
             ],
             'exception_word_ids' => [77, 12, 77],
+            'exception_dictionary_entry_ids' => [
+                12 => $exception_entry_id,
+                77 => 999999,
+            ],
             'replace_manual_rules' => true,
             'replace_orthography_settings' => true,
             'rescan_validations' => false,
@@ -313,6 +328,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($dry_data['changed'] ?? false));
         $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_settings_meta_key(), true));
         $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_exception_word_ids_meta_key(), true));
+        $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_exception_dictionary_entry_ids_meta_key(), true));
 
         $update = $this->dispatch_ll_tools_rest_request(
             'POST',
@@ -325,6 +341,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertContains('manual_rules', (array) ($data['changed_keys'] ?? []));
         $this->assertContains('orthography_settings', (array) ($data['changed_keys'] ?? []));
         $this->assertContains('exception_word_ids', (array) ($data['changed_keys'] ?? []));
+        $this->assertContains('exception_dictionary_entry_ids', (array) ($data['changed_keys'] ?? []));
 
         $read = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-orthography-wordset/orthography-conversion');
         $this->assertSame(200, $read->get_status());
@@ -333,6 +350,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('', (string) ($read_data['profile_key'] ?? ''));
         $this->assertSame('q', (string) ($read_data['manual_rules']['x']['any'] ?? ''));
         $this->assertSame('n', (string) ($read_data['manual_rules']['n']['any'] ?? ''));
+        $this->assertSame("'h", (string) ($read_data['manual_rules']["\u{0127}"]['any'] ?? ''));
         $this->assertSame('se', (string) ($read_data['orthography_settings']['word_overrides']['sq'] ?? ''));
         $this->assertSame(['des', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['from'] ?? []));
         $this->assertSame(['dest', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['to'] ?? []));
@@ -341,6 +359,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('?', (string) ($read_data['orthography_settings']['recording_type_punctuation']['question'] ?? ''));
         $this->assertTrue((bool) ($read_data['orthography_settings']['sentence_case'] ?? false));
         $this->assertSame([12, 77], array_map('intval', (array) ($read_data['exception_word_ids'] ?? [])));
+        $this->assertSame($exception_entry_id, (int) (($read_data['exception_dictionary_entry_ids'][12] ?? 0)));
+        $this->assertArrayNotHasKey(77, (array) ($read_data['exception_dictionary_entry_ids'] ?? []));
     }
 
     public function test_create_wordset_route_can_clone_template_and_assign_manager(): void

@@ -174,6 +174,19 @@ Word-option-rule updates should use `POST
 /wordsets/{wordset}/word-option-rules` instead of wp-admin form replay around
 `ll_tools_save_word_option_rules_async`.
 
+Orthography conversion automation should use `GET
+/wordsets/{wordset}/orthography-conversion` to inspect manual IPA conversion
+rules, orthography settings, approved exception word IDs, and
+`exception_dictionary_entry_ids`. Use `POST`, `PUT`, or `PATCH` with
+`dry_run=true` first when changing them. Lexical `word_overrides` may remain a
+simple `source: replacement` map for legacy unscoped overrides, or may be bound
+to a dictionary entry by sending each override as an object with
+`replacement`/`to` and `dictionary_entry_id`. Callers may also send a companion
+`word_override_entry_ids` map keyed by source text, or include `word_id` on an
+override so the server can infer the linked dictionary entry. Bound lexical
+overrides and approved mismatch exceptions only apply while the word is linked
+to the same dictionary entry.
+
 Interlinear automation should use `GET /wordsets/{wordset}/interlinear` to list
 content/vocab lessons and current payload status. Add `lesson=<post ID, slug, or
 interlinear lesson ID>`, `post_type=ll_content_lesson|ll_vocab_lesson`,

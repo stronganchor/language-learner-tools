@@ -3827,11 +3827,12 @@ function ll_tools_rest_automation_orthography_conversion_payload(WP_Term $wordse
         'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
         'profile_key' => ll_tools_ipa_orthography_get_profile_key($wordset_id),
         'conversion_profile' => ll_tools_ipa_orthography_get_conversion_profile($wordset_id),
-        'available_profiles' => [],
+        'available_profiles' => array_values(ll_tools_ipa_orthography_get_available_conversion_profiles()),
         'manual_rules' => $manual_rules,
         'manual_rule_count' => count($manual_rules),
         'orthography_settings' => $orthography_settings,
         'exception_word_ids' => ll_tools_ipa_orthography_get_exception_word_ids($wordset_id),
+        'exception_dictionary_entry_ids' => ll_tools_ipa_orthography_get_exception_dictionary_entry_ids($wordset_id),
     ];
 }
 
@@ -3972,9 +3973,12 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
     }
 
     $current_exception_word_ids = ll_tools_ipa_orthography_get_exception_word_ids($wordset_id);
+    $current_exception_dictionary_entry_ids = ll_tools_ipa_orthography_get_exception_dictionary_entry_ids($wordset_id, $current_exception_word_ids);
     $next_exception_word_ids = $current_exception_word_ids;
+    $next_exception_dictionary_entry_ids = $current_exception_dictionary_entry_ids;
     if (rest_sanitize_boolean($request->get_param('clear_exception_word_ids'))) {
         $next_exception_word_ids = [];
+        $next_exception_dictionary_entry_ids = [];
     }
     if ($request->has_param('exception_word_ids')) {
         $raw_exception_word_ids = $request->get_param('exception_word_ids');
@@ -3986,6 +3990,21 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
             );
         }
         $next_exception_word_ids = ll_tools_ipa_orthography_sanitize_exception_word_ids($raw_exception_word_ids);
+        $next_exception_dictionary_entry_ids = ll_tools_ipa_orthography_infer_exception_dictionary_entry_ids($next_exception_word_ids);
+    }
+    if ($request->has_param('exception_dictionary_entry_ids')) {
+        $raw_exception_dictionary_entry_ids = $request->get_param('exception_dictionary_entry_ids');
+        if (!is_array($raw_exception_dictionary_entry_ids)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_orthography_exception_dictionary_entry_ids_invalid',
+                __('Orthography exception dictionary entry IDs must be an object keyed by word ID.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        $next_exception_dictionary_entry_ids = ll_tools_ipa_orthography_sanitize_exception_dictionary_entry_ids(
+            $raw_exception_dictionary_entry_ids,
+            $next_exception_word_ids
+        );
     }
     if ($next_exception_word_ids !== $current_exception_word_ids) {
         $changed_keys[] = 'exception_word_ids';
@@ -3994,6 +4013,20 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
                 delete_term_meta($wordset_id, ll_tools_ipa_orthography_exception_word_ids_meta_key());
             } else {
                 update_term_meta($wordset_id, ll_tools_ipa_orthography_exception_word_ids_meta_key(), $next_exception_word_ids);
+            }
+        }
+    }
+    if ($next_exception_dictionary_entry_ids !== $current_exception_dictionary_entry_ids) {
+        $changed_keys[] = 'exception_dictionary_entry_ids';
+        if (!$dry_run) {
+            if (empty($next_exception_dictionary_entry_ids)) {
+                delete_term_meta($wordset_id, ll_tools_ipa_orthography_exception_dictionary_entry_ids_meta_key());
+            } else {
+                update_term_meta(
+                    $wordset_id,
+                    ll_tools_ipa_orthography_exception_dictionary_entry_ids_meta_key(),
+                    $next_exception_dictionary_entry_ids
+                );
             }
         }
     }
