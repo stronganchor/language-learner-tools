@@ -457,6 +457,108 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
+    public function test_zazaki_profile_handles_local_phonetic_and_lexical_exceptions(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Local Phonetic Exceptions');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+
+        $hbar = "\u{0127}";
+        $this->assertSame(
+            "'Hilal",
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text($hbar . 'ilal', $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Âg',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("ʔæg", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Ang ank',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("aŋg aŋk", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Twe',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("t̪͡ʙ̥ɨ", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Se',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("sɨ", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Yı',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("jɨ", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Yı',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("ji", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Çend',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("t̪͡ʃɛn", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Mirçıkû',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("mit̪͡ʃkʰu", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $release_ipa = "bɨd̪ɨ\u{032F}";
+        $release_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($release_ipa, $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($release_prediction['complete'] ?? false));
+        $this->assertSame('Bıdı', (string) ($release_prediction['text'] ?? ''));
+
+        $without_release_vowel = ll_tools_ipa_orthography_profile_mismatch_detail('Bıd', $release_ipa, $wordset_id, 'isolation', $release_prediction);
+        $this->assertTrue((bool) ($without_release_vowel['matches'] ?? false));
+        $this->assertSame('Bıd', (string) ($without_release_vowel['suggested_text'] ?? ''));
+
+        $with_release_vowel = ll_tools_ipa_orthography_profile_mismatch_detail('Bıdı', $release_ipa, $wordset_id, 'isolation', $release_prediction);
+        $this->assertTrue((bool) ($with_release_vowel['matches'] ?? false));
+
+        $wrong_release_vowel = ll_tools_ipa_orthography_profile_mismatch_detail('Bıde', $release_ipa, $wordset_id, 'isolation', $release_prediction);
+        $this->assertFalse((bool) ($wrong_release_vowel['matches'] ?? true));
+    }
+
+    public function test_dropped_final_n_for_bread_is_dictionary_bound(): void
+    {
+        $wordset_id = $this->createWordset('Bread Final N Exception');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+        $bread_entry_id = $this->createDictionaryEntry('nûn bread');
+        $other_entry_id = $this->createDictionaryEntry('nû other');
+        $this->setOrthographySettings($wordset_id, [
+            'word_overrides' => [
+                [
+                    'from' => 'nû',
+                    'to' => 'nûn',
+                    'dictionary_entry_id' => $bread_entry_id,
+                ],
+            ],
+            'sentence_case' => true,
+        ]);
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+
+        $bread_word_id = $this->createWord($wordset_id, 'Bread', 'Nûn');
+        $this->linkWordToDictionaryEntry($bread_word_id, $bread_entry_id);
+        $bread_recording_id = $this->createRecording($bread_word_id, 'Nûn', 'nu');
+        $bread_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('nu', $engine_rules, $wordset_id, $bread_recording_id);
+        $this->assertSame('Nûn', (string) ($bread_prediction['text'] ?? ''));
+        ll_tools_ipa_keyboard_update_recording_validation($bread_recording_id);
+        $this->assertNotContains('orthography_mismatch', $this->validationCodes($bread_recording_id, $wordset_id));
+
+        $other_word_id = $this->createWord($wordset_id, 'Other nû', 'Nû');
+        $this->linkWordToDictionaryEntry($other_word_id, $other_entry_id);
+        $other_recording_id = $this->createRecording($other_word_id, 'Nû', 'nu');
+        $other_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('nu', $engine_rules, $wordset_id, $other_recording_id);
+        $this->assertSame('Nû', (string) ($other_prediction['text'] ?? ''));
+    }
+
     public function test_manual_rule_outputs_preserve_apostrophes_for_conversion_and_mismatch_detection(): void
     {
         $wordset_id = $this->createWordset('Apostrophe Manual Orthography Rule');

@@ -856,6 +856,12 @@ test('orthography suggestion chips update the field and autosave inline', async 
   await page.unroute('**/*');
   await page.setContent(buildMarkup());
   await page.evaluate(() => {
+    const spacer = document.createElement('div');
+    spacer.style.height = '1400px';
+    spacer.setAttribute('data-test-spacer', 'orthography-suggestion-scroll');
+    document.body.insertBefore(spacer, document.querySelector('.ll-ipa-admin'));
+  });
+  await page.evaluate(() => {
     try {
       window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
       window.localStorage.removeItem('llTranscriptionManagerLastTab');
@@ -1032,8 +1038,10 @@ test('orthography suggestion chips update the field and autosave inline', async 
   const textInput = row.locator('.ll-ipa-search-text-input');
   await expect(textInput).toHaveValue('alfa');
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveText('Change to: alpha');
+  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip .ll-ipa-mismatch-mark')).toHaveText('a');
 
   await row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip').click();
+  const scrollBeforeSaveFinish = await page.evaluate(() => Math.round(window.scrollY));
   await expect(textInput).toHaveValue('alpha');
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-mismatch-mark')).toHaveCount(0);
@@ -1052,6 +1060,9 @@ test('orthography suggestion chips update the field and autosave inline', async 
   await expect(textInput).toHaveValue('alpha');
   await expect(row.locator('.ll-ipa-search-suggestion-chip')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saved.');
+  await page.evaluate(() => new Promise(resolve => window.requestAnimationFrame(resolve)));
+  const scrollAfterSaveFinish = await page.evaluate(() => Math.round(window.scrollY));
+  expect(Math.abs(scrollAfterSaveFinish - scrollBeforeSaveFinish)).toBeLessThanOrEqual(1);
 
   const updatePayloads = await page.evaluate(() => {
     return window.__llOrthographySuggestionMock.postCalls
@@ -1309,13 +1320,15 @@ test('orthography mismatch warnings render inline field highlights and suggestio
   await expect(row.locator('.ll-ipa-search-issues-cell .ll-ipa-search-orthography-apply')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-issues-cell .ll-ipa-issue-toggle')).toHaveCount(0);
 
-  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-mismatch-mark')).toHaveText("'");
-  await expect(row.locator('.ll-ipa-search-ipa-cell .ll-ipa-mismatch-mark')).toHaveText('i');
+  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-input-highlight .ll-ipa-mismatch-mark')).toHaveText("'");
+  await expect(row.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-input-highlight .ll-ipa-mismatch-mark')).toHaveText('i');
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveText('Change to: Ez nızûnû');
+  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip .ll-ipa-mismatch-mark')).toHaveText('n');
   await expect(row.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-suggestion-chip')).toHaveText([
     'Change to: ʔɛz nɨzunu',
     'Change to: ʔɛz nɪzunu'
   ]);
+  await expect(row.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-suggestion-chip').first().locator('.ll-ipa-mismatch-mark')).toHaveText('ɨ');
 
   await row.locator('.ll-ipa-search-text-input').fill('Ez nizûnû');
   await page.locator('#ll-ipa-search-btn').focus();
@@ -1325,7 +1338,7 @@ test('orthography mismatch warnings render inline field highlights and suggestio
       .filter(call => call.data.action === 'll_tools_update_ipa_keyboard_recording').length;
   })).toBe(1);
   await expect(row.locator('.ll-ipa-search-text-input')).toHaveValue('Ez nizûnû');
-  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-mismatch-mark')).toHaveText('i');
+  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-input-highlight .ll-ipa-mismatch-mark')).toHaveText('i');
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveText('Change to: Ez nızûnû');
 
   await row.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-suggestion-chip').nth(1).click();
@@ -1370,8 +1383,8 @@ test('orthography mismatch warnings render inline field highlights and suggestio
   await page.locator('#ll-ipa-search-btn').click();
 
   await expect(row.locator('.ll-ipa-search-issue-title')).toHaveText('Orthography mismatch');
-  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-mismatch-mark')).toHaveCount(0);
-  await expect(row.locator('.ll-ipa-search-ipa-cell .ll-ipa-mismatch-mark')).toHaveCount(0);
+  await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-input-highlight .ll-ipa-mismatch-mark')).toHaveCount(0);
+  await expect(row.locator('.ll-ipa-search-ipa-cell .ll-ipa-search-input-highlight .ll-ipa-mismatch-mark')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveCount(1);
 });
 

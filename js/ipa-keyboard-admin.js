@@ -1909,6 +1909,48 @@
         return $wrap;
     }
 
+    function buildSingleDiffSpan(before, after) {
+        const beforeChars = Array.from((before || '').toString());
+        const afterChars = Array.from((after || '').toString());
+        let prefix = 0;
+        const maxPrefix = Math.min(beforeChars.length, afterChars.length);
+        while (prefix < maxPrefix && beforeChars[prefix] === afterChars[prefix]) {
+            prefix++;
+        }
+
+        let suffix = 0;
+        while (
+            suffix < beforeChars.length - prefix
+            && suffix < afterChars.length - prefix
+            && beforeChars[beforeChars.length - 1 - suffix] === afterChars[afterChars.length - 1 - suffix]
+        ) {
+            suffix++;
+        }
+
+        const length = Math.max(0, afterChars.length - prefix - suffix);
+        return length > 0 ? [{ start: prefix, length: length }] : [];
+    }
+
+    function buildSuggestionChipLabel(labelTemplate, value, spans) {
+        const template = (labelTemplate || 'Change to: %s').toString();
+        const token = '%s';
+        const tokenIndex = template.indexOf(token);
+        const before = tokenIndex >= 0 ? template.slice(0, tokenIndex) : '';
+        const after = tokenIndex >= 0 ? template.slice(tokenIndex + token.length) : '';
+        const $label = $('<span>', { class: 'll-ipa-search-suggestion-chip-label' });
+        if (before) {
+            $label.append(document.createTextNode(before));
+        }
+        $label.append(buildHighlightedText(value, spans || [], 'll-ipa-search-suggestion-preview'));
+        if (after) {
+            $label.append(document.createTextNode(after));
+        }
+        if (tokenIndex < 0) {
+            $label.prepend(document.createTextNode(template + ' '));
+        }
+        return $label;
+    }
+
     function getOrthographyMismatchDetail(issue) {
         const detail = issue && issue.orthography_mismatch ? issue.orthography_mismatch : null;
         return detail && typeof detail === 'object' ? detail : null;
@@ -2361,10 +2403,13 @@
             $suggestions.append($('<button>', {
                 type: 'button',
                 class: 'll-ipa-search-suggestion-chip ll-ipa-search-suggestion-chip--orthography ll-ipa-search-orthography-apply',
-                text: formatText(labelTemplate, [detail.suggested_text]),
                 'data-suggestion-field': 'recording_text',
                 'data-suggestion-value': detail.suggested_text
-            }));
+            }).append(buildSuggestionChipLabel(
+                labelTemplate,
+                detail.suggested_text,
+                detail.suggested_spans || []
+            )));
         }
 
         if (field === 'recording_ipa' && Array.isArray(detail.ipa_suggestions)) {
@@ -2376,11 +2421,14 @@
                 $suggestions.append($('<button>', {
                     type: 'button',
                     class: 'll-ipa-search-suggestion-chip ll-ipa-search-suggestion-chip--ipa ll-ipa-search-ipa-suggestion-apply',
-                    text: formatText(labelTemplate, [suggestion.label || ipa]),
                     'data-ipa': ipa,
                     'data-suggestion-field': 'recording_ipa',
                     'data-suggestion-value': ipa
-                }));
+                }).append(buildSuggestionChipLabel(
+                    labelTemplate,
+                    suggestion.label || ipa,
+                    Array.isArray(suggestion.spans) ? suggestion.spans : buildSingleDiffSpan(detail.ipa_text || '', suggestion.label || ipa)
+                )));
             });
         }
 
@@ -3780,7 +3828,7 @@
         syncSearchInputHighlight(input);
 
         setSearchRowDirtyState($row, searchRowHasUnsavedChanges($row));
-        autosaveSearchRow($row, { restoreFocusField: normalizedField });
+        autosaveSearchRow($row, { preserveScroll: true });
         return true;
     }
 
@@ -3936,6 +3984,11 @@
             return;
         }
 
+        const preserveScroll = !!(options && options.preserveScroll);
+        const scrollState = preserveScroll ? {
+            x: window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
+            y: window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+        } : null;
         const focusState = captureSearchRowFocusState($row, options && options.restoreFocusField);
         $row.data('llSearchRowSaving', true);
         $row.data('llSearchRowPending', false);
@@ -3978,6 +4031,11 @@
                 updateSearchRowValidation($row, data.validation || null);
                 setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
                 restoreSearchRowFocusState($row, focusState);
+            }
+            if (scrollState) {
+                window.requestAnimationFrame(function () {
+                    window.scrollTo(scrollState.x, scrollState.y);
+                });
             }
             applyKeyboardSymbols(data.keyboard_symbols || currentKeyboardSymbols);
 

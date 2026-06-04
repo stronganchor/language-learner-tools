@@ -361,6 +361,29 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame([12, 77], array_map('intval', (array) ($read_data['exception_word_ids'] ?? [])));
         $this->assertSame($exception_entry_id, (int) (($read_data['exception_dictionary_entry_ids'][12] ?? 0)));
         $this->assertArrayNotHasKey(77, (array) ($read_data['exception_dictionary_entry_ids'] ?? []));
+
+        $bind_update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-orthography-wordset/orthography-conversion', [
+            'orthography_settings' => [
+                'word_overrides' => [
+                    [
+                        'from' => 'sq',
+                        'to' => 'se',
+                        'dictionary_entry_id' => $exception_entry_id,
+                    ],
+                ],
+            ],
+            'rescan_validations' => false,
+        ]);
+        $this->assertSame(200, $bind_update->get_status());
+        $bind_data = $bind_update->get_data();
+        $this->assertIsArray($bind_data);
+        $this->assertContains('orthography_settings', (array) ($bind_data['changed_keys'] ?? []));
+
+        $bound_read = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-orthography-wordset/orthography-conversion');
+        $this->assertSame(200, $bound_read->get_status());
+        $bound_data = $bound_read->get_data();
+        $this->assertIsArray($bound_data);
+        $this->assertSame($exception_entry_id, (int) ($bound_data['orthography_settings']['word_override_entry_ids']['sq'] ?? 0));
     }
 
     public function test_create_wordset_route_can_clone_template_and_assign_manager(): void

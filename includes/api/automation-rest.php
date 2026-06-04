@@ -3902,6 +3902,7 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
         'orthography_settings',
         'settings',
         'word_overrides',
+        'word_override_entry_ids',
         'phrase_overrides',
         'optional_matches',
         'recording_type_punctuation',
@@ -3926,10 +3927,14 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
             }
         }
 
-        foreach (['word_overrides', 'phrase_overrides', 'optional_matches', 'recording_type_punctuation', 'sentence_case'] as $setting_key) {
+        foreach (['word_overrides', 'word_override_entry_ids', 'phrase_overrides', 'optional_matches', 'recording_type_punctuation', 'sentence_case'] as $setting_key) {
             if ($request->has_param($setting_key)) {
                 $raw_settings[$setting_key] = $request->get_param($setting_key);
             }
+        }
+
+        if (array_key_exists('word_override_entry_ids', $raw_settings) && !array_key_exists('word_overrides', $raw_settings)) {
+            $raw_settings['word_overrides'] = (array) ($next_settings['word_overrides'] ?? []);
         }
 
         if (!empty($raw_settings)) {
@@ -3937,8 +3942,8 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
             if (rest_sanitize_boolean($request->get_param('replace_orthography_settings')) || rest_sanitize_boolean($request->get_param('replace_settings'))) {
                 $next_settings = $incoming_settings;
             } else {
-                foreach (['word_overrides', 'recording_type_punctuation'] as $setting_key) {
-                    if (array_key_exists($setting_key, $raw_settings)) {
+                foreach (['word_overrides', 'word_override_entry_ids', 'recording_type_punctuation'] as $setting_key) {
+                    if (array_key_exists($setting_key, $raw_settings) || ($setting_key === 'word_override_entry_ids' && array_key_exists('word_overrides', $raw_settings))) {
                         $next_settings[$setting_key] = array_merge(
                             (array) ($next_settings[$setting_key] ?? []),
                             (array) ($incoming_settings[$setting_key] ?? [])

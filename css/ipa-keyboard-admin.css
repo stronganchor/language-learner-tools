@@ -1417,6 +1417,15 @@ body.ll-ipa-keyboard-open {
     opacity: 0.64;
 }
 
+.ll-ipa-search-suggestion-chip-label,
+.ll-ipa-search-suggestion-preview {
+    min-width: 0;
+}
+
+.ll-ipa-search-suggestion-preview {
+    overflow-wrap: anywhere;
+}
+
 .ll-ipa-search-table tr.is-search-row-dirty .ll-ipa-search-input-highlight,
 .ll-ipa-search-table tr.is-search-row-dirty .ll-ipa-search-field-suggestions {
     display: none;

@@ -3061,6 +3061,8 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'ħ' => ['any' => "'h"],
         'ʜ' => ['any' => "'h"],
         'ɭ' => ['any' => "'l"],
+        'ŋg' => ['any' => 'ng'],
+        'ŋk' => ['any' => 'nk'],
         'ŋ' => ['any' => 'ng'],
         'ɲ' => ['any' => 'ny'],
         'nʲ' => ['any' => 'ny'],
@@ -3085,15 +3087,37 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'd̪͡ʒ' => ['any' => 'c'],
         'd͡ʒ' => ['any' => 'c'],
         'c͡ç' => ['any' => 'k'],
+        't̪͡ʙ̥ɨ' => ['any' => 'twe'],
+        't̪͡ʙɨ' => ['any' => 'twe'],
+        't̪͡ʙ̥' => ['any' => 'tw'],
+        't̪͡ʙ' => ['any' => 'tw'],
         't̪͡p' => ['any' => 'tw'],
         'd̪͡b' => ['any' => 'dw'],
+        'sɨ' => ['any' => 'se'],
+        'jɨ' => ['any' => 'yı'],
+        'jɪ' => ['any' => 'yı'],
+        "ɨ\u{032F}" => ['any' => 'ı'],
+        "ɨ\u{0306}" => ['any' => 'ı'],
+        "ɨ\u{0306}\u{032F}" => ['any' => 'ı'],
+        "ɨ\u{032F}\u{0306}" => ['any' => 'ı'],
+        "ɪ\u{032F}" => ['any' => 'ı'],
+        "ɪ\u{0306}" => ['any' => 'ı'],
+        "ɪ\u{0306}\u{032F}" => ['any' => 'ı'],
+        "ɪ\u{032F}\u{0306}" => ['any' => 'ı'],
         'q' => ['any' => 'q'],
+        'qʰ' => ['any' => 'q'],
         'c' => ['any' => 'k'],
+        'cʰ' => ['any' => 'k'],
         'k' => ['any' => 'k'],
+        'kʰ' => ['any' => 'k'],
         'g' => ['any' => 'g'],
+        'd̪' => ['any' => 'd'],
         'd' => ['any' => 'd'],
+        't̪' => ['any' => 't'],
         't' => ['any' => 't'],
+        'tʰ' => ['any' => 't'],
         'p' => ['any' => 'p'],
+        'pʰ' => ['any' => 'p'],
         'b' => ['any' => 'b'],
         'f' => ['any' => 'f'],
         'v' => ['any' => 'v'],
@@ -3186,6 +3210,9 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
         'şe' => 'şı',
         'twı' => 'twe',
         'pwıre' => 'pwırı',
+        'ye' => 'yı',
+        'yi' => 'yı',
+        'çen' => 'çend',
         "'ez" => 'ez',
     ];
     $settings['phrase_overrides'] = [
@@ -3198,6 +3225,41 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
     $settings['optional_matches'] = [
         [
             'ipa' => "ɨ\u{0306}",
+            'orthography' => 'ı',
+            'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => "ɨ\u{032F}",
+            'orthography' => 'ı',
+            'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => "ɨ\u{0306}\u{032F}",
+            'orthography' => 'ı',
+            'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => "ɨ\u{032F}\u{0306}",
+            'orthography' => 'ı',
+            'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => "ɪ\u{0306}",
+            'orthography' => 'ı',
+            'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => "ɪ\u{032F}",
+            'orthography' => 'ı',
+            'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => "ɪ\u{0306}\u{032F}",
+            'orthography' => 'ı',
+            'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => "ɪ\u{032F}\u{0306}",
             'orthography' => 'ı',
             'orthography_key' => 'ı',
         ],
@@ -3226,6 +3288,17 @@ function ll_tools_ipa_orthography_profile_replacements(string $text, array $repl
         $text = str_replace((string) $from, (string) $to, $text);
     }
     return $text;
+}
+
+function ll_tools_ipa_orthography_apply_profile_output_replacements(string $text, int $wordset_id): string {
+    if ($text === '' || ll_tools_ipa_orthography_get_profile_key($wordset_id) !== 'zazaki_genc_palu') {
+        return $text;
+    }
+
+    return ll_tools_ipa_orthography_profile_replacements($text, [
+        'ngg' => 'ng',
+        'ngk' => 'nk',
+    ]);
 }
 
 function ll_tools_ipa_orthography_profile_strip_terminal_punctuation(string $text): string {
@@ -3560,6 +3633,23 @@ function ll_tools_ipa_orthography_tokenize_segment(string $segment, string $mode
     }
 
     return $clean;
+}
+
+function ll_tools_ipa_orthography_filter_profile_tokens(array $tokens, int $wordset_id): array {
+    if (ll_tools_ipa_orthography_get_profile_key($wordset_id) !== 'zazaki_genc_palu') {
+        return $tokens;
+    }
+
+    $filtered = [];
+    foreach (array_values($tokens) as $index => $token) {
+        $token = (string) $token;
+        if ($index === 0 && $token === 'ʔ') {
+            continue;
+        }
+        $filtered[] = $token;
+    }
+
+    return $filtered;
 }
 
 function ll_tools_ipa_orthography_normalize_segment_key(string $segment, string $mode = 'ipa'): string {
@@ -4606,6 +4696,7 @@ function ll_tools_ipa_orthography_apply_settings_to_text(string $text, int $word
         return '';
     }
 
+    $text = ll_tools_ipa_orthography_apply_profile_output_replacements($text, $wordset_id);
     $text = ll_tools_ipa_orthography_apply_word_overrides_to_text($text, $wordset_id, $word_id);
     return ll_tools_ipa_orthography_apply_non_word_settings_to_text($text, $wordset_id, $recording_type);
 }
@@ -4712,6 +4803,7 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
     $fallback_rules = null;
     foreach ($ipa_parts as $part) {
         $tokens = ll_tools_ipa_orthography_tokenize_segment((string) ($part['text'] ?? ''), $mode);
+        $tokens = ll_tools_ipa_orthography_filter_profile_tokens($tokens, $wordset_id);
         if (empty($tokens)) {
             continue;
         }
@@ -4741,7 +4833,7 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
         $words[] = (string) ($prediction['text'] ?? '');
     }
 
-    $raw_text = implode(' ', $words);
+    $raw_text = ll_tools_ipa_orthography_apply_profile_output_replacements(implode(' ', $words), $wordset_id);
     $requires_lexical_decision = $final_high_vowel_candidate_count > 0;
     if ($requires_lexical_decision) {
         $entry_bound = ll_tools_ipa_orthography_apply_entry_bound_word_overrides_to_text($raw_text, $wordset_id, $word_id);
