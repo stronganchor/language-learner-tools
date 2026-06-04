@@ -2688,12 +2688,24 @@ function ll_tools_rest_automation_refresh_transcription_validations(WP_REST_Requ
         ? rest_sanitize_boolean($request->get_param('stale_only'))
         : true;
 
-    $word_ids = function_exists('ll_tools_ipa_keyboard_get_word_ids_for_wordset')
-        ? ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id)
-        : [];
-    $candidate_ids = function_exists('ll_tools_ipa_keyboard_get_search_recording_ids')
-        ? ll_tools_ipa_keyboard_get_search_recording_ids((array) $word_ids, true)
-        : [];
+    $candidate_ids = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'update_post_meta_cache' => true,
+        'update_post_term_cache' => false,
+        'meta_query' => [
+            [
+                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
+                'value' => 0,
+                'compare' => '>',
+                'type' => 'NUMERIC',
+            ],
+        ],
+    ]);
+    $candidate_ids = array_values(array_map('intval', (array) $candidate_ids));
 
     $summary = [
         'generated_at_gmt' => gmdate('c'),
