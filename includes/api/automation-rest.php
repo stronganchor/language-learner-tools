@@ -2676,6 +2676,8 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
 }
 
 function ll_tools_rest_automation_refresh_transcription_validations(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_orthography_helpers();
+
     $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
     if (is_wp_error($wordset_term)) {
         return $wordset_term;
