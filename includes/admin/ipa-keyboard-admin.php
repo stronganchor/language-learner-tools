@@ -1965,7 +1965,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 8;
+    return 9;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
