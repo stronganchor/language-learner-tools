@@ -147,6 +147,8 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('moved to the Trash', $decoded_output);
         $this->assertStringContainsString('Undo', $decoded_output);
         $this->assertStringContainsString('View Trash', $decoded_output);
+        $this->assertStringContainsString('Dismiss', $decoded_output);
+        $this->assertStringContainsString('ll_tools_dismiss_vocab_lesson_trash_notice', $decoded_output);
 
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_POST = [
@@ -163,6 +165,46 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
         $this->assertSame('ok', (string) ($redirect_query['ll_vocab_lesson_restore'] ?? ''));
         $this->assertSame('1', (string) ($redirect_query['ll_vocab_lesson_restored'] ?? ''));
         $this->assertSame('publish', get_post_status($fixture['lesson_id']));
+        $this->assertSame([], ll_tools_get_trashed_vocab_lesson_notice_post_ids());
+    }
+
+    public function test_trash_notice_can_be_dismissed_without_restoring_lesson(): void
+    {
+        $this->grantViewLlToolsCapabilityToAdministrators();
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createBareLessonFixture();
+
+        $this->assertInstanceOf(WP_Post::class, wp_trash_post($fixture['lesson_id']));
+        $this->assertSame([$fixture['lesson_id']], ll_tools_get_trashed_vocab_lesson_notice_post_ids());
+
+        $_SERVER['REQUEST_URI'] = '/wp-admin/edit.php?post_type=word-image';
+        set_current_screen('edit-word-image');
+
+        ob_start();
+        ll_tools_render_vocab_lesson_trash_notice();
+        $output = (string) ob_get_clean();
+        $decoded_output = html_entity_decode($output, ENT_QUOTES, 'UTF-8');
+
+        $this->assertStringContainsString('ll-tools-vocab-lesson-trash-notice__actions', $decoded_output);
+        $this->assertStringContainsString('ll_tools_dismiss_vocab_lesson_trash_notice', $decoded_output);
+        $this->assertStringContainsString(admin_url('edit.php?post_type=word-image'), $decoded_output);
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            '_wpnonce' => wp_create_nonce('ll_tools_dismiss_vocab_lesson_trash_notice'),
+            'redirect_to' => admin_url('edit.php?post_type=word-image'),
+        ];
+        $_REQUEST = $_POST;
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_dismiss_vocab_lesson_trash_notice_request();
+        });
+
+        $this->assertSame(admin_url('edit.php?post_type=word-image'), $redirect_url);
+        $this->assertSame('trash', get_post_status($fixture['lesson_id']));
         $this->assertSame([], ll_tools_get_trashed_vocab_lesson_notice_post_ids());
     }
 

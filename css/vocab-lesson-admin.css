@@ -1,0 +1,15 @@
+.ll-tools-vocab-lesson-trash-notice__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 0 0 2px;
+}
+
+.ll-tools-vocab-lesson-trash-notice__form {
+    margin: 0;
+}
+
+.ll-tools-vocab-lesson-trash-notice__actions .button {
+    margin: 0;
+}

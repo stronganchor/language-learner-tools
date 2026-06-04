@@ -415,6 +415,43 @@ function ll_tools_get_trashed_vocab_lesson_notice_post_ids(): array {
     return $post_ids;
 }
 
+function ll_tools_get_vocab_lesson_trash_notice_redirect_url(): string {
+    $fallback_url = admin_url('edit.php?post_type=ll_vocab_lesson');
+    $request_uri = isset($_SERVER['REQUEST_URI'])
+        ? trim((string) wp_unslash((string) $_SERVER['REQUEST_URI']))
+        : '';
+    if ($request_uri === '') {
+        return $fallback_url;
+    }
+
+    $url = preg_match('#^https?://#i', $request_uri)
+        ? $request_uri
+        : home_url($request_uri);
+    $url = remove_query_arg([
+        'll_vocab_lesson_restore',
+        'll_vocab_lesson_restored',
+        'll_vocab_lesson_restore_failed',
+    ], $url);
+    $validated = wp_validate_redirect($url, '');
+
+    return is_string($validated) && $validated !== '' ? $validated : $fallback_url;
+}
+
+function ll_tools_enqueue_vocab_lesson_trash_notice_admin_styles(): void {
+    if (!is_admin() || !current_user_can('view_ll_tools')) {
+        return;
+    }
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+        return;
+    }
+    if (empty(ll_tools_get_trashed_vocab_lesson_notice_post_ids())) {
+        return;
+    }
+
+    ll_enqueue_asset_by_timestamp('/css/vocab-lesson-admin.css', 'll-vocab-lesson-admin-css', [], false);
+}
+add_action('admin_enqueue_scripts', 'll_tools_enqueue_vocab_lesson_trash_notice_admin_styles');
+
 function ll_tools_trash_vocab_lesson_post(int $post_id, array $context = []): bool {
     $post = get_post($post_id);
     if (!$post instanceof WP_Post || $post->post_type !== 'll_vocab_lesson') {
@@ -4225,18 +4262,25 @@ function ll_tools_render_vocab_lesson_trash_notice(): void {
         $count
     );
     $trash_url = admin_url('edit.php?post_status=trash&post_type=ll_vocab_lesson');
+    $redirect_url = ll_tools_get_vocab_lesson_trash_notice_redirect_url();
     ?>
-    <div class="notice notice-warning">
+    <div class="notice notice-warning ll-tools-vocab-lesson-trash-notice">
         <p><?php echo esc_html($message); ?></p>
-        <p>
-            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block; margin:0 8px 0 0;">
+        <div class="ll-tools-vocab-lesson-trash-notice__actions">
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="ll-tools-vocab-lesson-trash-notice__form">
                 <input type="hidden" name="action" value="ll_tools_restore_vocab_lessons" />
-                <input type="hidden" name="redirect_to" value="<?php echo esc_attr(admin_url('edit.php?post_type=ll_vocab_lesson')); ?>" />
+                <input type="hidden" name="redirect_to" value="<?php echo esc_attr($redirect_url); ?>" />
                 <?php wp_nonce_field('ll_tools_restore_vocab_lessons'); ?>
-                <button type="submit" class="button button-secondary"><?php esc_html_e('Undo', 'll-tools-text-domain'); ?></button>
+                <button type="submit" class="button button-secondary ll-tools-vocab-lesson-trash-notice__button"><?php esc_html_e('Undo', 'll-tools-text-domain'); ?></button>
             </form>
-            <a class="button button-link" href="<?php echo esc_url($trash_url); ?>"><?php esc_html_e('View Trash', 'll-tools-text-domain'); ?></a>
-        </p>
+            <a class="button button-link ll-tools-vocab-lesson-trash-notice__trash-link" href="<?php echo esc_url($trash_url); ?>"><?php esc_html_e('View Trash', 'll-tools-text-domain'); ?></a>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="ll-tools-vocab-lesson-trash-notice__form">
+                <input type="hidden" name="action" value="ll_tools_dismiss_vocab_lesson_trash_notice" />
+                <input type="hidden" name="redirect_to" value="<?php echo esc_attr($redirect_url); ?>" />
+                <?php wp_nonce_field('ll_tools_dismiss_vocab_lesson_trash_notice'); ?>
+                <button type="submit" class="button button-secondary ll-tools-vocab-lesson-trash-notice__button"><?php esc_html_e('Dismiss', 'll-tools-text-domain'); ?></button>
+            </form>
+        </div>
     </div>
     <?php
 }
@@ -4308,6 +4352,25 @@ function ll_tools_handle_restore_vocab_lessons_request(): void {
     exit;
 }
 add_action('admin_post_ll_tools_restore_vocab_lessons', 'll_tools_handle_restore_vocab_lessons_request');
+
+function ll_tools_handle_dismiss_vocab_lesson_trash_notice_request(): void {
+    if (!current_user_can('view_ll_tools')) {
+        wp_die(esc_html__('You do not have permission to dismiss vocab lesson page notices.', 'll-tools-text-domain'), 403);
+    }
+
+    check_admin_referer('ll_tools_dismiss_vocab_lesson_trash_notice');
+
+    $redirect_to = isset($_POST['redirect_to'])
+        ? wp_unslash((string) $_POST['redirect_to'])
+        : '';
+    $redirect_to = wp_validate_redirect($redirect_to, admin_url('edit.php?post_type=ll_vocab_lesson'));
+
+    delete_option(LL_TOOLS_VOCAB_LESSON_TRASH_NOTICE_OPTION);
+
+    wp_safe_redirect($redirect_to);
+    exit;
+}
+add_action('admin_post_ll_tools_dismiss_vocab_lesson_trash_notice', 'll_tools_handle_dismiss_vocab_lesson_trash_notice_request');
 
 function ll_tools_handle_enable_vocab_lessons_for_wordset_request() {
     $wordset_id = isset($_POST['ll_tools_enable_vocab_lesson_wordset_id'])
