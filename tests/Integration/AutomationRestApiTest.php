@@ -56,6 +56,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', (string) ($data['routes']['orthography_conversion'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-title-updates', (string) ($data['routes']['word_title_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', (string) ($data['routes']['word_helper_updates'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-updates', (string) ($data['routes']['word_category_updates'] ?? ''));
+        $this->assertSame(5, (int) (($data['resource_guard']['word_category_updates_batch']['default_write_limit'] ?? 0)));
+        $this->assertSame(10, (int) (($data['resource_guard']['word_category_updates_batch']['max_write_limit'] ?? 0)));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void
@@ -886,6 +889,109 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertIsArray($data);
         $this->assertSame('ll_tools_rest_too_many_word_helper_updates', (string) ($data['code'] ?? ''));
         $this->assertStringContainsString('25', (string) ($data['message'] ?? ''));
+    }
+
+    public function test_word_category_updates_route_targets_explicit_word_ids_and_syncs_linked_images(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Category Update Wordset', 'rest-category-update-wordset');
+        $other_id = $this->ensure_term('word-category', 'REST Other Category', 'rest-other-category');
+        $house_id = $this->ensure_term('word-category', 'REST House Category', 'rest-house-category');
+        $safety_id = $this->ensure_term('word-category', 'REST Safety Category', 'rest-safety-category');
+
+        $word_id = $this->create_word($wordset_id, [$other_id, $house_id], 'REST Category Target Word', 'Target translation');
+        $untouched_word_id = $this->create_word($wordset_id, [$other_id, $safety_id], 'REST Category Untouched Word', 'Untouched translation');
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'REST Category Linked Image',
+        ]);
+        wp_set_post_terms($word_image_id, [$other_id, $house_id], 'word-category', false);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
+        $effective_other_id = $this->effective_category_id($other_id, $wordset_id);
+        $effective_house_id = $this->effective_category_id($house_id, $wordset_id);
+        $effective_safety_id = $this->effective_category_id($safety_id, $wordset_id);
+
+        wp_set_current_user($admin_id);
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-category-update-wordset/word-category-updates', [
+            'operation' => 'remove_category',
+            'category_id' => $other_id,
+            'word_ids' => [$word_id],
+            'dry_run' => true,
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['dry_run'] ?? false));
+        $this->assertSame(1, (int) ($dry_data['matched_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame([$effective_house_id], array_map('intval', (array) ($dry_data['updated'][0]['after_category_ids'] ?? [])));
+        $this->assertContains($effective_other_id, array_map('intval', wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids'])));
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-category-update-wordset/word-category-updates', [
+            'operation' => 'remove_category',
+            'category_id' => $other_id,
+            'word_ids' => [$word_id],
+        ]);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['matched_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['changed_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+
+        $word_categories = array_map('intval', wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $synced_word_image_id = function_exists('ll_tools_get_linked_word_image_post_id_for_word')
+            ? (int) ll_tools_get_linked_word_image_post_id_for_word($word_id)
+            : $word_image_id;
+        $this->assertGreaterThan(0, $synced_word_image_id);
+        $image_categories = array_map('intval', wp_get_post_terms($synced_word_image_id, 'word-category', ['fields' => 'ids']));
+        $untouched_categories = array_map('intval', wp_get_post_terms($untouched_word_id, 'word-category', ['fields' => 'ids']));
+
+        $this->assertNotContains($effective_other_id, $word_categories);
+        $this->assertContains($effective_house_id, $word_categories);
+        $this->assertNotContains($effective_other_id, $image_categories);
+        $this->assertContains($effective_house_id, $image_categories);
+        $this->assertContains($effective_other_id, $untouched_categories);
+        $this->assertContains($effective_safety_id, $untouched_categories);
+    }
+
+    public function test_word_category_updates_route_rejects_oversized_write_batches_without_changes(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Category Limit Wordset', 'rest-category-limit-wordset');
+        $other_id = $this->ensure_term('word-category', 'REST Category Limit Other', 'rest-category-limit-other');
+        $target_id = $this->ensure_term('word-category', 'REST Category Limit Target', 'rest-category-limit-target');
+
+        $word_ids = [];
+        for ($index = 0; $index < 11; $index++) {
+            $word_ids[] = $this->create_word($wordset_id, [$other_id, $target_id], 'REST Category Limit Word ' . $index, 'Limit translation');
+        }
+        $effective_other_id = $this->effective_category_id($other_id, $wordset_id);
+        $effective_target_id = $this->effective_category_id($target_id, $wordset_id);
+
+        wp_set_current_user($admin_id);
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-category-limit-wordset/word-category-updates', [
+            'operation' => 'remove_category',
+            'category_id' => $other_id,
+            'word_ids' => $word_ids,
+        ]);
+        $data = $response->get_data();
+
+        $this->assertSame(400, $response->get_status());
+        $this->assertIsArray($data);
+        $this->assertSame('ll_tools_rest_too_many_word_category_updates', (string) ($data['code'] ?? ''));
+        $this->assertStringContainsString('10', (string) ($data['message'] ?? ''));
+
+        foreach ($word_ids as $word_id) {
+            $categories = array_map('intval', wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+            $this->assertContains($effective_other_id, $categories);
+            $this->assertContains($effective_target_id, $categories);
+        }
     }
 
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void
@@ -2378,6 +2484,18 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         return (int) $word_id;
+    }
+
+    private function effective_category_id(int $category_id, int $wordset_id): int
+    {
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
+            if ($effective_id > 0) {
+                return $effective_id;
+            }
+        }
+
+        return $category_id;
     }
 
     private function create_image_attachment(string $filename): int
