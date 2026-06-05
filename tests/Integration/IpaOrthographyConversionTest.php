@@ -475,6 +475,21 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
 
         $this->assertSame(
+            "'Gaz",
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("ɢaz", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            "'Gwa",
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("ɢʷa", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Zwa',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("zʷa", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
             'Ang ank',
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("aŋg aŋk", $engine_rules, $wordset_id)['text'] ?? '')
         );
@@ -523,6 +538,20 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
 
         $wrong_release_vowel = ll_tools_ipa_orthography_profile_mismatch_detail('Bıde', $release_ipa, $wordset_id, 'isolation', $release_prediction);
         $this->assertFalse((bool) ($wrong_release_vowel['matches'] ?? true));
+
+        $unresolved_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("ʃɨ", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($unresolved_final_prediction['requires_lexical_decision'] ?? false));
+        $unresolved_final_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Şı',
+            "ʃɨ",
+            $wordset_id,
+            'isolation',
+            $unresolved_final_prediction
+        );
+        $this->assertFalse((bool) ($unresolved_final_detail['matches'] ?? true));
+        $this->assertSame('Şı', (string) ($unresolved_final_detail['suggested_text'] ?? ''));
+        $this->assertNotEmpty((array) ($unresolved_final_detail['actual_spans'] ?? []));
+        $this->assertNotEmpty((array) ($unresolved_final_detail['ipa_spans'] ?? []));
     }
 
     public function test_dropped_final_n_for_bread_is_dictionary_bound(): void

@@ -2453,7 +2453,10 @@
         const $suggestions = $('<div>', { class: 'll-ipa-search-field-suggestions' });
         const labelTemplate = t('orthographyIssueInlineChangeTo', 'Change to: %s');
 
-        if (field === 'recording_text' && detail.suggested_text) {
+        if (field === 'recording_text' && detail.suggested_text && detail.suggested_text !== detail.actual_text) {
+            const suggestedSpans = Array.isArray(detail.suggested_spans) && detail.suggested_spans.length
+                ? detail.suggested_spans
+                : buildSingleDiffSpan(detail.actual_text || '', detail.suggested_text || '');
             $suggestions.append($('<button>', {
                 type: 'button',
                 class: 'll-ipa-search-suggestion-chip ll-ipa-search-suggestion-chip--orthography ll-ipa-search-orthography-apply',
@@ -2462,7 +2465,7 @@
             }).append(buildSuggestionChipLabel(
                 labelTemplate,
                 detail.suggested_text,
-                detail.suggested_spans || []
+                suggestedSpans
             )));
         }
 

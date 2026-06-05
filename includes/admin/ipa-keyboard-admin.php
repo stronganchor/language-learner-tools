@@ -1965,7 +1965,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 9;
+    return 10;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -3071,6 +3071,25 @@ function ll_tools_ipa_orthography_ipa_span_for_mismatch(
     ];
 }
 
+function ll_tools_ipa_orthography_final_high_vowel_span(string $ipa_word, int $word_start): ?array {
+    $chars = ll_tools_ipa_orthography_chars($ipa_word);
+    for ($index = count($chars) - 1; $index >= 0; $index--) {
+        $char = (string) $chars[$index];
+        if (function_exists('ll_tools_word_grid_is_ipa_combining_mark') && ll_tools_word_grid_is_ipa_combining_mark($char)) {
+            continue;
+        }
+        if ($char === 'ɨ' || $char === 'ɪ') {
+            return [
+                'start' => $word_start + $index,
+                'length' => 1,
+            ];
+        }
+        return null;
+    }
+
+    return null;
+}
+
 function ll_tools_ipa_orthography_profile_meta_key(): string {
     return 'll_wordset_ipa_orthography_profile';
 }
@@ -3175,7 +3194,7 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'ʁ' => ['any' => 'ğ'],
         'qʷʰ' => ['any' => 'qw'],
         'qʷ' => ['any' => 'qw'],
-        'ɢʷ' => ['any' => 'gw'],
+        'ɢʷ' => ['any' => "'gw"],
         'ɟʷ' => ['any' => 'gw'],
         'gʷ' => ['any' => 'gw'],
         'kʷʰ' => ['any' => 'kw'],
@@ -3690,6 +3709,36 @@ function ll_tools_ipa_orthography_profile_mismatch_detail(
     }
     if ($requires_lexical_decision) {
         $matches = false;
+        if (empty($word_mismatches) && count($actual_parts) === count($ipa_parts)) {
+            foreach ($ipa_parts as $index => $ipa_part) {
+                $ipa_word = (string) ($ipa_part['text'] ?? '');
+                $final_vowel_span = ll_tools_ipa_orthography_final_high_vowel_span(
+                    $ipa_word,
+                    (int) ($ipa_part['start'] ?? 0)
+                );
+                if (!is_array($final_vowel_span)) {
+                    continue;
+                }
+
+                $actual_part = (array) ($actual_parts[$index] ?? []);
+                if (!empty($actual_part)) {
+                    $actual_spans[] = [
+                        'start' => (int) ($actual_part['start'] ?? 0),
+                        'length' => (int) ($actual_part['length'] ?? 0),
+                    ];
+                }
+
+                $suggested_part = (array) ($suggested_parts[$index] ?? []);
+                if (!empty($suggested_part)) {
+                    $suggested_spans[] = [
+                        'start' => (int) ($suggested_part['start'] ?? 0),
+                        'length' => (int) ($suggested_part['length'] ?? 0),
+                    ];
+                }
+
+                $ipa_spans[] = $final_vowel_span;
+            }
+        }
     }
 
     $detail = [
@@ -4883,6 +4932,43 @@ function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, arra
     ];
 }
 
+function ll_tools_ipa_orthography_expand_post_modifier_tokens(array $tokens, string $mode = 'ipa'): array {
+    if ($mode !== 'ipa') {
+        return $tokens;
+    }
+
+    $expanded = [];
+    foreach ($tokens as $token) {
+        $token = (string) $token;
+        $chars = ll_tools_ipa_orthography_chars($token);
+        $char_count = count($chars);
+        if ($char_count < 2 || !function_exists('ll_tools_word_grid_is_ipa_post_modifier')) {
+            $expanded[] = $token;
+            continue;
+        }
+
+        $split_at = $char_count;
+        while ($split_at > 0 && ll_tools_word_grid_is_ipa_post_modifier((string) $chars[$split_at - 1], $mode)) {
+            $split_at--;
+        }
+
+        if ($split_at <= 0 || $split_at === $char_count) {
+            $expanded[] = $token;
+            continue;
+        }
+
+        $base = implode('', array_slice($chars, 0, $split_at));
+        if ($base !== '') {
+            $expanded[] = $base;
+        }
+        foreach (array_slice($chars, $split_at) as $modifier) {
+            $expanded[] = (string) $modifier;
+        }
+    }
+
+    return $expanded;
+}
+
 function ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules(array $rules): array {
     $fallback_rules = $rules;
     foreach (['ɨ', 'ɪ'] as $segment) {
@@ -4923,12 +5009,26 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
             continue;
         }
 
-        $prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($tokens, $rules);
+        $conversion_tokens = $tokens;
+        $prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $rules);
+        if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
+            $expanded_tokens = ll_tools_ipa_orthography_expand_post_modifier_tokens($tokens, $mode);
+            if (array_values($expanded_tokens) !== array_values($tokens)) {
+                $expanded_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($expanded_tokens, $rules);
+                if (!empty($expanded_prediction['complete']) && (string) ($expanded_prediction['text'] ?? '') !== '') {
+                    $conversion_tokens = $expanded_tokens;
+                    $prediction = $expanded_prediction;
+                } elseif ((int) ($expanded_prediction['matched_tokens'] ?? 0) > (int) ($prediction['matched_tokens'] ?? 0)) {
+                    $conversion_tokens = $expanded_tokens;
+                    $prediction = $expanded_prediction;
+                }
+            }
+        }
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
             if ($fallback_rules === null) {
                 $fallback_rules = ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules($rules);
             }
-            $fallback_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($tokens, $fallback_rules);
+            $fallback_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $fallback_rules);
             if (empty($fallback_prediction['complete']) || (string) ($fallback_prediction['text'] ?? '') === '') {
                 $matched_tokens += (int) ($prediction['matched_tokens'] ?? 0);
                 $token_count += (int) ($prediction['token_count'] ?? 0);
