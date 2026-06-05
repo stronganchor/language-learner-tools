@@ -271,6 +271,101 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Image Ready Word</strong>', $html);
     }
 
+    public function test_wordset_editor_category_filter_queries_matching_category_before_row_build(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-category-query');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $gamma_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Gamma Word',
+        ]);
+        wp_set_object_terms((int) $gamma_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms((int) $gamma_word_id, [(int) $fixture['category_b_id']], 'word-category', false);
+        update_post_meta((int) $gamma_word_id, 'word_translation', 'Gamma Translation');
+
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+            : [];
+
+        $_GET = [];
+        $captured_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_queries): void {
+            if ((string) $query->get('post_type') !== 'words' || (string) $query->get('fields') !== 'ids') {
+                return;
+            }
+            $captured_queries[] = $query->query_vars;
+        };
+
+        add_action('pre_get_posts', $capture);
+        try {
+            $result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, [
+                'q'         => '',
+                'category'  => (int) $fixture['category_b_id'],
+                'status'    => '',
+                'image'     => '',
+                'recording' => '',
+                'sort'      => 'word',
+                'dir'       => 'asc',
+                'paged'     => 1,
+            ], [
+                'hydrate_details' => false,
+                'hydrate_images'  => false,
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $row_ids = array_map('intval', wp_list_pluck((array) ($result['rows'] ?? []), 'id'));
+        $this->assertSame([(int) $gamma_word_id], $row_ids);
+
+        $category_query_seen = false;
+        foreach ($captured_queries as $query_vars) {
+            foreach ((array) ($query_vars['tax_query'] ?? []) as $tax_clause) {
+                if (!is_array($tax_clause) || (string) ($tax_clause['taxonomy'] ?? '') !== 'word-category') {
+                    continue;
+                }
+                $terms = array_map('intval', (array) ($tax_clause['terms'] ?? []));
+                if (in_array((int) $fixture['category_b_id'], $terms, true)) {
+                    $category_query_seen = true;
+                    break 2;
+                }
+            }
+        }
+        $this->assertTrue($category_query_seen, 'Expected the editor word query to apply the selected category in SQL.');
+    }
+
+    public function test_owned_category_editor_rows_do_not_scan_all_words_or_images(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-owned-category-scan');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $captured_post_type_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_post_type_queries): void {
+            $post_type = $query->get('post_type');
+            if ($post_type === 'words' || $post_type === 'word_images' || (is_array($post_type) && array_intersect($post_type, ['words', 'word_images']))) {
+                $captured_post_type_queries[] = $query->query_vars;
+            }
+        };
+
+        add_action('pre_get_posts', $capture);
+        try {
+            $rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+                ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+                : [];
+        } finally {
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $row_ids = array_map('intval', wp_list_pluck($rows, 'id'));
+        sort($row_ids);
+        $expected_ids = [(int) $fixture['category_a_id'], (int) $fixture['category_b_id']];
+        sort($expected_ids);
+        $this->assertSame($expected_ids, $row_ids);
+        $this->assertSame([], $captured_post_type_queries, 'Owned wordset categories should avoid broad words/word_images scans.');
+    }
+
     public function test_quick_update_changes_word_fields_and_is_undoable(): void
     {
         $this->loginEditor();

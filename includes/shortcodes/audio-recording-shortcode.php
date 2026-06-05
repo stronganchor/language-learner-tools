@@ -2298,53 +2298,55 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
             }
         }
 
-        $word_ids = get_posts([
-            'post_type'      => 'words',
-            'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-            'no_found_rows'  => true,
-            'tax_query'      => [
-                [
-                    'taxonomy' => 'wordset',
-                    'field'    => 'term_id',
-                    'terms'    => [$single_wordset_id],
-                ],
-            ],
-        ]);
-        if (!empty($word_ids)) {
-            $used_word_category_ids = wp_get_object_terms((array) $word_ids, 'word-category', ['fields' => 'ids']);
-            if (!is_wp_error($used_word_category_ids)) {
-                foreach ((array) $used_word_category_ids as $category_id) {
-                    $category_id = (int) $category_id;
-                    if ($category_id > 0) {
-                        $category_ids[$category_id] = true;
-                    }
-                }
-            }
-        }
-
-        if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
-            $image_ids = get_posts([
-                'post_type'      => 'word_images',
+        if (empty($category_ids)) {
+            $word_ids = get_posts([
+                'post_type'      => 'words',
                 'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
                 'posts_per_page' => -1,
                 'fields'         => 'ids',
                 'no_found_rows'  => true,
-                'meta_query'     => [
+                'tax_query'      => [
                     [
-                        'key'   => LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
-                        'value' => $single_wordset_id,
+                        'taxonomy' => 'wordset',
+                        'field'    => 'term_id',
+                        'terms'    => [$single_wordset_id],
                     ],
                 ],
             ]);
-            if (!empty($image_ids)) {
-                $used_image_category_ids = wp_get_object_terms((array) $image_ids, 'word-category', ['fields' => 'ids']);
-                if (!is_wp_error($used_image_category_ids)) {
-                    foreach ((array) $used_image_category_ids as $category_id) {
+            if (!empty($word_ids)) {
+                $used_word_category_ids = wp_get_object_terms((array) $word_ids, 'word-category', ['fields' => 'ids']);
+                if (!is_wp_error($used_word_category_ids)) {
+                    foreach ((array) $used_word_category_ids as $category_id) {
                         $category_id = (int) $category_id;
                         if ($category_id > 0) {
                             $category_ids[$category_id] = true;
+                        }
+                    }
+                }
+            }
+
+            if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+                $image_ids = get_posts([
+                    'post_type'      => 'word_images',
+                    'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
+                    'posts_per_page' => -1,
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                    'meta_query'     => [
+                        [
+                            'key'   => LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
+                            'value' => $single_wordset_id,
+                        ],
+                    ],
+                ]);
+                if (!empty($image_ids)) {
+                    $used_image_category_ids = wp_get_object_terms((array) $image_ids, 'word-category', ['fields' => 'ids']);
+                    if (!is_wp_error($used_image_category_ids)) {
+                        foreach ((array) $used_image_category_ids as $category_id) {
+                            $category_id = (int) $category_id;
+                            if ($category_id > 0) {
+                                $category_ids[$category_id] = true;
+                            }
                         }
                     }
                 }

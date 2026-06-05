@@ -990,6 +990,39 @@ function ll_tools_wordset_editor_get_recording_transcription_label(int $wordset_
     return __('IPA', 'll-tools-text-domain');
 }
 
+function ll_tools_wordset_editor_expand_category_filter_ids_for_query(array $category_ids, int $wordset_id): array {
+    $expanded = [];
+    foreach (ll_tools_wordset_editor_normalize_word_ids($category_ids) as $category_id) {
+        if (function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')) {
+            foreach ((array) ll_tools_get_vocab_lesson_category_meta_candidates($category_id, $wordset_id) as $candidate_id) {
+                $candidate_id = (int) $candidate_id;
+                if ($candidate_id > 0) {
+                    $expanded[$candidate_id] = true;
+                }
+            }
+            continue;
+        }
+
+        $expanded[$category_id] = true;
+
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
+            if ($effective_category_id > 0) {
+                $expanded[$effective_category_id] = true;
+            }
+        }
+
+        if (function_exists('ll_tools_get_category_isolation_source_id')) {
+            $source_category_id = (int) ll_tools_get_category_isolation_source_id($category_id);
+            if ($source_category_id > 0) {
+                $expanded[$source_category_id] = true;
+            }
+        }
+    }
+
+    return array_map('intval', array_keys($expanded));
+}
+
 function ll_tools_wordset_editor_normalize_recording_ipa(string $recording_ipa, string $transcription_mode): string {
     $recording_ipa = trim($recording_ipa);
     if ($recording_ipa === '') {
@@ -1073,21 +1106,52 @@ function ll_tools_wordset_editor_word_requires_audio(int $word_id): bool {
 }
 
 function ll_tools_wordset_editor_get_all_word_ids(int $wordset_id): array {
+    return ll_tools_wordset_editor_get_word_ids($wordset_id);
+}
+
+function ll_tools_wordset_editor_get_word_ids(int $wordset_id, array $filters = []): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $post_status = ['publish', 'draft', 'pending', 'private', 'future'];
+    $status_filter = sanitize_key((string) ($filters['status'] ?? ''));
+    if ($status_filter !== '' && in_array($status_filter, ['publish', 'draft', 'pending', 'private'], true)) {
+        $post_status = [$status_filter];
+    }
+
+    $tax_query = [
+        [
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => [$wordset_id],
+        ],
+    ];
+
+    $category_filter_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
+    if (!empty($category_filter_ids)) {
+        $category_query_ids = ll_tools_wordset_editor_expand_category_filter_ids_for_query($category_filter_ids, $wordset_id);
+        if (empty($category_query_ids)) {
+            return [];
+        }
+        $tax_query[] = [
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => $category_query_ids,
+            'operator' => 'IN',
+        ];
+    }
+
     $query = new WP_Query([
         'post_type'      => 'words',
-        'post_status'    => ['publish', 'draft', 'pending', 'private', 'future'],
+        'post_status'    => $post_status,
         'posts_per_page' => -1,
         'fields'         => 'ids',
         'orderby'        => 'title',
         'order'          => 'ASC',
         'no_found_rows'  => true,
-        'tax_query'      => [
-            [
-                'taxonomy' => 'wordset',
-                'field'    => 'term_id',
-                'terms'    => [(int) $wordset_id],
-            ],
-        ],
+        'tax_query'      => $tax_query,
     ]);
 
     return ll_tools_wordset_editor_normalize_word_ids($query->posts);
@@ -1129,10 +1193,16 @@ function ll_tools_wordset_editor_normalize_category_filter_ids($raw): array {
 
 function ll_tools_wordset_editor_get_filter_category_ids(array $filters): array {
     if (array_key_exists('categories', $filters)) {
-        return ll_tools_wordset_editor_normalize_category_filter_ids($filters['categories']);
+        $category_ids = ll_tools_wordset_editor_normalize_category_filter_ids($filters['categories']);
+        if (!empty($category_ids)) {
+            return $category_ids;
+        }
     }
     if (array_key_exists('category_ids', $filters)) {
-        return ll_tools_wordset_editor_normalize_category_filter_ids($filters['category_ids']);
+        $category_ids = ll_tools_wordset_editor_normalize_category_filter_ids($filters['category_ids']);
+        if (!empty($category_ids)) {
+            return $category_ids;
+        }
     }
 
     return ll_tools_wordset_editor_normalize_category_filter_ids($filters['category'] ?? []);
@@ -1435,7 +1505,7 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     $filters = array_merge(ll_tools_wordset_editor_get_filters(), $filters);
     $hydrate_details = array_key_exists('hydrate_details', $options) ? !empty($options['hydrate_details']) : true;
     $hydrate_images = array_key_exists('hydrate_images', $options) ? !empty($options['hydrate_images']) : true;
-    $word_ids = ll_tools_wordset_editor_get_all_word_ids($wordset_id);
+    $word_ids = ll_tools_wordset_editor_get_word_ids($wordset_id, $filters);
     if (!empty($word_ids)) {
         update_meta_cache('post', $word_ids);
     }
