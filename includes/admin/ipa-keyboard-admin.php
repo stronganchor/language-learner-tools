@@ -1965,7 +1965,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 10;
+    return 11;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -2574,6 +2574,46 @@ function ll_tools_ipa_orthography_merge_manual_rules(array $base, array $overrid
     return $merged;
 }
 
+function ll_tools_ipa_orthography_get_profile_locked_manual_rules(int $wordset_id): array {
+    if (ll_tools_ipa_orthography_get_profile_key($wordset_id) !== 'zazaki_genc_palu') {
+        return [];
+    }
+
+    return ll_tools_ipa_orthography_sanitize_manual_rules([
+        'æ' => ['any' => 'â'],
+        'i' => ['any' => 'i'],
+        'ɨ' => ['nonfinal' => 'ı'],
+        'ɪ' => ['nonfinal' => 'ı'],
+        'ɢ' => ['any' => "'g"],
+        'ɢʷ' => ['any' => "'gw"],
+        'ħ' => ['any' => "'h"],
+        'ŋg' => ['any' => 'ng'],
+        'ŋk' => ['any' => 'nk'],
+        't̪͡ʙ̥ɨ' => ['any' => 'twe'],
+        't̪͡ʙɨ' => ['any' => 'twe'],
+        'sɨ' => ['any' => 'se'],
+        'ʷ' => ['any' => 'w'],
+    ], $wordset_id);
+}
+
+function ll_tools_ipa_orthography_apply_profile_locked_manual_rules(array $rules, int $wordset_id): array {
+    foreach (ll_tools_ipa_orthography_get_profile_locked_manual_rules($wordset_id) as $segment => $contexts) {
+        if (!isset($rules[$segment]) || !is_array($rules[$segment])) {
+            $rules[$segment] = [];
+        }
+        foreach ((array) $contexts as $context => $output) {
+            $context = ll_tools_ipa_orthography_normalize_context((string) $context);
+            $output = (string) $output;
+            if ($output !== '') {
+                $rules[$segment][$context] = $output;
+            }
+        }
+    }
+
+    ksort($rules);
+    return $rules;
+}
+
 function ll_tools_ipa_orthography_sanitize_setting_text($value): string {
     if (!is_scalar($value)) {
         return '';
@@ -3112,7 +3152,15 @@ function ll_tools_ipa_orthography_mb_lower(string $text, string $language = ''):
     return function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
 }
 
-function ll_tools_ipa_orthography_mb_upper(string $text): string {
+function ll_tools_ipa_orthography_mb_upper(string $text, string $language = ''): string {
+    if (function_exists('ll_tools_language_uses_turkish_casing') && ll_tools_language_uses_turkish_casing($language)) {
+        if ($text === 'i') {
+            return 'İ';
+        }
+        if ($text === 'ı') {
+            return 'I';
+        }
+    }
     return function_exists('mb_strtoupper') ? mb_strtoupper($text, 'UTF-8') : strtoupper($text);
 }
 
@@ -3260,9 +3308,12 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
 }
 
 function ll_tools_ipa_orthography_get_effective_manual_rules(int $wordset_id): array {
-    return ll_tools_ipa_orthography_merge_manual_rules(
-        ll_tools_ipa_orthography_get_profile_default_manual_rules($wordset_id),
-        ll_tools_ipa_orthography_get_manual_rules($wordset_id)
+    return ll_tools_ipa_orthography_apply_profile_locked_manual_rules(
+        ll_tools_ipa_orthography_merge_manual_rules(
+            ll_tools_ipa_orthography_get_profile_default_manual_rules($wordset_id),
+            ll_tools_ipa_orthography_get_manual_rules($wordset_id)
+        ),
+        $wordset_id
     );
 }
 
@@ -3425,9 +3476,9 @@ function ll_tools_ipa_orthography_profile_strip_terminal_punctuation(string $tex
     return trim((string) preg_replace('/[.!?]+$/u', '', trim($text)));
 }
 
-function ll_tools_ipa_orthography_profile_sentence_case(string $text): string {
-    return (string) preg_replace_callback('/^(\P{L}*)(\p{L})(.*)$/us', static function (array $matches): string {
-        return (string) $matches[1] . ll_tools_ipa_orthography_mb_upper((string) $matches[2]) . (string) $matches[3];
+function ll_tools_ipa_orthography_profile_sentence_case(string $text, string $language = ''): string {
+    return (string) preg_replace_callback('/^(\P{L}*)(\p{L})(.*)$/us', static function (array $matches) use ($language): string {
+        return (string) $matches[1] . ll_tools_ipa_orthography_mb_upper((string) $matches[2], $language) . (string) $matches[3];
     }, $text, 1);
 }
 
@@ -4843,7 +4894,10 @@ function ll_tools_ipa_orthography_apply_non_word_settings_to_text(string $text, 
     $text = ll_tools_ipa_orthography_apply_phrase_overrides_to_text($text, $wordset_id);
 
     if (!empty($settings['sentence_case'])) {
-        $text = ll_tools_ipa_orthography_profile_sentence_case($text);
+        $text = ll_tools_ipa_orthography_profile_sentence_case(
+            $text,
+            ll_tools_ipa_orthography_get_wordset_language($wordset_id)
+        );
     }
 
     $punctuation_map = (array) ($settings['recording_type_punctuation'] ?? []);

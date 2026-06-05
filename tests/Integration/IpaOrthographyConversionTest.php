@@ -457,6 +457,44 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
+    public function test_zazaki_profile_locks_strict_vowel_and_dotted_i_mappings(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Strict Profile Mappings');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta(
+            $wordset_id,
+            ll_tools_ipa_orthography_manual_rules_meta_key(),
+            ll_tools_ipa_orthography_sanitize_manual_rules([
+                'æ' => ['any' => 'e'],
+                'i' => ['any' => 'ı'],
+            ], $wordset_id)
+        );
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+
+        $front_vowel_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('ræhme', $engine_rules, $wordset_id);
+        $this->assertSame('Râhmê', (string) ($front_vowel_prediction['text'] ?? ''));
+
+        $front_vowel_word_id = $this->createWord($wordset_id, 'Front vowel mismatch', 'Rehmê');
+        $front_vowel_recording_id = $this->createRecording($front_vowel_word_id, 'Rehmê', 'ræhme');
+        ll_tools_ipa_keyboard_update_recording_validation($front_vowel_recording_id);
+        $front_vowel_validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($front_vowel_recording_id, $wordset_id);
+        $front_vowel_issue = $this->findOrthographyMismatchIssue($front_vowel_validation);
+        $this->assertIsArray($front_vowel_issue);
+        $this->assertSame('Râhmê', (string) ($front_vowel_issue['orthography_mismatch']['suggested_text'] ?? ''));
+
+        $dotted_i_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('i', $engine_rules, $wordset_id);
+        $this->assertSame('İ', (string) ($dotted_i_prediction['text'] ?? ''));
+
+        $dotted_i_word_id = $this->createWord($wordset_id, 'Dotted I mismatch', 'I');
+        $dotted_i_recording_id = $this->createRecording($dotted_i_word_id, 'I', 'i');
+        ll_tools_ipa_keyboard_update_recording_validation($dotted_i_recording_id);
+        $dotted_i_validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($dotted_i_recording_id, $wordset_id);
+        $dotted_i_issue = $this->findOrthographyMismatchIssue($dotted_i_validation);
+        $this->assertIsArray($dotted_i_issue);
+        $this->assertSame('İ', (string) ($dotted_i_issue['orthography_mismatch']['suggested_text'] ?? ''));
+    }
+
     public function test_zazaki_profile_handles_local_phonetic_and_lexical_exceptions(): void
     {
         $wordset_id = $this->createWordset('Zazaki Local Phonetic Exceptions');
@@ -856,6 +894,21 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $data = ll_tools_ipa_keyboard_build_orthography_data($wordset_id);
         $this->assertSame(1, (int) (($data['stats']['active_contradiction_count'] ?? 0)));
         $this->assertSame(0, (int) (($data['stats']['approved_contradiction_count'] ?? 0)));
+    }
+
+    /**
+     * @param array<string,mixed> $validation
+     * @return array<string,mixed>|null
+     */
+    private function findOrthographyMismatchIssue(array $validation): ?array
+    {
+        foreach ((array) ($validation['active'] ?? []) as $issue) {
+            if ((string) ($issue['code'] ?? '') === 'orthography_mismatch') {
+                return (array) $issue;
+            }
+        }
+
+        return null;
     }
 
     /**
