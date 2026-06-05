@@ -562,6 +562,50 @@ function ll_tools_rest_automation_resolve_batch_limit(WP_REST_Request $request, 
     ];
 }
 
+function ll_tools_rest_automation_transcription_validation_limits(WP_REST_Request $request, bool $dry_run): array {
+    $raw_limit = $request->get_param('limit');
+    $requested_limit = (is_scalar($raw_limit) && trim((string) $raw_limit) !== '')
+        ? max(0, (int) $raw_limit)
+        : 0;
+    $default_limit = $dry_run ? 5 : 1;
+    $max_limit = $dry_run
+        ? max(1, (int) apply_filters('ll_tools_rest_transcription_validation_max_dry_run_limit', 10, $request))
+        : 1;
+    $effective_limit = $requested_limit > 0 ? $requested_limit : $default_limit;
+    $limit_clamped = $effective_limit > $max_limit;
+    $effective_limit = max(1, min($effective_limit, $max_limit));
+
+    $raw_scan_limit = $request->get_param('scan_limit');
+    $requested_scan_limit = (is_scalar($raw_scan_limit) && trim((string) $raw_scan_limit) !== '')
+        ? max(0, (int) $raw_scan_limit)
+        : 0;
+    $default_scan_limit = $dry_run ? 50 : 25;
+    $max_scan_limit = $dry_run
+        ? max(1, (int) apply_filters('ll_tools_rest_transcription_validation_max_dry_run_scan_limit', 100, $request))
+        : 25;
+    $effective_scan_limit = $requested_scan_limit > 0 ? $requested_scan_limit : $default_scan_limit;
+    $scan_limit_clamped = $effective_scan_limit > $max_scan_limit;
+    $effective_scan_limit = max($effective_limit, min($effective_scan_limit, $max_scan_limit));
+
+    return [
+        'limit' => [
+            'requested' => $requested_limit,
+            'effective' => $effective_limit,
+            'default' => $default_limit,
+            'max' => $max_limit,
+            'clamped' => $limit_clamped,
+        ],
+        'scan_limit' => [
+            'requested' => $requested_scan_limit,
+            'effective' => $effective_scan_limit,
+            'default' => $default_scan_limit,
+            'max' => $max_scan_limit,
+            'clamped' => $scan_limit_clamped,
+        ],
+        'server_side_recommended' => !$dry_run,
+    ];
+}
+
 function ll_tools_rest_resource_guard_option_name(string $scope, string $suffix): string {
     return 'll_tools_rest_guard_' . sanitize_key($suffix) . '_' . md5($scope);
 }
@@ -576,6 +620,25 @@ function ll_tools_rest_resource_guard_has_authorization_header(): bool {
     return false;
 }
 
+function ll_tools_rest_resource_guard_is_automation_request(WP_REST_Request $request): bool {
+    if (ll_tools_rest_resource_guard_has_authorization_header()) {
+        return true;
+    }
+
+    foreach (['x-ll-tools-automation', 'x-codex-automation'] as $header_name) {
+        if (trim((string) $request->get_header($header_name)) !== '') {
+            return true;
+        }
+    }
+
+    $user_agent = strtolower((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    if ($user_agent === '') {
+        return false;
+    }
+
+    return (bool) preg_match('/(?:codex|ll tools|language learner tools|wordboat|automation)/', $user_agent);
+}
+
 function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     if (!(bool) apply_filters('ll_tools_rest_resource_guard_enabled', true, $request)) {
         return [];
@@ -583,23 +646,19 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
 
     $method = strtoupper((string) $request->get_method());
     $is_write = in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true);
+    $is_read = in_array($method, ['GET', 'HEAD'], true);
     $route = (string) $request->get_route();
-    $is_auth_probe = in_array($method, ['GET', 'HEAD'], true)
-        && in_array($route, ['/ll-tools/v1/automation/status', '/wp/v2/users/me'], true);
-    if (!$is_write && !$is_auth_probe) {
-        return [];
-    }
-
-    if (!ll_tools_rest_resource_guard_has_authorization_header()) {
-        return [];
-    }
-
-    if ($is_write && rest_sanitize_boolean($request->get_param('dry_run'))) {
+    $is_auth_probe = $is_read && in_array($route, ['/ll-tools/v1/automation/status', '/wp/v2/users/me'], true);
+    $is_guarded_read = $is_auth_probe
+        || ($is_read && preg_match('#^/ll-tools/v1/imports/[^/]+(?:/result)?$#', $route))
+        || ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/(missing-meta|site-sync/snapshot|report|report-summary)$#', $route));
+    if (!$is_write && !$is_guarded_read) {
         return [];
     }
 
     $resource = '';
     $delay_seconds = 5.0;
+    $lock_ttl_seconds = 90.0;
 
     if ($route === '/ll-tools/v1/automation/status') {
         $resource = 'll_tools_automation_status';
@@ -607,6 +666,12 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/wp/v2/users/me') {
         $resource = 'wp_users_me';
         $delay_seconds = 2.0;
+    } elseif ($is_read && preg_match('#^/ll-tools/v1/imports/[^/]+(/result)?$#', $route, $matches)) {
+        $resource = empty($matches[1]) ? 'll_tools_import_status' : 'll_tools_import_result';
+        $delay_seconds = 3.0;
+    } elseif ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/(missing-meta|site-sync/snapshot|report|report-summary)$#', $route, $matches)) {
+        $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
+        $delay_seconds = in_array((string) $matches[1], ['site-sync/snapshot', 'report'], true) ? 5.0 : 3.0;
     } elseif (preg_match('#^/wp/v2/(media|word_images|words)(?:/\d+)?$#', $route, $matches)) {
         $resource = (string) $matches[1];
         $delay_seconds = in_array($resource, ['media', 'word_images'], true) ? 5.0 : 3.0;
@@ -616,9 +681,14 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 5.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|transcriptions|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|transcriptions|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile|translations)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
-        $delay_seconds = 5.0;
+        if ((string) $matches[1] === 'transcription-validations') {
+            $delay_seconds = 30.0;
+            $lock_ttl_seconds = 180.0;
+        } else {
+            $delay_seconds = 5.0;
+        }
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
         $resource = 'll_tools_import_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 5.0;
@@ -634,12 +704,16 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
         return [];
     }
 
+    if (!ll_tools_rest_resource_guard_is_automation_request($request)) {
+        return [];
+    }
+
     return [
         'scope' => (string) apply_filters('ll_tools_rest_resource_guard_scope', 'll_tools_rest_automation', $request, $resource),
         'resource' => $resource,
         'route' => $route,
         'delay_seconds' => max(0.1, (float) apply_filters('ll_tools_rest_resource_guard_delay_seconds', $delay_seconds, $request, $resource)),
-        'lock_ttl_seconds' => max(10.0, (float) apply_filters('ll_tools_rest_resource_guard_lock_ttl_seconds', 90.0, $request, $resource)),
+        'lock_ttl_seconds' => max(10.0, (float) apply_filters('ll_tools_rest_resource_guard_lock_ttl_seconds', $lock_ttl_seconds, $request, $resource)),
     ];
 }
 
@@ -822,8 +896,6 @@ function ll_tools_rest_automation_rest_import_word_image_chunk_size($chunk_size,
 add_filter('ll_tools_import_job_word_image_chunk_size', 'll_tools_rest_automation_rest_import_word_image_chunk_size', 10, 3);
 
 function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Response {
-    unset($request);
-
     $user = wp_get_current_user();
     $auth_mode = isset($GLOBALS['ll_tools_rest_automation_auth_mode']) && is_string($GLOBALS['ll_tools_rest_automation_auth_mode'])
         ? $GLOBALS['ll_tools_rest_automation_auth_mode']
@@ -880,9 +952,33 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
         'resource_guard' => [
             'retry_status' => 429,
             'shared_scope' => 'll_tools_rest_automation',
+            'automation_context' => [
+                'authorization_header' => true,
+                'headers' => [
+                    'X-LL-Tools-Automation',
+                    'X-Codex-Automation',
+                ],
+                'user_agent_patterns' => [
+                    'codex',
+                    'll tools',
+                    'language learner tools',
+                    'wordboat',
+                    'automation',
+                ],
+            ],
             'auth_probe_routes' => [
                 '/ll-tools/v1/automation/status',
                 '/wp/v2/users/me',
+            ],
+            'guarded_read_routes' => [
+                '/ll-tools/v1/automation/status',
+                '/wp/v2/users/me',
+                '/ll-tools/v1/imports/{job_id}',
+                '/ll-tools/v1/imports/{job_id}/result',
+                '/ll-tools/v1/wordsets/{wordset}/missing-meta',
+                '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
+                '/ll-tools/v1/wordsets/{wordset}/report',
+                '/ll-tools/v1/wordsets/{wordset}/report-summary',
             ],
             'core_write_routes' => [
                 '/wp/v2/media',
@@ -932,6 +1028,17 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'missing_meta_batch' => [
                 'default_limit' => ll_tools_rest_automation_batch_limit('missing_meta', false)['default'],
                 'max_limit' => ll_tools_rest_automation_batch_limit('missing_meta', false)['max'],
+            ],
+            'transcription_validations_batch' => [
+                'default_write_limit' => 1,
+                'max_write_limit' => 1,
+                'default_write_scan_limit' => 25,
+                'max_write_scan_limit' => 25,
+                'default_dry_run_limit' => 5,
+                'max_dry_run_limit' => (int) apply_filters('ll_tools_rest_transcription_validation_max_dry_run_limit', 10, $request),
+                'default_dry_run_scan_limit' => 50,
+                'max_dry_run_scan_limit' => (int) apply_filters('ll_tools_rest_transcription_validation_max_dry_run_scan_limit', 100, $request),
+                'server_side_recommended' => true,
             ],
             'rest_import_word_image_chunk_size' => (int) apply_filters('ll_tools_rest_import_word_image_chunk_size', 8),
         ],
@@ -2684,29 +2791,46 @@ function ll_tools_rest_automation_refresh_transcription_validations(WP_REST_Requ
     }
 
     $wordset_id = (int) $wordset_term->term_id;
-    $limit = max(1, min(100, (int) ($request->get_param('limit') ?: 10)));
     $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $limits = ll_tools_rest_automation_transcription_validation_limits($request, $dry_run);
+    $limit = (int) ($limits['limit']['effective'] ?? 1);
+    $scan_limit = (int) ($limits['scan_limit']['effective'] ?? 25);
     $stale_only = $request->has_param('stale_only')
         ? rest_sanitize_boolean($request->get_param('stale_only'))
         : true;
 
-    $candidate_ids = get_posts([
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'update_post_meta_cache' => true,
-        'update_post_term_cache' => false,
-        'meta_query' => [
-            [
-                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
-                'value' => 0,
-                'compare' => '>',
-                'type' => 'NUMERIC',
+    $word_ids = get_objects_in_term($wordset_id, 'wordset');
+    if (is_wp_error($word_ids)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_validation_wordset_lookup_failed',
+            $word_ids->get_error_message(),
+            500
+        );
+    }
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', (array) $word_ids))));
+    $candidate_ids = [];
+    if (!empty($word_ids)) {
+        $candidate_ids = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent__in' => $word_ids,
+            'posts_per_page' => $scan_limit,
+            'orderby' => 'ID',
+            'order' => 'ASC',
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'update_post_meta_cache' => true,
+            'update_post_term_cache' => false,
+            'meta_query' => [
+                [
+                    'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
+                    'value' => 0,
+                    'compare' => '>',
+                    'type' => 'NUMERIC',
+                ],
             ],
-        ],
-    ]);
+        ]);
+    }
     $candidate_ids = array_values(array_map('intval', (array) $candidate_ids));
 
     $summary = [
@@ -2714,16 +2838,20 @@ function ll_tools_rest_automation_refresh_transcription_validations(WP_REST_Requ
         'dry_run' => $dry_run,
         'stale_only' => $stale_only,
         'limit' => $limit,
+        'scan_limit' => $scan_limit,
+        'batch' => $limits,
         'wordset' => [
             'id' => $wordset_id,
             'slug' => (string) $wordset_term->slug,
             'name' => (string) $wordset_term->name,
         ],
         'candidate_count' => count($candidate_ids),
+        'candidate_count_is_limited' => count($candidate_ids) >= $scan_limit,
         'scanned_count' => 0,
         'matched_count' => 0,
         'updated_count' => 0,
         'remaining_stale_count' => 0,
+        'remaining_stale_count_is_partial' => count($candidate_ids) >= $scan_limit,
         'updated_recording_ids' => [],
     ];
 
@@ -6182,7 +6310,12 @@ function ll_tools_rest_register_automation_routes(): void {
             'limit' => [
                 'required' => false,
                 'type' => 'integer',
-                'default' => 10,
+                'default' => 1,
+            ],
+            'scan_limit' => [
+                'required' => false,
+                'type' => 'integer',
+                'default' => 25,
             ],
             'dry_run' => [
                 'required' => false,

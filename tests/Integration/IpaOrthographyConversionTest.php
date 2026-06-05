@@ -708,11 +708,75 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $response = ll_tools_rest_automation_refresh_transcription_validations($request);
         $this->assertInstanceOf(WP_REST_Response::class, $response);
         $data = (array) $response->get_data();
+        $batch = is_array($data['batch'] ?? null) ? $data['batch'] : [];
+        $limit = is_array($batch['limit'] ?? null) ? $batch['limit'] : [];
         $this->assertSame(1, (int) ($data['updated_count'] ?? -1));
+        $this->assertSame(1, (int) ($data['limit'] ?? -1));
+        $this->assertSame(1, (int) ($limit['max'] ?? -1));
         $this->assertNotContains('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id));
 
         $search_after_refresh = ll_tools_ipa_keyboard_search_recordings($wordset_id, '', 'both', true, false, false, 1);
         $this->assertSame(0, (int) ($search_after_refresh['total_matches'] ?? -1));
+    }
+
+    public function test_rest_validation_refresh_clamps_write_batches_to_one_recording(): void
+    {
+        $wordset_id = $this->createWordset('Clamped Validation Refresh');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'm' => ['any' => 'm'],
+            'a' => ['any' => 'a'],
+        ]);
+
+        $recording_ids = [];
+        for ($i = 1; $i <= 2; $i++) {
+            $word_id = $this->createWord($wordset_id, 'Valid item ' . $i, 'ma');
+            $recording_id = $this->createRecording($word_id, 'ma', 'ma');
+            update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+                $wordset_id => [
+                    'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version() - 1,
+                    'active' => [
+                        [
+                            'rule_key' => 'builtin:orthography_mismatch',
+                            'code' => 'orthography_mismatch',
+                            'type' => 'builtin',
+                            'label' => 'Orthography mismatch',
+                            'message' => 'Stale issue',
+                            'count' => 1,
+                        ],
+                    ],
+                    'ignored' => [],
+                ],
+            ]);
+            update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+            $recording_ids[] = $recording_id;
+        }
+
+        $request = new WP_REST_Request('POST', '/ll-tools/v1/wordsets/' . $wordset_id . '/transcription-validations');
+        $request->set_param('wordset', (string) $wordset_id);
+        $request->set_param('limit', 10);
+        $request->set_param('scan_limit', 200);
+        $response = ll_tools_rest_automation_refresh_transcription_validations($request);
+        $this->assertInstanceOf(WP_REST_Response::class, $response);
+        $data = (array) $response->get_data();
+        $batch = is_array($data['batch'] ?? null) ? $data['batch'] : [];
+        $limit = is_array($batch['limit'] ?? null) ? $batch['limit'] : [];
+        $scan_limit = is_array($batch['scan_limit'] ?? null) ? $batch['scan_limit'] : [];
+
+        $this->assertSame(1, (int) ($data['updated_count'] ?? -1));
+        $this->assertSame(1, (int) ($data['limit'] ?? -1));
+        $this->assertSame(25, (int) ($data['scan_limit'] ?? -1));
+        $this->assertTrue((bool) ($limit['clamped'] ?? false));
+        $this->assertTrue((bool) ($scan_limit['clamped'] ?? false));
+        $this->assertTrue((bool) ($batch['server_side_recommended'] ?? false));
+        $this->assertCount(1, (array) ($data['updated_recording_ids'] ?? []));
+
+        $remaining_issue_count = 0;
+        foreach ($recording_ids as $recording_id) {
+            if (in_array('orthography_mismatch', $this->validationCodes($recording_id, $wordset_id), true)) {
+                $remaining_issue_count++;
+            }
+        }
+        $this->assertSame(1, $remaining_issue_count);
     }
 
     public function test_manual_rule_outputs_preserve_apostrophes_for_conversion_and_mismatch_detection(): void

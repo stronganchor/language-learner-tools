@@ -2147,7 +2147,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $this->assertNotSame('', (string) (($completed_job['result']['historyEntryId'] ?? '')));
             $this->assertTrue((bool) (($completed_job['result']['hasUndo'] ?? false)));
 
-            $result_response = $this->dispatch_ll_tools_rest_request(
+            $result_response = $this->dispatch_ll_tools_rest_request_with_guard_retry(
                 'GET',
                 '/ll-tools/v1/imports/' . rawurlencode($job_id) . '/result',
                 [],
