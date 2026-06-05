@@ -1548,7 +1548,7 @@ body.ll-ipa-keyboard-open {
 }
 
 .ll-ipa-review-toggle.is-saving {
-    display: none;
+    visibility: hidden;
 }
 
 .ll-ipa-search-actions {

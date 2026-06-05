@@ -312,10 +312,30 @@ test('reviewed rows stay visible until the transcription search is manually refr
     window.__llTranscriptionManagerMock.holdReviewStateRequests = true;
   });
 
+  const getReviewActionLayout = async (actionLocator) => actionLocator.evaluate((action) => {
+    const link = action.querySelector('.ll-ipa-search-field-review-link');
+    const toggle = action.querySelector('.ll-ipa-review-toggle');
+    const linkStyle = link ? window.getComputedStyle(link) : null;
+    const toggleStyle = toggle ? window.getComputedStyle(toggle) : null;
+
+    return {
+      actionHeight: Math.round(action.getBoundingClientRect().height),
+      linkHeight: link ? Math.round(link.getBoundingClientRect().height) : 0,
+      linkDisplay: linkStyle ? linkStyle.display : '',
+      toggleDisplay: toggleStyle ? toggleStyle.display : '',
+      toggleVisibility: toggleStyle ? toggleStyle.visibility : ''
+    };
+  });
+
+  const reviewTextAction = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-action');
   const reviewTextToggle = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-review-toggle');
   const reviewTextStatus = rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-review-status');
   const reviewIpaToggle = rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle');
   const reviewIpaStatus = rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-review-status');
+  const initialReviewTextLayout = await getReviewActionLayout(reviewTextAction);
+  expect(initialReviewTextLayout.actionHeight).toBeGreaterThan(0);
+  expect(initialReviewTextLayout.linkHeight).toBeGreaterThan(0);
+  expect(initialReviewTextLayout.linkDisplay).not.toBe('none');
   await reviewTextToggle.click();
 
   await expect(reviewTextToggle).toBeDisabled();
@@ -325,6 +345,11 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(reviewTextStatus).toHaveClass(/is-saving/);
   await expect(reviewTextStatus).toHaveAttribute('aria-busy', 'true');
   await expect(reviewTextStatus.locator('.ll-ipa-search-review-status-label')).toHaveText('Saving...');
+  const savingReviewTextLayout = await getReviewActionLayout(reviewTextAction);
+  expect(savingReviewTextLayout.toggleDisplay).not.toBe('none');
+  expect(savingReviewTextLayout.toggleVisibility).toBe('hidden');
+  expect(savingReviewTextLayout.linkHeight).toBe(initialReviewTextLayout.linkHeight);
+  expect(Math.abs(savingReviewTextLayout.actionHeight - initialReviewTextLayout.actionHeight)).toBeLessThanOrEqual(1);
   await expect(reviewIpaToggle).toBeEnabled();
   await reviewIpaToggle.click();
   await expect(reviewIpaToggle).toBeDisabled();
@@ -353,6 +378,9 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-review-status.is-needs-review')).toHaveCount(1);
   await expect(rows.nth(0).locator('.ll-ipa-search-text-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as needing review');
   await expect(rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-field-review-toggle')).toHaveText('Mark as reviewed');
+  const reviewedReviewTextLayout = await getReviewActionLayout(reviewTextAction);
+  expect(reviewedReviewTextLayout.toggleVisibility).toBe('visible');
+  expect(Math.abs(reviewedReviewTextLayout.actionHeight - savingReviewTextLayout.actionHeight)).toBeLessThanOrEqual(1);
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(0);
   await expect(rows.nth(1)).toHaveAttribute('data-recording-id', '202');
   await expect(rows.nth(1)).toHaveAttribute('data-needs-review', '1');
