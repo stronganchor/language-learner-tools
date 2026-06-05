@@ -7,6 +7,47 @@ This is the better fit when you want to keep the current workflow of giving
 Codex a temporary WordPress admin or manager account instead of SSH access to
 the server.
 
+## Operating model
+
+Treat REST automation as the control plane for Codex-driven WordPress work. REST
+is the right interface for authentication checks, readback, reports, dry runs,
+job creation, progress polling, result retrieval, cache purges, and bounded
+mutation chunks. It should not be expected to complete every expensive
+multi-hundred-record operation inside one long synchronous HTTP request.
+
+For large or heavy changes, make the server own the execution:
+
+- Use an existing job-style REST workflow when one exists, such as
+  `imports/preview -> imports/start -> imports/{job_id}/process ->
+  imports/{job_id}/result`.
+- Use WP-CLI when Codex has trusted shell access and the work can run entirely
+  server-side.
+- Add a purpose-built REST job wrapper when Codex only has WordPress
+  credentials but the work is too expensive for one request. The REST request
+  should start or advance a server-side job; the job should checkpoint progress
+  and expose machine-readable status and results.
+
+This is a throughput and reliability boundary, not a limitation on Codex making
+bulk changes. Codex can still plan, dry-run, launch, monitor, and verify changes
+to hundreds of records. The important distinction is that PHP/WordPress should
+do heavyweight row processing in resumable chunks with durable state instead of
+holding one HTTP request open until the whole operation finishes.
+
+When adding a new bulk workflow, prefer this shape:
+
+- `dry_run` or preview first, with the exact matched count and representative
+  per-row decisions.
+- A start request that records operation name, scope, idempotency key or input
+  manifest hash, and the caller/lease context.
+- A process or background runner that handles bounded chunks, saves a cursor,
+  and can resume after timeout or disconnect.
+- A status/readback route with counts, current cursor, recent errors, and
+  whether the job is paused, failed, or complete.
+- A final result route with changed IDs, skipped IDs, warnings, errors,
+  before/after summaries, and follow-up verification hints.
+- Old-value guards or version checks where overwriting stale live data would be
+  risky.
+
 ## Recommended workflow
 
 For a normal Codex session against a live LL Tools site:
@@ -27,8 +68,8 @@ For a normal Codex session against a live LL Tools site:
 9. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
 10. Use the narrowest write route for the job, with `dry_run=true` first:
     `word-title-updates` for title-only maintenance, `word-helper-updates` for
-    helper/known-language translation repair, and `bulk-update` for small mixed
-    metadata edits.
+    helper/known-language translation repair, and `bulk-update` for bounded
+    mixed metadata edits.
 11. Re-run the same request without `dry_run` to apply changes. The server
     applies write batches in small chunks by default, so keep the returned
     `resume_state` and repeat until `batch.has_more` is false.
@@ -43,7 +84,11 @@ For a normal Codex session against a live LL Tools site:
     job is completed.
 15. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
     undo availability, and the import history entry ID.
-16. Delete or downgrade the temporary user when the session is complete.
+16. For a new workflow that needs to touch hundreds of rows and each row does
+    expensive validation, media work, taxonomy repair, cache rebuilding, or
+    cross-post recomputation, prefer a WP-CLI command or a job-style REST route
+    before adding a synchronous REST endpoint.
+17. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -76,6 +121,11 @@ the server with image, media, or metadata updates:
   long before retrying the exact same request.
 - REST-driven bundle imports process word images in smaller chunks than the
   wp-admin path.
+
+These caps are intentional live-site protection. They do not mean that REST
+automation is only useful for very small projects. For hundreds of records,
+drive repeated bounded chunks or a server-owned job and keep durable result
+state between calls.
 
 Check `GET /automation/status` for the live site's current `resource_guard`
 values before starting large work. Site owners can adjust the defaults with the
@@ -772,13 +822,18 @@ Use REST automation when:
 
 - Codex only has WordPress credentials, not SSH
 - you want to preserve the existing temp-user workflow
-- the task is wordset creation, metadata cleanup, or reporting
+- the task is wordset creation, metadata cleanup, reporting, dry-run planning,
+  job start/status/result polling, or bounded chunked writes
+- the heavy work already has a job-style route that checkpoints progress
 
-Use WP-CLI instead when:
+Use WP-CLI or a server-owned job instead when:
 
 - Codex has shell access to the server
 - the task needs local filesystem operations or direct command chaining
+- the task touches hundreds of rows and each row performs expensive validation,
+  media handling, taxonomy repair, cache rebuilding, or cross-post recomputing
 - you are running large maintenance flows entirely inside a trusted server shell
+- an operation would otherwise depend on one long synchronous HTTP request
 
 ## Common failure cases
 

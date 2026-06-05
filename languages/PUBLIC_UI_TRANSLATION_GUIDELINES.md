@@ -16,6 +16,14 @@ Full core translations such as Turkish and German can have their own
 language-specific guides. For tier-2 public UI work, this guide is the shared
 baseline.
 
+## Coverage Model
+
+Tier-2 locale readiness is measured against the public UI manifest, not the
+entire plugin source tree. A locale can pass with no missing public strings
+while still leaving admin-only, manager-only, or development-only strings
+untranslated. Use raw full-source missing counts only as discovery data, not as
+a release blocker for a learner/visitor public locale.
+
 ## Required Workflow
 
 1. Work from the manifest, not ad hoc file searches.

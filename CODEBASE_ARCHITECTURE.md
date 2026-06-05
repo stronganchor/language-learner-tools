@@ -482,6 +482,7 @@ Core settings live in `includes/admin/settings.php`:
 - Public dictionary requests should canonicalize noisy browse state early: `ll_dictionary_entry` wins over letter/browse state, `letter` collapses to `ll_dictionary_letter`, and private wordsets/entries must not leak through AJAX or direct-detail fallbacks.
 - Custom STT endpoints must stay wordset-scoped and validate both saved and request-time URLs against private/reserved hosts or resolved private IP ranges before proxying.
 - Automation REST write endpoints must keep server-side throttles/caps, serialized resource guards for expensive writes, and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site.
+- Treat REST automation as the control plane and server-side jobs/WP-CLI as the execution plane for heavy bulk work. New operations that touch hundreds of records and perform expensive validation, media handling, taxonomy repair, cache rebuilding, or cross-post recomputation should expose dry-run/readback/status/result surfaces and process bounded chunks with durable cursors instead of relying on one long synchronous HTTP request.
 - Offline export/sync payloads must preserve wordset scoping, quiz configuration, media proxy expectations, and prompt-card metadata needed by the shared flashcard runtime.
 - Frontend teacher-class `admin-post.php` actions must account for limited-role redirect handling so teachers are not bounced to the site home after valid class actions.
 

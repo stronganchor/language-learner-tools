@@ -109,12 +109,31 @@ decisions, and documentation upkeep.
      (`pt_BR`), Indonesian (`id_ID`), Korean (`ko_KR`), and Italian (`it_IT`).
      Keep using the manifest coverage checker and targeted browser smoke checks
      when changing public locale coverage.
+   - For tier-2 public locales, release readiness is based on the public UI
+     manifest, not raw full-plugin PO absence counts. A locale can have complete
+     learner/visitor coverage while still omitting admin-only or manager-only
+     strings outside `tier2-public-ui-sources.php`.
    - Planned tier-2 locales without PO files remain Chinese Simplified
      (`zh_CN`), Arabic (`ar`), and Bengali (`bn_BD`). Add them deliberately from
      the manifest workflow rather than treating their missing files as ordinary
      active-locale regressions.
    - Expand `[ll_language_switcher]` display modes for larger tier-2 language
      sets, including compact icon/button triggers and a dropdown or modal list.
+
+5. Formalize a generic bulk-operation job framework.
+   - Existing REST automation works well as a control plane for reports, dry
+     runs, bounded writes, and import job polling, while WP-CLI works well for
+     trusted server-side maintenance.
+   - The next step is a reusable job pattern for heavy live operations where
+     Codex may only have WordPress credentials but the work should still run in
+     durable server-owned chunks.
+   - A generic framework should record operation name, scope, caller/lease
+     context, input manifest hash or idempotency key, cursor, progress counts,
+     recent errors, per-row results, and final readback hints.
+   - Use it for future workflows that touch hundreds of rows and perform
+     expensive validation, media handling, taxonomy repair, cache rebuilding, or
+     cross-post recomputation instead of adding one long synchronous REST
+     request per operation.
 
 ## Lower Priority
 

@@ -137,6 +137,12 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 For Codex/operator workflows, LL Tools now exposes plugin-owned WP-CLI commands under `wp ll-tools ...` so common maintenance no longer has to drive `wp-admin` forms or AJAX.
 
+Use WP-CLI as the execution plane for trusted server-side maintenance,
+especially when a task touches hundreds of rows and each row performs expensive
+validation, media work, taxonomy repair, cache rebuilding, or filesystem access.
+Keep using dry runs, resume files, and summary files so Codex can review and
+verify the work.
+
 Use hyphenated subcommands such as `wordset-report`; underscore variants remain
 available as compatibility aliases.
 
@@ -159,6 +165,11 @@ If you want to keep a temp WordPress admin or manager user workflow instead of
 server shell access, LL Tools also exposes REST automation routes under
 `/wp-json/ll-tools/v1/...`.
 
+REST automation is the control plane: use it for status checks, reports, dry
+runs, job start/status/result calls, cache purges, and bounded mutation chunks.
+For large expensive operations, prefer an existing job-style route, a new
+server-side job wrapper, or WP-CLI rather than one long synchronous HTTP request.
+
 These routes support:
 
 - logged-in browser sessions with REST nonce
@@ -173,7 +184,9 @@ curl -u codex-temp:YOUR_PASSWORD https://example.com/wp-json/ll-tools/v1/wordset
 curl -u codex-temp:YOUR_PASSWORD "https://example.com/wp-json/ll-tools/v1/wordsets/spanish/missing-meta?fields=part_of_speech,grammatical_gender"
 ```
 
-See [docs/REST_AUTOMATION.md](docs/REST_AUTOMATION.md) for the full route list, request bodies, auth notes, and bulk-update/resume examples.
+See [docs/REST_AUTOMATION.md](docs/REST_AUTOMATION.md) for the full route list,
+request bodies, auth notes, bulk-update/resume examples, and the REST control
+plane versus server-side execution model.
 
 For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
 `curl` cannot reach the Windows-hosted Local listener directly.

@@ -15,6 +15,20 @@ aliases.
 - Uses wordset slugs/names/IDs and word slugs/titles/IDs instead of brittle DOM selectors.
 - Supports dry runs, machine-readable summaries, and resumable bulk work.
 
+## Bulk and long-running work
+
+WP-CLI is the preferred execution surface when Codex has trusted server shell
+access and the operation is too heavy for one synchronous HTTP request. Use it
+for maintenance that touches hundreds of rows and performs expensive validation,
+media work, taxonomy repair, cache rebuilding, filesystem access, or direct
+command chaining.
+
+REST automation can still be the control plane for live Codex sessions that only
+have WordPress credentials, but heavy work should be implemented as bounded
+chunks or a server-owned job with durable progress and result files. Do not add a
+new REST endpoint that scans and mutates a large live dataset in one request when
+a WP-CLI command or job-style REST wrapper would make the operation resumable.
+
 ## Running commands
 
 From the plugin root, use either the helper script:
