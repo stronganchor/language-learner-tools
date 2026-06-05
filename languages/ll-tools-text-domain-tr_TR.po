@@ -26534,3 +26534,87 @@ msgstr "Desteklenmeyen yazım dönüşüm profili."
 #: includes/api/automation-rest.php:3546
 msgid "Manual orthography rules must be an object keyed by IPA segment."
 msgstr "Manuel yazım kuralları IPA segmentine göre anahtarlanmış bir nesne olmalıdır."
+
+#: includes/admin/ipa-keyboard-admin.php:343
+msgid "Loading more..."
+msgstr "Daha fazlası yükleniyor..."
+
+#: includes/admin/ipa-keyboard-admin.php:400
+msgid "Opening word editor..."
+msgstr "Kelime düzenleyici açılıyor..."
+
+#: includes/admin/ipa-keyboard-admin.php:401
+msgid "Word editor opened."
+msgstr "Kelime düzenleyici açıldı."
+
+#: includes/admin/ipa-keyboard-admin.php:402 includes/shortcodes/word-grid-shortcode.php:3591 includes/shortcodes/word-grid-shortcode.php:3592 includes/shortcodes/word-grid-shortcode.php:3666
+msgid "Unable to open the word editor."
+msgstr "Kelime düzenleyici açılamadı."
+
+#: includes/admin/ipa-keyboard-admin.php:403
+msgid "Wait for the current save to finish before opening the word editor."
+msgstr "Kelime düzenleyiciyi açmadan önce mevcut kaydetme işleminin bitmesini bekle."
+
+#: includes/admin/ipa-keyboard-admin.php:404
+msgid "Transcription rows updated."
+msgstr "Transkripsiyon satırları güncellendi."
+
+#: includes/admin/ipa-keyboard-admin.php:413
+msgid "Show %s"
+msgstr "%s göster"
+
+#: includes/admin/ipa-keyboard-admin.php:6190
+msgid "Saved text does not match the current orthography rules."
+msgstr "Kaydedilen metin geçerli yazım kurallarıyla eşleşmiyor."
+
+#: includes/api/automation-rest.php:1726
+msgid "Dictionary entry ID must be a positive integer, or 0 to unlink."
+msgstr "Sözlük girişi kimliği pozitif bir tam sayı veya bağlantıyı kaldırmak için 0 olmalıdır."
+
+#: includes/api/automation-rest.php:1734
+msgid "Invalid dictionary entry ID."
+msgstr "Geçersiz sözlük girişi kimliği."
+
+#: includes/api/automation-rest.php:1884
+msgid "Use field=word_translation, field=word_english_meaning, or field=dictionary_entry_id with value."
+msgstr "value ile birlikte field=word_translation, field=word_english_meaning veya field=dictionary_entry_id kullan."
+
+#: includes/api/automation-rest.php:1946
+msgid "Missing helper translation or dictionary entry value."
+msgstr "Yardımcı çeviri veya sözlük girişi değeri eksik."
+
+#: includes/api/automation-rest.php:4092
+msgid "Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead."
+msgstr "Yazım dönüştürme profilleri artık desteklenmiyor. Bunun yerine kelime seti düzeyindeki yazım ayarlarını yapılandır."
+
+#: includes/api/automation-rest.php:4154
+msgid "Orthography settings must be an object."
+msgstr "Yazım ayarları bir nesne olmalıdır."
+
+#: includes/api/automation-rest.php:4223
+msgid "Orthography exception word IDs must be an array."
+msgstr "Yazım istisnası kelime kimlikleri bir dizi olmalıdır."
+
+#: includes/api/automation-rest.php:4235
+msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
+msgstr "Yazım istisnası sözlük girişi kimlikleri, anahtarı kelime kimliği olan bir nesne olmalıdır."
+
+#: includes/pages/vocab-lesson-pages.php:4281
+msgid "Dismiss"
+msgstr "Kapat"
+
+#: includes/pages/vocab-lesson-pages.php:4358
+msgid "You do not have permission to dismiss vocab lesson page notices."
+msgstr "Kelime dersi sayfası bildirimlerini kapatma iznin yok."
+
+#: includes/shortcodes/dictionary-shortcode.php:2326
+msgid "Too many dictionary searches. Please wait a moment and try again."
+msgstr "Çok fazla sözlük araması yapıldı. Lütfen biraz bekleyip yeniden dene."
+
+#: includes/shortcodes/word-grid-shortcode.php:3593
+msgid "Word editor modal is not available on this page."
+msgstr "Kelime düzenleyici penceresi bu sayfada kullanılamıyor."
+
+#: includes/shortcodes/word-grid-shortcode.php:3653
+msgid "Invalid word editor context."
+msgstr "Geçersiz kelime düzenleyici bağlamı."

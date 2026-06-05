@@ -3693,3 +3693,8 @@ msgstr "शब्दों और क्विज़ फ़िल्टर क�
 #: includes/admin/admin-dashboard-menu.php:338 includes/admin/admin-dashboard-menu.php:778 includes/admin/admin-dashboard-menu.php:779 includes/taxonomies/word-category-taxonomy.php:582 includes/taxonomies/word-category-taxonomy.php:587
 msgid "Word Categories"
 msgstr "शब्द श्रेणियाँ"
+
+#. ll-tools-public-key: 8513b0a119c81ab4a45465f6eb211a9ceaf4fe30
+#: includes/shortcodes/dictionary-shortcode.php:2326
+msgid "Too many dictionary searches. Please wait a moment and try again."
+msgstr "बहुत सारी शब्दकोश खोजें की गई हैं। कृपया थोड़ा इंतज़ार करके फिर कोशिश करें।"

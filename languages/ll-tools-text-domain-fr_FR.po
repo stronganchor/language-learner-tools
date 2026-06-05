@@ -3693,3 +3693,8 @@ msgstr "Gérez le groupement principal des ensembles pour les mots et les filtre
 #: includes/admin/admin-dashboard-menu.php:338 includes/admin/admin-dashboard-menu.php:778 includes/admin/admin-dashboard-menu.php:779 includes/taxonomies/word-category-taxonomy.php:582 includes/taxonomies/word-category-taxonomy.php:587
 msgid "Word Categories"
 msgstr "Catégories de mots"
+
+#. ll-tools-public-key: 8513b0a119c81ab4a45465f6eb211a9ceaf4fe30
+#: includes/shortcodes/dictionary-shortcode.php:2326
+msgid "Too many dictionary searches. Please wait a moment and try again."
+msgstr "Trop de recherches dans le dictionnaire. Patiente un instant, puis réessaie."

@@ -3686,3 +3686,8 @@ msgstr "단어 및 퀴즈 필터의 기본 세트 그룹을 관리합니다."
 #: includes/admin/admin-dashboard-menu.php:338 includes/admin/admin-dashboard-menu.php:778 includes/admin/admin-dashboard-menu.php:779 includes/taxonomies/word-category-taxonomy.php:582 includes/taxonomies/word-category-taxonomy.php:587
 msgid "Word Categories"
 msgstr "단어 카테고리"
+
+#. ll-tools-public-key: 8513b0a119c81ab4a45465f6eb211a9ceaf4fe30
+#: includes/shortcodes/dictionary-shortcode.php:2326
+msgid "Too many dictionary searches. Please wait a moment and try again."
+msgstr "사전 검색이 너무 많습니다. 잠시 기다린 후 다시 시도하세요."

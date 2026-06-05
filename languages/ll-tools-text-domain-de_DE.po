@@ -26700,3 +26700,87 @@ msgstr "Nicht unterstütztes Orthografie-Konvertierungsprofil."
 #: includes/api/automation-rest.php:3546
 msgid "Manual orthography rules must be an object keyed by IPA segment."
 msgstr "Manuelle Orthografieregeln müssen ein Objekt sein, das nach IPA-Segmenten indexiert ist."
+
+#: includes/admin/ipa-keyboard-admin.php:343
+msgid "Loading more..."
+msgstr "Weitere werden geladen..."
+
+#: includes/admin/ipa-keyboard-admin.php:400
+msgid "Opening word editor..."
+msgstr "Vokabeleditor wird geöffnet..."
+
+#: includes/admin/ipa-keyboard-admin.php:401
+msgid "Word editor opened."
+msgstr "Vokabeleditor geöffnet."
+
+#: includes/admin/ipa-keyboard-admin.php:402 includes/shortcodes/word-grid-shortcode.php:3591 includes/shortcodes/word-grid-shortcode.php:3592 includes/shortcodes/word-grid-shortcode.php:3666
+msgid "Unable to open the word editor."
+msgstr "Vokabeleditor konnte nicht geöffnet werden."
+
+#: includes/admin/ipa-keyboard-admin.php:403
+msgid "Wait for the current save to finish before opening the word editor."
+msgstr "Warte, bis der aktuelle Speichervorgang abgeschlossen ist, bevor du den Vokabeleditor öffnest."
+
+#: includes/admin/ipa-keyboard-admin.php:404
+msgid "Transcription rows updated."
+msgstr "Transkriptionszeilen aktualisiert."
+
+#: includes/admin/ipa-keyboard-admin.php:413
+msgid "Show %s"
+msgstr "%s anzeigen"
+
+#: includes/admin/ipa-keyboard-admin.php:6190
+msgid "Saved text does not match the current orthography rules."
+msgstr "Gespeicherter Text entspricht nicht den aktuellen Orthografieregeln."
+
+#: includes/api/automation-rest.php:1726
+msgid "Dictionary entry ID must be a positive integer, or 0 to unlink."
+msgstr "Die Wörterbucheintrag-ID muss eine positive Ganzzahl sein oder 0, um die Verknüpfung aufzuheben."
+
+#: includes/api/automation-rest.php:1734
+msgid "Invalid dictionary entry ID."
+msgstr "Ungültige Wörterbucheintrag-ID."
+
+#: includes/api/automation-rest.php:1884
+msgid "Use field=word_translation, field=word_english_meaning, or field=dictionary_entry_id with value."
+msgstr "Verwende field=word_translation, field=word_english_meaning oder field=dictionary_entry_id zusammen mit value."
+
+#: includes/api/automation-rest.php:1946
+msgid "Missing helper translation or dictionary entry value."
+msgstr "Hilfsübersetzung oder Wörterbucheintragswert fehlt."
+
+#: includes/api/automation-rest.php:4092
+msgid "Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead."
+msgstr "Orthografie-Konvertierungsprofile werden nicht mehr unterstützt. Konfiguriere stattdessen Orthografieeinstellungen auf Vokabelset-Ebene."
+
+#: includes/api/automation-rest.php:4154
+msgid "Orthography settings must be an object."
+msgstr "Orthografieeinstellungen müssen ein Objekt sein."
+
+#: includes/api/automation-rest.php:4223
+msgid "Orthography exception word IDs must be an array."
+msgstr "Vokabel-IDs für Orthografieausnahmen müssen ein Array sein."
+
+#: includes/api/automation-rest.php:4235
+msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
+msgstr "Wörterbucheintrag-IDs für Orthografieausnahmen müssen ein Objekt mit Vokabel-ID als Schlüssel sein."
+
+#: includes/pages/vocab-lesson-pages.php:4281
+msgid "Dismiss"
+msgstr "Schließen"
+
+#: includes/pages/vocab-lesson-pages.php:4358
+msgid "You do not have permission to dismiss vocab lesson page notices."
+msgstr "Du hast keine Berechtigung, Hinweise auf Vokabellektionsseiten zu schließen."
+
+#: includes/shortcodes/dictionary-shortcode.php:2326
+msgid "Too many dictionary searches. Please wait a moment and try again."
+msgstr "Zu viele Wörterbuchsuchen. Bitte warte einen Moment und versuche es erneut."
+
+#: includes/shortcodes/word-grid-shortcode.php:3593
+msgid "Word editor modal is not available on this page."
+msgstr "Der Vokabeleditor-Dialog ist auf dieser Seite nicht verfügbar."
+
+#: includes/shortcodes/word-grid-shortcode.php:3653
+msgid "Invalid word editor context."
+msgstr "Ungültiger Vokabeleditor-Kontext."
