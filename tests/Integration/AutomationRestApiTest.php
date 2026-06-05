@@ -2180,6 +2180,76 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_import_rest_process_locked_job_returns_retry_without_pausing(): void
+    {
+        $admin_id = self::factory()->user->create([
+            'role' => 'administrator',
+            'user_login' => 'lltools-import-lock-rest-admin',
+            'user_pass' => 'TempPass!789',
+        ]);
+
+        $job_id = 'rest-import-lock-' . strtolower(wp_generate_password(8, false, false));
+        $job = [
+            'id' => $job_id,
+            'status' => 'running',
+            'phase' => 'extract',
+            'created_at' => time(),
+            'updated_at' => time(),
+            'user_id' => $admin_id,
+            'extract_index' => 0,
+            'extract_total' => 1,
+            'payload_counts' => [],
+            'error_message' => '',
+            'result' => ll_tools_import_job_default_result(),
+        ];
+        ll_tools_import_job_save($job_id, $job);
+        ll_tools_import_job_set_active_id($job_id);
+
+        $auth_server = [
+            'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-import-lock-rest-admin:TempPass!789'),
+            'HTTP_HOST' => '127.0.0.1:10036',
+        ];
+        $guard_delay = static function (): float {
+            return 0.1;
+        };
+        $lock = ll_tools_import_job_process_lock_acquire($job_id, $job);
+        $this->assertNotWPError($lock);
+        $this->assertIsArray($lock);
+        $lock_owner = (string) ($lock['owner'] ?? '');
+
+        add_filter('ll_tools_rest_resource_guard_delay_seconds', $guard_delay);
+        try {
+            $response = $this->dispatch_ll_tools_rest_request_with_guard_retry(
+                'POST',
+                '/ll-tools/v1/imports/' . rawurlencode($job_id) . '/process',
+                [],
+                $auth_server,
+                true
+            );
+
+            $this->assertSame(429, $response->get_status());
+            $data = $response->get_data();
+            $this->assertIsArray($data);
+            $this->assertSame('ll_tools_import_job_process_locked', (string) ($data['code'] ?? ''));
+            $error_data = is_array($data['data'] ?? null) ? $data['data'] : [];
+            $this->assertTrue((bool) ($error_data['locked'] ?? false));
+            $this->assertGreaterThan(0, (float) ($error_data['retry_after_seconds'] ?? 0));
+            $response_job = is_array($error_data['job'] ?? null) ? $error_data['job'] : [];
+            $this->assertSame('running', (string) ($response_job['status'] ?? ''));
+
+            $saved_job = ll_tools_import_job_get($job_id);
+            $this->assertIsArray($saved_job);
+            $this->assertSame('running', (string) ($saved_job['status'] ?? ''));
+            $this->assertSame('', (string) ($saved_job['error_message'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_rest_resource_guard_delay_seconds', $guard_delay);
+            ll_tools_import_job_process_lock_release($job_id, $lock_owner);
+            ll_tools_import_job_delete($job_id, $admin_id);
+            delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
+            delete_user_meta($admin_id, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+        }
+    }
+
     /**
      * @param array<string,mixed> $params
      * @param array<string,string> $server_overrides

@@ -568,6 +568,63 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_ajax_import_process_locked_job_returns_retry_without_pausing(): void
+    {
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $jobId = 'ajax-import-lock-' . strtolower(wp_generate_password(8, false, false));
+        $job = [
+            'id' => $jobId,
+            'status' => 'running',
+            'phase' => 'extract',
+            'created_at' => time(),
+            'updated_at' => time(),
+            'extract_index' => 0,
+            'extract_total' => 1,
+            'payload_counts' => [],
+            'error_message' => '',
+            'result' => ll_tools_import_job_default_result(),
+        ];
+        ll_tools_import_job_save($jobId, $job);
+        ll_tools_import_job_set_active_id($jobId);
+
+        $lock = ll_tools_import_job_process_lock_acquire($jobId, $job);
+        $this->assertNotWPError($lock);
+        $this->assertIsArray($lock);
+        $lockOwner = (string) ($lock['owner'] ?? '');
+
+        try {
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_job_ajax'),
+                'action' => 'll_tools_import_process_job',
+                'job_id' => $jobId,
+            ];
+            $_REQUEST = $_POST;
+
+            $processResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_process_job();
+            });
+
+            $this->assertFalse((bool) ($processResponse['success'] ?? true));
+            $responseData = is_array($processResponse['data'] ?? null) ? $processResponse['data'] : [];
+            $this->assertTrue((bool) ($responseData['locked'] ?? false));
+            $this->assertGreaterThan(0, (float) ($responseData['retry_after_seconds'] ?? 0));
+            $responseJob = is_array($responseData['job'] ?? null) ? $responseData['job'] : [];
+            $this->assertSame('running', (string) ($responseJob['status'] ?? ''));
+
+            $savedJob = ll_tools_import_job_get($jobId);
+            $this->assertIsArray($savedJob);
+            $this->assertSame('running', (string) ($savedJob['status'] ?? ''));
+            $this->assertSame('', (string) ($savedJob['error_message'] ?? ''));
+        } finally {
+            ll_tools_import_job_process_lock_release($jobId, $lockOwner);
+            ll_tools_import_job_delete($jobId, $adminId);
+            delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
+            delete_user_meta($adminId, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+        }
+    }
+
     public function test_ajax_import_job_can_discard_paused_partial_import(): void
     {
         if (!class_exists('ZipArchive')) {

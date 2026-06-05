@@ -343,6 +343,7 @@
                 }
                 var error = new Error(message || ('request_failed_' + response.status));
                 error.payload = payload && payload.data ? payload.data : {};
+                error.status = response.status;
                 throw error;
             }
 
@@ -413,6 +414,7 @@
 
         var adminConfig = getAdminUiConfig();
         var config = getProcessingScreenConfig(adminConfig, 'import');
+        var importPollDelayMs = 500;
         if (!adminConfig.ajaxUrl || !adminConfig.importStartAction || !adminConfig.importProcessAction || !adminConfig.importJobNonce) {
             return;
         }
@@ -513,6 +515,56 @@
             updateProcessingProgress(screen, NaN);
         }
 
+        function getLockedRetryDelayMs(error) {
+            var retryAfterSeconds = Number(error && error.payload ? error.payload.retry_after_seconds : 0);
+            if (!isFinite(retryAfterSeconds) || retryAfterSeconds <= 0) {
+                retryAfterSeconds = 1;
+            }
+
+            return Math.max(1000, Math.min(30000, Math.ceil(retryAfterSeconds * 1000)));
+        }
+
+        function isImportProcessLocked(error) {
+            return Boolean(error && error.payload && error.payload.locked === true);
+        }
+
+        function scheduleRunJob(jobId, screen, form, submitButtons, delayMs) {
+            window.setTimeout(function () {
+                runJob(jobId, screen, form, submitButtons).catch(function (error) {
+                    handleRunJobError(jobId, screen, form, submitButtons, error);
+                });
+            }, Math.max(250, delayMs));
+        }
+
+        function handleRunJobError(jobId, screen, form, submitButtons, error) {
+            var payloadJob = error && error.payload && error.payload.job ? error.payload.job : null;
+
+            if (isImportProcessLocked(error)) {
+                if (payloadJob) {
+                    applyJobSnapshot(payloadJob, screen);
+                }
+                if (screen.error) {
+                    screen.error.hidden = true;
+                    screen.error.textContent = '';
+                }
+                if (screen.status && error && error.message) {
+                    screen.status.textContent = error.message;
+                }
+                setProcessingActionButton(screen, '', null);
+                setProcessingDiscardButton(screen, '', null);
+                scheduleRunJob(jobId, screen, form, submitButtons, getLockedRetryDelayMs(error));
+                return;
+            }
+
+            if (payloadJob) {
+                applyJobSnapshot(payloadJob, screen);
+                bindPausedActions(payloadJob, screen, form, submitButtons);
+                return;
+            }
+
+            setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
+        }
+
         function discardJob(jobId, screen) {
             var discardData = new FormData();
             discardData.set('action', adminConfig.importDiscardAction);
@@ -561,13 +613,7 @@
                 }
                 setProcessingDiscardButton(screen, '', null);
                 runJob(job.id, screen, form, submitButtons).catch(function (error) {
-                    var pausedJob = error && error.payload && error.payload.job ? error.payload.job : null;
-                    if (pausedJob) {
-                        applyJobSnapshot(pausedJob, screen);
-                        bindPausedActions(pausedJob, screen, form, submitButtons);
-                        return;
-                    }
-                    setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
+                    handleRunJobError(job.id, screen, form, submitButtons, error);
                 });
             };
             var discardAction = function () {
@@ -631,15 +677,9 @@
 
                 window.setTimeout(function () {
                     runJob(jobId, screen, form, submitButtons).catch(function (error) {
-                        var pausedJob = error && error.payload && error.payload.job ? error.payload.job : null;
-                        if (pausedJob) {
-                            applyJobSnapshot(pausedJob, screen);
-                            bindPausedActions(pausedJob, screen, form, submitButtons);
-                            return;
-                        }
-                        setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
+                        handleRunJobError(jobId, screen, form, submitButtons, error);
                     });
-                }, 40);
+                }, importPollDelayMs);
             });
         }
 
@@ -682,7 +722,7 @@
                         return;
                     }
                     runJob(activeJob.id, screen, form, submitButtons).catch(function (runError) {
-                        setFailureState(form, submitButtons, screen, runError && runError.message ? runError.message : config.processingFailed);
+                        handleRunJobError(activeJob.id, screen, form, submitButtons, runError);
                     });
                     return;
                 }
@@ -717,13 +757,7 @@
             }
 
             runJob(job.id, screen, null, []).catch(function (error) {
-                var pausedJob = error && error.payload && error.payload.job ? error.payload.job : null;
-                if (pausedJob) {
-                    applyJobSnapshot(pausedJob, screen);
-                    bindPausedActions(pausedJob, screen, null, []);
-                    return;
-                }
-                setFailureState(null, [], screen, error && error.message ? error.message : config.processingFailed);
+                handleRunJobError(job.id, screen, null, [], error);
             });
         }
 

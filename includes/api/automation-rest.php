@@ -5604,8 +5604,24 @@ function ll_tools_rest_automation_import_process(WP_REST_Request $request) {
         $job['error_message'] = '';
     }
 
-    $processed_job = ll_tools_import_job_process($job);
+    $processed_job = ll_tools_import_job_process_with_lock($job);
     if (is_wp_error($processed_job)) {
+        if (ll_tools_import_job_is_process_lock_error($processed_job)) {
+            $error_data = $processed_job->get_error_data();
+            $error_data = is_array($error_data) ? $error_data : [];
+
+            return new WP_Error(
+                'll_tools_import_job_process_locked',
+                $processed_job->get_error_message(),
+                [
+                    'status' => 429,
+                    'job' => ll_tools_import_job_get_snapshot($job),
+                    'locked' => true,
+                    'retry_after_seconds' => (float) ($error_data['retry_after_seconds'] ?? 1.0),
+                ]
+            );
+        }
+
         $job = ll_tools_import_job_pause($job, $processed_job->get_error_message());
         $job = ll_tools_import_job_save($job_id, $job);
 
