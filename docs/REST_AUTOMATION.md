@@ -84,11 +84,15 @@ For a normal Codex session against a live LL Tools site:
     job is completed.
 15. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
     undo availability, and the import history entry ID.
-16. For a new workflow that needs to touch hundreds of rows and each row does
+16. For LL Tools dev-channel plugin updates, call
+    `POST /automation/plugin-update` with `dry_run=true` first. Apply only with
+    `dry_run=false`, `confirm=true`, and `expected_current_version` set to the
+    version you just observed from status/readback.
+17. For a new workflow that needs to touch hundreds of rows and each row does
     expensive validation, media work, taxonomy repair, cache rebuilding, or
     cross-post recomputation, prefer a WP-CLI command or a job-style REST route
     before adding a synchronous REST endpoint.
-17. Delete or downgrade the temporary user when the session is complete.
+18. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -116,6 +120,9 @@ the server with image, media, or metadata updates:
 - Basic-auth automation writes that can mutate or rebuild larger LL Tools
   surfaces are also serialized, including static-cache purge, wordset writes,
   import preview/start/process/discard, and corpus-text asset/import routes.
+- Plugin update automation is also serialized. It supports the fixed Strong
+  Anchor GitHub dev branch package only, defaults to dry-run, and requires
+  explicit confirmation for writes.
 - The guarded routes return HTTP `429` with `Retry-After` and
   `data.retry_after_seconds` when another automation write just ran. Wait that
   long before retrying the exact same request.
@@ -182,6 +189,7 @@ Base namespace:
 Routes:
 
 - `GET /automation/status`
+- `POST /automation/plugin-update`
 - `POST /cache/static/purge`
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
@@ -265,6 +273,31 @@ Check auth and route availability:
 ```bash
 curl -u codex-temp:YOUR_PASSWORD \
   https://example.com/wp-json/ll-tools/v1/automation/status
+```
+
+Dry-run a dev-channel LL Tools plugin update:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/automation/plugin-update \
+  -d '{ "dry_run": true }'
+```
+
+Apply the same update after checking the dry-run payload:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/automation/plugin-update \
+  -d '{
+    "dry_run": false,
+    "confirm": true,
+    "expected_current_version": "6.5.27",
+    "expected_version": "6.5.28"
+  }'
 ```
 
 Clear stale LL dictionary/public static HTML caches:
@@ -482,6 +515,32 @@ curl -u codex-temp:YOUR_PASSWORD \
 
 Returns the authenticated user, auth mode, LL Tools capability checks, and the
 available automation routes. Use this as the first smoke test on a live site.
+
+### `POST /automation/plugin-update`
+
+Runs a guarded LL Tools dev-channel plugin update through WordPress'
+`Plugin_Upgrader`.
+
+Body fields:
+
+- `dry_run` optional boolean, default `true`
+- `confirm` optional boolean, required as `true` when `dry_run=false`
+- `channel` optional, default `dev`; `configured` and `current` are accepted but
+  currently must resolve to `dev`
+- `expected_current_version` optional precondition checked before any download
+- `expected_version` optional post-update expectation returned in the response
+
+The route is intentionally narrow: it only uses the fixed Strong Anchor GitHub
+dev branch package URL, never an arbitrary caller-provided URL. Dry-runs return
+the currently loaded/file version, plugin key, package URL, and confirmation
+requirements without downloading anything. Real writes require an administrator
+with `update_plugins` and `view_ll_tools`, use WordPress' standard plugin
+upgrader path with temporary updater backups, and return the before/after file
+versions plus upgrader messages.
+
+This route cannot bootstrap itself onto an older live site. Use wp-admin upload,
+WordPress' normal updater, or a one-time server-side replacement to install the
+first LL Tools version that contains it.
 
 ### `POST /wordsets`
 

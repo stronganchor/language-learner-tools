@@ -390,6 +390,23 @@ function ll_tools_rest_automation_require_static_cache_purge_access() {
     return true;
 }
 
+function ll_tools_rest_automation_require_plugin_update_access() {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    if (!function_exists('ll_tools_user_can_manage_plugin_updates') || !ll_tools_user_can_manage_plugin_updates()) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_plugin_update_forbidden',
+            __('You are not allowed to update LL Tools on this site.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return true;
+}
+
 function ll_tools_rest_automation_request_string(WP_REST_Request $request, string $key): string {
     $value = $request->get_param($key);
     if (!is_scalar($value)) {
@@ -670,6 +687,10 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/wp/v2/users/me') {
         $resource = 'wp_users_me';
         $delay_seconds = 2.0;
+    } elseif ($route === '/ll-tools/v1/automation/plugin-update') {
+        $resource = 'll_tools_plugin_update';
+        $delay_seconds = 10.0;
+        $lock_ttl_seconds = 300.0;
     } elseif ($is_read && preg_match('#^/ll-tools/v1/imports/[^/]+(/result)?$#', $route, $matches)) {
         $resource = empty($matches[1]) ? 'll_tools_import_status' : 'll_tools_import_result';
         $delay_seconds = 3.0;
@@ -921,10 +942,13 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'edit_posts' => current_user_can('edit_posts'),
             'edit_wordsets' => current_user_can('edit_wordsets'),
             'manage_options' => current_user_can('manage_options'),
+            'update_plugins' => current_user_can('update_plugins'),
+            'manage_plugin_updates' => function_exists('ll_tools_user_can_manage_plugin_updates') ? ll_tools_user_can_manage_plugin_updates() : false,
             'purge_static_cache' => function_exists('ll_tools_current_user_can_purge_static_cache') ? ll_tools_current_user_can_purge_static_cache() : current_user_can('manage_options'),
         ],
         'routes' => [
             'status' => '/ll-tools/v1/automation/status',
+            'plugin_update' => '/ll-tools/v1/automation/plugin-update',
             'static_cache_purge' => '/ll-tools/v1/cache/static/purge',
             'create_wordset' => '/ll-tools/v1/wordsets',
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
@@ -991,6 +1015,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/wp/v2/words',
             ],
             'automation_write_routes' => [
+                '/ll-tools/v1/automation/plugin-update',
                 '/ll-tools/v1/cache/static/purge',
                 '/ll-tools/v1/wordsets',
                 '/ll-tools/v1/wordsets/{wordset}/bulk-update',
@@ -1055,6 +1080,242 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'rest_import_word_image_chunk_size' => (int) apply_filters('ll_tools_rest_import_word_image_chunk_size', 8),
         ],
     ]);
+}
+
+function ll_tools_rest_automation_plugin_update_read_plugin_data(): array {
+    if (!function_exists('get_plugin_data') && defined('ABSPATH')) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    }
+
+    $data = [];
+    if (function_exists('get_plugin_data')) {
+        $data = get_plugin_data(LL_TOOLS_MAIN_FILE, false, false);
+    } elseif (function_exists('get_file_data')) {
+        $data = get_file_data(LL_TOOLS_MAIN_FILE, [
+            'Name' => 'Plugin Name',
+            'Version' => 'Version',
+            'TextDomain' => 'Text Domain',
+        ], 'plugin');
+    }
+
+    return [
+        'name' => is_array($data) ? (string) ($data['Name'] ?? '') : '',
+        'version' => is_array($data) ? (string) ($data['Version'] ?? '') : '',
+        'text_domain' => is_array($data) ? (string) ($data['TextDomain'] ?? '') : '',
+    ];
+}
+
+function ll_tools_rest_automation_plugin_update_normalize_channel($channel): string {
+    $channel = sanitize_key(is_scalar($channel) ? (string) $channel : '');
+    if ($channel === '' || $channel === 'dev') {
+        return 'dev';
+    }
+
+    if (in_array($channel, ['configured', 'current'], true)) {
+        return function_exists('ll_tools_get_update_branch') ? ll_tools_get_update_branch() : 'main';
+    }
+
+    return $channel;
+}
+
+function ll_tools_rest_automation_plugin_update_package_url(string $channel): string {
+    if ($channel !== 'dev') {
+        return '';
+    }
+
+    return 'https://github.com/stronganchor/language-learner-tools/archive/refs/heads/dev.zip';
+}
+
+function ll_tools_rest_automation_plugin_update_validate_package_url(string $package_url): bool {
+    $parts = wp_parse_url($package_url);
+    if (!is_array($parts)) {
+        return false;
+    }
+
+    return strtolower((string) ($parts['scheme'] ?? '')) === 'https'
+        && strtolower((string) ($parts['host'] ?? '')) === 'github.com'
+        && (string) ($parts['path'] ?? '') === '/stronganchor/language-learner-tools/archive/refs/heads/dev.zip';
+}
+
+function ll_tools_rest_automation_plugin_update_plugin_file(): string {
+    $plugin_file = plugin_basename(LL_TOOLS_MAIN_FILE);
+    if ($plugin_file === '' || strpos($plugin_file, ':') !== false || strpos($plugin_file, '\\') !== false || substr($plugin_file, 0, 1) === '/') {
+        $plugin_file = basename(dirname(LL_TOOLS_MAIN_FILE)) . '/' . basename(LL_TOOLS_MAIN_FILE);
+    }
+
+    return $plugin_file;
+}
+
+function ll_tools_rest_automation_plugin_update_payload(string $channel, string $package_url, bool $dry_run, array $extra = []): array {
+    $plugin_data = ll_tools_rest_automation_plugin_update_read_plugin_data();
+
+    return array_merge([
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'performed_update' => false,
+        'channel' => $channel,
+        'supported_channels' => ['dev'],
+        'package_url' => $package_url,
+        'requires_confirm' => true,
+        'plugin' => [
+            'basename' => ll_tools_rest_automation_plugin_update_plugin_file(),
+            'directory' => basename(dirname(LL_TOOLS_MAIN_FILE)),
+            'loaded_version' => defined('LL_TOOLS_VERSION') ? LL_TOOLS_VERSION : '',
+            'installed_file_version' => (string) ($plugin_data['version'] ?? ''),
+            'name' => (string) ($plugin_data['name'] ?? ''),
+            'text_domain' => (string) ($plugin_data['text_domain'] ?? ''),
+        ],
+    ], $extra);
+}
+
+function ll_tools_rest_automation_plugin_update_error_from_upgrader($result, $skin, string $fallback_code, string $fallback_message): WP_Error {
+    if ($result instanceof WP_Error) {
+        $data = $result->get_error_data();
+        if (is_array($data)) {
+            $data['status'] = (int) ($data['status'] ?? 500);
+            return new WP_Error($result->get_error_code(), $result->get_error_message(), $data);
+        }
+
+        return new WP_Error($result->get_error_code(), $result->get_error_message(), ['status' => 500]);
+    }
+
+    $messages = [];
+    if (is_object($skin) && method_exists($skin, 'get_upgrade_messages')) {
+        $messages = array_values(array_map('wp_strip_all_tags', array_map('strval', (array) $skin->get_upgrade_messages())));
+    }
+
+    return new WP_Error($fallback_code, $fallback_message, [
+        'status' => 500,
+        'messages' => $messages,
+    ]);
+}
+
+function ll_tools_rest_automation_plugin_update(WP_REST_Request $request) {
+    $channel = ll_tools_rest_automation_plugin_update_normalize_channel($request->get_param('channel'));
+    $package_url = ll_tools_rest_automation_plugin_update_package_url($channel);
+    $dry_run = $request->has_param('dry_run') ? (bool) rest_sanitize_boolean($request->get_param('dry_run')) : true;
+
+    if ($package_url === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_plugin_update_unsupported_channel',
+            __('LL Tools automation updates currently support only the dev branch package.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    if (!ll_tools_rest_automation_plugin_update_validate_package_url($package_url)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_plugin_update_invalid_package',
+            __('The LL Tools automation update package URL failed the built-in allowlist check.', 'll-tools-text-domain'),
+            500
+        );
+    }
+
+    $before_plugin_data = ll_tools_rest_automation_plugin_update_read_plugin_data();
+    $before_version = (string) ($before_plugin_data['version'] ?? '');
+    $expected_current_version = trim(ll_tools_rest_automation_request_string($request, 'expected_current_version'));
+    if ($expected_current_version !== '' && $before_version !== $expected_current_version) {
+        return new WP_Error(
+            'll_tools_rest_plugin_update_current_version_mismatch',
+            __('The installed LL Tools version does not match the expected current version, so the automation update was not started.', 'll-tools-text-domain'),
+            [
+                'status' => 409,
+                'expected_current_version' => $expected_current_version,
+                'installed_file_version' => $before_version,
+            ]
+        );
+    }
+
+    if ($dry_run) {
+        return rest_ensure_response(ll_tools_rest_automation_plugin_update_payload($channel, $package_url, true));
+    }
+
+    $confirm = $request->has_param('confirm') ? (bool) rest_sanitize_boolean($request->get_param('confirm')) : false;
+    if (!$confirm) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_plugin_update_confirmation_required',
+            __('Set confirm=true and dry_run=false to update LL Tools through automation.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    if (!defined('ABSPATH')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_plugin_update_missing_abspath',
+            __('WordPress path constants are unavailable, so the plugin updater cannot run.', 'll-tools-text-domain'),
+            500
+        );
+    }
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/misc.php';
+    require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    require_once ABSPATH . 'wp-admin/includes/update.php';
+    require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+
+    $plugin_file = ll_tools_rest_automation_plugin_update_plugin_file();
+    $previous_transient = get_site_transient('update_plugins');
+    $update_transient = is_object($previous_transient) ? clone $previous_transient : new stdClass();
+    if (!isset($update_transient->response) || !is_array($update_transient->response)) {
+        $update_transient->response = [];
+    }
+
+    $expected_version = trim(ll_tools_rest_automation_request_string($request, 'expected_version'));
+    $update_transient->response[$plugin_file] = (object) [
+        'id' => 'github.com/stronganchor/language-learner-tools',
+        'slug' => 'language-learner-tools',
+        'plugin' => $plugin_file,
+        'new_version' => $expected_version !== '' ? $expected_version : 'dev',
+        'url' => 'https://github.com/stronganchor/language-learner-tools',
+        'package' => $package_url,
+    ];
+    set_site_transient('update_plugins', $update_transient, MINUTE_IN_SECONDS);
+
+    $skin = new Automatic_Upgrader_Skin();
+    $upgrader = new Plugin_Upgrader($skin);
+    $result = $upgrader->upgrade($plugin_file, ['clear_update_cache' => true]);
+    if ($result !== true) {
+        if (is_object($previous_transient)) {
+            set_site_transient('update_plugins', $previous_transient);
+        } else {
+            delete_site_transient('update_plugins');
+        }
+
+        return ll_tools_rest_automation_plugin_update_error_from_upgrader(
+            $result,
+            $skin,
+            'll_tools_rest_plugin_update_failed',
+            __('LL Tools plugin update failed.', 'll-tools-text-domain')
+        );
+    }
+
+    delete_site_transient('update_plugins');
+    if (function_exists('ll_tools_schedule_post_update_maintenance')) {
+        ll_tools_schedule_post_update_maintenance();
+    }
+
+    $messages = method_exists($skin, 'get_upgrade_messages')
+        ? array_values(array_map('wp_strip_all_tags', array_map('strval', (array) $skin->get_upgrade_messages())))
+        : [];
+    $after_plugin_data = ll_tools_rest_automation_plugin_update_read_plugin_data();
+    $after_version = (string) ($after_plugin_data['version'] ?? '');
+
+    return rest_ensure_response(ll_tools_rest_automation_plugin_update_payload($channel, $package_url, false, [
+        'performed_update' => true,
+        'before_version' => $before_version,
+        'after_version' => $after_version,
+        'expected_version' => $expected_version,
+        'expected_version_matched' => $expected_version === '' || $expected_version === $after_version,
+        'messages' => $messages,
+        'plugin' => [
+            'basename' => $plugin_file,
+            'directory' => basename(dirname(LL_TOOLS_MAIN_FILE)),
+            'loaded_version' => defined('LL_TOOLS_VERSION') ? LL_TOOLS_VERSION : '',
+            'installed_file_version' => $after_version,
+            'name' => (string) ($after_plugin_data['name'] ?? ''),
+            'text_domain' => (string) ($after_plugin_data['text_domain'] ?? ''),
+        ],
+    ]));
 }
 
 function ll_tools_rest_automation_purge_static_cache(WP_REST_Request $request) {
@@ -6588,6 +6849,38 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::READABLE,
         'callback' => 'll_tools_rest_automation_status',
         'permission_callback' => 'll_tools_rest_automation_require_view_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/automation/plugin-update', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_plugin_update',
+        'permission_callback' => 'll_tools_rest_automation_require_plugin_update_access',
+        'args' => [
+            'channel' => [
+                'required' => false,
+                'type' => 'string',
+                'default' => 'dev',
+                'enum' => ['dev', 'configured', 'current'],
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+            'confirm' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
+            ],
+            'expected_current_version' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'expected_version' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+        ],
     ]);
 
     register_rest_route('ll-tools/v1', '/cache/static/purge', [

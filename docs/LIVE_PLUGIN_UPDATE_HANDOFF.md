@@ -11,8 +11,15 @@ What happened:
 - The 6.3.3 release changed `ll_tools_configure_update_checker()` so release assets are required only for `main`; `dev` now returns immediately after setting the branch.
 - Because the broken code was already live, it could not bootstrap its own update. The update was completed through the normal WordPress upload flow: upload the packaged plugin zip, then confirm "Replace current with uploaded".
 
-Recommendation:
+Recommendation from that incident:
 
 - Do not build a custom REST plugin installer unless repeated live updates prove WordPress' native upload/replace flow is too slow. It is safer to keep plugin replacement in WordPress core.
 - It would be worth improving Site Tools diagnostics: after a manual update check, show the selected branch, current version, detected remote version if any, and any Plugin Update Checker API errors from `getLastRequestApiErrors()`. That would make future "No update detected" states debuggable without guessing.
 - Future dev-channel updates from 6.3.3+ should be tested through Site Tools first. If they still fail to detect, check PUC strategy selection and whether the GitHub token/private-repo access is available on the live site.
+
+Update after the June 2026 Zazacaogren live-maintenance incident:
+
+- Repeated wp-admin/Site Tools update attempts still left Codex dependent on WHM terminal access during live repairs, so LL Tools 6.5.27 adds a constrained REST updater at `POST /wp-json/ll-tools/v1/automation/plugin-update`.
+- This is not an arbitrary installer. It is admin-only, defaults to dry-run, requires `confirm=true` for writes, supports an `expected_current_version` precondition, and only points at the fixed Strong Anchor GitHub dev branch package.
+- It uses WordPress' normal `Plugin_Upgrader::upgrade()` flow instead of a hand-written recursive replacement, so core temporary updater backups and rollback behavior still apply.
+- The endpoint only helps after a live site already has the version that contains it. Older sites still need one manual WordPress upload/update or server-side replacement to bootstrap onto that version.

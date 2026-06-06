@@ -49,6 +49,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame($admin_id, (int) (($data['user']['id'] ?? 0)));
         $this->assertTrue(!empty($data['capabilities']['view_ll_tools']));
         $this->assertTrue(!empty($data['capabilities']['purge_static_cache']));
+        $this->assertTrue(!empty($data['capabilities']['update_plugins']));
+        $this->assertTrue(!empty($data['capabilities']['manage_plugin_updates']));
+        $this->assertSame('/ll-tools/v1/automation/plugin-update', (string) ($data['routes']['plugin_update'] ?? ''));
         $this->assertSame('/ll-tools/v1/cache/static/purge', (string) ($data['routes']['static_cache_purge'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/asset', (string) ($data['routes']['corpus_text_asset'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/import', (string) ($data['routes']['corpus_text_import'] ?? ''));
@@ -59,6 +62,59 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-updates', (string) ($data['routes']['word_category_updates'] ?? ''));
         $this->assertSame(5, (int) (($data['resource_guard']['word_category_updates_batch']['default_write_limit'] ?? 0)));
         $this->assertSame(10, (int) (($data['resource_guard']['word_category_updates_batch']['max_write_limit'] ?? 0)));
+    }
+
+    public function test_plugin_update_route_is_admin_only_and_defaults_to_dry_run(): void
+    {
+        $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
+        $viewer = get_user_by('id', $viewer_id);
+        $this->assertInstanceOf(WP_User::class, $viewer);
+        $viewer->add_cap('view_ll_tools');
+        clean_user_cache($viewer_id);
+        wp_set_current_user($viewer_id);
+
+        $blocked = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/automation/plugin-update');
+        $this->assertSame(403, $blocked->get_status());
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/automation/plugin-update');
+        $this->assertSame(200, $dry_run->get_status());
+        $data = $dry_run->get_data();
+        $this->assertIsArray($data);
+        $this->assertTrue((bool) ($data['dry_run'] ?? false));
+        $this->assertFalse((bool) ($data['performed_update'] ?? true));
+        $this->assertSame('dev', (string) ($data['channel'] ?? ''));
+        $this->assertSame('https://github.com/stronganchor/language-learner-tools/archive/refs/heads/dev.zip', (string) ($data['package_url'] ?? ''));
+        $this->assertTrue((bool) ($data['requires_confirm'] ?? false));
+        $plugin = is_array($data['plugin'] ?? null) ? $data['plugin'] : [];
+        $this->assertSame('language-learner-tools/language-learner-tools.php', (string) ($plugin['basename'] ?? ''));
+        $this->assertSame(LL_TOOLS_VERSION, (string) ($plugin['loaded_version'] ?? ''));
+        $this->assertSame(LL_TOOLS_VERSION, (string) ($plugin['installed_file_version'] ?? ''));
+    }
+
+    public function test_plugin_update_route_requires_confirmation_and_respects_version_precondition(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $unconfirmed = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/automation/plugin-update', [
+            'dry_run' => false,
+        ]);
+        $this->assertSame(400, $unconfirmed->get_status());
+
+        $mismatch = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/automation/plugin-update', [
+            'dry_run' => false,
+            'confirm' => true,
+            'expected_current_version' => '0.0.0',
+        ]);
+        $this->assertSame(409, $mismatch->get_status());
+        $data = $mismatch->get_data();
+        $this->assertIsArray($data);
+        $error_data = is_array($data['data'] ?? null) ? $data['data'] : [];
+        $this->assertSame('0.0.0', (string) ($error_data['expected_current_version'] ?? ''));
+        $this->assertSame(LL_TOOLS_VERSION, (string) ($error_data['installed_file_version'] ?? ''));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void
