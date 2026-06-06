@@ -2503,6 +2503,8 @@ function ll_tools_rest_automation_word_category_updates(WP_REST_Request $request
         'changed_count' => 0,
         'updated_count' => 0,
         'unchanged_count' => 0,
+        'invalidated_category_ids' => [],
+        'invalidated_wordset_cache' => false,
         'updated' => [],
         'errors' => [],
     ];
@@ -2685,6 +2687,7 @@ function ll_tools_rest_automation_word_category_updates(WP_REST_Request $request
         return rest_ensure_response($summary);
     }
 
+    $changed_category_lookup = [];
     foreach ($plans as $plan) {
         $result = ll_tools_word_grid_update_word_categories_for_wordset(
             (int) $plan['word_id'],
@@ -2725,10 +2728,29 @@ function ll_tools_rest_automation_word_category_updates(WP_REST_Request $request
         $row['changed'] = !empty($result['changed']);
         $summary['updated'][] = $row;
         if (!empty($result['changed'])) {
+            foreach (array_merge((array) $plan['before_category_ids'], (array) $plan['after_category_ids']) as $changed_category_id) {
+                $changed_category_id = (int) $changed_category_id;
+                if ($changed_category_id > 0) {
+                    $changed_category_lookup[$changed_category_id] = true;
+                }
+            }
             $summary['changed_count']++;
             $summary['updated_count']++;
         } else {
             $summary['unchanged_count']++;
+        }
+    }
+
+    if (!empty($changed_category_lookup)) {
+        $changed_category_ids = array_keys($changed_category_lookup);
+        sort($changed_category_ids, SORT_NUMERIC);
+        $summary['invalidated_category_ids'] = array_values(array_map('intval', $changed_category_ids));
+        if (function_exists('ll_tools_bump_category_cache_version')) {
+            ll_tools_bump_category_cache_version($summary['invalidated_category_ids']);
+        }
+        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+            ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+            $summary['invalidated_wordset_cache'] = true;
         }
     }
 

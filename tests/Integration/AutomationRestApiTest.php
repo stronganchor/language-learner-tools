@@ -959,6 +959,64 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertContains($effective_safety_id, $untouched_categories);
     }
 
+    public function test_word_category_updates_route_invalidates_removed_category_count_cache(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Category Cache Wordset', 'rest-category-cache-wordset');
+        $source_id = $this->ensure_term('word-category', 'REST Category Cache Source', 'rest-category-cache-source');
+        $target_id = $this->ensure_term('word-category', 'REST Category Cache Target', 'rest-category-cache-target');
+
+        update_term_meta($source_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($source_id, 'll_quiz_option_type', 'text_translation');
+        update_term_meta($target_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($target_id, 'll_quiz_option_type', 'text_translation');
+
+        $word_ids = [];
+        for ($index = 0; $index < 5; $index++) {
+            $word_ids[] = $this->create_word(
+                $wordset_id,
+                [$source_id, $target_id],
+                'REST Category Cache Word ' . $index,
+                'Cache translation ' . $index
+            );
+        }
+
+        $effective_source_id = $this->effective_category_id($source_id, $wordset_id);
+        $effective_target_id = $this->effective_category_id($target_id, $wordset_id);
+        $source_term = get_term($effective_source_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $source_term);
+        $source_config = ll_tools_get_category_quiz_config($source_term);
+        $before_source_version = (int) ll_tools_get_category_cache_version($effective_source_id);
+        $before_target_version = (int) ll_tools_get_category_cache_version($effective_target_id);
+        $before_wordset_epoch = (int) ll_tools_get_wordset_cache_epoch();
+
+        $this->assertSame(
+            5,
+            ll_get_words_by_category_count($source_term, 'text_translation', [$wordset_id], $source_config),
+            'Precondition: the first count warms the removed-category cache.'
+        );
+
+        wp_set_current_user($admin_id);
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-category-cache-wordset/word-category-updates', [
+            'operation' => 'remove_category',
+            'category_id' => $source_id,
+            'word_ids' => [$word_ids[0]],
+        ]);
+
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertContains($effective_source_id, array_map('intval', (array) ($data['invalidated_category_ids'] ?? [])));
+        $this->assertContains($effective_target_id, array_map('intval', (array) ($data['invalidated_category_ids'] ?? [])));
+        $this->assertTrue((bool) ($data['invalidated_wordset_cache'] ?? false));
+        $this->assertGreaterThan($before_source_version, (int) ll_tools_get_category_cache_version($effective_source_id));
+        $this->assertGreaterThan($before_target_version, (int) ll_tools_get_category_cache_version($effective_target_id));
+        $this->assertGreaterThan($before_wordset_epoch, (int) ll_tools_get_wordset_cache_epoch());
+        $this->assertSame(4, ll_get_words_by_category_count($source_term, 'text_translation', [$wordset_id], $source_config));
+    }
+
     public function test_word_category_updates_route_rejects_oversized_write_batches_without_changes(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
