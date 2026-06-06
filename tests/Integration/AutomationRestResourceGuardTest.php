@@ -35,6 +35,9 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             '/ll-tools/v1/wordsets/spanish/bulk-update' => 'll_tools_bulk-update',
             '/ll-tools/v1/wordsets/spanish/word-title-updates' => 'll_tools_word-title-updates',
             '/ll-tools/v1/wordsets/spanish/word-helper-updates' => 'll_tools_word-helper-updates',
+            '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs' => 'll_tools_word_metadata_plan_create',
+            '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/job-123/process' => 'll_tools_word_metadata_plan_process',
+            '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/job-123/discard' => 'll_tools_word_metadata_plan_discard',
             '/ll-tools/v1/wordsets/spanish/transcriptions' => 'll_tools_transcriptions',
             '/ll-tools/v1/wordsets/spanish/transcription-validations' => 'll_tools_transcription-validations',
             '/ll-tools/v1/wordsets/spanish/word-option-rules' => 'll_tools_word-option-rules',
@@ -140,10 +143,14 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
         $this->assertContains('/wp/v2/users/me', $authProbeRoutes);
         $this->assertContains('/ll-tools/v1/imports/{job_id}', $guardedReadRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot', $guardedReadRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}', $guardedReadRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result', $guardedReadRoutes);
         $this->assertContains('/ll-tools/v1/automation/plugin-update', $automationRoutes);
         $this->assertContains('/ll-tools/v1/cache/static/purge', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/translations', $automationRoutes);
         $this->assertContains('/ll-tools/v1/imports/{job_id}/process', $automationRoutes);
         $this->assertContains('/ll-tools/v1/corpus-texts/import', $automationRoutes);

@@ -4,6 +4,7 @@ if (!defined('WPINC')) {
 }
 
 require_once LL_TOOLS_BASE_PATH . 'includes/cli/cli-support.php';
+require_once LL_TOOLS_BASE_PATH . 'includes/api/word-metadata-plan-rest.php';
 
 function ll_tools_rest_automation_load_import_helpers(): void {
     if (!function_exists('ll_tools_import_job_get_snapshot')) {
@@ -543,6 +544,10 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'default' => $dry_run ? 10 : 5,
             'max' => $dry_run ? 25 : 10,
         ],
+        'word_metadata_plan_jobs' => [
+            'default' => 10,
+            'max' => 25,
+        ],
         'missing_meta' => [
             'default' => 100,
             'max' => 250,
@@ -672,6 +677,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     $is_auth_probe = $is_read && in_array($route, ['/ll-tools/v1/automation/status', '/wp/v2/users/me'], true);
     $is_guarded_read = $is_auth_probe
         || ($is_read && preg_match('#^/ll-tools/v1/imports/[^/]+(?:/result)?$#', $route))
+        || ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/word-metadata-plan-jobs/[^/]+(?:/result)?$#', $route))
         || ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/(missing-meta|site-sync/snapshot|report|report-summary)$#', $route));
     if (!$is_write && !$is_guarded_read) {
         return [];
@@ -694,6 +700,9 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($is_read && preg_match('#^/ll-tools/v1/imports/[^/]+(/result)?$#', $route, $matches)) {
         $resource = empty($matches[1]) ? 'll_tools_import_status' : 'll_tools_import_result';
         $delay_seconds = 3.0;
+    } elseif ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/word-metadata-plan-jobs/[^/]+(/result)?$#', $route, $matches)) {
+        $resource = empty($matches[1]) ? 'll_tools_word_metadata_plan_status' : 'll_tools_word_metadata_plan_result';
+        $delay_seconds = 3.0;
     } elseif ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/(missing-meta|site-sync/snapshot|report|report-summary)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = in_array((string) $matches[1], ['site-sync/snapshot', 'report'], true) ? 5.0 : 3.0;
@@ -714,6 +723,10 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
         } else {
             $delay_seconds = 5.0;
         }
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/word-metadata-plan-jobs(?:/[^/]+/(process|discard))?$#', $route, $matches)) {
+        $resource = empty($matches[1]) ? 'll_tools_word_metadata_plan_create' : 'll_tools_word_metadata_plan_' . sanitize_key((string) $matches[1]);
+        $delay_seconds = 5.0;
+        $lock_ttl_seconds = 180.0;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
         $resource = 'll_tools_import_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 5.0;
@@ -956,6 +969,11 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_title_updates' => '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
             'word_helper_updates' => '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
             'word_category_updates' => '/ll-tools/v1/wordsets/{wordset}/word-category-updates',
+            'word_metadata_plan_jobs' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs',
+            'word_metadata_plan_job_status' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}',
+            'word_metadata_plan_job_process' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process',
+            'word_metadata_plan_job_discard' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard',
+            'word_metadata_plan_job_result' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result',
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'transcription_validations' => '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
@@ -1004,6 +1022,8 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/wp/v2/users/me',
                 '/ll-tools/v1/imports/{job_id}',
                 '/ll-tools/v1/imports/{job_id}/result',
+                '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}',
+                '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result',
                 '/ll-tools/v1/wordsets/{wordset}/missing-meta',
                 '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
                 '/ll-tools/v1/wordsets/{wordset}/report',
@@ -1022,6 +1042,9 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
                 '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
                 '/ll-tools/v1/wordsets/{wordset}/word-category-updates',
+                '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs',
+                '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process',
+                '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
                 '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
@@ -1061,6 +1084,13 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 'max_write_limit' => ll_tools_rest_automation_batch_limit('word_category_updates', false)['max'],
                 'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_category_updates', true)['default'],
                 'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_category_updates', true)['max'],
+            ],
+            'word_metadata_plan_jobs_batch' => [
+                'default_process_limit' => ll_tools_rest_automation_batch_limit('word_metadata_plan_jobs', false)['default'],
+                'max_process_limit' => ll_tools_rest_automation_batch_limit('word_metadata_plan_jobs', false)['max'],
+                'max_plan_items' => ll_tools_rest_word_metadata_plan_max_items(),
+                'supported_fields' => ll_tools_rest_word_metadata_plan_supported_fields(),
+                'server_side_recommended' => true,
             ],
             'missing_meta_batch' => [
                 'default_limit' => ll_tools_rest_automation_batch_limit('missing_meta', false)['default'],
@@ -6985,6 +7015,67 @@ function ll_tools_rest_register_automation_routes(): void {
                 'default' => true,
             ],
         ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-metadata-plan-jobs', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_create_word_metadata_plan_job',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'updates' => [
+                'required' => false,
+                'type' => 'array',
+            ],
+            'plans' => [
+                'required' => false,
+                'type' => 'array',
+            ],
+            'allow_empty_categories' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
+            ],
+            'sync_linked_images' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+            'purge_public_static_cache' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-metadata-plan-jobs/(?P<job_id>[A-Za-z0-9_-]+)', [
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => 'll_tools_rest_automation_get_word_metadata_plan_job',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-metadata-plan-jobs/(?P<job_id>[A-Za-z0-9_-]+)/process', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_process_word_metadata_plan_job',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'limit' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-metadata-plan-jobs/(?P<job_id>[A-Za-z0-9_-]+)/discard', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_discard_word_metadata_plan_job',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-metadata-plan-jobs/(?P<job_id>[A-Za-z0-9_-]+)/result', [
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => 'll_tools_rest_automation_word_metadata_plan_job_result',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
     ]);
 
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/transcriptions', [

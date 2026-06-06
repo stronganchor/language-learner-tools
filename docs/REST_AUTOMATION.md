@@ -66,33 +66,38 @@ For a normal Codex session against a live LL Tools site:
 8. Then call `GET /wordsets/{wordset}/report-summary` to confirm the exact
    target wordset and current coverage without running the heavier full report.
 9. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
-10. Use the narrowest write route for the job, with `dry_run=true` first:
+10. For AI-planned batches that touch multiple word metadata fields or final
+    category assignments, prefer `word-metadata-plan-jobs`: take a metadata
+    snapshot, submit explicit per-word final states with expected current values,
+    then process the job in serial chunks.
+11. Use the narrowest synchronous write route for small single-surface jobs, with
+    `dry_run=true` first:
     `word-title-updates` for title-only maintenance, `word-helper-updates` for
     helper/known-language translation repair, and `bulk-update` for bounded
     mixed metadata edits.
-11. Re-run the same request without `dry_run` to apply changes. The server
+12. Re-run the same request without `dry_run` to apply changes. The server
     applies write batches in small chunks by default, so keep the returned
     `resume_state` and repeat until `batch.has_more` is false.
-12. Keep automation calls serial. If the server returns `429`, wait at least
+13. Keep automation calls serial. If the server returns `429`, wait at least
     the `Retry-After` header value before retrying. On slow live sites, add a
     larger client-side delay even after successful write requests.
-13. For word-option groups, call
+14. For word-option groups, call
     `POST /wordsets/{wordset}/word-option-rules` with `dry_run=true` before
     applying the same payload without `dry_run`.
-14. For bundle imports, preview with `POST /imports/preview`, start with
+15. For bundle imports, preview with `POST /imports/preview`, start with
     `POST /imports/start`, then poll `POST /imports/{job_id}/process` until the
     job is completed.
-15. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
+16. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
     undo availability, and the import history entry ID.
-16. For LL Tools dev-channel plugin updates, call
+17. For LL Tools dev-channel plugin updates, call
     `POST /automation/plugin-update` with `dry_run=true` first. Apply only with
     `dry_run=false`, `confirm=true`, and `expected_current_version` set to the
     version you just observed from status/readback.
-17. For a new workflow that needs to touch hundreds of rows and each row does
+18. For a new workflow that needs to touch hundreds of rows and each row does
     expensive validation, media work, taxonomy repair, cache rebuilding, or
     cross-post recomputation, prefer a WP-CLI command or a job-style REST route
     before adding a synchronous REST endpoint.
-18. Delete or downgrade the temporary user when the session is complete.
+19. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -110,6 +115,10 @@ the server with image, media, or metadata updates:
 - `word-helper-updates` defaults to 10 write rows per request, with a hard
   default max of 25. Dry runs default to 50 rows, with a hard default max of
   100.
+- `word-metadata-plan-jobs` accepts a server-side plan of explicit word IDs and
+  final metadata values. Processing defaults to 10 rows per request, with a hard
+  default max of 25 rows per request. The plan itself defaults to a hard max of
+  500 items.
 - `missing-meta` returns a paged response by default: 100 rows per request, with
   a hard default max of 250.
 - Basic-auth REST writes to `/wp/v2/media`, `/wp/v2/word_images`, and
@@ -197,6 +206,11 @@ Routes:
 - `POST /wordsets/{wordset}/word-title-updates`
 - `POST /wordsets/{wordset}/word-helper-updates`
 - `POST /wordsets/{wordset}/word-category-updates`
+- `POST /wordsets/{wordset}/word-metadata-plan-jobs`
+- `GET /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}`
+- `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process`
+- `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard`
+- `GET /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result`
 - `POST /wordsets/{wordset}/transcriptions`
 - `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
@@ -418,6 +432,69 @@ and performs cache cleanup once for the batch. Do not use the generic
 rebuilds full editor rows and can be much heavier per word. Keep calls serial
 and honor `Retry-After`; if the live site is slow, add a client-side delay after
 successful writes too.
+
+Create and process a guarded mixed word-metadata plan:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs \
+  -d '{
+    "updates": [
+      {
+        "word_id": 123,
+        "set": {
+          "word_category_ids": [8336],
+          "word_english_meaning": "wring out a wet cloth"
+        },
+        "expected": {
+          "word_category_ids": [8231, 8336],
+          "word_english_meaning": ""
+        }
+      },
+      {
+        "word_id": 456,
+        "set": {
+          "word_title": "Corrected target-language form",
+          "word_translation": "Corrected helper text",
+          "part_of_speech": "verb"
+        },
+        "expected": {
+          "word_title": "Old target-language form"
+        }
+      }
+    ]
+  }'
+```
+
+The create response returns `job.id`. Process it serially until
+`job.status=completed`:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/JOB_ID/process \
+  -d '{ "limit": 10 }'
+```
+
+Fetch the durable result:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/JOB_ID/result
+```
+
+Use this for AI-assisted category reorganization and mixed metadata cleanup. It
+does not scan the full wordset for each row: the caller supplies explicit word
+IDs and desired final values. Each row may include `expected` values from a
+recent `site-sync/snapshot`; stale rows are skipped with `reason:
+expected_mismatch` instead of overwritten. Supported set/expected fields include
+`word_title`, `word_text`, `word_translation`, `word_english_meaning`,
+`word_note`, `dictionary_entry_id`, `dictionary_entry_title`, `part_of_speech`,
+`grammatical_gender`, `grammatical_plurality`, `verb_tense`, `verb_mood`, and
+`word_category_ids`.
 
 Dry-run staged word-option groups by category slug and word slugs:
 
@@ -684,6 +761,54 @@ For learner-facing categories, keep the resulting quiz pool at 5 or more
 quizzable items. If a category would contain only 1-4 items, add the words to a
 logical existing quizzable category, move them there, or hold them until enough
 related words are ready.
+
+### `POST /wordsets/{wordset}/word-metadata-plan-jobs`
+
+Creates a durable, server-side job for AI-planned word metadata edits. Use this
+when a session has a local metadata snapshot and wants to apply many explicit
+per-word final states without reloading the full wordset or making one HTTP
+write per field.
+
+Create body fields:
+
+- `updates` required array; `plans` is accepted as an alias
+- `word_id` required per update
+- `set` required per update; object keyed by supported field
+- `expected` optional per update; object keyed by supported field, used as stale
+  live-data guards
+- `allow_empty_categories` optional boolean, default false
+- `sync_linked_images` optional boolean, default true
+- `purge_public_static_cache` optional boolean, default false
+
+Supported `set` and `expected` fields:
+
+- `word_title` / `post_title`
+- `word_text`
+- `word_translation`
+- `word_english_meaning`
+- `word_note`
+- `dictionary_entry_id`
+- `dictionary_entry_title`
+- `part_of_speech`
+- `grammatical_gender`
+- `grammatical_plurality`
+- `verb_tense`
+- `verb_mood`
+- `word_category_ids`
+
+The create response returns `job.id`, normalized `plans`, counts, supported batch
+limits, and no writes. Process with `POST
+/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process`; send optional
+`limit`, which defaults to 10 and is capped at 25 unless the site customizes the
+filters. Each process call checkpoints `current_index`, coalesces cache
+invalidation for the chunk, and returns processed rows. Repeat until
+`job.status` is `completed`, then fetch `GET
+/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result`.
+
+If an `expected` value no longer matches live state, that row is skipped with
+`reason: expected_mismatch`; other rows continue. This is the preferred route for
+AI-assisted category reorganization and mixed metadata cleanup where the agent
+has already decided the exact target word IDs and final values.
 
 ### `POST /wordsets/{wordset}/transcriptions`
 

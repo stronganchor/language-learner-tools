@@ -60,8 +60,12 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-title-updates', (string) ($data['routes']['word_title_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', (string) ($data['routes']['word_helper_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-updates', (string) ($data['routes']['word_category_updates'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', (string) ($data['routes']['word_metadata_plan_jobs'] ?? ''));
         $this->assertSame(5, (int) (($data['resource_guard']['word_category_updates_batch']['default_write_limit'] ?? 0)));
         $this->assertSame(10, (int) (($data['resource_guard']['word_category_updates_batch']['max_write_limit'] ?? 0)));
+        $this->assertSame(10, (int) (($data['resource_guard']['word_metadata_plan_jobs_batch']['default_process_limit'] ?? 0)));
+        $this->assertSame(25, (int) (($data['resource_guard']['word_metadata_plan_jobs_batch']['max_process_limit'] ?? 0)));
+        $this->assertContains('word_category_ids', array_map('strval', (array) (($data['resource_guard']['word_metadata_plan_jobs_batch']['supported_fields'] ?? []))));
     }
 
     public function test_plugin_update_route_is_admin_only_and_defaults_to_dry_run(): void
@@ -1106,6 +1110,141 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $this->assertContains($effective_other_id, $categories);
             $this->assertContains($effective_target_id, $categories);
         }
+    }
+
+    public function test_word_metadata_plan_job_processes_mixed_word_metadata_in_chunks(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Metadata Plan Wordset', 'rest-metadata-plan-wordset');
+        $source_id = $this->ensure_term('word-category', 'REST Metadata Plan Source', 'rest-metadata-plan-source');
+        $target_id = $this->ensure_term('word-category', 'REST Metadata Plan Target', 'rest-metadata-plan-target');
+
+        $category_word_id = $this->create_word($wordset_id, [$source_id], 'REST Metadata Plan Category Word', 'Old category translation');
+        $title_word_id = $this->create_word($wordset_id, [$source_id], 'REST Metadata Plan Title Word', 'Old title translation');
+        $this->create_word($wordset_id, [$target_id], 'REST Metadata Plan Existing Target Word', 'Existing target translation');
+        update_post_meta($category_word_id, 'word_english_meaning', 'Old helper');
+        $effective_source_id = $this->effective_category_id($source_id, $wordset_id);
+        $effective_target_id = $this->effective_category_id($target_id, $wordset_id);
+
+        wp_set_current_user($admin_id);
+
+        $create = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-metadata-plan-wordset/word-metadata-plan-jobs', [
+            'updates' => [
+                [
+                    'word_id' => $category_word_id,
+                    'set' => [
+                        'word_category_ids' => [$target_id],
+                        'word_english_meaning' => 'New helper',
+                    ],
+                    'expected' => [
+                        'word_category_ids' => [$source_id],
+                        'word_english_meaning' => 'Old helper',
+                    ],
+                ],
+                [
+                    'word_id' => $title_word_id,
+                    'set' => [
+                        'word_title' => 'REST Metadata Plan Renamed Word',
+                        'word_translation' => 'New title translation',
+                    ],
+                    'expected' => [
+                        'word_title' => 'REST Metadata Plan Title Word',
+                        'word_translation' => 'Old title translation',
+                    ],
+                ],
+            ],
+        ]);
+
+        $create_data = $create->get_data();
+        $this->assertSame(201, $create->get_status());
+        $this->assertIsArray($create_data);
+        $job_id = (string) (($create_data['job']['id'] ?? ''));
+        $this->assertNotSame('', $job_id);
+        $this->assertSame(2, (int) (($create_data['job']['total'] ?? 0)));
+        $this->assertCount(2, (array) ($create_data['plans'] ?? []));
+
+        $first = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-metadata-plan-wordset/word-metadata-plan-jobs/' . rawurlencode($job_id) . '/process', [
+            'limit' => 1,
+        ]);
+
+        $this->assertSame(200, $first->get_status());
+        $first_data = $first->get_data();
+        $this->assertIsArray($first_data);
+        $this->assertSame('running', (string) (($first_data['job']['status'] ?? '')));
+        $this->assertSame(1, (int) (($first_data['job']['current_index'] ?? 0)));
+        $this->assertSame(1, (int) (($first_data['job']['summary']['updated_count'] ?? 0)));
+        $this->assertSame('New helper', (string) get_post_meta($category_word_id, 'word_english_meaning', true));
+        $category_word_categories = array_map('intval', wp_get_post_terms($category_word_id, 'word-category', ['fields' => 'ids']));
+        $source_candidates = array_values(array_unique([$source_id, $effective_source_id]));
+        $target_candidates = array_values(array_unique([$target_id, $effective_target_id]));
+        $this->assertSame([], array_values(array_intersect($source_candidates, $category_word_categories)));
+        $this->assertNotSame([], array_values(array_intersect($target_candidates, $category_word_categories)));
+        $this->assertSame('REST Metadata Plan Title Word', (string) get_the_title($title_word_id));
+
+        $second = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-metadata-plan-wordset/word-metadata-plan-jobs/' . rawurlencode($job_id) . '/process', [
+            'limit' => 1,
+        ]);
+
+        $this->assertSame(200, $second->get_status());
+        $second_data = $second->get_data();
+        $this->assertIsArray($second_data);
+        $this->assertSame('completed', (string) (($second_data['job']['status'] ?? '')));
+        $this->assertSame(2, (int) (($second_data['job']['summary']['updated_count'] ?? 0)));
+        $this->assertSame('REST Metadata Plan Renamed Word', (string) get_the_title($title_word_id));
+        $this->assertSame('New title translation', (string) get_post_meta($title_word_id, 'word_translation', true));
+
+        $result = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-metadata-plan-wordset/word-metadata-plan-jobs/' . rawurlencode($job_id) . '/result');
+        $this->assertSame(200, $result->get_status());
+        $result_data = $result->get_data();
+        $this->assertIsArray($result_data);
+        $this->assertSame(2, (int) (($result_data['summary']['updated_count'] ?? 0)));
+        $invalidated_category_ids = array_map('intval', (array) (($result_data['summary']['invalidated_category_ids'] ?? [])));
+        $this->assertNotSame([], array_values(array_intersect($source_candidates, $invalidated_category_ids)));
+        $this->assertNotSame([], array_values(array_intersect($target_candidates, $invalidated_category_ids)));
+    }
+
+    public function test_word_metadata_plan_job_skips_rows_when_expected_values_are_stale(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Metadata Plan Guard Wordset', 'rest-metadata-plan-guard-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Metadata Plan Guard Category', 'rest-metadata-plan-guard-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Metadata Plan Guard Word', 'Guard translation');
+        update_post_meta($word_id, 'word_english_meaning', 'Old guarded helper');
+
+        wp_set_current_user($admin_id);
+
+        $create = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-metadata-plan-guard-wordset/word-metadata-plan-jobs', [
+            'updates' => [
+                [
+                    'word_id' => $word_id,
+                    'set' => [
+                        'word_english_meaning' => 'AI helper',
+                    ],
+                    'expected' => [
+                        'word_english_meaning' => 'Old guarded helper',
+                    ],
+                ],
+            ],
+        ]);
+        $create_data = $create->get_data();
+        $this->assertSame(201, $create->get_status());
+        $this->assertIsArray($create_data);
+        $job_id = (string) (($create_data['job']['id'] ?? ''));
+        $this->assertNotSame('', $job_id);
+
+        update_post_meta($word_id, 'word_english_meaning', 'Human-edited helper');
+
+        $process = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-metadata-plan-guard-wordset/word-metadata-plan-jobs/' . rawurlencode($job_id) . '/process');
+        $this->assertSame(200, $process->get_status());
+        $data = $process->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame('completed', (string) (($data['job']['status'] ?? '')));
+        $this->assertSame(0, (int) (($data['job']['summary']['updated_count'] ?? 0)));
+        $this->assertSame(1, (int) (($data['job']['summary']['skipped_count'] ?? 0)));
+        $processed = array_values((array) ($data['processed'] ?? []));
+        $this->assertSame('expected_mismatch', (string) ($processed[0]['reason'] ?? ''));
+        $this->assertSame('word_english_meaning', (string) ($processed[0]['field'] ?? ''));
+        $this->assertSame('Human-edited helper', (string) get_post_meta($word_id, 'word_english_meaning', true));
     }
 
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void
