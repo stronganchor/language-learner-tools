@@ -196,6 +196,7 @@ Routes:
 - `POST /wordsets/{wordset}/bulk-update`
 - `POST /wordsets/{wordset}/word-title-updates`
 - `POST /wordsets/{wordset}/word-helper-updates`
+- `POST /wordsets/{wordset}/word-category-updates`
 - `POST /wordsets/{wordset}/transcriptions`
 - `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
@@ -653,6 +654,37 @@ Dry runs and writes return compact `before` and `after` values for only the two
 supported fields. The write cap defaults to 10 rows and is capped at 25 rows
 unless the site customizes the REST automation filters.
 
+### `POST /wordsets/{wordset}/word-category-updates`
+
+Moves, adds, or removes `word-category` terms for explicit word IDs without
+loading the full Wordset Editor table or replaying wp-admin forms. Use this for
+small live category repairs where the intended rows are already known.
+
+Body fields:
+
+- `operation` required; one of `add_category`, `remove_category`, or
+  `move_category`
+- `category_id` required source or target category ID, depending on operation
+- `target_category_id` required for `move_category`
+- `word_ids` required array of explicit `words` post IDs
+- `dry_run` optional boolean; send true first
+- `sync_linked_images` optional boolean; default true, keeps linked
+  `word_images` category membership aligned with the words
+- `max_updates` optional integer bounded by the route's current batch cap
+
+The response includes `matched_count`, `changed_count`, `updated_count`,
+per-word `before_category_ids` and `after_category_ids`, verification category
+IDs for writes, and cache invalidation details. The write cap is intentionally
+small; call `GET /automation/status` to see the current dry-run and write caps.
+If the route returns `429 ll_tools_rest_resource_guard_wait`, wait the reported
+`Retry-After` interval and retry the same request rather than launching another
+parallel write.
+
+For learner-facing categories, keep the resulting quiz pool at 5 or more
+quizzable items. If a category would contain only 1-4 items, add the words to a
+logical existing quizzable category, move them there, or hold them until enough
+related words are ready.
+
 ### `POST /wordsets/{wordset}/transcriptions`
 
 Updates `word_audio` recording text, IPA, and review state for recordings that
@@ -697,6 +729,14 @@ pull.
 Use this route from the LL Site Sync admin page or external automation before a
 three-way merge. It is not a database clone endpoint; it intentionally returns a
 domain-specific content snapshot for safe diffing.
+
+The current built-in surface is transcription-centered. For a local searchable
+copy of every word's broader metadata, combine this paged snapshot with
+`GET /wordsets/{wordset}/report`, `GET /wordsets/{wordset}/report-summary`, and
+targeted WordPress REST reads for `words`, `word_images`, and `word-category`
+terms, or add a new paged site-sync surface for the specific metadata set you
+need. Do not treat a local-site sync apply as the source of truth for a large
+live wordset.
 
 Large wordsets should be read in pages. Paged responses include
 `records_returned` and `pagination.next_offset`; continue until
