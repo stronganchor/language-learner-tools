@@ -3691,3 +3691,56 @@ msgstr "단어 카테고리"
 #: includes/shortcodes/dictionary-shortcode.php:2326
 msgid "Too many dictionary searches. Please wait a moment and try again."
 msgstr "사전 검색이 너무 많습니다. 잠시 기다린 후 다시 시도하세요."
+
+#: includes/admin/export-import.php:1281
+#: includes/admin/export-import.php:1299
+msgid "This import job is already processing. Wait and retry this request instead of running parallel import steps."
+msgstr "이 가져오기 작업은 이미 처리 중입니다. 병렬 가져오기 단계를 실행하지 말고 기다린 후 이 요청을 다시 시도하세요."
+
+#: includes/api/automation-rest.php:2449
+msgid "Word category update helpers are not available."
+msgstr "단어 카테고리 업데이트 도우미를 사용할 수 없습니다."
+
+#: includes/api/automation-rest.php:2513
+msgid "Choose add_category, remove_category, or move_category."
+msgstr "add_category, remove_category 또는 move_category를 선택하세요."
+
+#: includes/api/automation-rest.php:2521
+msgid "Provide the target category ID."
+msgstr "대상 카테고리 ID를 제공하세요."
+
+#: includes/api/automation-rest.php:2529
+msgid "Provide one or more explicit word IDs."
+msgstr "하나 이상의 명시적인 단어 ID를 제공하세요."
+
+#: includes/api/automation-rest.php:2539
+msgid "Too many word category updates in one request. Maximum is %d."
+msgstr "한 요청에 단어 카테고리 업데이트가 너무 많습니다. 최대값은 %d입니다."
+
+#: includes/api/automation-rest.php:2572
+msgid "Fix word ID errors before retrying this category update."
+msgstr "이 카테고리 업데이트를 다시 시도하기 전에 단어 ID 오류를 수정하세요."
+
+#: includes/api/automation-rest.php:2594
+msgid "Select a category that belongs to this word set."
+msgstr "이 단어 세트에 속한 카테고리를 선택하세요."
+
+#: includes/api/automation-rest.php:2616
+msgid "Word ID does not refer to a word post."
+msgstr "단어 ID가 단어 게시물을 참조하지 않습니다."
+
+#: includes/api/automation-rest.php:2629
+msgid "Word is not assigned to this word set."
+msgstr "단어가 이 단어 세트에 배정되어 있지 않습니다."
+
+#: includes/api/automation-rest.php:2650
+msgid "Refusing to remove the final category for this word."
+msgstr "이 단어의 마지막 카테고리는 제거하지 않습니다."
+
+#: includes/api/automation-rest.php:2670
+msgid "Category update preflight failed. No words were changed."
+msgstr "카테고리 업데이트 사전 확인에 실패했습니다. 변경된 단어가 없습니다."
+
+#: includes/api/automation-rest.php:2738
+msgid "One or more category updates failed."
+msgstr "하나 이상의 카테고리 업데이트에 실패했습니다."

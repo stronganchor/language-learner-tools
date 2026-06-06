@@ -3698,3 +3698,56 @@ msgstr "Categorie di parole"
 #: includes/shortcodes/dictionary-shortcode.php:2326
 msgid "Too many dictionary searches. Please wait a moment and try again."
 msgstr "Troppe ricerche nel dizionario. Attendi un momento e riprova."
+
+#: includes/admin/export-import.php:1281
+#: includes/admin/export-import.php:1299
+msgid "This import job is already processing. Wait and retry this request instead of running parallel import steps."
+msgstr "Questo processo di importazione è già in corso. Attendi e riprova questa richiesta invece di eseguire passaggi di importazione in parallelo."
+
+#: includes/api/automation-rest.php:2449
+msgid "Word category update helpers are not available."
+msgstr "Gli helper per l'aggiornamento delle categorie di parole non sono disponibili."
+
+#: includes/api/automation-rest.php:2513
+msgid "Choose add_category, remove_category, or move_category."
+msgstr "Scegli add_category, remove_category o move_category."
+
+#: includes/api/automation-rest.php:2521
+msgid "Provide the target category ID."
+msgstr "Fornisci l'ID della categoria di destinazione."
+
+#: includes/api/automation-rest.php:2529
+msgid "Provide one or more explicit word IDs."
+msgstr "Fornisci uno o più ID parola espliciti."
+
+#: includes/api/automation-rest.php:2539
+msgid "Too many word category updates in one request. Maximum is %d."
+msgstr "Troppe modifiche alle categorie di parole in una sola richiesta. Il massimo è %d."
+
+#: includes/api/automation-rest.php:2572
+msgid "Fix word ID errors before retrying this category update."
+msgstr "Correggi gli errori degli ID parola prima di riprovare questo aggiornamento di categoria."
+
+#: includes/api/automation-rest.php:2594
+msgid "Select a category that belongs to this word set."
+msgstr "Seleziona una categoria che appartiene a questo set di parole."
+
+#: includes/api/automation-rest.php:2616
+msgid "Word ID does not refer to a word post."
+msgstr "L'ID parola non fa riferimento a un post di parola."
+
+#: includes/api/automation-rest.php:2629
+msgid "Word is not assigned to this word set."
+msgstr "La parola non è assegnata a questo set di parole."
+
+#: includes/api/automation-rest.php:2650
+msgid "Refusing to remove the final category for this word."
+msgstr "L'ultima categoria per questa parola non verrà rimossa."
+
+#: includes/api/automation-rest.php:2670
+msgid "Category update preflight failed. No words were changed."
+msgstr "La verifica preliminare dell'aggiornamento di categoria non è riuscita. Nessuna parola è stata modificata."
+
+#: includes/api/automation-rest.php:2738
+msgid "One or more category updates failed."
+msgstr "Uno o più aggiornamenti di categoria non sono riusciti."

@@ -3698,3 +3698,56 @@ msgstr "शब्द श्रेणियाँ"
 #: includes/shortcodes/dictionary-shortcode.php:2326
 msgid "Too many dictionary searches. Please wait a moment and try again."
 msgstr "बहुत सारी शब्दकोश खोजें की गई हैं। कृपया थोड़ा इंतज़ार करके फिर कोशिश करें।"
+
+#: includes/admin/export-import.php:1281
+#: includes/admin/export-import.php:1299
+msgid "This import job is already processing. Wait and retry this request instead of running parallel import steps."
+msgstr "यह इम्पोर्ट जॉब पहले से चल रही है। समानांतर इम्पोर्ट चरण चलाने के बजाय इंतज़ार करो और यह अनुरोध फिर से आज़माओ।"
+
+#: includes/api/automation-rest.php:2449
+msgid "Word category update helpers are not available."
+msgstr "शब्द श्रेणी अपडेट सहायक उपलब्ध नहीं हैं।"
+
+#: includes/api/automation-rest.php:2513
+msgid "Choose add_category, remove_category, or move_category."
+msgstr "add_category, remove_category या move_category चुनो।"
+
+#: includes/api/automation-rest.php:2521
+msgid "Provide the target category ID."
+msgstr "लक्ष्य श्रेणी ID दो।"
+
+#: includes/api/automation-rest.php:2529
+msgid "Provide one or more explicit word IDs."
+msgstr "एक या अधिक स्पष्ट शब्द ID दो।"
+
+#: includes/api/automation-rest.php:2539
+msgid "Too many word category updates in one request. Maximum is %d."
+msgstr "एक अनुरोध में बहुत ज़्यादा शब्द श्रेणी अपडेट हैं। अधिकतम %d है।"
+
+#: includes/api/automation-rest.php:2572
+msgid "Fix word ID errors before retrying this category update."
+msgstr "इस श्रेणी अपडेट को फिर से आज़माने से पहले शब्द ID त्रुटियाँ ठीक करो।"
+
+#: includes/api/automation-rest.php:2594
+msgid "Select a category that belongs to this word set."
+msgstr "ऐसी श्रेणी चुनो जो इस शब्द सेट से संबंधित हो।"
+
+#: includes/api/automation-rest.php:2616
+msgid "Word ID does not refer to a word post."
+msgstr "शब्द ID किसी शब्द पोस्ट को संदर्भित नहीं करता।"
+
+#: includes/api/automation-rest.php:2629
+msgid "Word is not assigned to this word set."
+msgstr "शब्द इस शब्द सेट से असाइन नहीं है।"
+
+#: includes/api/automation-rest.php:2650
+msgid "Refusing to remove the final category for this word."
+msgstr "इस शब्द की अंतिम श्रेणी नहीं हटाई जाएगी।"
+
+#: includes/api/automation-rest.php:2670
+msgid "Category update preflight failed. No words were changed."
+msgstr "श्रेणी अपडेट की पूर्व-जांच विफल रही। कोई शब्द नहीं बदला गया।"
+
+#: includes/api/automation-rest.php:2738
+msgid "One or more category updates failed."
+msgstr "एक या अधिक श्रेणी अपडेट विफल रहे।"

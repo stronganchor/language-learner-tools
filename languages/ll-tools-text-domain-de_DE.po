@@ -26784,3 +26784,56 @@ msgstr "Der Vokabeleditor-Dialog ist auf dieser Seite nicht verfügbar."
 #: includes/shortcodes/word-grid-shortcode.php:3653
 msgid "Invalid word editor context."
 msgstr "Ungültiger Vokabeleditor-Kontext."
+
+#: includes/admin/export-import.php:1281
+#: includes/admin/export-import.php:1299
+msgid "This import job is already processing. Wait and retry this request instead of running parallel import steps."
+msgstr "Dieser Importauftrag wird bereits verarbeitet. Warte und versuche diese Anfrage erneut, statt parallele Importschritte auszuführen."
+
+#: includes/api/automation-rest.php:2449
+msgid "Word category update helpers are not available."
+msgstr "Hilfsfunktionen für Vokabelkategorie-Aktualisierungen sind nicht verfügbar."
+
+#: includes/api/automation-rest.php:2513
+msgid "Choose add_category, remove_category, or move_category."
+msgstr "Wähle add_category, remove_category oder move_category."
+
+#: includes/api/automation-rest.php:2521
+msgid "Provide the target category ID."
+msgstr "Gib die ID der Zielkategorie an."
+
+#: includes/api/automation-rest.php:2529
+msgid "Provide one or more explicit word IDs."
+msgstr "Gib eine oder mehrere explizite Vokabel-IDs an."
+
+#: includes/api/automation-rest.php:2539
+msgid "Too many word category updates in one request. Maximum is %d."
+msgstr "Zu viele Vokabelkategorie-Aktualisierungen in einer Anfrage. Maximal %d."
+
+#: includes/api/automation-rest.php:2572
+msgid "Fix word ID errors before retrying this category update."
+msgstr "Behebe die Vokabel-ID-Fehler, bevor du diese Kategorieaktualisierung erneut versuchst."
+
+#: includes/api/automation-rest.php:2594
+msgid "Select a category that belongs to this word set."
+msgstr "Wähle eine Kategorie, die zu diesem Vokabelset gehört."
+
+#: includes/api/automation-rest.php:2616
+msgid "Word ID does not refer to a word post."
+msgstr "Die Vokabel-ID verweist nicht auf einen Vokabel-Beitrag."
+
+#: includes/api/automation-rest.php:2629
+msgid "Word is not assigned to this word set."
+msgstr "Die Vokabel ist diesem Vokabelset nicht zugewiesen."
+
+#: includes/api/automation-rest.php:2650
+msgid "Refusing to remove the final category for this word."
+msgstr "Die letzte Kategorie für diese Vokabel wird nicht entfernt."
+
+#: includes/api/automation-rest.php:2670
+msgid "Category update preflight failed. No words were changed."
+msgstr "Die Vorabprüfung der Kategorieaktualisierung ist fehlgeschlagen. Es wurden keine Vokabeln geändert."
+
+#: includes/api/automation-rest.php:2738
+msgid "One or more category updates failed."
+msgstr "Mindestens eine Kategorieaktualisierung ist fehlgeschlagen."

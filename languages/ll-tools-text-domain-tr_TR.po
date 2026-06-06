@@ -26618,3 +26618,56 @@ msgstr "Kelime düzenleyici penceresi bu sayfada kullanılamıyor."
 #: includes/shortcodes/word-grid-shortcode.php:3653
 msgid "Invalid word editor context."
 msgstr "Geçersiz kelime düzenleyici bağlamı."
+
+#: includes/admin/export-import.php:1281
+#: includes/admin/export-import.php:1299
+msgid "This import job is already processing. Wait and retry this request instead of running parallel import steps."
+msgstr "Bu içe aktarma işi zaten işleniyor. Paralel içe aktarma adımları çalıştırmak yerine bekle ve bu isteği yeniden dene."
+
+#: includes/api/automation-rest.php:2449
+msgid "Word category update helpers are not available."
+msgstr "Kelime kategorisi güncelleme yardımcıları kullanılamıyor."
+
+#: includes/api/automation-rest.php:2513
+msgid "Choose add_category, remove_category, or move_category."
+msgstr "add_category, remove_category veya move_category seç."
+
+#: includes/api/automation-rest.php:2521
+msgid "Provide the target category ID."
+msgstr "Hedef kategori kimliğini gir."
+
+#: includes/api/automation-rest.php:2529
+msgid "Provide one or more explicit word IDs."
+msgstr "Bir veya daha fazla açık kelime kimliği gir."
+
+#: includes/api/automation-rest.php:2539
+msgid "Too many word category updates in one request. Maximum is %d."
+msgstr "Tek istekte çok fazla kelime kategorisi güncellemesi var. En fazla %d."
+
+#: includes/api/automation-rest.php:2572
+msgid "Fix word ID errors before retrying this category update."
+msgstr "Bu kategori güncellemesini yeniden denemeden önce kelime kimliği hatalarını düzelt."
+
+#: includes/api/automation-rest.php:2594
+msgid "Select a category that belongs to this word set."
+msgstr "Bu kelime setine ait bir kategori seç."
+
+#: includes/api/automation-rest.php:2616
+msgid "Word ID does not refer to a word post."
+msgstr "Kelime kimliği bir kelime gönderisine karşılık gelmiyor."
+
+#: includes/api/automation-rest.php:2629
+msgid "Word is not assigned to this word set."
+msgstr "Kelime bu kelime setine atanmamış."
+
+#: includes/api/automation-rest.php:2650
+msgid "Refusing to remove the final category for this word."
+msgstr "Bu kelimenin son kategorisi kaldırılamaz."
+
+#: includes/api/automation-rest.php:2670
+msgid "Category update preflight failed. No words were changed."
+msgstr "Kategori güncellemesi ön kontrolü başarısız oldu. Hiçbir kelime değiştirilmedi."
+
+#: includes/api/automation-rest.php:2738
+msgid "One or more category updates failed."
+msgstr "Bir veya daha fazla kategori güncellemesi başarısız oldu."

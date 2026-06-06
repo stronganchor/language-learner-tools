@@ -250,11 +250,11 @@
             "msgid": "Text",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:11342",
+                "includes/admin/export-import.php:11469",
                 "includes/admin/ipa-keyboard-admin.php:302",
                 "includes/lib/interlinear.php:1692",
                 "includes/lib/interlinear.php:1910",
-                "includes/pages/wordset-editor.php:3162",
+                "includes/pages/wordset-editor.php:3232",
                 "includes/shortcodes/editor-hub-shortcode.php:1079",
                 "includes/shortcodes/editor-hub-shortcode.php:660",
                 "includes/shortcodes/word-grid-shortcode.php:5195",
@@ -407,12 +407,12 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:160",
                 "includes/admin/audio-processor-admin.php:753",
-                "includes/admin/export-import.php:11310",
-                "includes/admin/export-import.php:11345",
+                "includes/admin/export-import.php:11437",
+                "includes/admin/export-import.php:11472",
                 "includes/admin/user-progress-report.php:991",
                 "includes/lib/interlinear.php:1907",
-                "includes/pages/wordset-editor.php:3017",
-                "includes/pages/wordset-editor.php:3163",
+                "includes/pages/wordset-editor.php:3087",
+                "includes/pages/wordset-editor.php:3233",
                 "includes/pages/wordset-editor.php:658",
                 "includes/post-types/dictionary-entry-post-type.php:1191",
                 "includes/post-types/dictionary-entry-post-type.php:1313",
@@ -1663,7 +1663,7 @@
                 "includes/login-window.php:2479",
                 "includes/login-window.php:2482",
                 "includes/login-window.php:2493",
-                "includes/pages/wordset-editor.php:3236"
+                "includes/pages/wordset-editor.php:3306"
             ],
             "public_references": [
                 "includes/login-window.php:2479",
@@ -2679,7 +2679,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-games.php:3914",
-                "includes/shortcodes/audio-recording-shortcode.php:3802"
+                "includes/shortcodes/audio-recording-shortcode.php:3804"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:3914"
@@ -2693,9 +2693,9 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:1130",
                 "includes/pages/wordset-games.php:3922",
-                "includes/shortcodes/audio-recording-shortcode.php:3810",
+                "includes/shortcodes/audio-recording-shortcode.php:3812",
                 "includes/shortcodes/audio-recording-shortcode.php:462",
-                "includes/shortcodes/audio-recording-shortcode.php:6676",
+                "includes/shortcodes/audio-recording-shortcode.php:6678",
                 "includes/shortcodes/word-grid-shortcode.php:7083"
             ],
             "public_references": [
@@ -2890,8 +2890,8 @@
                 "includes/admin/ipa-keyboard-admin.php:347",
                 "includes/admin/offline-app-export.php:703",
                 "includes/admin/user-progress-report.php:951",
-                "includes/pages/wordset-editor.php:3020",
-                "includes/pages/wordset-editor.php:3074",
+                "includes/pages/wordset-editor.php:3090",
+                "includes/pages/wordset-editor.php:3144",
                 "includes/pages/wordset-pages.php:10290",
                 "includes/pages/wordset-pages.php:11967",
                 "includes/pages/wordset-pages.php:14044",
@@ -3266,7 +3266,7 @@
             "msgid": "%d selected",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-editor.php:2815",
+                "includes/pages/wordset-editor.php:2885",
                 "includes/pages/wordset-pages.php:15836"
             ],
             "public_references": [
@@ -3426,7 +3426,7 @@
             "msgid": "Select %s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-editor.php:3053",
+                "includes/pages/wordset-editor.php:3123",
                 "includes/pages/wordset-pages.php:15846",
                 "includes/pages/wordset-pages.php:4001"
             ],
@@ -3738,15 +3738,15 @@
                 "includes/admin/audio-processor-admin.php:739",
                 "includes/admin/bulk-translation-admin.php:176",
                 "includes/admin/bulk-translation-admin.php:198",
-                "includes/admin/export-import.php:3936",
+                "includes/admin/export-import.php:4038",
                 "includes/admin/ipa-keyboard-admin.php:300",
                 "includes/admin/ipa-keyboard-admin.php:344",
                 "includes/admin/missing-audio-admin-page.php:635",
                 "includes/admin/orphan-media-admin.php:854",
                 "includes/admin/user-progress-report.php:990",
                 "includes/admin/word-option-rules-admin.php:1641",
-                "includes/pages/wordset-editor.php:3016",
-                "includes/pages/wordset-editor.php:3055",
+                "includes/pages/wordset-editor.php:3086",
+                "includes/pages/wordset-editor.php:3125",
                 "includes/pages/wordset-pages.php:15877",
                 "includes/pages/wordset-pages.php:16232",
                 "includes/pages/wordset-pages.php:16234",
@@ -3776,7 +3776,7 @@
                 "includes/admin/image-webp-optimizer-admin.php:1557",
                 "includes/admin/user-progress-report.php:955",
                 "includes/admin/word-option-rules-admin.php:1370",
-                "includes/pages/wordset-editor.php:2861",
+                "includes/pages/wordset-editor.php:2931",
                 "includes/pages/wordset-pages.php:12464",
                 "includes/pages/wordset-pages.php:15878",
                 "includes/pages/wordset-pages.php:16157",
@@ -3904,7 +3904,7 @@
             "msgid": "New",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:4170",
+                "includes/admin/export-import.php:4272",
                 "includes/admin/user-progress-report.php:932",
                 "includes/pages/wordset-pages.php:15885",
                 "includes/pages/wordset-pages.php:15895",
@@ -3994,7 +3994,7 @@
                 "includes/admin/bulk-translation-admin.php:124",
                 "includes/admin/image-aspect-normalizer-admin.php:102",
                 "includes/admin/user-progress-report.php:956",
-                "includes/pages/wordset-editor.php:2820",
+                "includes/pages/wordset-editor.php:2890",
                 "includes/pages/wordset-pages.php:15891",
                 "includes/pages/wordset-pages.php:16113",
                 "includes/post-types/words-post-type.php:21",
@@ -4029,11 +4029,11 @@
                 "includes/admin/bulk-translation-admin.php:130",
                 "includes/admin/bulk-translation-admin.php:140",
                 "includes/admin/bulk-translation-admin.php:299",
-                "includes/pages/wordset-editor.php:2546",
-                "includes/pages/wordset-editor.php:2584",
-                "includes/pages/wordset-editor.php:2867",
-                "includes/pages/wordset-editor.php:2877",
-                "includes/pages/wordset-editor.php:2885",
+                "includes/pages/wordset-editor.php:2616",
+                "includes/pages/wordset-editor.php:2654",
+                "includes/pages/wordset-editor.php:2937",
+                "includes/pages/wordset-editor.php:2947",
+                "includes/pages/wordset-editor.php:2955",
                 "includes/pages/wordset-pages.php:15893",
                 "includes/pages/wordset-pages.php:17361",
                 "includes/pages/wordset-pages.php:9523"
@@ -4141,7 +4141,7 @@
                 "includes/admin/ipa-keyboard-admin.php:467",
                 "includes/admin/split-word-admin.php:397",
                 "includes/admin/user-progress-report.php:992",
-                "includes/pages/wordset-editor.php:2865",
+                "includes/pages/wordset-editor.php:2935",
                 "includes/pages/wordset-pages.php:15906",
                 "includes/pages/wordset-pages.php:16276",
                 "includes/pages/wordset-pages.php:16284",
@@ -5917,7 +5917,7 @@
             "msgid": "Paused",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:1541",
+                "includes/admin/export-import.php:1642",
                 "includes/pages/wordset-pages.php:9515"
             ],
             "public_references": [
@@ -6650,8 +6650,8 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/dictionary-import-admin.php:1339",
-                "includes/admin/export-import.php:3160",
-                "includes/admin/export-import.php:3695",
+                "includes/admin/export-import.php:3262",
+                "includes/admin/export-import.php:3797",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:294",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222"
             ],
@@ -7556,10 +7556,10 @@
             "msgid": "Play %s recording",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:3954",
+                "includes/admin/export-import.php:4056",
                 "includes/admin/ipa-keyboard-admin.php:1007",
                 "includes/admin/word-option-rules-admin.php:1684",
-                "includes/pages/wordset-editor.php:2477",
+                "includes/pages/wordset-editor.php:2547",
                 "includes/shortcodes/flashcard-widget.php:423",
                 "includes/shortcodes/word-grid-shortcode.php:4675",
                 "includes/shortcodes/word-grid-shortcode.php:5169",
@@ -7614,7 +7614,7 @@
             "msgid": "Recordings",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-editor.php:3134",
+                "includes/pages/wordset-editor.php:3204",
                 "includes/shortcodes/editor-hub-shortcode.php:1063",
                 "includes/shortcodes/flashcard-widget.php:426",
                 "includes/shortcodes/word-grid-shortcode.php:3468",
@@ -8024,8 +8024,8 @@
             "msgid": "Word set",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:3630",
-                "includes/admin/export-import.php:3715",
+                "includes/admin/export-import.php:3732",
+                "includes/admin/export-import.php:3817",
                 "includes/admin/ipa-keyboard-admin.php:499",
                 "includes/admin/teacher-classes-page.php:568",
                 "includes/admin/word-option-rules-admin.php:1358",
@@ -8066,7 +8066,7 @@
             "msgid": "All categories",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:3504",
+                "includes/admin/export-import.php:3606",
                 "includes/admin/image-webp-optimizer-admin.php:1559",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:193"
             ],
@@ -8083,7 +8083,7 @@
                 "includes/admin/bulk-translation-admin.php:159",
                 "includes/admin/orphan-media-admin.php:1782",
                 "includes/admin/user-progress-report.php:749",
-                "includes/pages/wordset-editor.php:2894",
+                "includes/pages/wordset-editor.php:2964",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:202"
             ],
             "public_references": [
