@@ -19,6 +19,10 @@ function ll_tools_site_sync_supported_surfaces(): array {
             'label' => __('Recording transcriptions', 'll-tools-text-domain'),
             'record_type' => 'word_audio_transcription',
         ],
+        'metadata' => [
+            'label' => __('Word metadata', 'll-tools-text-domain'),
+            'record_type' => 'word_metadata',
+        ],
     ];
 
     return (array) apply_filters('ll_tools_site_sync_supported_surfaces', $surfaces);
@@ -660,6 +664,434 @@ function ll_tools_site_sync_collect_transcription_record_page(int $wordset_id, b
     ];
 }
 
+function ll_tools_site_sync_collect_wordset_word_ids(int $wordset_id): array {
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $word_ids = get_posts([
+        'post_type' => 'words',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'no_found_rows' => true,
+        'tax_query' => [
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+            ],
+        ],
+    ]);
+
+    return array_values(array_filter(array_map('intval', (array) $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+}
+
+function ll_tools_site_sync_collect_wordset_category_records(int $wordset_id, bool $ensure_sync_ids = true): array {
+    $word_ids = ll_tools_site_sync_collect_wordset_word_ids($wordset_id);
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $terms = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'object_ids' => $word_ids,
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    $records = [];
+    foreach ((array) $terms as $term) {
+        if (!($term instanceof WP_Term)) {
+            continue;
+        }
+
+        $parent_slug = '';
+        if ((int) $term->parent > 0) {
+            $raw_parent_slug = get_term_field('slug', (int) $term->parent, 'word-category');
+            $parent_slug = is_wp_error($raw_parent_slug) ? '' : (string) $raw_parent_slug;
+        }
+
+        $config = function_exists('ll_tools_get_category_quiz_config')
+            ? (array) ll_tools_get_category_quiz_config($term)
+            : [];
+
+        $records[] = [
+            'id' => (int) $term->term_id,
+            'sync_id' => ll_tools_site_sync_get_or_create_term_uuid((int) $term->term_id, $ensure_sync_ids),
+            'slug' => (string) $term->slug,
+            'name' => (string) $term->name,
+            'display_name' => function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
+                : (string) $term->name,
+            'parent_id' => (int) $term->parent,
+            'parent_slug' => $parent_slug,
+            'term_count' => (int) $term->count,
+            'quiz_config' => $config,
+            'can_generate_quiz' => function_exists('ll_can_category_generate_quiz')
+                ? (bool) ll_can_category_generate_quiz($term, defined('LL_TOOLS_MIN_WORDS_PER_QUIZ') ? (int) LL_TOOLS_MIN_WORDS_PER_QUIZ : 5, [$wordset_id])
+                : false,
+        ];
+    }
+
+    usort($records, static function (array $left, array $right): int {
+        return strnatcasecmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+    });
+
+    return $records;
+}
+
+function ll_tools_site_sync_wordset_metadata_payload(int $wordset_id, bool $ensure_sync_ids = true): array {
+    $category_records = ll_tools_site_sync_collect_wordset_category_records($wordset_id, $ensure_sync_ids);
+    $category_ids = array_values(array_map('intval', wp_list_pluck($category_records, 'id')));
+
+    $ordering_mode = function_exists('ll_tools_wordset_get_category_ordering_mode')
+        ? (string) ll_tools_wordset_get_category_ordering_mode($wordset_id)
+        : '';
+    $manual_order_ids = (!empty($category_ids) && function_exists('ll_tools_wordset_get_category_manual_order'))
+        ? ll_tools_wordset_get_category_manual_order($wordset_id, $category_ids)
+        : [];
+    $ordered_category_ids = (!empty($category_ids) && function_exists('ll_tools_wordset_sort_category_ids'))
+        ? ll_tools_wordset_sort_category_ids($category_ids, $wordset_id)
+        : $category_ids;
+    $prereq_map = (!empty($category_ids) && function_exists('ll_tools_wordset_get_category_prereq_map'))
+        ? ll_tools_wordset_get_category_prereq_map($wordset_id, $category_ids)
+        : [];
+    $prereq_level_info = (!empty($category_ids) && function_exists('ll_tools_wordset_get_prereq_level_info'))
+        ? ll_tools_wordset_get_prereq_level_info($wordset_id, $category_ids)
+        : [];
+
+    $prereq_rows = [];
+    foreach ($category_ids as $category_id) {
+        $prereq_rows[] = [
+            'category_id' => (int) $category_id,
+            'prerequisite_category_ids' => array_values(array_map('intval', (array) ($prereq_map[$category_id] ?? []))),
+        ];
+    }
+
+    return [
+        'settings' => [
+            'visibility' => function_exists('ll_tools_get_wordset_visibility')
+                ? (string) ll_tools_get_wordset_visibility($wordset_id)
+                : '',
+            'target_language' => function_exists('ll_tools_get_wordset_target_language')
+                ? (string) ll_tools_get_wordset_target_language([$wordset_id], true)
+                : '',
+            'translation_language' => function_exists('ll_tools_get_wordset_translation_language')
+                ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
+                : '',
+            'word_title_language_role' => function_exists('ll_tools_get_wordset_title_language_role')
+                ? (string) ll_tools_get_wordset_title_language_role([$wordset_id], true)
+                : '',
+            'recording_transcription_mode' => function_exists('ll_tools_get_wordset_recording_transcription_mode')
+                ? (string) ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
+                : '',
+            'category_translation_enabled' => function_exists('ll_tools_is_wordset_category_translation_enabled')
+                ? (bool) ll_tools_is_wordset_category_translation_enabled([$wordset_id], true)
+                : false,
+            'category_translation_source' => function_exists('ll_tools_get_wordset_category_translation_source')
+                ? (string) ll_tools_get_wordset_category_translation_source([$wordset_id], true)
+                : '',
+            'gender_enabled' => function_exists('ll_tools_wordset_has_grammatical_gender')
+                ? (bool) ll_tools_wordset_has_grammatical_gender($wordset_id)
+                : false,
+            'plurality_enabled' => function_exists('ll_tools_wordset_has_plurality')
+                ? (bool) ll_tools_wordset_has_plurality($wordset_id)
+                : false,
+            'verb_tense_enabled' => function_exists('ll_tools_wordset_has_verb_tense')
+                ? (bool) ll_tools_wordset_has_verb_tense($wordset_id)
+                : false,
+            'verb_tense_options' => function_exists('ll_tools_wordset_get_verb_tense_options')
+                ? ll_tools_wordset_get_verb_tense_options($wordset_id)
+                : [],
+            'verb_mood_enabled' => function_exists('ll_tools_wordset_has_verb_mood')
+                ? (bool) ll_tools_wordset_has_verb_mood($wordset_id)
+                : false,
+            'verb_mood_options' => function_exists('ll_tools_wordset_get_verb_mood_options')
+                ? ll_tools_wordset_get_verb_mood_options($wordset_id)
+                : [],
+        ],
+        'category_ordering' => [
+            'mode' => $ordering_mode,
+            'category_ids' => $category_ids,
+            'ordered_category_ids' => array_values(array_map('intval', $ordered_category_ids)),
+            'manual_order_ids' => array_values(array_map('intval', $manual_order_ids)),
+            'prerequisites' => $prereq_rows,
+            'prereq_level_info' => $prereq_level_info,
+        ],
+        'categories' => $category_records,
+    ];
+}
+
+function ll_tools_site_sync_collect_audio_records_for_words(array $word_ids, int $wordset_id, bool $ensure_sync_ids = true, bool $include_media = true): array {
+    $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $audio_posts = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'post_parent__in' => $word_ids,
+        'posts_per_page' => -1,
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'suppress_filters' => true,
+    ]);
+    if (empty($audio_posts)) {
+        return [];
+    }
+
+    $audio_ids = array_values(array_filter(array_map(static function ($audio_post): int {
+        return $audio_post instanceof WP_Post ? (int) $audio_post->ID : 0;
+    }, (array) $audio_posts), static function (int $audio_id): bool {
+        return $audio_id > 0;
+    }));
+
+    update_meta_cache('post', $audio_ids);
+
+    $recording_types_by_audio = [];
+    $recording_terms = wp_get_object_terms($audio_ids, 'recording_type', ['fields' => 'all_with_object_id']);
+    if (!is_wp_error($recording_terms) && !empty($recording_terms)) {
+        foreach ((array) $recording_terms as $term) {
+            $audio_id = isset($term->object_id) ? (int) $term->object_id : 0;
+            if ($audio_id <= 0 || empty($term->slug)) {
+                continue;
+            }
+            $recording_types_by_audio[$audio_id][(string) $term->slug] = true;
+        }
+    }
+
+    $records_by_word = [];
+    foreach ((array) $audio_posts as $audio_post) {
+        if (!($audio_post instanceof WP_Post)) {
+            continue;
+        }
+
+        $audio_id = (int) $audio_post->ID;
+        $word_id = (int) $audio_post->post_parent;
+        if ($audio_id <= 0 || $word_id <= 0) {
+            continue;
+        }
+
+        $types = array_keys($recording_types_by_audio[$audio_id] ?? []);
+        sort($types);
+
+        $record = [
+            'id' => $audio_id,
+            'sync_id' => ll_tools_site_sync_get_or_create_post_uuid($audio_id, $ensure_sync_ids),
+            'slug' => (string) $audio_post->post_name,
+            'title' => get_the_title($audio_id),
+            'status' => (string) $audio_post->post_status,
+            'modified_gmt' => (string) $audio_post->post_modified_gmt,
+            'types' => $types,
+            'values' => ll_tools_site_sync_record_values($audio_id, $wordset_id),
+        ];
+        if ($include_media) {
+            $record['media'] = [
+                'audio' => ll_tools_site_sync_audio_media($audio_id),
+            ];
+        }
+
+        $records_by_word[$word_id][] = $record;
+    }
+
+    return $records_by_word;
+}
+
+function ll_tools_site_sync_audio_summary(array $audio_records): array {
+    $type_counts = [];
+    $published_count = 0;
+    $review_count = 0;
+
+    foreach ($audio_records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+        if ((string) ($record['status'] ?? '') === 'publish') {
+            $published_count++;
+        }
+        if (!empty($record['values']['needs_review'])) {
+            $review_count++;
+        }
+        foreach ((array) ($record['types'] ?? []) as $type) {
+            $type = sanitize_key((string) $type);
+            if ($type === '') {
+                continue;
+            }
+            $type_counts[$type] = ($type_counts[$type] ?? 0) + 1;
+        }
+    }
+    ksort($type_counts);
+
+    return [
+        'record_count' => count($audio_records),
+        'published_count' => $published_count,
+        'review_count' => $review_count,
+        'type_counts' => $type_counts,
+    ];
+}
+
+function ll_tools_site_sync_build_metadata_record(int $wordset_id, int $word_id, array $row, array $audio_records, bool $ensure_sync_ids = true, bool $include_media = true): array {
+    $word_post = get_post($word_id);
+    if (!($word_post instanceof WP_Post) || $word_post->post_type !== 'words') {
+        return [];
+    }
+
+    $word_sync_id = ll_tools_site_sync_get_or_create_post_uuid($word_id, $ensure_sync_ids);
+    $word_slug = (string) $word_post->post_name;
+
+    $record = [
+        'record_type' => 'word_metadata',
+        'sync_id' => $word_sync_id,
+        'natural_key' => 'word:' . sanitize_title($word_slug),
+        'word' => [
+            'id' => $word_id,
+            'sync_id' => $word_sync_id,
+            'slug' => $word_slug,
+            'title' => get_the_title($word_id),
+            'status' => (string) $word_post->post_status,
+            'modified_gmt' => (string) $word_post->post_modified_gmt,
+        ],
+        'values' => [
+            'word_text' => (string) ($row['word_text'] ?? ''),
+            'word_translation' => (string) ($row['word_translation'] ?? ''),
+            'word_english_meaning' => (string) ($row['word_english_meaning'] ?? ''),
+            'word_note' => (string) (($row['word_note'] ?? '') !== '' ? $row['word_note'] : get_post_meta($word_id, 'word_note', true)),
+            'dictionary_entry' => [
+                'id' => (int) ($row['dictionary_entry_id'] ?? 0),
+                'title' => (string) ($row['dictionary_entry_title'] ?? ''),
+            ],
+            'part_of_speech' => [
+                'slug' => (string) ($row['part_of_speech'] ?? ''),
+                'label' => (string) ($row['part_of_speech_label'] ?? ''),
+            ],
+            'grammatical_gender' => [
+                'value' => (string) ($row['grammatical_gender'] ?? ''),
+                'label' => (string) ($row['grammatical_gender_label'] ?? ''),
+            ],
+            'grammatical_plurality' => [
+                'value' => (string) ($row['grammatical_plurality'] ?? ''),
+                'label' => (string) ($row['grammatical_plurality_label'] ?? ''),
+            ],
+            'verb_tense' => [
+                'value' => (string) ($row['verb_tense'] ?? ''),
+                'label' => (string) ($row['verb_tense_label'] ?? ''),
+            ],
+            'verb_mood' => [
+                'value' => (string) ($row['verb_mood'] ?? ''),
+                'label' => (string) ($row['verb_mood_label'] ?? ''),
+            ],
+            'missing_flags' => (array) ($row['missing_flags'] ?? []),
+            'missing_fields' => array_values(array_map('strval', (array) ($row['missing_fields'] ?? []))),
+            'missing_count' => (int) ($row['missing_count'] ?? 0),
+            'has_missing' => !empty($row['has_missing']),
+        ],
+        'categories' => ll_tools_site_sync_word_categories($word_id, $ensure_sync_ids),
+        'audio' => [
+            'summary' => ll_tools_site_sync_audio_summary($audio_records),
+            'records' => array_values($audio_records),
+        ],
+    ];
+
+    if ($include_media) {
+        $record['media'] = [
+            'word_image' => ll_tools_site_sync_word_image_media($word_id, $ensure_sync_ids),
+        ];
+    }
+
+    return $record;
+}
+
+function ll_tools_site_sync_collect_metadata_record_page(int $wordset_id, bool $ensure_sync_ids = true, array $args = []): array {
+    if ($wordset_id <= 0) {
+        return [
+            'records' => [],
+            'total' => 0,
+        ];
+    }
+
+    $snapshot_args = ll_tools_site_sync_normalize_snapshot_args($args);
+    $limit = (int) $snapshot_args['limit'];
+    $offset = (int) $snapshot_args['offset'];
+    $include_media = !empty($snapshot_args['include_media']);
+
+    $word_query_args = [
+        'post_type' => 'words',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'posts_per_page' => $limit > 0 ? $limit : -1,
+        'fields' => 'ids',
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'no_found_rows' => $limit <= 0,
+        'tax_query' => [
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+            ],
+        ],
+    ];
+    if ($limit > 0 && $offset > 0) {
+        $word_query_args['offset'] = $offset;
+    }
+
+    $word_query = new WP_Query($word_query_args);
+    $word_ids = array_values(array_filter(array_map('intval', (array) $word_query->posts), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    $total_records = $limit > 0 ? (int) $word_query->found_posts : count($word_ids);
+    if (empty($word_ids)) {
+        return [
+            'records' => [],
+            'total' => $total_records,
+        ];
+    }
+
+    update_meta_cache('post', $word_ids);
+
+    $rows = function_exists('ll_tools_cli_get_word_rows')
+        ? ll_tools_cli_get_word_rows($wordset_id, $word_ids)
+        : [];
+    $rows_by_word_id = [];
+    foreach ((array) $rows as $row) {
+        $row_word_id = (int) ($row['word_id'] ?? 0);
+        if ($row_word_id > 0) {
+            $rows_by_word_id[$row_word_id] = (array) $row;
+        }
+    }
+
+    $audio_records_by_word = ll_tools_site_sync_collect_audio_records_for_words($word_ids, $wordset_id, $ensure_sync_ids, $include_media);
+
+    $records = [];
+    foreach ($word_ids as $word_id) {
+        $record = ll_tools_site_sync_build_metadata_record(
+            $wordset_id,
+            $word_id,
+            (array) ($rows_by_word_id[$word_id] ?? []),
+            (array) ($audio_records_by_word[$word_id] ?? []),
+            $ensure_sync_ids,
+            $include_media
+        );
+        if (!empty($record)) {
+            $records[] = $record;
+        }
+    }
+
+    return [
+        'records' => $records,
+        'total' => $total_records,
+    ];
+}
+
 function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 'transcriptions', bool $ensure_sync_ids = true, array $args = []) {
     $surface = ll_tools_site_sync_normalize_surface($surface);
     $wordset = get_term($wordset_id, 'wordset');
@@ -673,10 +1105,16 @@ function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 't
     $records = [];
     $total_records = 0;
     $snapshot_args = ll_tools_site_sync_normalize_snapshot_args($args);
+    $wordset_metadata = null;
     if ($surface === 'transcriptions') {
         $record_page = ll_tools_site_sync_collect_transcription_record_page($wordset_id, $ensure_sync_ids, $snapshot_args);
         $records = (array) ($record_page['records'] ?? []);
         $total_records = (int) ($record_page['total'] ?? count($records));
+    } elseif ($surface === 'metadata') {
+        $record_page = ll_tools_site_sync_collect_metadata_record_page($wordset_id, $ensure_sync_ids, $snapshot_args);
+        $records = (array) ($record_page['records'] ?? []);
+        $total_records = (int) ($record_page['total'] ?? count($records));
+        $wordset_metadata = ll_tools_site_sync_wordset_metadata_payload($wordset_id, $ensure_sync_ids);
     }
 
     $snapshot = [
@@ -696,6 +1134,10 @@ function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 't
         'include_media' => !empty($snapshot_args['include_media']),
         'records' => $records,
     ];
+
+    if (is_array($wordset_metadata)) {
+        $snapshot['wordset_metadata'] = $wordset_metadata;
+    }
 
     if ((int) $snapshot_args['limit'] > 0) {
         $next_offset = (int) $snapshot_args['offset'] + count($records);

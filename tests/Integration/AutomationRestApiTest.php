@@ -1255,6 +1255,105 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Review both generated transcription fields.', (string) ($snapshot_values['review_note'] ?? ''));
     }
 
+    public function test_site_sync_metadata_surface_returns_paged_word_metadata(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Metadata Snapshot Wordset', 'rest-metadata-snapshot-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Metadata Snapshot Category', 'rest-metadata-snapshot-category');
+        $second_category_id = $this->ensure_term('word-category', 'REST Metadata Snapshot Second Category', 'rest-metadata-snapshot-second-category');
+        $pos_id = $this->ensure_term('part_of_speech', 'Metadata Snapshot Noun', 'metadata-snapshot-noun');
+        $recording_type_id = $this->ensure_term('recording_type', 'Isolation', 'isolation');
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Metadata Snapshot Word', 'Target text');
+        $second_word_id = $this->create_word($wordset_id, [$second_category_id], 'REST Metadata Snapshot Second Word', 'Second target');
+        $effective_category_id = $this->effective_category_id($category_id, $wordset_id);
+        $effective_second_category_id = $this->effective_category_id($second_category_id, $wordset_id);
+        update_post_meta($word_id, 'word_english_meaning', 'Helper text');
+        update_post_meta($word_id, 'word_note', 'Internal word note');
+        update_post_meta($word_id, 'll_grammatical_gender', 'feminine');
+        wp_set_post_terms($word_id, [$pos_id], 'part_of_speech', false);
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'REST Metadata Snapshot Recording',
+        ]);
+        update_post_meta($recording_id, 'audio_file_path', '/wp-content/uploads/metadata-snapshot.mp3');
+        update_post_meta($recording_id, 'recording_text', 'Recorded text');
+        update_post_meta($recording_id, 'recording_ipa', 'recorded.ipa');
+        wp_set_post_terms($recording_id, [$recording_type_id], 'recording_type', false);
+
+        $attachment_id = $this->create_image_attachment('metadata-snapshot-image.png');
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'REST Metadata Snapshot Image',
+        ]);
+        set_post_thumbnail($word_image_id, $attachment_id);
+        wp_set_post_terms($word_image_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_image_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
+
+        wp_set_current_user($admin_id);
+
+        $response = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-metadata-snapshot-wordset/site-sync/snapshot', [
+            'surface' => 'metadata',
+            'per_page' => 1,
+            'offset' => 0,
+            'ensure_sync_ids' => false,
+        ]);
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame('metadata', (string) ($data['surface'] ?? ''));
+        $this->assertSame(2, (int) ($data['record_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['records_returned'] ?? 0));
+        $pagination = (array) ($data['pagination'] ?? []);
+        $this->assertTrue((bool) ($pagination['has_more'] ?? false));
+        $this->assertSame(1, (int) ($pagination['next_offset'] ?? 0));
+
+        $wordset_metadata = (array) ($data['wordset_metadata'] ?? []);
+        $this->assertNotEmpty($wordset_metadata['categories'] ?? []);
+        $category_ids = array_map('intval', wp_list_pluck((array) ($wordset_metadata['categories'] ?? []), 'id'));
+        $this->assertContains($effective_category_id, $category_ids);
+        $this->assertContains($effective_second_category_id, $category_ids);
+
+        $records = array_values((array) ($data['records'] ?? []));
+        $this->assertCount(1, $records);
+        $record = (array) $records[0];
+        $this->assertSame('word_metadata', (string) ($record['record_type'] ?? ''));
+        $this->assertSame($word_id, (int) (($record['word']['id'] ?? 0)));
+        $this->assertSame('', (string) ($record['sync_id'] ?? ''));
+        $this->assertSame('', (string) get_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), true));
+
+        $values = (array) ($record['values'] ?? []);
+        $this->assertSame('Target text', (string) ($values['word_translation'] ?? ''));
+        $this->assertSame('Helper text', (string) ($values['word_english_meaning'] ?? ''));
+        $this->assertSame('Internal word note', (string) ($values['word_note'] ?? ''));
+        $this->assertSame('metadata-snapshot-noun', (string) (($values['part_of_speech']['slug'] ?? '')));
+        $this->assertSame('feminine', (string) (($values['grammatical_gender']['value'] ?? '')));
+
+        $record_category_ids = array_map('intval', wp_list_pluck((array) ($record['categories'] ?? []), 'id'));
+        $this->assertSame([$effective_category_id], $record_category_ids);
+
+        $audio = (array) ($record['audio'] ?? []);
+        $summary = (array) ($audio['summary'] ?? []);
+        $this->assertSame(1, (int) ($summary['record_count'] ?? 0));
+        $this->assertSame(1, (int) (($summary['type_counts']['isolation'] ?? 0)));
+        $audio_records = array_values((array) ($audio['records'] ?? []));
+        $this->assertCount(1, $audio_records);
+        $this->assertSame($recording_id, (int) (($audio_records[0]['id'] ?? 0)));
+        $this->assertSame('Recorded text', (string) (($audio_records[0]['values']['recording_text'] ?? '')));
+        $this->assertSame('recorded.ipa', (string) (($audio_records[0]['values']['recording_ipa'] ?? '')));
+
+        $media = (array) ($record['media'] ?? []);
+        $word_image = (array) ($media['word_image'] ?? []);
+        $this->assertGreaterThan(0, (int) ($word_image['id'] ?? 0));
+        $this->assertSame($attachment_id, (int) (($word_image['attachment']['id'] ?? 0)));
+    }
+
     public function test_transcriptions_route_accepts_field_specific_review_note_aliases(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

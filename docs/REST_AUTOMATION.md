@@ -709,15 +709,15 @@ wordset.
 
 ### `GET /wordsets/{wordset}/site-sync/snapshot`
 
-Returns a wordset-scoped sync snapshot for site-to-site workflows. The first
-supported surface is `transcriptions`, which includes `word_audio` recording
-text, recording transcription, transcription review flags, and review notes.
+Returns a wordset-scoped sync snapshot for site-to-site workflows and local
+search/staging artifacts.
 
 Query params:
 
-- `surface` optional, currently `transcriptions`
+- `surface` optional; `transcriptions` or `metadata`, default `transcriptions`
 - `ensure_sync_ids` optional boolean, default true
-- `include_media` optional boolean, default true; set to false for transcription-only push comparisons
+- `include_media` optional boolean, default true; set to false for lighter
+  read-only comparison snapshots
 - `per_page` optional integer for paged snapshots
 - `offset` optional integer offset for paged snapshots
 
@@ -726,17 +726,34 @@ The response includes stable LL Tools sync IDs where available. When
 remote records so staging and live can keep matching the same recordings after a
 pull.
 
+Use `surface=transcriptions` for recording text, recording transcription,
+transcription review flags, review notes, and recording media references.
+
+Use `surface=metadata` for a paged, one-row-per-word local snapshot. Metadata
+records include:
+
+- word ID, sync ID, slug, title, status, and modified time
+- `word_translation`, `word_english_meaning`, `word_note`, dictionary entry,
+  part of speech, grammar fields, and missing-metadata flags
+- all assigned `word-category` rows
+- linked/effective `word_images` media when `include_media=true`
+- word audio summaries and recording rows with recording types, transcription
+  values, review state, and audio media when `include_media=true`
+- `wordset_metadata` with wordset settings, category rows, category ordering,
+  manual order, prerequisite map, and prerequisite level information
+
 Use this route from the LL Site Sync admin page or external automation before a
 three-way merge. It is not a database clone endpoint; it intentionally returns a
 domain-specific content snapshot for safe diffing.
 
-The current built-in surface is transcription-centered. For a local searchable
-copy of every word's broader metadata, combine this paged snapshot with
-`GET /wordsets/{wordset}/report`, `GET /wordsets/{wordset}/report-summary`, and
-targeted WordPress REST reads for `words`, `word_images`, and `word-category`
-terms, or add a new paged site-sync surface for the specific metadata set you
-need. Do not treat a local-site sync apply as the source of truth for a large
-live wordset.
+For a pure read-only local metadata copy, send `ensure_sync_ids=false`. If you
+need durable cross-site matching for later sync work, send `ensure_sync_ids=true`
+and treat the request as a live write because it may create missing UUID
+metadata.
+
+For most local search/staging workflows, prefer storing timestamped paged
+`surface=metadata` JSON plus `report-summary` JSON rather than relying on a
+local-site sync apply as the source of truth for a large live wordset.
 
 Large wordsets should be read in pages. Paged responses include
 `records_returned` and `pagination.next_offset`; continue until
