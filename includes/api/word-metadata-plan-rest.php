@@ -17,6 +17,7 @@ function ll_tools_rest_word_metadata_plan_supported_fields(): array {
         'word_text',
         'word_translation',
         'word_english_meaning',
+        'word_translations',
         'word_note',
         'dictionary_entry_id',
         'dictionary_entry_title',
@@ -41,6 +42,10 @@ function ll_tools_rest_word_metadata_plan_field_alias(string $field): string {
         'word_text' => 'word_text',
         'translation' => 'word_translation',
         'word_translation' => 'word_translation',
+        'translations' => 'word_translations',
+        'translation_map' => 'word_translations',
+        'word_translation_map' => 'word_translations',
+        'word_translations' => 'word_translations',
         'helper_translation' => 'word_english_meaning',
         'known_language_translation' => 'word_english_meaning',
         'english_meaning' => 'word_english_meaning',
@@ -68,11 +73,25 @@ function ll_tools_rest_word_metadata_plan_field_alias(string $field): string {
     ];
 
     $normalized = (string) ($aliases[$field] ?? '');
-    if ($normalized !== '' && !in_array($normalized, ll_tools_rest_word_metadata_plan_supported_fields(), true)) {
+    if ($normalized === '' && preg_match('/^(?:word_)?translation_([a-z0-9_-]+)$/', $field, $matches)) {
+        $locale = function_exists('ll_tools_normalize_translation_locale')
+            ? ll_tools_normalize_translation_locale((string) $matches[1])
+            : sanitize_key((string) $matches[1]);
+        $normalized = $locale !== '' ? 'word_translation_' . $locale : '';
+    }
+    if (
+        $normalized !== ''
+        && !in_array($normalized, ll_tools_rest_word_metadata_plan_supported_fields(), true)
+        && !ll_tools_rest_word_metadata_plan_is_locale_translation_field($normalized)
+    ) {
         return '';
     }
 
     return $normalized;
+}
+
+function ll_tools_rest_word_metadata_plan_is_locale_translation_field(string $field): bool {
+    return (bool) preg_match('/^word_translation_[a-z0-9][a-z0-9_-]{0,31}$/', sanitize_key($field));
 }
 
 function ll_tools_rest_word_metadata_plan_is_control_key(string $key): bool {
@@ -174,8 +193,13 @@ function ll_tools_rest_word_metadata_plan_normalize_value(string $field, $value,
             ? ll_sanitize_word_title_text($raw)
             : trim(sanitize_text_field($raw));
     }
-    if (in_array($field, ['word_translation', 'word_english_meaning'], true)) {
+    if (in_array($field, ['word_translation', 'word_english_meaning'], true) || ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
         return ll_tools_rest_automation_sanitize_helper_translation_value($value);
+    }
+    if ($field === 'word_translations') {
+        return function_exists('ll_tools_normalize_word_translation_map')
+            ? ll_tools_normalize_word_translation_map($value)
+            : [];
     }
     if ($field === 'word_note') {
         return sanitize_textarea_field(ll_tools_rest_word_metadata_plan_scalar_string($value));
@@ -440,6 +464,11 @@ function ll_tools_rest_word_metadata_plan_current_values(int $word_id, int $word
             case 'word_english_meaning':
                 $values[$field] = (string) get_post_meta($word_id, 'word_english_meaning', true);
                 break;
+            case 'word_translations':
+                $values[$field] = function_exists('ll_tools_get_effective_word_translation_map')
+                    ? ll_tools_get_effective_word_translation_map($word_id)
+                    : [];
+                break;
             case 'word_note':
                 $values[$field] = (string) get_post_meta($word_id, 'll_word_usage_note', true);
                 break;
@@ -472,14 +501,57 @@ function ll_tools_rest_word_metadata_plan_current_values(int $word_id, int $word
             case 'word_category_ids':
                 $values[$field] = ll_tools_word_grid_get_selected_category_ids_for_editor($word_id, $wordset_id, $available_category_ids);
                 break;
+            default:
+                if (ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
+                    $locale = substr($field, strlen('word_translation_'));
+                    $values[$field] = function_exists('ll_tools_get_word_translation_for_locale')
+                        ? ll_tools_get_word_translation_for_locale($word_id, $locale, true)
+                        : '';
+                }
+                break;
         }
     }
 
     return $values;
 }
 
+function ll_tools_rest_word_metadata_plan_is_int_list($value): bool {
+    if (!is_array($value)) {
+        return false;
+    }
+
+    foreach ($value as $key => $item) {
+        if (!is_int($key)) {
+            return false;
+        }
+        if (is_array($item) || (string) (int) $item !== (string) $item) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_rest_word_metadata_plan_normalize_assoc_for_compare($value) {
+    if (is_array($value)) {
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[(string) $key] = ll_tools_rest_word_metadata_plan_normalize_assoc_for_compare($item);
+        }
+        ksort($normalized, SORT_NATURAL);
+        return $normalized;
+    }
+
+    return is_scalar($value) ? (string) $value : '';
+}
+
 function ll_tools_rest_word_metadata_plan_values_equal($left, $right): bool {
     if (is_array($left) || is_array($right)) {
+        if (!ll_tools_rest_word_metadata_plan_is_int_list($left) || !ll_tools_rest_word_metadata_plan_is_int_list($right)) {
+            return ll_tools_rest_word_metadata_plan_normalize_assoc_for_compare($left)
+                === ll_tools_rest_word_metadata_plan_normalize_assoc_for_compare($right);
+        }
+
         $left_values = array_values(array_map('intval', (array) $left));
         $right_values = array_values(array_map('intval', (array) $right));
         sort($left_values, SORT_NUMERIC);
@@ -495,6 +567,10 @@ function ll_tools_rest_word_metadata_plan_validate_field(int $wordset_id, int $w
         if (!function_exists('ll_tools_assign_dictionary_entry_to_word')) {
             return new WP_Error('ll_tools_rest_word_metadata_plan_dictionary_helpers_missing', __('Dictionary entry helpers are not available.', 'll-tools-text-domain'));
         }
+        return true;
+    }
+
+    if ($field === 'word_translations' || ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
         return true;
     }
 
@@ -624,6 +700,11 @@ function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word
             }
             return true;
 
+        case 'word_translations':
+            return function_exists('ll_tools_update_word_translation_map')
+                ? ll_tools_update_word_translation_map($word_id, (array) $value)
+                : true;
+
         case 'word_note':
             if ((string) $value === '') {
                 delete_post_meta($word_id, 'll_word_usage_note');
@@ -704,6 +785,13 @@ function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word
                 update_post_meta($word_id, 'll_verb_mood', $mood_value);
             }
             return true;
+    }
+
+    if (ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
+        $locale = substr($field, strlen('word_translation_'));
+        return function_exists('ll_tools_update_word_translation_for_locale')
+            ? ll_tools_update_word_translation_for_locale($word_id, $locale, (string) $value)
+            : true;
     }
 
     return new WP_Error('ll_tools_rest_word_metadata_plan_unsupported_field', __('Unsupported word metadata field.', 'll-tools-text-domain'));
@@ -832,6 +920,7 @@ function ll_tools_rest_word_metadata_plan_apply_plan(array $plan, WP_Term $words
         'word_text',
         'word_translation',
         'word_english_meaning',
+        'word_translations',
         'word_note',
         'dictionary_entry_id',
         'dictionary_entry_title',
@@ -843,10 +932,12 @@ function ll_tools_rest_word_metadata_plan_apply_plan(array $plan, WP_Term $words
         'word_category_ids',
     ];
     $changed_lookup = array_fill_keys($changed_keys, true);
+    $applied_fields = [];
     foreach ($field_order as $field) {
         if (empty($changed_lookup[$field])) {
             continue;
         }
+        $applied_fields[$field] = true;
         if ($field === 'word_category_ids') {
             $category_result = ll_tools_word_grid_update_word_categories_for_wordset($word_id, $wordset_id, (array) $set_values[$field], $available_category_ids);
             if (is_wp_error($category_result)) {
@@ -874,6 +965,24 @@ function ll_tools_rest_word_metadata_plan_apply_plan(array $plan, WP_Term $words
                     ];
                 }
             }
+            continue;
+        }
+
+        $field_result = ll_tools_rest_word_metadata_plan_apply_field($wordset_id, $word_id, $field, $set_values[$field] ?? '');
+        if (is_wp_error($field_result)) {
+            return [
+                'status' => 'error',
+                'row' => [
+                    'index' => (int) ($plan['index'] ?? 0),
+                    'word_id' => $word_id,
+                    'field' => $field,
+                    'message' => $field_result->get_error_message(),
+                ],
+            ];
+        }
+    }
+    foreach ($changed_keys as $field) {
+        if (!empty($applied_fields[$field])) {
             continue;
         }
 

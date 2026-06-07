@@ -791,6 +791,9 @@ Supported `set` and `expected` fields:
 - `word_text`
 - `word_translation`
 - `word_english_meaning`
+- `word_translations`
+- `word_translation_{locale}`, such as `word_translation_en`,
+  `word_translation_tr`, or `word_translation_de`
 - `word_note`
 - `dictionary_entry_id`
 - `dictionary_entry_title`
@@ -800,6 +803,13 @@ Supported `set` and `expected` fields:
 - `verb_tense`
 - `verb_mood`
 - `word_category_ids`
+
+`word_text` is the target-language learner-facing word. `word_translation` is
+the default/helper translation for the wordset's configured translation
+language. `word_english_meaning` is a legacy helper-translation alias and may
+contain a non-English language on older sites. Use `word_translations` or
+`word_translation_{locale}` for additional future display languages rather than
+putting parenthetical translations in titles or target text.
 
 The create response returns `job.id`, normalized `plans`, counts, supported batch
 limits, and no writes. Process with `POST
@@ -863,8 +873,9 @@ Use `surface=metadata` for a paged, one-row-per-word local snapshot. Metadata
 records include:
 
 - word ID, sync ID, slug, title, status, and modified time
-- `word_translation`, `word_english_meaning`, `word_note`, dictionary entry,
-  part of speech, grammar fields, and missing-metadata flags
+- `word_text`, `word_translation`, `word_english_meaning`,
+  `default_translation_locale`, `word_translations`, `word_note`, dictionary
+  entry, part of speech, grammar fields, and missing-metadata flags
 - all assigned `word-category` rows
 - linked/effective `word_images` media when `include_media=true`
 - word audio summaries and recording rows with recording types, transcription

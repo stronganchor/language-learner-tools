@@ -148,9 +148,47 @@ Common conventions:
 - For title/text/translation normalization, identify which field actually drives
   the learner-facing page before changing titles. Some sites show `word_text`
   and use the WordPress title mainly as an admin label.
+- Keep target-language text and translations separate. `word_text` is the
+  learner-facing target-language form; `word_translation` is the default/helper
+  translation for the wordset; `word_translations` is the locale-keyed map for
+  additional translations such as `tr`, `en`, and `de`.
+- Do not encode translations inside post titles or `word_text` with
+  parenthetical text. If a row displays as "translation (target word)", fix the
+  field orientation before moving it to a new category.
 - Keep local artifacts for before/after values, row counts, skipped rows, and
   conflicts.
 - Record conflicts separately instead of forcing a guess into live data.
+
+Metadata plan jobs can update locale-specific translations with either a whole
+map:
+
+```json
+{
+  "word_id": 12345,
+  "set": {
+    "word_translations": {
+      "tr": "kapi",
+      "en": "door",
+      "de": "Tuer"
+    }
+  }
+}
+```
+
+or single-locale fields:
+
+```json
+{
+  "word_id": 12345,
+  "expected": {
+    "word_translation_en": "old door"
+  },
+  "set": {
+    "word_translation_en": "door",
+    "word_translation_de": "Tuer"
+  }
+}
+```
 
 ## Review Before Writing
 

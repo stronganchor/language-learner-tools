@@ -965,6 +965,12 @@ function ll_tools_site_sync_build_metadata_record(int $wordset_id, int $word_id,
             'word_text' => (string) ($row['word_text'] ?? ''),
             'word_translation' => (string) ($row['word_translation'] ?? ''),
             'word_english_meaning' => (string) ($row['word_english_meaning'] ?? ''),
+            'default_translation_locale' => function_exists('ll_tools_get_default_translation_locale_for_word')
+                ? ll_tools_get_default_translation_locale_for_word($word_id)
+                : '',
+            'word_translations' => function_exists('ll_tools_get_effective_word_translation_map')
+                ? ll_tools_get_effective_word_translation_map($word_id)
+                : [],
             'word_note' => (string) (($row['word_note'] ?? '') !== '' ? $row['word_note'] : get_post_meta($word_id, 'word_note', true)),
             'dictionary_entry' => [
                 'id' => (int) ($row['dictionary_entry_id'] ?? 0),
@@ -1211,8 +1217,44 @@ function ll_tools_site_sync_find_matching_record(array $record, array $index): ?
     return null;
 }
 
+function ll_tools_site_sync_is_list_array($value): bool {
+    if (!is_array($value)) {
+        return false;
+    }
+
+    foreach ($value as $key => $_item) {
+        if (!is_int($key)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_site_sync_normalize_assoc_for_compare($value) {
+    if (is_array($value)) {
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[(string) $key] = ll_tools_site_sync_normalize_assoc_for_compare($item);
+        }
+        ksort($normalized, SORT_NATURAL);
+        return $normalized;
+    }
+
+    if (is_bool($value)) {
+        return $value ? '1' : '0';
+    }
+
+    return is_scalar($value) ? (string) $value : '';
+}
+
 function ll_tools_site_sync_values_equal($a, $b): bool {
     if (is_array($a) || is_array($b)) {
+        if (!ll_tools_site_sync_is_list_array($a) || !ll_tools_site_sync_is_list_array($b)) {
+            return ll_tools_site_sync_normalize_assoc_for_compare($a)
+                === ll_tools_site_sync_normalize_assoc_for_compare($b);
+        }
+
         $a = array_values(array_map('strval', (array) $a));
         $b = array_values(array_map('strval', (array) $b));
         sort($a);

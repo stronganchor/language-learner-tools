@@ -1203,6 +1203,61 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertNotSame([], array_values(array_intersect($target_candidates, $invalidated_category_ids)));
     }
 
+    public function test_word_metadata_plan_job_updates_locale_translation_map(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Locale Translation Wordset', 'rest-locale-translation-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Locale Translation Category', 'rest-locale-translation-category');
+        update_term_meta(
+            $wordset_id,
+            defined('LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY') ? LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY : 'll_wordset_translation_language',
+            'Turkish'
+        );
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Dara', 'Agac');
+        update_post_meta($word_id, defined('LL_TOOLS_WORD_TRANSLATIONS_META_KEY') ? LL_TOOLS_WORD_TRANSLATIONS_META_KEY : 'll_word_translations', [
+            'tr' => 'Agac',
+            'en' => 'old tree',
+        ]);
+
+        wp_set_current_user($admin_id);
+
+        $create = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-locale-translation-wordset/word-metadata-plan-jobs', [
+            'updates' => [
+                [
+                    'word_id' => $word_id,
+                    'set' => [
+                        'word_translation_en' => 'tree',
+                        'translation_de' => 'Baum',
+                    ],
+                    'expected' => [
+                        'word_translation_en' => 'old tree',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(201, $create->get_status());
+        $create_data = $create->get_data();
+        $job_id = (string) (($create_data['job']['id'] ?? ''));
+        $this->assertNotSame('', $job_id);
+
+        $process = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-locale-translation-wordset/word-metadata-plan-jobs/' . rawurlencode($job_id) . '/process');
+
+        $this->assertSame(200, $process->get_status());
+        $data = $process->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame('completed', (string) (($data['job']['status'] ?? '')));
+        $this->assertSame(1, (int) (($data['job']['summary']['updated_count'] ?? 0)));
+
+        $translations = function_exists('ll_tools_get_word_translation_map')
+            ? ll_tools_get_word_translation_map($word_id)
+            : (array) get_post_meta($word_id, 'll_word_translations', true);
+        $this->assertSame('Agac', (string) ($translations['tr'] ?? ''));
+        $this->assertSame('tree', (string) ($translations['en'] ?? ''));
+        $this->assertSame('Baum', (string) ($translations['de'] ?? ''));
+    }
+
     public function test_word_metadata_plan_job_skips_rows_when_expected_values_are_stale(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -1402,6 +1457,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $second_category_id = $this->ensure_term('word-category', 'REST Metadata Snapshot Second Category', 'rest-metadata-snapshot-second-category');
         $pos_id = $this->ensure_term('part_of_speech', 'Metadata Snapshot Noun', 'metadata-snapshot-noun');
         $recording_type_id = $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_term_meta(
+            $wordset_id,
+            defined('LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY') ? LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY : 'll_wordset_translation_language',
+            'Turkish'
+        );
 
         $word_id = $this->create_word($wordset_id, [$category_id], 'REST Metadata Snapshot Word', 'Target text');
         $second_word_id = $this->create_word($wordset_id, [$second_category_id], 'REST Metadata Snapshot Second Word', 'Second target');
@@ -1470,6 +1530,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $values = (array) ($record['values'] ?? []);
         $this->assertSame('Target text', (string) ($values['word_translation'] ?? ''));
         $this->assertSame('Helper text', (string) ($values['word_english_meaning'] ?? ''));
+        $this->assertSame('tr', (string) ($values['default_translation_locale'] ?? ''));
+        $this->assertSame('Target text', (string) (($values['word_translations'] ?? [])['tr'] ?? ''));
         $this->assertSame('Internal word note', (string) ($values['word_note'] ?? ''));
         $this->assertSame('metadata-snapshot-noun', (string) (($values['part_of_speech']['slug'] ?? '')));
         $this->assertSame('feminine', (string) (($values['grammatical_gender']['value'] ?? '')));

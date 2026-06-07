@@ -644,6 +644,9 @@ function ll_tools_cli_update_word_translation(int $word_id, string $translation_
             delete_post_meta($word_id, 'word_translation');
             delete_post_meta($word_id, 'word_english_meaning');
         }
+        if (function_exists('ll_tools_update_word_default_translation_locale')) {
+            ll_tools_update_word_default_translation_locale($word_id, $translation_text);
+        }
         return;
     }
 
@@ -662,6 +665,9 @@ function ll_tools_cli_update_word_translation(int $word_id, string $translation_
         update_post_meta($word_id, 'word_translation', $word_text);
     } else {
         delete_post_meta($word_id, 'word_translation');
+    }
+    if (function_exists('ll_tools_update_word_default_translation_locale')) {
+        ll_tools_update_word_default_translation_locale($word_id, $translation_text);
     }
 }
 

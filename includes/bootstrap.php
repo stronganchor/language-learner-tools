@@ -8,6 +8,7 @@ require_once __DIR__ . '/lib/sort.php';
 require_once __DIR__ . '/lib/text-display.php';
 require_once __DIR__ . '/lib/entity-translations.php';
 require_once __DIR__ . '/lib/wordset-language-settings.php';
+require_once __DIR__ . '/lib/word-translations.php';
 require_once __DIR__ . '/lib/audio-originals.php';
 require_once __DIR__ . '/lib/custom-stt-endpoint.php';
 require_once __DIR__ . '/lib/internal-review-notes.php';
