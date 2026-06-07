@@ -3751,3 +3751,95 @@ msgstr "Prapemeriksaan pembaruan kategori gagal. Tidak ada kata yang diubah."
 #: includes/api/automation-rest.php:2738
 msgid "One or more category updates failed."
 msgstr "Satu atau beberapa pembaruan kategori gagal."
+
+#: includes/api/automation-rest.php:403
+msgid "You are not allowed to update LL Tools on this site."
+msgstr "Kamu tidak diizinkan memperbarui LL Tools di situs ini."
+
+#: includes/api/automation-rest.php:1231
+msgid "LL Tools automation updates currently support only the dev branch package."
+msgstr "Pembaruan otomatis LL Tools saat ini hanya mendukung paket cabang dev."
+
+#: includes/api/automation-rest.php:1239
+msgid "The LL Tools automation update package URL failed the built-in allowlist check."
+msgstr "URL paket pembaruan otomatis LL Tools gagal melewati pemeriksaan daftar izinkan bawaan."
+
+#: includes/api/automation-rest.php:1250
+msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
+msgstr "Versi LL Tools yang terpasang tidak cocok dengan versi saat ini yang diharapkan, jadi pembaruan otomatis tidak dimulai."
+
+#: includes/api/automation-rest.php:1267
+msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
+msgstr "Setel confirm=true dan dry_run=false untuk memperbarui LL Tools melalui otomatisasi."
+
+#: includes/api/automation-rest.php:1275
+msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
+msgstr "Konstanta jalur WordPress tidak tersedia, jadi pembaru plugin tidak dapat berjalan."
+
+#: includes/api/automation-rest.php:1318
+msgid "LL Tools plugin update failed."
+msgstr "Pembaruan plugin LL Tools gagal."
+
+#: includes/api/word-metadata-plan-rest.php:152
+msgid "All word_category_ids must belong to the requested word set."
+msgstr "Semua word_category_ids harus termasuk dalam set kata yang diminta."
+
+#: includes/api/word-metadata-plan-rest.php:206 includes/api/word-metadata-plan-rest.php:243 includes/api/word-metadata-plan-rest.php:709
+msgid "Unsupported word metadata field."
+msgstr "Kolom metadata kata tidak didukung."
+
+#: includes/api/word-metadata-plan-rest.php:349
+msgid "Invalid word metadata plan job ID."
+msgstr "ID tugas rencana metadata kata tidak valid."
+
+#: includes/api/word-metadata-plan-rest.php:354
+msgid "Word metadata plan job was not found."
+msgstr "Tugas rencana metadata kata tidak ditemukan."
+
+#: includes/api/word-metadata-plan-rest.php:532
+msgid "Invalid gender value."
+msgstr "Nilai gender tidak valid."
+
+#: includes/api/word-metadata-plan-rest.php:549
+msgid "Invalid plurality value."
+msgstr "Nilai pluralitas tidak valid."
+
+#: includes/api/word-metadata-plan-rest.php:566
+msgid "Invalid verb tense value."
+msgstr "Nilai kala kerja tidak valid."
+
+#: includes/api/word-metadata-plan-rest.php:583
+msgid "Invalid verb mood value."
+msgstr "Nilai modus verba tidak valid."
+
+#: includes/api/word-metadata-plan-rest.php:653
+msgid "Unknown part of speech."
+msgstr "Kelas kata tidak dikenal."
+
+#: includes/api/word-metadata-plan-rest.php:974
+msgid "Provide one or more word metadata updates."
+msgstr "Berikan satu atau beberapa pembaruan metadata kata."
+
+#: includes/api/word-metadata-plan-rest.php:983
+msgid "Too many word metadata updates in one plan. Maximum is %d."
+msgstr "Terlalu banyak pembaruan metadata kata dalam satu rencana. Maksimum %d."
+
+#: includes/api/word-metadata-plan-rest.php:1018
+msgid "Duplicate word ID in this plan. Submit one final-state row per word."
+msgstr "ID kata duplikat dalam rencana ini. Kirim satu baris keadaan akhir per kata."
+
+#: includes/api/word-metadata-plan-rest.php:1029
+msgid "Missing metadata values to set."
+msgstr "Nilai metadata yang akan disetel belum ada."
+
+#: includes/api/word-metadata-plan-rest.php:1037
+msgid "Refusing to set an empty category list without allow_empty_categories=true."
+msgstr "Menolak menyetel daftar kategori kosong tanpa allow_empty_categories=true."
+
+#: includes/api/word-metadata-plan-rest.php:1077
+msgid "Word metadata plan preflight failed. No job was created."
+msgstr "Prapemeriksaan rencana metadata kata gagal. Tidak ada tugas yang dibuat."
+
+#: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
+msgid "Word metadata plan job belongs to a different word set."
+msgstr "Tugas rencana metadata kata milik set kata yang berbeda."

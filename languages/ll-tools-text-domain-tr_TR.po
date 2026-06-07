@@ -26671,3 +26671,95 @@ msgstr "Kategori güncellemesi ön kontrolü başarısız oldu. Hiçbir kelime d
 #: includes/api/automation-rest.php:2738
 msgid "One or more category updates failed."
 msgstr "Bir veya daha fazla kategori güncellemesi başarısız oldu."
+
+#: includes/api/automation-rest.php:403
+msgid "You are not allowed to update LL Tools on this site."
+msgstr "Bu sitede LL Tools'u güncelleme iznin yok."
+
+#: includes/api/automation-rest.php:1231
+msgid "LL Tools automation updates currently support only the dev branch package."
+msgstr "LL Tools otomasyon güncellemeleri şu anda yalnızca dev dalı paketini destekler."
+
+#: includes/api/automation-rest.php:1239
+msgid "The LL Tools automation update package URL failed the built-in allowlist check."
+msgstr "LL Tools otomasyon güncelleme paketi URL'si yerleşik izin listesi kontrolünden geçemedi."
+
+#: includes/api/automation-rest.php:1250
+msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
+msgstr "Kurulu LL Tools sürümü beklenen geçerli sürümle eşleşmiyor, bu yüzden otomasyon güncellemesi başlatılmadı."
+
+#: includes/api/automation-rest.php:1267
+msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
+msgstr "LL Tools'u otomasyonla güncellemek için confirm=true ve dry_run=false ayarla."
+
+#: includes/api/automation-rest.php:1275
+msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
+msgstr "WordPress yol sabitleri kullanılamıyor, bu yüzden eklenti güncelleyicisi çalışamaz."
+
+#: includes/api/automation-rest.php:1318
+msgid "LL Tools plugin update failed."
+msgstr "LL Tools eklenti güncellemesi başarısız oldu."
+
+#: includes/api/word-metadata-plan-rest.php:152
+msgid "All word_category_ids must belong to the requested word set."
+msgstr "Tüm word_category_ids değerleri istenen kelime setine ait olmalıdır."
+
+#: includes/api/word-metadata-plan-rest.php:206 includes/api/word-metadata-plan-rest.php:243 includes/api/word-metadata-plan-rest.php:709
+msgid "Unsupported word metadata field."
+msgstr "Desteklenmeyen kelime meta verisi alanı."
+
+#: includes/api/word-metadata-plan-rest.php:349
+msgid "Invalid word metadata plan job ID."
+msgstr "Geçersiz kelime meta verisi plan işi kimliği."
+
+#: includes/api/word-metadata-plan-rest.php:354
+msgid "Word metadata plan job was not found."
+msgstr "Kelime meta verisi plan işi bulunamadı."
+
+#: includes/api/word-metadata-plan-rest.php:532
+msgid "Invalid gender value."
+msgstr "Geçersiz cinsiyet değeri."
+
+#: includes/api/word-metadata-plan-rest.php:549
+msgid "Invalid plurality value."
+msgstr "Geçersiz çoğulluk değeri."
+
+#: includes/api/word-metadata-plan-rest.php:566
+msgid "Invalid verb tense value."
+msgstr "Geçersiz fiil zamanı değeri."
+
+#: includes/api/word-metadata-plan-rest.php:583
+msgid "Invalid verb mood value."
+msgstr "Geçersiz fiil kipi değeri."
+
+#: includes/api/word-metadata-plan-rest.php:653
+msgid "Unknown part of speech."
+msgstr "Bilinmeyen sözcük türü."
+
+#: includes/api/word-metadata-plan-rest.php:974
+msgid "Provide one or more word metadata updates."
+msgstr "Bir veya daha fazla kelime meta verisi güncellemesi sağla."
+
+#: includes/api/word-metadata-plan-rest.php:983
+msgid "Too many word metadata updates in one plan. Maximum is %d."
+msgstr "Bir planda çok fazla kelime meta verisi güncellemesi var. En fazla %d olabilir."
+
+#: includes/api/word-metadata-plan-rest.php:1018
+msgid "Duplicate word ID in this plan. Submit one final-state row per word."
+msgstr "Bu planda yinelenen kelime kimliği var. Her kelime için son durumunu gösteren tek bir satır gönder."
+
+#: includes/api/word-metadata-plan-rest.php:1029
+msgid "Missing metadata values to set."
+msgstr "Ayarlanacak meta verisi değerleri eksik."
+
+#: includes/api/word-metadata-plan-rest.php:1037
+msgid "Refusing to set an empty category list without allow_empty_categories=true."
+msgstr "allow_empty_categories=true olmadan boş kategori listesi ayarlanamaz."
+
+#: includes/api/word-metadata-plan-rest.php:1077
+msgid "Word metadata plan preflight failed. No job was created."
+msgstr "Kelime meta verisi planı ön denetimi başarısız oldu. İş oluşturulmadı."
+
+#: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
+msgid "Word metadata plan job belongs to a different word set."
+msgstr "Kelime meta verisi plan işi farklı bir kelime setine ait."

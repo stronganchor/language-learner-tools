@@ -3744,3 +3744,95 @@ msgstr "카테고리 업데이트 사전 확인에 실패했습니다. 변경된
 #: includes/api/automation-rest.php:2738
 msgid "One or more category updates failed."
 msgstr "하나 이상의 카테고리 업데이트에 실패했습니다."
+
+#: includes/api/automation-rest.php:403
+msgid "You are not allowed to update LL Tools on this site."
+msgstr "이 사이트에서 LL Tools를 업데이트할 권한이 없습니다."
+
+#: includes/api/automation-rest.php:1231
+msgid "LL Tools automation updates currently support only the dev branch package."
+msgstr "LL Tools 자동화 업데이트는 현재 dev 브랜치 패키지만 지원합니다."
+
+#: includes/api/automation-rest.php:1239
+msgid "The LL Tools automation update package URL failed the built-in allowlist check."
+msgstr "LL Tools 자동화 업데이트 패키지 URL이 기본 허용 목록 검사를 통과하지 못했습니다."
+
+#: includes/api/automation-rest.php:1250
+msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
+msgstr "설치된 LL Tools 버전이 예상 현재 버전과 일치하지 않아 자동화 업데이트를 시작하지 않았습니다."
+
+#: includes/api/automation-rest.php:1267
+msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
+msgstr "자동화로 LL Tools를 업데이트하려면 confirm=true 및 dry_run=false를 설정하세요."
+
+#: includes/api/automation-rest.php:1275
+msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
+msgstr "WordPress 경로 상수를 사용할 수 없어 플러그인 업데이터를 실행할 수 없습니다."
+
+#: includes/api/automation-rest.php:1318
+msgid "LL Tools plugin update failed."
+msgstr "LL Tools 플러그인 업데이트에 실패했습니다."
+
+#: includes/api/word-metadata-plan-rest.php:152
+msgid "All word_category_ids must belong to the requested word set."
+msgstr "모든 word_category_ids는 요청한 단어 세트에 속해야 합니다."
+
+#: includes/api/word-metadata-plan-rest.php:206 includes/api/word-metadata-plan-rest.php:243 includes/api/word-metadata-plan-rest.php:709
+msgid "Unsupported word metadata field."
+msgstr "지원되지 않는 단어 메타데이터 필드입니다."
+
+#: includes/api/word-metadata-plan-rest.php:349
+msgid "Invalid word metadata plan job ID."
+msgstr "잘못된 단어 메타데이터 계획 작업 ID입니다."
+
+#: includes/api/word-metadata-plan-rest.php:354
+msgid "Word metadata plan job was not found."
+msgstr "단어 메타데이터 계획 작업을 찾을 수 없습니다."
+
+#: includes/api/word-metadata-plan-rest.php:532
+msgid "Invalid gender value."
+msgstr "잘못된 문법 성 값입니다."
+
+#: includes/api/word-metadata-plan-rest.php:549
+msgid "Invalid plurality value."
+msgstr "잘못된 복수성 값입니다."
+
+#: includes/api/word-metadata-plan-rest.php:566
+msgid "Invalid verb tense value."
+msgstr "잘못된 동사 시제 값입니다."
+
+#: includes/api/word-metadata-plan-rest.php:583
+msgid "Invalid verb mood value."
+msgstr "잘못된 동사 서법 값입니다."
+
+#: includes/api/word-metadata-plan-rest.php:653
+msgid "Unknown part of speech."
+msgstr "알 수 없는 품사입니다."
+
+#: includes/api/word-metadata-plan-rest.php:974
+msgid "Provide one or more word metadata updates."
+msgstr "하나 이상의 단어 메타데이터 업데이트를 제공하세요."
+
+#: includes/api/word-metadata-plan-rest.php:983
+msgid "Too many word metadata updates in one plan. Maximum is %d."
+msgstr "한 계획에 단어 메타데이터 업데이트가 너무 많습니다. 최대값은 %d입니다."
+
+#: includes/api/word-metadata-plan-rest.php:1018
+msgid "Duplicate word ID in this plan. Submit one final-state row per word."
+msgstr "이 계획에 중복된 단어 ID가 있습니다. 단어마다 최종 상태 행을 하나씩 제출하세요."
+
+#: includes/api/word-metadata-plan-rest.php:1029
+msgid "Missing metadata values to set."
+msgstr "설정할 메타데이터 값이 없습니다."
+
+#: includes/api/word-metadata-plan-rest.php:1037
+msgid "Refusing to set an empty category list without allow_empty_categories=true."
+msgstr "allow_empty_categories=true 없이 빈 카테고리 목록 설정을 거부합니다."
+
+#: includes/api/word-metadata-plan-rest.php:1077
+msgid "Word metadata plan preflight failed. No job was created."
+msgstr "단어 메타데이터 계획 사전 검사가 실패했습니다. 작업이 생성되지 않았습니다."
+
+#: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
+msgid "Word metadata plan job belongs to a different word set."
+msgstr "단어 메타데이터 계획 작업이 다른 단어 세트에 속합니다."

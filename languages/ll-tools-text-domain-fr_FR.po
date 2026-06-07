@@ -3751,3 +3751,95 @@ msgstr "La vérification préalable de la mise à jour de catégorie a échoué.
 #: includes/api/automation-rest.php:2738
 msgid "One or more category updates failed."
 msgstr "Une ou plusieurs mises à jour de catégorie ont échoué."
+
+#: includes/api/automation-rest.php:403
+msgid "You are not allowed to update LL Tools on this site."
+msgstr "Tu n'es pas autorisé à mettre à jour LL Tools sur ce site."
+
+#: includes/api/automation-rest.php:1231
+msgid "LL Tools automation updates currently support only the dev branch package."
+msgstr "Les mises à jour automatisées de LL Tools ne prennent actuellement en charge que le paquet de la branche dev."
+
+#: includes/api/automation-rest.php:1239
+msgid "The LL Tools automation update package URL failed the built-in allowlist check."
+msgstr "L'URL du paquet de mise à jour automatisée de LL Tools a échoué à la vérification intégrée de la liste d'autorisation."
+
+#: includes/api/automation-rest.php:1250
+msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
+msgstr "La version installée de LL Tools ne correspond pas à la version actuelle attendue ; la mise à jour automatisée n'a donc pas été lancée."
+
+#: includes/api/automation-rest.php:1267
+msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
+msgstr "Définis confirm=true et dry_run=false pour mettre à jour LL Tools par automatisation."
+
+#: includes/api/automation-rest.php:1275
+msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
+msgstr "Les constantes de chemin WordPress ne sont pas disponibles ; le programme de mise à jour du plugin ne peut donc pas s'exécuter."
+
+#: includes/api/automation-rest.php:1318
+msgid "LL Tools plugin update failed."
+msgstr "La mise à jour du plugin LL Tools a échoué."
+
+#: includes/api/word-metadata-plan-rest.php:152
+msgid "All word_category_ids must belong to the requested word set."
+msgstr "Tous les word_category_ids doivent appartenir à l'ensemble de mots demandé."
+
+#: includes/api/word-metadata-plan-rest.php:206 includes/api/word-metadata-plan-rest.php:243 includes/api/word-metadata-plan-rest.php:709
+msgid "Unsupported word metadata field."
+msgstr "Champ de métadonnées de mot non pris en charge."
+
+#: includes/api/word-metadata-plan-rest.php:349
+msgid "Invalid word metadata plan job ID."
+msgstr "ID de tâche de plan de métadonnées de mots non valide."
+
+#: includes/api/word-metadata-plan-rest.php:354
+msgid "Word metadata plan job was not found."
+msgstr "La tâche de plan de métadonnées de mots est introuvable."
+
+#: includes/api/word-metadata-plan-rest.php:532
+msgid "Invalid gender value."
+msgstr "Valeur de genre non valide."
+
+#: includes/api/word-metadata-plan-rest.php:549
+msgid "Invalid plurality value."
+msgstr "Valeur de pluralité non valide."
+
+#: includes/api/word-metadata-plan-rest.php:566
+msgid "Invalid verb tense value."
+msgstr "Valeur de temps verbal non valide."
+
+#: includes/api/word-metadata-plan-rest.php:583
+msgid "Invalid verb mood value."
+msgstr "Valeur de mode verbal non valide."
+
+#: includes/api/word-metadata-plan-rest.php:653
+msgid "Unknown part of speech."
+msgstr "Partie du discours inconnue."
+
+#: includes/api/word-metadata-plan-rest.php:974
+msgid "Provide one or more word metadata updates."
+msgstr "Fournis une ou plusieurs mises à jour de métadonnées de mots."
+
+#: includes/api/word-metadata-plan-rest.php:983
+msgid "Too many word metadata updates in one plan. Maximum is %d."
+msgstr "Trop de mises à jour de métadonnées de mots dans un seul plan. Le maximum est %d."
+
+#: includes/api/word-metadata-plan-rest.php:1018
+msgid "Duplicate word ID in this plan. Submit one final-state row per word."
+msgstr "ID de mot en double dans ce plan. Envoie une ligne d'état final par mot."
+
+#: includes/api/word-metadata-plan-rest.php:1029
+msgid "Missing metadata values to set."
+msgstr "Valeurs de métadonnées à définir manquantes."
+
+#: includes/api/word-metadata-plan-rest.php:1037
+msgid "Refusing to set an empty category list without allow_empty_categories=true."
+msgstr "Refus de définir une liste de catégories vide sans allow_empty_categories=true."
+
+#: includes/api/word-metadata-plan-rest.php:1077
+msgid "Word metadata plan preflight failed. No job was created."
+msgstr "La prévérification du plan de métadonnées de mots a échoué. Aucune tâche n'a été créée."
+
+#: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
+msgid "Word metadata plan job belongs to a different word set."
+msgstr "La tâche de plan de métadonnées de mots appartient à un autre ensemble de mots."

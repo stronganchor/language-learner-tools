@@ -26837,3 +26837,95 @@ msgstr "Die Vorabprüfung der Kategorieaktualisierung ist fehlgeschlagen. Es wur
 #: includes/api/automation-rest.php:2738
 msgid "One or more category updates failed."
 msgstr "Mindestens eine Kategorieaktualisierung ist fehlgeschlagen."
+
+#: includes/api/automation-rest.php:403
+msgid "You are not allowed to update LL Tools on this site."
+msgstr "Du darfst LL Tools auf dieser Website nicht aktualisieren."
+
+#: includes/api/automation-rest.php:1231
+msgid "LL Tools automation updates currently support only the dev branch package."
+msgstr "Automatische LL Tools-Updates unterstützen derzeit nur das Paket des dev-Branches."
+
+#: includes/api/automation-rest.php:1239
+msgid "The LL Tools automation update package URL failed the built-in allowlist check."
+msgstr "Die Paket-URL für das automatische LL Tools-Update hat die integrierte Allowlist-Prüfung nicht bestanden."
+
+#: includes/api/automation-rest.php:1250
+msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
+msgstr "Die installierte LL Tools-Version entspricht nicht der erwarteten aktuellen Version, daher wurde das automatische Update nicht gestartet."
+
+#: includes/api/automation-rest.php:1267
+msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
+msgstr "Setze confirm=true und dry_run=false, um LL Tools per Automatisierung zu aktualisieren."
+
+#: includes/api/automation-rest.php:1275
+msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
+msgstr "Die WordPress-Pfadkonstanten sind nicht verfügbar, daher kann der Plugin-Updater nicht ausgeführt werden."
+
+#: includes/api/automation-rest.php:1318
+msgid "LL Tools plugin update failed."
+msgstr "Das LL Tools-Plugin-Update ist fehlgeschlagen."
+
+#: includes/api/word-metadata-plan-rest.php:152
+msgid "All word_category_ids must belong to the requested word set."
+msgstr "Alle word_category_ids müssen zum angeforderten Vokabelset gehören."
+
+#: includes/api/word-metadata-plan-rest.php:206 includes/api/word-metadata-plan-rest.php:243 includes/api/word-metadata-plan-rest.php:709
+msgid "Unsupported word metadata field."
+msgstr "Nicht unterstütztes Vokabelmetadatenfeld."
+
+#: includes/api/word-metadata-plan-rest.php:349
+msgid "Invalid word metadata plan job ID."
+msgstr "Ungültige Job-ID für den Vokabelmetadatenplan."
+
+#: includes/api/word-metadata-plan-rest.php:354
+msgid "Word metadata plan job was not found."
+msgstr "Der Job für den Vokabelmetadatenplan wurde nicht gefunden."
+
+#: includes/api/word-metadata-plan-rest.php:532
+msgid "Invalid gender value."
+msgstr "Ungültiger Genuswert."
+
+#: includes/api/word-metadata-plan-rest.php:549
+msgid "Invalid plurality value."
+msgstr "Ungültiger Pluralitätswert."
+
+#: includes/api/word-metadata-plan-rest.php:566
+msgid "Invalid verb tense value."
+msgstr "Ungültiger Verbtempuswert."
+
+#: includes/api/word-metadata-plan-rest.php:583
+msgid "Invalid verb mood value."
+msgstr "Ungültiger Verbmoduswert."
+
+#: includes/api/word-metadata-plan-rest.php:653
+msgid "Unknown part of speech."
+msgstr "Unbekannte Wortart."
+
+#: includes/api/word-metadata-plan-rest.php:974
+msgid "Provide one or more word metadata updates."
+msgstr "Gib eine oder mehrere Vokabelmetadaten-Aktualisierungen an."
+
+#: includes/api/word-metadata-plan-rest.php:983
+msgid "Too many word metadata updates in one plan. Maximum is %d."
+msgstr "Zu viele Vokabelmetadaten-Aktualisierungen in einem Plan. Maximum ist %d."
+
+#: includes/api/word-metadata-plan-rest.php:1018
+msgid "Duplicate word ID in this plan. Submit one final-state row per word."
+msgstr "Doppelte Vokabel-ID in diesem Plan. Reiche pro Vokabel eine Zeile mit dem endgültigen Zustand ein."
+
+#: includes/api/word-metadata-plan-rest.php:1029
+msgid "Missing metadata values to set."
+msgstr "Fehlende Metadatenwerte zum Setzen."
+
+#: includes/api/word-metadata-plan-rest.php:1037
+msgid "Refusing to set an empty category list without allow_empty_categories=true."
+msgstr "Eine leere Kategorieliste wird ohne allow_empty_categories=true nicht gesetzt."
+
+#: includes/api/word-metadata-plan-rest.php:1077
+msgid "Word metadata plan preflight failed. No job was created."
+msgstr "Die Vorabprüfung des Vokabelmetadatenplans ist fehlgeschlagen. Es wurde kein Job erstellt."
+
+#: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
+msgid "Word metadata plan job belongs to a different word set."
+msgstr "Der Job für den Vokabelmetadatenplan gehört zu einem anderen Vokabelset."
