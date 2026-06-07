@@ -7,6 +7,11 @@ This is the better fit when you want to keep the current workflow of giving
 Codex a temporary WordPress admin or manager account instead of SSH access to
 the server.
 
+For AI-planned wordset data cleanup, read `AI_DATA_CLEANUP.md` first. That
+runbook explains the snapshot -> local plan -> bounded job -> result -> fresh
+snapshot workflow for category, title, helper, part-of-speech, grammar, and
+other per-word metadata cleanup.
+
 ## Operating model
 
 Treat REST automation as the control plane for Codex-driven WordPress work. REST
