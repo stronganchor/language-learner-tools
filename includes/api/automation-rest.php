@@ -1220,6 +1220,33 @@ function ll_tools_rest_automation_plugin_update_error_from_upgrader($result, $sk
     ]);
 }
 
+function ll_tools_rest_automation_plugin_update_source_selection($source, $remote_source, $upgrader, $hook_extra) {
+    if (!is_string($source) || $source === '' || !is_string($remote_source) || $remote_source === '') {
+        return $source;
+    }
+
+    $expected_dir = basename(dirname(LL_TOOLS_MAIN_FILE));
+    if ($expected_dir === '' || basename($source) === $expected_dir) {
+        return $source;
+    }
+
+    if (strpos(basename($source), $expected_dir) !== 0) {
+        return $source;
+    }
+
+    global $wp_filesystem;
+    if (!is_object($wp_filesystem) || !method_exists($wp_filesystem, 'move')) {
+        return $source;
+    }
+
+    $target = trailingslashit($remote_source) . $expected_dir;
+    if ($wp_filesystem->exists($target)) {
+        $wp_filesystem->delete($target, true);
+    }
+
+    return $wp_filesystem->move($source, $target, true) ? $target : $source;
+}
+
 function ll_tools_rest_automation_plugin_update(WP_REST_Request $request) {
     $channel = ll_tools_rest_automation_plugin_update_normalize_channel($request->get_param('channel'));
     $package_url = ll_tools_rest_automation_plugin_update_package_url($channel);
@@ -1303,7 +1330,9 @@ function ll_tools_rest_automation_plugin_update(WP_REST_Request $request) {
 
     $skin = new Automatic_Upgrader_Skin();
     $upgrader = new Plugin_Upgrader($skin);
+    add_filter('upgrader_source_selection', 'll_tools_rest_automation_plugin_update_source_selection', 10, 4);
     $result = $upgrader->upgrade($plugin_file, ['clear_update_cache' => true]);
+    remove_filter('upgrader_source_selection', 'll_tools_rest_automation_plugin_update_source_selection', 10);
     if ($result !== true) {
         if (is_object($previous_transient)) {
             set_site_transient('update_plugins', $previous_transient);

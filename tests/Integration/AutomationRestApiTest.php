@@ -121,6 +121,63 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(LL_TOOLS_VERSION, (string) ($error_data['installed_file_version'] ?? ''));
     }
 
+    public function test_plugin_update_source_selection_normalizes_dev_archive_root(): void
+    {
+        $root = trailingslashit(sys_get_temp_dir()) . 'll-tools-update-test-' . wp_generate_uuid4();
+        $remote_source = trailingslashit($root) . 'upgrade';
+        $source = trailingslashit($remote_source) . 'language-learner-tools-dev';
+        $target = trailingslashit($remote_source) . 'language-learner-tools';
+
+        $remove_tree = static function (string $path) use (&$remove_tree): void {
+            if (!file_exists($path)) {
+                return;
+            }
+            if (!is_dir($path)) {
+                @unlink($path);
+                return;
+            }
+            foreach (array_diff((array) scandir($path), ['.', '..']) as $child) {
+                $remove_tree(trailingslashit($path) . $child);
+            }
+            @rmdir($path);
+        };
+
+        wp_mkdir_p($source);
+        $this->assertDirectoryExists($source);
+
+        global $wp_filesystem;
+        $previous_filesystem = $wp_filesystem ?? null;
+        $wp_filesystem = new class {
+            public function exists($path): bool
+            {
+                return file_exists((string) $path);
+            }
+
+            public function delete($path, $recursive = false): bool
+            {
+                if (is_dir((string) $path)) {
+                    return @rmdir((string) $path);
+                }
+                return !file_exists((string) $path) || @unlink((string) $path);
+            }
+
+            public function move($source, $destination, $overwrite = false): bool
+            {
+                return @rename((string) $source, (string) $destination);
+            }
+        };
+
+        try {
+            $selected = ll_tools_rest_automation_plugin_update_source_selection($source, $remote_source, null, []);
+            $this->assertSame(wp_normalize_path($target), wp_normalize_path((string) $selected));
+            $this->assertDirectoryDoesNotExist($source);
+            $this->assertDirectoryExists($target);
+        } finally {
+            $wp_filesystem = $previous_filesystem;
+            $remove_tree($root);
+        }
+    }
+
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void
     {
         $dictionary_dir = ll_tools_dictionary_static_cache_dir();
