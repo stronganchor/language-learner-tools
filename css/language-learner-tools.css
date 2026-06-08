@@ -1912,6 +1912,12 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     background: #ffffff;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-recording--secondary {
+    border-color: #d4d8e0;
+    background: #f8fafc;
+    color: #64748b;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-recording--target {
     border-color: #0ea5e9;
     box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.18);
@@ -2209,6 +2215,22 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     color: #334155;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-visibility-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20px;
+    padding: 2px 7px;
+    border: 1px solid #d4d8e0;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-processing {
@@ -2982,6 +3004,23 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 
 .word-grid.ll-word-grid .ll-word-recording-row--editable {
     padding-right: 36px;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-row--secondary {
+    padding: 6px;
+    border: 1px dashed #d4d8e0;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-row--secondary .ll-word-recording-text-main,
+.word-grid.ll-word-grid .ll-word-recording-row--secondary .ll-word-recording-text-translation,
+.word-grid.ll-word-grid .ll-word-recording-row--secondary .ll-word-recording-ipa {
+    color: #64748b !important;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-row--secondary .ll-word-grid-recording-btn {
+    opacity: 0.78;
 }
 
 .word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear.ll-word-recording-row--editable {

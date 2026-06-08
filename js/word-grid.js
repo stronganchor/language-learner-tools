@@ -6175,10 +6175,24 @@
                 const recId = parseInt($btn.attr('data-recording-id'), 10) || 0;
                 const caption = recId ? (captionMap[recId] || null) : null;
                 const $row = $('<div>', { class: 'll-word-recording-row' });
+                const visibilityNote = ($btn.attr('data-ll-recording-visibility-note') || '').toString();
+                const visibilityLabel = ($btn.attr('data-ll-recording-visibility-label') || 'Secondary').toString();
                 if (recId) {
                     $row.attr('data-recording-id', recId);
                 }
+                if ($btn.hasClass('ll-word-grid-recording-btn--secondary') || visibilityNote) {
+                    $row
+                        .addClass('ll-word-recording-row--secondary')
+                        .attr('data-ll-recording-secondary', '1');
+                }
                 $row.append($btn);
+                if (visibilityNote) {
+                    $('<span>', {
+                        class: 'll-word-recording-visibility-badge',
+                        title: visibilityNote,
+                        text: visibilityLabel
+                    }).appendTo($row);
+                }
                 renderRecordingCaption($row, caption);
                 syncRecordingRowEditTrigger($row);
                 $wrap.append($row);

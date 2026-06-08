@@ -117,6 +117,55 @@ final class WordGridRecordingProcessingTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Check the first sound.', $staff_output);
     }
 
+    public function test_lesson_grid_shows_sentence_recordings_and_marks_duplicate_manager_recordings(): void
+    {
+        $fixture = $this->createWordWithRecording('lesson-popup-all-recordings');
+        $sentence_type_id = $this->ensureTerm('recording_type', 'In sentence', 'in-sentence');
+        $isolation_type_id = $this->ensureTerm('recording_type', 'Isolation', 'isolation');
+
+        $sentence_recording_id = $this->createRecording(
+            $fixture['word_id'],
+            $sentence_type_id,
+            'lesson-popup-all-recordings-sentence.wav',
+            'Sentence recording text'
+        );
+        $duplicate_recording_id = $this->createRecording(
+            $fixture['word_id'],
+            $isolation_type_id,
+            'lesson-popup-all-recordings-duplicate.wav',
+            'Duplicate isolation text'
+        );
+
+        $ajax_filter = static function (): bool {
+            return true;
+        };
+        add_filter('wp_doing_ajax', $ajax_filter);
+        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+        try {
+            wp_set_current_user(0);
+            $public_output = do_shortcode('[word_grid category="lesson-popup-all-recordings-category" wordset="lesson-popup-all-recordings-wordset"]');
+
+            $admin_id = self::factory()->user->create(['role' => 'administrator']);
+            wp_set_current_user($admin_id);
+            $staff_output = do_shortcode('[word_grid category="lesson-popup-all-recordings-category" wordset="lesson-popup-all-recordings-wordset"]');
+        } finally {
+            remove_filter('wp_doing_ajax', $ajax_filter);
+            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+        }
+
+        $this->assertStringContainsString('data-recording-type="isolation"', $public_output);
+        $this->assertStringContainsString('data-recording-id="' . (int) $sentence_recording_id . '"', $public_output);
+        $this->assertStringContainsString('Sentence recording text', $public_output);
+        $this->assertStringNotContainsString('ll-word-recording-row--secondary', $public_output);
+
+        $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $staff_output);
+        $this->assertStringContainsString('data-recording-id="' . (int) $duplicate_recording_id . '"', $staff_output);
+        $this->assertStringContainsString('ll-word-recording-row--secondary', $staff_output);
+        $this->assertStringContainsString('ll-word-edit-recording--secondary', $staff_output);
+        $this->assertStringContainsString('data-ll-recording-secondary="1"', $staff_output);
+        $this->assertStringContainsString('Duplicate: not used as the default practice recording.', $staff_output);
+    }
+
     public function test_lesson_edit_audio_processing_handler_saves_processed_audio_and_keeps_future_original_source(): void
     {
         $fixture = $this->createWordWithRecording('lesson-popup-processing-save');
@@ -227,6 +276,21 @@ final class WordGridRecordingProcessingTest extends LL_Tools_TestCase
             'current_path' => $current_path,
             'original_path' => $original_path,
         ];
+    }
+
+    private function createRecording(int $word_id, int $recording_type_id, string $filename, string $recording_text): int
+    {
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => ucwords(str_replace(['-', '.wav'], [' ', ''], $filename)),
+        ]);
+        update_post_meta($recording_id, 'audio_file_path', $this->createRelativeWavUpload($filename));
+        update_post_meta($recording_id, 'recording_text', $recording_text);
+        wp_set_object_terms($recording_id, [$recording_type_id], 'recording_type', false);
+
+        return (int) $recording_id;
     }
 
     private function ensureTerm(string $taxonomy, string $name, string $slug): int
