@@ -2454,6 +2454,20 @@ function ll_tools_ipa_orthography_engine_rules_cache_key(int $wordset_id, int $g
     );
 }
 
+function ll_tools_ipa_orthography_engine_rules_index_cache_key(int $wordset_id, int $generation = -1): string {
+    $wordset_id = max(0, $wordset_id);
+    if ($generation < 0) {
+        $generation = ll_tools_ipa_orthography_get_engine_rules_cache_generation($wordset_id);
+    }
+
+    return sprintf(
+        'll_ipa_ortho_engine_idx_%d_v%d_g%d',
+        $wordset_id,
+        ll_tools_ipa_keyboard_get_validation_schema_version(),
+        max(0, $generation)
+    );
+}
+
 function ll_tools_ipa_orthography_get_engine_rules_runtime_cache(): array {
     if (!isset($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])
         || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])) {
@@ -2474,6 +2488,28 @@ function ll_tools_ipa_orthography_set_engine_rules_runtime_cache(string $cache_k
     }
 
     $GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'][$cache_key] = $engine_rules;
+}
+
+function ll_tools_ipa_orthography_get_engine_rules_index_runtime_cache(): array {
+    if (!isset($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'])) {
+        $GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'] = [];
+    }
+
+    return $GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'];
+}
+
+function ll_tools_ipa_orthography_set_engine_rules_index_runtime_cache(string $cache_key, array $engine_rules_index): void {
+    if ($cache_key === '') {
+        return;
+    }
+
+    if (!isset($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'])) {
+        $GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'] = [];
+    }
+
+    $GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'][$cache_key] = $engine_rules_index;
 }
 
 function ll_tools_ipa_orthography_get_settings_runtime_cache(): array {
@@ -2513,15 +2549,27 @@ function ll_tools_ipa_orthography_clear_settings_runtime_cache(int $wordset_id =
 }
 
 function ll_tools_ipa_orthography_clear_engine_rules_runtime_cache(int $wordset_id): void {
-    if ($wordset_id <= 0 || empty($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])
-        || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])) {
+    if ($wordset_id <= 0) {
         return;
     }
 
     $prefix = 'll_ipa_ortho_engine_' . $wordset_id . '_';
-    foreach (array_keys($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache']) as $cache_key) {
-        if (strpos((string) $cache_key, $prefix) === 0) {
-            unset($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'][$cache_key]);
+    if (!empty($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])
+        && is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])) {
+        foreach (array_keys($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache']) as $cache_key) {
+            if (strpos((string) $cache_key, $prefix) === 0) {
+                unset($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'][$cache_key]);
+            }
+        }
+    }
+
+    $index_prefix = 'll_ipa_ortho_engine_idx_' . $wordset_id . '_';
+    if (!empty($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'])
+        && is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'])) {
+        foreach (array_keys($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache']) as $cache_key) {
+            if (strpos((string) $cache_key, $index_prefix) === 0) {
+                unset($GLOBALS['ll_tools_ipa_orthography_engine_rules_index_runtime_cache'][$cache_key]);
+            }
         }
     }
 }
@@ -2537,6 +2585,7 @@ function ll_tools_ipa_orthography_invalidate_engine_rules_cache(int $wordset_id)
 
     $current_generation = ll_tools_ipa_orthography_get_engine_rules_cache_generation($wordset_id);
     delete_transient(ll_tools_ipa_orthography_engine_rules_cache_key($wordset_id, $current_generation));
+    delete_transient(ll_tools_ipa_orthography_engine_rules_index_cache_key($wordset_id, $current_generation));
     update_term_meta($wordset_id, ll_tools_ipa_orthography_engine_rules_cache_generation_meta_key(), $current_generation + 1);
     ll_tools_ipa_orthography_clear_engine_rules_runtime_cache($wordset_id);
 }
@@ -3842,11 +3891,14 @@ function ll_tools_ipa_orthography_profile_mismatch_detail(
     bool $include_ipa_suggestions = true
 ): array {
     if ($prediction === null) {
+        $rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
         $prediction = ll_tools_ipa_orthography_convert_ipa_to_text(
             $ipa_text,
-            ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id),
+            $rules,
             $wordset_id,
-            $recording_type
+            $recording_type,
+            0,
+            ll_tools_ipa_orthography_get_engine_rules_index_for_wordset($wordset_id, $rules)
         );
         $prediction['source'] = 'rules';
         $prediction['settings'] = ll_tools_ipa_orthography_get_settings($wordset_id);
@@ -5145,9 +5197,8 @@ function ll_tools_ipa_orthography_apply_settings_to_text(string $text, int $word
     return ll_tools_ipa_orthography_apply_non_word_settings_to_text($text, $wordset_id, $recording_type);
 }
 
-function ll_tools_ipa_orthography_index_engine_rules_by_first_token(array $rules): array {
-    $index = [];
-    foreach ($rules as $rule) {
+function ll_tools_ipa_orthography_index_engine_rules_by_first_token(array $rules, array $index = [], int $rule_offset = 0): array {
+    foreach (array_values($rules) as $local_rule_index => $rule) {
         if (!is_array($rule)) {
             continue;
         }
@@ -5170,9 +5221,32 @@ function ll_tools_ipa_orthography_index_engine_rules_by_first_token(array $rules
         if (!isset($index[$first_token][$token_length][$token_key])) {
             $index[$first_token][$token_length][$token_key] = [];
         }
-        $index[$first_token][$token_length][$token_key][] = $rule;
+        $index[$first_token][$token_length][$token_key][] = $rule_offset + (int) $local_rule_index;
     }
 
+    return $index;
+}
+
+function ll_tools_ipa_orthography_get_engine_rules_index_for_wordset(int $wordset_id, array $rules): array {
+    if ($wordset_id <= 0) {
+        return ll_tools_ipa_orthography_index_engine_rules_by_first_token($rules);
+    }
+
+    $cache_key = ll_tools_ipa_orthography_engine_rules_index_cache_key($wordset_id);
+    $runtime_cache = ll_tools_ipa_orthography_get_engine_rules_index_runtime_cache();
+    if (isset($runtime_cache[$cache_key]) && is_array($runtime_cache[$cache_key])) {
+        return $runtime_cache[$cache_key];
+    }
+
+    $persisted = get_transient($cache_key);
+    if (is_array($persisted)) {
+        ll_tools_ipa_orthography_set_engine_rules_index_runtime_cache($cache_key, $persisted);
+        return $persisted;
+    }
+
+    $index = ll_tools_ipa_orthography_index_engine_rules_by_first_token($rules);
+    ll_tools_ipa_orthography_set_engine_rules_index_runtime_cache($cache_key, $index);
+    set_transient($cache_key, $index, ll_tools_ipa_orthography_engine_rules_cache_ttl());
     return $index;
 }
 
@@ -5214,11 +5288,15 @@ function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, arra
                 continue;
             }
             $token_key = implode("\u{0000}", array_slice($tokens, $index, $length));
-            $matching_rules = (array) ($rules_by_token_key[$token_key] ?? []);
-            if (empty($matching_rules)) {
+            $matching_rule_indexes = (array) ($rules_by_token_key[$token_key] ?? []);
+            if (empty($matching_rule_indexes)) {
                 continue;
             }
-            foreach ($matching_rules as $rule) {
+            foreach ($matching_rule_indexes as $rule_index) {
+                $rule = (array) ($rules[(int) $rule_index] ?? []);
+                if (empty($rule)) {
+                    continue;
+                }
                 if (!ll_tools_ipa_orthography_context_matches((string) ($rule['context'] ?? 'any'), $index, $end, $token_count)) {
                     continue;
                 }
@@ -5354,7 +5432,14 @@ function ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules(array $r
     return $fallback_rules;
 }
 
-function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $rules, int $wordset_id, string $recording_type = '', int $word_id = 0): array {
+function ll_tools_ipa_orthography_convert_ipa_to_text(
+    string $ipa_text,
+    array $rules,
+    int $wordset_id,
+    string $recording_type = '',
+    int $word_id = 0,
+    ?array $rules_by_first_token = null
+): array {
     $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
     $ipa_parts = ll_tools_ipa_orthography_split_nonspace_spans($ipa_text);
     if (empty($ipa_parts)) {
@@ -5371,7 +5456,9 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
     $token_count = 0;
     $final_high_vowel_candidate_count = 0;
     $fallback_rules = null;
-    $rules_by_first_token = ll_tools_ipa_orthography_index_engine_rules_by_first_token($rules);
+    $rules_by_first_token = is_array($rules_by_first_token)
+        ? $rules_by_first_token
+        : ll_tools_ipa_orthography_index_engine_rules_by_first_token($rules);
     $fallback_rules_by_first_token = null;
     foreach ($ipa_parts as $part) {
         $tokens = ll_tools_ipa_orthography_tokenize_segment((string) ($part['text'] ?? ''), $mode);
@@ -5408,7 +5495,12 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
             if ($fallback_rules === null) {
                 $fallback_rules = ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules($rules);
-                $fallback_rules_by_first_token = ll_tools_ipa_orthography_index_engine_rules_by_first_token($fallback_rules);
+                $fallback_candidate_rules = array_slice($fallback_rules, count($rules));
+                $fallback_rules_by_first_token = ll_tools_ipa_orthography_index_engine_rules_by_first_token(
+                    $fallback_candidate_rules,
+                    $rules_by_first_token,
+                    count($rules)
+                );
             }
             $fallback_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $fallback_rules, $fallback_rules_by_first_token);
             if (empty($fallback_prediction['complete']) || (string) ($fallback_prediction['text'] ?? '') === '') {
@@ -5485,7 +5577,14 @@ function ll_tools_ipa_orthography_convert_ipa_to_best_text(
 ): array {
     $recording_type = ll_tools_ipa_orthography_get_recording_type_slug($recording_id);
     $word_id = $recording_id > 0 ? (int) wp_get_post_parent_id($recording_id) : 0;
-    $prediction = ll_tools_ipa_orthography_convert_ipa_to_text($ipa_text, $rules, $wordset_id, $recording_type, $word_id);
+    $prediction = ll_tools_ipa_orthography_convert_ipa_to_text(
+        $ipa_text,
+        $rules,
+        $wordset_id,
+        $recording_type,
+        $word_id,
+        ll_tools_ipa_orthography_get_engine_rules_index_for_wordset($wordset_id, $rules)
+    );
     $prediction['source'] = 'rules';
     $prediction['settings'] = ll_tools_ipa_orthography_get_settings($wordset_id);
     $prediction['profile'] = [];
