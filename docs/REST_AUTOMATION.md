@@ -876,7 +876,11 @@ showing validation warnings. Use `candidate_scope=all` with `stale_only=false`
 for a deliberate full recording rescan when a rule change could create warnings
 from previously clean rows. Send `auto_process=true` to let the plugin schedule
 bounded WP-Cron chunks; optional `auto_delay_seconds` and `auto_limit` control
-the cadence. The job status response includes `auto_process.next_run_gmt`,
+the cadence. Automatic chunks default to one recording; raise `auto_limit` only
+after observing the live pool under load. Send `settings_only=true` to the
+process route when you need to enable, disable, or reschedule a job without
+validating another row. The job status response includes
+`auto_process.next_run_gmt`,
 `remaining_count`, and recent row outcomes, so callers can monitor progress
 without holding a terminal open.
 

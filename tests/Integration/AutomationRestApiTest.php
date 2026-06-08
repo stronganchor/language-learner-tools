@@ -1581,12 +1581,17 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, [$job_id]));
 
         $process = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-validation-job-auto-wordset/transcription-validation-jobs/' . rawurlencode($job_id) . '/process', [
-            'limit' => 5,
+            'settings_only' => true,
+            'auto_process' => false,
         ]);
         $process_data = $process->get_data();
         $this->assertSame(200, $process->get_status());
         $this->assertIsArray($process_data);
-        $this->assertSame('completed', (string) (($process_data['job']['status'] ?? '')));
+        $this->assertTrue((bool) ($process_data['settings_only'] ?? false));
+        $this->assertSame(0, (int) ($process_data['processed_this_request'] ?? -1));
+        $this->assertSame('running', (string) (($process_data['job']['status'] ?? '')));
+        $this->assertSame(0, (int) (($process_data['job']['current_index'] ?? -1)));
+        $this->assertFalse((bool) (($process_data['job']['auto_process']['enabled'] ?? true)));
         $this->assertFalse(wp_next_scheduled(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, [$job_id]));
     }
 

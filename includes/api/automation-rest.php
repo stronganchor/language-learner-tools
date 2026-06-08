@@ -3699,7 +3699,7 @@ function ll_tools_rest_transcription_validation_job_auto_limit($value = null): i
     $requested = (is_scalar($value) && trim((string) $value) !== '')
         ? max(0, (int) $value)
         : 0;
-    $default = max(1, (int) ($limits['default'] ?? 3));
+    $default = max(1, (int) apply_filters('ll_tools_rest_transcription_validation_job_auto_limit_default', 1));
     $max = max($default, (int) ($limits['max'] ?? 5));
     $limit = $requested > 0 ? $requested : $default;
 
@@ -4069,17 +4069,27 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
 
     $job = ll_tools_rest_transcription_validation_job_apply_auto_request($job, $request, !empty($job['auto_process']));
     if ((string) ($job['status'] ?? '') === 'completed') {
+        $job['auto_process'] = false;
         ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
         ll_tools_rest_transcription_validation_job_save($job);
         return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
     }
 
+    $settings_only = $request->has_param('settings_only')
+        ? rest_sanitize_boolean($request->get_param('settings_only'))
+        : false;
     $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'transcription_validation_jobs', false);
     $limit = (int) ($limit_info['effective'] ?? 10);
-    $process_result = ll_tools_rest_transcription_validation_job_process_records($job, (int) $wordset_term->term_id, $limit);
+    $process_result = $settings_only
+        ? [
+            'job' => $job,
+            'processed_this_request' => 0,
+        ]
+        : ll_tools_rest_transcription_validation_job_process_records($job, (int) $wordset_term->term_id, $limit);
     $job = (array) ($process_result['job'] ?? $job);
 
     if ((string) ($job['status'] ?? '') === 'completed') {
+        $job['auto_process'] = false;
         ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
     } elseif (!empty($job['auto_process'])) {
         ll_tools_rest_transcription_validation_job_schedule_next($job);
@@ -4092,6 +4102,7 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
         'generated_at_gmt' => gmdate('c'),
         'limit' => $limit,
         'limit_info' => $limit_info,
+        'settings_only' => $settings_only,
         'processed_this_request' => max(0, (int) ($process_result['processed_this_request'] ?? 0)),
         'job' => ll_tools_rest_transcription_validation_job_summary($job),
     ]);
@@ -7791,6 +7802,11 @@ function ll_tools_rest_register_automation_routes(): void {
             'auto_limit' => [
                 'required' => false,
                 'type' => 'integer',
+            ],
+            'settings_only' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
             ],
         ],
     ]);
