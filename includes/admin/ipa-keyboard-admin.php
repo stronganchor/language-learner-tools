@@ -1965,7 +1965,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 12;
+    return 13;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -2427,6 +2427,118 @@ function ll_tools_ipa_orthography_exception_dictionary_entry_ids_meta_key(): str
 function ll_tools_ipa_orthography_blocklist_meta_key(): string {
     return 'll_wordset_ipa_orthography_rule_blocklist';
 }
+
+function ll_tools_ipa_orthography_engine_rules_cache_generation_meta_key(): string {
+    return 'll_wordset_ipa_orthography_engine_rules_generation';
+}
+
+function ll_tools_ipa_orthography_get_engine_rules_cache_generation(int $wordset_id): int {
+    if ($wordset_id <= 0) {
+        return 0;
+    }
+
+    return max(0, (int) get_term_meta($wordset_id, ll_tools_ipa_orthography_engine_rules_cache_generation_meta_key(), true));
+}
+
+function ll_tools_ipa_orthography_engine_rules_cache_key(int $wordset_id, int $generation = -1): string {
+    $wordset_id = max(0, $wordset_id);
+    if ($generation < 0) {
+        $generation = ll_tools_ipa_orthography_get_engine_rules_cache_generation($wordset_id);
+    }
+
+    return sprintf(
+        'll_ipa_ortho_engine_%d_v%d_g%d',
+        $wordset_id,
+        ll_tools_ipa_keyboard_get_validation_schema_version(),
+        max(0, $generation)
+    );
+}
+
+function ll_tools_ipa_orthography_get_engine_rules_runtime_cache(): array {
+    if (!isset($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])) {
+        $GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'] = [];
+    }
+
+    return $GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'];
+}
+
+function ll_tools_ipa_orthography_set_engine_rules_runtime_cache(string $cache_key, array $engine_rules): void {
+    if ($cache_key === '') {
+        return;
+    }
+
+    if (!isset($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])) {
+        $GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'] = [];
+    }
+
+    $GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'][$cache_key] = $engine_rules;
+}
+
+function ll_tools_ipa_orthography_clear_engine_rules_runtime_cache(int $wordset_id): void {
+    if ($wordset_id <= 0 || empty($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])) {
+        return;
+    }
+
+    $prefix = 'll_ipa_ortho_engine_' . $wordset_id . '_';
+    foreach (array_keys($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache']) as $cache_key) {
+        if (strpos((string) $cache_key, $prefix) === 0) {
+            unset($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'][$cache_key]);
+        }
+    }
+}
+
+function ll_tools_ipa_orthography_engine_rules_cache_ttl(): int {
+    return max(60, (int) apply_filters('ll_tools_ipa_orthography_engine_rules_cache_ttl', 6 * HOUR_IN_SECONDS));
+}
+
+function ll_tools_ipa_orthography_invalidate_engine_rules_cache(int $wordset_id): void {
+    if ($wordset_id <= 0) {
+        return;
+    }
+
+    $current_generation = ll_tools_ipa_orthography_get_engine_rules_cache_generation($wordset_id);
+    delete_transient(ll_tools_ipa_orthography_engine_rules_cache_key($wordset_id, $current_generation));
+    update_term_meta($wordset_id, ll_tools_ipa_orthography_engine_rules_cache_generation_meta_key(), $current_generation + 1);
+    ll_tools_ipa_orthography_clear_engine_rules_runtime_cache($wordset_id);
+}
+
+function ll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_term_meta($meta_id, $term_id, $meta_key): void {
+    $meta_key = (string) $meta_key;
+    if ($meta_key !== ll_tools_ipa_orthography_manual_rules_meta_key()
+        && $meta_key !== ll_tools_ipa_orthography_blocklist_meta_key()
+        && $meta_key !== ll_tools_ipa_orthography_settings_meta_key()) {
+        return;
+    }
+
+    ll_tools_ipa_orthography_invalidate_engine_rules_cache((int) $term_id);
+}
+
+add_action('added_term_meta', 'll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_term_meta', 10, 3);
+add_action('updated_term_meta', 'll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_term_meta', 10, 3);
+add_action('deleted_term_meta', 'll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_term_meta', 10, 3);
+
+function ll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_recording_meta($meta_id, $post_id, $meta_key): void {
+    $meta_key = (string) $meta_key;
+    if ($meta_key !== 'recording_text' && $meta_key !== 'recording_ipa') {
+        return;
+    }
+
+    $post = get_post((int) $post_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== 'word_audio') {
+        return;
+    }
+
+    foreach (ll_tools_ipa_keyboard_get_recording_wordset_ids((int) $post_id) as $wordset_id) {
+        ll_tools_ipa_orthography_invalidate_engine_rules_cache((int) $wordset_id);
+    }
+}
+
+add_action('added_post_meta', 'll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_recording_meta', 10, 3);
+add_action('updated_post_meta', 'll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_recording_meta', 10, 3);
+add_action('deleted_post_meta', 'll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_recording_meta', 10, 3);
 
 function ll_tools_ipa_orthography_exception_word_ids_meta_key(): string {
     return 'll_wordset_ipa_orthography_exception_word_ids';
@@ -5699,18 +5811,31 @@ function ll_tools_ipa_orthography_apply_suggestion_to_recording(int $wordset_id,
 }
 
 function ll_tools_ipa_orthography_build_engine_rules_for_wordset(int $wordset_id): array {
-    static $cache = [];
+    if ($wordset_id <= 0) {
+        return [];
+    }
 
-    if (isset($cache[$wordset_id]) && is_array($cache[$wordset_id])) {
-        return $cache[$wordset_id];
+    $cache_key = ll_tools_ipa_orthography_engine_rules_cache_key($wordset_id);
+    $runtime_cache = ll_tools_ipa_orthography_get_engine_rules_runtime_cache();
+    if (isset($runtime_cache[$cache_key]) && is_array($runtime_cache[$cache_key])) {
+        return $runtime_cache[$cache_key];
+    }
+
+    $persisted = get_transient($cache_key);
+    if (is_array($persisted)) {
+        ll_tools_ipa_orthography_set_engine_rules_runtime_cache($cache_key, $persisted);
+        return $persisted;
     }
 
     $training_rows = ll_tools_ipa_orthography_collect_training_rows($wordset_id);
     $stats = ll_tools_ipa_orthography_collect_rule_stats($wordset_id, $training_rows);
     $auto_rules = ll_tools_ipa_orthography_build_auto_rules_from_stats($stats);
     $auto_rules = ll_tools_ipa_orthography_filter_auto_rules($auto_rules, ll_tools_ipa_orthography_get_blocklist($wordset_id), $wordset_id);
-    $cache[$wordset_id] = ll_tools_ipa_orthography_prepare_engine_rules($auto_rules, ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id), $wordset_id);
-    return $cache[$wordset_id];
+    $engine_rules = ll_tools_ipa_orthography_prepare_engine_rules($auto_rules, ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id), $wordset_id);
+    ll_tools_ipa_orthography_set_engine_rules_runtime_cache($cache_key, $engine_rules);
+    set_transient($cache_key, $engine_rules, ll_tools_ipa_orthography_engine_rules_cache_ttl());
+
+    return $engine_rules;
 }
 
 function ll_tools_ipa_keyboard_build_orthography_data(int $wordset_id): array {

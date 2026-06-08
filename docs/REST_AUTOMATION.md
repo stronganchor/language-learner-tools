@@ -870,6 +870,22 @@ resource-guard delay. Poll the job status until it reports completion, then use
 the returned counts, warnings, and per-row validation decisions as the readback
 artifact for the run.
 
+For matcher or orthography-rule changes, create a job instead of running ad hoc
+WP-CLI loops. Use `candidate_scope=issues` to refresh rows that are already
+showing validation warnings. Use `candidate_scope=all` with `stale_only=false`
+for a deliberate full recording rescan when a rule change could create warnings
+from previously clean rows. Send `auto_process=true` to let the plugin schedule
+bounded WP-Cron chunks; optional `auto_delay_seconds` and `auto_limit` control
+the cadence. The job status response includes `auto_process.next_run_gmt`,
+`remaining_count`, and recent row outcomes, so callers can monitor progress
+without holding a terminal open.
+
+The IPA-to-orthography rule engine is cached across validation chunks and is
+invalidated when relevant wordset orthography settings, manual rules, blocklist
+entries, or recording text/IPA metadata changes. When plugin code changes the
+matcher semantics, bump the validation schema version so old validation rows are
+recognized as stale before starting a refresh job.
+
 ### `GET /wordsets/{wordset}/site-sync/snapshot`
 
 Returns a wordset-scoped sync snapshot for site-to-site workflows and local

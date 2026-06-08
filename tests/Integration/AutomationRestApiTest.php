@@ -20,6 +20,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_rest_resource_guard_clear_state')) {
             ll_tools_rest_resource_guard_clear_state();
         }
+        if (defined('LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK')) {
+            wp_clear_scheduled_hook(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK);
+        }
         parent::tearDown();
     }
 
@@ -1499,6 +1502,92 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(200, $status->get_status());
         $this->assertIsArray($status_data);
         $this->assertSame('completed', (string) (($status_data['job']['status'] ?? '')));
+    }
+
+    public function test_transcription_validation_job_can_include_all_recordings_for_full_rule_refresh(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Validation Job All Wordset', 'rest-validation-job-all-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Validation Job All Category', 'rest-validation-job-all-category');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'm' => ['any' => 'm'],
+            'a' => ['any' => 'a'],
+        ]);
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Validation Job All Word', 'All');
+        $recording_id = $this->create_recording($word_id, 'ma', 'ma');
+        delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key());
+
+        wp_set_current_user($admin_id);
+
+        $create = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-validation-job-all-wordset/transcription-validation-jobs', [
+            'candidate_scope' => 'all',
+            'stale_only' => false,
+            'max_candidates' => 10,
+        ]);
+        $create_data = $create->get_data();
+        $this->assertSame(201, $create->get_status());
+        $this->assertIsArray($create_data);
+        $this->assertSame('all', (string) (($create_data['job']['candidate_scope'] ?? '')));
+        $this->assertSame(1, (int) (($create_data['job']['total'] ?? 0)));
+    }
+
+    public function test_transcription_validation_job_auto_process_schedules_and_clears_background_work(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Validation Job Auto Wordset', 'rest-validation-job-auto-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Validation Job Auto Category', 'rest-validation-job-auto-category');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'm' => ['any' => 'm'],
+            'a' => ['any' => 'a'],
+        ]);
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Validation Job Auto Word', 'Auto');
+        $recording_id = $this->create_recording($word_id, 'ma', 'ma');
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version() - 1,
+                'active' => [
+                    [
+                        'rule_key' => 'builtin:orthography_mismatch',
+                        'code' => 'orthography_mismatch',
+                        'type' => 'builtin',
+                        'label' => 'Orthography mismatch',
+                        'message' => 'Stale issue',
+                        'count' => 1,
+                    ],
+                ],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        wp_set_current_user($admin_id);
+
+        $create = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-validation-job-auto-wordset/transcription-validation-jobs', [
+            'max_candidates' => 10,
+            'auto_process' => true,
+            'auto_delay_seconds' => 30,
+            'auto_limit' => 1,
+        ]);
+        $create_data = $create->get_data();
+        $this->assertSame(201, $create->get_status());
+        $this->assertIsArray($create_data);
+        $job = (array) ($create_data['job'] ?? []);
+        $job_id = (string) ($job['id'] ?? '');
+        $this->assertNotSame('', $job_id);
+        $this->assertTrue((bool) (($job['auto_process']['enabled'] ?? false)));
+        $this->assertSame(1, (int) (($job['auto_process']['limit'] ?? 0)));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, [$job_id]));
+
+        $process = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-validation-job-auto-wordset/transcription-validation-jobs/' . rawurlencode($job_id) . '/process', [
+            'limit' => 5,
+        ]);
+        $process_data = $process->get_data();
+        $this->assertSame(200, $process->get_status());
+        $this->assertIsArray($process_data);
+        $this->assertSame('completed', (string) (($process_data['job']['status'] ?? '')));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, [$job_id]));
     }
 
     public function test_transcriptions_route_dry_run_update_and_review_surfaces_agree(): void

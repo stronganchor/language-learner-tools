@@ -6,6 +6,10 @@ if (!defined('WPINC')) {
 require_once LL_TOOLS_BASE_PATH . 'includes/cli/cli-support.php';
 require_once LL_TOOLS_BASE_PATH . 'includes/api/word-metadata-plan-rest.php';
 
+if (!defined('LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK')) {
+    define('LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK', 'll_tools_transcription_validation_job_process_async');
+}
+
 function ll_tools_rest_automation_load_import_helpers(): void {
     if (!function_exists('ll_tools_import_job_get_snapshot')) {
         require_once LL_TOOLS_BASE_PATH . 'includes/admin/export-import.php';
@@ -3679,6 +3683,84 @@ function ll_tools_rest_transcription_validation_job_get(string $job_id) {
     return $job;
 }
 
+function ll_tools_rest_transcription_validation_job_auto_delay_seconds($value = null): int {
+    $requested = (is_scalar($value) && trim((string) $value) !== '')
+        ? max(0, (int) $value)
+        : 0;
+    $default = max(30, (int) apply_filters('ll_tools_rest_transcription_validation_job_auto_delay_default', 120));
+    $max = max($default, (int) apply_filters('ll_tools_rest_transcription_validation_job_auto_delay_max', 3600));
+    $delay = $requested > 0 ? $requested : $default;
+
+    return max(30, min($delay, $max));
+}
+
+function ll_tools_rest_transcription_validation_job_auto_limit($value = null): int {
+    $limits = ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false);
+    $requested = (is_scalar($value) && trim((string) $value) !== '')
+        ? max(0, (int) $value)
+        : 0;
+    $default = max(1, (int) ($limits['default'] ?? 3));
+    $max = max($default, (int) ($limits['max'] ?? 5));
+    $limit = $requested > 0 ? $requested : $default;
+
+    return max(1, min($limit, $max));
+}
+
+function ll_tools_rest_transcription_validation_job_apply_auto_request(array $job, WP_REST_Request $request, bool $default_enabled = false): array {
+    $enabled = $request->has_param('auto_process')
+        ? rest_sanitize_boolean($request->get_param('auto_process'))
+        : $default_enabled;
+
+    $job['auto_process'] = (bool) $enabled;
+    $job['auto_delay_seconds'] = ll_tools_rest_transcription_validation_job_auto_delay_seconds(
+        $request->has_param('auto_delay_seconds') ? $request->get_param('auto_delay_seconds') : ($job['auto_delay_seconds'] ?? null)
+    );
+    $job['auto_limit'] = ll_tools_rest_transcription_validation_job_auto_limit(
+        $request->has_param('auto_limit') ? $request->get_param('auto_limit') : ($job['auto_limit'] ?? null)
+    );
+
+    return $job;
+}
+
+function ll_tools_rest_transcription_validation_job_clear_schedule(string $job_id): void {
+    if ($job_id === '' || !function_exists('wp_next_scheduled') || !function_exists('wp_unschedule_event')) {
+        return;
+    }
+
+    $args = [$job_id];
+    while ($timestamp = wp_next_scheduled(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, $args)) {
+        $unscheduled = wp_unschedule_event((int) $timestamp, LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, $args);
+        if ($unscheduled === false) {
+            break;
+        }
+    }
+}
+
+function ll_tools_rest_transcription_validation_job_schedule_next(array $job): bool {
+    $job_id = (string) ($job['id'] ?? '');
+    if ($job_id === '' || empty($job['auto_process']) || (string) ($job['status'] ?? '') === 'completed'
+        || !function_exists('wp_next_scheduled') || !function_exists('wp_schedule_single_event')) {
+        return false;
+    }
+
+    $args = [$job_id];
+    if (wp_next_scheduled(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, $args)) {
+        return true;
+    }
+
+    $delay_seconds = ll_tools_rest_transcription_validation_job_auto_delay_seconds($job['auto_delay_seconds'] ?? null);
+    return wp_schedule_single_event(time() + $delay_seconds, LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, $args) !== false;
+}
+
+function ll_tools_rest_transcription_validation_job_next_run_gmt(string $job_id): string {
+    if ($job_id === '' || !function_exists('wp_next_scheduled')) {
+        return '';
+    }
+
+    $timestamp = wp_next_scheduled(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, [$job_id]);
+    return $timestamp ? gmdate('c', (int) $timestamp) : '';
+}
+
 function ll_tools_rest_transcription_validation_job_summary(array $job, bool $include_recent = true): array {
     $recording_ids = array_values(array_filter(array_map('intval', (array) ($job['recording_ids'] ?? []))));
     $summary = (array) ($job['summary'] ?? ll_tools_rest_transcription_validation_job_default_summary(count($recording_ids)));
@@ -3699,6 +3781,14 @@ function ll_tools_rest_transcription_validation_job_summary(array $job, bool $in
         'process_limit' => [
             'default' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['default'],
             'max' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['max'],
+        ],
+        'candidate_scope' => (string) ($job['candidate_scope'] ?? 'issues'),
+        'auto_process' => [
+            'enabled' => !empty($job['auto_process']),
+            'delay_seconds' => ll_tools_rest_transcription_validation_job_auto_delay_seconds($job['auto_delay_seconds'] ?? null),
+            'limit' => ll_tools_rest_transcription_validation_job_auto_limit($job['auto_limit'] ?? null),
+            'next_run_gmt' => ll_tools_rest_transcription_validation_job_next_run_gmt((string) ($job['id'] ?? '')),
+            'last_run_gmt' => (string) ($job['last_auto_process_gmt'] ?? ''),
         ],
         'summary' => [
             'total' => max(0, (int) ($summary['total'] ?? $total)),
@@ -3736,7 +3826,21 @@ function ll_tools_rest_automation_transcription_validation_max_candidates(WP_RES
     ];
 }
 
-function ll_tools_rest_automation_transcription_validation_candidate_ids(int $wordset_id, int $max_candidates, bool $stale_only): array {
+function ll_tools_rest_automation_transcription_validation_candidate_scope(WP_REST_Request $request): string {
+    $scope = $request->has_param('candidate_scope')
+        ? sanitize_key((string) $request->get_param('candidate_scope'))
+        : 'issues';
+    if ($scope === 'issue' || $scope === 'open_issues') {
+        $scope = 'issues';
+    }
+    if ($scope === 'recordings' || $scope === 'all_recordings') {
+        $scope = 'all';
+    }
+
+    return in_array($scope, ['issues', 'all'], true) ? $scope : 'issues';
+}
+
+function ll_tools_rest_automation_transcription_validation_candidate_ids(int $wordset_id, int $max_candidates, bool $stale_only, string $candidate_scope = 'issues'): array {
     ll_tools_rest_automation_load_orthography_helpers();
 
     $word_ids = get_objects_in_term($wordset_id, 'wordset');
@@ -3749,7 +3853,7 @@ function ll_tools_rest_automation_transcription_validation_candidate_ids(int $wo
         return [];
     }
 
-    $recording_ids = get_posts([
+    $query_args = [
         'post_type' => 'word_audio',
         'post_status' => 'publish',
         'post_parent__in' => $word_ids,
@@ -3760,15 +3864,20 @@ function ll_tools_rest_automation_transcription_validation_candidate_ids(int $wo
         'no_found_rows' => true,
         'update_post_meta_cache' => true,
         'update_post_term_cache' => false,
-        'meta_query' => [
+    ];
+
+    if ($candidate_scope === 'issues') {
+        $query_args['meta_query'] = [
             [
                 'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
                 'value' => 0,
                 'compare' => '>',
                 'type' => 'NUMERIC',
             ],
-        ],
-    ]);
+        ];
+    }
+
+    $recording_ids = get_posts($query_args);
 
     $candidate_ids = [];
     foreach (array_map('intval', (array) $recording_ids) as $recording_id) {
@@ -3803,10 +3912,12 @@ function ll_tools_rest_automation_create_transcription_validation_job(WP_REST_Re
         ? rest_sanitize_boolean($request->get_param('stale_only'))
         : true;
     $candidate_limit = ll_tools_rest_automation_transcription_validation_max_candidates($request);
+    $candidate_scope = ll_tools_rest_automation_transcription_validation_candidate_scope($request);
     $recording_ids = ll_tools_rest_automation_transcription_validation_candidate_ids(
         $wordset_id,
         (int) ($candidate_limit['effective'] ?? 500),
-        $stale_only
+        $stale_only,
+        $candidate_scope
     );
 
     $job_id = wp_generate_uuid4();
@@ -3816,6 +3927,7 @@ function ll_tools_rest_automation_create_transcription_validation_job(WP_REST_Re
         'wordset_id' => $wordset_id,
         'wordset_slug' => (string) $wordset_term->slug,
         'stale_only' => $stale_only,
+        'candidate_scope' => $candidate_scope,
         'total' => count($recording_ids),
         'current_index' => 0,
         'recording_ids' => $recording_ids,
@@ -3824,7 +3936,11 @@ function ll_tools_rest_automation_create_transcription_validation_job(WP_REST_Re
         'created_at_gmt' => gmdate('c'),
         'updated_at_gmt' => gmdate('c'),
     ];
+    $job = ll_tools_rest_transcription_validation_job_apply_auto_request($job, $request, false);
     ll_tools_rest_transcription_validation_job_save($job);
+    if ((string) ($job['status'] ?? '') !== 'completed') {
+        ll_tools_rest_transcription_validation_job_schedule_next($job);
+    }
 
     return new WP_REST_Response([
         'generated_at_gmt' => gmdate('c'),
@@ -3854,31 +3970,8 @@ function ll_tools_rest_automation_get_transcription_validation_job(WP_REST_Reque
     return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
 }
 
-function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_Request $request) {
-    ll_tools_rest_automation_load_orthography_helpers();
-
-    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
-    if (is_wp_error($wordset_term)) {
-        return $wordset_term;
-    }
-
-    $job = ll_tools_rest_transcription_validation_job_get((string) $request->get_param('job_id'));
-    if (is_wp_error($job)) {
-        return $job;
-    }
-    if ((int) ($job['wordset_id'] ?? 0) !== (int) $wordset_term->term_id) {
-        return new WP_Error(
-            'll_tools_rest_transcription_validation_job_wordset_mismatch',
-            __('Transcription validation job belongs to a different word set.', 'll-tools-text-domain'),
-            ['status' => 404]
-        );
-    }
-    if ((string) ($job['status'] ?? '') === 'completed') {
-        return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
-    }
-
-    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'transcription_validation_jobs', false);
-    $limit = (int) ($limit_info['effective'] ?? 10);
+function ll_tools_rest_transcription_validation_job_process_records(array $job, int $wordset_id, int $limit): array {
+    $limit = max(1, $limit);
     $recording_ids = array_values(array_filter(array_map('intval', (array) ($job['recording_ids'] ?? []))));
     $total = count($recording_ids);
     $current_index = min($total, max(0, (int) ($job['current_index'] ?? 0)));
@@ -3892,7 +3985,7 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
         $processed_this_request++;
         $summary['processed_count'] = max(0, (int) ($summary['processed_count'] ?? 0)) + 1;
 
-        if ($recording_id <= 0 || !ll_tools_rest_automation_recording_belongs_to_wordset($recording_id, (int) $wordset_term->term_id)) {
+        if ($recording_id <= 0 || !ll_tools_rest_automation_recording_belongs_to_wordset($recording_id, $wordset_id)) {
             $summary['skipped_count'] = max(0, (int) ($summary['skipped_count'] ?? 0)) + 1;
             $recent[] = [
                 'recording_id' => $recording_id,
@@ -3904,7 +3997,7 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
 
         if (!empty($job['stale_only'])) {
             $validation = function_exists('ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry')
-                ? ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, (int) $wordset_term->term_id)
+                ? ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, $wordset_id)
                 : [];
             $is_stale = function_exists('ll_tools_ipa_keyboard_validation_result_is_stale')
                 && ll_tools_ipa_keyboard_validation_result_is_stale((array) $validation);
@@ -3947,15 +4040,109 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
     $job['summary'] = $summary;
     $job['current_index'] = $current_index;
     $job['status'] = $current_index >= $total ? 'completed' : 'running';
+
+    return [
+        'job' => $job,
+        'processed_this_request' => $processed_this_request,
+    ];
+}
+
+function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_orthography_helpers();
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $job = ll_tools_rest_transcription_validation_job_get((string) $request->get_param('job_id'));
+    if (is_wp_error($job)) {
+        return $job;
+    }
+    if ((int) ($job['wordset_id'] ?? 0) !== (int) $wordset_term->term_id) {
+        return new WP_Error(
+            'll_tools_rest_transcription_validation_job_wordset_mismatch',
+            __('Transcription validation job belongs to a different word set.', 'll-tools-text-domain'),
+            ['status' => 404]
+        );
+    }
+
+    $job = ll_tools_rest_transcription_validation_job_apply_auto_request($job, $request, !empty($job['auto_process']));
+    if ((string) ($job['status'] ?? '') === 'completed') {
+        ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
+        ll_tools_rest_transcription_validation_job_save($job);
+        return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
+    }
+
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'transcription_validation_jobs', false);
+    $limit = (int) ($limit_info['effective'] ?? 10);
+    $process_result = ll_tools_rest_transcription_validation_job_process_records($job, (int) $wordset_term->term_id, $limit);
+    $job = (array) ($process_result['job'] ?? $job);
+
+    if ((string) ($job['status'] ?? '') === 'completed') {
+        ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
+    } elseif (!empty($job['auto_process'])) {
+        ll_tools_rest_transcription_validation_job_schedule_next($job);
+    } else {
+        ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
+    }
     ll_tools_rest_transcription_validation_job_save($job);
 
     return rest_ensure_response([
         'generated_at_gmt' => gmdate('c'),
         'limit' => $limit,
         'limit_info' => $limit_info,
-        'processed_this_request' => $processed_this_request,
+        'processed_this_request' => max(0, (int) ($process_result['processed_this_request'] ?? 0)),
         'job' => ll_tools_rest_transcription_validation_job_summary($job),
     ]);
+}
+
+add_action(LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK, 'll_tools_rest_transcription_validation_job_run_scheduled', 10, 1);
+function ll_tools_rest_transcription_validation_job_run_scheduled($job_id): void {
+    ll_tools_rest_automation_load_orthography_helpers();
+
+    $job_id = (string) $job_id;
+    $job = ll_tools_rest_transcription_validation_job_get($job_id);
+    if (is_wp_error($job) || !is_array($job)) {
+        return;
+    }
+
+    if (empty($job['auto_process']) || (string) ($job['status'] ?? '') === 'completed') {
+        ll_tools_rest_transcription_validation_job_clear_schedule($job_id);
+        return;
+    }
+
+    $lock_key = 'll_tools_transcription_validation_job_lock_' . md5($job_id);
+    if (get_transient($lock_key)) {
+        ll_tools_rest_transcription_validation_job_schedule_next($job);
+        return;
+    }
+
+    set_transient($lock_key, time(), 5 * MINUTE_IN_SECONDS);
+    try {
+        $wordset_id = max(0, (int) ($job['wordset_id'] ?? 0));
+        if ($wordset_id <= 0) {
+            $job['status'] = 'completed';
+            ll_tools_rest_transcription_validation_job_save($job);
+            ll_tools_rest_transcription_validation_job_clear_schedule($job_id);
+            return;
+        }
+
+        $limit = ll_tools_rest_transcription_validation_job_auto_limit($job['auto_limit'] ?? null);
+        $process_result = ll_tools_rest_transcription_validation_job_process_records($job, $wordset_id, $limit);
+        $job = (array) ($process_result['job'] ?? $job);
+        $job['last_auto_process_gmt'] = gmdate('c');
+
+        if ((string) ($job['status'] ?? '') === 'completed') {
+            ll_tools_rest_transcription_validation_job_clear_schedule($job_id);
+        } elseif (!empty($job['auto_process'])) {
+            ll_tools_rest_transcription_validation_job_schedule_next($job);
+        }
+
+        ll_tools_rest_transcription_validation_job_save($job);
+    } finally {
+        delete_transient($lock_key);
+    }
 }
 
 function ll_tools_rest_automation_wordset_report(WP_REST_Request $request) {
@@ -7556,6 +7743,25 @@ function ll_tools_rest_register_automation_routes(): void {
                 'required' => false,
                 'type' => 'integer',
             ],
+            'candidate_scope' => [
+                'required' => false,
+                'type' => 'string',
+                'default' => 'issues',
+                'enum' => ['issues', 'all', 'issue', 'open_issues', 'recordings', 'all_recordings'],
+            ],
+            'auto_process' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
+            ],
+            'auto_delay_seconds' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'auto_limit' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
         ],
     ]);
 
@@ -7571,6 +7777,18 @@ function ll_tools_rest_register_automation_routes(): void {
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
         'args' => [
             'limit' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'auto_process' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'auto_delay_seconds' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'auto_limit' => [
                 'required' => false,
                 'type' => 'integer',
             ],
