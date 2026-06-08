@@ -549,8 +549,8 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'max' => 25,
         ],
         'transcription_validation_jobs' => [
-            'default' => 10,
-            'max' => 25,
+            'default' => 3,
+            'max' => 5,
         ],
         'missing_meta' => [
             'default' => 100,

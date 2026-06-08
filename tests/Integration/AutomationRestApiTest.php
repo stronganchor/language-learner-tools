@@ -66,8 +66,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(10, (int) (($data['resource_guard']['word_category_updates_batch']['max_write_limit'] ?? 0)));
         $this->assertSame(10, (int) (($data['resource_guard']['word_metadata_plan_jobs_batch']['default_process_limit'] ?? 0)));
         $this->assertSame(25, (int) (($data['resource_guard']['word_metadata_plan_jobs_batch']['max_process_limit'] ?? 0)));
-        $this->assertSame(10, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['default_process_limit'] ?? 0)));
-        $this->assertSame(25, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['max_process_limit'] ?? 0)));
+        $this->assertSame(3, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['default_process_limit'] ?? 0)));
+        $this->assertSame(5, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['max_process_limit'] ?? 0)));
         $this->assertContains('word_category_ids', array_map('strval', (array) (($data['resource_guard']['word_metadata_plan_jobs_batch']['supported_fields'] ?? []))));
     }
 
