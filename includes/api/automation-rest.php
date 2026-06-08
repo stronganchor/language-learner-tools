@@ -5246,6 +5246,9 @@ function ll_tools_rest_automation_orthography_conversion_payload(WP_Term $wordse
 
     $wordset_id = (int) $wordset_term->term_id;
     $manual_rules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
+    $effective_manual_rules = function_exists('ll_tools_ipa_orthography_get_effective_manual_rules')
+        ? ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id)
+        : $manual_rules;
     $orthography_settings = ll_tools_ipa_orthography_get_settings($wordset_id);
 
     return [
@@ -5256,6 +5259,8 @@ function ll_tools_rest_automation_orthography_conversion_payload(WP_Term $wordse
         'available_profiles' => array_values(ll_tools_ipa_orthography_get_available_conversion_profiles()),
         'manual_rules' => $manual_rules,
         'manual_rule_count' => count($manual_rules),
+        'effective_manual_rules' => $effective_manual_rules,
+        'effective_manual_rule_count' => count($effective_manual_rules),
         'orthography_settings' => $orthography_settings,
         'exception_word_ids' => ll_tools_ipa_orthography_get_exception_word_ids($wordset_id),
         'exception_dictionary_entry_ids' => ll_tools_ipa_orthography_get_exception_dictionary_entry_ids($wordset_id),
@@ -5353,13 +5358,14 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
             }
         }
 
-        foreach (['word_overrides', 'word_override_entry_ids', 'phrase_overrides', 'optional_matches', 'recording_type_punctuation', 'sentence_case'] as $setting_key) {
+        foreach (['word_overrides', 'word_override_word_ids', 'word_override_entry_ids', 'phrase_overrides', 'optional_matches', 'recording_type_punctuation', 'sentence_case'] as $setting_key) {
             if ($request->has_param($setting_key)) {
                 $raw_settings[$setting_key] = $request->get_param($setting_key);
             }
         }
 
-        if (array_key_exists('word_override_entry_ids', $raw_settings) && !array_key_exists('word_overrides', $raw_settings)) {
+        if ((array_key_exists('word_override_word_ids', $raw_settings) || array_key_exists('word_override_entry_ids', $raw_settings))
+            && !array_key_exists('word_overrides', $raw_settings)) {
             $raw_settings['word_overrides'] = (array) ($next_settings['word_overrides'] ?? []);
         }
 
@@ -5368,8 +5374,10 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
             if (rest_sanitize_boolean($request->get_param('replace_orthography_settings')) || rest_sanitize_boolean($request->get_param('replace_settings'))) {
                 $next_settings = $incoming_settings;
             } else {
-                foreach (['word_overrides', 'word_override_entry_ids', 'recording_type_punctuation'] as $setting_key) {
-                    if (array_key_exists($setting_key, $raw_settings) || ($setting_key === 'word_override_entry_ids' && array_key_exists('word_overrides', $raw_settings))) {
+                foreach (['word_overrides', 'word_override_word_ids', 'word_override_entry_ids', 'recording_type_punctuation'] as $setting_key) {
+                    if (array_key_exists($setting_key, $raw_settings)
+                        || (in_array($setting_key, ['word_override_word_ids', 'word_override_entry_ids'], true)
+                            && array_key_exists('word_overrides', $raw_settings))) {
                         $next_settings[$setting_key] = array_merge(
                             (array) ($next_settings[$setting_key] ?? []),
                             (array) ($incoming_settings[$setting_key] ?? [])

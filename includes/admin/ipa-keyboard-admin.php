@@ -2492,6 +2492,7 @@ function ll_tools_ipa_orthography_profile_compare_key(string $text, string $lang
 function ll_tools_ipa_orthography_settings_defaults(): array {
     return [
         'word_overrides' => [],
+        'word_override_word_ids' => [],
         'word_override_entry_ids' => [],
         'phrase_overrides' => [],
         'optional_matches' => [],
@@ -2510,10 +2511,26 @@ function ll_tools_ipa_orthography_merge_settings(array $base, array $override, a
         (array) ($base['word_override_entry_ids'] ?? []),
         (array) ($override['word_override_entry_ids'] ?? [])
     );
+    $settings['word_override_word_ids'] = array_merge(
+        (array) ($base['word_override_word_ids'] ?? []),
+        (array) ($override['word_override_word_ids'] ?? [])
+    );
+    foreach ($settings['word_override_word_ids'] as $from_key => $word_id) {
+        $from_key = (string) $from_key;
+        $word_id = (int) $word_id;
+        if ($from_key === '' || $word_id <= 0 || !isset($settings['word_overrides'][$from_key])) {
+            unset($settings['word_override_word_ids'][$from_key]);
+        } else {
+            $settings['word_override_word_ids'][$from_key] = $word_id;
+        }
+    }
     foreach ($settings['word_override_entry_ids'] as $from_key => $entry_id) {
         $from_key = (string) $from_key;
         $entry_id = (int) $entry_id;
-        if ($from_key === '' || $entry_id <= 0 || !isset($settings['word_overrides'][$from_key])) {
+        if ($from_key === ''
+            || $entry_id <= 0
+            || !isset($settings['word_overrides'][$from_key])
+            || !empty($settings['word_override_word_ids'][$from_key])) {
             unset($settings['word_override_entry_ids'][$from_key]);
         } else {
             $settings['word_override_entry_ids'][$from_key] = $entry_id;
@@ -2587,6 +2604,7 @@ function ll_tools_ipa_orthography_get_profile_locked_manual_rules(int $wordset_i
         'ɢ' => ['any' => "'g"],
         'ɢʷ' => ['any' => "'gw"],
         'ħ' => ['any' => "'h"],
+        'ɭ' => ['any' => "'l"],
         'χ' => ['any' => 'x'],
         'x' => ['any' => 'x'],
         'ŋg' => ['any' => 'ng'],
@@ -2675,6 +2693,15 @@ function ll_tools_ipa_orthography_sanitize_dictionary_entry_id($raw): int {
     return get_post_type($entry_id) === 'll_dictionary_entry' ? $entry_id : 0;
 }
 
+function ll_tools_ipa_orthography_sanitize_word_override_word_id($raw): int {
+    $word_id = is_scalar($raw) ? absint($raw) : 0;
+    if ($word_id <= 0) {
+        return 0;
+    }
+
+    return get_post_type($word_id) === 'words' ? $word_id : 0;
+}
+
 function ll_tools_ipa_orthography_get_word_dictionary_entry_id(int $word_id): int {
     if ($word_id <= 0) {
         return 0;
@@ -2696,12 +2723,14 @@ function ll_tools_ipa_orthography_sanitize_settings($raw, int $wordset_id): arra
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
 
     foreach ((array) ($raw['word_overrides'] ?? []) as $from => $to) {
+        $word_id = 0;
         $dictionary_entry_id = 0;
         if (is_array($to)) {
+            $word_id = ll_tools_ipa_orthography_sanitize_word_override_word_id($to['word_id'] ?? 0);
             $dictionary_entry_id = ll_tools_ipa_orthography_sanitize_dictionary_entry_id(
                 $to['dictionary_entry_id'] ?? ($to['entry_id'] ?? 0)
             );
-            if ($dictionary_entry_id <= 0) {
+            if ($dictionary_entry_id <= 0 && $word_id <= 0) {
                 $dictionary_entry_id = ll_tools_ipa_orthography_get_word_dictionary_entry_id(
                     absint($to['word_id'] ?? 0)
                 );
@@ -2717,9 +2746,22 @@ function ll_tools_ipa_orthography_sanitize_settings($raw, int $wordset_id): arra
         $replacement = ll_tools_ipa_orthography_sanitize_setting_text($to);
         if ($from_key !== '' && $replacement !== '') {
             $settings['word_overrides'][$from_key] = $replacement;
-            if ($dictionary_entry_id > 0) {
+            if ($word_id > 0) {
+                $settings['word_override_word_ids'][$from_key] = $word_id;
+            } elseif ($dictionary_entry_id > 0) {
                 $settings['word_override_entry_ids'][$from_key] = $dictionary_entry_id;
             }
+        }
+    }
+
+    foreach ((array) ($raw['word_override_word_ids'] ?? []) as $from => $word_id) {
+        $from_key = ll_tools_ipa_orthography_profile_compare_key(
+            ll_tools_ipa_orthography_sanitize_setting_text($from),
+            $language
+        );
+        $word_id = ll_tools_ipa_orthography_sanitize_word_override_word_id($word_id);
+        if ($from_key !== '' && $word_id > 0 && isset($settings['word_overrides'][$from_key])) {
+            $settings['word_override_word_ids'][$from_key] = $word_id;
         }
     }
 
@@ -2729,7 +2771,10 @@ function ll_tools_ipa_orthography_sanitize_settings($raw, int $wordset_id): arra
             $language
         );
         $entry_id = ll_tools_ipa_orthography_sanitize_dictionary_entry_id($entry_id);
-        if ($from_key !== '' && $entry_id > 0 && isset($settings['word_overrides'][$from_key])) {
+        if ($from_key !== ''
+            && $entry_id > 0
+            && isset($settings['word_overrides'][$from_key])
+            && empty($settings['word_override_word_ids'][$from_key])) {
             $settings['word_override_entry_ids'][$from_key] = $entry_id;
         }
     }
@@ -2946,7 +2991,8 @@ function ll_tools_ipa_orthography_profile_words_equivalent(
     string $suggested_word,
     string $ipa_word,
     string $language = '',
-    int $wordset_id = 0
+    int $wordset_id = 0,
+    int $word_id = 0
 ): bool {
     $actual_key = ll_tools_ipa_orthography_profile_compare_key($actual_word, $language);
     $suggested_key = ll_tools_ipa_orthography_profile_compare_key($suggested_word, $language);
@@ -2954,7 +3000,7 @@ function ll_tools_ipa_orthography_profile_words_equivalent(
         return true;
     }
 
-    if (ll_tools_ipa_orthography_profile_word_matches_configured_override($actual_key, $suggested_key, $wordset_id)) {
+    if (ll_tools_ipa_orthography_profile_word_matches_configured_override($actual_key, $suggested_key, $wordset_id, false, $word_id)) {
         return true;
     }
 
@@ -2965,7 +3011,8 @@ function ll_tools_ipa_orthography_profile_word_matches_configured_override(
     string $actual_key,
     string $suggested_key,
     int $wordset_id,
-    bool $include_entry_bound_overrides = false
+    bool $include_entry_bound_overrides = false,
+    int $word_id = 0
 ): bool {
     if ($wordset_id <= 0 || $actual_key === '' || $suggested_key === '') {
         return false;
@@ -2976,8 +3023,13 @@ function ll_tools_ipa_orthography_profile_word_matches_configured_override(
     if (!array_key_exists($suggested_key, $word_overrides)) {
         return false;
     }
+    $word_ids = (array) ($settings['word_override_word_ids'] ?? []);
+    $required_word_id = (int) ($word_ids[$suggested_key] ?? 0);
+    if ($required_word_id > 0 && ($word_id <= 0 || $word_id !== $required_word_id)) {
+        return false;
+    }
     $entry_ids = (array) ($settings['word_override_entry_ids'] ?? []);
-    if (!$include_entry_bound_overrides && !empty($entry_ids[$suggested_key])) {
+    if (!$include_entry_bound_overrides && (empty($required_word_id) && !empty($entry_ids[$suggested_key]))) {
         return false;
     }
 
@@ -3214,8 +3266,8 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'æ' => ['any' => 'â'],
         'e' => ['any' => 'ê'],
         'ɛ' => ['any' => 'e'],
-        'ɨ' => ['nonfinal' => 'ı'],
-        'ɪ' => ['nonfinal' => 'ı'],
+        'ɨ' => ['final' => 'e', 'nonfinal' => 'ı'],
+        'ɪ' => ['final' => 'e', 'nonfinal' => 'ı'],
         'i' => ['any' => 'i'],
         'o' => ['any' => 'o'],
         'ø' => ['any' => 'ö'],
@@ -3708,7 +3760,14 @@ function ll_tools_ipa_orthography_profile_mismatch_detail(
             }
 
             if ($entry_bound_override_matches_word
-                || ll_tools_ipa_orthography_profile_words_equivalent($actual_word, $suggested_word, $ipa_word, $language, $wordset_id)) {
+                || ll_tools_ipa_orthography_profile_words_equivalent(
+                    $actual_word,
+                    $suggested_word,
+                    $ipa_word,
+                    $language,
+                    $wordset_id,
+                    (int) ($prediction['word_id'] ?? 0)
+                )) {
                 if (ll_tools_ipa_orthography_profile_compare_key($actual_word, $language)
                     !== ll_tools_ipa_orthography_profile_compare_key($suggested_word, $language)) {
                     $replacement_tokens[$index] = $actual_word;
@@ -4752,6 +4811,12 @@ function ll_tools_ipa_orthography_prepare_engine_rules(array $auto_rules, array 
 }
 
 function ll_tools_ipa_orthography_word_override_applies_to_word(string $from_key, array $settings, int $word_id): bool {
+    $word_ids = (array) ($settings['word_override_word_ids'] ?? []);
+    $required_word_id = (int) ($word_ids[$from_key] ?? 0);
+    if ($required_word_id > 0) {
+        return $word_id > 0 && $word_id === $required_word_id;
+    }
+
     $entry_ids = (array) ($settings['word_override_entry_ids'] ?? []);
     $required_entry_id = (int) ($entry_ids[$from_key] ?? 0);
     if ($required_entry_id <= 0) {

@@ -371,10 +371,10 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($near_i_prediction['complete'] ?? false));
         $this->assertSame('Mına', (string) ($near_i_prediction['text'] ?? ''));
 
-        $unresolved_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('mɪ', $engine_rules, $wordset_id);
-        $this->assertTrue((bool) ($unresolved_final_prediction['complete'] ?? false));
-        $this->assertSame('Mı', (string) ($unresolved_final_prediction['text'] ?? ''));
-        $this->assertTrue((bool) ($unresolved_final_prediction['requires_lexical_decision'] ?? false));
+        $default_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('vɪ', $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($default_final_prediction['complete'] ?? false));
+        $this->assertSame('Ve', (string) ($default_final_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($default_final_prediction['requires_lexical_decision'] ?? true));
 
         $final_e_entry_id = $this->createDictionaryEntry('Final e Lexeme');
         $final_dotless_entry_id = $this->createDictionaryEntry('Final dotless Lexeme');
@@ -386,8 +386,8 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
                     'dictionary_entry_id' => $final_e_entry_id,
                 ],
                 [
-                    'from' => 'mı',
-                    'to' => 'mı',
+                    'from' => 've',
+                    'to' => 'vı',
                     'dictionary_entry_id' => $final_dotless_entry_id,
                 ],
             ],
@@ -408,12 +408,12 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             $this->validationCodes($final_e_recording_id, $wordset_id)
         );
 
-        $final_dotless_word_id = $this->createWord($wordset_id, 'Final dotless lexical item', 'Mı');
+        $final_dotless_word_id = $this->createWord($wordset_id, 'Final dotless lexical item', 'Vı');
         $this->linkWordToDictionaryEntry($final_dotless_word_id, $final_dotless_entry_id);
-        $final_dotless_recording_id = $this->createRecording($final_dotless_word_id, 'Mı', 'mɪ');
-        $final_dotless_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('mɪ', $engine_rules, $wordset_id, $final_dotless_recording_id);
+        $final_dotless_recording_id = $this->createRecording($final_dotless_word_id, 'Vı', 'vɪ');
+        $final_dotless_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('vɪ', $engine_rules, $wordset_id, $final_dotless_recording_id);
         $this->assertTrue((bool) ($final_dotless_prediction['complete'] ?? false));
-        $this->assertSame('Mı', (string) ($final_dotless_prediction['text'] ?? ''));
+        $this->assertSame('Vı', (string) ($final_dotless_prediction['text'] ?? ''));
         $this->assertFalse((bool) ($final_dotless_prediction['requires_lexical_decision'] ?? false));
         ll_tools_ipa_keyboard_update_recording_validation($final_dotless_recording_id);
         $this->assertNotContains(
@@ -421,12 +421,16 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             $this->validationCodes($final_dotless_recording_id, $wordset_id)
         );
 
-        $unbound_final_word_id = $this->createWord($wordset_id, 'Unresolved final high vowel', 'Mı');
-        $unbound_final_recording_id = $this->createRecording($unbound_final_word_id, 'Mı', 'mɪ');
-        $unbound_recording_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('mɪ', $engine_rules, $wordset_id, $unbound_final_recording_id);
-        $this->assertTrue((bool) ($unbound_recording_prediction['requires_lexical_decision'] ?? false));
-        $unbound_mismatch_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Mı', 'mɪ', $wordset_id, 'isolation', $unbound_recording_prediction);
+        $other_final_entry_id = $this->createDictionaryEntry('Other final vowel lexeme');
+        $unbound_final_word_id = $this->createWord($wordset_id, 'Unresolved final high vowel', 'Vı');
+        $this->linkWordToDictionaryEntry($unbound_final_word_id, $other_final_entry_id);
+        $unbound_final_recording_id = $this->createRecording($unbound_final_word_id, 'Vı', 'vɪ');
+        $unbound_recording_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('vɪ', $engine_rules, $wordset_id, $unbound_final_recording_id);
+        $this->assertSame('Ve', (string) ($unbound_recording_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($unbound_recording_prediction['requires_lexical_decision'] ?? true));
+        $unbound_mismatch_detail = ll_tools_ipa_orthography_profile_mismatch_detail('Vı', 'vɪ', $wordset_id, 'isolation', $unbound_recording_prediction);
         $this->assertFalse((bool) ($unbound_mismatch_detail['matches'] ?? true));
+        $this->assertSame('Ve', (string) ($unbound_mismatch_detail['suggested_text'] ?? ''));
         $raw_unbound_validation = ll_tools_ipa_keyboard_validate_recording_for_wordset($unbound_final_recording_id, $wordset_id, []);
         $this->assertContains(
             'orthography_mismatch',
@@ -457,6 +461,39 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
+    public function test_zazaki_word_id_bound_override_limits_final_dotless_i_exception_to_one_word(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Word Bound Final Vowel Override');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        $target_word_id = $this->createWord($wordset_id, 'Exact final dotless item', 'Vı');
+        $other_word_id = $this->createWord($wordset_id, 'Other final dotless item', 'Vı');
+        $this->setOrthographySettings($wordset_id, [
+            'word_overrides' => [
+                [
+                    'from' => 've',
+                    'to' => 'vı',
+                    'word_id' => $target_word_id,
+                ],
+            ],
+            'sentence_case' => true,
+        ]);
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+
+        $target_recording_id = $this->createRecording($target_word_id, 'Vı', 'vɪ');
+        $target_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('vɪ', $engine_rules, $wordset_id, $target_recording_id);
+        $this->assertSame('Vı', (string) ($target_prediction['text'] ?? ''));
+        ll_tools_ipa_keyboard_update_recording_validation($target_recording_id);
+        $this->assertNotContains('orthography_mismatch', $this->validationCodes($target_recording_id, $wordset_id));
+
+        $other_recording_id = $this->createRecording($other_word_id, 'Vı', 'vɪ');
+        $other_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('vɪ', $engine_rules, $wordset_id, $other_recording_id);
+        $this->assertSame('Ve', (string) ($other_prediction['text'] ?? ''));
+        ll_tools_ipa_keyboard_update_recording_validation($other_recording_id);
+        $this->assertContains('orthography_mismatch', $this->validationCodes($other_recording_id, $wordset_id));
+    }
+
     public function test_zazaki_profile_locks_strict_vowel_consonant_and_dotted_i_mappings(): void
     {
         $wordset_id = $this->createWordset('Zazaki Strict Profile Mappings');
@@ -467,6 +504,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             ll_tools_ipa_orthography_sanitize_manual_rules([
                 'æ' => ['any' => 'e'],
                 'i' => ['any' => 'ı'],
+                'ɭ' => ['any' => 'l'],
                 'χ' => ['any' => 'q'],
             ], $wordset_id)
         );
@@ -486,6 +524,9 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
 
         $fricative_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('χa', $engine_rules, $wordset_id);
         $this->assertSame('Xa', (string) ($fricative_prediction['text'] ?? ''));
+
+        $retroflex_lateral_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('ɭa', $engine_rules, $wordset_id);
+        $this->assertSame("'La", (string) ($retroflex_lateral_prediction['text'] ?? ''));
 
         $dotted_i_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('i', $engine_rules, $wordset_id);
         $this->assertSame('İ', (string) ($dotted_i_prediction['text'] ?? ''));
@@ -594,17 +635,18 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $wrong_release_vowel = ll_tools_ipa_orthography_profile_mismatch_detail('Bıde', $release_ipa, $wordset_id, 'isolation', $release_prediction);
         $this->assertFalse((bool) ($wrong_release_vowel['matches'] ?? true));
 
-        $unresolved_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("ʃɨ", $engine_rules, $wordset_id);
-        $this->assertTrue((bool) ($unresolved_final_prediction['requires_lexical_decision'] ?? false));
+        $unresolved_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("vɨ", $engine_rules, $wordset_id);
+        $this->assertSame('Ve', (string) ($unresolved_final_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($unresolved_final_prediction['requires_lexical_decision'] ?? true));
         $unresolved_final_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
-            'Şı',
-            "ʃɨ",
+            'Vı',
+            "vɨ",
             $wordset_id,
             'isolation',
             $unresolved_final_prediction
         );
         $this->assertFalse((bool) ($unresolved_final_detail['matches'] ?? true));
-        $this->assertSame('Şı', (string) ($unresolved_final_detail['suggested_text'] ?? ''));
+        $this->assertSame('Ve', (string) ($unresolved_final_detail['suggested_text'] ?? ''));
         $this->assertNotEmpty((array) ($unresolved_final_detail['actual_spans'] ?? []));
         $this->assertNotEmpty((array) ($unresolved_final_detail['ipa_spans'] ?? []));
     }

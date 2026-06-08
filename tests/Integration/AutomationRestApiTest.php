@@ -395,6 +395,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'post_status' => 'publish',
             'post_title' => 'REST Orthography Exception Entry',
         ]);
+        $override_word_id = $this->create_word($wordset_id, [], 'REST Orthography Override Word', 'Vq');
         wp_set_current_user($admin_id);
 
         $payload = [
@@ -412,6 +413,10 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'orthography_settings' => [
                 'word_overrides' => [
                     'sq' => 'se',
+                    'vq' => [
+                        'to' => 've',
+                        'word_id' => $override_word_id,
+                    ],
                 ],
                 'phrase_overrides' => [
                     [
@@ -472,9 +477,16 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertIsArray($read_data);
         $this->assertSame('', (string) ($read_data['profile_key'] ?? ''));
         $this->assertSame('q', (string) ($read_data['manual_rules']['x']['any'] ?? ''));
+        $this->assertSame('q', (string) ($read_data['effective_manual_rules']['x']['any'] ?? ''));
+        $this->assertSame(
+            (int) ($read_data['manual_rule_count'] ?? 0),
+            (int) ($read_data['effective_manual_rule_count'] ?? 0)
+        );
         $this->assertSame('n', (string) ($read_data['manual_rules']['n']['any'] ?? ''));
         $this->assertSame("'h", (string) ($read_data['manual_rules']["\u{0127}"]['any'] ?? ''));
         $this->assertSame('se', (string) ($read_data['orthography_settings']['word_overrides']['sq'] ?? ''));
+        $this->assertSame('ve', (string) ($read_data['orthography_settings']['word_overrides']['vq'] ?? ''));
+        $this->assertSame($override_word_id, (int) ($read_data['orthography_settings']['word_override_word_ids']['vq'] ?? 0));
         $this->assertSame(['des', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['from'] ?? []));
         $this->assertSame(['dest', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['to'] ?? []));
         $this->assertSame('x', (string) ($read_data['orthography_settings']['optional_matches'][0]['ipa'] ?? ''));
