@@ -3843,3 +3843,19 @@ msgstr "La prévérification du plan de métadonnées de mots a échoué. Aucune
 #: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "La tâche de plan de métadonnées de mots appartient à un autre ensemble de mots."
+
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr "Les fichiers de l'extension LL Tools ont été mis à jour, mais l'extension n'a pas pu être réactivée automatiquement."
+
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr "ID de tâche de validation de transcription non valide."
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr "La tâche de validation de transcription est introuvable."
+
+#: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr "La tâche de validation de transcription appartient à un autre ensemble de mots."

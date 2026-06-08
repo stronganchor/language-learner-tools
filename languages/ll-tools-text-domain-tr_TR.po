@@ -26763,3 +26763,19 @@ msgstr "Kelime meta verisi planı ön denetimi başarısız oldu. İş oluşturu
 #: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "Kelime meta verisi plan işi farklı bir kelime setine ait."
+
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr "LL Tools eklenti dosyaları güncellendi, ancak eklenti otomatik olarak yeniden etkinleştirilemedi."
+
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr "Geçersiz transkripsiyon doğrulama işi kimliği."
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr "Transkripsiyon doğrulama işi bulunamadı."
+
+#: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr "Transkripsiyon doğrulama işi farklı bir kelime setine ait."

@@ -3843,3 +3843,19 @@ msgstr "शब्द मेटाडेटा योजना पूर्व-�
 #: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "शब्द मेटाडेटा योजना कार्य किसी दूसरे शब्द सेट से संबंधित है।"
+
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr "LL Tools प्लगइन फ़ाइलें अपडेट हो गईं, लेकिन प्लगइन अपने-आप फिर से सक्रिय नहीं हो सका।"
+
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr "अमान्य ट्रांसक्रिप्शन सत्यापन कार्य ID।"
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr "ट्रांसक्रिप्शन सत्यापन कार्य नहीं मिला।"
+
+#: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr "ट्रांसक्रिप्शन सत्यापन कार्य किसी दूसरे शब्द सेट से संबंधित है।"

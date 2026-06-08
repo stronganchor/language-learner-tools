@@ -217,6 +217,10 @@ Routes:
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard`
 - `GET /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result`
 - `POST /wordsets/{wordset}/transcriptions`
+- `POST /wordsets/{wordset}/transcription-validations`
+- `POST /wordsets/{wordset}/transcription-validation-jobs`
+- `GET /wordsets/{wordset}/transcription-validation-jobs/{job_id}`
+- `POST /wordsets/{wordset}/transcription-validation-jobs/{job_id}/process`
 - `GET /wordsets/{wordset}/site-sync/snapshot`
 - `POST /wordsets/{wordset}/word-option-rules`
 - `GET /wordsets/{wordset}/orthography-conversion`
@@ -846,6 +850,25 @@ Body fields:
 The response includes `matched_count`, `updated_count`, per-record `before` and
 `after` payloads, and structured `errors` for recordings outside the requested
 wordset.
+
+### `POST /wordsets/{wordset}/transcription-validations`
+
+Runs bounded IPA/orthography validation for submitted transcription rows in one
+wordset. Use `dry_run=true` first when checking a planned correction batch or
+when you only need machine-readable validation feedback.
+
+For large validation backlogs, prefer the job workflow instead of one synchronous
+request:
+
+- `POST /wordsets/{wordset}/transcription-validation-jobs`
+- `GET /wordsets/{wordset}/transcription-validation-jobs/{job_id}`
+- `POST /wordsets/{wordset}/transcription-validation-jobs/{job_id}/process`
+
+The start request creates a durable validation job. The process route advances a
+bounded chunk and checkpoints progress so callers can resume after timeout or a
+resource-guard delay. Poll the job status until it reports completion, then use
+the returned counts, warnings, and per-row validation decisions as the readback
+artifact for the run.
 
 ### `GET /wordsets/{wordset}/site-sync/snapshot`
 

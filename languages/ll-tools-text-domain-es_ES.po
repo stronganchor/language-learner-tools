@@ -3843,3 +3843,19 @@ msgstr "Error en la comprobación previa del plan de metadatos de palabras. No s
 #: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "El trabajo del plan de metadatos de palabras pertenece a otro conjunto de palabras."
+
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr "Los archivos del plugin LL Tools se actualizaron, pero el plugin no se pudo reactivar automáticamente."
+
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr "ID de trabajo de validación de transcripciones no válido."
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr "No se encontró el trabajo de validación de transcripciones."
+
+#: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr "El trabajo de validación de transcripciones pertenece a un conjunto de palabras diferente."

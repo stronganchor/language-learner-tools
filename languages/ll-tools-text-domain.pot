@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.5.29\n"
+"Project-Id-Version: Language Learner Tools 6.5.35\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-06-07T04:32:58+00:00\n"
+"POT-Creation-Date: 2026-06-08T04:32:44+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -677,28 +677,28 @@ msgstr ""
 #: includes/admin/audio-image-matcher.php:538
 #: includes/admin/audio-image-matcher.php:546
 #: includes/admin/audio-image-matcher.php:549
-#: includes/admin/ipa-keyboard-admin.php:7481
-#: includes/admin/ipa-keyboard-admin.php:7517
-#: includes/admin/ipa-keyboard-admin.php:7547
-#: includes/admin/ipa-keyboard-admin.php:7577
-#: includes/admin/ipa-keyboard-admin.php:7598
-#: includes/admin/ipa-keyboard-admin.php:7653
-#: includes/admin/ipa-keyboard-admin.php:7702
-#: includes/admin/ipa-keyboard-admin.php:7756
-#: includes/admin/ipa-keyboard-admin.php:7781
-#: includes/admin/ipa-keyboard-admin.php:7814
-#: includes/admin/ipa-keyboard-admin.php:7867
-#: includes/admin/ipa-keyboard-admin.php:7897
-#: includes/admin/ipa-keyboard-admin.php:7953
-#: includes/admin/ipa-keyboard-admin.php:7979
-#: includes/admin/ipa-keyboard-admin.php:8016
-#: includes/admin/ipa-keyboard-admin.php:8048
-#: includes/admin/ipa-keyboard-admin.php:8126
-#: includes/admin/ipa-keyboard-admin.php:8172
-#: includes/admin/ipa-keyboard-admin.php:8229
-#: includes/admin/ipa-keyboard-admin.php:8268
-#: includes/admin/ipa-keyboard-admin.php:8347
-#: includes/admin/ipa-keyboard-admin.php:8409
+#: includes/admin/ipa-keyboard-admin.php:7542
+#: includes/admin/ipa-keyboard-admin.php:7578
+#: includes/admin/ipa-keyboard-admin.php:7608
+#: includes/admin/ipa-keyboard-admin.php:7638
+#: includes/admin/ipa-keyboard-admin.php:7659
+#: includes/admin/ipa-keyboard-admin.php:7714
+#: includes/admin/ipa-keyboard-admin.php:7763
+#: includes/admin/ipa-keyboard-admin.php:7817
+#: includes/admin/ipa-keyboard-admin.php:7842
+#: includes/admin/ipa-keyboard-admin.php:7875
+#: includes/admin/ipa-keyboard-admin.php:7928
+#: includes/admin/ipa-keyboard-admin.php:7958
+#: includes/admin/ipa-keyboard-admin.php:8014
+#: includes/admin/ipa-keyboard-admin.php:8040
+#: includes/admin/ipa-keyboard-admin.php:8077
+#: includes/admin/ipa-keyboard-admin.php:8109
+#: includes/admin/ipa-keyboard-admin.php:8187
+#: includes/admin/ipa-keyboard-admin.php:8233
+#: includes/admin/ipa-keyboard-admin.php:8290
+#: includes/admin/ipa-keyboard-admin.php:8329
+#: includes/admin/ipa-keyboard-admin.php:8408
+#: includes/admin/ipa-keyboard-admin.php:8470
 #: includes/shortcodes/editor-hub-shortcode.php:975
 #: includes/shortcodes/word-grid-shortcode.php:7070
 #: includes/shortcodes/word-grid-shortcode.php:7211
@@ -725,7 +725,7 @@ msgid "Missing parameters"
 msgstr ""
 
 #: includes/admin/audio-image-matcher.php:532
-#: includes/admin/ipa-keyboard-admin.php:7768
+#: includes/admin/ipa-keyboard-admin.php:7829
 msgid "Invalid word"
 msgstr ""
 
@@ -2140,7 +2140,7 @@ msgstr ""
 #: includes/admin/dictionary-import-admin.php:1663
 #: includes/admin/export-import.php:10356
 #: includes/admin/export-import.php:10407
-#: includes/api/automation-rest.php:6315
+#: includes/api/automation-rest.php:6737
 msgid "The requested import job could not be found."
 msgstr ""
 
@@ -2562,8 +2562,8 @@ msgid "Enable grammatical gender for this word set"
 msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:856
-#: includes/api/word-metadata-plan-rest.php:522
-#: includes/cli/cli-support.php:768
+#: includes/api/word-metadata-plan-rest.php:598
+#: includes/cli/cli-support.php:774
 msgid "Grammatical gender is not enabled for this word set."
 msgstr ""
 
@@ -2576,8 +2576,8 @@ msgid "Enable plurality for this word set"
 msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:880
-#: includes/api/word-metadata-plan-rest.php:539
-#: includes/cli/cli-support.php:803
+#: includes/api/word-metadata-plan-rest.php:615
+#: includes/cli/cli-support.php:809
 #: includes/shortcodes/word-grid-shortcode.php:9355
 msgid "Plurality is not enabled for this word set."
 msgstr ""
@@ -3142,7 +3142,7 @@ msgstr ""
 #: includes/admin/export-import.php:12317
 #: includes/admin/offline-app-export.php:1278
 #: includes/admin/orphan-media-admin.php:1476
-#: includes/api/automation-rest.php:6254
+#: includes/api/automation-rest.php:6676
 #: includes/pages/wordset-pages.php:5440
 msgid "ZipArchive is not available on this server."
 msgstr ""
@@ -4173,7 +4173,7 @@ msgid "Import failed: please choose a zip file to import."
 msgstr ""
 
 #: includes/admin/export-import.php:4791
-#: includes/api/automation-rest.php:6193
+#: includes/api/automation-rest.php:6615
 msgid "Import failed: server import folder is not available."
 msgstr ""
 
@@ -4724,7 +4724,7 @@ msgid "Could not create the import extraction directory."
 msgstr ""
 
 #: includes/admin/export-import.php:10310
-#: includes/api/automation-rest.php:6332
+#: includes/api/automation-rest.php:6754
 msgid "Another import job is already active. Resume or finish it before starting a new one."
 msgstr ""
 
@@ -6730,211 +6730,211 @@ msgstr ""
 msgid "Do not allow %s anywhere in this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:3196
+#: includes/admin/ipa-keyboard-admin.php:3198
 msgid "Genç-Palu Zazaki"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:3197
+#: includes/admin/ipa-keyboard-admin.php:3199
 msgid "Genç-Palu"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:3200
+#: includes/admin/ipa-keyboard-admin.php:3202
 msgid "Uses the Genç-Palu IPA-to-orthography conversion profile, including lexical and phrase exceptions."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5262
-#: includes/admin/ipa-keyboard-admin.php:5341
-#: includes/admin/ipa-keyboard-admin.php:5448
+#: includes/admin/ipa-keyboard-admin.php:5323
+#: includes/admin/ipa-keyboard-admin.php:5402
+#: includes/admin/ipa-keyboard-admin.php:5509
 msgid "Current rules"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5461
+#: includes/admin/ipa-keyboard-admin.php:5522
 msgid "Invalid word for this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5466
+#: includes/admin/ipa-keyboard-admin.php:5527
 msgid "This word already has written text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5471
+#: includes/admin/ipa-keyboard-admin.php:5532
 msgid "No IPA recording is available for this word."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5478
+#: includes/admin/ipa-keyboard-admin.php:5539
 msgid "This source recording already has text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5487
+#: includes/admin/ipa-keyboard-admin.php:5548
 msgid "Current rules cannot fully convert this IPA transcription yet."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5494
+#: includes/admin/ipa-keyboard-admin.php:5555
 msgid "Failed to save the converted recording text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5519
+#: includes/admin/ipa-keyboard-admin.php:5580
 #: includes/shortcodes/word-grid-shortcode.php:7059
 #: includes/shortcodes/word-grid-shortcode.php:8037
 #: includes/shortcodes/word-grid-shortcode.php:8121
 msgid "Invalid recording."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5524
+#: includes/admin/ipa-keyboard-admin.php:5585
 msgid "Recording does not belong to this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5529
+#: includes/admin/ipa-keyboard-admin.php:5590
 msgid "No IPA transcription is available for this recording."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5537
+#: includes/admin/ipa-keyboard-admin.php:5598
 msgid "Current rules cannot suggest a written transcription for this recording yet."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:5563
+#: includes/admin/ipa-keyboard-admin.php:5624
 msgid "Failed to save the suggested recording text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6067
+#: includes/admin/ipa-keyboard-admin.php:6128
 msgid "A modifier or diacritic appears without a main sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6087
+#: includes/admin/ipa-keyboard-admin.php:6148
 msgid "A tie bar appears without two joined sounds."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6105
+#: includes/admin/ipa-keyboard-admin.php:6166
 msgid "The same IPA modifier is repeated on one sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6132
+#: includes/admin/ipa-keyboard-admin.php:6193
 msgid "Stress markers should appear before a sound, not at the end or doubled together."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6152
+#: includes/admin/ipa-keyboard-admin.php:6213
 msgid "Aspiration ʰ should usually appear only after a voiceless stop or affricate."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6171
+#: includes/admin/ipa-keyboard-admin.php:6232
 msgid "The dental diacritic should be attached to t or d in this IPA inventory."
 msgstr ""
 
 #. translators: %s is an IPA symbol.
-#: includes/admin/ipa-keyboard-admin.php:6196
+#: includes/admin/ipa-keyboard-admin.php:6257
 msgid "This transcription contains %s, which is marked illegal for this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6244
+#: includes/admin/ipa-keyboard-admin.php:6305
 msgid "Saved text does not match the current orthography rules."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:6268
+#: includes/admin/ipa-keyboard-admin.php:6329
 msgid "This IPA token contains a symbol outside the approved inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7486
-#: includes/admin/ipa-keyboard-admin.php:7491
-#: includes/admin/ipa-keyboard-admin.php:7522
-#: includes/admin/ipa-keyboard-admin.php:7527
+#: includes/admin/ipa-keyboard-admin.php:7547
 #: includes/admin/ipa-keyboard-admin.php:7552
-#: includes/admin/ipa-keyboard-admin.php:7557
-#: includes/admin/ipa-keyboard-admin.php:7582
-#: includes/admin/ipa-keyboard-admin.php:7586
-#: includes/admin/ipa-keyboard-admin.php:7603
-#: includes/admin/ipa-keyboard-admin.php:7607
-#: includes/admin/ipa-keyboard-admin.php:7658
-#: includes/admin/ipa-keyboard-admin.php:7662
-#: includes/admin/ipa-keyboard-admin.php:7707
-#: includes/admin/ipa-keyboard-admin.php:7711
-#: includes/admin/ipa-keyboard-admin.php:7791
-#: includes/admin/ipa-keyboard-admin.php:7819
-#: includes/admin/ipa-keyboard-admin.php:7823
-#: includes/admin/ipa-keyboard-admin.php:7878
-#: includes/admin/ipa-keyboard-admin.php:7902
-#: includes/admin/ipa-keyboard-admin.php:7907
-#: includes/admin/ipa-keyboard-admin.php:7984
-#: includes/admin/ipa-keyboard-admin.php:8131
-#: includes/admin/ipa-keyboard-admin.php:8234
-#: includes/admin/ipa-keyboard-admin.php:8238
-#: includes/admin/ipa-keyboard-admin.php:8273
-#: includes/admin/ipa-keyboard-admin.php:8278
-#: includes/admin/ipa-keyboard-admin.php:8352
-#: includes/admin/ipa-keyboard-admin.php:8357
-#: includes/admin/ipa-keyboard-admin.php:8414
-#: includes/admin/ipa-keyboard-admin.php:8419
+#: includes/admin/ipa-keyboard-admin.php:7583
+#: includes/admin/ipa-keyboard-admin.php:7588
+#: includes/admin/ipa-keyboard-admin.php:7613
+#: includes/admin/ipa-keyboard-admin.php:7618
+#: includes/admin/ipa-keyboard-admin.php:7643
+#: includes/admin/ipa-keyboard-admin.php:7647
+#: includes/admin/ipa-keyboard-admin.php:7664
+#: includes/admin/ipa-keyboard-admin.php:7668
+#: includes/admin/ipa-keyboard-admin.php:7719
+#: includes/admin/ipa-keyboard-admin.php:7723
+#: includes/admin/ipa-keyboard-admin.php:7768
+#: includes/admin/ipa-keyboard-admin.php:7772
+#: includes/admin/ipa-keyboard-admin.php:7852
+#: includes/admin/ipa-keyboard-admin.php:7880
+#: includes/admin/ipa-keyboard-admin.php:7884
+#: includes/admin/ipa-keyboard-admin.php:7939
+#: includes/admin/ipa-keyboard-admin.php:7963
+#: includes/admin/ipa-keyboard-admin.php:7968
+#: includes/admin/ipa-keyboard-admin.php:8045
+#: includes/admin/ipa-keyboard-admin.php:8192
+#: includes/admin/ipa-keyboard-admin.php:8295
+#: includes/admin/ipa-keyboard-admin.php:8299
+#: includes/admin/ipa-keyboard-admin.php:8334
+#: includes/admin/ipa-keyboard-admin.php:8339
+#: includes/admin/ipa-keyboard-admin.php:8413
+#: includes/admin/ipa-keyboard-admin.php:8418
+#: includes/admin/ipa-keyboard-admin.php:8475
+#: includes/admin/ipa-keyboard-admin.php:8480
 msgid "Invalid word set"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7613
+#: includes/admin/ipa-keyboard-admin.php:7674
 msgid "Invalid segment"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7672
-#: includes/admin/ipa-keyboard-admin.php:7721
+#: includes/admin/ipa-keyboard-admin.php:7733
+#: includes/admin/ipa-keyboard-admin.php:7782
 msgid "Invalid rule"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7763
-#: includes/admin/ipa-keyboard-admin.php:7787
-#: includes/admin/ipa-keyboard-admin.php:7873
-#: includes/admin/ipa-keyboard-admin.php:7959
-#: includes/admin/ipa-keyboard-admin.php:8024
-#: includes/admin/ipa-keyboard-admin.php:8061
-#: includes/admin/ipa-keyboard-admin.php:8185
+#: includes/admin/ipa-keyboard-admin.php:7824
+#: includes/admin/ipa-keyboard-admin.php:7848
+#: includes/admin/ipa-keyboard-admin.php:7934
+#: includes/admin/ipa-keyboard-admin.php:8020
+#: includes/admin/ipa-keyboard-admin.php:8085
+#: includes/admin/ipa-keyboard-admin.php:8122
+#: includes/admin/ipa-keyboard-admin.php:8246
 #: includes/shortcodes/audio-recording-shortcode.php:6670
 #: includes/shortcodes/word-grid-shortcode.php:9819
 msgid "Missing data"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7834
+#: includes/admin/ipa-keyboard-admin.php:7895
 msgid "No words selected"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7885
-#: includes/admin/ipa-keyboard-admin.php:7967
-#: includes/admin/ipa-keyboard-admin.php:8029
-#: includes/admin/ipa-keyboard-admin.php:8071
-#: includes/admin/ipa-keyboard-admin.php:8076
-#: includes/admin/ipa-keyboard-admin.php:8081
-#: includes/admin/ipa-keyboard-admin.php:8193
-#: includes/admin/ipa-keyboard-admin.php:8198
-#: includes/admin/ipa-keyboard-admin.php:8203
+#: includes/admin/ipa-keyboard-admin.php:7946
+#: includes/admin/ipa-keyboard-admin.php:8028
+#: includes/admin/ipa-keyboard-admin.php:8090
+#: includes/admin/ipa-keyboard-admin.php:8132
+#: includes/admin/ipa-keyboard-admin.php:8137
+#: includes/admin/ipa-keyboard-admin.php:8142
+#: includes/admin/ipa-keyboard-admin.php:8254
+#: includes/admin/ipa-keyboard-admin.php:8259
+#: includes/admin/ipa-keyboard-admin.php:8264
 #: includes/shortcodes/word-grid-shortcode.php:9844
 msgid "Invalid recording"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7989
-#: includes/admin/ipa-keyboard-admin.php:8066
-#: includes/admin/ipa-keyboard-admin.php:8137
+#: includes/admin/ipa-keyboard-admin.php:8050
+#: includes/admin/ipa-keyboard-admin.php:8127
+#: includes/admin/ipa-keyboard-admin.php:8198
 msgid "Rules unavailable"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8094
+#: includes/admin/ipa-keyboard-admin.php:8155
 msgid "Could not infer an orthography mapping for this symbol."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8099
+#: includes/admin/ipa-keyboard-admin.php:8160
 msgid "Could not approve this symbol mapping."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8145
+#: includes/admin/ipa-keyboard-admin.php:8206
 msgid "Invalid symbol"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8188
+#: includes/admin/ipa-keyboard-admin.php:8249
 msgid "Invalid review field"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8244
+#: includes/admin/ipa-keyboard-admin.php:8305
 msgid "No symbols found"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8288
+#: includes/admin/ipa-keyboard-admin.php:8349
 msgid "Invalid letter"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8370
-#: includes/admin/ipa-keyboard-admin.php:8432
+#: includes/admin/ipa-keyboard-admin.php:8431
+#: includes/admin/ipa-keyboard-admin.php:8493
 msgid "Invalid mapping"
 msgstr ""
 
@@ -9566,7 +9566,7 @@ msgstr ""
 #: includes/admin/uploads/audio-upload-form.php:590
 #: includes/admin/uploads/image-upload-form.php:452
 #: includes/admin/uploads/image-upload-form.php:772
-#: includes/api/automation-rest.php:4044
+#: includes/api/automation-rest.php:4466
 msgid "You do not have permission to upload files."
 msgstr ""
 
@@ -10683,554 +10683,571 @@ msgstr ""
 msgid "Provide set as either \"field=value\" or an object with field/value."
 msgstr ""
 
-#: includes/api/automation-rest.php:764
-#: includes/api/automation-rest.php:784
+#: includes/api/automation-rest.php:775
+#: includes/api/automation-rest.php:795
 msgid "LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates."
 msgstr ""
 
-#: includes/api/automation-rest.php:1231
+#: includes/api/automation-rest.php:1287
 msgid "LL Tools automation updates currently support only the dev branch package."
 msgstr ""
 
-#: includes/api/automation-rest.php:1239
+#: includes/api/automation-rest.php:1295
 msgid "The LL Tools automation update package URL failed the built-in allowlist check."
 msgstr ""
 
-#: includes/api/automation-rest.php:1250
+#: includes/api/automation-rest.php:1306
 msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
 msgstr ""
 
-#: includes/api/automation-rest.php:1267
+#: includes/api/automation-rest.php:1323
 msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
 msgstr ""
 
-#: includes/api/automation-rest.php:1275
+#: includes/api/automation-rest.php:1331
 msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
 msgstr ""
 
-#: includes/api/automation-rest.php:1318
+#: includes/api/automation-rest.php:1378
 msgid "LL Tools plugin update failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:1359
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr ""
+
+#: includes/api/automation-rest.php:1454
 msgid "Use cache=all, cache=dictionary, or cache=public."
 msgstr ""
 
-#: includes/api/automation-rest.php:1385
+#: includes/api/automation-rest.php:1480
 msgid "Provide a name for the new word set."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:1687
+#: includes/api/automation-rest.php:1782
 msgid "Too many word updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:1713
+#: includes/api/automation-rest.php:1808
 #: includes/cli/cli-support.php:296
 msgid "Missing word identifier."
 msgstr ""
 
 #. translators: %s: field name
-#: includes/api/automation-rest.php:1723
-#: includes/cli/cli-support.php:911
+#: includes/api/automation-rest.php:1818
+#: includes/cli/cli-support.php:917
 msgid "Unsupported update field: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:1747
-#: includes/cli/cli-support.php:681
+#: includes/api/automation-rest.php:1842
+#: includes/cli/cli-support.php:687
 msgid "Unable to load the current word state."
 msgstr ""
 
-#: includes/api/automation-rest.php:1853
-#: includes/api/automation-rest.php:1955
-#: includes/api/automation-rest.php:2236
-#: includes/api/automation-rest.php:2846
-#: includes/api/word-metadata-plan-rest.php:1010
+#: includes/api/automation-rest.php:1948
+#: includes/api/automation-rest.php:2050
+#: includes/api/automation-rest.php:2331
+#: includes/api/automation-rest.php:2941
+#: includes/api/word-metadata-plan-rest.php:1119
 #: includes/shortcodes/audio-recording-shortcode.php:3534
 #: includes/shortcodes/word-grid-shortcode.php:7962
 msgid "Missing word ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:1879
+#: includes/api/automation-rest.php:1974
 msgid "Failed to update the word title."
 msgstr ""
 
-#: includes/api/automation-rest.php:1931
+#: includes/api/automation-rest.php:2026
 msgid "Provide one or more word title updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:1940
+#: includes/api/automation-rest.php:2035
 msgid "Too many word title updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:1964
-#: includes/api/automation-rest.php:2245
-#: includes/api/automation-rest.php:2854
+#: includes/api/automation-rest.php:2059
+#: includes/api/automation-rest.php:2340
+#: includes/api/automation-rest.php:2949
 msgid "Duplicate word ID in this batch."
 msgstr ""
 
-#: includes/api/automation-rest.php:1977
+#: includes/api/automation-rest.php:2072
 msgid "Missing replacement title."
 msgstr ""
 
-#: includes/api/automation-rest.php:2136
+#: includes/api/automation-rest.php:2231
 msgid "Dictionary entry ID must be a positive integer, or 0 to unlink."
 msgstr ""
 
-#: includes/api/automation-rest.php:2144
+#: includes/api/automation-rest.php:2239
 msgid "Invalid dictionary entry ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:2212
+#: includes/api/automation-rest.php:2307
 msgid "Provide one or more word helper translation updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:2221
+#: includes/api/automation-rest.php:2316
 msgid "Too many word helper translation updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:2281
-#: includes/api/automation-rest.php:2303
-#: includes/api/automation-rest.php:2482
-#: includes/api/word-metadata-plan-rest.php:496
-#: includes/cli/cli-support.php:724
+#: includes/api/automation-rest.php:2376
+#: includes/api/automation-rest.php:2398
+#: includes/api/automation-rest.php:2577
+#: includes/api/word-metadata-plan-rest.php:568
+#: includes/cli/cli-support.php:730
 msgid "Dictionary entry helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:2294
+#: includes/api/automation-rest.php:2389
 msgid "Use field=word_translation, field=word_english_meaning, or field=dictionary_entry_id with value."
 msgstr ""
 
-#: includes/api/automation-rest.php:2356
+#: includes/api/automation-rest.php:2451
 msgid "Missing helper translation or dictionary entry value."
 msgstr ""
 
-#: includes/api/automation-rest.php:2740
+#: includes/api/automation-rest.php:2835
 msgid "Word category update helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:2806
+#: includes/api/automation-rest.php:2901
 msgid "Choose add_category, remove_category, or move_category."
 msgstr ""
 
-#: includes/api/automation-rest.php:2814
+#: includes/api/automation-rest.php:2909
 msgid "Provide the target category ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:2822
+#: includes/api/automation-rest.php:2917
 msgid "Provide one or more explicit word IDs."
 msgstr ""
 
 #. translators: %d: maximum word count
-#: includes/api/automation-rest.php:2832
+#: includes/api/automation-rest.php:2927
 msgid "Too many word category updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:2865
+#: includes/api/automation-rest.php:2960
 msgid "Fix word ID errors before retrying this category update."
 msgstr ""
 
-#: includes/api/automation-rest.php:2887
+#: includes/api/automation-rest.php:2982
 msgid "Select a category that belongs to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:2909
+#: includes/api/automation-rest.php:3004
 msgid "Word ID does not refer to a word post."
 msgstr ""
 
-#: includes/api/automation-rest.php:2922
-#: includes/api/word-metadata-plan-rest.php:1060
+#: includes/api/automation-rest.php:3017
+#: includes/api/word-metadata-plan-rest.php:1169
 msgid "Word is not assigned to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:2943
-#: includes/api/word-metadata-plan-rest.php:774
+#: includes/api/automation-rest.php:3038
+#: includes/api/word-metadata-plan-rest.php:862
 msgid "Refusing to remove the final category for this word."
 msgstr ""
 
-#: includes/api/automation-rest.php:2963
+#: includes/api/automation-rest.php:3058
 msgid "Category update preflight failed. No words were changed."
 msgstr ""
 
-#: includes/api/automation-rest.php:3051
+#: includes/api/automation-rest.php:3146
 msgid "One or more category updates failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:3319
+#: includes/api/automation-rest.php:3414
 msgid "Recording not found in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:3696
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr ""
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr ""
+
+#: includes/api/automation-rest.php:3849
+#: includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr ""
+
+#: includes/api/automation-rest.php:4118
 msgid "Provide category, category_id, or category_slug for the word-option rules update."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:3715
+#: includes/api/automation-rest.php:4137
 msgid "Unable to resolve word category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:3738
+#: includes/api/automation-rest.php:4160
 msgid "That word category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:3877
+#: includes/api/automation-rest.php:4299
 msgid "Groups must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:3895
+#: includes/api/automation-rest.php:4317
 msgid "Every word-option group needs a label."
 msgstr ""
 
-#: includes/api/automation-rest.php:3910
+#: includes/api/automation-rest.php:4332
 msgid "Word-option groups must contain at least one resolved word."
 msgstr ""
 
-#: includes/api/automation-rest.php:3930
+#: includes/api/automation-rest.php:4352
 msgid "Word-option pairs must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:3948
+#: includes/api/automation-rest.php:4370
 msgid "Word-option pairs must contain two resolved words."
 msgstr ""
 
 #. translators: %s: word set name.
-#: includes/api/automation-rest.php:4057
+#: includes/api/automation-rest.php:4479
 msgid "%s profile image"
 msgstr ""
 
-#: includes/api/automation-rest.php:4071
+#: includes/api/automation-rest.php:4493
 msgid "The uploaded file is not a valid image."
 msgstr ""
 
-#: includes/api/automation-rest.php:4351
+#: includes/api/automation-rest.php:4773
 msgid "Unable to resolve a word category for the translation item."
 msgstr ""
 
-#: includes/api/automation-rest.php:4369
+#: includes/api/automation-rest.php:4791
 msgid "That word category is not part of this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4456
+#: includes/api/automation-rest.php:4878
 msgid "Unable to resolve a lesson for the translation item."
 msgstr ""
 
-#: includes/api/automation-rest.php:4464
+#: includes/api/automation-rest.php:4886
 msgid "That lesson is not part of this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4572
+#: includes/api/automation-rest.php:4994
 msgid "Entity translation helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:4581
+#: includes/api/automation-rest.php:5003
 msgid "Provide wordset, categories, lessons, or items to update translations."
 msgstr ""
 
-#: includes/api/automation-rest.php:4594
+#: includes/api/automation-rest.php:5016
 msgid "Translation items must include type wordset, category, or lesson."
 msgstr ""
 
-#: includes/api/automation-rest.php:4604
+#: includes/api/automation-rest.php:5026
 msgid "Translation item does not contain any supported translated fields."
 msgstr ""
 
-#: includes/api/automation-rest.php:4665
+#: includes/api/automation-rest.php:5087
 msgid "One or more translation items could not be applied."
 msgstr ""
 
-#: includes/api/automation-rest.php:4766
+#: includes/api/automation-rest.php:5188
 msgid "The profile image attachment must be an existing image attachment."
 msgstr ""
 
-#: includes/api/automation-rest.php:4866
+#: includes/api/automation-rest.php:5288
 msgid "Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead."
 msgstr ""
 
-#: includes/api/automation-rest.php:4882
+#: includes/api/automation-rest.php:5304
 msgid "Manual orthography rules must be an object keyed by IPA segment."
 msgstr ""
 
-#: includes/api/automation-rest.php:4928
+#: includes/api/automation-rest.php:5350
 msgid "Orthography settings must be an object."
 msgstr ""
 
-#: includes/api/automation-rest.php:4997
+#: includes/api/automation-rest.php:5419
 msgid "Orthography exception word IDs must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:5009
+#: includes/api/automation-rest.php:5431
 msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:5171
+#: includes/api/automation-rest.php:5593
 msgid "Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data."
 msgstr ""
 
-#: includes/api/automation-rest.php:5189
+#: includes/api/automation-rest.php:5611
 msgid "Word-option rules could not be saved for this word set and category."
 msgstr ""
 
-#: includes/api/automation-rest.php:5274
+#: includes/api/automation-rest.php:5696
 msgid "Prompt-card category references cannot be empty."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:5298
+#: includes/api/automation-rest.php:5720
 msgid "Unable to resolve prompt-card category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:5320
+#: includes/api/automation-rest.php:5742
 msgid "That prompt-card category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5344
+#: includes/api/automation-rest.php:5766
 msgid "Provide at least one word-category assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:5357
+#: includes/api/automation-rest.php:5779
 msgid "Prompt-card word set references cannot be empty."
 msgstr ""
 
 #. translators: %s: word set identifier
-#: includes/api/automation-rest.php:5377
+#: includes/api/automation-rest.php:5799
 msgid "Unable to resolve prompt-card word set: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:5402
+#: includes/api/automation-rest.php:5824
 msgid "Provide at least one word set assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:5409
+#: includes/api/automation-rest.php:5831
 msgid "Prompt-card word set assignments must include the route word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5460
+#: includes/api/automation-rest.php:5882
 msgid "Provide prompt_card_id, object_id, or id for the prompt card to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:5469
+#: includes/api/automation-rest.php:5891
 msgid "That prompt card was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:5477
+#: includes/api/automation-rest.php:5899
 msgid "That prompt card does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5648
+#: includes/api/automation-rest.php:6070
 msgid "Provide a note value. Send an empty string to clear the note."
 msgstr ""
 
-#: includes/api/automation-rest.php:5655
+#: includes/api/automation-rest.php:6077
 msgid "Provide the word or prompt card object_id to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:5666
+#: includes/api/automation-rest.php:6088
 #: includes/lib/internal-review-notes.php:308
 msgid "This item cannot store an internal review note."
 msgstr ""
 
-#: includes/api/automation-rest.php:5673
+#: includes/api/automation-rest.php:6095
 #: includes/lib/internal-review-notes.php:320
 msgid "This item does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5953
-#: includes/api/automation-rest.php:6050
+#: includes/api/automation-rest.php:6375
+#: includes/api/automation-rest.php:6472
 msgid "Could not find a matching content or vocab lesson in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5980
+#: includes/api/automation-rest.php:6402
 msgid "Provide an interlinear payload object, or send delete=true to clear one."
 msgstr ""
 
-#: includes/api/automation-rest.php:6096
+#: includes/api/automation-rest.php:6518
 msgid "Each interlinear import item must be an object."
 msgstr ""
 
-#: includes/api/automation-rest.php:6188
+#: includes/api/automation-rest.php:6610
 msgid "Import failed: provide an uploaded zip file or a server import filename."
 msgstr ""
 
-#: includes/api/automation-rest.php:6306
+#: includes/api/automation-rest.php:6728
 msgid "The requested import job could not be identified."
 msgstr ""
 
-#: includes/api/automation-rest.php:6546
-#: includes/api/automation-rest.php:6590
+#: includes/api/automation-rest.php:6968
+#: includes/api/automation-rest.php:7012
 msgid "Corpus text payload is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:6555
+#: includes/api/automation-rest.php:6977
 msgid "Corpus text payload is too deeply nested for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:6563
+#: includes/api/automation-rest.php:6985
 msgid "Corpus text payload contains too many rows for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:6598
+#: includes/api/automation-rest.php:7020
 msgid "Corpus text payload must be a valid JSON object."
 msgstr ""
 
-#: includes/api/automation-rest.php:6610
+#: includes/api/automation-rest.php:7032
 msgid "Provide a corpus text payload object."
 msgstr ""
 
-#: includes/api/automation-rest.php:6634
+#: includes/api/automation-rest.php:7056
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
 msgstr ""
 
-#: includes/api/automation-rest.php:6641
+#: includes/api/automation-rest.php:7063
 msgid "You cannot upload corpus text assets."
 msgstr ""
 
-#: includes/api/automation-rest.php:6650
+#: includes/api/automation-rest.php:7072
 msgid "Provide a source key for the corpus text asset."
 msgstr ""
 
-#: includes/api/automation-rest.php:6677
+#: includes/api/automation-rest.php:7099
 msgid "Provide a corpus text asset file."
 msgstr ""
 
-#: includes/api/automation-rest.php:6690
+#: includes/api/automation-rest.php:7112
 msgid "Corpus text asset file is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:6702
+#: includes/api/automation-rest.php:7124
 msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:6723
+#: includes/api/automation-rest.php:7145
 msgid "The corpus text asset could not be uploaded."
 msgstr ""
 
-#: includes/api/automation-rest.php:6742
+#: includes/api/automation-rest.php:7164
 msgid "The corpus text asset could not be added to the media library."
 msgstr ""
 
-#: includes/api/automation-rest.php:6778
+#: includes/api/automation-rest.php:7200
 msgid "Provide a corpus text post slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:6817
+#: includes/api/automation-rest.php:7239
 msgid "The corpus text post could not be created or updated."
 msgstr ""
 
-#: includes/api/automation-rest.php:6854
+#: includes/api/automation-rest.php:7276
 msgid "Could not find a matching corpus text post."
 msgstr ""
 
-#: includes/api/automation-rest.php:6865
+#: includes/api/automation-rest.php:7287
 msgid "The matching content lesson is not a corpus text."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:152
+#: includes/api/word-metadata-plan-rest.php:171
 msgid "All word_category_ids must belong to the requested word set."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:206
-#: includes/api/word-metadata-plan-rest.php:243
-#: includes/api/word-metadata-plan-rest.php:709
+#: includes/api/word-metadata-plan-rest.php:230
+#: includes/api/word-metadata-plan-rest.php:267
+#: includes/api/word-metadata-plan-rest.php:797
 msgid "Unsupported word metadata field."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:349
+#: includes/api/word-metadata-plan-rest.php:373
 msgid "Invalid word metadata plan job ID."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:354
+#: includes/api/word-metadata-plan-rest.php:378
 msgid "Word metadata plan job was not found."
 msgstr ""
 
 #. translators: %s: part-of-speech slug
-#: includes/api/word-metadata-plan-rest.php:512
-#: includes/cli/cli-support.php:749
+#: includes/api/word-metadata-plan-rest.php:588
+#: includes/cli/cli-support.php:755
 msgid "Unknown part of speech: %s"
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:525
-#: includes/cli/cli-support.php:771
+#: includes/api/word-metadata-plan-rest.php:601
+#: includes/cli/cli-support.php:777
 msgid "Gender can only be set on noun words."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:532
+#: includes/api/word-metadata-plan-rest.php:608
 msgid "Invalid gender value."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:542
-#: includes/cli/cli-support.php:806
+#: includes/api/word-metadata-plan-rest.php:618
+#: includes/cli/cli-support.php:812
 msgid "Plurality can only be set on noun words."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:549
+#: includes/api/word-metadata-plan-rest.php:625
 msgid "Invalid plurality value."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:556
-#: includes/cli/cli-support.php:838
+#: includes/api/word-metadata-plan-rest.php:632
+#: includes/cli/cli-support.php:844
 #: includes/shortcodes/word-grid-shortcode.php:9390
 msgid "Verb tense is not enabled for this word set."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:559
-#: includes/cli/cli-support.php:841
+#: includes/api/word-metadata-plan-rest.php:635
+#: includes/cli/cli-support.php:847
 msgid "Verb tense can only be set on verb words."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:566
+#: includes/api/word-metadata-plan-rest.php:642
 msgid "Invalid verb tense value."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:573
-#: includes/cli/cli-support.php:873
+#: includes/api/word-metadata-plan-rest.php:649
+#: includes/cli/cli-support.php:879
 #: includes/shortcodes/word-grid-shortcode.php:9425
 msgid "Verb mood is not enabled for this word set."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:576
-#: includes/cli/cli-support.php:876
+#: includes/api/word-metadata-plan-rest.php:652
+#: includes/cli/cli-support.php:882
 msgid "Verb mood can only be set on verb words."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:583
+#: includes/api/word-metadata-plan-rest.php:659
 msgid "Invalid verb mood value."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:653
+#: includes/api/word-metadata-plan-rest.php:734
 msgid "Unknown part of speech."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:974
+#: includes/api/word-metadata-plan-rest.php:1083
 msgid "Provide one or more word metadata updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/word-metadata-plan-rest.php:983
+#: includes/api/word-metadata-plan-rest.php:1092
 msgid "Too many word metadata updates in one plan. Maximum is %d."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:1018
+#: includes/api/word-metadata-plan-rest.php:1127
 msgid "Duplicate word ID in this plan. Submit one final-state row per word."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:1029
+#: includes/api/word-metadata-plan-rest.php:1138
 msgid "Missing metadata values to set."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:1037
+#: includes/api/word-metadata-plan-rest.php:1146
 msgid "Refusing to set an empty category list without allow_empty_categories=true."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:1077
+#: includes/api/word-metadata-plan-rest.php:1186
 msgid "Word metadata plan preflight failed. No job was created."
 msgstr ""
 
-#: includes/api/word-metadata-plan-rest.php:1128
-#: includes/api/word-metadata-plan-rest.php:1149
-#: includes/api/word-metadata-plan-rest.php:1254
-#: includes/api/word-metadata-plan-rest.php:1275
+#: includes/api/word-metadata-plan-rest.php:1237
+#: includes/api/word-metadata-plan-rest.php:1258
+#: includes/api/word-metadata-plan-rest.php:1363
+#: includes/api/word-metadata-plan-rest.php:1384
 msgid "Word metadata plan job belongs to a different word set."
 msgstr ""
 
@@ -11307,7 +11324,7 @@ msgid "Editor Hub helpers are not available."
 msgstr ""
 
 #: includes/cli/cli-support.php:417
-#: includes/cli/cli-support.php:980
+#: includes/cli/cli-support.php:986
 #: includes/pages/wordset-pages.php:12968
 #: includes/pages/wordset-pages.php:13198
 #: includes/pages/wordset-pages.php:13379
@@ -11329,31 +11346,31 @@ msgstr ""
 msgid "Uncategorized"
 msgstr ""
 
-#: includes/cli/cli-support.php:675
+#: includes/cli/cli-support.php:681
 msgid "Missing word or word set for update."
 msgstr ""
 
 #. translators: %s: comma-separated options
-#: includes/cli/cli-support.php:794
+#: includes/cli/cli-support.php:800
 msgid "Invalid gender value. Allowed values: %s"
 msgstr ""
 
 #. translators: %s: comma-separated options
-#: includes/cli/cli-support.php:829
+#: includes/cli/cli-support.php:835
 msgid "Invalid plurality value. Allowed values: %s"
 msgstr ""
 
 #. translators: %s: comma-separated options
-#: includes/cli/cli-support.php:864
+#: includes/cli/cli-support.php:870
 msgid "Invalid verb tense value. Allowed values: %s"
 msgstr ""
 
 #. translators: %s: comma-separated options
-#: includes/cli/cli-support.php:899
+#: includes/cli/cli-support.php:905
 msgid "Invalid verb mood value. Allowed values: %s"
 msgstr ""
 
-#: includes/cli/cli-support.php:925
+#: includes/cli/cli-support.php:931
 msgid "Unable to load the updated word state."
 msgstr ""
 
@@ -11932,81 +11949,81 @@ msgstr ""
 msgid "Word metadata"
 msgstr ""
 
-#: includes/lib/site-sync.php:1101
+#: includes/lib/site-sync.php:1107
 msgid "Select a valid word set for site sync."
 msgstr ""
 
 #. translators: 1: field key, 2: word title, 3: recording title
-#: includes/lib/site-sync.php:1250
+#: includes/lib/site-sync.php:1292
 msgid "Site sync conflict for %1$s on \"%2$s\" / \"%3$s\"."
 msgstr ""
 
-#: includes/lib/site-sync.php:1257
+#: includes/lib/site-sync.php:1299
 msgid "Live value:"
 msgstr ""
 
-#: includes/lib/site-sync.php:1258
+#: includes/lib/site-sync.php:1300
 msgid "Staging value:"
 msgstr ""
 
-#: includes/lib/site-sync.php:1259
+#: includes/lib/site-sync.php:1301
 msgid "Last pulled value:"
 msgstr ""
 
-#: includes/lib/site-sync.php:1644
+#: includes/lib/site-sync.php:1686
 msgid "Synced category"
 msgstr ""
 
-#: includes/lib/site-sync.php:1729
+#: includes/lib/site-sync.php:1771
 msgid "Synced word"
 msgstr ""
 
-#: includes/lib/site-sync.php:1754
+#: includes/lib/site-sync.php:1796
 msgid "Could not create the synced word."
 msgstr ""
 
-#: includes/lib/site-sync.php:1818
+#: includes/lib/site-sync.php:1860
 msgid "The remote image URL is invalid."
 msgstr ""
 
-#: includes/lib/site-sync.php:1839
+#: includes/lib/site-sync.php:1881
 msgid "The remote image is not a supported image type."
 msgstr ""
 
-#: includes/lib/site-sync.php:1847
+#: includes/lib/site-sync.php:1889
 msgid "Synced remote image"
 msgstr ""
 
-#: includes/lib/site-sync.php:1862
+#: includes/lib/site-sync.php:1904
 msgid "Could not create the remote image placeholder attachment."
 msgstr ""
 
-#: includes/lib/site-sync.php:1976
+#: includes/lib/site-sync.php:2018
 msgid "Synced word image"
 msgstr ""
 
-#: includes/lib/site-sync.php:2002
+#: includes/lib/site-sync.php:2044
 msgid "Could not create the synced word image."
 msgstr ""
 
-#: includes/lib/site-sync.php:2515
+#: includes/lib/site-sync.php:2557
 msgid "Could not create the synced recording because the local word is missing."
 msgstr ""
 
-#: includes/lib/site-sync.php:2524
+#: includes/lib/site-sync.php:2566
 msgid "Synced recording"
 msgstr ""
 
-#: includes/lib/site-sync.php:2550
+#: includes/lib/site-sync.php:2592
 msgid "Could not create the synced recording."
 msgstr ""
 
-#: includes/lib/site-sync.php:2625
+#: includes/lib/site-sync.php:2667
 msgid "Skipped a pull row because the local recording ID was missing."
 msgstr ""
 
-#: includes/lib/site-sync.php:2696
-#: includes/lib/site-sync.php:2733
+#: includes/lib/site-sync.php:2738
+#: includes/lib/site-sync.php:2775
 msgid "LL Tools automation helpers are unavailable."
 msgstr ""
 

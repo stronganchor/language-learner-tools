@@ -3843,3 +3843,19 @@ msgstr "Prapemeriksaan rencana metadata kata gagal. Tidak ada tugas yang dibuat.
 #: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "Tugas rencana metadata kata milik set kata yang berbeda."
+
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr "File plugin LL Tools telah diperbarui, tetapi plugin tidak dapat diaktifkan kembali secara otomatis."
+
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr "ID tugas validasi transkripsi tidak valid."
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr "Tugas validasi transkripsi tidak ditemukan."
+
+#: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr "Tugas validasi transkripsi milik set kata yang berbeda."

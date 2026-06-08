@@ -26929,3 +26929,19 @@ msgstr "Die Vorabprüfung des Vokabelmetadatenplans ist fehlgeschlagen. Es wurde
 #: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "Der Job für den Vokabelmetadatenplan gehört zu einem anderen Vokabelset."
+
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr "Die LL Tools-Plugin-Dateien wurden aktualisiert, aber das Plugin konnte nicht automatisch reaktiviert werden."
+
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr "Ungültige ID des Transkriptionsvalidierungs-Jobs."
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr "Der Transkriptionsvalidierungs-Job wurde nicht gefunden."
+
+#: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr "Der Transkriptionsvalidierungs-Job gehört zu einem anderen Vokabelset."

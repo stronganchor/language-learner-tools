@@ -3843,3 +3843,19 @@ msgstr "La verifica preliminare del piano di metadati delle parole non è riusci
 #: includes/api/word-metadata-plan-rest.php:1128 includes/api/word-metadata-plan-rest.php:1149 includes/api/word-metadata-plan-rest.php:1254 includes/api/word-metadata-plan-rest.php:1275
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "Il processo del piano di metadati delle parole appartiene a un altro set di parole."
+
+#: includes/api/automation-rest.php:1393
+msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
+msgstr "I file del plugin LL Tools sono stati aggiornati, ma non è stato possibile riattivare automaticamente il plugin."
+
+#: includes/api/automation-rest.php:3665
+msgid "Invalid transcription validation job ID."
+msgstr "ID del processo di convalida della trascrizione non valido."
+
+#: includes/api/automation-rest.php:3674
+msgid "Transcription validation job was not found."
+msgstr "Il processo di convalida della trascrizione non è stato trovato."
+
+#: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
+msgid "Transcription validation job belongs to a different word set."
+msgstr "Il processo di convalida della trascrizione appartiene a un altro set di parole."
