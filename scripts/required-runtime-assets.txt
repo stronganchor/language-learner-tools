@@ -10,6 +10,8 @@ css/language-switcher.css
 css/wordset-pages.css
 css/vocab-lesson-pages.css
 css/content-lesson-pages.css
+css/quiz-pages.css
+css/self-check-shared.css
 css/flashcard/base.css
 css/flashcard/mode-practice.css
 css/flashcard/mode-learning.css
@@ -31,4 +33,5 @@ js/flashcard-widget/cards.js
 js/flashcard-widget/progress-tracker.js
 js/flashcard-widget/audio.js
 js/flashcard-widget/audio-visualizer.js
+media/right-answer.mp3
 media/wrong-answer.mp3
