@@ -457,7 +457,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
-    public function test_zazaki_profile_locks_strict_vowel_and_dotted_i_mappings(): void
+    public function test_zazaki_profile_locks_strict_vowel_consonant_and_dotted_i_mappings(): void
     {
         $wordset_id = $this->createWordset('Zazaki Strict Profile Mappings');
         update_term_meta($wordset_id, 'll_language', 'zza');
@@ -467,6 +467,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             ll_tools_ipa_orthography_sanitize_manual_rules([
                 'æ' => ['any' => 'e'],
                 'i' => ['any' => 'ı'],
+                'χ' => ['any' => 'q'],
             ], $wordset_id)
         );
 
@@ -482,6 +483,9 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $front_vowel_issue = $this->findOrthographyMismatchIssue($front_vowel_validation);
         $this->assertIsArray($front_vowel_issue);
         $this->assertSame('Râhmê', (string) ($front_vowel_issue['orthography_mismatch']['suggested_text'] ?? ''));
+
+        $fricative_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('χa', $engine_rules, $wordset_id);
+        $this->assertSame('Xa', (string) ($fricative_prediction['text'] ?? ''));
 
         $dotted_i_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('i', $engine_rules, $wordset_id);
         $this->assertSame('İ', (string) ($dotted_i_prediction['text'] ?? ''));
@@ -561,6 +565,19 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             'Mirçıkû',
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("mit̪͡ʃkʰu", $engine_rules, $wordset_id)['text'] ?? '')
         );
+
+        $nonfinal_high_vowel_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("mʷɛɾɪkʰ", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($nonfinal_high_vowel_prediction['complete'] ?? false));
+        $this->assertSame('Mwerık', (string) ($nonfinal_high_vowel_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($nonfinal_high_vowel_prediction['requires_lexical_decision'] ?? true));
+        $nonfinal_high_vowel_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Mwerık',
+            "mʷɛɾɪkʰ",
+            $wordset_id,
+            'isolation',
+            $nonfinal_high_vowel_prediction
+        );
+        $this->assertTrue((bool) ($nonfinal_high_vowel_detail['matches'] ?? false));
 
         $release_ipa = "bɨd̪ɨ\u{032F}";
         $release_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($release_ipa, $engine_rules, $wordset_id);

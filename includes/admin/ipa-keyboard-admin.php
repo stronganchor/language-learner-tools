@@ -1965,7 +1965,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 11;
+    return 12;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -2587,6 +2587,8 @@ function ll_tools_ipa_orthography_get_profile_locked_manual_rules(int $wordset_i
         'ɢ' => ['any' => "'g"],
         'ɢʷ' => ['any' => "'gw"],
         'ħ' => ['any' => "'h"],
+        'χ' => ['any' => 'x'],
+        'x' => ['any' => 'x'],
         'ŋg' => ['any' => 'ng'],
         'ŋk' => ['any' => 'nk'],
         't̪͡ʙ̥ɨ' => ['any' => 'twe'],
@@ -4975,6 +4977,7 @@ function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, arra
             'complete' => true,
             'matched_tokens' => $token_count,
             'token_count' => $token_count,
+            'score' => (int) ($dp[$token_count]['score'] ?? 0),
         ];
     }
 
@@ -4983,44 +4986,92 @@ function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, arra
         'complete' => false,
         'matched_tokens' => $furthest,
         'token_count' => $token_count,
+        'score' => 0,
     ];
 }
 
-function ll_tools_ipa_orthography_expand_post_modifier_tokens(array $tokens, string $mode = 'ipa'): array {
-    if ($mode !== 'ipa') {
-        return $tokens;
+function ll_tools_ipa_orthography_expand_single_post_modifier_token(string $token, string $mode = 'ipa'): array {
+    if ($mode !== 'ipa' || !function_exists('ll_tools_word_grid_is_ipa_post_modifier')) {
+        return [$token];
+    }
+
+    $chars = ll_tools_ipa_orthography_chars($token);
+    $char_count = count($chars);
+    if ($char_count < 2) {
+        return [$token];
+    }
+
+    $split_at = $char_count;
+    while ($split_at > 0 && ll_tools_word_grid_is_ipa_post_modifier((string) $chars[$split_at - 1], $mode)) {
+        $split_at--;
+    }
+
+    if ($split_at <= 0 || $split_at === $char_count) {
+        return [$token];
     }
 
     $expanded = [];
+    $base = implode('', array_slice($chars, 0, $split_at));
+    if ($base !== '') {
+        $expanded[] = $base;
+    }
+    foreach (array_slice($chars, $split_at) as $modifier) {
+        $expanded[] = (string) $modifier;
+    }
+
+    return $expanded;
+}
+
+function ll_tools_ipa_orthography_expand_post_modifier_tokens(array $tokens, string $mode = 'ipa'): array {
+    $expanded = [];
     foreach ($tokens as $token) {
-        $token = (string) $token;
-        $chars = ll_tools_ipa_orthography_chars($token);
-        $char_count = count($chars);
-        if ($char_count < 2 || !function_exists('ll_tools_word_grid_is_ipa_post_modifier')) {
-            $expanded[] = $token;
-            continue;
-        }
-
-        $split_at = $char_count;
-        while ($split_at > 0 && ll_tools_word_grid_is_ipa_post_modifier((string) $chars[$split_at - 1], $mode)) {
-            $split_at--;
-        }
-
-        if ($split_at <= 0 || $split_at === $char_count) {
-            $expanded[] = $token;
-            continue;
-        }
-
-        $base = implode('', array_slice($chars, 0, $split_at));
-        if ($base !== '') {
-            $expanded[] = $base;
-        }
-        foreach (array_slice($chars, $split_at) as $modifier) {
-            $expanded[] = (string) $modifier;
+        foreach (ll_tools_ipa_orthography_expand_single_post_modifier_token((string) $token, $mode) as $expanded_token) {
+            $expanded[] = $expanded_token;
         }
     }
 
     return $expanded;
+}
+
+function ll_tools_ipa_orthography_post_modifier_token_variants(array $tokens, string $mode = 'ipa'): array {
+    $tokens = array_values(array_map('strval', $tokens));
+    if ($mode !== 'ipa' || empty($tokens)) {
+        return [$tokens];
+    }
+
+    $variants = [[]];
+    $max_variants = 32;
+    foreach ($tokens as $token) {
+        $choices = [[$token]];
+        $expanded = ll_tools_ipa_orthography_expand_single_post_modifier_token($token, $mode);
+        if (array_values($expanded) !== [$token]) {
+            $choices[] = $expanded;
+        }
+
+        $next = [];
+        foreach ($variants as $variant) {
+            foreach ($choices as $choice) {
+                $next[] = array_merge($variant, $choice);
+                if (count($next) >= $max_variants) {
+                    break 2;
+                }
+            }
+        }
+        $variants = $next;
+    }
+
+    $unique = [];
+    $seen = [];
+    foreach ($variants as $variant) {
+        $key = implode("\u{0000}", $variant);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $unique[] = $variant;
+    }
+
+    return $unique;
 }
 
 function ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules(array $rules): array {
@@ -5066,13 +5117,23 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
         $conversion_tokens = $tokens;
         $prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $rules);
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
-            $expanded_tokens = ll_tools_ipa_orthography_expand_post_modifier_tokens($tokens, $mode);
-            if (array_values($expanded_tokens) !== array_values($tokens)) {
+            foreach (ll_tools_ipa_orthography_post_modifier_token_variants($tokens, $mode) as $expanded_tokens) {
+                if (array_values($expanded_tokens) === array_values($tokens)) {
+                    continue;
+                }
+
                 $expanded_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($expanded_tokens, $rules);
                 if (!empty($expanded_prediction['complete']) && (string) ($expanded_prediction['text'] ?? '') !== '') {
-                    $conversion_tokens = $expanded_tokens;
-                    $prediction = $expanded_prediction;
-                } elseif ((int) ($expanded_prediction['matched_tokens'] ?? 0) > (int) ($prediction['matched_tokens'] ?? 0)) {
+                    if (empty($prediction['complete'])
+                        || (int) ($expanded_prediction['score'] ?? 0) > (int) ($prediction['score'] ?? 0)) {
+                        $conversion_tokens = $expanded_tokens;
+                        $prediction = $expanded_prediction;
+                    }
+                    continue;
+                }
+
+                if (empty($prediction['complete'])
+                    && (int) ($expanded_prediction['matched_tokens'] ?? 0) > (int) ($prediction['matched_tokens'] ?? 0)) {
                     $conversion_tokens = $expanded_tokens;
                     $prediction = $expanded_prediction;
                 }
