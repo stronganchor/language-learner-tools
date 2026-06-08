@@ -6222,14 +6222,25 @@ function ll_tools_ipa_keyboard_validation_result_is_stale(array $validation): bo
 function ll_tools_ipa_keyboard_validate_recording_for_wordset(
     int $recording_id,
     int $wordset_id,
-    array $exception_rule_keys = []
+    array $exception_rule_keys = [],
+    &$profile = null
 ): array {
+    $validate_started = microtime(true);
+    $step_started = $validate_started;
     $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
+    if (is_array($profile)) {
+        $profile['validate_mode_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
     if ($recording_id <= 0 || $wordset_id <= 0 || $mode !== 'ipa') {
         return ['active' => [], 'ignored' => []];
     }
 
     $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $mode);
+    if (is_array($profile)) {
+        $profile['validate_load_ipa_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
     if ($recording_ipa === '') {
         return ['active' => [], 'ignored' => []];
     }
@@ -6237,6 +6248,10 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
     $tokens = function_exists('ll_tools_word_grid_tokenize_ipa')
         ? ll_tools_word_grid_tokenize_ipa($recording_ipa, $mode)
         : preg_split('//u', $recording_ipa, -1, PREG_SPLIT_NO_EMPTY);
+    if (is_array($profile)) {
+        $profile['validate_tokenize_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
     if (empty($tokens)) {
         return ['active' => [], 'ignored' => []];
     }
@@ -6251,6 +6266,10 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
     $disabled_builtin_rules = array_values((array) ($config['disabled_builtin_rules'] ?? []));
     $approved_ipa_symbols = ll_tools_ipa_keyboard_get_wordset_approved_ipa_symbols($wordset_id);
     $issue_map = [];
+    if (is_array($profile)) {
+        $profile['validate_config_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
 
     $add_issue = static function (
         array &$issues,
@@ -6452,18 +6471,37 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
             }
         }
     }
+    if (is_array($profile)) {
+        $profile['validate_builtin_symbol_rules_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
 
     $recording_text = function_exists('ll_tools_word_grid_sanitize_non_ipa_text')
         ? ll_tools_word_grid_sanitize_non_ipa_text((string) get_post_meta($recording_id, 'recording_text', true))
         : sanitize_text_field((string) get_post_meta($recording_id, 'recording_text', true));
+    if (is_array($profile)) {
+        $profile['validate_load_text_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
 
     if (!in_array('orthography_mismatch', $disabled_builtin_rules, true) && $recording_text !== '') {
+        $orthography_started = microtime(true);
+        $engine_started = $orthography_started;
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        if (is_array($profile)) {
+            $profile['orthography_engine_rules_seconds'] = round(microtime(true) - $engine_started, 4);
+            $engine_started = microtime(true);
+        }
         $orthography_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
             $recording_ipa,
-            ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id),
+            $engine_rules,
             $wordset_id,
             $recording_id
         );
+        if (is_array($profile)) {
+            $profile['orthography_predict_seconds'] = round(microtime(true) - $engine_started, 4);
+            $engine_started = microtime(true);
+        }
         $orthography_text = (string) ($orthography_prediction['text'] ?? '');
         if (!empty($orthography_prediction['complete']) && $orthography_text !== '') {
             $mismatch_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
@@ -6473,6 +6511,10 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                 ll_tools_ipa_orthography_get_recording_type_slug($recording_id),
                 $orthography_prediction
             );
+            if (is_array($profile)) {
+                $profile['orthography_mismatch_detail_seconds'] = round(microtime(true) - $engine_started, 4);
+                $engine_started = microtime(true);
+            }
             $recording_word_id = (int) wp_get_post_parent_id($recording_id);
             $orthography_exception_word_ids = ll_tools_ipa_orthography_get_exception_word_ids($wordset_id);
             $orthography_exception_dictionary_entry_ids = ll_tools_ipa_orthography_get_exception_dictionary_entry_ids(
@@ -6485,6 +6527,9 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                 $orthography_exception_word_ids,
                 $orthography_exception_dictionary_entry_ids
             );
+            if (is_array($profile)) {
+                $profile['orthography_exception_seconds'] = round(microtime(true) - $engine_started, 4);
+            }
             if (empty($mismatch_detail['matches']) && !$is_approved_orthography_exception) {
                 $add_issue(
                     $issue_map,
@@ -6499,6 +6544,10 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                     ]
                 );
             }
+        }
+        if (is_array($profile)) {
+            $profile['validate_orthography_seconds'] = round(microtime(true) - $orthography_started, 4);
+            $step_started = microtime(true);
         }
     }
 
@@ -6529,6 +6578,10 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                 $add_approval_option($issue_map[$rule_key], $unapproved_symbol, $orthography_output);
             }
         }
+    }
+    if (is_array($profile)) {
+        $profile['validate_unapproved_symbols_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
     }
 
     foreach ((array) ($config['custom_rules'] ?? []) as $rule) {
@@ -6577,6 +6630,10 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                 $token
             );
         }
+    }
+    if (is_array($profile)) {
+        $profile['validate_custom_rules_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
     }
 
     $active = [];
@@ -6682,9 +6739,16 @@ function ll_tools_ipa_keyboard_save_recording_validation_state(int $recording_id
 function ll_tools_ipa_keyboard_update_recording_validation_for_wordset(
     int $recording_id,
     int $wordset_id,
-    bool $verify_membership = true
+    bool $verify_membership = true,
+    &$profile = null
 ): array {
+    $total_started = microtime(true);
+    $step_started = $total_started;
     $recording = get_post($recording_id);
+    if (is_array($profile)) {
+        $profile['get_recording_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
     if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio' || $wordset_id <= 0) {
         return [];
     }
@@ -6692,12 +6756,32 @@ function ll_tools_ipa_keyboard_update_recording_validation_for_wordset(
     if ($verify_membership && !ll_tools_ipa_keyboard_recording_belongs_to_wordset_id($recording_id, $wordset_id, $recording)) {
         return [];
     }
+    if (is_array($profile)) {
+        $profile['verify_membership_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
 
     ll_tools_ipa_keyboard_clear_scheduled_recording_validation($recording_id);
+    if (is_array($profile)) {
+        $profile['clear_schedule_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
 
     $state = ll_tools_ipa_keyboard_get_recording_validation_state($recording_id);
+    if (is_array($profile)) {
+        $profile['load_state_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
     $exceptions = ll_tools_ipa_keyboard_get_recording_validation_exception_keys($recording_id, $wordset_id);
-    $validation = ll_tools_ipa_keyboard_validate_recording_for_wordset($recording_id, $wordset_id, $exceptions);
+    if (is_array($profile)) {
+        $profile['load_exceptions_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
+    $validation = ll_tools_ipa_keyboard_validate_recording_for_wordset($recording_id, $wordset_id, $exceptions, $profile);
+    if (is_array($profile)) {
+        $profile['validate_seconds'] = round(microtime(true) - $step_started, 4);
+        $step_started = microtime(true);
+    }
 
     if (empty($validation['active']) && empty($validation['ignored'])) {
         unset($state[$wordset_id]);
@@ -6709,7 +6793,13 @@ function ll_tools_ipa_keyboard_update_recording_validation_for_wordset(
         ];
     }
 
-    return ll_tools_ipa_keyboard_save_recording_validation_state($recording_id, $state);
+    $saved_state = ll_tools_ipa_keyboard_save_recording_validation_state($recording_id, $state);
+    if (is_array($profile)) {
+        $profile['save_state_seconds'] = round(microtime(true) - $step_started, 4);
+        $profile['total_seconds'] = round(microtime(true) - $total_started, 4);
+    }
+
+    return $saved_state;
 }
 
 function ll_tools_ipa_keyboard_clear_scheduled_recording_validation(int $recording_id): void {

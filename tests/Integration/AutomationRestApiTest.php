@@ -1477,10 +1477,17 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         $first = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-validation-job-wordset/transcription-validation-jobs/' . rawurlencode($job_id) . '/process', [
             'limit' => 1,
+            'profile' => true,
         ]);
         $first_data = $first->get_data();
         $this->assertSame(200, $first->get_status());
         $this->assertIsArray($first_data);
+        $this->assertTrue((bool) ($first_data['profile'] ?? false));
+        $this->assertCount(1, (array) ($first_data['profiles'] ?? []));
+        $profile = (array) (((array) ($first_data['profiles'] ?? []))[0] ?? []);
+        $this->assertSame($first_recording_id, (int) ($profile['recording_id'] ?? 0));
+        $this->assertArrayHasKey('validate_seconds', $profile);
+        $this->assertArrayHasKey('total_seconds', $profile);
         $this->assertSame('running', (string) (($first_data['job']['status'] ?? '')));
         $this->assertSame(1, (int) (($first_data['job']['current_index'] ?? 0)));
         $this->assertSame(1, (int) (($first_data['job']['summary']['updated_count'] ?? 0)));

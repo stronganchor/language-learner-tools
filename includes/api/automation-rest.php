@@ -3970,13 +3970,14 @@ function ll_tools_rest_automation_get_transcription_validation_job(WP_REST_Reque
     return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
 }
 
-function ll_tools_rest_transcription_validation_job_process_records(array $job, int $wordset_id, int $limit): array {
+function ll_tools_rest_transcription_validation_job_process_records(array $job, int $wordset_id, int $limit, bool $profile_enabled = false): array {
     $limit = max(1, $limit);
     $recording_ids = array_values(array_filter(array_map('intval', (array) ($job['recording_ids'] ?? []))));
     $total = count($recording_ids);
     $current_index = min($total, max(0, (int) ($job['current_index'] ?? 0)));
     $summary = (array) ($job['summary'] ?? ll_tools_rest_transcription_validation_job_default_summary($total));
     $recent = [];
+    $profiles = [];
 
     $processed_this_request = 0;
     while ($current_index < $total && $processed_this_request < $limit) {
@@ -4013,16 +4014,29 @@ function ll_tools_rest_transcription_validation_job_process_records(array $job, 
         }
 
         try {
+            $row_profile = [
+                'recording_id' => $recording_id,
+                'index' => $current_index - 1,
+            ];
             if (function_exists('ll_tools_ipa_keyboard_update_recording_validation_for_wordset')) {
-                ll_tools_ipa_keyboard_update_recording_validation_for_wordset($recording_id, $wordset_id, false);
+                if ($profile_enabled) {
+                    ll_tools_ipa_keyboard_update_recording_validation_for_wordset($recording_id, $wordset_id, false, $row_profile);
+                } else {
+                    ll_tools_ipa_keyboard_update_recording_validation_for_wordset($recording_id, $wordset_id, false);
+                }
             } else {
                 ll_tools_ipa_keyboard_update_recording_validation($recording_id);
             }
             $summary['updated_count'] = max(0, (int) ($summary['updated_count'] ?? 0)) + 1;
-            $recent[] = [
+            $recent_row = [
                 'recording_id' => $recording_id,
                 'status' => 'updated',
             ];
+            if ($profile_enabled) {
+                $recent_row['profile'] = $row_profile;
+                $profiles[] = $row_profile;
+            }
+            $recent[] = $recent_row;
         } catch (Throwable $throwable) {
             $summary['error_count'] = max(0, (int) ($summary['error_count'] ?? 0)) + 1;
             $errors = array_values((array) ($summary['errors'] ?? []));
@@ -4048,6 +4062,7 @@ function ll_tools_rest_transcription_validation_job_process_records(array $job, 
     return [
         'job' => $job,
         'processed_this_request' => $processed_this_request,
+        'profiles' => $profiles,
     ];
 }
 
@@ -4082,14 +4097,18 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
     $settings_only = $request->has_param('settings_only')
         ? rest_sanitize_boolean($request->get_param('settings_only'))
         : false;
+    $profile_enabled = $request->has_param('profile')
+        ? rest_sanitize_boolean($request->get_param('profile'))
+        : false;
     $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'transcription_validation_jobs', false);
     $limit = (int) ($limit_info['effective'] ?? 10);
     $process_result = $settings_only
         ? [
             'job' => $job,
             'processed_this_request' => 0,
+            'profiles' => [],
         ]
-        : ll_tools_rest_transcription_validation_job_process_records($job, (int) $wordset_term->term_id, $limit);
+        : ll_tools_rest_transcription_validation_job_process_records($job, (int) $wordset_term->term_id, $limit, $profile_enabled);
     $job = (array) ($process_result['job'] ?? $job);
 
     if ((string) ($job['status'] ?? '') === 'completed') {
@@ -4107,7 +4126,9 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
         'limit' => $limit,
         'limit_info' => $limit_info,
         'settings_only' => $settings_only,
+        'profile' => $profile_enabled,
         'processed_this_request' => max(0, (int) ($process_result['processed_this_request'] ?? 0)),
+        'profiles' => $profile_enabled ? array_values((array) ($process_result['profiles'] ?? [])) : [],
         'job' => ll_tools_rest_transcription_validation_job_summary($job),
     ]);
 }
@@ -7808,6 +7829,11 @@ function ll_tools_rest_register_automation_routes(): void {
                 'type' => 'integer',
             ],
             'settings_only' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
+            ],
+            'profile' => [
                 'required' => false,
                 'type' => 'boolean',
                 'default' => false,
