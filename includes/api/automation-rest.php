@@ -1178,6 +1178,9 @@ function ll_tools_rest_automation_plugin_update_plugin_file(): string {
 
 function ll_tools_rest_automation_plugin_update_payload(string $channel, string $package_url, bool $dry_run, array $extra = []): array {
     $plugin_data = ll_tools_rest_automation_plugin_update_read_plugin_data();
+    $plugin_file = ll_tools_rest_automation_plugin_update_plugin_file();
+    $is_active = function_exists('is_plugin_active') ? (bool) is_plugin_active($plugin_file) : null;
+    $is_network_active = function_exists('is_plugin_active_for_network') ? (bool) is_plugin_active_for_network($plugin_file) : null;
 
     return array_merge([
         'generated_at_gmt' => gmdate('c'),
@@ -1188,12 +1191,14 @@ function ll_tools_rest_automation_plugin_update_payload(string $channel, string 
         'package_url' => $package_url,
         'requires_confirm' => true,
         'plugin' => [
-            'basename' => ll_tools_rest_automation_plugin_update_plugin_file(),
+            'basename' => $plugin_file,
             'directory' => basename(dirname(LL_TOOLS_MAIN_FILE)),
             'loaded_version' => defined('LL_TOOLS_VERSION') ? LL_TOOLS_VERSION : '',
             'installed_file_version' => (string) ($plugin_data['version'] ?? ''),
             'name' => (string) ($plugin_data['name'] ?? ''),
             'text_domain' => (string) ($plugin_data['text_domain'] ?? ''),
+            'active' => $is_active,
+            'network_active' => $is_network_active,
         ],
     ], $extra);
 }
@@ -1311,6 +1316,8 @@ function ll_tools_rest_automation_plugin_update(WP_REST_Request $request) {
     require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 
     $plugin_file = ll_tools_rest_automation_plugin_update_plugin_file();
+    $was_active = function_exists('is_plugin_active') ? (bool) is_plugin_active($plugin_file) : false;
+    $was_network_active = function_exists('is_plugin_active_for_network') ? (bool) is_plugin_active_for_network($plugin_file) : false;
     $previous_transient = get_site_transient('update_plugins');
     $update_transient = is_object($previous_transient) ? clone $previous_transient : new stdClass();
     if (!isset($update_transient->response) || !is_array($update_transient->response)) {
@@ -1349,6 +1356,32 @@ function ll_tools_rest_automation_plugin_update(WP_REST_Request $request) {
     }
 
     delete_site_transient('update_plugins');
+    $reactivated = false;
+    $active_after_update = function_exists('is_plugin_active') ? (bool) is_plugin_active($plugin_file) : null;
+    $network_active_after_update = function_exists('is_plugin_active_for_network') ? (bool) is_plugin_active_for_network($plugin_file) : null;
+    if (($was_active || $was_network_active)
+        && function_exists('activate_plugin')
+        && !($was_network_active ? (bool) $network_active_after_update : (bool) $active_after_update)) {
+        $activation_result = activate_plugin($plugin_file, '', $was_network_active, true);
+        if (is_wp_error($activation_result)) {
+            return new WP_Error(
+                'll_tools_rest_plugin_update_reactivation_failed',
+                __('LL Tools plugin files were updated, but the plugin could not be reactivated automatically.', 'll-tools-text-domain'),
+                [
+                    'status' => 500,
+                    'before_version' => $before_version,
+                    'expected_version' => $expected_version,
+                    'was_active' => $was_active,
+                    'was_network_active' => $was_network_active,
+                    'reactivation_error' => $activation_result->get_error_message(),
+                ]
+            );
+        }
+        $reactivated = true;
+        $active_after_update = function_exists('is_plugin_active') ? (bool) is_plugin_active($plugin_file) : $active_after_update;
+        $network_active_after_update = function_exists('is_plugin_active_for_network') ? (bool) is_plugin_active_for_network($plugin_file) : $network_active_after_update;
+    }
+
     if (function_exists('ll_tools_schedule_post_update_maintenance')) {
         ll_tools_schedule_post_update_maintenance();
     }
@@ -1365,6 +1398,13 @@ function ll_tools_rest_automation_plugin_update(WP_REST_Request $request) {
         'after_version' => $after_version,
         'expected_version' => $expected_version,
         'expected_version_matched' => $expected_version === '' || $expected_version === $after_version,
+        'activation' => [
+            'was_active' => $was_active,
+            'was_network_active' => $was_network_active,
+            'reactivated' => $reactivated,
+            'active_after_update' => $active_after_update,
+            'network_active_after_update' => $network_active_after_update,
+        ],
         'messages' => $messages,
         'plugin' => [
             'basename' => $plugin_file,
@@ -1373,6 +1413,8 @@ function ll_tools_rest_automation_plugin_update(WP_REST_Request $request) {
             'installed_file_version' => $after_version,
             'name' => (string) ($after_plugin_data['name'] ?? ''),
             'text_domain' => (string) ($after_plugin_data['text_domain'] ?? ''),
+            'active' => $active_after_update,
+            'network_active' => $network_active_after_update,
         ],
     ]));
 }
