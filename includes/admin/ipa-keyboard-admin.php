@@ -5153,13 +5153,24 @@ function ll_tools_ipa_orthography_index_engine_rules_by_first_token(array $rules
         }
         $tokens = array_values(array_map('strval', (array) ($rule['tokens'] ?? [])));
         $first_token = (string) ($tokens[0] ?? '');
+        $token_length = max(0, (int) ($rule['token_length'] ?? count($tokens)));
         if ($first_token === '') {
             continue;
         }
         if (!isset($index[$first_token])) {
             $index[$first_token] = [];
         }
-        $index[$first_token][] = $rule;
+        if (!isset($index[$first_token][$token_length])) {
+            $index[$first_token][$token_length] = [];
+        }
+        $token_key = implode("\u{0000}", $tokens);
+        if ($token_key === '') {
+            continue;
+        }
+        if (!isset($index[$first_token][$token_length][$token_key])) {
+            $index[$first_token][$token_length][$token_key] = [];
+        }
+        $index[$first_token][$token_length][$token_key][] = $rule;
     }
 
     return $index;
@@ -5195,26 +5206,31 @@ function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, arra
         }
 
         $first_token = (string) ($tokens[$index] ?? '');
-        foreach ((array) ($rules_by_first_token[$first_token] ?? []) as $rule) {
-            $length = (int) ($rule['token_length'] ?? 0);
+        $rules_by_length = (array) ($rules_by_first_token[$first_token] ?? []);
+        foreach ($rules_by_length as $length => $rules_by_token_key) {
+            $length = (int) $length;
             $end = $index + $length;
-            if ($length <= 0 || $end > $token_count) {
+            if ($length <= 0 || $end > $token_count || !is_array($rules_by_token_key)) {
                 continue;
             }
-            if (!ll_tools_ipa_orthography_context_matches((string) ($rule['context'] ?? 'any'), $index, $end, $token_count)) {
+            $token_key = implode("\u{0000}", array_slice($tokens, $index, $length));
+            $matching_rules = (array) ($rules_by_token_key[$token_key] ?? []);
+            if (empty($matching_rules)) {
                 continue;
             }
-            if (array_values(array_slice($tokens, $index, $length)) !== array_values((array) ($rule['tokens'] ?? []))) {
-                continue;
-            }
+            foreach ($matching_rules as $rule) {
+                if (!ll_tools_ipa_orthography_context_matches((string) ($rule['context'] ?? 'any'), $index, $end, $token_count)) {
+                    continue;
+                }
 
-            $candidate_score = (int) ($dp[$index]['score'] ?? 0) + (int) ($rule['priority'] ?? 0);
-            $candidate_text = (string) ($dp[$index]['text'] ?? '') . (string) ($rule['output'] ?? '');
-            if ($dp[$end] === null || $candidate_score > (int) ($dp[$end]['score'] ?? 0)) {
-                $dp[$end] = [
-                    'score' => $candidate_score,
-                    'text' => $candidate_text,
-                ];
+                $candidate_score = (int) ($dp[$index]['score'] ?? 0) + (int) ($rule['priority'] ?? 0);
+                $candidate_text = (string) ($dp[$index]['text'] ?? '') . (string) ($rule['output'] ?? '');
+                if ($dp[$end] === null || $candidate_score > (int) ($dp[$end]['score'] ?? 0)) {
+                    $dp[$end] = [
+                        'score' => $candidate_score,
+                        'text' => $candidate_text,
+                    ];
+                }
             }
         }
     }
