@@ -3744,6 +3744,14 @@ function ll_tools_ipa_orthography_profile_sentence_case(string $text, string $la
     }, $text, 1);
 }
 
+function ll_tools_ipa_orthography_profile_add_seconds(&$profile, string $key, float $seconds): void {
+    if (!is_array($profile) || $key === '') {
+        return;
+    }
+
+    $profile[$key] = round((float) ($profile[$key] ?? 0) + max(0.0, $seconds), 4);
+}
+
 function ll_tools_ipa_orthography_profile_convert_ipa_to_text(string $ipa_text, int $wordset_id, string $recording_type = ''): array {
     return [
         'text' => '',
@@ -5438,11 +5446,16 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
     int $wordset_id,
     string $recording_type = '',
     int $word_id = 0,
-    ?array $rules_by_first_token = null
+    ?array $rules_by_first_token = null,
+    &$profile = null
 ): array {
+    $convert_started = microtime(true);
+    $step_started = $convert_started;
     $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
     $ipa_parts = ll_tools_ipa_orthography_split_nonspace_spans($ipa_text);
+    ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_split_seconds', microtime(true) - $step_started);
     if (empty($ipa_parts)) {
+        ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_total_seconds', microtime(true) - $convert_started);
         return [
             'text' => '',
             'complete' => false,
@@ -5456,20 +5469,28 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
     $token_count = 0;
     $final_high_vowel_candidate_count = 0;
     $fallback_rules = null;
+    $step_started = microtime(true);
     $rules_by_first_token = is_array($rules_by_first_token)
         ? $rules_by_first_token
         : ll_tools_ipa_orthography_index_engine_rules_by_first_token($rules);
+    ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_index_seconds', microtime(true) - $step_started);
     $fallback_rules_by_first_token = null;
+    $loop_started = microtime(true);
     foreach ($ipa_parts as $part) {
+        $step_started = microtime(true);
         $tokens = ll_tools_ipa_orthography_tokenize_segment((string) ($part['text'] ?? ''), $mode);
         $tokens = ll_tools_ipa_orthography_filter_profile_tokens($tokens, $wordset_id);
+        ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_tokenize_filter_seconds', microtime(true) - $step_started);
         if (empty($tokens)) {
             continue;
         }
 
         $conversion_tokens = $tokens;
+        $step_started = microtime(true);
         $prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $rules, $rules_by_first_token);
+        ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_dp_seconds', microtime(true) - $step_started);
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
+            $step_started = microtime(true);
             foreach (ll_tools_ipa_orthography_post_modifier_token_variants($tokens, $mode) as $expanded_tokens) {
                 if (array_values($expanded_tokens) === array_values($tokens)) {
                     continue;
@@ -5491,8 +5512,10 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
                     $prediction = $expanded_prediction;
                 }
             }
+            ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_post_modifier_seconds', microtime(true) - $step_started);
         }
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
+            $step_started = microtime(true);
             if ($fallback_rules === null) {
                 $fallback_rules = ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules($rules);
                 $fallback_candidate_rules = array_slice($fallback_rules, count($rules));
@@ -5503,9 +5526,12 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
                 );
             }
             $fallback_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $fallback_rules, $fallback_rules_by_first_token);
+            ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_fallback_seconds', microtime(true) - $step_started);
             if (empty($fallback_prediction['complete']) || (string) ($fallback_prediction['text'] ?? '') === '') {
                 $matched_tokens += (int) ($prediction['matched_tokens'] ?? 0);
                 $token_count += (int) ($prediction['token_count'] ?? 0);
+                ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_loop_seconds', microtime(true) - $loop_started);
+                ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_total_seconds', microtime(true) - $convert_started);
                 return [
                     'text' => '',
                     'complete' => false,
@@ -5521,10 +5547,14 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
         $token_count += (int) ($prediction['token_count'] ?? 0);
         $words[] = (string) ($prediction['text'] ?? '');
     }
+    ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_loop_seconds', microtime(true) - $loop_started);
 
+    $step_started = microtime(true);
     $raw_text = ll_tools_ipa_orthography_apply_profile_output_replacements(implode(' ', $words), $wordset_id);
+    ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_output_replacements_seconds', microtime(true) - $step_started);
     $requires_lexical_decision = $final_high_vowel_candidate_count > 0;
     if ($requires_lexical_decision) {
+        $step_started = microtime(true);
         $entry_bound = ll_tools_ipa_orthography_apply_entry_bound_word_overrides_to_text($raw_text, $wordset_id, $word_id);
         $word_override_text = ll_tools_ipa_orthography_apply_word_overrides_to_text(
             (string) ($entry_bound['text'] ?? $raw_text),
@@ -5536,10 +5566,14 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
             $wordset_id,
             $recording_type
         );
+        ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_settings_seconds', microtime(true) - $step_started);
         $requires_lexical_decision = (int) ($entry_bound['applied_count'] ?? 0) < $final_high_vowel_candidate_count;
     } else {
+        $step_started = microtime(true);
         $text = ll_tools_ipa_orthography_apply_settings_to_text($raw_text, $wordset_id, $recording_type, $word_id);
+        ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_settings_seconds', microtime(true) - $step_started);
     }
+    ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_total_seconds', microtime(true) - $convert_started);
 
     return [
         'text' => $text,
@@ -5573,7 +5607,8 @@ function ll_tools_ipa_orthography_convert_ipa_to_best_text(
     string $ipa_text,
     array $rules,
     int $wordset_id,
-    int $recording_id = 0
+    int $recording_id = 0,
+    &$profile = null
 ): array {
     $recording_type = ll_tools_ipa_orthography_get_recording_type_slug($recording_id);
     $word_id = $recording_id > 0 ? (int) wp_get_post_parent_id($recording_id) : 0;
@@ -5583,7 +5618,8 @@ function ll_tools_ipa_orthography_convert_ipa_to_best_text(
         $wordset_id,
         $recording_type,
         $word_id,
-        ll_tools_ipa_orthography_get_engine_rules_index_for_wordset($wordset_id, $rules)
+        ll_tools_ipa_orthography_get_engine_rules_index_for_wordset($wordset_id, $rules),
+        $profile
     );
     $prediction['source'] = 'rules';
     $prediction['settings'] = ll_tools_ipa_orthography_get_settings($wordset_id);
@@ -6685,7 +6721,8 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
             $recording_ipa,
             $engine_rules,
             $wordset_id,
-            $recording_id
+            $recording_id,
+            $profile
         );
         if (is_array($profile)) {
             $profile['orthography_predict_seconds'] = round(microtime(true) - $engine_started, 4);
