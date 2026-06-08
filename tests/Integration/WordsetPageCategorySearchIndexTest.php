@@ -68,6 +68,56 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertNotEmpty($wpdb->last_query);
     }
 
+    public function test_category_search_index_returns_empty_fallback_when_rebuild_lock_is_held(): void
+    {
+        global $wpdb;
+
+        $wordset_id = 987654;
+        $allowed_category_id = 987655;
+        $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+            ? max(1, (int) ll_tools_get_category_cache_epoch())
+            : 1;
+        $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+            ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+            : 1;
+        $cache_key = ll_tools_wordset_page_build_cache_key('category_search', [
+            'wordset_id' => $wordset_id,
+            'allowed_category_ids' => [$allowed_category_id],
+            'category_epoch' => $category_epoch,
+            'wordset_epoch' => $wordset_epoch,
+        ]);
+        $lock_option = ll_tools_wordset_page_cache_rebuild_lock_option($cache_key);
+
+        delete_transient($cache_key);
+        wp_cache_delete($cache_key, 'll_tools');
+        delete_option($lock_option);
+        add_option($lock_option, (string) (time() + 30), '', false);
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        $no_wait = static function (): int {
+            return 0;
+        };
+
+        add_filter('query', $capture);
+        add_filter('ll_tools_wordset_page_category_search_index_rebuild_wait_ms', $no_wait);
+        try {
+            $index = ll_tools_get_wordset_page_category_search_index($wordset_id, [$allowed_category_id]);
+        } finally {
+            remove_filter('ll_tools_wordset_page_category_search_index_rebuild_wait_ms', $no_wait);
+            remove_filter('query', $capture);
+            delete_option($lock_option);
+        }
+
+        $this->assertSame([], $index);
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringNotContainsString('category_taxonomy.term_id AS category_id', $queries_sql);
+        $this->assertStringNotContainsString($wpdb->posts . ' AS posts', $queries_sql);
+    }
+
     /**
      * @param int[] $category_ids
      */

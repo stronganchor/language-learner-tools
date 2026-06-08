@@ -637,6 +637,47 @@ function ll_tools_wordset_page_store_cached_payload(string $cache_key, $payload,
     return $payload;
 }
 
+function ll_tools_wordset_page_cache_rebuild_lock_option(string $cache_key): string {
+    return '_ll_tools_wsp_lock_' . md5($cache_key);
+}
+
+function ll_tools_wordset_page_acquire_cache_rebuild_lock(string $cache_key, int $ttl = 30): bool {
+    $ttl = max(5, (int) $ttl);
+    $option_name = ll_tools_wordset_page_cache_rebuild_lock_option($cache_key);
+    $now = time();
+    $expires_at = $now + $ttl;
+
+    if (add_option($option_name, (string) $expires_at, '', false)) {
+        return true;
+    }
+
+    $current_expires_at = (int) get_option($option_name, 0);
+    if ($current_expires_at > $now) {
+        return false;
+    }
+
+    delete_option($option_name);
+    return add_option($option_name, (string) $expires_at, '', false);
+}
+
+function ll_tools_wordset_page_release_cache_rebuild_lock(string $cache_key): void {
+    delete_option(ll_tools_wordset_page_cache_rebuild_lock_option($cache_key));
+}
+
+function ll_tools_wordset_page_wait_for_cached_payload(string $cache_key, array &$request_cache, int $wait_ms = 1500, string $cache_group = 'll_tools') {
+    $deadline = microtime(true) + (max(0, $wait_ms) / 1000);
+
+    do {
+        usleep(100000);
+        $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache, $cache_group);
+        if (is_array($cached)) {
+            return $cached;
+        }
+    } while (microtime(true) < $deadline);
+
+    return null;
+}
+
 function ll_tools_wordset_page_current_user_can_preview_inactive_categories(int $wordset_id): bool {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0 || !is_user_logged_in()) {
@@ -4498,6 +4539,17 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
         return $cached;
     }
     $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_category_search_index_cache_ttl', HOUR_IN_SECONDS);
+    $rebuild_lock_ttl = max(5, (int) apply_filters('ll_tools_wordset_page_category_search_index_rebuild_lock_ttl', 30));
+    $rebuild_lock_acquired = ll_tools_wordset_page_acquire_cache_rebuild_lock($cache_key, $rebuild_lock_ttl);
+    if (!$rebuild_lock_acquired) {
+        $rebuild_wait_ms = max(0, (int) apply_filters('ll_tools_wordset_page_category_search_index_rebuild_wait_ms', 1500));
+        $cached_after_wait = ll_tools_wordset_page_wait_for_cached_payload($cache_key, $request_cache, $rebuild_wait_ms);
+        if (is_array($cached_after_wait)) {
+            return $cached_after_wait;
+        }
+
+        return [];
+    }
 
     $posts_table = $wpdb->posts;
     $term_relationships_table = $wpdb->term_relationships;
@@ -4546,7 +4598,9 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
 
     $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge([$wordset_id], $allowed_category_ids)), ARRAY_A);
     if (empty($rows)) {
-        return ll_tools_wordset_page_store_cached_payload($cache_key, [], $cache_ttl, $request_cache);
+        $empty_payload = ll_tools_wordset_page_store_cached_payload($cache_key, [], $cache_ttl, $request_cache);
+        ll_tools_wordset_page_release_cache_rebuild_lock($cache_key);
+        return $empty_payload;
     }
 
     $allowed_lookup = array_fill_keys($allowed_category_ids, true);
@@ -4627,7 +4681,9 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
         ];
     }
 
-    return ll_tools_wordset_page_store_cached_payload($cache_key, $search_index, $cache_ttl, $request_cache);
+    $payload = ll_tools_wordset_page_store_cached_payload($cache_key, $search_index, $cache_ttl, $request_cache);
+    ll_tools_wordset_page_release_cache_rebuild_lock($cache_key);
+    return $payload;
 }
 
 function ll_tools_get_wordset_page_view(): string {
