@@ -3154,6 +3154,16 @@ function ll_tools_ipa_orthography_split_nonspace_spans(string $text): array {
     return $parts;
 }
 
+function ll_tools_ipa_orthography_split_nonspace_tokens(string $text): array {
+    $text = trim($text);
+    if ($text === '') {
+        return [];
+    }
+
+    $tokens = preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+    return is_array($tokens) ? array_values(array_map('strval', $tokens)) : [];
+}
+
 function ll_tools_ipa_orthography_replace_char_span(string $text, int $start, int $length, string $replacement): string {
     return ll_tools_ipa_orthography_substr($text, 0, $start)
         . $replacement
@@ -5054,6 +5064,21 @@ function ll_tools_ipa_orthography_apply_word_overrides_to_text(string $text, int
     }
 
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
+    if ($text === trim($text) && !preg_match('/\s{2,}/u', $text)) {
+        $tokens = ll_tools_ipa_orthography_split_nonspace_tokens($text);
+        foreach ($tokens as $index => $token) {
+            $key = ll_tools_ipa_orthography_profile_compare_key((string) $token, $language);
+            if ($key === '' || !isset($word_overrides[$key])) {
+                continue;
+            }
+            if (!ll_tools_ipa_orthography_word_override_applies_to_word($key, $settings, $word_id)) {
+                continue;
+            }
+            $tokens[$index] = (string) $word_overrides[$key];
+        }
+        return implode(' ', $tokens);
+    }
+
     $parts = ll_tools_ipa_orthography_split_nonspace_spans($text);
     for ($index = count($parts) - 1; $index >= 0; $index--) {
         $part = (array) $parts[$index];
@@ -5088,6 +5113,27 @@ function ll_tools_ipa_orthography_apply_entry_bound_word_overrides_to_text(strin
     }
 
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
+    if ($text === trim($text) && !preg_match('/\s{2,}/u', $text)) {
+        $tokens = ll_tools_ipa_orthography_split_nonspace_tokens($text);
+        $applied_count = 0;
+        foreach ($tokens as $index => $token) {
+            $key = ll_tools_ipa_orthography_profile_compare_key((string) $token, $language);
+            if ($key === '' || !isset($word_overrides[$key]) || empty($entry_ids[$key])) {
+                continue;
+            }
+            if (!ll_tools_ipa_orthography_word_override_applies_to_word($key, $settings, $word_id)) {
+                continue;
+            }
+            $tokens[$index] = (string) $word_overrides[$key];
+            $applied_count++;
+        }
+
+        return [
+            'text' => implode(' ', $tokens),
+            'applied_count' => $applied_count,
+        ];
+    }
+
     $parts = ll_tools_ipa_orthography_split_nonspace_spans($text);
     $applied_count = 0;
     for ($index = count($parts) - 1; $index >= 0; $index--) {
@@ -5123,14 +5169,11 @@ function ll_tools_ipa_orthography_apply_phrase_overrides_to_text(string $text, i
     }
 
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
-    $parts = ll_tools_ipa_orthography_split_nonspace_spans($text);
-    if (empty($parts)) {
+    $tokens = ll_tools_ipa_orthography_split_nonspace_tokens($text);
+    if (empty($tokens)) {
         return $text;
     }
 
-    $tokens = array_map(static function (array $part): string {
-        return (string) ($part['text'] ?? '');
-    }, $parts);
     $keys = array_map(static function (string $token) use ($language): string {
         return ll_tools_ipa_orthography_profile_compare_key($token, $language);
     }, $tokens);
@@ -5452,7 +5495,7 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
     $convert_started = microtime(true);
     $step_started = $convert_started;
     $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
-    $ipa_parts = ll_tools_ipa_orthography_split_nonspace_spans($ipa_text);
+    $ipa_parts = ll_tools_ipa_orthography_split_nonspace_tokens($ipa_text);
     ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_split_seconds', microtime(true) - $step_started);
     if (empty($ipa_parts)) {
         ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_total_seconds', microtime(true) - $convert_started);
@@ -5478,7 +5521,7 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
     $loop_started = microtime(true);
     foreach ($ipa_parts as $part) {
         $step_started = microtime(true);
-        $tokens = ll_tools_ipa_orthography_tokenize_segment((string) ($part['text'] ?? ''), $mode);
+        $tokens = ll_tools_ipa_orthography_tokenize_segment((string) $part, $mode);
         $tokens = ll_tools_ipa_orthography_filter_profile_tokens($tokens, $wordset_id);
         ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_tokenize_filter_seconds', microtime(true) - $step_started);
         if (empty($tokens)) {
