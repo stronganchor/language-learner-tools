@@ -191,10 +191,18 @@ function ll_tools_ipa_keyboard_get_initial_search_results_per_page(): int {
 }
 
 function ll_tools_ipa_keyboard_get_transcription_mode_for_wordset(int $wordset_id): string {
+    static $runtime_cache = [];
+
+    $cache_key = (int) $wordset_id;
+    if (isset($runtime_cache[$cache_key])) {
+        return $runtime_cache[$cache_key];
+    }
+
     $mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? sanitize_key((string) ll_tools_get_wordset_recording_transcription_mode($wordset_id > 0 ? [$wordset_id] : [], true))
         : 'ipa';
-    return in_array($mode, ['ipa', 'transliteration', 'transcription'], true) ? $mode : 'ipa';
+    $runtime_cache[$cache_key] = in_array($mode, ['ipa', 'transliteration', 'transcription'], true) ? $mode : 'ipa';
+    return $runtime_cache[$cache_key];
 }
 
 function ll_tools_ipa_keyboard_get_requested_search_state(): array {
@@ -2851,7 +2859,7 @@ function ll_tools_ipa_orthography_sanitize_setting_ipa($value, int $wordset_id):
         return '';
     }
 
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $text = (string) $value;
     $text = function_exists('ll_tools_word_grid_normalize_ipa_output')
         ? ll_tools_word_grid_normalize_ipa_output($text, $mode)
@@ -4176,7 +4184,7 @@ function ll_tools_ipa_orthography_normalize_segment_key(string $segment, string 
 }
 
 function ll_tools_ipa_orthography_sanitize_manual_rules($raw, int $wordset_id): array {
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
     $clean = [];
     if (!is_array($raw)) {
@@ -4209,7 +4217,7 @@ function ll_tools_ipa_orthography_sanitize_manual_rules($raw, int $wordset_id): 
 }
 
 function ll_tools_ipa_orthography_sanitize_blocklist($raw, int $wordset_id): array {
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
     $clean = [];
     if (!is_array($raw)) {
@@ -4994,7 +5002,7 @@ function ll_tools_ipa_orthography_context_matches(string $context, int $start_in
 }
 
 function ll_tools_ipa_orthography_prepare_engine_rules(array $auto_rules, array $manual_rules, int $wordset_id): array {
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $rules = [];
     $append_rule = static function (string $segment, string $context, string $output, bool $manual, int $count = 1) use (&$rules, $mode): void {
         $tokens = ll_tools_ipa_orthography_tokenize_segment($segment, $mode);
@@ -5507,7 +5515,9 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
 ): array {
     $convert_started = microtime(true);
     $step_started = $convert_started;
-    $mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
+    ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_mode_seconds', microtime(true) - $step_started);
+    $step_started = microtime(true);
     $ipa_parts = ll_tools_ipa_orthography_split_nonspace_tokens($ipa_text);
     ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_split_seconds', microtime(true) - $step_started);
     if (empty($ipa_parts)) {
