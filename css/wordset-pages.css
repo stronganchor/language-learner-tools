@@ -2392,6 +2392,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     aspect-ratio: 1 / 1;
 }
 
+.ll-wordset-card__preview.has-text .ll-wordset-preview-item--lazy-skeleton {
+    min-height: 42px;
+    aspect-ratio: auto;
+}
+
 .ll-wordset-card__progress-track--lazy-skeleton {
     display: block;
     min-height: 14px;

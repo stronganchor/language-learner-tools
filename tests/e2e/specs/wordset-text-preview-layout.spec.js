@@ -335,3 +335,50 @@ test('text-based recommendation preview is single and rectangular while category
   expect(metrics.categoryText.clientHeight - metrics.categoryText.lineHeight).toBeGreaterThan(0.75);
   expect(metrics.title.clientHeight - metrics.title.lineHeight).toBeGreaterThan(0.75);
 });
+
+test('text-based category loading preview keeps rectangular option slots', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <style>${wordsetCss}</style>
+    <div class="ll-wordset-page">
+      <div class="ll-wordset-grid">
+        <article class="ll-wordset-card ll-wordset-card--lazy-placeholder" role="listitem" aria-hidden="true">
+          <div class="ll-wordset-card__top">
+            <span class="ll-wordset-card__select-box" aria-hidden="true"></span>
+            <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>
+            <span class="ll-wordset-card__hide-spacer ll-wordset-card__skeleton-block ll-wordset-card__skeleton-block--icon" aria-hidden="true"></span>
+          </div>
+          <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder has-text" aria-hidden="true">
+            <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>
+            <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>
+            <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>
+            <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>
+          </div>
+        </article>
+      </div>
+    </div>
+  `);
+
+  const metrics = await page.evaluate(() => {
+    const preview = document.querySelector('.ll-wordset-card__preview.has-text');
+    const items = Array.from(preview ? preview.querySelectorAll('.ll-wordset-preview-item--lazy-skeleton') : []);
+    const firstRect = items[0] ? items[0].getBoundingClientRect() : null;
+    const previewRect = preview ? preview.getBoundingClientRect() : null;
+    const firstStyle = items[0] ? window.getComputedStyle(items[0]) : null;
+
+    return {
+      itemCount: items.length,
+      gridTemplateColumns: preview ? window.getComputedStyle(preview).gridTemplateColumns || '' : '',
+      firstWidth: firstRect ? Math.round(firstRect.width) : 0,
+      firstHeight: firstRect ? Math.round(firstRect.height) : 0,
+      previewHeight: previewRect ? Math.round(previewRect.height) : 0,
+      firstMinHeight: firstStyle ? firstStyle.minHeight : ''
+    };
+  });
+
+  expect(metrics.itemCount).toBe(4);
+  expect(metrics.gridTemplateColumns.trim().split(/\s+/).length).toBe(2);
+  expect(metrics.firstMinHeight).toBe('42px');
+  expect(metrics.firstWidth).toBeGreaterThan(metrics.firstHeight * 2);
+  expect(metrics.previewHeight).toBeLessThan(metrics.firstWidth * 1.2);
+});
