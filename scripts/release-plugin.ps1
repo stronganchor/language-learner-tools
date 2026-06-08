@@ -14,6 +14,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $pluginFile = Join-Path $repoRoot 'language-learner-tools.php'
 $pluginSlug = 'language-learner-tools'
 $gitHubApiBase = 'https://api.github.com'
+$requiredRuntimeAssetsFile = Join-Path $PSScriptRoot 'required-runtime-assets.txt'
 
 function Enable-GitLongPaths {
     & git -C $repoRoot config core.longpaths true *> $null
@@ -79,6 +80,88 @@ function Get-CurrentVersionData {
         Version        = $headerMatch.Groups[1].Value
         InternalVersion = $constantMatch.Groups[1].Value
         VersionsMatch  = ($headerMatch.Groups[1].Value -eq $constantMatch.Groups[1].Value)
+    }
+}
+
+function Get-RequiredRuntimeAssets {
+    if (-not (Test-Path -LiteralPath $requiredRuntimeAssetsFile)) {
+        throw "Required runtime asset manifest not found: $requiredRuntimeAssetsFile"
+    }
+
+    $assets = @()
+    Get-Content -LiteralPath $requiredRuntimeAssetsFile | ForEach-Object {
+        $line = ([string]$_ -replace '#.*$', '').Trim()
+        if ($line -ne '') {
+            $assets += $line
+        }
+    }
+
+    if ($assets.Count -eq 0) {
+        throw "Required runtime asset manifest is empty: $requiredRuntimeAssetsFile"
+    }
+
+    return $assets
+}
+
+function Assert-ReleaseZipContainsRequiredAssets {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ZipPath
+    )
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    $requiredAssets = Get-RequiredRuntimeAssets
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+    try {
+        $entryNames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($entry in $zip.Entries) {
+            [void]$entryNames.Add($entry.FullName)
+        }
+
+        $missing = @()
+        foreach ($asset in $requiredAssets) {
+            $entryName = "$pluginSlug/$asset"
+            if (-not $entryNames.Contains($entryName)) {
+                $missing += $asset
+            }
+        }
+
+        if ($missing.Count -gt 0) {
+            $formattedMissing = ($missing | ForEach-Object { "  $_" }) -join [Environment]::NewLine
+            throw "Release archive is missing required runtime assets:$([Environment]::NewLine)$formattedMissing"
+        }
+    }
+    finally {
+        $zip.Dispose()
+    }
+}
+
+function Test-ReleaseArchiveFromRef {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RefName
+    )
+
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ll-tools-release-check-" + [guid]::NewGuid().ToString('N'))
+    [System.IO.Directory]::CreateDirectory($tempDir) | Out-Null
+    $zipPath = Join-Path $tempDir "$pluginSlug-check.zip"
+
+    try {
+        Invoke-Git -Arguments @(
+            'archive',
+            '--format=zip',
+            "--prefix=$pluginSlug/",
+            "--output=$zipPath",
+            $RefName
+        ) | Out-Null
+
+        Assert-ReleaseZipContainsRequiredAssets -ZipPath $zipPath
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempDir) {
+            Remove-Item -LiteralPath $tempDir -Recurse -Force
+        }
     }
 }
 
@@ -498,6 +581,8 @@ function Build-ReleaseZipFromRef {
         $RefName
     ) | Out-Null
 
+    Assert-ReleaseZipContainsRequiredAssets -ZipPath $zipPath
+
     return $zipPath
 }
 
@@ -534,6 +619,7 @@ function Invoke-BumpWorkflow {
 
         Invoke-Git -Arguments @('commit', '-m', $commitMessage) | Out-Null
         $commitCreated = $true
+        Test-ReleaseArchiveFromRef -RefName 'HEAD'
         Invoke-Git -Arguments @('push', 'origin', $BranchName) | Out-Null
 
         Write-Host ''

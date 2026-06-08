@@ -1,0 +1,34 @@
+# Runtime assets that must be present in any installable plugin archive.
+# Keep this list focused on broadly enqueued public/admin assets; it is a
+# release safety tripwire, not a complete file manifest.
+language-learner-tools.php
+css/language-learner-tools.css
+css/login-window.css
+css/frontend-utility-menu.css
+css/ipa-fonts.css
+css/language-switcher.css
+css/wordset-pages.css
+css/vocab-lesson-pages.css
+css/content-lesson-pages.css
+css/flashcard/base.css
+css/flashcard/mode-practice.css
+css/flashcard/mode-learning.css
+css/flashcard/mode-listening.css
+css/flashcard/mode-gender.css
+js/login-window.js
+js/frontend-utility-menu.js
+js/language-switcher.js
+js/locale-sort.js
+js/public-viewport-guard.js
+js/wordset-pages.js
+js/vocab-lesson-page.js
+js/word-grid.js
+js/quiz-pages.js
+js/self-check-shared.js
+js/flashcard-widget/main.js
+js/flashcard-widget/loader.js
+js/flashcard-widget/cards.js
+js/flashcard-widget/progress-tracker.js
+js/flashcard-widget/audio.js
+js/flashcard-widget/audio-visualizer.js
+media/wrong-answer.mp3

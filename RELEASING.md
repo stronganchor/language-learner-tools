@@ -81,5 +81,17 @@ If you need to rebuild a release zip manually from a specific git ref or tag, us
 - The uploaded asset name starts with `language-learner-tools` and ends with `.zip`.
 - The zip root folder is `language-learner-tools/`.
 - The zip does not contain `offline-app-builder/`, `tests/`, or other export-ignored paths.
+- The release scripts validate the required runtime asset manifest in
+  `scripts/required-runtime-assets.txt`. If a public/admin CSS, JS, or media
+  file is broadly enqueued, add it to that manifest so dev pushes and stable
+  release zips fail before publication when the asset is missing.
+- After updating a live site, check at least one core stylesheet and one core
+  script over HTTPS before leaving the new plugin active:
+
+  ```bash
+  PLUGIN="language-learner-tools"
+  curl -k -s -o /dev/null -w 'login-window.css http=%{http_code} time=%{time_total}\n' "https://example.com/wp-content/plugins/$PLUGIN/css/login-window.css"
+  curl -k -s -o /dev/null -w 'flashcard main.js http=%{http_code} time=%{time_total}\n' "https://example.com/wp-content/plugins/$PLUGIN/js/flashcard-widget/main.js"
+  ```
 
 If a stable GitHub release is published without a matching plugin zip asset, `Main` channel sites will not receive an update. That failure mode is intentional so production installs never fall back to shipping the raw repository archive.
