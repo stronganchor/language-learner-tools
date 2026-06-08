@@ -548,6 +548,10 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'default' => 10,
             'max' => 25,
         ],
+        'transcription_validation_jobs' => [
+            'default' => 10,
+            'max' => 25,
+        ],
         'missing_meta' => [
             'default' => 100,
             'max' => 250,
@@ -703,6 +707,9 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/word-metadata-plan-jobs/[^/]+(/result)?$#', $route, $matches)) {
         $resource = empty($matches[1]) ? 'll_tools_word_metadata_plan_status' : 'll_tools_word_metadata_plan_result';
         $delay_seconds = 3.0;
+    } elseif ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/transcription-validation-jobs/[^/]+$#', $route)) {
+        $resource = 'll_tools_transcription_validation_job_status';
+        $delay_seconds = 3.0;
     } elseif ($is_read && preg_match('#^/ll-tools/v1/wordsets/[^/]+/(missing-meta|site-sync/snapshot|report|report-summary)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = in_array((string) $matches[1], ['site-sync/snapshot', 'report'], true) ? 5.0 : 3.0;
@@ -725,6 +732,10 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
         }
     } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/word-metadata-plan-jobs(?:/[^/]+/(process|discard))?$#', $route, $matches)) {
         $resource = empty($matches[1]) ? 'll_tools_word_metadata_plan_create' : 'll_tools_word_metadata_plan_' . sanitize_key((string) $matches[1]);
+        $delay_seconds = 5.0;
+        $lock_ttl_seconds = 180.0;
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/transcription-validation-jobs(?:/[^/]+/process)?$#', $route, $matches)) {
+        $resource = str_contains($route, '/process') ? 'll_tools_transcription_validation_job_process' : 'll_tools_transcription_validation_job_create';
         $delay_seconds = 5.0;
         $lock_ttl_seconds = 180.0;
     } elseif (preg_match('#^/ll-tools/v1/imports/(preview|start)$#', $route, $matches)) {
@@ -976,6 +987,9 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_metadata_plan_job_result' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result',
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'transcription_validations' => '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
+            'transcription_validation_jobs' => '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs',
+            'transcription_validation_job_status' => '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}',
+            'transcription_validation_job_process' => '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}/process',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'orthography_conversion' => '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
@@ -1024,6 +1038,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/imports/{job_id}/result',
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}',
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result',
+                '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}',
                 '/ll-tools/v1/wordsets/{wordset}/missing-meta',
                 '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
                 '/ll-tools/v1/wordsets/{wordset}/report',
@@ -1045,6 +1060,8 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs',
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process',
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard',
+                '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs',
+                '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}/process',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
                 '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
@@ -1090,6 +1107,13 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 'max_process_limit' => ll_tools_rest_automation_batch_limit('word_metadata_plan_jobs', false)['max'],
                 'max_plan_items' => ll_tools_rest_word_metadata_plan_max_items(),
                 'supported_fields' => ll_tools_rest_word_metadata_plan_supported_fields(),
+                'server_side_recommended' => true,
+            ],
+            'transcription_validation_jobs_batch' => [
+                'default_process_limit' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['default'],
+                'max_process_limit' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['max'],
+                'default_max_candidates' => 500,
+                'max_candidates' => (int) apply_filters('ll_tools_rest_transcription_validation_job_max_candidates', 5000),
                 'server_side_recommended' => true,
             ],
             'missing_meta_batch' => [
@@ -3605,6 +3629,333 @@ function ll_tools_rest_automation_refresh_transcription_validations(WP_REST_Requ
     }
 
     return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_transcription_validation_job_option_name(string $job_id): string {
+    return 'll_tools_transcription_validation_job_' . sanitize_key(str_replace('-', '_', $job_id));
+}
+
+function ll_tools_rest_transcription_validation_job_default_summary(int $total): array {
+    return [
+        'total' => max(0, $total),
+        'processed_count' => 0,
+        'updated_count' => 0,
+        'skipped_count' => 0,
+        'error_count' => 0,
+        'errors' => [],
+        'recent' => [],
+    ];
+}
+
+function ll_tools_rest_transcription_validation_job_save(array $job): bool {
+    $job_id = (string) ($job['id'] ?? '');
+    if ($job_id === '') {
+        return false;
+    }
+
+    $job['updated_at_gmt'] = gmdate('c');
+    return update_option(ll_tools_rest_transcription_validation_job_option_name($job_id), $job, false);
+}
+
+function ll_tools_rest_transcription_validation_job_get(string $job_id) {
+    $job_id = trim($job_id);
+    if ($job_id === '' || !preg_match('/^[A-Za-z0-9_-]{8,80}$/', $job_id)) {
+        return new WP_Error(
+            'll_tools_rest_transcription_validation_job_invalid_id',
+            __('Invalid transcription validation job ID.', 'll-tools-text-domain'),
+            ['status' => 404]
+        );
+    }
+
+    $job = get_option(ll_tools_rest_transcription_validation_job_option_name($job_id), null);
+    if (!is_array($job)) {
+        return new WP_Error(
+            'll_tools_rest_transcription_validation_job_not_found',
+            __('Transcription validation job was not found.', 'll-tools-text-domain'),
+            ['status' => 404]
+        );
+    }
+
+    return $job;
+}
+
+function ll_tools_rest_transcription_validation_job_summary(array $job, bool $include_recent = true): array {
+    $recording_ids = array_values(array_filter(array_map('intval', (array) ($job['recording_ids'] ?? []))));
+    $summary = (array) ($job['summary'] ?? ll_tools_rest_transcription_validation_job_default_summary(count($recording_ids)));
+    $total = max(0, (int) ($job['total'] ?? count($recording_ids)));
+    $current_index = max(0, (int) ($job['current_index'] ?? 0));
+
+    $payload = [
+        'id' => (string) ($job['id'] ?? ''),
+        'status' => (string) ($job['status'] ?? 'running'),
+        'wordset_id' => max(0, (int) ($job['wordset_id'] ?? 0)),
+        'wordset_slug' => (string) ($job['wordset_slug'] ?? ''),
+        'stale_only' => !empty($job['stale_only']),
+        'total' => $total,
+        'current_index' => min($total, $current_index),
+        'remaining_count' => max(0, $total - $current_index),
+        'created_at_gmt' => (string) ($job['created_at_gmt'] ?? ''),
+        'updated_at_gmt' => (string) ($job['updated_at_gmt'] ?? ''),
+        'process_limit' => [
+            'default' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['default'],
+            'max' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['max'],
+        ],
+        'summary' => [
+            'total' => max(0, (int) ($summary['total'] ?? $total)),
+            'processed_count' => max(0, (int) ($summary['processed_count'] ?? 0)),
+            'updated_count' => max(0, (int) ($summary['updated_count'] ?? 0)),
+            'skipped_count' => max(0, (int) ($summary['skipped_count'] ?? 0)),
+            'error_count' => max(0, (int) ($summary['error_count'] ?? 0)),
+            'errors' => array_values((array) ($summary['errors'] ?? [])),
+        ],
+    ];
+
+    if ($include_recent) {
+        $payload['summary']['recent'] = array_values((array) ($summary['recent'] ?? []));
+    }
+
+    return $payload;
+}
+
+function ll_tools_rest_automation_transcription_validation_max_candidates(WP_REST_Request $request): array {
+    $raw_limit = $request->get_param('max_candidates');
+    $requested = (is_scalar($raw_limit) && trim((string) $raw_limit) !== '')
+        ? max(0, (int) $raw_limit)
+        : 0;
+    $default = 500;
+    $max = max(1, (int) apply_filters('ll_tools_rest_transcription_validation_job_max_candidates', 5000, $request));
+    $effective = $requested > 0 ? $requested : $default;
+    $clamped = $effective > $max;
+
+    return [
+        'requested' => $requested,
+        'effective' => max(1, min($effective, $max)),
+        'default' => $default,
+        'max' => $max,
+        'clamped' => $clamped,
+    ];
+}
+
+function ll_tools_rest_automation_transcription_validation_candidate_ids(int $wordset_id, int $max_candidates, bool $stale_only): array {
+    ll_tools_rest_automation_load_orthography_helpers();
+
+    $word_ids = get_objects_in_term($wordset_id, 'wordset');
+    if (is_wp_error($word_ids)) {
+        return [];
+    }
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', (array) $word_ids))));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $recording_ids = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => 'publish',
+        'post_parent__in' => $word_ids,
+        'posts_per_page' => max(1, $max_candidates),
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'update_post_meta_cache' => true,
+        'update_post_term_cache' => false,
+        'meta_query' => [
+            [
+                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
+                'value' => 0,
+                'compare' => '>',
+                'type' => 'NUMERIC',
+            ],
+        ],
+    ]);
+
+    $candidate_ids = [];
+    foreach (array_map('intval', (array) $recording_ids) as $recording_id) {
+        if ($recording_id <= 0 || !ll_tools_rest_automation_recording_belongs_to_wordset($recording_id, $wordset_id)) {
+            continue;
+        }
+        if ($stale_only) {
+            $validation = function_exists('ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry')
+                ? ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, $wordset_id)
+                : [];
+            $is_stale = function_exists('ll_tools_ipa_keyboard_validation_result_is_stale')
+                && ll_tools_ipa_keyboard_validation_result_is_stale((array) $validation);
+            if (!$is_stale) {
+                continue;
+            }
+        }
+
+        $candidate_ids[] = $recording_id;
+    }
+
+    return array_values(array_unique($candidate_ids));
+}
+
+function ll_tools_rest_automation_create_transcription_validation_job(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $stale_only = $request->has_param('stale_only')
+        ? rest_sanitize_boolean($request->get_param('stale_only'))
+        : true;
+    $candidate_limit = ll_tools_rest_automation_transcription_validation_max_candidates($request);
+    $recording_ids = ll_tools_rest_automation_transcription_validation_candidate_ids(
+        $wordset_id,
+        (int) ($candidate_limit['effective'] ?? 500),
+        $stale_only
+    );
+
+    $job_id = wp_generate_uuid4();
+    $job = [
+        'id' => $job_id,
+        'status' => empty($recording_ids) ? 'completed' : 'running',
+        'wordset_id' => $wordset_id,
+        'wordset_slug' => (string) $wordset_term->slug,
+        'stale_only' => $stale_only,
+        'total' => count($recording_ids),
+        'current_index' => 0,
+        'recording_ids' => $recording_ids,
+        'candidate_limit' => $candidate_limit,
+        'summary' => ll_tools_rest_transcription_validation_job_default_summary(count($recording_ids)),
+        'created_at_gmt' => gmdate('c'),
+        'updated_at_gmt' => gmdate('c'),
+    ];
+    ll_tools_rest_transcription_validation_job_save($job);
+
+    return new WP_REST_Response([
+        'generated_at_gmt' => gmdate('c'),
+        'candidate_limit' => $candidate_limit,
+        'job' => ll_tools_rest_transcription_validation_job_summary($job, false),
+    ], 201);
+}
+
+function ll_tools_rest_automation_get_transcription_validation_job(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $job = ll_tools_rest_transcription_validation_job_get((string) $request->get_param('job_id'));
+    if (is_wp_error($job)) {
+        return $job;
+    }
+    if ((int) ($job['wordset_id'] ?? 0) !== (int) $wordset_term->term_id) {
+        return new WP_Error(
+            'll_tools_rest_transcription_validation_job_wordset_mismatch',
+            __('Transcription validation job belongs to a different word set.', 'll-tools-text-domain'),
+            ['status' => 404]
+        );
+    }
+
+    return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
+}
+
+function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_orthography_helpers();
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $job = ll_tools_rest_transcription_validation_job_get((string) $request->get_param('job_id'));
+    if (is_wp_error($job)) {
+        return $job;
+    }
+    if ((int) ($job['wordset_id'] ?? 0) !== (int) $wordset_term->term_id) {
+        return new WP_Error(
+            'll_tools_rest_transcription_validation_job_wordset_mismatch',
+            __('Transcription validation job belongs to a different word set.', 'll-tools-text-domain'),
+            ['status' => 404]
+        );
+    }
+    if ((string) ($job['status'] ?? '') === 'completed') {
+        return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
+    }
+
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'transcription_validation_jobs', false);
+    $limit = (int) ($limit_info['effective'] ?? 10);
+    $recording_ids = array_values(array_filter(array_map('intval', (array) ($job['recording_ids'] ?? []))));
+    $total = count($recording_ids);
+    $current_index = min($total, max(0, (int) ($job['current_index'] ?? 0)));
+    $summary = (array) ($job['summary'] ?? ll_tools_rest_transcription_validation_job_default_summary($total));
+    $recent = [];
+
+    $processed_this_request = 0;
+    while ($current_index < $total && $processed_this_request < $limit) {
+        $recording_id = (int) ($recording_ids[$current_index] ?? 0);
+        $current_index++;
+        $processed_this_request++;
+        $summary['processed_count'] = max(0, (int) ($summary['processed_count'] ?? 0)) + 1;
+
+        if ($recording_id <= 0 || !ll_tools_rest_automation_recording_belongs_to_wordset($recording_id, (int) $wordset_term->term_id)) {
+            $summary['skipped_count'] = max(0, (int) ($summary['skipped_count'] ?? 0)) + 1;
+            $recent[] = [
+                'recording_id' => $recording_id,
+                'status' => 'skipped',
+                'reason' => 'not_in_wordset',
+            ];
+            continue;
+        }
+
+        if (!empty($job['stale_only'])) {
+            $validation = function_exists('ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry')
+                ? ll_tools_ipa_keyboard_get_recording_wordset_validation_state_entry($recording_id, (int) $wordset_term->term_id)
+                : [];
+            $is_stale = function_exists('ll_tools_ipa_keyboard_validation_result_is_stale')
+                && ll_tools_ipa_keyboard_validation_result_is_stale((array) $validation);
+            if (!$is_stale) {
+                $summary['skipped_count'] = max(0, (int) ($summary['skipped_count'] ?? 0)) + 1;
+                $recent[] = [
+                    'recording_id' => $recording_id,
+                    'status' => 'skipped',
+                    'reason' => 'not_stale',
+                ];
+                continue;
+            }
+        }
+
+        try {
+            ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+            $summary['updated_count'] = max(0, (int) ($summary['updated_count'] ?? 0)) + 1;
+            $recent[] = [
+                'recording_id' => $recording_id,
+                'status' => 'updated',
+            ];
+        } catch (Throwable $throwable) {
+            $summary['error_count'] = max(0, (int) ($summary['error_count'] ?? 0)) + 1;
+            $errors = array_values((array) ($summary['errors'] ?? []));
+            $errors[] = [
+                'recording_id' => $recording_id,
+                'message' => $throwable->getMessage(),
+            ];
+            $summary['errors'] = array_slice($errors, -10);
+            $recent[] = [
+                'recording_id' => $recording_id,
+                'status' => 'error',
+                'message' => $throwable->getMessage(),
+            ];
+        }
+    }
+
+    $summary['recent'] = array_slice($recent, -10);
+    $summary['total'] = $total;
+    $job['summary'] = $summary;
+    $job['current_index'] = $current_index;
+    $job['status'] = $current_index >= $total ? 'completed' : 'running';
+    ll_tools_rest_transcription_validation_job_save($job);
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'limit' => $limit,
+        'limit_info' => $limit_info,
+        'processed_this_request' => $processed_this_request,
+        'job' => ll_tools_rest_transcription_validation_job_summary($job),
+    ]);
 }
 
 function ll_tools_rest_automation_wordset_report(WP_REST_Request $request) {
@@ -7179,6 +7530,41 @@ function ll_tools_rest_register_automation_routes(): void {
                 'required' => false,
                 'type' => 'boolean',
                 'default' => true,
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/transcription-validation-jobs', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_create_transcription_validation_job',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'stale_only' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+            'max_candidates' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/transcription-validation-jobs/(?P<job_id>[A-Za-z0-9_-]+)', [
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => 'll_tools_rest_automation_get_transcription_validation_job',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/transcription-validation-jobs/(?P<job_id>[A-Za-z0-9_-]+)/process', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_process_transcription_validation_job',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'limit' => [
+                'required' => false,
+                'type' => 'integer',
             ],
         ],
     ]);
