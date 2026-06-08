@@ -553,8 +553,8 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'max' => 25,
         ],
         'transcription_validation_jobs' => [
-            'default' => 3,
-            'max' => 5,
+            'default' => 25,
+            'max' => 100,
         ],
         'missing_meta' => [
             'default' => 100,
@@ -1116,6 +1116,8 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'transcription_validation_jobs_batch' => [
                 'default_process_limit' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['default'],
                 'max_process_limit' => ll_tools_rest_automation_batch_limit('transcription_validation_jobs', false)['max'],
+                'default_max_runtime_seconds' => ll_tools_rest_transcription_validation_job_runtime_budget_seconds(null),
+                'max_runtime_seconds' => ll_tools_rest_transcription_validation_job_runtime_budget_seconds(PHP_INT_MAX),
                 'default_max_candidates' => 500,
                 'max_candidates' => (int) apply_filters('ll_tools_rest_transcription_validation_job_max_candidates', 5000),
                 'server_side_recommended' => true,
@@ -3706,6 +3708,79 @@ function ll_tools_rest_transcription_validation_job_auto_limit($value = null): i
     return max(1, min($limit, $max));
 }
 
+function ll_tools_rest_transcription_validation_job_runtime_budget_seconds($value = null): int {
+    $requested = (is_scalar($value) && trim((string) $value) !== '')
+        ? max(0, (int) $value)
+        : 0;
+    $default = max(1, (int) apply_filters('ll_tools_rest_transcription_validation_job_runtime_budget_default', 15));
+    $max = max($default, (int) apply_filters('ll_tools_rest_transcription_validation_job_runtime_budget_max', 45));
+    $budget = $requested > 0 ? $requested : $default;
+
+    return max(1, min($budget, $max));
+}
+
+function ll_tools_rest_transcription_validation_job_process_lock_option_name(string $job_id): string {
+    return 'll_tools_transcription_validation_job_process_lock_' . md5($job_id);
+}
+
+function ll_tools_rest_transcription_validation_job_acquire_process_lock(string $job_id, int $ttl_seconds = 300) {
+    $job_id = trim($job_id);
+    if ($job_id === '') {
+        return new WP_Error(
+            'll_tools_rest_transcription_validation_job_invalid_lock_id',
+            __('Invalid transcription validation job ID.', 'll-tools-text-domain'),
+            ['status' => 404]
+        );
+    }
+
+    $lock_option = ll_tools_rest_transcription_validation_job_process_lock_option_name($job_id);
+    $now = time();
+    $ttl_seconds = max(60, $ttl_seconds);
+    $existing = get_option($lock_option, null);
+    if (is_array($existing)) {
+        $expires_at = (int) ($existing['expires_at'] ?? 0);
+        if ($expires_at > $now) {
+            return new WP_Error(
+                'll_tools_rest_transcription_validation_job_locked',
+                __('Transcription validation job is already processing.', 'll-tools-text-domain'),
+                [
+                    'status' => 423,
+                    'job_id' => $job_id,
+                    'lock' => [
+                        'created_at_gmt' => (string) ($existing['created_at_gmt'] ?? ''),
+                        'expires_at_gmt' => gmdate('c', $expires_at),
+                    ],
+                ]
+            );
+        }
+
+        delete_option($lock_option);
+    }
+
+    $lock = [
+        'job_id' => $job_id,
+        'created_at' => $now,
+        'created_at_gmt' => gmdate('c', $now),
+        'expires_at' => $now + $ttl_seconds,
+    ];
+
+    if (!add_option($lock_option, $lock, '', false)) {
+        return new WP_Error(
+            'll_tools_rest_transcription_validation_job_locked',
+            __('Transcription validation job is already processing.', 'll-tools-text-domain'),
+            ['status' => 423, 'job_id' => $job_id]
+        );
+    }
+
+    return $lock_option;
+}
+
+function ll_tools_rest_transcription_validation_job_release_process_lock(string $lock_option): void {
+    if ($lock_option !== '') {
+        delete_option($lock_option);
+    }
+}
+
 function ll_tools_rest_transcription_validation_job_apply_auto_request(array $job, WP_REST_Request $request, bool $default_enabled = false): array {
     $enabled = $request->has_param('auto_process')
         ? rest_sanitize_boolean($request->get_param('auto_process'))
@@ -3717,6 +3792,9 @@ function ll_tools_rest_transcription_validation_job_apply_auto_request(array $jo
     );
     $job['auto_limit'] = ll_tools_rest_transcription_validation_job_auto_limit(
         $request->has_param('auto_limit') ? $request->get_param('auto_limit') : ($job['auto_limit'] ?? null)
+    );
+    $job['auto_max_runtime_seconds'] = ll_tools_rest_transcription_validation_job_runtime_budget_seconds(
+        $request->has_param('auto_max_runtime_seconds') ? $request->get_param('auto_max_runtime_seconds') : ($job['auto_max_runtime_seconds'] ?? null)
     );
 
     return $job;
@@ -3787,6 +3865,7 @@ function ll_tools_rest_transcription_validation_job_summary(array $job, bool $in
             'enabled' => !empty($job['auto_process']),
             'delay_seconds' => ll_tools_rest_transcription_validation_job_auto_delay_seconds($job['auto_delay_seconds'] ?? null),
             'limit' => ll_tools_rest_transcription_validation_job_auto_limit($job['auto_limit'] ?? null),
+            'max_runtime_seconds' => ll_tools_rest_transcription_validation_job_runtime_budget_seconds($job['auto_max_runtime_seconds'] ?? null),
             'next_run_gmt' => ll_tools_rest_transcription_validation_job_next_run_gmt((string) ($job['id'] ?? '')),
             'last_run_gmt' => (string) ($job['last_auto_process_gmt'] ?? ''),
         ],
@@ -3970,17 +4049,27 @@ function ll_tools_rest_automation_get_transcription_validation_job(WP_REST_Reque
     return rest_ensure_response(['job' => ll_tools_rest_transcription_validation_job_summary($job)]);
 }
 
-function ll_tools_rest_transcription_validation_job_process_records(array $job, int $wordset_id, int $limit, bool $profile_enabled = false): array {
+function ll_tools_rest_transcription_validation_job_process_records(array $job, int $wordset_id, int $limit, bool $profile_enabled = false, int $runtime_budget_seconds = 0): array {
+    $started_at = microtime(true);
     $limit = max(1, $limit);
+    $runtime_budget_seconds = max(0, $runtime_budget_seconds);
     $recording_ids = array_values(array_filter(array_map('intval', (array) ($job['recording_ids'] ?? []))));
     $total = count($recording_ids);
     $current_index = min($total, max(0, (int) ($job['current_index'] ?? 0)));
     $summary = (array) ($job['summary'] ?? ll_tools_rest_transcription_validation_job_default_summary($total));
     $recent = [];
     $profiles = [];
+    $runtime_limit_reached = false;
 
     $processed_this_request = 0;
     while ($current_index < $total && $processed_this_request < $limit) {
+        if ($processed_this_request > 0
+            && $runtime_budget_seconds > 0
+            && microtime(true) - $started_at >= $runtime_budget_seconds) {
+            $runtime_limit_reached = true;
+            break;
+        }
+
         $recording_id = (int) ($recording_ids[$current_index] ?? 0);
         $current_index++;
         $processed_this_request++;
@@ -4051,6 +4140,14 @@ function ll_tools_rest_transcription_validation_job_process_records(array $job, 
                 'message' => $throwable->getMessage(),
             ];
         }
+
+        if ($current_index < $total
+            && $processed_this_request < $limit
+            && $runtime_budget_seconds > 0
+            && microtime(true) - $started_at >= $runtime_budget_seconds) {
+            $runtime_limit_reached = true;
+            break;
+        }
     }
 
     $summary['recent'] = array_slice($recent, -10);
@@ -4063,6 +4160,8 @@ function ll_tools_rest_transcription_validation_job_process_records(array $job, 
         'job' => $job,
         'processed_this_request' => $processed_this_request,
         'profiles' => $profiles,
+        'runtime_limit_reached' => $runtime_limit_reached,
+        'elapsed_seconds' => round(microtime(true) - $started_at, 4),
     ];
 }
 
@@ -4102,29 +4201,61 @@ function ll_tools_rest_automation_process_transcription_validation_job(WP_REST_R
         : false;
     $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'transcription_validation_jobs', false);
     $limit = (int) ($limit_info['effective'] ?? 10);
-    $process_result = $settings_only
-        ? [
-            'job' => $job,
-            'processed_this_request' => 0,
-            'profiles' => [],
-        ]
-        : ll_tools_rest_transcription_validation_job_process_records($job, (int) $wordset_term->term_id, $limit, $profile_enabled);
-    $job = (array) ($process_result['job'] ?? $job);
+    $runtime_budget_seconds = ll_tools_rest_transcription_validation_job_runtime_budget_seconds(
+        $request->has_param('max_runtime_seconds') ? $request->get_param('max_runtime_seconds') : null
+    );
+    $process_result = [
+        'job' => $job,
+        'processed_this_request' => 0,
+        'profiles' => [],
+        'runtime_limit_reached' => false,
+        'elapsed_seconds' => 0,
+    ];
 
-    if ((string) ($job['status'] ?? '') === 'completed') {
-        $job['auto_process'] = false;
-        ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
-    } elseif (!empty($job['auto_process'])) {
-        ll_tools_rest_transcription_validation_job_schedule_next($job);
-    } else {
-        ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
+    $lock_option = '';
+    if (!$settings_only) {
+        $lock_result = ll_tools_rest_transcription_validation_job_acquire_process_lock(
+            (string) ($job['id'] ?? ''),
+            $runtime_budget_seconds + 60
+        );
+        if (is_wp_error($lock_result)) {
+            return $lock_result;
+        }
+        $lock_option = (string) $lock_result;
     }
-    ll_tools_rest_transcription_validation_job_save($job);
+
+    try {
+        if (!$settings_only) {
+            $process_result = ll_tools_rest_transcription_validation_job_process_records(
+                $job,
+                (int) $wordset_term->term_id,
+                $limit,
+                $profile_enabled,
+                $runtime_budget_seconds
+            );
+        }
+        $job = (array) ($process_result['job'] ?? $job);
+
+        if ((string) ($job['status'] ?? '') === 'completed') {
+            $job['auto_process'] = false;
+            ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
+        } elseif (!empty($job['auto_process'])) {
+            ll_tools_rest_transcription_validation_job_schedule_next($job);
+        } else {
+            ll_tools_rest_transcription_validation_job_clear_schedule((string) ($job['id'] ?? ''));
+        }
+        ll_tools_rest_transcription_validation_job_save($job);
+    } finally {
+        ll_tools_rest_transcription_validation_job_release_process_lock($lock_option);
+    }
 
     return rest_ensure_response([
         'generated_at_gmt' => gmdate('c'),
         'limit' => $limit,
         'limit_info' => $limit_info,
+        'max_runtime_seconds' => $runtime_budget_seconds,
+        'runtime_limit_reached' => !empty($process_result['runtime_limit_reached']),
+        'elapsed_seconds' => (float) ($process_result['elapsed_seconds'] ?? 0),
         'settings_only' => $settings_only,
         'profile' => $profile_enabled,
         'processed_this_request' => max(0, (int) ($process_result['processed_this_request'] ?? 0)),
@@ -4148,13 +4279,14 @@ function ll_tools_rest_transcription_validation_job_run_scheduled($job_id): void
         return;
     }
 
-    $lock_key = 'll_tools_transcription_validation_job_lock_' . md5($job_id);
-    if (get_transient($lock_key)) {
+    $runtime_budget_seconds = ll_tools_rest_transcription_validation_job_runtime_budget_seconds($job['auto_max_runtime_seconds'] ?? null);
+    $lock_result = ll_tools_rest_transcription_validation_job_acquire_process_lock($job_id, $runtime_budget_seconds + 60);
+    if (is_wp_error($lock_result)) {
         ll_tools_rest_transcription_validation_job_schedule_next($job);
         return;
     }
 
-    set_transient($lock_key, time(), 5 * MINUTE_IN_SECONDS);
+    $lock_option = (string) $lock_result;
     try {
         $wordset_id = max(0, (int) ($job['wordset_id'] ?? 0));
         if ($wordset_id <= 0) {
@@ -4165,7 +4297,13 @@ function ll_tools_rest_transcription_validation_job_run_scheduled($job_id): void
         }
 
         $limit = ll_tools_rest_transcription_validation_job_auto_limit($job['auto_limit'] ?? null);
-        $process_result = ll_tools_rest_transcription_validation_job_process_records($job, $wordset_id, $limit);
+        $process_result = ll_tools_rest_transcription_validation_job_process_records(
+            $job,
+            $wordset_id,
+            $limit,
+            false,
+            $runtime_budget_seconds
+        );
         $job = (array) ($process_result['job'] ?? $job);
         $job['last_auto_process_gmt'] = gmdate('c');
 
@@ -4177,7 +4315,7 @@ function ll_tools_rest_transcription_validation_job_run_scheduled($job_id): void
 
         ll_tools_rest_transcription_validation_job_save($job);
     } finally {
-        delete_transient($lock_key);
+        ll_tools_rest_transcription_validation_job_release_process_lock($lock_option);
     }
 }
 
@@ -7816,6 +7954,10 @@ function ll_tools_rest_register_automation_routes(): void {
                 'required' => false,
                 'type' => 'integer',
             ],
+            'max_runtime_seconds' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
             'auto_process' => [
                 'required' => false,
                 'type' => 'boolean',
@@ -7825,6 +7967,10 @@ function ll_tools_rest_register_automation_routes(): void {
                 'type' => 'integer',
             ],
             'auto_limit' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'auto_max_runtime_seconds' => [
                 'required' => false,
                 'type' => 'integer',
             ],
