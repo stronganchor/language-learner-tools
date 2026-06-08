@@ -2476,6 +2476,42 @@ function ll_tools_ipa_orthography_set_engine_rules_runtime_cache(string $cache_k
     $GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'][$cache_key] = $engine_rules;
 }
 
+function ll_tools_ipa_orthography_get_settings_runtime_cache(): array {
+    if (!isset($GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'])) {
+        $GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'] = [];
+    }
+
+    return $GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'];
+}
+
+function ll_tools_ipa_orthography_set_settings_runtime_cache(int $wordset_id, array $settings): void {
+    if ($wordset_id <= 0) {
+        return;
+    }
+
+    if (!isset($GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'])) {
+        $GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'] = [];
+    }
+
+    $GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'][$wordset_id] = $settings;
+}
+
+function ll_tools_ipa_orthography_clear_settings_runtime_cache(int $wordset_id = 0): void {
+    if (!isset($GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'])
+        || !is_array($GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'])) {
+        return;
+    }
+
+    if ($wordset_id > 0) {
+        unset($GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'][$wordset_id]);
+        return;
+    }
+
+    $GLOBALS['ll_tools_ipa_orthography_settings_runtime_cache'] = [];
+}
+
 function ll_tools_ipa_orthography_clear_engine_rules_runtime_cache(int $wordset_id): void {
     if ($wordset_id <= 0 || empty($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])
         || !is_array($GLOBALS['ll_tools_ipa_orthography_engine_rules_runtime_cache'])) {
@@ -2513,6 +2549,9 @@ function ll_tools_ipa_orthography_maybe_invalidate_engine_rules_for_term_meta($m
         return;
     }
 
+    if ($meta_key === ll_tools_ipa_orthography_settings_meta_key()) {
+        ll_tools_ipa_orthography_clear_settings_runtime_cache((int) $term_id);
+    }
     ll_tools_ipa_orthography_invalidate_engine_rules_cache((int) $term_id);
 }
 
@@ -2957,9 +2996,15 @@ function ll_tools_ipa_orthography_get_settings(int $wordset_id): array {
         return ll_tools_ipa_orthography_settings_defaults();
     }
 
+    $runtime_cache = ll_tools_ipa_orthography_get_settings_runtime_cache();
+    if (isset($runtime_cache[$wordset_id]) && is_array($runtime_cache[$wordset_id])) {
+        return $runtime_cache[$wordset_id];
+    }
+
     $profile_settings = ll_tools_ipa_orthography_get_profile_default_settings($wordset_id);
     $raw = get_term_meta($wordset_id, ll_tools_ipa_orthography_settings_meta_key(), true);
     if (!is_array($raw)) {
+        ll_tools_ipa_orthography_set_settings_runtime_cache($wordset_id, $profile_settings);
         return $profile_settings;
     }
 
@@ -2972,7 +3017,9 @@ function ll_tools_ipa_orthography_get_settings(int $wordset_id): array {
         }
     }
 
-    return ll_tools_ipa_orthography_merge_settings($profile_settings, $clean, $raw);
+    $settings = ll_tools_ipa_orthography_merge_settings($profile_settings, $clean, $raw);
+    ll_tools_ipa_orthography_set_settings_runtime_cache($wordset_id, $settings);
+    return $settings;
 }
 
 function ll_tools_ipa_orthography_count_text_occurrences(string $text, string $needle): int {
@@ -5098,7 +5145,27 @@ function ll_tools_ipa_orthography_apply_settings_to_text(string $text, int $word
     return ll_tools_ipa_orthography_apply_non_word_settings_to_text($text, $wordset_id, $recording_type);
 }
 
-function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, array $rules): array {
+function ll_tools_ipa_orthography_index_engine_rules_by_first_token(array $rules): array {
+    $index = [];
+    foreach ($rules as $rule) {
+        if (!is_array($rule)) {
+            continue;
+        }
+        $tokens = array_values(array_map('strval', (array) ($rule['tokens'] ?? [])));
+        $first_token = (string) ($tokens[0] ?? '');
+        if ($first_token === '') {
+            continue;
+        }
+        if (!isset($index[$first_token])) {
+            $index[$first_token] = [];
+        }
+        $index[$first_token][] = $rule;
+    }
+
+    return $index;
+}
+
+function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, array $rules, ?array $rules_by_first_token = null): array {
     if (empty($tokens)) {
         return [
             'text' => '',
@@ -5115,6 +5182,9 @@ function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, arra
         'text' => '',
     ];
     $furthest = 0;
+    $rules_by_first_token = is_array($rules_by_first_token)
+        ? $rules_by_first_token
+        : ll_tools_ipa_orthography_index_engine_rules_by_first_token($rules);
 
     for ($index = 0; $index < $token_count; $index++) {
         if ($dp[$index] === null) {
@@ -5124,7 +5194,8 @@ function ll_tools_ipa_orthography_convert_ipa_tokens_to_text(array $tokens, arra
             $furthest = $index;
         }
 
-        foreach ($rules as $rule) {
+        $first_token = (string) ($tokens[$index] ?? '');
+        foreach ((array) ($rules_by_first_token[$first_token] ?? []) as $rule) {
             $length = (int) ($rule['token_length'] ?? 0);
             $end = $index + $length;
             if ($length <= 0 || $end > $token_count) {
@@ -5284,6 +5355,8 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
     $token_count = 0;
     $final_high_vowel_candidate_count = 0;
     $fallback_rules = null;
+    $rules_by_first_token = ll_tools_ipa_orthography_index_engine_rules_by_first_token($rules);
+    $fallback_rules_by_first_token = null;
     foreach ($ipa_parts as $part) {
         $tokens = ll_tools_ipa_orthography_tokenize_segment((string) ($part['text'] ?? ''), $mode);
         $tokens = ll_tools_ipa_orthography_filter_profile_tokens($tokens, $wordset_id);
@@ -5292,14 +5365,14 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
         }
 
         $conversion_tokens = $tokens;
-        $prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $rules);
+        $prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $rules, $rules_by_first_token);
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
             foreach (ll_tools_ipa_orthography_post_modifier_token_variants($tokens, $mode) as $expanded_tokens) {
                 if (array_values($expanded_tokens) === array_values($tokens)) {
                     continue;
                 }
 
-                $expanded_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($expanded_tokens, $rules);
+                $expanded_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($expanded_tokens, $rules, $rules_by_first_token);
                 if (!empty($expanded_prediction['complete']) && (string) ($expanded_prediction['text'] ?? '') !== '') {
                     if (empty($prediction['complete'])
                         || (int) ($expanded_prediction['score'] ?? 0) > (int) ($prediction['score'] ?? 0)) {
@@ -5319,8 +5392,9 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(string $ipa_text, array $r
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
             if ($fallback_rules === null) {
                 $fallback_rules = ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules($rules);
+                $fallback_rules_by_first_token = ll_tools_ipa_orthography_index_engine_rules_by_first_token($fallback_rules);
             }
-            $fallback_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $fallback_rules);
+            $fallback_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $fallback_rules, $fallback_rules_by_first_token);
             if (empty($fallback_prediction['complete']) || (string) ($fallback_prediction['text'] ?? '') === '') {
                 $matched_tokens += (int) ($prediction['matched_tokens'] ?? 0);
                 $token_count += (int) ($prediction['token_count'] ?? 0);
