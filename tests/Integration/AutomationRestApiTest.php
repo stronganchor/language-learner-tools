@@ -63,6 +63,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-title-updates', (string) ($data['routes']['word_title_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', (string) ($data['routes']['word_helper_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-updates', (string) ($data['routes']['word_category_updates'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-terms', (string) ($data['routes']['word_category_terms'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', (string) ($data['routes']['word_metadata_plan_jobs'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs', (string) ($data['routes']['transcription_validation_jobs'] ?? ''));
         $this->assertSame(5, (int) (($data['resource_guard']['word_category_updates_batch']['default_write_limit'] ?? 0)));
@@ -1187,6 +1188,83 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $this->assertContains($effective_other_id, $categories);
             $this->assertContains($effective_target_id, $categories);
         }
+    }
+
+    public function test_word_category_terms_route_creates_renames_and_sets_prerequisites_with_dry_run_default(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Category Terms Wordset', 'rest-category-terms-wordset');
+        $source_id = $this->ensure_term('word-category', 'REST Category Terms Source', 'rest-category-terms-source');
+        $prereq_id = $this->ensure_term('word-category', 'REST Category Terms Prereq', 'rest-category-terms-prereq');
+        $created_slug = 'rest-category-terms-created';
+
+        $this->create_word($wordset_id, [$source_id], 'REST Category Terms Source Word', 'Source translation');
+        $this->create_word($wordset_id, [$prereq_id], 'REST Category Terms Prereq Word', 'Prereq translation');
+        $effective_source_id = $this->effective_category_id($source_id, $wordset_id);
+        $effective_prereq_id = $this->effective_category_id($prereq_id, $wordset_id);
+
+        wp_set_current_user($admin_id);
+
+        $actions = [
+            [
+                'action' => 'rename_category',
+                'category_id' => $source_id,
+                'expected_name' => 'REST Category Terms Source',
+                'new_name' => 'REST Category Terms Renamed',
+            ],
+            [
+                'action' => 'create_category',
+                'name' => 'REST Category Terms Created',
+                'slug' => $created_slug,
+            ],
+            [
+                'action' => 'set_prerequisites',
+                'category_id' => $source_id,
+                'expected_prereq_ids' => [],
+                'prereq_ids' => [$prereq_id],
+            ],
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-category-terms-wordset/word-category-terms', [
+            'actions' => $actions,
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['dry_run'] ?? false));
+        $this->assertSame(3, (int) ($dry_data['matched_count'] ?? 0));
+        $this->assertSame(3, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame('REST Category Terms Source', (string) get_term($effective_source_id, 'word-category')->name);
+        $this->assertFalse(get_term_by('slug', $created_slug, 'word-category'));
+        $this->assertSame([], ll_tools_wordset_get_category_prereq_map($wordset_id, [$effective_source_id, $effective_prereq_id]));
+
+        $apply = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-category-terms-wordset/word-category-terms', [
+            'dry_run' => false,
+            'actions' => $actions,
+        ]);
+
+        $this->assertSame(200, $apply->get_status());
+        $data = $apply->get_data();
+        $this->assertIsArray($data);
+        $this->assertFalse((bool) ($data['dry_run'] ?? true));
+        $this->assertSame(3, (int) ($data['matched_count'] ?? 0));
+        $this->assertSame(3, (int) ($data['changed_count'] ?? 0));
+        $this->assertSame(3, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['created_count'] ?? 0));
+        $this->assertTrue((bool) ($data['invalidated_wordset_cache'] ?? false));
+        $this->assertSame('REST Category Terms Renamed', (string) get_term($effective_source_id, 'word-category')->name);
+
+        $created = get_term_by('slug', $created_slug, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $created);
+        $created_owner_id = function_exists('ll_tools_get_category_wordset_owner_id')
+            ? ll_tools_get_category_wordset_owner_id($created)
+            : $wordset_id;
+        $this->assertSame($wordset_id, $created_owner_id);
+        $this->assertSame(
+            [$effective_source_id => [$effective_prereq_id]],
+            ll_tools_wordset_get_category_prereq_map($wordset_id, [$effective_source_id, $effective_prereq_id, (int) $created->term_id])
+        );
     }
 
     public function test_word_metadata_plan_job_processes_mixed_word_metadata_in_chunks(): void

@@ -984,6 +984,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_title_updates' => '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
             'word_helper_updates' => '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
             'word_category_updates' => '/ll-tools/v1/wordsets/{wordset}/word-category-updates',
+            'word_category_terms' => '/ll-tools/v1/wordsets/{wordset}/word-category-terms',
             'word_metadata_plan_jobs' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs',
             'word_metadata_plan_job_status' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}',
             'word_metadata_plan_job_process' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process',
@@ -1061,6 +1062,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
                 '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
                 '/ll-tools/v1/wordsets/{wordset}/word-category-updates',
+                '/ll-tools/v1/wordsets/{wordset}/word-category-terms',
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs',
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process',
                 '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard',
@@ -3152,6 +3154,571 @@ function ll_tools_rest_automation_word_category_updates(WP_REST_Request $request
             __('One or more category updates failed.', 'll-tools-text-domain'),
             ['status' => 500, 'summary' => $summary]
         ), 500);
+    }
+
+    return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_automation_word_category_term_ids_for_wordset(int $wordset_id): array {
+    $helpers_loaded = ll_tools_rest_automation_load_word_category_update_helpers();
+    if (is_wp_error($helpers_loaded)) {
+        return [];
+    }
+
+    return ll_tools_rest_automation_prepare_id_list(wp_list_pluck(ll_tools_word_grid_get_category_editor_rows($wordset_id), 'id'));
+}
+
+function ll_tools_rest_automation_word_category_term_payload(int $term_id): array {
+    $term = get_term($term_id, 'word-category');
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return [
+            'id' => $term_id,
+            'slug' => '',
+            'name' => '',
+        ];
+    }
+
+    return [
+        'id' => (int) $term->term_id,
+        'slug' => (string) $term->slug,
+        'name' => (string) $term->name,
+    ];
+}
+
+function ll_tools_rest_automation_word_category_term_resolve_id(int $category_id, int $wordset_id, array $available_category_ids): int {
+    $category_id = (int) $category_id;
+    $available_category_ids = ll_tools_rest_automation_prepare_id_list($available_category_ids);
+    if ($category_id <= 0) {
+        return 0;
+    }
+    if (in_array($category_id, $available_category_ids, true)) {
+        return $category_id;
+    }
+    if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
+        if ($effective_id > 0 && in_array($effective_id, $available_category_ids, true)) {
+            return $effective_id;
+        }
+    }
+
+    return $category_id;
+}
+
+function ll_tools_rest_automation_word_category_term_word_count(int $category_id, int $wordset_id): int {
+    $query = new WP_Query([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'no_found_rows' => false,
+        'tax_query' => [
+            'relation' => 'AND',
+            [
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+                'include_children' => false,
+            ],
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+                'include_children' => false,
+            ],
+        ],
+    ]);
+
+    return (int) ($query->found_posts ?? 0);
+}
+
+function ll_tools_rest_automation_word_category_term_prereq_map(int $wordset_id, array $category_ids): array {
+    if (!function_exists('ll_tools_wordset_get_category_prereq_map')) {
+        return [];
+    }
+
+    return ll_tools_wordset_get_category_prereq_map($wordset_id, $category_ids);
+}
+
+function ll_tools_rest_automation_word_category_term_update_prereqs(int $wordset_id, int $category_id, array $prereq_ids, array $category_ids) {
+    $category_ids = ll_tools_rest_automation_prepare_id_list($category_ids);
+    $category_id = ll_tools_rest_automation_word_category_term_resolve_id($category_id, $wordset_id, $category_ids);
+    $prereq_ids = ll_tools_rest_automation_prepare_id_list($prereq_ids);
+    $prereq_ids = array_values(array_map(static function (int $prereq_id) use ($wordset_id, $category_ids): int {
+        return ll_tools_rest_automation_word_category_term_resolve_id($prereq_id, $wordset_id, $category_ids);
+    }, $prereq_ids));
+    $prereq_ids = ll_tools_rest_automation_prepare_id_list($prereq_ids);
+    if (!in_array($category_id, $category_ids, true)) {
+        return new WP_Error(
+            'll_tools_rest_word_category_term_prereq_category_out_of_scope',
+            __('Prerequisite target category does not belong to this word set.', 'll-tools-text-domain')
+        );
+    }
+    foreach ($prereq_ids as $prereq_id) {
+        if (!in_array($prereq_id, $category_ids, true) || $prereq_id === $category_id) {
+            return new WP_Error(
+                'll_tools_rest_word_category_term_prereq_out_of_scope',
+                __('Prerequisite categories must belong to the requested word set and cannot include the target category.', 'll-tools-text-domain')
+            );
+        }
+    }
+
+    $map = ll_tools_rest_automation_word_category_term_prereq_map($wordset_id, $category_ids);
+    if (empty($prereq_ids)) {
+        unset($map[$category_id]);
+    } else {
+        $map[$category_id] = $prereq_ids;
+    }
+    if (function_exists('ll_tools_wordset_normalize_category_prereq_map')) {
+        $map = ll_tools_wordset_normalize_category_prereq_map($map, $category_ids);
+    }
+    if (function_exists('ll_tools_wordset_find_prereq_cycle')) {
+        $cycle = ll_tools_wordset_find_prereq_cycle($category_ids, $map);
+        if (!empty($cycle['has_cycle'])) {
+            return new WP_Error(
+                'll_tools_rest_word_category_term_prereq_cycle',
+                __('The requested prerequisites would create a cycle.', 'll-tools-text-domain')
+            );
+        }
+    }
+
+    if (empty($map)) {
+        delete_term_meta($wordset_id, 'll_wordset_category_prerequisites');
+    } else {
+        update_term_meta($wordset_id, 'll_wordset_category_prerequisites', $map);
+    }
+
+    return $map;
+}
+
+function ll_tools_rest_automation_word_category_terms(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $dry_run = $request->has_param('dry_run') ? rest_sanitize_boolean($request->get_param('dry_run')) : true;
+    $purge_public_static_cache = $request->has_param('purge_public_static_cache')
+        ? rest_sanitize_boolean($request->get_param('purge_public_static_cache'))
+        : false;
+    $raw_actions = $request->get_param('actions');
+    if (!is_array($raw_actions)) {
+        $raw_actions = $request->get_param('updates');
+    }
+    $raw_actions = is_array($raw_actions) ? array_values($raw_actions) : [];
+    $max_actions = (int) apply_filters('ll_tools_rest_word_category_terms_max_actions', 25);
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => [
+            'id' => $wordset_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'batch_mode' => 'word_category_terms',
+        'input_count' => count($raw_actions),
+        'max_actions' => $max_actions,
+        'matched_count' => 0,
+        'changed_count' => 0,
+        'updated_count' => 0,
+        'unchanged_count' => 0,
+        'deleted_count' => 0,
+        'created_count' => 0,
+        'invalidated_category_ids' => [],
+        'invalidated_wordset_cache' => false,
+        'public_static_cache_purged' => false,
+        'updated' => [],
+        'errors' => [],
+    ];
+
+    if (empty($raw_actions)) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_word_category_terms_missing_actions',
+            __('Provide one or more explicit category actions.', 'll-tools-text-domain'),
+            ['status' => 400, 'summary' => $summary]
+        ), 400);
+    }
+    if (count($raw_actions) > $max_actions) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_word_category_terms_too_many_actions',
+            sprintf(
+                /* translators: %d: maximum category action count */
+                __('Too many category actions in one request. Maximum is %d.', 'll-tools-text-domain'),
+                $max_actions
+            ),
+            ['status' => 400, 'summary' => $summary]
+        ), 400);
+    }
+
+    $category_ids = ll_tools_rest_automation_word_category_term_ids_for_wordset($wordset_id);
+    if (empty($category_ids)) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_word_category_terms_no_categories',
+            __('No categories are available for this word set.', 'll-tools-text-domain'),
+            ['status' => 400, 'summary' => $summary]
+        ), 400);
+    }
+
+    $changed_category_lookup = [];
+    foreach ($raw_actions as $index => $raw_action) {
+        $action = is_array($raw_action) ? $raw_action : [];
+        $operation = sanitize_key((string) ($action['action'] ?? $action['operation'] ?? ''));
+        $row = [
+            'index' => $index,
+            'action' => $operation,
+            'status' => 'pending',
+            'changed' => false,
+        ];
+
+        if (!in_array($operation, ['create_category', 'rename_category', 'set_prerequisites', 'delete_empty_category'], true)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'action' => $operation,
+                'message' => __('Choose create_category, rename_category, set_prerequisites, or delete_empty_category.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        if ($operation === 'create_category') {
+            $name = sanitize_text_field((string) ($action['name'] ?? $action['new_name'] ?? ''));
+            $slug = sanitize_title((string) ($action['slug'] ?? $name));
+            if ($name === '') {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'action' => $operation,
+                    'message' => __('Category name is required.', 'll-tools-text-domain'),
+                ];
+                continue;
+            }
+
+            $existing = $slug !== '' ? get_term_by('slug', $slug, 'word-category') : false;
+            if ($existing instanceof WP_Term) {
+                $existing_id = (int) $existing->term_id;
+                if (!in_array($existing_id, $category_ids, true)) {
+                    $summary['errors'][] = [
+                        'index' => $index,
+                        'action' => $operation,
+                        'slug' => $slug,
+                        'message' => __('A category with that slug exists outside this word set.', 'll-tools-text-domain'),
+                    ];
+                    continue;
+                }
+                $row['status'] = 'unchanged';
+                $row['category'] = ll_tools_rest_automation_word_category_term_payload($existing_id);
+                $summary['updated'][] = $row;
+                $summary['unchanged_count']++;
+                $summary['matched_count']++;
+                continue;
+            }
+
+            $row['before'] = null;
+            $row['after'] = [
+                'id' => 0,
+                'slug' => $slug,
+                'name' => $name,
+            ];
+            if ($dry_run) {
+                $row['status'] = 'would_create';
+                $row['changed'] = true;
+                $summary['updated'][] = $row;
+                $summary['changed_count']++;
+                $summary['matched_count']++;
+                continue;
+            }
+
+            $created = wp_insert_term($name, 'word-category', ['slug' => $slug]);
+            if (is_wp_error($created) || !is_array($created)) {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'action' => $operation,
+                    'message' => is_wp_error($created) ? $created->get_error_message() : __('Could not create category.', 'll-tools-text-domain'),
+                ];
+                continue;
+            }
+
+            $created_id = (int) ($created['term_id'] ?? 0);
+            if (function_exists('ll_tools_set_category_wordset_owner')) {
+                ll_tools_set_category_wordset_owner($created_id, $wordset_id);
+            }
+            $category_ids[] = $created_id;
+            $category_ids = ll_tools_rest_automation_prepare_id_list($category_ids);
+            $row['status'] = 'created';
+            $row['changed'] = true;
+            $row['after'] = ll_tools_rest_automation_word_category_term_payload($created_id);
+            $changed_category_lookup[$created_id] = true;
+            $summary['updated'][] = $row;
+            $summary['changed_count']++;
+            $summary['updated_count']++;
+            $summary['created_count']++;
+            $summary['matched_count']++;
+
+            $prereq_ids = isset($action['prerequisite_ids']) ? $action['prerequisite_ids'] : ($action['prereq_ids'] ?? null);
+            if (is_array($prereq_ids)) {
+                $prereq_result = ll_tools_rest_automation_word_category_term_update_prereqs($wordset_id, $created_id, $prereq_ids, $category_ids);
+                if (is_wp_error($prereq_result)) {
+                    $summary['errors'][] = [
+                        'index' => $index,
+                        'action' => $operation,
+                        'category_id' => $created_id,
+                        'message' => $prereq_result->get_error_message(),
+                    ];
+                }
+            }
+            continue;
+        }
+
+        $requested_category_id = absint($action['category_id'] ?? $action['id'] ?? 0);
+        $category_id = ll_tools_rest_automation_word_category_term_resolve_id($requested_category_id, $wordset_id, $category_ids);
+        if ($category_id <= 0 || !in_array($category_id, $category_ids, true)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'action' => $operation,
+                'category_id' => $requested_category_id,
+                'message' => __('Category does not belong to this word set.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $term = get_term($category_id, 'word-category');
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'action' => $operation,
+                'category_id' => $category_id,
+                'message' => __('Category was not found.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+        $expected_name = isset($action['expected_name']) ? (string) $action['expected_name'] : (string) (($action['expected']['name'] ?? '') ?: '');
+        if ($expected_name !== '' && $expected_name !== (string) $term->name) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'action' => $operation,
+                'category_id' => $category_id,
+                'message' => __('Expected category name does not match live state.', 'll-tools-text-domain'),
+                'current_name' => (string) $term->name,
+                'expected_name' => $expected_name,
+            ];
+            continue;
+        }
+
+        if ($operation === 'rename_category') {
+            $new_name = sanitize_text_field((string) ($action['new_name'] ?? $action['name'] ?? ''));
+            $new_slug = array_key_exists('slug', $action) ? sanitize_title((string) $action['slug']) : '';
+            if ($new_name === '') {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'action' => $operation,
+                    'category_id' => $category_id,
+                    'message' => __('New category name is required.', 'll-tools-text-domain'),
+                ];
+                continue;
+            }
+
+            $row['category_id'] = $category_id;
+            $row['before'] = ll_tools_rest_automation_word_category_term_payload($category_id);
+            $after = $row['before'];
+            $after['name'] = $new_name;
+            if ($new_slug !== '') {
+                $after['slug'] = $new_slug;
+            }
+            $row['after'] = $after;
+            $changed = $new_name !== (string) $term->name || ($new_slug !== '' && $new_slug !== (string) $term->slug);
+            if (!$changed) {
+                $row['status'] = 'unchanged';
+                $summary['updated'][] = $row;
+                $summary['unchanged_count']++;
+                $summary['matched_count']++;
+                continue;
+            }
+            if ($dry_run) {
+                $row['status'] = 'would_update';
+                $row['changed'] = true;
+                $summary['updated'][] = $row;
+                $summary['changed_count']++;
+                $summary['matched_count']++;
+                continue;
+            }
+
+            $args = ['name' => $new_name];
+            if ($new_slug !== '') {
+                $args['slug'] = $new_slug;
+            }
+            $updated = wp_update_term($category_id, 'word-category', $args);
+            if (is_wp_error($updated)) {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'action' => $operation,
+                    'category_id' => $category_id,
+                    'message' => $updated->get_error_message(),
+                ];
+                continue;
+            }
+
+            $row['status'] = 'updated';
+            $row['changed'] = true;
+            $row['after'] = ll_tools_rest_automation_word_category_term_payload($category_id);
+            $changed_category_lookup[$category_id] = true;
+            $summary['updated'][] = $row;
+            $summary['changed_count']++;
+            $summary['updated_count']++;
+            $summary['matched_count']++;
+            continue;
+        }
+
+        if ($operation === 'set_prerequisites') {
+            $raw_prereq_ids = isset($action['prerequisite_ids']) ? $action['prerequisite_ids'] : ($action['prereq_ids'] ?? []);
+            $prereq_ids = is_array($raw_prereq_ids) ? ll_tools_rest_automation_prepare_id_list($raw_prereq_ids) : [];
+            $prereq_ids = array_values(array_map(static function (int $prereq_id) use ($wordset_id, $category_ids): int {
+                return ll_tools_rest_automation_word_category_term_resolve_id($prereq_id, $wordset_id, $category_ids);
+            }, $prereq_ids));
+            $prereq_ids = ll_tools_rest_automation_prepare_id_list($prereq_ids);
+            $current_map = ll_tools_rest_automation_word_category_term_prereq_map($wordset_id, $category_ids);
+            $current_ids = ll_tools_rest_automation_prepare_id_list((array) ($current_map[$category_id] ?? []));
+            $expected_ids = isset($action['expected_prereq_ids']) && is_array($action['expected_prereq_ids'])
+                ? ll_tools_rest_automation_prepare_id_list($action['expected_prereq_ids'])
+                : null;
+            if (is_array($expected_ids)) {
+                $expected_ids = array_values(array_map(static function (int $expected_id) use ($wordset_id, $category_ids): int {
+                    return ll_tools_rest_automation_word_category_term_resolve_id($expected_id, $wordset_id, $category_ids);
+                }, $expected_ids));
+                $expected_ids = ll_tools_rest_automation_prepare_id_list($expected_ids);
+            }
+            if (is_array($expected_ids) && $expected_ids !== $current_ids) {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'action' => $operation,
+                    'category_id' => $category_id,
+                    'message' => __('Expected prerequisite IDs do not match live state.', 'll-tools-text-domain'),
+                    'current_prereq_ids' => $current_ids,
+                    'expected_prereq_ids' => $expected_ids,
+                ];
+                continue;
+            }
+            $row['category_id'] = $category_id;
+            $row['before'] = ['prereq_ids' => $current_ids];
+            $row['after'] = ['prereq_ids' => $prereq_ids];
+            if ($current_ids === $prereq_ids) {
+                $row['status'] = 'unchanged';
+                $summary['updated'][] = $row;
+                $summary['unchanged_count']++;
+                $summary['matched_count']++;
+                continue;
+            }
+            if ($dry_run) {
+                $row['status'] = 'would_update';
+                $row['changed'] = true;
+                $summary['updated'][] = $row;
+                $summary['changed_count']++;
+                $summary['matched_count']++;
+                continue;
+            }
+
+            $prereq_result = ll_tools_rest_automation_word_category_term_update_prereqs($wordset_id, $category_id, $prereq_ids, $category_ids);
+            if (is_wp_error($prereq_result)) {
+                $summary['errors'][] = [
+                    'index' => $index,
+                    'action' => $operation,
+                    'category_id' => $category_id,
+                    'message' => $prereq_result->get_error_message(),
+                ];
+                continue;
+            }
+            $row['status'] = 'updated';
+            $row['changed'] = true;
+            $changed_category_lookup[$category_id] = true;
+            $summary['updated'][] = $row;
+            $summary['changed_count']++;
+            $summary['updated_count']++;
+            $summary['matched_count']++;
+            continue;
+        }
+
+        $word_count = ll_tools_rest_automation_word_category_term_word_count($category_id, $wordset_id);
+        $row['category_id'] = $category_id;
+        $row['before'] = ll_tools_rest_automation_word_category_term_payload($category_id) + ['word_count' => $word_count];
+        $row['after'] = null;
+        if ($word_count > 0) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'action' => $operation,
+                'category_id' => $category_id,
+                'message' => __('Refusing to delete a category that still has word posts in this word set.', 'll-tools-text-domain'),
+                'word_count' => $word_count,
+            ];
+            continue;
+        }
+        if ($dry_run) {
+            $row['status'] = 'would_delete';
+            $row['changed'] = true;
+            $summary['updated'][] = $row;
+            $summary['changed_count']++;
+            $summary['matched_count']++;
+            continue;
+        }
+
+        $deleted = wp_delete_term($category_id, 'word-category');
+        if (is_wp_error($deleted) || !$deleted) {
+            $summary['errors'][] = [
+                'index' => $index,
+                'action' => $operation,
+                'category_id' => $category_id,
+                'message' => is_wp_error($deleted) ? $deleted->get_error_message() : __('Could not delete category.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+        $map = ll_tools_rest_automation_word_category_term_prereq_map($wordset_id, $category_ids);
+        unset($map[$category_id]);
+        foreach ($map as $map_category_id => $deps) {
+            $map[$map_category_id] = array_values(array_diff(ll_tools_rest_automation_prepare_id_list((array) $deps), [$category_id]));
+            if (empty($map[$map_category_id])) {
+                unset($map[$map_category_id]);
+            }
+        }
+        if (empty($map)) {
+            delete_term_meta($wordset_id, 'll_wordset_category_prerequisites');
+        } else {
+            update_term_meta($wordset_id, 'll_wordset_category_prerequisites', $map);
+        }
+        $category_ids = array_values(array_diff($category_ids, [$category_id]));
+        $row['status'] = 'deleted';
+        $row['changed'] = true;
+        $changed_category_lookup[$category_id] = true;
+        $summary['updated'][] = $row;
+        $summary['changed_count']++;
+        $summary['updated_count']++;
+        $summary['deleted_count']++;
+        $summary['matched_count']++;
+    }
+
+    if (!empty($summary['errors'])) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_word_category_terms_preflight_failed',
+            __('Category term action preflight failed. No later failed action was applied.', 'll-tools-text-domain'),
+            ['status' => 400, 'summary' => $summary]
+        ), 400);
+    }
+
+    if (!$dry_run && !empty($changed_category_lookup)) {
+        $changed_category_ids = array_values(array_map('intval', array_keys($changed_category_lookup)));
+        sort($changed_category_ids, SORT_NUMERIC);
+        $summary['invalidated_category_ids'] = $changed_category_ids;
+        if (function_exists('ll_tools_bump_category_cache_version')) {
+            ll_tools_bump_category_cache_version($changed_category_ids);
+        }
+        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+            ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+            $summary['invalidated_wordset_cache'] = true;
+        }
+        if (function_exists('ll_tools_wordset_editor_invalidate_wordset')) {
+            ll_tools_wordset_editor_invalidate_wordset($wordset_id);
+            $summary['invalidated_wordset_cache'] = true;
+        }
+        if ($purge_public_static_cache && function_exists('ll_tools_purge_public_static_cache_once')) {
+            ll_tools_purge_public_static_cache_once(['wordset_ids' => [$wordset_id]]);
+            $summary['public_static_cache_purged'] = true;
+        }
     }
 
     return rest_ensure_response($summary);
@@ -7804,6 +8371,32 @@ function ll_tools_rest_register_automation_routes(): void {
                 'required' => false,
                 'type' => 'boolean',
                 'default' => true,
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-category-terms', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_word_category_terms',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'actions' => [
+                'required' => false,
+                'type' => 'array',
+            ],
+            'updates' => [
+                'required' => false,
+                'type' => 'array',
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+            'purge_public_static_cache' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
             ],
         ],
     ]);

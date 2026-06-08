@@ -211,6 +211,7 @@ Routes:
 - `POST /wordsets/{wordset}/word-title-updates`
 - `POST /wordsets/{wordset}/word-helper-updates`
 - `POST /wordsets/{wordset}/word-category-updates`
+- `POST /wordsets/{wordset}/word-category-terms`
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs`
 - `GET /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}`
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process`
@@ -770,6 +771,35 @@ For learner-facing categories, keep the resulting quiz pool at 5 or more
 quizzable items. If a category would contain only 1-4 items, add the words to a
 logical existing quizzable category, move them there, or hold them until enough
 related words are ready.
+
+### `POST /wordsets/{wordset}/word-category-terms`
+
+Creates, renames, deletes empty, or updates prerequisites for `word-category`
+terms that belong to one wordset. Use this for category taxonomy cleanup itself:
+creating a destination category, renaming learner-facing labels, deleting an
+empty retired category, or setting prerequisite IDs. Use
+`word-category-updates` or `word-metadata-plan-jobs` for moving word posts
+between categories.
+
+Body fields:
+
+- `actions` required array; `updates` is accepted as an alias
+- `dry_run` optional boolean; defaults to true
+- `purge_public_static_cache` optional boolean; default false
+
+Supported action shapes:
+
+```json
+{"action":"create_category","name":"Doğa: Ağaç ve Bitki Parçaları","slug":"doga-agac-ve-bitki-parcalari-genc-palu","prereq_ids":[8093,8158]}
+{"action":"rename_category","category_id":8238,"expected_name":"İhtiyaçlar","new_name":"İstekler ve İhtiyaçlar"}
+{"action":"set_prerequisites","category_id":8238,"expected_prereq_ids":[8197],"prereq_ids":[8197,8252]}
+{"action":"delete_empty_category","category_id":8366,"expected_name":"İstekler"}
+```
+
+The route resolves wordset-isolated effective category IDs, refuses categories
+outside the requested wordset, validates prerequisite IDs, rejects prerequisite
+cycles, and refuses to delete a category that still has word posts in the
+wordset. Dry-run first, then send `dry_run=false` for the same action list.
 
 ### `POST /wordsets/{wordset}/word-metadata-plan-jobs`
 

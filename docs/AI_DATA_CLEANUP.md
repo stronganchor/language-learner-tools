@@ -41,6 +41,17 @@ Use `word-category-updates` for small add/remove/move operations. Use
 `word-metadata-plan-jobs` when a cleanup batch touches final category state plus
 other metadata, or when hundreds of rows need explicit final values.
 
+For category taxonomy cleanup itself, use:
+
+```text
+POST /wp-json/ll-tools/v1/wordsets/{wordset}/word-category-terms
+```
+
+Use `word-category-terms` to create destination categories, rename existing
+category labels, delete empty retired categories, or set category prerequisite
+IDs. It defaults to dry-run mode and should be followed by word-level moves via
+`word-metadata-plan-jobs` once any newly created category IDs are known.
+
 ## Snapshot First
 
 For local planning, use the site-sync metadata snapshot:
