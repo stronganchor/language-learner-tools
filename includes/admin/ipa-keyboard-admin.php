@@ -3160,8 +3160,21 @@ function ll_tools_ipa_orthography_split_nonspace_tokens(string $text): array {
         return [];
     }
 
-    $tokens = preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+    if (strpbrk($text, "\t\n\r\0\x0B") === false) {
+        return array_values(array_filter(explode(' ', $text), static function (string $token): bool {
+            return $token !== '';
+        }));
+    }
+
+    $tokens = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
     return is_array($tokens) ? array_values(array_map('strval', $tokens)) : [];
+}
+
+function ll_tools_ipa_orthography_is_single_space_token_text(string $text): bool {
+    return $text !== ''
+        && $text === trim($text)
+        && strpos($text, '  ') === false
+        && strpbrk($text, "\t\n\r\0\x0B") === false;
 }
 
 function ll_tools_ipa_orthography_replace_char_span(string $text, int $start, int $length, string $replacement): string {
@@ -5064,7 +5077,7 @@ function ll_tools_ipa_orthography_apply_word_overrides_to_text(string $text, int
     }
 
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
-    if ($text === trim($text) && !preg_match('/\s{2,}/u', $text)) {
+    if (ll_tools_ipa_orthography_is_single_space_token_text($text)) {
         $tokens = ll_tools_ipa_orthography_split_nonspace_tokens($text);
         foreach ($tokens as $index => $token) {
             $key = ll_tools_ipa_orthography_profile_compare_key((string) $token, $language);
@@ -5113,7 +5126,7 @@ function ll_tools_ipa_orthography_apply_entry_bound_word_overrides_to_text(strin
     }
 
     $language = ll_tools_ipa_orthography_get_wordset_language($wordset_id);
-    if ($text === trim($text) && !preg_match('/\s{2,}/u', $text)) {
+    if (ll_tools_ipa_orthography_is_single_space_token_text($text)) {
         $tokens = ll_tools_ipa_orthography_split_nonspace_tokens($text);
         $applied_count = 0;
         foreach ($tokens as $index => $token) {
