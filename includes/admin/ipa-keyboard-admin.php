@@ -6605,7 +6605,6 @@ function ll_tools_ipa_keyboard_update_recording_validation(int $recording_id): a
 
     $wordset_ids = ll_tools_ipa_keyboard_get_recording_wordset_ids($recording_id);
     $state = [];
-    $active_issue_count = 0;
 
     foreach ($wordset_ids as $wordset_id) {
         $exceptions = ll_tools_ipa_keyboard_get_recording_validation_exception_keys($recording_id, $wordset_id);
@@ -6619,9 +6618,42 @@ function ll_tools_ipa_keyboard_update_recording_validation(int $recording_id): a
             'active' => array_values((array) ($validation['active'] ?? [])),
             'ignored' => array_values((array) ($validation['ignored'] ?? [])),
         ];
-        $active_issue_count += count((array) ($validation['active'] ?? []));
     }
 
+    return ll_tools_ipa_keyboard_save_recording_validation_state($recording_id, $state);
+}
+
+function ll_tools_ipa_keyboard_recording_belongs_to_wordset_id(int $recording_id, int $wordset_id, ?WP_Post $recording = null): bool {
+    if ($recording_id <= 0 || $wordset_id <= 0) {
+        return false;
+    }
+
+    if (!($recording instanceof WP_Post)) {
+        $recording = get_post($recording_id);
+    }
+    if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio') {
+        return false;
+    }
+
+    $word_id = (int) $recording->post_parent;
+    if ($word_id <= 0) {
+        return false;
+    }
+
+    $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+    return !is_wp_error($wordset_ids) && in_array($wordset_id, array_map('intval', (array) $wordset_ids), true);
+}
+
+function ll_tools_ipa_keyboard_count_active_validation_issues(array $state): int {
+    $active_issue_count = 0;
+    foreach ($state as $entry) {
+        $active_issue_count += count((array) ($entry['active'] ?? []));
+    }
+
+    return max(0, $active_issue_count);
+}
+
+function ll_tools_ipa_keyboard_save_recording_validation_state(int $recording_id, array $state): array {
     $state = ll_tools_ipa_keyboard_sanitize_validation_state($state);
     $state_meta_key = ll_tools_ipa_keyboard_validation_state_meta_key();
     $existing_state = ll_tools_ipa_keyboard_get_recording_validation_state($recording_id);
@@ -6633,6 +6665,7 @@ function ll_tools_ipa_keyboard_update_recording_validation(int $recording_id): a
         }
     }
 
+    $active_issue_count = ll_tools_ipa_keyboard_count_active_validation_issues($state);
     $issue_count_meta_key = ll_tools_ipa_keyboard_validation_issue_count_meta_key();
     $existing_issue_count = (int) get_post_meta($recording_id, $issue_count_meta_key, true);
     if ($active_issue_count > 0) {
@@ -6644,6 +6677,39 @@ function ll_tools_ipa_keyboard_update_recording_validation(int $recording_id): a
     }
 
     return $state;
+}
+
+function ll_tools_ipa_keyboard_update_recording_validation_for_wordset(
+    int $recording_id,
+    int $wordset_id,
+    bool $verify_membership = true
+): array {
+    $recording = get_post($recording_id);
+    if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio' || $wordset_id <= 0) {
+        return [];
+    }
+
+    if ($verify_membership && !ll_tools_ipa_keyboard_recording_belongs_to_wordset_id($recording_id, $wordset_id, $recording)) {
+        return [];
+    }
+
+    ll_tools_ipa_keyboard_clear_scheduled_recording_validation($recording_id);
+
+    $state = ll_tools_ipa_keyboard_get_recording_validation_state($recording_id);
+    $exceptions = ll_tools_ipa_keyboard_get_recording_validation_exception_keys($recording_id, $wordset_id);
+    $validation = ll_tools_ipa_keyboard_validate_recording_for_wordset($recording_id, $wordset_id, $exceptions);
+
+    if (empty($validation['active']) && empty($validation['ignored'])) {
+        unset($state[$wordset_id]);
+    } else {
+        $state[$wordset_id] = [
+            'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+            'active' => array_values((array) ($validation['active'] ?? [])),
+            'ignored' => array_values((array) ($validation['ignored'] ?? [])),
+        ];
+    }
+
+    return ll_tools_ipa_keyboard_save_recording_validation_state($recording_id, $state);
 }
 
 function ll_tools_ipa_keyboard_clear_scheduled_recording_validation(int $recording_id): void {

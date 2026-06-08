@@ -1532,6 +1532,76 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) (($create_data['job']['total'] ?? 0)));
     }
 
+    public function test_transcription_validation_job_updates_only_target_wordset_state(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Validation Target Wordset', 'rest-validation-target-wordset');
+        $other_wordset_id = $this->ensure_term('wordset', 'REST Validation Other Wordset', 'rest-validation-other-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Validation Target Category', 'rest-validation-target-category');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'm' => ['any' => 'm'],
+            'a' => ['any' => 'a'],
+        ]);
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Validation Target Word', 'Target');
+        wp_set_post_terms($word_id, [$wordset_id, $other_wordset_id], 'wordset', false);
+        $recording_id = $this->create_recording($word_id, 'ma', 'ma');
+
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version() - 1,
+                'active' => [
+                    [
+                        'rule_key' => 'builtin:orthography_mismatch',
+                        'code' => 'orthography_mismatch',
+                        'type' => 'builtin',
+                        'label' => 'Orthography mismatch',
+                        'message' => 'Stale issue',
+                        'count' => 1,
+                    ],
+                ],
+                'ignored' => [],
+            ],
+            $other_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [
+                    [
+                        'rule_key' => 'custom:other_wordset_issue',
+                        'code' => 'other_wordset_issue',
+                        'type' => 'custom',
+                        'label' => 'Other wordset issue',
+                        'message' => 'Preserve me',
+                        'count' => 1,
+                    ],
+                ],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 2);
+
+        wp_set_current_user($admin_id);
+
+        $create = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-validation-target-wordset/transcription-validation-jobs', [
+            'max_candidates' => 10,
+        ]);
+        $create_data = $create->get_data();
+        $this->assertSame(201, $create->get_status());
+        $this->assertIsArray($create_data);
+        $job_id = (string) (($create_data['job']['id'] ?? ''));
+        $this->assertNotSame('', $job_id);
+
+        $process = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-validation-target-wordset/transcription-validation-jobs/' . rawurlencode($job_id) . '/process', [
+            'limit' => 1,
+        ]);
+        $process_data = $process->get_data();
+        $this->assertSame(200, $process->get_status());
+        $this->assertIsArray($process_data);
+        $this->assertSame('completed', (string) (($process_data['job']['status'] ?? '')));
+        $this->assertSame([], $this->validation_codes($recording_id, $wordset_id));
+        $this->assertSame(['other_wordset_issue'], $this->validation_codes($recording_id, $other_wordset_id));
+        $this->assertSame(1, (int) get_post_meta($recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), true));
+    }
+
     public function test_transcription_validation_job_auto_process_schedules_and_clears_background_work(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

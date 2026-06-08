@@ -4013,7 +4013,11 @@ function ll_tools_rest_transcription_validation_job_process_records(array $job, 
         }
 
         try {
-            ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+            if (function_exists('ll_tools_ipa_keyboard_update_recording_validation_for_wordset')) {
+                ll_tools_ipa_keyboard_update_recording_validation_for_wordset($recording_id, $wordset_id, false);
+            } else {
+                ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+            }
             $summary['updated_count'] = max(0, (int) ($summary['updated_count'] ?? 0)) + 1;
             $recent[] = [
                 'recording_id' => $recording_id,
