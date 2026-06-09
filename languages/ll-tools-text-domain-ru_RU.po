@@ -3897,3 +3897,54 @@ msgstr "Задание проверки транскрипции не найде
 #: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
 msgid "Transcription validation job belongs to a different word set."
 msgstr "Задание проверки транскрипции принадлежит другому набору слов."
+
+#: includes/pages/wordset-pages.php:14549
+msgid "Recorder text"
+msgstr "Текст для записи"
+
+#: includes/pages/wordset-pages.php:14551
+#: includes/taxonomies/wordset-taxonomy.php:3173
+msgid "Recorder text visibility"
+msgstr "Видимость текста для записи"
+
+#: includes/pages/wordset-pages.php:15599
+#: includes/pages/wordset-pages.php:15600
+msgid "Not ready"
+msgstr "Не готово"
+
+#: includes/pages/wordset-pages.php:15615
+msgid "Zip unavailable"
+msgstr "ZIP недоступен"
+
+#: includes/pages/wordset-pages.php:15529
+#: includes/pages/wordset-pages.php:15619
+msgid "%d category ready"
+msgid_plural "%d categories ready"
+msgstr[0] "%d категория готова"
+msgstr[1] "%d категории готовы"
+msgstr[2] "%d категорий готовы"
+
+#: includes/pages/wordset-pages.php:15622
+msgid "No exportable categories"
+msgstr "Нет категорий для экспорта"
+
+#: includes/pages/wordset-pages.php:15625
+msgid "Admin permission required"
+msgstr "Требуются права администратора"
+
+#: includes/admin/teacher-classes-page.php:843
+#: includes/pages/wordset-pages.php:9368
+msgid "Remove %s from this class?"
+msgstr "Удалить %s из этого класса?"
+
+#: includes/admin/audio-processor-admin.php:193
+#: includes/admin/ipa-keyboard-admin.php:380
+#: includes/admin/teacher-classes-page.php:817
+#: includes/admin/teacher-classes-page.php:849
+#: includes/admin/word-option-rules-admin.php:1628
+#: includes/admin/word-option-rules-admin.php:1806
+#: includes/admin/word-option-rules-admin.php:298
+#: includes/pages/wordset-pages.php:9340
+#: includes/pages/wordset-pages.php:9375
+msgid "Remove"
+msgstr "Удалить"

@@ -26945,3 +26945,100 @@ msgstr "Der Transkriptionsvalidierungs-Job wurde nicht gefunden."
 #: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
 msgid "Transcription validation job belongs to a different word set."
 msgstr "Der Transkriptionsvalidierungs-Job gehört zu einem anderen Vokabelset."
+
+#: includes/api/automation-rest.php:3253
+msgid "Prerequisite target category does not belong to this word set."
+msgstr "Die Zielkategorie für Voraussetzungen gehört nicht zu diesem Vokabelset."
+
+#: includes/api/automation-rest.php:3260
+msgid "Prerequisite categories must belong to the requested word set and cannot include the target category."
+msgstr "Voraussetzungskategorien müssen zum angeforderten Vokabelset gehören und dürfen die Zielkategorie nicht enthalten."
+
+#: includes/api/automation-rest.php:3279
+msgid "The requested prerequisites would create a cycle."
+msgstr "Die angeforderten Voraussetzungen würden einen Zyklus erzeugen."
+
+#: includes/api/automation-rest.php:3338
+msgid "Provide one or more explicit category actions."
+msgstr "Gib eine oder mehrere explizite Kategorieaktionen an."
+
+#: includes/api/automation-rest.php:3347
+msgid "Too many category actions in one request. Maximum is %d."
+msgstr "Zu viele Kategorieaktionen in einer Anfrage. Maximal %d."
+
+#: includes/api/automation-rest.php:3358
+msgid "No categories are available for this word set."
+msgstr "Für dieses Vokabelset sind keine Kategorien verfügbar."
+
+#: includes/api/automation-rest.php:3378
+msgid "Choose create_category, rename_category, set_prerequisites, or delete_empty_category."
+msgstr "Wähle create_category, rename_category, set_prerequisites oder delete_empty_category."
+
+#: includes/api/automation-rest.php:3390
+msgid "Category name is required."
+msgstr "Kategoriename ist erforderlich."
+
+#: includes/api/automation-rest.php:3403
+msgid "A category with that slug exists outside this word set."
+msgstr "Eine Kategorie mit diesem Slug existiert außerhalb dieses Vokabelsets."
+
+#: includes/api/automation-rest.php:3435
+msgid "Could not create category."
+msgstr "Kategorie konnte nicht erstellt werden."
+
+#: includes/api/automation-rest.php:3478
+msgid "Category does not belong to this word set."
+msgstr "Kategorie gehört nicht zu diesem Vokabelset."
+
+#: includes/api/automation-rest.php:3489
+msgid "Category was not found."
+msgstr "Kategorie wurde nicht gefunden."
+
+#: includes/api/automation-rest.php:3499
+msgid "Expected category name does not match live state."
+msgstr "Der erwartete Kategoriename stimmt nicht mit dem Live-Zustand überein."
+
+#: includes/api/automation-rest.php:3514
+msgid "New category name is required."
+msgstr "Neuer Kategoriename ist erforderlich."
+
+#: includes/api/automation-rest.php:3593
+msgid "Expected prerequisite IDs do not match live state."
+msgstr "Die erwarteten Voraussetzung-IDs stimmen nicht mit dem Live-Zustand überein."
+
+#: includes/api/automation-rest.php:3647
+msgid "Refusing to delete a category that still has word posts in this word set."
+msgstr "Eine Kategorie, die in diesem Vokabelset noch Vokabelbeiträge enthält, wird nicht gelöscht."
+
+#: includes/api/automation-rest.php:3667
+msgid "Could not delete category."
+msgstr "Kategorie konnte nicht gelöscht werden."
+
+#: includes/api/automation-rest.php:3698
+msgid "Category term action preflight failed. No later failed action was applied."
+msgstr "Vorabprüfung der Kategorieterm-Aktion fehlgeschlagen. Keine spätere fehlgeschlagene Aktion wurde angewendet."
+
+#: includes/api/automation-rest.php:4312
+#: includes/api/automation-rest.php:4337
+msgid "Transcription validation job is already processing."
+msgstr "Der Transkriptionsvalidierungsauftrag wird bereits verarbeitet."
+
+#: includes/shortcodes/word-grid-shortcode.php:342
+msgid "Duplicate: not used as the default practice recording."
+msgstr "Duplikat: wird nicht als Standard-Übungsaufnahme verwendet."
+
+#: includes/shortcodes/word-grid-shortcode.php:343
+msgid "Secondary recording."
+msgstr "Sekundäre Aufnahme."
+
+#: includes/shortcodes/word-grid-shortcode.php:4762
+#: includes/shortcodes/word-grid-shortcode.php:5228
+#: includes/shortcodes/word-grid-shortcode.php:6871
+msgid "In sentence"
+msgstr "Im Satz"
+
+#: includes/shortcodes/word-grid-shortcode.php:5669
+#: includes/shortcodes/word-grid-shortcode.php:6111
+#: includes/shortcodes/word-grid-shortcode.php:6285
+msgid "Secondary"
+msgstr "Sekundär"

@@ -3859,3 +3859,53 @@ msgstr "A tarefa de validação de transcrição não foi encontrada."
 #: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
 msgid "Transcription validation job belongs to a different word set."
 msgstr "A tarefa de validação de transcrição pertence a outro conjunto de palavras."
+
+#: includes/pages/wordset-pages.php:14549
+msgid "Recorder text"
+msgstr "Texto para gravação"
+
+#: includes/pages/wordset-pages.php:14551
+#: includes/taxonomies/wordset-taxonomy.php:3173
+msgid "Recorder text visibility"
+msgstr "Visibilidade do texto para gravação"
+
+#: includes/pages/wordset-pages.php:15599
+#: includes/pages/wordset-pages.php:15600
+msgid "Not ready"
+msgstr "Não pronto"
+
+#: includes/pages/wordset-pages.php:15615
+msgid "Zip unavailable"
+msgstr "ZIP indisponível"
+
+#: includes/pages/wordset-pages.php:15529
+#: includes/pages/wordset-pages.php:15619
+msgid "%d category ready"
+msgid_plural "%d categories ready"
+msgstr[0] "%d categoria pronta"
+msgstr[1] "%d categorias prontas"
+
+#: includes/pages/wordset-pages.php:15622
+msgid "No exportable categories"
+msgstr "Nenhuma categoria exportável"
+
+#: includes/pages/wordset-pages.php:15625
+msgid "Admin permission required"
+msgstr "Permissão de administrador necessária"
+
+#: includes/admin/teacher-classes-page.php:843
+#: includes/pages/wordset-pages.php:9368
+msgid "Remove %s from this class?"
+msgstr "Remover %s desta turma?"
+
+#: includes/admin/audio-processor-admin.php:193
+#: includes/admin/ipa-keyboard-admin.php:380
+#: includes/admin/teacher-classes-page.php:817
+#: includes/admin/teacher-classes-page.php:849
+#: includes/admin/word-option-rules-admin.php:1628
+#: includes/admin/word-option-rules-admin.php:1806
+#: includes/admin/word-option-rules-admin.php:298
+#: includes/pages/wordset-pages.php:9340
+#: includes/pages/wordset-pages.php:9375
+msgid "Remove"
+msgstr "Remover"

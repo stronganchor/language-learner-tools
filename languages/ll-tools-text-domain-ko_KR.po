@@ -3852,3 +3852,52 @@ msgstr "전사 검증 작업을 찾을 수 없습니다."
 #: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
 msgid "Transcription validation job belongs to a different word set."
 msgstr "전사 검증 작업이 다른 단어 세트에 속합니다."
+
+#: includes/pages/wordset-pages.php:14549
+msgid "Recorder text"
+msgstr "녹음용 텍스트"
+
+#: includes/pages/wordset-pages.php:14551
+#: includes/taxonomies/wordset-taxonomy.php:3173
+msgid "Recorder text visibility"
+msgstr "녹음용 텍스트 표시 여부"
+
+#: includes/pages/wordset-pages.php:15599
+#: includes/pages/wordset-pages.php:15600
+msgid "Not ready"
+msgstr "준비되지 않음"
+
+#: includes/pages/wordset-pages.php:15615
+msgid "Zip unavailable"
+msgstr "ZIP을 사용할 수 없음"
+
+#: includes/pages/wordset-pages.php:15529
+#: includes/pages/wordset-pages.php:15619
+msgid "%d category ready"
+msgid_plural "%d categories ready"
+msgstr[0] "%d개 카테고리 준비됨"
+
+#: includes/pages/wordset-pages.php:15622
+msgid "No exportable categories"
+msgstr "내보낼 수 있는 카테고리가 없음"
+
+#: includes/pages/wordset-pages.php:15625
+msgid "Admin permission required"
+msgstr "관리자 권한 필요"
+
+#: includes/admin/teacher-classes-page.php:843
+#: includes/pages/wordset-pages.php:9368
+msgid "Remove %s from this class?"
+msgstr "이 수업에서 %s을(를) 제거할까요?"
+
+#: includes/admin/audio-processor-admin.php:193
+#: includes/admin/ipa-keyboard-admin.php:380
+#: includes/admin/teacher-classes-page.php:817
+#: includes/admin/teacher-classes-page.php:849
+#: includes/admin/word-option-rules-admin.php:1628
+#: includes/admin/word-option-rules-admin.php:1806
+#: includes/admin/word-option-rules-admin.php:298
+#: includes/pages/wordset-pages.php:9340
+#: includes/pages/wordset-pages.php:9375
+msgid "Remove"
+msgstr "제거"

@@ -26779,3 +26779,100 @@ msgstr "Transkripsiyon doğrulama işi bulunamadı."
 #: includes/api/automation-rest.php:3849 includes/api/automation-rest.php:3872
 msgid "Transcription validation job belongs to a different word set."
 msgstr "Transkripsiyon doğrulama işi farklı bir kelime setine ait."
+
+#: includes/api/automation-rest.php:3253
+msgid "Prerequisite target category does not belong to this word set."
+msgstr "Ön koşul hedef kategorisi bu kelime setine ait değil."
+
+#: includes/api/automation-rest.php:3260
+msgid "Prerequisite categories must belong to the requested word set and cannot include the target category."
+msgstr "Ön koşul kategorileri istenen kelime setine ait olmalı ve hedef kategoriyi içermemelidir."
+
+#: includes/api/automation-rest.php:3279
+msgid "The requested prerequisites would create a cycle."
+msgstr "İstenen ön koşullar bir döngü oluşturur."
+
+#: includes/api/automation-rest.php:3338
+msgid "Provide one or more explicit category actions."
+msgstr "Bir veya daha fazla açık kategori eylemi belirt."
+
+#: includes/api/automation-rest.php:3347
+msgid "Too many category actions in one request. Maximum is %d."
+msgstr "Tek istekte çok fazla kategori eylemi var. En fazla %d."
+
+#: includes/api/automation-rest.php:3358
+msgid "No categories are available for this word set."
+msgstr "Bu kelime seti için kullanılabilir kategori yok."
+
+#: includes/api/automation-rest.php:3378
+msgid "Choose create_category, rename_category, set_prerequisites, or delete_empty_category."
+msgstr "create_category, rename_category, set_prerequisites veya delete_empty_category seç."
+
+#: includes/api/automation-rest.php:3390
+msgid "Category name is required."
+msgstr "Kategori adı gerekli."
+
+#: includes/api/automation-rest.php:3403
+msgid "A category with that slug exists outside this word set."
+msgstr "Bu slug'a sahip bir kategori bu kelime setinin dışında mevcut."
+
+#: includes/api/automation-rest.php:3435
+msgid "Could not create category."
+msgstr "Kategori oluşturulamadı."
+
+#: includes/api/automation-rest.php:3478
+msgid "Category does not belong to this word set."
+msgstr "Kategori bu kelime setine ait değil."
+
+#: includes/api/automation-rest.php:3489
+msgid "Category was not found."
+msgstr "Kategori bulunamadı."
+
+#: includes/api/automation-rest.php:3499
+msgid "Expected category name does not match live state."
+msgstr "Beklenen kategori adı canlı durumla eşleşmiyor."
+
+#: includes/api/automation-rest.php:3514
+msgid "New category name is required."
+msgstr "Yeni kategori adı gerekli."
+
+#: includes/api/automation-rest.php:3593
+msgid "Expected prerequisite IDs do not match live state."
+msgstr "Beklenen ön koşul kimlikleri canlı durumla eşleşmiyor."
+
+#: includes/api/automation-rest.php:3647
+msgid "Refusing to delete a category that still has word posts in this word set."
+msgstr "Bu kelime setinde hâlâ kelime gönderileri bulunan kategori silinmeyecek."
+
+#: includes/api/automation-rest.php:3667
+msgid "Could not delete category."
+msgstr "Kategori silinemedi."
+
+#: includes/api/automation-rest.php:3698
+msgid "Category term action preflight failed. No later failed action was applied."
+msgstr "Kategori terimi eylemi ön kontrolü başarısız oldu. Daha sonra başarısız olan hiçbir eylem uygulanmadı."
+
+#: includes/api/automation-rest.php:4312
+#: includes/api/automation-rest.php:4337
+msgid "Transcription validation job is already processing."
+msgstr "Transkripsiyon doğrulama işi zaten işleniyor."
+
+#: includes/shortcodes/word-grid-shortcode.php:342
+msgid "Duplicate: not used as the default practice recording."
+msgstr "Yinelenen: varsayılan alıştırma ses kaydı olarak kullanılmıyor."
+
+#: includes/shortcodes/word-grid-shortcode.php:343
+msgid "Secondary recording."
+msgstr "İkincil ses kaydı."
+
+#: includes/shortcodes/word-grid-shortcode.php:4762
+#: includes/shortcodes/word-grid-shortcode.php:5228
+#: includes/shortcodes/word-grid-shortcode.php:6871
+msgid "In sentence"
+msgstr "Cümle içinde"
+
+#: includes/shortcodes/word-grid-shortcode.php:5669
+#: includes/shortcodes/word-grid-shortcode.php:6111
+#: includes/shortcodes/word-grid-shortcode.php:6285
+msgid "Secondary"
+msgstr "İkincil"
