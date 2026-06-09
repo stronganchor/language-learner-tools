@@ -20,6 +20,7 @@
 
 - Add bounded prewarming after explicit cache purges or dictionary content changes. Start with canonical dictionary landing and letter pages, not arbitrary search/result combinations.
 - Add stale-while-revalidate behavior for anonymous dictionary/public static-cache hits, guarded by a per-key lock so one request refreshes an expired file while other anonymous requests can temporarily receive the stale copy.
+- Add LL-owned static caching for public blog/article pages that contain LL shortcodes. These pages are intentionally excluded from generic page caches today, but a plugin-owned cache could safely refresh LL nonce placeholders while avoiding full PHP renders for mostly static article content.
 - Add an admin cache diagnostic panel that shows current LL cache status, page-cache bypass reason, cache directory size, and last purge/prewarm time.
 - Make public language-switcher links more cache-safe on generic pages, either by avoiding nonce-bearing URLs in cacheable markup or by resolving the switch action dynamically.
 - Re-run a small live sitemap/header audit after major cache or template changes to confirm expected pages are cached and LL-specific pages remain excluded.
