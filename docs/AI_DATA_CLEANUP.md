@@ -52,6 +52,46 @@ category labels, delete empty retired categories, or set category prerequisite
 IDs. It defaults to dry-run mode and should be followed by word-level moves via
 `word-metadata-plan-jobs` once any newly created category IDs are known.
 
+On the Local/WSL development setup, use the local helper so the dry-run and
+write payloads stay identical. Omit `--apply` for dry-run review:
+
+```bash
+bash bin/ll-word-category-terms-local.sh genc-palu create \
+  --name "Plants - Tree parts" \
+  --slug plants-tree-parts-genc-palu \
+  --prereq-ids 8093,8158 \
+  -u codex-temp:YOUR_PASSWORD
+
+bash bin/ll-word-category-terms-local.sh genc-palu rename \
+  --category-id 8238 \
+  --expected-name "Needs" \
+  --new-name "Wants and Needs" \
+  -u codex-temp:YOUR_PASSWORD
+
+bash bin/ll-word-category-terms-local.sh genc-palu delete \
+  --category-id 8366 \
+  --expected-name "Retired holding category" \
+  -u codex-temp:YOUR_PASSWORD
+
+bash bin/ll-word-category-terms-local.sh genc-palu prerequisites \
+  --category-id 8238 \
+  --expected-prereq-ids 8197 \
+  --prereq-ids 8197,8252 \
+  -u codex-temp:YOUR_PASSWORD
+```
+
+After checking the dry-run response, re-run the same command with `--apply`.
+For clearing prerequisites, submit an empty list explicitly:
+
+```bash
+bash bin/ll-word-category-terms-local.sh genc-palu prerequisites \
+  --category-id 8238 \
+  --expected-prereq-ids 8197,8252 \
+  --prereq-ids "" \
+  --apply \
+  -u codex-temp:YOUR_PASSWORD
+```
+
 ## Snapshot First
 
 For local planning, use the site-sync metadata snapshot:

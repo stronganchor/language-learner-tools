@@ -192,6 +192,62 @@ bash bin/ll-rest-local.sh /wp-json/ll-tools/v1/wordsets/english/report \
   -u codex-temp:YOUR_PASSWORD
 ```
 
+For Local/WSL category taxonomy cleanup, use the word-category-term helper
+instead of hand-writing the JSON. It builds the `word-category-terms` payload
+and submits a dry run by default:
+
+```bash
+bash bin/ll-word-category-terms-local.sh genc-palu create \
+  --name "Plants - Tree parts" \
+  --slug plants-tree-parts-genc-palu \
+  --prereq-ids 8093,8158 \
+  -u codex-temp:YOUR_PASSWORD
+```
+
+After reviewing the dry-run response, re-run the same command with `--apply`.
+The helper repeats the dry run first and sends the write payload only when the
+dry-run HTTP status is successful:
+
+```bash
+bash bin/ll-word-category-terms-local.sh genc-palu create \
+  --name "Plants - Tree parts" \
+  --slug plants-tree-parts-genc-palu \
+  --prereq-ids 8093,8158 \
+  --apply \
+  -u codex-temp:YOUR_PASSWORD
+```
+
+Exact local helper commands for the other supported category-term operations:
+
+```bash
+bash bin/ll-word-category-terms-local.sh genc-palu rename \
+  --category-id 8238 \
+  --expected-name "Needs" \
+  --new-name "Wants and Needs" \
+  -u codex-temp:YOUR_PASSWORD
+
+bash bin/ll-word-category-terms-local.sh genc-palu delete \
+  --category-id 8366 \
+  --expected-name "Retired holding category" \
+  -u codex-temp:YOUR_PASSWORD
+
+bash bin/ll-word-category-terms-local.sh genc-palu prerequisites \
+  --category-id 8238 \
+  --expected-prereq-ids 8197 \
+  --prereq-ids 8197,8252 \
+  -u codex-temp:YOUR_PASSWORD
+
+bash bin/ll-word-category-terms-local.sh genc-palu prerequisites \
+  --category-id 8238 \
+  --expected-prereq-ids 8197,8252 \
+  --prereq-ids "" \
+  -u codex-temp:YOUR_PASSWORD
+```
+
+Add `--apply` to any of those commands only after checking the dry-run response.
+Use `--purge-public-static-cache` with `--apply` when the taxonomy change affects
+public cached output that must be refreshed immediately.
+
 ## Endpoints
 
 Base namespace:
