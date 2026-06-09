@@ -78,7 +78,11 @@ for env_var in \
     LL_E2E_PERF_MAX_LOAD_MS \
     LL_E2E_PERF_MAX_INTERACTION_MS \
     LL_E2E_PERF_MAX_REGRESSION_RATIO \
-    LL_E2E_PERF_MAX_REGRESSION_MS
+    LL_E2E_PERF_MAX_REGRESSION_MS \
+    PHP_BIN \
+    WP_CLI \
+    WP_CLI_PHAR \
+    LL_TOOLS_TEXT_TO_TEXT_INTRO_FIXTURE_MANIFEST
 do
     if [[ -n "${!env_var:-}" ]]; then
         export "$env_var"
@@ -131,7 +135,11 @@ for env_var in \
     LL_E2E_PERF_MAX_LOAD_MS \
     LL_E2E_PERF_MAX_INTERACTION_MS \
     LL_E2E_PERF_MAX_REGRESSION_RATIO \
-    LL_E2E_PERF_MAX_REGRESSION_MS
+    LL_E2E_PERF_MAX_REGRESSION_MS \
+    PHP_BIN \
+    WP_CLI \
+    WP_CLI_PHAR \
+    LL_TOOLS_TEXT_TO_TEXT_INTRO_FIXTURE_MANIFEST
 do
     append_wslenv_var "$env_var"
 done

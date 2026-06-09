@@ -1,0 +1,62 @@
+{
+  "fixtureVersion": "2026-06-09.1",
+  "description": "Small WordPress-backed E2E fixture for text-to-text Learning introductions.",
+  "page": {
+    "slug": "ll-e2e-text-to-text-intro",
+    "title": "LL E2E Text-to-Text Intro",
+    "shortcodeMode": "learning"
+  },
+  "wordset": {
+    "slug": "ll-e2e-biblical-hebrew-55-3",
+    "name": "Word Boat Biblical Hebrew 55.3",
+    "titleLanguageRole": "target"
+  },
+  "category": {
+    "slug": "ll-e2e-biblical-hebrew-55-3-core",
+    "name": "Word Boat Biblical Hebrew 55.3",
+    "promptType": "text_translation",
+    "optionType": "text_title"
+  },
+  "words": [
+    {
+      "slug": "ll-e2e-bh-55-3-or",
+      "title": "\u05d0\u05d5\u05b9\u05e8",
+      "translation": "light"
+    },
+    {
+      "slug": "ll-e2e-bh-55-3-erets",
+      "title": "\u05d0\u05b6\u05e8\u05b6\u05e5",
+      "translation": "land"
+    },
+    {
+      "slug": "ll-e2e-bh-55-3-mayim",
+      "title": "\u05de\u05b7\u05d9\u05b4\u05dd",
+      "translation": "water"
+    },
+    {
+      "slug": "ll-e2e-bh-55-3-bayit",
+      "title": "\u05d1\u05bc\u05b7\u05d9\u05b4\u05ea",
+      "translation": "house"
+    },
+    {
+      "slug": "ll-e2e-bh-55-3-melekh",
+      "title": "\u05de\u05b6\u05dc\u05b6\u05da\u05b0",
+      "translation": "king"
+    },
+    {
+      "slug": "ll-e2e-bh-55-3-shalom",
+      "title": "\u05e9\u05c1\u05b8\u05dc\u05d5\u05b9\u05dd",
+      "translation": "peace"
+    },
+    {
+      "slug": "ll-e2e-bh-55-3-ruach",
+      "title": "\u05e8\u05d5\u05bc\u05d7\u05b7",
+      "translation": "spirit"
+    },
+    {
+      "slug": "ll-e2e-bh-55-3-sefer",
+      "title": "\u05e1\u05b5\u05e4\u05b6\u05e8",
+      "translation": "scroll"
+    }
+  ]
+}
