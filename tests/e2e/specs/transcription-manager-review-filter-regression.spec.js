@@ -55,6 +55,45 @@ function buildMarkup() {
   `;
 }
 
+async function getOrthographySuggestionLayout(page) {
+  return page.evaluate(() => {
+    function roundedRect(element) {
+      if (!element) {
+        return {
+          top: 0,
+          height: 0
+        };
+      }
+
+      const rect = element.getBoundingClientRect();
+      return {
+        top: Math.round(rect.top),
+        height: Math.round(rect.height)
+      };
+    }
+
+    const row = document.querySelector('#ll-ipa-search-results tbody tr');
+    const rowRect = roundedRect(row);
+    const textBlock = row ? row.querySelector('.ll-ipa-search-text-cell') : null;
+    const ipaBlock = row ? row.querySelector('.ll-ipa-search-ipa-cell') : null;
+    const transcriptionCell = row ? row.querySelector('.ll-ipa-search-transcription-cell') : null;
+    const issuesWrap = row ? row.querySelector('.ll-ipa-search-issues-wrap') : null;
+    const textRect = roundedRect(textBlock);
+    const ipaRect = roundedRect(ipaBlock);
+
+    return {
+      rowHeight: rowRect.height,
+      textBlockHeight: textRect.height,
+      ipaBlockHeight: ipaRect.height,
+      ipaBlockTop: ipaRect.top - rowRect.top,
+      transcriptionHeight: roundedRect(transcriptionCell).height,
+      issuesHeight: roundedRect(issuesWrap).height,
+      suggestionCount: row ? row.querySelectorAll('.ll-ipa-search-suggestion-chip').length : 0,
+      textMinHeight: textBlock ? window.getComputedStyle(textBlock).minHeight : ''
+    };
+  });
+}
+
 test('reviewed rows stay visible until the transcription search is manually refreshed', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.route('**/*', route => route.fulfill({
@@ -1050,6 +1089,7 @@ test('orthography suggestion chips update the field and autosave inline', async 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.unroute('**/*');
   await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
   await page.evaluate(() => {
     const spacer = document.createElement('div');
     spacer.style.height = '1400px';
@@ -1234,6 +1274,8 @@ test('orthography suggestion chips update the field and autosave inline', async 
   await expect(textInput).toHaveValue('alfa');
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveText('Change to: alpha');
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip .ll-ipa-mismatch-mark')).toHaveText('a');
+  const beforeSuggestionLayout = await getOrthographySuggestionLayout(page);
+  expect(beforeSuggestionLayout.suggestionCount).toBe(1);
 
   await row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip').click();
   const scrollBeforeSaveFinish = await page.evaluate(() => Math.round(window.scrollY));
@@ -1241,6 +1283,12 @@ test('orthography suggestion chips update the field and autosave inline', async 
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-mismatch-mark')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saving...');
+  const savingSuggestionLayout = await getOrthographySuggestionLayout(page);
+  expect(savingSuggestionLayout.suggestionCount).toBe(0);
+  expect(savingSuggestionLayout.textBlockHeight).toBeGreaterThanOrEqual(beforeSuggestionLayout.textBlockHeight);
+  expect(savingSuggestionLayout.transcriptionHeight).toBeGreaterThanOrEqual(beforeSuggestionLayout.transcriptionHeight);
+  expect(savingSuggestionLayout.rowHeight).toBeGreaterThanOrEqual(beforeSuggestionLayout.rowHeight);
+  expect(Math.abs(savingSuggestionLayout.ipaBlockTop - beforeSuggestionLayout.ipaBlockTop)).toBeLessThanOrEqual(1);
   await expect.poll(async () => page.evaluate(() => {
     return window.__llOrthographySuggestionMock.pendingUpdateRequests.length;
   })).toBe(1);
@@ -1255,6 +1303,10 @@ test('orthography suggestion chips update the field and autosave inline', async 
   await expect(textInput).toHaveValue('alpha');
   await expect(row.locator('.ll-ipa-search-suggestion-chip')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saved.');
+  const savedSuggestionLayout = await getOrthographySuggestionLayout(page);
+  expect(savedSuggestionLayout.textBlockHeight).toBeGreaterThanOrEqual(beforeSuggestionLayout.textBlockHeight);
+  expect(savedSuggestionLayout.rowHeight).toBeGreaterThanOrEqual(beforeSuggestionLayout.rowHeight);
+  expect(Math.abs(savedSuggestionLayout.ipaBlockTop - beforeSuggestionLayout.ipaBlockTop)).toBeLessThanOrEqual(1);
   await page.evaluate(() => new Promise(resolve => window.requestAnimationFrame(resolve)));
   const scrollAfterSaveFinish = await page.evaluate(() => Math.round(window.scrollY));
   expect(Math.abs(scrollAfterSaveFinish - scrollBeforeSaveFinish)).toBeLessThanOrEqual(1);

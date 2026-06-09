@@ -3658,8 +3658,10 @@
     }
 
     function replaceSearchRow($row, rec) {
+        const layoutLocks = getSearchRowLayoutLocks($row);
         const $newRow = buildSearchRow(rec);
         $row.replaceWith($newRow);
+        applySearchRowLayoutLocks($newRow, layoutLocks);
         cleanupDetachedIpaKeyboard();
         return $newRow;
     }
@@ -3838,6 +3840,77 @@
         $row.toggleClass('is-search-row-dirty', !!dirty);
     }
 
+    function getSearchRowLayoutLockTargets($row) {
+        return [
+            {
+                key: 'recording_text',
+                selector: '.ll-ipa-search-text-cell'
+            },
+            {
+                key: 'recording_ipa',
+                selector: '.ll-ipa-search-ipa-cell'
+            },
+            {
+                key: 'issues',
+                selector: '.ll-ipa-search-issues-wrap'
+            }
+        ].map(function (target) {
+            return {
+                key: target.key,
+                $target: $row.find(target.selector).first()
+            };
+        });
+    }
+
+    function getSearchRowLayoutLocks($row) {
+        const locks = $row && $row.length ? $row.data('llSearchRowLayoutLocks') : null;
+        return locks && typeof locks === 'object' ? locks : {};
+    }
+
+    function applySearchRowLayoutLocks($row, locks) {
+        if (!$row || !$row.length || !locks || typeof locks !== 'object') {
+            return;
+        }
+
+        const appliedLocks = {};
+        getSearchRowLayoutLockTargets($row).forEach(function (target) {
+            const height = Math.max(0, Math.ceil(parseFloat(locks[target.key]) || 0));
+            if (!target.$target.length || !height) {
+                return;
+            }
+
+            target.$target
+                .addClass('is-search-layout-locked')
+                .css('min-height', height + 'px');
+            appliedLocks[target.key] = height;
+        });
+
+        if (Object.keys(appliedLocks).length) {
+            $row.data('llSearchRowLayoutLocks', appliedLocks);
+        }
+    }
+
+    function lockSearchRowLayout($row) {
+        if (!$row || !$row.length) {
+            return;
+        }
+
+        const locks = {};
+        getSearchRowLayoutLockTargets($row).forEach(function (target) {
+            const element = target.$target.get(0);
+            if (!element) {
+                return;
+            }
+
+            const rect = element.getBoundingClientRect();
+            const height = Math.ceil(rect.height || element.offsetHeight || 0);
+            if (height > 0) {
+                locks[target.key] = height;
+            }
+        });
+        applySearchRowLayoutLocks($row, locks);
+    }
+
     function updateSearchRowSavedValues($row) {
         $row.find('.ll-ipa-search-text-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-text-input').first().val() || '').toString());
         $row.find('.ll-ipa-search-ipa-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-ipa-input').first().val() || '').toString());
@@ -3919,6 +3992,7 @@
             return false;
         }
 
+        lockSearchRowLayout($row);
         $input.val(nextValue);
         const $fieldBlock = $row.find(getSearchReviewFieldSelector(normalizedField)).first();
         $fieldBlock.find('.ll-ipa-search-field-suggestions').remove();

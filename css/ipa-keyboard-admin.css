@@ -1398,6 +1398,8 @@ body.ll-ipa-keyboard-open {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    min-height: 28px;
+    align-content: flex-start;
 }
 
 .ll-ipa-search-suggestion-chip {
@@ -1442,7 +1444,13 @@ body.ll-ipa-keyboard-open {
 
 .ll-ipa-search-table tr.is-search-row-dirty .ll-ipa-search-input-highlight,
 .ll-ipa-search-table tr.is-search-row-dirty .ll-ipa-search-field-suggestions {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.ll-ipa-search-field-block.is-search-layout-locked,
+.ll-ipa-search-issues-wrap.is-search-layout-locked {
+    box-sizing: border-box;
 }
 
 .ll-ipa-search-field-review-note {
