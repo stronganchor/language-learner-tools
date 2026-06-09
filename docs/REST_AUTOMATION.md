@@ -476,24 +476,27 @@ curl -u codex-temp:YOUR_PASSWORD \
     "updates": [
       {
         "word_id": 123,
-        "old_word_english_meaning": "Bad helper text",
-        "word_english_meaning": "Fixed helper text"
+        "old_helper_translation": "Bad helper text",
+        "helper_translation": "Fixed helper text"
       },
       {
         "word_id": 456,
         "old_word_translation": "Bad stored translation",
-        "word_translation": "Fixed stored translation",
-        "word_english_meaning": "Fixed helper text"
+        "word_translation": "Fixed stored translation"
       }
     ]
   }'
 ```
 
-Use this endpoint for broad repair of `word_translation` or
-`word_english_meaning` when each row already has a known word ID. It validates
-that each word belongs to the requested wordset, supports optional old-value
-guards, writes only those two meta keys, returns a compact before/after payload,
-and performs cache cleanup once for the batch. Do not use the generic
+Use this endpoint for broad repair of the canonical helper/default translation
+when each row already has a known word ID. Legacy aliases such as
+`helper_translation`, `known_language_translation`, `english_meaning`, and
+`word_english_meaning` are accepted for compatibility, but they are normalized
+to `word_translation`; this route does not directly update legacy
+`word_english_meaning` meta. It validates that each word belongs to the
+requested wordset, supports optional old-value guards, returns a compact
+before/after payload, and performs cache cleanup once for the batch. Do not use
+the generic
 `/bulk-update` route for large live helper-translation repair: that route
 rebuilds full editor rows and can be much heavier per word. Keep calls serial
 and honor `Retry-After`; if the live site is slow, add a client-side delay after
@@ -512,11 +515,11 @@ curl -u codex-temp:YOUR_PASSWORD \
         "word_id": 123,
         "set": {
           "word_category_ids": [8336],
-          "word_english_meaning": "wring out a wet cloth"
+          "word_translation": "wring out a wet cloth"
         },
         "expected": {
           "word_category_ids": [8231, 8336],
-          "word_english_meaning": ""
+          "word_translation": ""
         }
       },
       {
@@ -557,10 +560,12 @@ does not scan the full wordset for each row: the caller supplies explicit word
 IDs and desired final values. Each row may include `expected` values from a
 recent `site-sync/snapshot`; stale rows are skipped with `reason:
 expected_mismatch` instead of overwritten. Supported set/expected fields include
-`word_title`, `word_text`, `word_translation`, `word_english_meaning`,
-`word_note`, `dictionary_entry_id`, `dictionary_entry_title`, `part_of_speech`,
-`grammatical_gender`, `grammatical_plurality`, `verb_tense`, `verb_mood`, and
-`word_category_ids`.
+`word_title`, `word_text`, `word_translation`, `word_translations`,
+`word_translation_{locale}`, `word_note`, `dictionary_entry_id`,
+`dictionary_entry_title`, `part_of_speech`, `grammatical_gender`,
+`grammatical_plurality`, `verb_tense`, `verb_mood`, and `word_category_ids`.
+Legacy helper aliases are accepted for compatibility and normalized to
+`word_translation`; `word_english_meaning` is not a planned storage target.
 
 Dry-run staged word-option groups by category slug and word slugs:
 
@@ -747,7 +752,6 @@ Supported update fields:
 - `word_title` / `post_title` (direct WordPress post title)
 - `word_text`
 - `word_translation`
-- `word_english_meaning` (direct helper/known-language translation meta)
 - `word_note`
 - `dictionary_entry_title`
 - `part_of_speech`
@@ -756,11 +760,10 @@ Supported update fields:
 - `verb_tense`
 - `verb_mood`
 
-For title-as-translation wordsets, `word_translation` can be the target-language
-storage slot rather than the helper-language translation. Use
-`word_english_meaning` for direct Turkish/helper translation recovery or repair
-passes when you do not want the endpoint to apply display-mode title swapping.
-For broad live repair of `word_translation` or `word_english_meaning`, prefer
+For title-as-translation wordsets, use `word_text` for the target-language form
+and `word_translation`/`helper_translation` for the helper/default translation;
+the endpoint normalizes legacy translation aliases to the canonical storage
+path. For broad live repair of `word_translation`, prefer
 `POST /wordsets/{wordset}/word-helper-updates` because it avoids full row
 rebuilds and coalesces cache cleanup.
 
@@ -779,23 +782,27 @@ Typical uses:
 
 Updates helper/known-language translation metadata for words that already have
 known word IDs. This route is intended for efficient live repair of corrupted or
-missing `word_translation` and `word_english_meaning` values.
+missing canonical `word_translation` values.
 
 Body fields:
 
 - `updates` required array
 - `word_id` or `id` required per update
 - `word_translation` optional direct stored translation value
-- `word_english_meaning` optional direct helper/known-language value
-- `value` plus `field=word_translation` or `field=word_english_meaning`
-  optional alternative syntax
+- `helper_translation`, `known_language_translation`, `english_meaning`, and
+  `word_english_meaning` optional legacy aliases for `word_translation`
+- `value` plus `field=word_translation`; legacy helper field aliases are
+  accepted and normalized to `word_translation`
 - `old_word_translation` optional stale-value guard
-- `old_word_english_meaning` optional stale-value guard
+- `old_helper_translation`, `old_word_english_meaning`,
+  `expected_word_english_meaning`, and `expected_helper_translation` optional
+  legacy aliases for the `word_translation` stale-value guard
 - `dry_run` optional boolean
 
-Dry runs and writes return compact `before` and `after` values for only the two
-supported fields. The write cap defaults to 10 rows and is capped at 25 rows
-unless the site customizes the REST automation filters.
+Dry runs and writes return compact `before` and `after` values. The response
+includes legacy `word_english_meaning` for inspection, but writes are applied to
+`word_translation` and dictionary links only. The write cap defaults to 10 rows
+and is capped at 25 rows unless the site customizes the REST automation filters.
 
 ### `POST /wordsets/{wordset}/word-category-updates`
 
@@ -880,7 +887,6 @@ Supported `set` and `expected` fields:
 - `word_title` / `post_title`
 - `word_text`
 - `word_translation`
-- `word_english_meaning`
 - `word_translations`
 - `word_translation_{locale}`, such as `word_translation_en`,
   `word_translation_tr`, or `word_translation_de`
@@ -896,8 +902,10 @@ Supported `set` and `expected` fields:
 
 `word_text` is the target-language learner-facing word. `word_translation` is
 the default/helper translation for the wordset's configured translation
-language. `word_english_meaning` is a legacy helper-translation alias and may
-contain a non-English language on older sites. Use `word_translations` or
+language. `word_english_meaning` is a legacy storage key and is not advertised
+as a writable metadata-plan field. If old payloads send `word_english_meaning`,
+`helper_translation`, `known_language_translation`, or `english_meaning`, the
+route normalizes them to `word_translation`. Use `word_translations` or
 `word_translation_{locale}` for additional future display languages rather than
 putting parenthetical translations in titles or target text.
 
@@ -914,6 +922,32 @@ If an `expected` value no longer matches live state, that row is skipped with
 `reason: expected_mismatch`; other rows continue. This is the preferred route for
 AI-assisted category reorganization and mixed metadata cleanup where the agent
 has already decided the exact target word IDs and final values.
+
+### `POST /wordsets/{wordset}/legacy-translation-cleanup`
+
+Scans legacy `word_english_meaning` rows for one wordset and optionally performs
+guarded cleanup. This is the safe replacement for ad hoc SQL or broad WP-CLI
+legacy translation cleanup.
+
+Body fields:
+
+- `mode` optional string, default `report`
+  - `report`: classify rows only
+  - `copy_missing`: copy legacy text into `word_translation` only when the
+    canonical/default-locale translation is empty and non-conflicting
+  - `clear_redundant`: delete `word_english_meaning` only when it already
+    matches the canonical translation
+  - `copy_missing_and_clear_redundant`: do both safe actions in one pass
+- `dry_run` optional boolean, default true
+- `limit` optional integer; write calls default to 50 and cap at 100, dry runs
+  default to 200 and cap at 500
+- `offset` optional integer for paged scans
+
+The response includes `legacy_only_count`, `redundant_count`, `conflict_count`,
+`planned_update_count`, `copied_count`, `cleared_count`, `updated_count`, and a
+row list with `planned_actions`. Conflicts are reported and never overwritten.
+Run with `dry_run=true` first, review conflicts locally, then process safe
+cleanup serially with the returned `next_offset` while honoring `Retry-After`.
 
 ### `POST /wordsets/{wordset}/transcriptions`
 

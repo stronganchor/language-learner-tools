@@ -16,7 +16,6 @@ function ll_tools_rest_word_metadata_plan_supported_fields(): array {
         'word_title',
         'word_text',
         'word_translation',
-        'word_english_meaning',
         'word_translations',
         'word_note',
         'dictionary_entry_id',
@@ -46,10 +45,10 @@ function ll_tools_rest_word_metadata_plan_field_alias(string $field): string {
         'translation_map' => 'word_translations',
         'word_translation_map' => 'word_translations',
         'word_translations' => 'word_translations',
-        'helper_translation' => 'word_english_meaning',
-        'known_language_translation' => 'word_english_meaning',
-        'english_meaning' => 'word_english_meaning',
-        'word_english_meaning' => 'word_english_meaning',
+        'helper_translation' => 'word_translation',
+        'known_language_translation' => 'word_translation',
+        'english_meaning' => 'word_translation',
+        'word_english_meaning' => 'word_translation',
         'note' => 'word_note',
         'word_note' => 'word_note',
         'dictionary_entry' => 'dictionary_entry_title',
@@ -193,7 +192,7 @@ function ll_tools_rest_word_metadata_plan_normalize_value(string $field, $value,
             ? ll_sanitize_word_title_text($raw)
             : trim(sanitize_text_field($raw));
     }
-    if (in_array($field, ['word_translation', 'word_english_meaning'], true) || ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
+    if ($field === 'word_translation' || ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
         return ll_tools_rest_automation_sanitize_helper_translation_value($value);
     }
     if ($field === 'word_translations') {
@@ -692,14 +691,6 @@ function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word
             }
             return true;
 
-        case 'word_english_meaning':
-            if ((string) $value === '') {
-                delete_post_meta($word_id, 'word_english_meaning');
-            } else {
-                update_post_meta($word_id, 'word_english_meaning', sanitize_text_field((string) $value));
-            }
-            return true;
-
         case 'word_translations':
             return function_exists('ll_tools_update_word_translation_map')
                 ? ll_tools_update_word_translation_map($word_id, (array) $value)
@@ -919,7 +910,6 @@ function ll_tools_rest_word_metadata_plan_apply_plan(array $plan, WP_Term $words
         'word_title',
         'word_text',
         'word_translation',
-        'word_english_meaning',
         'word_translations',
         'word_note',
         'dictionary_entry_id',
@@ -1050,6 +1040,253 @@ function ll_tools_rest_word_metadata_plan_invalidate_after_chunk(int $wordset_id
         'invalidated_wordset_cache' => !empty($changed_word_ids) || !empty($changed_category_ids),
         'public_static_cache_purged' => $purge_public_static_cache && (!empty($changed_word_ids) || !empty($changed_category_ids)),
     ];
+}
+
+function ll_tools_rest_word_metadata_legacy_cleanup_mode(string $mode): string {
+    $mode = sanitize_key($mode);
+    $aliases = [
+        '' => 'report',
+        'dry_run' => 'report',
+        'scan' => 'report',
+        'report' => 'report',
+        'copy' => 'copy_missing',
+        'migrate' => 'copy_missing',
+        'copy_missing' => 'copy_missing',
+        'clear' => 'clear_redundant',
+        'clear_redundant' => 'clear_redundant',
+        'copy_and_clear' => 'copy_missing_and_clear_redundant',
+        'migrate_and_clear' => 'copy_missing_and_clear_redundant',
+        'copy_missing_and_clear_redundant' => 'copy_missing_and_clear_redundant',
+    ];
+
+    return (string) ($aliases[$mode] ?? 'report');
+}
+
+function ll_tools_rest_word_metadata_legacy_cleanup_query_word_ids(int $wordset_id, int $limit, int $offset): array {
+    $query = new WP_Query([
+        'post_type' => 'words',
+        'post_status' => 'any',
+        'fields' => 'ids',
+        'posts_per_page' => max(1, $limit),
+        'offset' => max(0, $offset),
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'no_found_rows' => false,
+        'tax_query' => [
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+                'include_children' => false,
+            ],
+        ],
+        'meta_query' => [
+            [
+                'key' => 'word_english_meaning',
+                'value' => '',
+                'compare' => '!=',
+            ],
+        ],
+    ]);
+
+    $ids = array_values(array_map('intval', (array) $query->posts));
+    $total = (int) $query->found_posts;
+    wp_reset_postdata();
+
+    return [
+        'ids' => $ids,
+        'total' => $total,
+    ];
+}
+
+function ll_tools_rest_word_metadata_legacy_cleanup_row(int $word_id, int $wordset_id, string $default_locale, string $mode): array {
+    $legacy = trim((string) get_post_meta($word_id, 'word_english_meaning', true));
+    $word_translation = trim((string) get_post_meta($word_id, 'word_translation', true));
+    $translation_map = function_exists('ll_tools_get_word_translation_map')
+        ? ll_tools_get_word_translation_map($word_id)
+        : [];
+    $locale_value = $default_locale !== '' ? trim((string) ($translation_map[$default_locale] ?? '')) : '';
+    $post = get_post($word_id);
+
+    $targets = [];
+    if ($word_translation !== '') {
+        $targets['word_translation'] = $word_translation;
+    }
+    if ($default_locale !== '' && $locale_value !== '') {
+        $targets['word_translation_' . $default_locale] = $locale_value;
+    }
+
+    $conflicting_targets = [];
+    foreach ($targets as $field => $value) {
+        if ($legacy !== '' && $value !== $legacy) {
+            $conflicting_targets[$field] = $value;
+        }
+    }
+
+    $can_copy = $legacy !== '' && $word_translation === '' && empty($conflicting_targets);
+    $has_canonical_match = $legacy !== '' && $word_translation !== '' && $word_translation === $legacy;
+    $can_clear = $legacy !== '' && $has_canonical_match && empty($conflicting_targets);
+
+    $will_copy = in_array($mode, ['copy_missing', 'copy_missing_and_clear_redundant'], true) && $can_copy;
+    $will_clear = (
+        ($mode === 'clear_redundant' && $can_clear)
+        || ($mode === 'copy_missing_and_clear_redundant' && ($can_clear || $will_copy))
+    );
+
+    $classification = 'no_action';
+    if ($legacy === '') {
+        $classification = 'no_legacy';
+    } elseif (!empty($conflicting_targets)) {
+        $classification = 'conflict';
+    } elseif ($can_copy) {
+        $classification = 'legacy_only';
+    } elseif ($can_clear) {
+        $classification = 'redundant';
+    }
+
+    return [
+        'word_id' => $word_id,
+        'word_slug' => $post instanceof WP_Post ? (string) $post->post_name : '',
+        'word_title' => $post instanceof WP_Post ? (string) $post->post_title : '',
+        'classification' => $classification,
+        'default_translation_locale' => $default_locale,
+        'values' => [
+            'word_translation' => $word_translation,
+            'word_translation_default_locale' => $locale_value,
+            'word_english_meaning' => $legacy,
+        ],
+        'conflicting_targets' => $conflicting_targets,
+        'can_copy_missing' => $can_copy,
+        'can_clear_redundant' => $can_clear,
+        'planned_actions' => [
+            'copy_legacy_to_word_translation' => $will_copy,
+            'clear_word_english_meaning' => $will_clear,
+        ],
+    ];
+}
+
+function ll_tools_rest_automation_word_legacy_translation_cleanup(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $dry_run = $request->has_param('dry_run')
+        ? rest_sanitize_boolean($request->get_param('dry_run'))
+        : true;
+    $mode = ll_tools_rest_word_metadata_legacy_cleanup_mode(
+        (string) ($request->get_param('mode') ?: $request->get_param('action'))
+    );
+    $offset = max(0, (int) $request->get_param('offset'));
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'legacy_translation_cleanup', $dry_run);
+    $limit = (int) $limit_info['effective'];
+    $wordset_id = (int) $wordset_term->term_id;
+    $translation_language = function_exists('ll_tools_get_wordset_translation_language')
+        ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
+        : '';
+    $default_locale = function_exists('ll_tools_normalize_translation_locale')
+        ? ll_tools_normalize_translation_locale($translation_language)
+        : sanitize_key($translation_language);
+    $query_result = ll_tools_rest_word_metadata_legacy_cleanup_query_word_ids($wordset_id, $limit, $offset);
+    $word_ids = array_values(array_map('intval', (array) ($query_result['ids'] ?? [])));
+    $total = (int) ($query_result['total'] ?? 0);
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'mode' => $mode,
+        'wordset' => [
+            'id' => $wordset_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'default_translation_locale' => $default_locale,
+        'batch' => [
+            'requested_limit' => (int) $limit_info['requested'],
+            'effective_limit' => $limit,
+            'max_limit' => (int) $limit_info['max'],
+            'limit_clamped' => (bool) $limit_info['clamped'],
+            'offset' => $offset,
+            'has_more' => ($offset + count($word_ids)) < $total,
+            'next_offset' => ($offset + count($word_ids)) < $total ? $offset + count($word_ids) : null,
+        ],
+        'legacy_total_count' => $total,
+        'scanned_count' => count($word_ids),
+        'legacy_only_count' => 0,
+        'redundant_count' => 0,
+        'conflict_count' => 0,
+        'planned_update_count' => 0,
+        'copied_count' => 0,
+        'cleared_count' => 0,
+        'updated_count' => 0,
+        'error_count' => 0,
+        'rows' => [],
+        'errors' => [],
+    ];
+
+    $changed_word_ids = [];
+    foreach ($word_ids as $word_id) {
+        $row = ll_tools_rest_word_metadata_legacy_cleanup_row($word_id, $wordset_id, $default_locale, $mode);
+        $classification = (string) ($row['classification'] ?? '');
+        if ($classification === 'legacy_only') {
+            $summary['legacy_only_count']++;
+        } elseif ($classification === 'redundant') {
+            $summary['redundant_count']++;
+        } elseif ($classification === 'conflict') {
+            $summary['conflict_count']++;
+        }
+
+        $planned_actions = (array) ($row['planned_actions'] ?? []);
+        $will_copy = !empty($planned_actions['copy_legacy_to_word_translation']);
+        $will_clear = !empty($planned_actions['clear_word_english_meaning']);
+        if ($will_copy || $will_clear) {
+            $summary['planned_update_count']++;
+        }
+
+        if (!$dry_run && ($will_copy || $will_clear)) {
+            $legacy = (string) (($row['values'] ?? [])['word_english_meaning'] ?? '');
+            if ($will_copy) {
+                $copy_result = ll_tools_rest_word_metadata_plan_apply_field($wordset_id, $word_id, 'word_translation', $legacy);
+                if (is_wp_error($copy_result)) {
+                    $summary['errors'][] = [
+                        'word_id' => $word_id,
+                        'word_slug' => (string) ($row['word_slug'] ?? ''),
+                        'message' => $copy_result->get_error_message(),
+                    ];
+                    $summary['error_count']++;
+                    $row['error'] = $copy_result->get_error_message();
+                    $summary['rows'][] = $row;
+                    continue;
+                }
+                $summary['copied_count']++;
+            }
+            if ($will_clear) {
+                delete_post_meta($word_id, 'word_english_meaning');
+                $summary['cleared_count']++;
+            }
+            $summary['updated_count']++;
+            $changed_word_ids[] = $word_id;
+            clean_post_cache($word_id);
+            $row['applied'] = true;
+        }
+
+        $summary['rows'][] = $row;
+    }
+
+    if (!$dry_run && !empty($changed_word_ids)) {
+        $changed_word_ids = array_values(array_unique(array_filter(array_map('intval', $changed_word_ids))));
+        if (function_exists('ll_tools_word_grid_bump_category_cache_for_words')) {
+            ll_tools_word_grid_bump_category_cache_for_words($changed_word_ids);
+        }
+        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+            ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+        }
+        if (function_exists('ll_tools_wordset_editor_invalidate_wordset')) {
+            ll_tools_wordset_editor_invalidate_wordset($wordset_id);
+        }
+    }
+
+    return rest_ensure_response($summary);
 }
 
 function ll_tools_rest_automation_create_word_metadata_plan_job(WP_REST_Request $request) {

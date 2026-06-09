@@ -62,6 +62,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', (string) ($data['routes']['orthography_conversion'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-title-updates', (string) ($data['routes']['word_title_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', (string) ($data['routes']['word_helper_updates'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/legacy-translation-cleanup', (string) ($data['routes']['legacy_translation_cleanup'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-updates', (string) ($data['routes']['word_category_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-terms', (string) ($data['routes']['word_category_terms'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', (string) ($data['routes']['word_metadata_plan_jobs'] ?? ''));
@@ -70,11 +71,17 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(10, (int) (($data['resource_guard']['word_category_updates_batch']['max_write_limit'] ?? 0)));
         $this->assertSame(10, (int) (($data['resource_guard']['word_metadata_plan_jobs_batch']['default_process_limit'] ?? 0)));
         $this->assertSame(25, (int) (($data['resource_guard']['word_metadata_plan_jobs_batch']['max_process_limit'] ?? 0)));
+        $this->assertSame(50, (int) (($data['resource_guard']['legacy_translation_cleanup_batch']['default_write_limit'] ?? 0)));
+        $this->assertSame(100, (int) (($data['resource_guard']['legacy_translation_cleanup_batch']['max_write_limit'] ?? 0)));
         $this->assertSame(25, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['default_process_limit'] ?? 0)));
         $this->assertSame(100, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['max_process_limit'] ?? 0)));
         $this->assertSame(15, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['default_max_runtime_seconds'] ?? 0)));
         $this->assertSame(45, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['max_runtime_seconds'] ?? 0)));
-        $this->assertContains('word_category_ids', array_map('strval', (array) (($data['resource_guard']['word_metadata_plan_jobs_batch']['supported_fields'] ?? []))));
+        $supported_metadata_fields = array_map('strval', (array) (($data['resource_guard']['word_metadata_plan_jobs_batch']['supported_fields'] ?? [])));
+        $this->assertContains('word_category_ids', $supported_metadata_fields);
+        $this->assertContains('word_translation', $supported_metadata_fields);
+        $this->assertContains('word_translations', $supported_metadata_fields);
+        $this->assertNotContains('word_english_meaning', $supported_metadata_fields);
     }
 
     public function test_plugin_update_route_is_admin_only_and_defaults_to_dry_run(): void
@@ -669,9 +676,10 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertIsArray($data);
         $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
         $this->assertSame('Target Title', get_the_title($word_id));
-        $this->assertSame('Target Text', (string) get_post_meta($word_id, 'word_translation', true));
-        $this->assertSame('New Helper', (string) get_post_meta($word_id, 'word_english_meaning', true));
-        $this->assertContains('word_english_meaning', (array) ($data['updated'][0]['changed_keys'] ?? []));
+        $this->assertSame('New Helper', (string) get_post_meta($word_id, 'word_translation', true));
+        $this->assertSame('Old Helper', (string) get_post_meta($word_id, 'word_english_meaning', true));
+        $this->assertContains('word_translation', (array) ($data['updated'][0]['changed_keys'] ?? []));
+        $this->assertNotContains('word_english_meaning', (array) ($data['updated'][0]['changed_keys'] ?? []));
     }
 
     public function test_display_text_uses_helper_translation_when_title_role_is_translation(): void
@@ -878,7 +886,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $guarded_word_id = $this->create_word($wordset_id, [$category_id], 'Helper Guarded', 'Guarded Target');
         $unchanged_word_id = $this->create_word($wordset_id, [$category_id], 'Helper Same', 'Same Target');
         $blocked_word_id = $this->create_word($blocked_wordset_id, [$category_id], 'Blocked Helper', 'Blocked Target');
-        update_post_meta($changed_word_id, 'word_english_meaning', 'Old Helper');
+        update_post_meta($changed_word_id, 'word_english_meaning', 'Old Legacy Helper');
         update_post_meta($guarded_word_id, 'word_english_meaning', 'Guarded Helper');
         update_post_meta($unchanged_word_id, 'word_english_meaning', 'Same Helper');
         update_post_meta($blocked_word_id, 'word_english_meaning', 'Blocked Helper');
@@ -889,24 +897,21 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'updates' => [
                 [
                     'word_id' => $changed_word_id,
-                    'old_word_translation' => 'Old Target',
-                    'word_translation' => 'New Target',
-                    'old_word_english_meaning' => 'Old Helper',
-                    'word_english_meaning' => 'New Helper',
+                    'old_helper_translation' => 'Old Target',
+                    'helper_translation' => 'New Target',
                 ],
                 [
                     'word_id' => $guarded_word_id,
                     'old_helper_translation' => 'Not Current Helper',
-                    'word_english_meaning' => 'Should Not Apply',
+                    'helper_translation' => 'Should Not Apply',
                 ],
                 [
                     'word_id' => $unchanged_word_id,
-                    'word_translation' => 'Same Target',
-                    'word_english_meaning' => 'Same Helper',
+                    'helper_translation' => 'Same Target',
                 ],
                 [
                     'word_id' => $blocked_word_id,
-                    'word_english_meaning' => 'Should Not Apply',
+                    'helper_translation' => 'Should Not Apply',
                 ],
             ],
         ];
@@ -926,7 +931,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($dry_data['unchanged_count'] ?? 0));
         $this->assertSame(2, (int) ($dry_data['skipped_count'] ?? 0));
         $this->assertSame('Old Target', (string) get_post_meta($changed_word_id, 'word_translation', true));
-        $this->assertSame('Old Helper', (string) get_post_meta($changed_word_id, 'word_english_meaning', true));
+        $this->assertSame('Old Legacy Helper', (string) get_post_meta($changed_word_id, 'word_english_meaning', true));
 
         $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-fast-helper-wordset/word-helper-updates', $payload);
 
@@ -936,11 +941,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($data['changed_count'] ?? 0));
         $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
         $this->assertSame('New Target', (string) get_post_meta($changed_word_id, 'word_translation', true));
-        $this->assertSame('New Helper', (string) get_post_meta($changed_word_id, 'word_english_meaning', true));
+        $this->assertSame('Old Legacy Helper', (string) get_post_meta($changed_word_id, 'word_english_meaning', true));
         $this->assertSame('Guarded Helper', (string) get_post_meta($guarded_word_id, 'word_english_meaning', true));
         $this->assertSame('Blocked Helper', (string) get_post_meta($blocked_word_id, 'word_english_meaning', true));
         $this->assertContains('word_translation', (array) ($data['updated'][0]['changed_keys'] ?? []));
-        $this->assertContains('word_english_meaning', (array) ($data['updated'][0]['changed_keys'] ?? []));
+        $this->assertNotContains('word_english_meaning', (array) ($data['updated'][0]['changed_keys'] ?? []));
         $this->assertSame('old_value_mismatch', (string) ($data['skipped'][0]['reason'] ?? ''));
         $this->assertSame('not_in_wordset', (string) ($data['skipped'][1]['reason'] ?? ''));
     }
@@ -1027,6 +1032,68 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertIsArray($data);
         $this->assertSame('ll_tools_rest_too_many_word_helper_updates', (string) ($data['code'] ?? ''));
         $this->assertStringContainsString('25', (string) ($data['message'] ?? ''));
+    }
+
+    public function test_legacy_translation_cleanup_reports_copies_and_clears_safe_rows(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Legacy Cleanup Wordset', 'rest-legacy-cleanup-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Legacy Cleanup Category', 'rest-legacy-cleanup-category');
+        update_term_meta(
+            $wordset_id,
+            defined('LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY') ? LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY : 'll_wordset_translation_language',
+            'Turkish'
+        );
+
+        $copy_word_id = $this->create_word($wordset_id, [$category_id], 'Legacy Copy Word', '');
+        $redundant_word_id = $this->create_word($wordset_id, [$category_id], 'Legacy Redundant Word', 'Ayni');
+        $conflict_word_id = $this->create_word($wordset_id, [$category_id], 'Legacy Conflict Word', 'Canonical');
+        $translation_only_word_id = $this->create_word($wordset_id, [$category_id], 'Translation Only Word', 'Translation Only');
+        update_post_meta($copy_word_id, 'word_english_meaning', 'Kopya');
+        update_post_meta($redundant_word_id, 'word_english_meaning', 'Ayni');
+        update_post_meta($conflict_word_id, 'word_english_meaning', 'Legacy');
+
+        wp_set_current_user($admin_id);
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-legacy-cleanup-wordset/legacy-translation-cleanup', [
+            'mode' => 'copy_missing_and_clear_redundant',
+            'dry_run' => true,
+            'limit' => 10,
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['dry_run'] ?? false));
+        $this->assertSame(3, (int) ($dry_data['legacy_total_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['legacy_only_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['redundant_count'] ?? 0));
+        $this->assertSame(1, (int) ($dry_data['conflict_count'] ?? 0));
+        $this->assertSame(2, (int) ($dry_data['planned_update_count'] ?? 0));
+        $this->assertSame('', (string) get_post_meta($copy_word_id, 'word_translation', true));
+        $this->assertSame('Kopya', (string) get_post_meta($copy_word_id, 'word_english_meaning', true));
+
+        $apply = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-legacy-cleanup-wordset/legacy-translation-cleanup', [
+            'mode' => 'copy_missing_and_clear_redundant',
+            'dry_run' => false,
+            'limit' => 10,
+        ]);
+
+        $this->assertSame(200, $apply->get_status());
+        $data = $apply->get_data();
+        $this->assertIsArray($data);
+        $this->assertFalse((bool) ($data['dry_run'] ?? true));
+        $this->assertSame(2, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['copied_count'] ?? 0));
+        $this->assertSame(2, (int) ($data['cleared_count'] ?? 0));
+        $this->assertSame('Kopya', (string) get_post_meta($copy_word_id, 'word_translation', true));
+        $this->assertSame('', (string) get_post_meta($copy_word_id, 'word_english_meaning', true));
+        $this->assertSame('Ayni', (string) get_post_meta($redundant_word_id, 'word_translation', true));
+        $this->assertSame('', (string) get_post_meta($redundant_word_id, 'word_english_meaning', true));
+        $this->assertSame('Canonical', (string) get_post_meta($conflict_word_id, 'word_translation', true));
+        $this->assertSame('Legacy', (string) get_post_meta($conflict_word_id, 'word_english_meaning', true));
+        $this->assertSame('Translation Only', (string) get_post_meta($translation_only_word_id, 'word_translation', true));
+        $this->assertSame('', (string) get_post_meta($translation_only_word_id, 'word_english_meaning', true));
     }
 
     public function test_word_category_updates_route_targets_explicit_word_ids_and_syncs_linked_images(): void
@@ -1289,11 +1356,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                     'word_id' => $category_word_id,
                     'set' => [
                         'word_category_ids' => [$target_id],
-                        'word_english_meaning' => 'New helper',
+                        'word_english_meaning' => 'New category translation',
                     ],
                     'expected' => [
                         'word_category_ids' => [$source_id],
-                        'word_english_meaning' => 'Old helper',
+                        'word_translation' => 'Old category translation',
                     ],
                 ],
                 [
@@ -1328,7 +1395,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('running', (string) (($first_data['job']['status'] ?? '')));
         $this->assertSame(1, (int) (($first_data['job']['current_index'] ?? 0)));
         $this->assertSame(1, (int) (($first_data['job']['summary']['updated_count'] ?? 0)));
-        $this->assertSame('New helper', (string) get_post_meta($category_word_id, 'word_english_meaning', true));
+        $this->assertSame('New category translation', (string) get_post_meta($category_word_id, 'word_translation', true));
+        $this->assertSame('Old helper', (string) get_post_meta($category_word_id, 'word_english_meaning', true));
         $category_word_categories = array_map('intval', wp_get_post_terms($category_word_id, 'word-category', ['fields' => 'ids']));
         $source_candidates = array_values(array_unique([$source_id, $effective_source_id]));
         $target_candidates = array_values(array_unique([$target_id, $effective_target_id]));
@@ -1419,7 +1487,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $wordset_id = $this->ensure_term('wordset', 'REST Metadata Plan Guard Wordset', 'rest-metadata-plan-guard-wordset');
         $category_id = $this->ensure_term('word-category', 'REST Metadata Plan Guard Category', 'rest-metadata-plan-guard-category');
         $word_id = $this->create_word($wordset_id, [$category_id], 'REST Metadata Plan Guard Word', 'Guard translation');
-        update_post_meta($word_id, 'word_english_meaning', 'Old guarded helper');
+        update_post_meta($word_id, 'word_english_meaning', 'Old guarded legacy helper');
 
         wp_set_current_user($admin_id);
 
@@ -1431,7 +1499,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                         'word_english_meaning' => 'AI helper',
                     ],
                     'expected' => [
-                        'word_english_meaning' => 'Old guarded helper',
+                        'word_translation' => 'Guard translation',
                     ],
                 ],
             ],
@@ -1442,7 +1510,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $job_id = (string) (($create_data['job']['id'] ?? ''));
         $this->assertNotSame('', $job_id);
 
-        update_post_meta($word_id, 'word_english_meaning', 'Human-edited helper');
+        update_post_meta($word_id, 'word_translation', 'Human-edited helper');
 
         $process = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-metadata-plan-guard-wordset/word-metadata-plan-jobs/' . rawurlencode($job_id) . '/process');
         $this->assertSame(200, $process->get_status());
@@ -1453,8 +1521,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) (($data['job']['summary']['skipped_count'] ?? 0)));
         $processed = array_values((array) ($data['processed'] ?? []));
         $this->assertSame('expected_mismatch', (string) ($processed[0]['reason'] ?? ''));
-        $this->assertSame('word_english_meaning', (string) ($processed[0]['field'] ?? ''));
-        $this->assertSame('Human-edited helper', (string) get_post_meta($word_id, 'word_english_meaning', true));
+        $this->assertSame('word_translation', (string) ($processed[0]['field'] ?? ''));
+        $this->assertSame('Human-edited helper', (string) get_post_meta($word_id, 'word_translation', true));
+        $this->assertSame('Old guarded legacy helper', (string) get_post_meta($word_id, 'word_english_meaning', true));
     }
 
     public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void

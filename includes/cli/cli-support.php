@@ -66,7 +66,6 @@ function ll_tools_cli_supported_update_fields(): array {
         'word_title',
         'word_text',
         'word_translation',
-        'word_english_meaning',
         'word_note',
         'dictionary_entry_title',
         'part_of_speech',
@@ -116,6 +115,9 @@ function ll_tools_cli_parse_set_argument(string $raw_set) {
 
     [$raw_field, $raw_value] = explode('=', $raw_set, 2);
     $field = sanitize_key(trim((string) $raw_field));
+    if (in_array($field, ['translation', 'helper_translation', 'known_language_translation', 'english_meaning', 'word_english_meaning'], true)) {
+        $field = 'word_translation';
+    }
     if ($field === '') {
         return new WP_Error('ll_tools_cli_missing_set_field', __('Missing field name in --set argument.', 'll-tools-text-domain'));
     }
@@ -639,10 +641,8 @@ function ll_tools_cli_update_word_translation(int $word_id, string $translation_
     if ($store_in_title) {
         if ($translation_text !== '') {
             update_post_meta($word_id, 'word_translation', $translation_text);
-            update_post_meta($word_id, 'word_english_meaning', $translation_text);
         } else {
             delete_post_meta($word_id, 'word_translation');
-            delete_post_meta($word_id, 'word_english_meaning');
         }
         if (function_exists('ll_tools_update_word_default_translation_locale')) {
             ll_tools_update_word_default_translation_locale($word_id, $translation_text);
@@ -654,12 +654,6 @@ function ll_tools_cli_update_word_translation(int $word_id, string $translation_
         'ID' => $word_id,
         'post_title' => $translation_text,
     ]);
-
-    if ($translation_text !== '') {
-        update_post_meta($word_id, 'word_english_meaning', $translation_text);
-    } else {
-        delete_post_meta($word_id, 'word_english_meaning');
-    }
 
     if ($word_text !== '') {
         update_post_meta($word_id, 'word_translation', $word_text);
@@ -675,6 +669,9 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
     $wordset_id = (int) $wordset_id;
     $word_id = (int) $word_id;
     $field = sanitize_key($field);
+    if (in_array($field, ['translation', 'helper_translation', 'known_language_translation', 'english_meaning', 'word_english_meaning'], true)) {
+        $field = 'word_translation';
+    }
     $value = trim($value);
 
     if ($wordset_id <= 0 || $word_id <= 0) {
@@ -707,14 +704,6 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
 
         case 'word_translation':
             ll_tools_cli_update_word_translation($word_id, $value);
-            break;
-
-        case 'word_english_meaning':
-            if ($value === '') {
-                delete_post_meta($word_id, 'word_english_meaning');
-            } else {
-                update_post_meta($word_id, 'word_english_meaning', sanitize_text_field($value));
-            }
             break;
 
         case 'word_note':

@@ -203,6 +203,11 @@ Common conventions:
   learner-facing target-language form; `word_translation` is the default/helper
   translation for the wordset; `word_translations` is the locale-keyed map for
   additional translations such as `tr`, `en`, and `de`.
+- Treat `word_english_meaning` as legacy storage. Do not plan new writes to it.
+  Automation aliases such as `helper_translation`, `known_language_translation`,
+  `english_meaning`, and `word_english_meaning` normalize to
+  `word_translation`; use `legacy-translation-cleanup` to inspect, migrate, or
+  clear old legacy rows safely.
 - Do not encode translations inside post titles or `word_text` with
   parenthetical text. If a row displays as "translation (target word)", fix the
   field orientation before moving it to a new category.
