@@ -143,8 +143,11 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
         ll_tools_render_vocab_lesson_trash_notice();
         $output = (string) ob_get_clean();
         $decoded_output = html_entity_decode($output, ENT_QUOTES, 'UTF-8');
+        $lesson_title = (string) get_the_title($fixture['lesson_id']);
 
+        $this->assertStringContainsString('"' . $lesson_title . '" was moved to the Trash', $decoded_output);
         $this->assertStringContainsString('moved to the Trash', $decoded_output);
+        $this->assertStringNotContainsString('1 vocab lesson page was moved to the Trash', $decoded_output);
         $this->assertStringContainsString('Undo', $decoded_output);
         $this->assertStringContainsString('View Trash', $decoded_output);
         $this->assertStringContainsString('Dismiss', $decoded_output);
@@ -166,6 +169,43 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
         $this->assertSame('1', (string) ($redirect_query['ll_vocab_lesson_restored'] ?? ''));
         $this->assertSame('publish', get_post_status($fixture['lesson_id']));
         $this->assertSame([], ll_tools_get_trashed_vocab_lesson_notice_post_ids());
+    }
+
+    public function test_trash_notice_names_first_two_lessons_and_summarizes_remaining_lessons(): void
+    {
+        $this->grantViewLlToolsCapabilityToAdministrators();
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $lesson_titles = [
+            'Trash Notice Alpha',
+            'Trash Notice Beta',
+            'Trash Notice Gamma',
+            'Trash Notice Delta',
+            'Trash Notice Epsilon',
+        ];
+        $lesson_ids = [];
+
+        foreach ($lesson_titles as $lesson_title) {
+            $fixture = $this->createBareLessonFixture($lesson_title);
+            $lesson_ids[] = $fixture['lesson_id'];
+
+            $this->assertInstanceOf(WP_Post::class, wp_trash_post($fixture['lesson_id']));
+        }
+
+        $this->assertSame($lesson_ids, ll_tools_get_trashed_vocab_lesson_notice_post_ids());
+
+        set_current_screen('dashboard');
+
+        ob_start();
+        ll_tools_render_vocab_lesson_trash_notice();
+        $output = (string) ob_get_clean();
+        $decoded_output = html_entity_decode($output, ENT_QUOTES, 'UTF-8');
+
+        $this->assertStringContainsString('"Trash Notice Alpha", "Trash Notice Beta", and 3 additional vocab lessons were moved to the Trash', $decoded_output);
+        $this->assertStringNotContainsString('5 vocab lesson pages were moved to the Trash', $decoded_output);
+        $this->assertStringNotContainsString('Trash Notice Gamma" was moved to the Trash', $decoded_output);
     }
 
     public function test_trash_notice_can_be_dismissed_without_restoring_lesson(): void
@@ -211,7 +251,7 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
     /**
      * @return array{wordset_id:int, category_id:int, lesson_id:int}
      */
-    private function createBareLessonFixture(): array
+    private function createBareLessonFixture(?string $lesson_title = null): array
     {
         $suffix = strtolower(wp_generate_password(6, false));
         $wordset = wp_insert_term('Trash Notice Wordset ' . $suffix, 'wordset', [
@@ -229,7 +269,7 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',
             'post_status' => 'publish',
-            'post_title' => 'Trash Notice Lesson ' . $suffix,
+            'post_title' => $lesson_title ?: 'Trash Notice Lesson ' . $suffix,
         ]);
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);

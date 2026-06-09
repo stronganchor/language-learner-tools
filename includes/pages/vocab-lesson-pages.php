@@ -415,6 +415,71 @@ function ll_tools_get_trashed_vocab_lesson_notice_post_ids(): array {
     return $post_ids;
 }
 
+function ll_tools_get_vocab_lesson_trash_notice_title(int $post_id): string {
+    $post = get_post($post_id);
+    if (!$post instanceof WP_Post || $post->post_type !== 'll_vocab_lesson') {
+        return sprintf(
+            /* translators: %d: vocab lesson post ID. */
+            __('Vocab lesson #%d', 'll-tools-text-domain'),
+            $post_id
+        );
+    }
+
+    $title = trim(wp_strip_all_tags((string) get_the_title($post)));
+    if ($title === '') {
+        return sprintf(
+            /* translators: %d: vocab lesson post ID. */
+            __('Vocab lesson #%d', 'll-tools-text-domain'),
+            $post_id
+        );
+    }
+
+    return $title;
+}
+
+function ll_tools_format_vocab_lesson_trash_notice_message(array $post_ids): string {
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), static function (int $post_id): bool {
+        return $post_id > 0;
+    })));
+    if (empty($post_ids)) {
+        return '';
+    }
+
+    $titles = array_map('ll_tools_get_vocab_lesson_trash_notice_title', $post_ids);
+    $count = count($titles);
+
+    if ($count === 1) {
+        return sprintf(
+            /* translators: %s: vocab lesson title. */
+            __('"%s" was moved to the Trash. Use Undo to restore it if this was unintentional.', 'll-tools-text-domain'),
+            $titles[0]
+        );
+    }
+
+    if ($count === 2) {
+        return sprintf(
+            /* translators: 1: first vocab lesson title, 2: second vocab lesson title. */
+            __('"%1$s" and "%2$s" were moved to the Trash. Use Undo to restore them if this was unintentional.', 'll-tools-text-domain'),
+            $titles[0],
+            $titles[1]
+        );
+    }
+
+    $additional_count = $count - 2;
+    return sprintf(
+        /* translators: 1: first vocab lesson title, 2: second vocab lesson title, 3: number of additional vocab lessons. */
+        _n(
+            '"%1$s", "%2$s", and %3$d additional vocab lesson were moved to the Trash. Use Undo to restore them if this was unintentional.',
+            '"%1$s", "%2$s", and %3$d additional vocab lessons were moved to the Trash. Use Undo to restore them if this was unintentional.',
+            $additional_count,
+            'll-tools-text-domain'
+        ),
+        $titles[0],
+        $titles[1],
+        $additional_count
+    );
+}
+
 function ll_tools_get_vocab_lesson_trash_notice_redirect_url(): string {
     $fallback_url = admin_url('edit.php?post_type=ll_vocab_lesson');
     $request_uri = isset($_SERVER['REQUEST_URI'])
@@ -4251,16 +4316,10 @@ function ll_tools_render_vocab_lesson_trash_notice(): void {
         return;
     }
 
-    $count = count($trashed_post_ids);
-    $message = sprintf(
-        _n(
-            '%d vocab lesson page was moved to the Trash. Use Undo to restore it if this was unintentional.',
-            '%d vocab lesson pages were moved to the Trash. Use Undo to restore them if this was unintentional.',
-            $count,
-            'll-tools-text-domain'
-        ),
-        $count
-    );
+    $message = ll_tools_format_vocab_lesson_trash_notice_message($trashed_post_ids);
+    if ($message === '') {
+        return;
+    }
     $trash_url = admin_url('edit.php?post_status=trash&post_type=ll_vocab_lesson');
     $redirect_url = ll_tools_get_vocab_lesson_trash_notice_redirect_url();
     ?>
