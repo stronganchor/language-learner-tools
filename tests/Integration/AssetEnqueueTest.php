@@ -7,11 +7,13 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
     {
         parent::setUp();
         unset($GLOBALS['ll_tools_public_assets_needed']);
+        unset($GLOBALS['ll_tools_generic_page_cache_bypass_reason']);
     }
 
     protected function tearDown(): void
     {
         unset($GLOBALS['ll_tools_public_assets_needed']);
+        unset($GLOBALS['ll_tools_generic_page_cache_bypass_reason']);
         parent::tearDown();
     }
 
@@ -178,5 +180,89 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         } finally {
             remove_filter('ll_tools_enqueue_public_assets_globally', $filter);
         }
+    }
+
+    public function test_should_prevent_generic_page_cache_false_for_plain_singular_page(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Plain Cacheable Page',
+            'post_content' => 'No LL shortcodes here.',
+        ]);
+
+        $this->go_to(get_permalink($page_id));
+
+        $this->assertFalse(ll_tools_should_prevent_generic_page_cache());
+        $this->assertArrayNotHasKey('ll_tools_generic_page_cache_bypass_reason', $GLOBALS);
+    }
+
+    public function test_should_prevent_generic_page_cache_true_for_singular_shortcode_page(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Flashcard Cache Bypass Page',
+            'post_content' => '[flashcard_widget]',
+        ]);
+
+        $this->go_to(get_permalink($page_id));
+
+        $this->assertTrue(ll_tools_should_prevent_generic_page_cache());
+        $this->assertSame('ll_public_surface', $GLOBALS['ll_tools_generic_page_cache_bypass_reason'] ?? '');
+    }
+
+    public function test_should_prevent_generic_page_cache_true_for_ll_query_arg(): void
+    {
+        $original_get = $_GET;
+        $_GET = ['ll_dictionary_q' => 'test'];
+
+        try {
+            $this->go_to('/');
+            $_GET = ['ll_dictionary_q' => 'test'];
+
+            $this->assertTrue(ll_tools_should_prevent_generic_page_cache());
+            $this->assertSame('ll_query_arg', $GLOBALS['ll_tools_generic_page_cache_bypass_reason'] ?? '');
+        } finally {
+            $_GET = $original_get;
+        }
+    }
+
+    public function test_should_prevent_generic_page_cache_ignores_global_asset_enqueue_filter(): void
+    {
+        $filter = static function (): bool {
+            return true;
+        };
+        add_filter('ll_tools_enqueue_public_assets_globally', $filter);
+
+        try {
+            $this->go_to('/');
+
+            $this->assertTrue(ll_tools_request_needs_public_assets());
+            $this->assertFalse(ll_tools_should_prevent_generic_page_cache());
+        } finally {
+            remove_filter('ll_tools_enqueue_public_assets_globally', $filter);
+        }
+    }
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    public function test_maybe_prevent_generic_page_cache_defines_donotcachepage_for_shortcode_page(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'DONOTCACHEPAGE Bypass Page',
+            'post_content' => '[flashcard_widget]',
+        ]);
+
+        $this->go_to(get_permalink($page_id));
+        ll_tools_maybe_prevent_generic_page_cache();
+
+        $this->assertTrue(defined('DONOTCACHEPAGE'));
+        $this->assertTrue(DONOTCACHEPAGE);
+        $this->assertSame('ll_public_surface', $GLOBALS['ll_tools_generic_page_cache_bypass_reason'] ?? '');
     }
 }

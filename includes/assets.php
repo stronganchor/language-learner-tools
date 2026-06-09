@@ -222,19 +222,11 @@ function ll_tools_update_public_assets_shortcode_meta($post_id, $post = null): v
 add_action('save_post', 'll_tools_update_public_assets_shortcode_meta', 10, 2);
 
 /**
- * Decide whether the current front-end request needs shared LL Tools styles.
+ * Return true when the current front-end request is an LL Tools public surface.
  */
-function ll_tools_request_needs_public_assets(): bool {
+function ll_tools_request_matches_public_assets_context(): bool {
     if (is_admin()) {
         return false;
-    }
-
-    if ((bool) apply_filters('ll_tools_enqueue_public_assets_globally', false)) {
-        return true;
-    }
-
-    if (ll_tools_public_assets_marked()) {
-        return true;
     }
 
     if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
@@ -294,6 +286,99 @@ function ll_tools_request_needs_public_assets(): bool {
 
     return false;
 }
+
+/**
+ * Decide whether the current front-end request needs shared LL Tools styles.
+ */
+function ll_tools_request_needs_public_assets(): bool {
+    if (is_admin()) {
+        return false;
+    }
+
+    if ((bool) apply_filters('ll_tools_enqueue_public_assets_globally', false)) {
+        return true;
+    }
+
+    if (ll_tools_public_assets_marked()) {
+        return true;
+    }
+
+    return ll_tools_request_matches_public_assets_context();
+}
+
+/**
+ * Return true when the current request includes an LL Tools-specific query arg.
+ */
+function ll_tools_request_has_ll_query_args(): bool {
+    if (empty($_GET) || !is_array($_GET)) {
+        return false;
+    }
+
+    foreach (array_keys($_GET) as $key) {
+        if (!is_string($key)) {
+            continue;
+        }
+
+        $key = sanitize_key(wp_unslash($key));
+        if ($key === 'embed_category' || strpos($key, 'll_') === 0 || strpos($key, 'lltools-') === 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Decide whether generic full-page caches should bypass the current LL request.
+ */
+function ll_tools_should_prevent_generic_page_cache(): bool {
+    unset($GLOBALS['ll_tools_generic_page_cache_bypass_reason']);
+
+    if (is_admin()) {
+        return false;
+    }
+
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+        return false;
+    }
+
+    if ((function_exists('is_feed') && is_feed())
+        || (function_exists('is_robots') && is_robots())
+        || (function_exists('is_trackback') && is_trackback())
+    ) {
+        return false;
+    }
+
+    if (ll_tools_request_has_ll_query_args()) {
+        $GLOBALS['ll_tools_generic_page_cache_bypass_reason'] = 'll_query_arg';
+        return true;
+    }
+
+    if (ll_tools_request_matches_public_assets_context()) {
+        $GLOBALS['ll_tools_generic_page_cache_bypass_reason'] = 'll_public_surface';
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Mark dynamic LL Tools public surfaces as unsafe for generic page caches.
+ *
+ * LL Tools has its own static caches for safe anonymous experiences. Generic
+ * page caches cannot refresh LL nonces/placeholders, so opt out with the
+ * WordPress cache-plugin convention that WP-Optimize also honors.
+ */
+function ll_tools_maybe_prevent_generic_page_cache(): void {
+    if (!ll_tools_should_prevent_generic_page_cache()) {
+        return;
+    }
+
+    if (!defined('DONOTCACHEPAGE')) {
+        define('DONOTCACHEPAGE', true);
+    }
+}
+add_action('template_redirect', 'll_tools_maybe_prevent_generic_page_cache', 0);
 
 function ll_tools_maybe_enqueue_public_assets() {
     if (!ll_tools_request_needs_public_assets()) {
