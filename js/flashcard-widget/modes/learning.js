@@ -22,6 +22,8 @@
         ? root.llToolsFlashcardsData.introSilenceMs : 800;
     const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
+    const INTRO_NO_AUDIO_READ_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introNoAudioReadMs === 'number')
+        ? root.llToolsFlashcardsData.introNoAudioReadMs : 1400;
     const INTRO_AUDIO_RETRY_LIMIT = 2;
     const INTRO_CLICK_CONFETTI_COOLDOWN_MS = 180;
     const INTRO_CLICK_DUPLICATE_GUARD_MS = 450;
@@ -900,6 +902,110 @@
         return promptHasAudio || optionType === 'audio' || optionType === 'text_audio';
     }
 
+    function getIntroductionOptionType(config, fallbackMode) {
+        const cfg = (config && typeof config === 'object') ? config : {};
+        return String(cfg.option_type || cfg.mode || fallbackMode || '');
+    }
+
+    function isTextToTextIntroduction(config, fallbackMode) {
+        const cfg = (config && typeof config === 'object') ? config : {};
+        const promptType = String(cfg.prompt_type || 'audio');
+        const optionType = getIntroductionOptionType(cfg, fallbackMode);
+
+        if (Util && typeof Util.isTextToTextQuizPresentation === 'function') {
+            return Util.isTextToTextQuizPresentation(promptType, optionType);
+        }
+
+        const promptHasText = Util && typeof Util.promptTypeHasText === 'function'
+            ? Util.promptTypeHasText(promptType)
+            : (promptType === 'text_translation' || promptType === 'text_title');
+        const promptHasImage = Util && typeof Util.promptTypeHasImage === 'function'
+            ? Util.promptTypeHasImage(promptType)
+            : false;
+        const plainTextOption = Util && typeof Util.isPlainTextOptionType === 'function'
+            ? Util.isPlainTextOptionType(optionType)
+            : (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation');
+
+        return promptHasText && !promptHasImage && plainTextOption;
+    }
+
+    function getIntroductionPromptText(word, promptType) {
+        if (!word || typeof word !== 'object') return '';
+
+        const promptLabel = String(word.prompt_label || '').trim();
+        if (promptLabel) return promptLabel;
+
+        const promptTextType = Util && typeof Util.getPromptTextType === 'function'
+            ? Util.getPromptTextType(promptType)
+            : '';
+
+        if (promptTextType === 'text_translation') {
+            const translation = String(word.translation || '').trim();
+            if (translation) return translation;
+        }
+
+        if (promptTextType === 'text_title') {
+            const title = String(word.title || '').trim();
+            if (title) return title;
+        }
+
+        const label = String(word.label || '').trim();
+        if (label) return label;
+
+        return String(word.title || word.translation || '').trim();
+    }
+
+    function getIntroductionAnswerText(word, optionType, promptType) {
+        if (Util && typeof Util.getEffectiveOptionLabel === 'function') {
+            return Util.getEffectiveOptionLabel(word, optionType, promptType);
+        }
+        if (!word || typeof word !== 'object') return '';
+        return String(word.label || word.title || word.translation || '').trim();
+    }
+
+    function appendTextPairIntroductionCard($jq, word, config, fallbackMode) {
+        if (!$jq || typeof $jq !== 'function') return null;
+
+        const cfg = (config && typeof config === 'object') ? config : {};
+        const promptType = String(cfg.prompt_type || 'audio');
+        const optionType = getIntroductionOptionType(cfg, fallbackMode);
+        const promptText = getIntroductionPromptText(word, promptType);
+        const answerText = getIntroductionAnswerText(word, optionType, promptType);
+        const title = String((word && word.title) || '').trim();
+        const wordId = word && word.id ? word.id : '';
+        const label = promptText && answerText
+            ? promptText + ' / ' + answerText
+            : (promptText || answerText || title);
+
+        const $card = $jq('<div>', {
+            class: 'flashcard-container text-based ll-learning-intro-pair-card',
+            'data-word': title,
+            'data-word-id': wordId,
+            'data-learning-intro-pair': '1',
+            'aria-label': label
+        });
+
+        $jq('<div>', {
+            text: promptText,
+            class: 'll-learning-intro-pair-prompt',
+            dir: 'auto'
+        }).appendTo($card);
+
+        $jq('<div>', {
+            class: 'll-learning-intro-pair-divider',
+            'aria-hidden': 'true'
+        }).appendTo($card);
+
+        $jq('<div>', {
+            text: answerText,
+            class: 'll-learning-intro-pair-answer',
+            dir: 'auto'
+        }).appendTo($card);
+
+        $jq('#ll-tools-flashcard').append($card);
+        return $card;
+    }
+
     function buildIntroductionAudioPattern(word, requiresAudio) {
         if (!requiresAudio) {
             return [];
@@ -959,6 +1065,7 @@
             ? 'image'
             : mode;
         const introRequiresAudio = categoryConfigRequiresAudio(cfg);
+        const introUsesTextPair = isTextToTextIntroduction(cfg, mode);
 
         Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, introMode, State.currentCategoryName, cfg))).then(function () {
             if (!State.isIntroducing()) {
@@ -967,7 +1074,9 @@
             }
 
             wordsArray.forEach((word, index) => {
-                const $card = Cards.appendWordToContainer(word, introMode, cfg.prompt_type || 'audio');
+                const $card = introUsesTextPair
+                    ? appendTextPairIntroductionCard($jq, word, cfg, mode)
+                    : Cards.appendWordToContainer(word, introMode, cfg.prompt_type || 'audio');
                 if ($card && typeof $card.attr === 'function') {
                     $card.attr('data-word-index', index);
                 }
@@ -1111,7 +1220,11 @@
                 : true;
             if (!audioRequired) {
                 releaseIntroLoading().then(function () {
-                    continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: true });
+                    const readTimeoutId = scheduleTimeout(context, function () {
+                        if (State.abortAllOperations || !State.isIntroducing()) return;
+                        continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: true });
+                    }, INTRO_NO_AUDIO_READ_MS);
+                    State.addTimeout(readTimeoutId);
                 });
                 return;
             }

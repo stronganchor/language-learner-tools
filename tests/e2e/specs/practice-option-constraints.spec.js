@@ -2051,7 +2051,8 @@ test('learning introduction advances image-only sign cards without creating audi
     window.__learningProgressSnapshots = [];
     window.llToolsFlashcardsData = {
       introSilenceMs: 0,
-      introWordSilenceMs: 0
+      introWordSilenceMs: 0,
+      introNoAudioReadMs: 0
     };
     window.LLFlashcards = {
       State: {
@@ -2174,6 +2175,168 @@ test('learning introduction advances image-only sign cards without creating audi
   expect(result.startQuizRoundCalls).toBe(1);
   expect(result.introducedWordIDs).toEqual([901]);
   expect(result.progress['901']).toBe(1);
+});
+
+test('learning introduction shows prompt and answer for text-to-text categories', async ({ page }) => {
+  const category = 'Hebrew text pair';
+
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-content">
+      <div id="ll-tools-flashcard"></div>
+      <button id="ll-tools-repeat-flashcard" type="button"></button>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate((categoryName) => {
+    const STATES = {
+      QUIZ_READY: 'quiz_ready',
+      INTRODUCING_WORDS: 'introducing_words',
+      SHOWING_RESULTS: 'showing_results'
+    };
+    window.__createdAudioUrls = [];
+    window.__startQuizRoundCalls = 0;
+    window.__scheduledDelays = [];
+    window.llToolsFlashcardsData = {
+      introSilenceMs: 0,
+      introWordSilenceMs: 0,
+      introNoAudioReadMs: 1234
+    };
+    window.LLFlashcards = {
+      State: {
+        STATES,
+        AUDIO_REPETITIONS: 1,
+        currentFlowState: STATES.QUIZ_READY,
+        currentCategoryName: categoryName,
+        wordsByCategory: {},
+        categoryNames: [categoryName],
+        isIntroducingWord: true,
+        isLearningMode: true,
+        abortAllOperations: false,
+        introducedWordIDs: [],
+        wordIntroductionProgress: {},
+        wordCorrectCounts: {},
+        wrongAnswerQueue: [],
+        learningWordSets: [],
+        addTimeout: function () {},
+        canIntroduceWords: function () { return true; },
+        getState: function () { return this.currentFlowState; },
+        isIntroducing: function () { return this.currentFlowState === STATES.INTRODUCING_WORDS; },
+        transitionTo: function (nextState) {
+          this.currentFlowState = nextState;
+          return true;
+        },
+        forceTransitionTo: function (nextState) {
+          this.currentFlowState = nextState;
+          return true;
+        }
+      },
+      Selection: {
+        getCategoryConfig: function () {
+          return {
+            prompt_type: 'text_translation',
+            option_type: 'text_title',
+            learning_supported: true
+          };
+        },
+        getCurrentDisplayMode: function () {
+          return 'text';
+        }
+      },
+      Util: {
+        getPromptTextType: function (promptType) {
+          return promptType === 'text_translation' ? 'text_translation' : '';
+        },
+        promptTypeHasText: function (promptType) {
+          return promptType === 'text_translation';
+        },
+        promptTypeHasImage: function () {
+          return false;
+        },
+        promptTypeHasAudio: function () {
+          return false;
+        },
+        isPlainTextOptionType: function (optionType) {
+          return optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation';
+        },
+        isTextToTextQuizPresentation: function (promptType, optionType) {
+          return this.promptTypeHasText(promptType)
+            && !this.promptTypeHasImage(promptType)
+            && this.isPlainTextOptionType(optionType);
+        },
+        getEffectiveOptionLabel: function (word) {
+          return String((word && word.label) || '');
+        }
+      },
+      Dom: {
+        hideLoading: function () { return Promise.resolve(); },
+        disableRepeatButton: function () {},
+        enableRepeatButton: function () {},
+        restoreHeaderUI: function () {},
+        updateLearningProgress: function () {}
+      },
+      Cards: {
+        appendWordToContainer: function () {
+          throw new Error('text-to-text intro should render a pair card');
+        }
+      },
+      Results: {},
+      Modes: {}
+    };
+    window.FlashcardLoader = {
+      loadResourcesForWord: function () { return Promise.resolve(); }
+    };
+    window.FlashcardAudio = {
+      selectBestAudio: function () { return ''; },
+      createIntroductionAudio: function (url) {
+        window.__createdAudioUrls.push(String(url || ''));
+        return null;
+      }
+    };
+  }, category);
+  await page.addScriptTag({ content: learningSource });
+
+  const result = await page.evaluate(async () => {
+    const word = {
+      id: 902,
+      title: 'amar',
+      label: 'amar',
+      prompt_label: 'he said',
+      translation: 'he said'
+    };
+    const Learning = window.LLFlashcards.Modes.Learning;
+    const handled = Learning.handlePostSelection([word], {
+      setGuardedTimeout: function (fn, delay) {
+        window.__scheduledDelays.push(Number(delay) || 0);
+        return window.setTimeout(fn, 0);
+      },
+      startQuizRound: function () { window.__startQuizRoundCalls += 1; },
+      showLoadingError: function () {}
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 40));
+    const card = document.querySelector('#ll-tools-flashcard .ll-learning-intro-pair-card');
+    return {
+      handled,
+      prompt: card ? String(card.querySelector('.ll-learning-intro-pair-prompt')?.textContent || '') : '',
+      answer: card ? String(card.querySelector('.ll-learning-intro-pair-answer')?.textContent || '') : '',
+      pairCardCount: document.querySelectorAll('#ll-tools-flashcard .ll-learning-intro-pair-card').length,
+      createdAudioUrls: window.__createdAudioUrls.slice(),
+      startQuizRoundCalls: window.__startQuizRoundCalls,
+      scheduledDelays: window.__scheduledDelays.slice(),
+      introducedWordIDs: window.LLFlashcards.State.introducedWordIDs.slice(),
+      progress: Object.assign({}, window.LLFlashcards.State.wordIntroductionProgress)
+    };
+  });
+
+  expect(result.handled).toBe(true);
+  expect(result.pairCardCount).toBe(1);
+  expect(result.prompt).toBe('he said');
+  expect(result.answer).toBe('amar');
+  expect(result.createdAudioUrls).toEqual([]);
+  expect(result.scheduledDelays).toContain(1234);
+  expect(result.startQuizRoundCalls).toBe(1);
+  expect(result.introducedWordIDs).toEqual([902]);
+  expect(result.progress['902']).toBe(1);
 });
 
 test('throws a hard error when fewer than two options are truly available', async ({ page }) => {

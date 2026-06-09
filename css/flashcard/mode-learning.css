@@ -71,6 +71,48 @@
     pointer-events: none;
 }
 
+.flashcard-container.text-based.ll-learning-intro-pair-card {
+    width: min(320px, calc(100vw - 48px));
+    max-width: min(320px, calc(100vw - 48px));
+    min-height: 170px;
+    height: auto;
+    padding: 16px 18px;
+    box-sizing: border-box;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 10px;
+    color: #14345b;
+}
+
+.ll-learning-intro-pair-prompt,
+.ll-learning-intro-pair-answer {
+    font-family: var(--ll-answer-option-font-family, inherit);
+    text-align: center;
+    line-height: 1.22;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+.ll-learning-intro-pair-prompt {
+    font-size: clamp(18px, 5vw, 28px);
+    font-weight: 600;
+    color: #344966;
+}
+
+.ll-learning-intro-pair-divider {
+    width: min(150px, 70%);
+    height: 1px;
+    margin: 0 auto;
+    background: #bdc7d6;
+}
+
+.ll-learning-intro-pair-answer {
+    font-size: clamp(28px, 8vw, 44px);
+    font-weight: 700;
+    color: #14345b;
+}
+
 /* Learning mode: card being actively introduced */
 .flashcard-container.introducing-active {
     animation: pulse-card 1s ease-in-out;
@@ -100,6 +142,13 @@
 
     .learning-progress-bar {
         height: 10px;
+    }
+
+    .flashcard-container.text-based.ll-learning-intro-pair-card {
+        width: min(300px, calc(100vw - 36px));
+        max-width: min(300px, calc(100vw - 36px));
+        min-height: 156px;
+        padding: 14px 15px;
     }
 }
 
