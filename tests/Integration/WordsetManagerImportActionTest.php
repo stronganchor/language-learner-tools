@@ -55,7 +55,9 @@ final class WordsetManagerImportActionTest extends LL_Tools_TestCase
         $this->assertSame(0, $this->findQuizPageId($fixture['category_id']));
 
         do_action(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
-        $this->assertGreaterThan(0, $this->findQuizPageId($fixture['category_id']));
+        $quiz_page_id = $this->findQuizPageId($fixture['category_id']);
+        $this->assertGreaterThan(0, $quiz_page_id);
+        $this->assertSame(LL_TOOLS_QUIZ_PAGE_POST_TYPE, get_post_type($quiz_page_id));
     }
 
     public function test_manager_import_rejects_oversized_paste_before_creating_category_or_words(): void
@@ -245,9 +247,9 @@ final class WordsetManagerImportActionTest extends LL_Tools_TestCase
     private function findQuizPageId(int $category_id): int
     {
         $ids = get_posts([
-            'post_type' => 'page',
+            'post_type' => ll_tools_get_quiz_page_post_types(true),
             'post_status' => ['publish', 'draft', 'pending', 'private', 'trash'],
-            'meta_key' => '_ll_tools_word_category_id',
+            'meta_key' => LL_TOOLS_QUIZ_PAGE_CATEGORY_META,
             'meta_value' => (string) $category_id,
             'numberposts' => 1,
             'fields' => 'ids',

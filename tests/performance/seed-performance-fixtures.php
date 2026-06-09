@@ -316,7 +316,7 @@ function ll_tools_perf_seed_delete_posts(array $post_ids): int {
 
 function ll_tools_perf_seed_query_fixture_posts(): array {
     return get_posts([
-        'post_type' => ['words', 'word_audio', 'word_images', 'll_vocab_lesson', 'page', 'attachment'],
+        'post_type' => ['words', 'word_audio', 'word_images', 'll_vocab_lesson', 'll_quiz_page', 'page', 'attachment'],
         'post_status' => 'any',
         'posts_per_page' => -1,
         'fields' => 'ids',
@@ -345,13 +345,13 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
     if (!is_wp_error($fixture_category_ids)) {
         foreach (array_map('intval', (array) $fixture_category_ids) as $category_id) {
             $quiz_pages = get_posts([
-                'post_type' => 'page',
+                'post_type' => function_exists('ll_tools_get_quiz_page_post_types') ? ll_tools_get_quiz_page_post_types(true) : ['page'],
                 'post_status' => 'any',
                 'posts_per_page' => -1,
                 'fields' => 'ids',
                 'no_found_rows' => true,
                 'suppress_filters' => true,
-                'meta_key' => '_ll_tools_word_category_id',
+                'meta_key' => defined('LL_TOOLS_QUIZ_PAGE_CATEGORY_META') ? LL_TOOLS_QUIZ_PAGE_CATEGORY_META : '_ll_tools_word_category_id',
                 'meta_value' => (string) $category_id,
             ]);
             $deleted['quiz_pages'] += ll_tools_perf_seed_delete_posts((array) $quiz_pages);

@@ -187,7 +187,7 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
 
 if (!function_exists('ll_tools_get_dashboard_related_post_types')) {
     function ll_tools_get_dashboard_related_post_types(): array {
-        return ['words', 'word_images', 'word_audio', 'll_dictionary_entry', 'll_vocab_lesson', 'll_content_lesson'];
+        return ['words', 'word_images', 'word_audio', 'll_dictionary_entry', 'll_quiz_page', 'll_vocab_lesson', 'll_content_lesson'];
     }
 }
 
@@ -211,7 +211,7 @@ if (!function_exists('ll_tools_get_language_learning_related_taxonomies')) {
 
 if (!function_exists('ll_tools_get_tools_hub_related_post_types')) {
     function ll_tools_get_tools_hub_related_post_types(): array {
-        return ['ll_vocab_lesson', 'll_content_lesson'];
+        return ['ll_quiz_page', 'll_vocab_lesson', 'll_content_lesson'];
     }
 }
 
@@ -340,6 +340,13 @@ function ll_tools_render_home_hub_page() {
             'url' => admin_url('edit-tags.php?taxonomy=word-category&post_type=words'),
             'cap' => 'view_ll_tools',
             'icon' => 'dashicons-category',
+        ],
+        [
+            'label' => __('Quiz Pages', 'll-tools-text-domain'),
+            'description' => __('Review generated public quiz pages without mixing them into normal Pages.', 'll-tools-text-domain'),
+            'url' => admin_url('edit.php?post_type=ll_quiz_page'),
+            'cap' => 'edit_posts',
+            'icon' => 'dashicons-welcome-learn-more',
         ],
         [
             'label' => __('Words', 'll-tools-text-domain'),
@@ -638,6 +645,15 @@ function ll_tools_get_tools_hub_card_sections(): array {
                 'icon' => 'dashicons-welcome-learn-more',
             ],
             [
+                'label' => __('Quiz Pages', 'll-tools-text-domain'),
+                'description' => __('Review generated quiz pages and open their public URLs without editing normal Pages.', 'll-tools-text-domain'),
+                'menu_slug' => 'edit.php?post_type=ll_quiz_page',
+                'url' => admin_url('edit.php?post_type=ll_quiz_page'),
+                'post_type' => 'll_quiz_page',
+                'cap' => 'edit_posts',
+                'icon' => 'dashicons-welcome-learn-more',
+            ],
+            [
                 'label' => __('Parts of Speech', 'll-tools-text-domain'),
                 'description' => __('Maintain part-of-speech taxonomy values used on word entries.', 'll-tools-text-domain'),
                 'menu_slug' => 'edit-tags.php?taxonomy=part_of_speech&post_type=words',
@@ -779,6 +795,14 @@ function ll_tools_register_dashboard_menu() {
         __('Word Categories', 'll-tools-text-domain'),
         'view_ll_tools',
         'edit-tags.php?taxonomy=word-category&post_type=words'
+    );
+
+    add_submenu_page(
+        $menu_slug,
+        __('Quiz Pages', 'll-tools-text-domain'),
+        __('Quiz Pages', 'll-tools-text-domain'),
+        'edit_posts',
+        'edit.php?post_type=ll_quiz_page'
     );
 
     add_submenu_page(
@@ -953,6 +977,7 @@ function ll_tools_hide_legacy_admin_menu_entries() {
     // Hide old top-level post type menus; they are now reachable from LL Tools.
     remove_menu_page('edit.php?post_type=words');
     remove_menu_page('edit.php?post_type=word_images');
+    remove_menu_page('edit.php?post_type=ll_quiz_page');
     remove_menu_page('edit.php?post_type=ll_vocab_lesson');
     remove_menu_page('edit.php?post_type=ll_content_lesson');
 }
@@ -1009,6 +1034,7 @@ function ll_tools_get_language_learning_submenu_file(string $page = '', $screen 
         'word_images' => 'edit.php?post_type=word_images',
         'word_audio' => 'edit.php?post_type=word_audio',
         'll_dictionary_entry' => 'edit.php?post_type=ll_dictionary_entry',
+        'll_quiz_page' => 'edit.php?post_type=ll_quiz_page',
     ];
 
     return isset($post_type_map[$post_type]) ? $post_type_map[$post_type] : '';

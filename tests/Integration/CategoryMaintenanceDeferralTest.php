@@ -40,6 +40,7 @@ final class CategoryMaintenanceDeferralTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $quiz_page_id);
         $this->assertGreaterThan(0, $lesson_id);
         $this->assertSame('publish', get_post_status($quiz_page_id));
+        $this->assertSame(LL_TOOLS_QUIZ_PAGE_POST_TYPE, get_post_type($quiz_page_id));
         $this->assertSame('publish', get_post_status($lesson_id));
     }
 
@@ -145,9 +146,9 @@ final class CategoryMaintenanceDeferralTest extends LL_Tools_TestCase
     private function findQuizPageId(int $category_id): int
     {
         $ids = get_posts([
-            'post_type' => 'page',
+            'post_type' => ll_tools_get_quiz_page_post_types(true),
             'post_status' => ['publish', 'draft', 'pending', 'private', 'trash'],
-            'meta_key' => '_ll_tools_word_category_id',
+            'meta_key' => LL_TOOLS_QUIZ_PAGE_CATEGORY_META,
             'meta_value' => (string) $category_id,
             'numberposts' => 1,
             'fields' => 'ids',

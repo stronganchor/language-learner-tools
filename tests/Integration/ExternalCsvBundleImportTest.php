@@ -176,10 +176,10 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
         }
 
         $pages = get_posts([
-            'post_type' => 'page',
+            'post_type' => ll_tools_get_quiz_page_post_types(true),
             'post_status' => ['publish', 'draft', 'pending', 'private'],
             'posts_per_page' => 1,
-            'meta_key' => '_ll_tools_word_category_id',
+            'meta_key' => LL_TOOLS_QUIZ_PAGE_CATEGORY_META,
             'meta_value' => (string) $category_id,
             'fields' => 'ids',
         ]);

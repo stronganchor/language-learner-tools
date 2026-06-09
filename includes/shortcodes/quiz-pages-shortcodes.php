@@ -5,8 +5,8 @@
  *  - [quiz_pages_grid]
  *  - [quiz_pages_dropdown]
  *
- * A "quiz page" is any WP Page created by the plugin for a word-category
- * and marked with meta key _ll_tools_word_category_id.
+ * A "quiz page" is a generated quiz-page record for a word-category. Legacy
+ * WP Page records with the same meta key remain supported during migration.
  */
 
 if (!defined('WPINC')) { die; }
@@ -232,7 +232,7 @@ function ll_tools_quiz_pages_data_cache_key(array $opts, int $min_word_count): s
         'user_id' => (int) get_current_user_id(),
         'locale' => $locale,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
-        'schema' => 3,
+        'schema' => 4,
     ]));
 }
 
@@ -273,22 +273,41 @@ function ll_get_all_quiz_pages_data($opts = []) {
         return $cached_items;
     }
 
-    // Load all quiz pages (public pages with a word-category meta)
+    // Load all generated quiz pages, including legacy Page records during migration.
+    $quiz_page_post_types = function_exists('ll_tools_get_quiz_page_post_types')
+        ? ll_tools_get_quiz_page_post_types(true)
+        : ['page'];
+    $quiz_page_category_meta = defined('LL_TOOLS_QUIZ_PAGE_CATEGORY_META')
+        ? LL_TOOLS_QUIZ_PAGE_CATEGORY_META
+        : '_ll_tools_word_category_id';
+
     $pages = get_posts([
-        'post_type'        => 'page',
+        'post_type'        => $quiz_page_post_types,
         'post_status'      => 'publish',
         'has_password'     => false,
         'no_found_rows'    => true,
         'suppress_filters' => true,
         'posts_per_page'   => -1,
         'fields'           => 'ids',
-        'meta_key'         => '_ll_tools_word_category_id',
+        'meta_key'         => $quiz_page_category_meta,
         'orderby'          => 'ID',  // Ensure consistent ordering for deduplication
         'order'            => 'ASC',
     ]);
     if (empty($pages)) {
         ll_tools_quiz_pages_data_cache_set($cache_key, []);
         return [];
+    }
+
+    if (defined('LL_TOOLS_QUIZ_PAGE_POST_TYPE')) {
+        usort($pages, static function ($a, $b): int {
+            $a_is_current = get_post_type((int) $a) === LL_TOOLS_QUIZ_PAGE_POST_TYPE;
+            $b_is_current = get_post_type((int) $b) === LL_TOOLS_QUIZ_PAGE_POST_TYPE;
+            if ($a_is_current !== $b_is_current) {
+                return $a_is_current ? -1 : 1;
+            }
+
+            return (int) $a <=> (int) $b;
+        });
     }
 
     $allowed_term_ids = null;
@@ -309,6 +328,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
     // Build the allowed categories list using the same helper as the widget for consistency
     $allowed_category_ids = [];
     $category_meta_map = [];
+    $seen_stored_term_ids = [];
     $use_translations = function_exists('ll_flashcards_should_use_translations')
         ? ll_flashcards_should_use_translations($ws_ids)
         : false;
@@ -325,8 +345,12 @@ function ll_get_all_quiz_pages_data($opts = []) {
     $has_processed_category_meta = function_exists('ll_flashcards_build_categories');
 
     foreach ($pages as $post_id) {
-        $stored_term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
+        $stored_term_id = (int) get_post_meta($post_id, $quiz_page_category_meta, true);
         if ($stored_term_id <= 0) continue;
+        if (isset($seen_stored_term_ids[$stored_term_id])) {
+            continue;
+        }
+        $seen_stored_term_ids[$stored_term_id] = true;
 
         $term_id = $stored_term_id;
         if ($filtered_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {

@@ -90,7 +90,7 @@ function ll_tools_t2t_intro_assert_term_slug_available(string $slug, string $tax
 function ll_tools_t2t_intro_delete_fixture_posts(): int {
     $deleted = 0;
     $ids = get_posts([
-        'post_type' => ['page', 'words'],
+        'post_type' => ['page', 'words', 'll_quiz_page'],
         'post_status' => 'any',
         'posts_per_page' => -1,
         'fields' => 'ids',

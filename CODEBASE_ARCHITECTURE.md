@@ -38,7 +38,7 @@ read_first:
 - Custom post types for words, dictionary entries, word images, word audio recordings, vocab lessons, content lessons, prompt cards, and teacher classes.
 - Taxonomies for word categories, word sets, language, part of speech, and recording types.
 - Flashcard quizzes with multiple modes (practice, learning, listening, gender, self-check) and per-category prompt/option config.
-- Auto quiz pages under `/quiz/<category>`, embeddable pages under `/embed/<category>`, wordset hub routes, vocab lesson routes, content lessons, games, and teacher class views.
+- Auto quiz pages under `/quiz/<category>` are generated `ll_quiz_page` records, not normal WordPress Pages; embeddable pages under `/embed/<category>`, wordset hub routes, vocab lesson routes, content lessons, games, and teacher class views.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, site sync, and legacy cleanups.
 - Dictionary tooling: TSV import into `ll_dictionary_entry`, grouped sense metadata, snapshot import/export, and a public `[ll_dictionary]` browse/search page.
@@ -58,7 +58,8 @@ read_first:
   - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
   - Non-admin style lives in `css/non-admin-style.css`.
 - `includes/pages/quiz-pages.php`
-  - Creates `/quiz` parent + child pages per `word-category` (meta `_ll_tools_word_category_id`).
+  - Registers the generated `ll_quiz_page` CPT and creates one `/quiz/<category>` record per `word-category` (meta `_ll_tools_word_category_id`).
+  - Migrates legacy generated WP Page children into the CPT, keeps legacy records discoverable during migration, and hides any remaining generated Page records from the normal Pages admin list.
   - Syncs on category/content changes; daily and on file mtime change; manual cleanup in admin.
   - Uses `templates/quiz-page-template.php` and `js/quiz-pages.js`.
 - `includes/pages/embed-page.php`
@@ -120,7 +121,7 @@ includes/
   api/
     automation-rest.php       # JSON-first automation endpoints with server-side guardrails
   pages/
-    quiz-pages.php            # Auto /quiz pages + sync + assets
+    quiz-pages.php            # Auto /quiz CPT records + sync + assets
     embed-page.php            # /embed/<category> template
     default-shortcode-page-helper.php # Shared ensure/find/admin-action helpers for plugin-owned shortcode pages
     recording-page.php        # Recording page creation + login redirect
@@ -300,7 +301,7 @@ vendor/
 - `recording_type` (attached to `word_audio`).
 
 ## Common meta and flags
-- `_ll_tools_word_category_id` on auto-generated quiz pages.
+- `_ll_tools_word_category_id` on generated `ll_quiz_page` records; legacy generated Pages may carry it until migration.
 - `_ll_picked_count`, `_ll_picked_last`, `_ll_autopicked_image_id` for image matching usage tracking.
 - `_ll_needs_audio_processing` for unprocessed audio queue.
 
@@ -458,7 +459,7 @@ Core settings live in `includes/admin/settings.php`:
 - Capabilities gate admin tools: use `view_ll_tools` or stricter.
 - AJAX and POST handlers must verify nonces and capabilities.
 - Slugs are public contracts: `words`, `word_images`, `word_audio`, `word-category`, `wordset`, `recording_type`.
-- Auto quiz pages rely on `_ll_tools_word_category_id` meta and the `/quiz` parent page.
+- Auto quiz pages rely on `_ll_tools_word_category_id` meta and the generated `ll_quiz_page` CPT with `/quiz/<category>` rewrites; do not create ordinary child Pages for new quiz pages.
 - Learning state is client-side only; do not persist it server-side.
 - Word publish guard depends on `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
