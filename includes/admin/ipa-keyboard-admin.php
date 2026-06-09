@@ -1973,7 +1973,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 14;
+    return 15;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -2820,6 +2820,7 @@ function ll_tools_ipa_orthography_get_profile_locked_manual_rules(int $wordset_i
         't̪͡ʙ̥ɨ' => ['any' => 'twe'],
         't̪͡ʙɨ' => ['any' => 'twe'],
         'sɨ' => ['any' => 'se'],
+        'sʷ' => ['any' => 'sw'],
         'ʷ' => ['any' => 'w'],
     ], $wordset_id);
 }
@@ -3554,6 +3555,7 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         't̪͡ʙ' => ['any' => 'tw'],
         't̪͡p' => ['any' => 'tw'],
         'd̪͡b' => ['any' => 'dw'],
+        'sʷ' => ['any' => 'sw'],
         'sɨ' => ['any' => 'se'],
         'jɨ' => ['any' => 'yı'],
         'jɪ' => ['any' => 'yı'],

@@ -572,6 +572,11 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("zʷa", $engine_rules, $wordset_id)['text'] ?? '')
         );
 
+        $labialized_s_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("sʷaba", $engine_rules, $wordset_id);
+        $this->assertSame('Swaba', (string) ($labialized_s_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Swaba', "sʷaba", $wordset_id, 'isolation', $labialized_s_prediction)['matches'] ?? false));
+        $this->assertFalse((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Saba', "sʷaba", $wordset_id, 'isolation', $labialized_s_prediction)['matches'] ?? true));
+
         $this->assertSame(
             'Ang ank',
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("aŋg aŋk", $engine_rules, $wordset_id)['text'] ?? '')
