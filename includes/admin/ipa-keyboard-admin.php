@@ -1973,7 +1973,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 13;
+    return 14;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -3636,10 +3636,13 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
         'hındistên' => "'hındistên",
         'hındistûn' => "'hındistûn",
         'hındistûna' => "'hındistûna",
+        'in' => 'ın',
+        'ina' => 'ına',
         'kwele' => 'kwelı',
         'kye' => 'kiye',
         'maze' => 'mazı',
         'me' => 'mı',
+        'mwerik' => 'mwêrik',
         'nyûne' => 'nyûnı',
         'otobûs' => 'otobüs',
         'otobûsa' => 'otobüsa',
@@ -3736,6 +3739,26 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
             'ipa' => 'ᵊ',
             'orthography' => 'ı',
             'orthography_key' => 'ı',
+        ],
+        [
+            'ipa' => 'd̪ɨ',
+            'orthography' => 'dı',
+            'orthography_key' => 'dı',
+        ],
+        [
+            'ipa' => 'd̪ɨ',
+            'orthography' => 'de',
+            'orthography_key' => 'de',
+        ],
+        [
+            'ipa' => 'd̪ɪ',
+            'orthography' => 'dı',
+            'orthography_key' => 'dı',
+        ],
+        [
+            'ipa' => 'd̪ɪ',
+            'orthography' => 'de',
+            'orthography_key' => 'de',
         ],
     ];
     $settings['recording_type_punctuation'] = [

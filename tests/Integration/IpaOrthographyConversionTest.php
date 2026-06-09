@@ -620,6 +620,24 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
         $this->assertTrue((bool) ($nonfinal_high_vowel_detail['matches'] ?? false));
 
+        $plural_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("mʷɛɾik", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($plural_prediction['complete'] ?? false));
+        $this->assertSame('Mwêrik', (string) ($plural_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($plural_prediction['requires_lexical_decision'] ?? true));
+        $plural_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Mwêrik',
+            "mʷɛɾik",
+            $wordset_id,
+            'isolation',
+            $plural_prediction
+        );
+        $this->assertTrue((bool) ($plural_detail['matches'] ?? false));
+
+        $proximal_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("ina", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($proximal_prediction['complete'] ?? false));
+        $this->assertSame('Ina', (string) ($proximal_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($proximal_prediction['requires_lexical_decision'] ?? true));
+
         $release_ipa = "bɨd̪ɨ\u{032F}";
         $release_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($release_ipa, $engine_rules, $wordset_id);
         $this->assertTrue((bool) ($release_prediction['complete'] ?? false));
@@ -634,6 +652,15 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
 
         $wrong_release_vowel = ll_tools_ipa_orthography_profile_mismatch_detail('Bıde', $release_ipa, $wordset_id, 'isolation', $release_prediction);
         $this->assertFalse((bool) ($wrong_release_vowel['matches'] ?? true));
+
+        $de_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("d̪ɨ", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($de_prediction['complete'] ?? false));
+        $this->assertSame('De', (string) ($de_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($de_prediction['requires_lexical_decision'] ?? true));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('De', "d̪ɨ", $wordset_id, 'isolation', $de_prediction)['matches'] ?? false));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Dı', "d̪ɨ", $wordset_id, 'isolation', $de_prediction)['matches'] ?? false));
+        $di_front_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("d̪ɪ", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Dı', "d̪ɪ", $wordset_id, 'isolation', $di_front_prediction)['matches'] ?? false));
 
         $unresolved_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("vɨ", $engine_rules, $wordset_id);
         $this->assertSame('Ve', (string) ($unresolved_final_prediction['text'] ?? ''));

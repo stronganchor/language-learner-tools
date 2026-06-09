@@ -85,6 +85,58 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_update_checker_boots_for_own_plugin_ajax_update(): void
+    {
+        $original_screen = $GLOBALS['current_screen'] ?? null;
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+        set_current_screen('plugins');
+        $_REQUEST = [
+            'action' => 'update-plugin',
+            'plugin' => plugin_basename(LL_TOOLS_MAIN_FILE),
+        ];
+
+        try {
+            $this->assertTrue(ll_tools_should_boot_update_checker());
+        } finally {
+            $_REQUEST = [];
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+            $GLOBALS['current_screen'] = $original_screen;
+        }
+    }
+
+    public function test_update_checker_stays_off_for_unrelated_ajax_requests(): void
+    {
+        $original_screen = $GLOBALS['current_screen'] ?? null;
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+        set_current_screen('plugins');
+        $_REQUEST = [
+            'action' => 'heartbeat',
+            'plugin' => plugin_basename(LL_TOOLS_MAIN_FILE),
+        ];
+
+        try {
+            $this->assertFalse(ll_tools_should_boot_update_checker());
+
+            $_REQUEST = [
+                'action' => 'update-plugin',
+                'plugin' => 'other-plugin/other-plugin.php',
+            ];
+            $this->assertFalse(ll_tools_should_boot_update_checker());
+        } finally {
+            $_REQUEST = [];
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+            $GLOBALS['current_screen'] = $original_screen;
+        }
+    }
+
     public function test_manage_options_user_keeps_view_ll_tools_access_even_if_role_cap_is_missing(): void
     {
         $role = get_role('administrator');
