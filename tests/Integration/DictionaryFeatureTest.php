@@ -233,6 +233,36 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringStartsWith('public, max-age=', ll_tools_dictionary_static_cache_cache_control_value(true));
     }
 
+    public function test_dictionary_static_cache_storage_ttl_is_longer_than_browser_max_age(): void
+    {
+        $this->assertSame(7 * DAY_IN_SECONDS, ll_tools_dictionary_static_cache_ttl());
+        $this->assertSame(DAY_IN_SECONDS, ll_tools_dictionary_static_cache_browser_max_age());
+        $this->assertSame('public, max-age=' . DAY_IN_SECONDS, ll_tools_dictionary_static_cache_cache_control_value(true));
+        $this->assertSame('no-cache, must-revalidate', ll_tools_dictionary_static_cache_cache_control_value(false));
+    }
+
+    public function test_dictionary_static_cache_ttls_are_filterable_independently(): void
+    {
+        $ttl_filter = static function (): int {
+            return 2 * DAY_IN_SECONDS;
+        };
+        $browser_filter = static function (): int {
+            return 2 * HOUR_IN_SECONDS;
+        };
+
+        add_filter('ll_tools_dictionary_static_cache_ttl', $ttl_filter);
+        add_filter('ll_tools_dictionary_static_cache_browser_max_age', $browser_filter);
+
+        try {
+            $this->assertSame(2 * DAY_IN_SECONDS, ll_tools_dictionary_static_cache_ttl());
+            $this->assertSame(2 * HOUR_IN_SECONDS, ll_tools_dictionary_static_cache_browser_max_age());
+            $this->assertSame('public, max-age=' . (2 * HOUR_IN_SECONDS), ll_tools_dictionary_static_cache_cache_control_value(true));
+        } finally {
+            remove_filter('ll_tools_dictionary_static_cache_ttl', $ttl_filter);
+            remove_filter('ll_tools_dictionary_static_cache_browser_max_age', $browser_filter);
+        }
+    }
+
     public function test_dictionary_static_cache_store_writes_when_php_status_is_unset(): void
     {
         $dir = ll_tools_dictionary_static_cache_dir();

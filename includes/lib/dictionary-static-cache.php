@@ -6,7 +6,11 @@ if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_DIRNAME')) {
 }
 
 if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEFAULT_TTL')) {
-    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEFAULT_TTL', DAY_IN_SECONDS);
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEFAULT_TTL', 7 * DAY_IN_SECONDS);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEFAULT_BROWSER_MAX_AGE')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEFAULT_BROWSER_MAX_AGE', DAY_IN_SECONDS);
 }
 
 if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_NONCE_PLACEHOLDER')) {
@@ -18,7 +22,7 @@ if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_LOCALE_NONCE_PLACEHOLDER')) {
 }
 
 /**
- * Return the anonymous dictionary static-cache TTL.
+ * Return the anonymous dictionary static-cache storage TTL.
  */
 function ll_tools_dictionary_static_cache_ttl(): int {
     $ttl = defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_TTL')
@@ -26,6 +30,17 @@ function ll_tools_dictionary_static_cache_ttl(): int {
         : (int) LL_TOOLS_DICTIONARY_STATIC_CACHE_DEFAULT_TTL;
 
     return max(60, (int) apply_filters('ll_tools_dictionary_static_cache_ttl', $ttl));
+}
+
+/**
+ * Return the browser/downstream cache max-age for dictionary static-cache hits.
+ */
+function ll_tools_dictionary_static_cache_browser_max_age(): int {
+    $max_age = defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_BROWSER_MAX_AGE')
+        ? (int) constant('LL_TOOLS_DICTIONARY_STATIC_CACHE_BROWSER_MAX_AGE')
+        : (int) LL_TOOLS_DICTIONARY_STATIC_CACHE_DEFAULT_BROWSER_MAX_AGE;
+
+    return max(60, (int) apply_filters('ll_tools_dictionary_static_cache_browser_max_age', $max_age));
 }
 
 /**
@@ -687,7 +702,7 @@ function ll_tools_dictionary_static_cache_cache_control_value(bool $public): str
         return 'no-cache, must-revalidate';
     }
 
-    return 'public, max-age=' . ll_tools_dictionary_static_cache_ttl();
+    return 'public, max-age=' . ll_tools_dictionary_static_cache_browser_max_age();
 }
 
 /**
