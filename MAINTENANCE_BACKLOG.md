@@ -1,8 +1,8 @@
 # Maintenance Backlog
 
 Updated June 10, 2026 after the weekly maintenance/performance audit, the
-first public lazy-card resource-protection follow-up pass, and the E2E
-runner-health follow-up.
+first public lazy-card resource-protection follow-up pass, the E2E
+runner-health follow-up, and the Speaking Practice E2E follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -15,6 +15,11 @@ decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 Speaking Practice browser coverage follow-up:
+  `tests/e2e/specs/wordset-games-space-shooter.spec.js` now includes a
+  self-contained mocked microphone/MediaRecorder/AudioContext path that launches
+  Speaking Practice, records an attempt, posts the transcribe and score AJAX
+  actions, renders the scored result, and queues the expected progress outcome.
 - June 10 architecture documentation drift follow-up: `CODEBASE_ARCHITECTURE.md`
   now has a direct bootstrap include index that mirrors plugin-owned
   `includes/bootstrap.php` `require_once` paths in load order, and the
@@ -60,7 +65,7 @@ decisions, and documentation upkeep.
    - Offline app shell launcher and sync-panel wiring now have self-contained
      browser coverage; remaining offline gaps are service-worker/install
      behavior and real remote snapshot sync edge cases.
-   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed. Remaining game gap is Speaking Practice recording/API behavior.
+   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior. Remaining live game gaps are real browser/media permission variations and hosted API error edges.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,
      a safe cache-flush submit path, and mobile overflow.

@@ -115,6 +115,19 @@ function buildGamesMarkup() {
               </div>
               <div class="ll-wordset-game-stage__canvas-wrap">
                 <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
+                <section class="ll-wordset-speaking-stack-stage" data-ll-wordset-speaking-stack-stage hidden aria-live="polite">
+                  <div class="ll-wordset-speaking-stack-stage__topline">
+                    <span class="ll-wordset-speaking-stack-stage__progress" data-ll-wordset-speaking-stack-progress>0 left</span>
+                    <span class="ll-wordset-speaking-stack-stage__status" data-ll-wordset-speaking-stack-status>Mic ready</span>
+                  </div>
+                  <div class="ll-wordset-speaking-stack-stage__heard-row" data-ll-wordset-speaking-stack-heard-row hidden>
+                    <span class="ll-wordset-speaking-stack-stage__heard-label">Heard</span>
+                    <span class="ll-wordset-speaking-stack-stage__heard" data-ll-wordset-speaking-stack-heard></span>
+                  </div>
+                  <div class="ll-wordset-speaking-stack-stage__meter" data-ll-wordset-speaking-stack-meter aria-hidden="true">
+                    ${Array.from({ length: 12 }, () => '<span class="ll-wordset-speaking-stack-stage__meter-bar"></span>').join('')}
+                  </div>
+                </section>
                 <section class="ll-wordset-lineup-stage" data-ll-wordset-lineup-stage hidden aria-live="polite">
                   <div class="ll-wordset-lineup-stage__topline">
                     <span class="ll-wordset-lineup-stage__progress" data-ll-wordset-lineup-progress>Sequence 0 of 0</span>
@@ -140,6 +153,88 @@ function buildGamesMarkup() {
                   </div>
                 </section>
               </div>
+              <section class="ll-wordset-speaking-stage" data-ll-wordset-speaking-stage hidden aria-live="polite">
+                <div class="ll-wordset-speaking-stage__topline">
+                  <span class="ll-wordset-speaking-stage__round" data-ll-wordset-speaking-round></span>
+                  <span class="ll-wordset-speaking-stage__status" data-ll-wordset-speaking-status>Get ready...</span>
+                </div>
+                <div class="ll-wordset-speaking-stage__prompt-shell">
+                  <div class="ll-wordset-speaking-stage__prompt-card" data-ll-wordset-speaking-prompt-card>
+                    <figure class="ll-wordset-speaking-stage__image-frame" data-ll-wordset-speaking-image-wrap hidden>
+                      <img class="ll-wordset-speaking-stage__image" data-ll-wordset-speaking-image alt="" />
+                    </figure>
+                    <div class="ll-wordset-speaking-stage__text-prompt" data-ll-wordset-speaking-text-wrap hidden>
+                      <p class="ll-wordset-speaking-stage__text" data-ll-wordset-speaking-text></p>
+                    </div>
+                  </div>
+                </div>
+                <div class="ll-wordset-speaking-stage__meter" data-ll-wordset-speaking-meter aria-hidden="true">
+                  ${Array.from({ length: 12 }, () => '<span class="ll-wordset-speaking-stage__meter-bar"></span>').join('')}
+                </div>
+                <div class="ll-wordset-speaking-stage__actions" data-ll-wordset-speaking-actions>
+                  <button
+                    type="button"
+                    class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--record"
+                    data-ll-wordset-speaking-record
+                    data-speaking-state="idle"
+                    aria-label="Start recording">
+                    <span class="ll-wordset-speaking-stage__record-icon" aria-hidden="true"></span>
+                    <span class="screen-reader-text" data-ll-wordset-speaking-record-label>Start recording</span>
+                  </button>
+                </div>
+                <section class="ll-wordset-speaking-stage__result" data-ll-wordset-speaking-result hidden>
+                  <div class="ll-wordset-speaking-stage__comparison">
+                    <div class="ll-wordset-speaking-stage__comparison-card">
+                      <div class="ll-wordset-speaking-stage__comparison-head">
+                        <p class="ll-wordset-speaking-stage__comparison-label">You said</p>
+                        <button
+                          type="button"
+                          class="ll-wordset-speaking-stage__audio-button ll-prompt-audio-button"
+                          data-ll-wordset-speaking-play-attempt
+                          aria-label="Play your recording"
+                          hidden></button>
+                      </div>
+                      <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-transcript></p>
+                    </div>
+                    <div class="ll-wordset-speaking-stage__comparison-card" data-ll-wordset-speaking-target-row hidden>
+                      <div class="ll-wordset-speaking-stage__comparison-head">
+                        <p class="ll-wordset-speaking-stage__comparison-label">Correct audio</p>
+                        <button
+                          type="button"
+                          class="ll-wordset-speaking-stage__audio-button ll-prompt-audio-button"
+                          data-ll-wordset-speaking-play-correct
+                          aria-label="Play correct audio"
+                          hidden></button>
+                      </div>
+                      <p class="ll-wordset-speaking-stage__comparison-meta" data-ll-wordset-speaking-target-label>Target</p>
+                      <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-target></p>
+                      <dl class="ll-wordset-speaking-stage__details">
+                        <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-title-row hidden>
+                          <dt>Word</dt>
+                          <dd data-ll-wordset-speaking-title></dd>
+                        </div>
+                        <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-ipa-row hidden>
+                          <dt>IPA</dt>
+                          <dd data-ll-wordset-speaking-ipa></dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                  <div class="ll-wordset-speaking-stage__scoreline">
+                    <span class="ll-wordset-speaking-stage__bucket" data-ll-wordset-speaking-bucket></span>
+                    <span class="ll-wordset-speaking-stage__score" data-ll-wordset-speaking-score></span>
+                  </div>
+                  <div class="ll-wordset-speaking-stage__bar-track" aria-hidden="true">
+                    <span class="ll-wordset-speaking-stage__bar-fill" data-ll-wordset-speaking-bar></span>
+                  </div>
+                  <audio data-ll-wordset-speaking-attempt-audio preload="none"></audio>
+                  <audio data-ll-wordset-speaking-correct-audio preload="none"></audio>
+                  <div class="ll-wordset-speaking-stage__result-actions" data-ll-wordset-speaking-result-actions>
+                    <button type="button" class="ll-wordset-speaking-stage__icon-action ll-wordset-speaking-stage__icon-action--ghost" data-ll-wordset-speaking-retry aria-label="Retry"></button>
+                    <button type="button" class="ll-wordset-speaking-stage__icon-action" data-ll-wordset-speaking-next aria-label="Next"></button>
+                  </div>
+                </section>
+              </section>
               <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
                 <button type="button" data-ll-wordset-game-control="left" aria-label="Move left">
                   <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
@@ -593,6 +688,9 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
     games: {
       bootstrapAction: 'll_wordset_games_bootstrap',
       launchAction: 'll_wordset_games_launch',
+      transcribeAttemptAction: 'll_wordset_games_transcribe_speaking_attempt',
+      scoreAttemptAction: 'll_wordset_games_score_speaking_attempt',
+      matchAttemptAction: 'll_wordset_games_match_speaking_attempt',
       roundOptions: [20, 50, 100, 'all'],
       defaultRoundOption: 50,
       minimumWordCount: 5,
@@ -644,6 +742,16 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
         wrongHitVolume: 0.2,
         correctHitAudioSources: ['https://example.test/media/bubble-pop.mp3'],
         wrongHitAudioSources: ['https://example.test/media/space-shooter-wrong-hit.mp3']
+      },
+      speakingPractice: {
+        slug: 'speaking-practice',
+        provider: 'hosted_api',
+        targetField: 'title',
+        maxLoadedWords: 5,
+        autoStartDelayMs: 60000,
+        maxRecordingMs: 1600,
+        silenceWindowMs: 420,
+        minSpeechMs: 120
       }
     },
     summaryCounts: {
@@ -1117,6 +1225,205 @@ async function mountGamesPage(page, {
         }
       };
 
+      window.__speakingFetchLog = [];
+      window.__mediaRecorderLog = [];
+      window.URL.createObjectURL = function (blob) {
+        const size = blob && typeof blob.size === 'number' ? blob.size : 0;
+        const type = blob && blob.type ? String(blob.type) : 'application/octet-stream';
+        const url = `blob:fake-speaking-${window.__mediaRecorderLog.length}-${size}-${type}`;
+        window.__mediaRecorderLog.push(`create-object-url:${url}`);
+        return url;
+      };
+      window.URL.revokeObjectURL = function (url) {
+        window.__mediaRecorderLog.push(`revoke-object-url:${String(url || '')}`);
+      };
+
+      Object.defineProperty(window.navigator, 'mediaDevices', {
+        configurable: true,
+        value: {
+          getUserMedia(constraints) {
+            window.__mediaRecorderLog.push(`get-user-media:${constraints && constraints.audio ? 'audio' : 'none'}`);
+            return Promise.resolve({
+              getTracks() {
+                return [{
+                  stop() {
+                    window.__mediaRecorderLog.push('track-stop');
+                  }
+                }];
+              }
+            });
+          }
+        }
+      });
+
+      window.MediaRecorder = class FakeMediaRecorder extends EventTarget {
+        constructor(_stream, options = {}) {
+          super();
+          this.mimeType = String(options.mimeType || 'audio/webm');
+          this.state = 'inactive';
+        }
+
+        static isTypeSupported(type) {
+          return String(type || '').startsWith('audio/');
+        }
+
+        start() {
+          this.state = 'recording';
+          window.__mediaRecorderLog.push('recorder-start');
+        }
+
+        stop() {
+          if (this.state === 'inactive') {
+            return;
+          }
+          this.state = 'inactive';
+          window.__mediaRecorderLog.push('recorder-stop');
+          const event = new Event('dataavailable');
+          Object.defineProperty(event, 'data', {
+            configurable: true,
+            value: new Blob(['fake learner speech'], { type: this.mimeType || 'audio/webm' })
+          });
+          this.dispatchEvent(event);
+          this.dispatchEvent(new Event('stop'));
+        }
+      };
+
+      window.AudioContext = class FakeAudioContext {
+        constructor() {
+          this.state = 'running';
+          this._meterReads = 0;
+        }
+
+        createAnalyser() {
+          const owner = this;
+          return {
+            fftSize: 2048,
+            getByteTimeDomainData(buffer) {
+              owner._meterReads += 1;
+              const level = owner._meterReads <= 3 ? 26 : 0;
+              for (let index = 0; index < buffer.length; index += 1) {
+                buffer[index] = 128 + level;
+              }
+            }
+          };
+        }
+
+        createMediaStreamSource() {
+          return {
+            connect() {},
+            disconnect() {}
+          };
+        }
+
+        resume() {
+          this.state = 'running';
+          return Promise.resolve();
+        }
+
+        close() {
+          this.state = 'closed';
+          return Promise.resolve();
+        }
+      };
+      window.webkitAudioContext = window.AudioContext;
+
+      window.fetch = function (url, options = {}) {
+        const method = String(options.method || 'GET').toUpperCase();
+        const entries = [];
+        if (options.body && typeof options.body.forEach === 'function') {
+          options.body.forEach((value, key) => {
+            entries.push([
+              key,
+              value instanceof Blob ? `blob:${value.size}:${value.type}` : String(value)
+            ]);
+          });
+        }
+        window.__speakingFetchLog.push({
+          url: String(url || ''),
+          method,
+          entries
+        });
+
+        if (method === 'HEAD' || method === 'GET') {
+          return Promise.resolve({
+            ok: true,
+            statusText: 'OK',
+            json: () => Promise.resolve({ ok: true })
+          });
+        }
+
+        const action = entries.find(([key]) => key === 'action');
+        const actionName = action ? action[1] : '';
+        const entryValue = (name) => {
+          const match = entries.find(([key]) => key === name);
+          return match ? String(match[1] || '') : '';
+        };
+        const wordId = Number.parseInt(entryValue('word_id'), 10) || 0;
+        const targetWord = (Array.isArray(window.__gameBootstrapWords) ? window.__gameBootstrapWords : [])
+          .find((word) => Number.parseInt(word && word.id, 10) === wordId);
+        const targetTitle = String(
+          entryValue('word_title')
+          || targetWord && (targetWord.speaking_target_text || targetWord.title || targetWord.label)
+          || 'Sun'
+        );
+        const targetAudio = String(
+          targetWord && targetWord.speaking_best_correct_audio_url
+          || `https://example.test/audio/speaking-${wordId || 101}.mp3`
+        );
+        if (actionName === 'll_wordset_games_transcribe_speaking_attempt') {
+          return Promise.resolve({
+            ok: true,
+            statusText: 'OK',
+            json: () => Promise.resolve({
+              success: true,
+              data: {
+                transcript: targetTitle
+              }
+            })
+          });
+        }
+        if (actionName === 'll_wordset_games_score_speaking_attempt') {
+          return Promise.resolve({
+            ok: true,
+            statusText: 'OK',
+            json: () => Promise.resolve({
+              success: true,
+              data: {
+                matched: true,
+                word_id: wordId || 101,
+                target_field: 'title',
+                target_label: 'Target',
+                target_text: targetTitle,
+                normalized_target_text: targetTitle,
+                normalized_transcript_text: targetTitle,
+                score: 96,
+                raw_score: 96,
+                bucket: 'right',
+                display_texts: {
+                  title: targetTitle,
+                  ipa: 'sun ipa',
+                  target_text: targetTitle,
+                  target_field: 'title',
+                  target_label: 'Target'
+                },
+                best_correct_audio_url: targetAudio
+              }
+            })
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          statusText: 'OK',
+          json: () => Promise.resolve({
+            success: true,
+            data: {
+              predicted_ipa: 'Sun'
+            }
+          })
+        });
+      };
+
       window.LLFlashcards = {
         ProgressTracker: {
           setContext(ctx) {
@@ -1306,6 +1613,9 @@ async function mountGamesPage(page, {
           if (slug === 'bubble-pop') {
             return gamesConfig.bubblePop || {};
           }
+          if (slug === 'speaking-practice') {
+            return gamesConfig.speakingPractice || {};
+          }
           if (slug === 'speaking-stack') {
             return gamesConfig.speakingStack || {};
           }
@@ -1322,11 +1632,13 @@ async function mountGamesPage(page, {
           const responseGames = {};
           const shooterCatalog = getCatalogEntry('space-shooter');
           const bubbleCatalog = getCatalogEntry('bubble-pop');
+          const speakingPracticeCatalog = getCatalogEntry('speaking-practice');
           const speakingStackCatalog = getCatalogEntry('speaking-stack');
           const unscrambleCatalog = getCatalogEntry('unscramble');
           const lineupCatalog = getCatalogEntry('line-up');
           const shooterSettings = getGameSettings('space-shooter');
           const bubbleSettings = getGameSettings('bubble-pop');
+          const speakingPracticeSettings = getGameSettings('speaking-practice');
           const speakingStackSettings = getGameSettings('speaking-stack');
 
           if (shooterCatalog) {
@@ -1345,6 +1657,21 @@ async function mountGamesPage(page, {
               bubbleCatalog.description || 'Hear the word. Pop the matching bubble.',
               Number(bubbleSettings.maxLoadedWords || 6),
               window.__gameBootstrapWords
+            );
+          }
+          if (speakingPracticeCatalog) {
+            responseGames['speaking-practice'] = Object.assign(
+              buildResponseEntry(
+                'speaking-practice',
+                speakingPracticeCatalog.title || 'Speaking Practice',
+                speakingPracticeCatalog.description || 'Say each word and check the match.',
+                Number(speakingPracticeSettings.maxLoadedWords || window.__gameBootstrapWords.length || 5),
+                window.__gameBootstrapWords
+              ),
+              {
+                provider: String(speakingPracticeSettings.provider || 'hosted_api'),
+                target_field: String(speakingPracticeSettings.targetField || 'title')
+              }
             );
           }
           if (speakingStackCatalog) {
@@ -1395,6 +1722,25 @@ async function mountGamesPage(page, {
                   'Bubble Pop',
                   'Hear the word. Pop the matching bubble.',
                   window.__gameBootstrapWords
+                )
+              }
+            });
+          } else if (slug === 'speaking-practice') {
+            const catalogEntry = getCatalogEntry('speaking-practice') || {};
+            const gameSettings = getGameSettings('speaking-practice');
+            deferred.resolve({
+              success: true,
+              data: {
+                wordset_id: 77,
+                game: buildLaunchEntry(
+                  'speaking-practice',
+                  catalogEntry.title || 'Speaking Practice',
+                  catalogEntry.description || 'Say each word and check the match.',
+                  window.__gameBootstrapWords,
+                  {
+                    provider: String(gameSettings.provider || 'hosted_api'),
+                    target_field: String(gameSettings.targetField || 'title')
+                  }
                 )
               }
             });
@@ -1604,6 +1950,116 @@ test('games page shows a manager-only notice when speaking games stay hidden', a
     'Speaking games are hidden because speaking practice is turned off for this word set.'
   );
   await expect(page.locator('[data-ll-wordset-games-speaking-notice-link]')).toHaveAttribute('href', settingsUrl);
+});
+
+test('speaking practice records an attempt and renders API scoring result', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(5),
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-practice': {
+            slug: 'speaking-practice',
+            title: 'Speaking Practice',
+            description: 'Say each word and check the match.'
+          }
+        },
+        speakingPractice: {
+          slug: 'speaking-practice',
+          provider: 'hosted_api',
+          targetField: 'title',
+          maxLoadedWords: 5,
+          autoStartDelayMs: 60000,
+          maxRecordingMs: 1600,
+          silenceWindowMs: 420,
+          minSpeechMs: 120
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'speaking-practice')).toBeEnabled();
+  await expect(gameStatus(page, 'speaking-practice')).toHaveText('5 words ready');
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('speaking-practice');
+  });
+
+  const promptState = await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    if (!run || run.slug !== 'speaking-practice' || !run.targetWordId) {
+      return null;
+    }
+    const target = (window.__gameBootstrapWords || []).find((word) => Number(word.id) === Number(run.targetWordId));
+    return target ? {
+      wordId: Number(target.id),
+      title: String(target.title || target.label || '')
+    } : null;
+  });
+  const target = await promptState.jsonValue();
+
+  await expect(page.locator('[data-ll-wordset-speaking-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-speaking-round]')).toHaveText('Word 1 of 5');
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'idle');
+
+  await page.locator('[data-ll-wordset-speaking-record]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__mediaRecorderLog.includes('recorder-start'))).toBe(true);
+  await expect(page.locator('[data-ll-wordset-speaking-result]')).toBeVisible({ timeout: 4000 });
+  await expect(page.locator('[data-ll-wordset-speaking-bucket]')).toHaveText('Correct');
+  await expect(page.locator('[data-ll-wordset-speaking-score]')).toHaveText('Similarity 96%');
+  await expect(page.locator('[data-ll-wordset-speaking-transcript]')).toHaveText(target.title);
+  await expect(page.locator('[data-ll-wordset-speaking-target-label]')).toHaveText('Target');
+  await expect(page.locator('[data-ll-wordset-speaking-target]')).toHaveText(target.title);
+  await expect(page.locator('[data-ll-wordset-speaking-ipa-row]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-speaking-ipa]')).toHaveText('sun ipa');
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'retry');
+
+  const speakingRequestLog = await page.evaluate(() => window.__speakingFetchLog);
+  const postRequests = speakingRequestLog.filter((entry) => entry.method === 'POST');
+  expect(postRequests.map((entry) => entry.entries.find(([key]) => key === 'action')?.[1])).toEqual([
+    'll_wordset_games_transcribe_speaking_attempt',
+    'll_wordset_games_score_speaking_attempt'
+  ]);
+
+  const transcribeRequest = postRequests[0];
+  expect(transcribeRequest.entries).toEqual(expect.arrayContaining([
+    ['wordset_id', '77'],
+    ['target_field', 'title'],
+    ['word_id', String(target.wordId)],
+    ['word_title', target.title]
+  ]));
+  expect(transcribeRequest.entries.some(([key, value]) => key === 'audio' && value.startsWith('blob:'))).toBe(true);
+
+  const scoreRequest = postRequests[1];
+  expect(scoreRequest.entries).toEqual(expect.arrayContaining([
+    ['wordset_id', '77'],
+    ['target_field', 'title'],
+    ['word_id', String(target.wordId)],
+    ['transcript', target.title]
+  ]));
+
+  const progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
+  expect(progressEvents.some((event) => (
+    event.type === 'word_outcome'
+    && event.entry
+    && event.entry.payload
+    && event.entry.payload.event_source === 'speaking_practice'
+    && event.entry.payload.speaking_game_bucket === 'right'
+    && event.entry.payload.stt_provider === 'hosted_api'
+    && Number(event.entry.word && event.entry.word.id) === target.wordId
+  ))).toBe(true);
+
+  const mediaLog = await page.evaluate(() => window.__mediaRecorderLog);
+  expect(mediaLog).toEqual(expect.arrayContaining([
+    'get-user-media:audio',
+    'recorder-start',
+    'recorder-stop'
+  ]));
+  expect(mediaLog.some((entry) => entry.startsWith('create-object-url:blob:fake-speaking'))).toBe(true);
+
+  await closeRunPopup(page);
 });
 
 test('word stack fills empty columns before stacking and keeps images from overlapping across columns', async ({ page }) => {
