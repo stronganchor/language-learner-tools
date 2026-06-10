@@ -277,7 +277,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
 - `tests/e2e/specs/maintenance-doc-contracts.spec.js`
-  - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md`, high-confidence hardcoded UI-string contexts using WordPress i18n wrappers, wordset-games public JS avoiding duplicated English `i18n` fallback strings, and Turkish PO high-risk glossary/tone checks.
+  - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md`, `CODEBASE_ARCHITECTURE.md` matching direct bootstrap include order, high-confidence hardcoded UI-string contexts using WordPress i18n wrappers, wordset-games public JS avoiding duplicated English `i18n` fallback strings, and Turkish PO high-risk glossary/tone checks.
 - Known E2E coverage gaps still worth adding:
   - WordPress-backed content lesson fixtures for real content lesson routes and media payloads beyond the covered mixed-grid order/search/selection browser behavior.
   - Prompt-card recorder permissions plus real media upload beyond the local WordPress-backed queue fixture, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.

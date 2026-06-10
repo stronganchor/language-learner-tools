@@ -81,6 +81,127 @@ read_first:
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 
+# Direct bootstrap include index
+
+This list mirrors plugin-owned direct includes in `includes/bootstrap.php` in
+load order. Update it with bootstrap changes; the maintenance source-contract
+test compares this block against the file. The external plugin-update-checker
+vendor include is documented in the directory map instead of this plugin-owned
+module list.
+
+<!-- bootstrap-include-index:start -->
+- includes/assets.php
+- includes/lib/php-compat.php
+- includes/lib/sort.php
+- includes/lib/text-display.php
+- includes/lib/entity-translations.php
+- includes/lib/wordset-language-settings.php
+- includes/lib/word-translations.php
+- includes/lib/audio-originals.php
+- includes/lib/custom-stt-endpoint.php
+- includes/lib/internal-review-notes.php
+- includes/lib/interlinear.php
+- includes/lib/site-sync.php
+- includes/template-loader.php
+- includes/teacher-classes.php
+- includes/login-window.php
+- includes/lib/media-proxy.php
+- includes/lib/image-aspect.php
+- includes/lib/image-animation.php
+- includes/lib/word-option-rules.php
+- includes/lib/image-hash.php
+- includes/post-types/words-post-type.php
+- includes/post-types/dictionary-entry-post-type.php
+- includes/post-types/word-image-post-type.php
+- includes/post-types/word-audio-post-type.php
+- includes/post-types/prompt-card-post-type.php
+- includes/post-types/vocab-lesson-post-type.php
+- includes/post-types/content-lesson-post-type.php
+- includes/lib/dictionary-sources.php
+- includes/lib/dictionary-static-cache.php
+- includes/lib/public-static-cache.php
+- includes/lib/dictionary-search-index.php
+- includes/lib/dictionary-browser.php
+- includes/lib/dictionary-snapshot.php
+- includes/taxonomies/word-category-taxonomy.php
+- includes/taxonomies/wordset-taxonomy.php
+- includes/taxonomies/language-taxonomy.php
+- includes/taxonomies/part-of-speech-taxonomy.php
+- includes/taxonomies/recording-type-taxonomy.php
+- includes/wordset-isolation.php
+- includes/wordset-templates.php
+- includes/user-roles/wordset-manager.php
+- includes/user-roles/ll-tools-editor.php
+- includes/user-roles/learner-role.php
+- includes/user-roles/audio-recorder-role.php
+- includes/user-roles/teacher-role.php
+- includes/admin/uploads/audio-upload-form.php
+- includes/admin/uploads/image-upload-form.php
+- includes/user-progress.php
+- includes/user-study.php
+- includes/user-progress-report-data.php
+- includes/offline-app-sync.php
+- includes/privacy.php
+- includes/admin/api/deepl-api.php
+- includes/admin/api/assemblyai-api.php
+- includes/api/automation-rest.php
+- includes/admin/word-option-rules-admin.php
+- includes/admin/admin-dashboard-menu.php
+- includes/admin/missing-audio-admin-page.php
+- includes/admin/audio-image-matcher.php
+- includes/admin/settings.php
+- includes/admin/audio-processor-admin.php
+- includes/admin/login-blocks-admin.php
+- includes/admin/recording-types-admin.php
+- includes/admin/metabox-word-audio-parent.php
+- includes/admin/bulk-translation-admin.php
+- includes/admin/bulk-word-import-admin.php
+- includes/admin/prompt-audio-import-admin.php
+- includes/admin/dictionary-import-admin.php
+- includes/admin/dictionary-sources-admin.php
+- includes/admin/export-import.php
+- includes/admin/offline-app-export.php
+- includes/admin/user-progress-report.php
+- includes/admin/teacher-classes-page.php
+- includes/admin/word-images-fixer.php
+- includes/admin/example-sentence-migration.php
+- includes/admin/ipa-keyboard-admin.php
+- includes/admin/image-aspect-normalizer-admin.php
+- includes/admin/image-webp-optimizer-admin.php
+- includes/admin/orphan-media-admin.php
+- includes/admin/split-word-admin.php
+- includes/admin/duplicate-category-words-admin.php
+- includes/admin/site-sync-admin.php
+- includes/cli/cli-support.php
+- includes/cli/class-ll-tools-cli-command.php
+- includes/pages/quiz-pages.php
+- includes/pages/vocab-lesson-pages.php
+- includes/pages/content-lesson-pages.php
+- includes/pages/wordset-games.php
+- includes/pages/wordset-pages.php
+- includes/pages/wordset-editor.php
+- includes/pages/default-shortcode-page-helper.php
+- includes/pages/recording-page.php
+- includes/pages/editor-hub-page.php
+- includes/pages/dictionary-page.php
+- includes/pages/site-tools-page.php
+- includes/shortcodes/flashcard-widget.php
+- includes/shortcodes/word-audio-shortcode.php
+- includes/shortcodes/interlinear-shortcode.php
+- includes/shortcodes/word-grid-shortcode.php
+- includes/shortcodes/editor-hub-shortcode.php
+- includes/shortcodes/image-copyright-grid-shortcode.php
+- includes/shortcodes/audio-credit-grid-shortcode.php
+- includes/shortcodes/quiz-pages-shortcodes.php
+- includes/shortcodes/audio-recording-shortcode.php
+- includes/shortcodes/language-switcher-shortcode.php
+- includes/shortcodes/wordset-page-shortcode.php
+- includes/shortcodes/wordset-buttons-shortcode.php
+- includes/shortcodes/dictionary-shortcode.php
+- includes/shortcodes/site-tools-shortcode.php
+- includes/i18n/language-switcher.php
+<!-- bootstrap-include-index:end -->
+
 # Directory map (top level)
 ```
 language-learner-tools.php    # Bootstrap, constants, updates, /embed rewrite

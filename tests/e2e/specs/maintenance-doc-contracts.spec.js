@@ -191,6 +191,28 @@ function collectAutomationStatusRoutePaths() {
     .sort();
 }
 
+function collectBootstrapIncludePaths() {
+  const source = fs.readFileSync(path.join(repoRoot, 'includes', 'bootstrap.php'), 'utf8');
+  const requireRegex = /require_once\s*\(?\s*(?:__DIR__\s*\.\s*['"]([^'"]+\.php)['"]|LL_TOOLS_BASE_PATH\s*\.\s*['"]([^'"]+\.php)['"])/g;
+  const paths = [];
+  let match;
+
+  while ((match = requireRegex.exec(source)) !== null) {
+    const rawPath = (match[1] || match[2]).replace(/\\/g, '/').replace(/^\//, '');
+    const normalized = rawPath.startsWith('includes/') || rawPath.startsWith('vendor/')
+      ? rawPath
+      : `includes/${rawPath}`;
+
+    if (normalized.startsWith('vendor/')) {
+      continue;
+    }
+
+    paths.push(normalized);
+  }
+
+  return [...new Set(paths)];
+}
+
 test('README documents registered public shortcodes', async () => {
   const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
   const phpFiles = pluginSourceFiles().filter((file) => file.endsWith('.php'));
@@ -214,6 +236,18 @@ test('README documents registered public shortcodes', async () => {
     .filter((tag) => !readme.includes(`[${tag}]`));
 
   expect(missing, `README.md is missing shortcode docs for: ${missing.join(', ')}`).toEqual([]);
+});
+
+test('CODEBASE_ARCHITECTURE bootstrap include index matches loaded plugin modules', async () => {
+  const docs = fs.readFileSync(path.join(repoRoot, 'CODEBASE_ARCHITECTURE.md'), 'utf8');
+  const indexMatch = docs.match(/<!-- bootstrap-include-index:start -->([\s\S]*?)<!-- bootstrap-include-index:end -->/);
+
+  expect(indexMatch, 'CODEBASE_ARCHITECTURE.md is missing the bootstrap include index block.').not.toBeNull();
+
+  const documented = [...indexMatch[1].matchAll(/^\s*-\s+(includes\/[^\s`]+\.php)\s*$/gm)]
+    .map((match) => match[1]);
+
+  expect(documented).toEqual(collectBootstrapIncludePaths());
 });
 
 test('high-confidence user-facing strings are translation-ready', async () => {

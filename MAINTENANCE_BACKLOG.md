@@ -15,6 +15,12 @@ decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 architecture documentation drift follow-up: `CODEBASE_ARCHITECTURE.md`
+  now has a direct bootstrap include index that mirrors plugin-owned
+  `includes/bootstrap.php` `require_once` paths in load order, and the
+  maintenance source-contract spec now fails if that index drifts from the
+  loaded module list.
+
 - June 10 Turkish localization quality follow-up: normalized the Turkish
   `part of speech` glossary cluster from `Sözcük Türü`/`sözcük türü` to
   `Konuşma Parçası`/`konuşma parçası`, rebuilt the compiled Turkish locale
@@ -62,9 +68,10 @@ decisions, and documentation upkeep.
      public shortcodes stay listed in `README.md`, high-confidence user-facing
      PHP/JS string contexts use translation-ready wrappers, wordset game
      UI copy does not duplicate English `i18n` fallbacks in public JS, and the
-     Turkish PO avoids high-risk glossary/tone regressions. Keep extending this
-     kind of static coverage where it catches real maintenance drift with low
-     flake risk.
+     Turkish PO avoids high-risk glossary/tone regressions. It also guards the
+     architecture guide's direct bootstrap include index against load-map drift.
+     Keep extending this kind of static coverage where it catches real
+     maintenance drift with low flake risk.
 
 2. Reduce duplicated flashcard shell markup and startup behavior.
    - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.
@@ -80,7 +87,7 @@ decisions, and documentation upkeep.
    - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` is a legacy supported-language-map helper, not a duplicate of the wordset source/target resolver `ll_tools_get_deepl_language_codes()`. Keep it for compatibility unless a future external-usage audit proves it can be deprecated.
 
 5. Keep architecture and operator docs current after large feature work.
-   - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, but it should be refreshed whenever another large workflow lands.
+   - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, plus a source-contract-guarded direct bootstrap include index. Keep refreshing narrative flow docs whenever another large workflow lands.
    - `README.md` shortcode coverage is now guarded by a Playwright source-contract regression; update the README and the test together when intentionally adding or removing public shortcodes.
 
 ## Deferred Larger Projects
