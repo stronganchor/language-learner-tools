@@ -264,6 +264,8 @@ Representative E2E coverage areas:
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
   - Verifies a local WordPress-backed prompt-card fixture is exposed through `[audio_recording_interface]` as a prompt-audio queue item with the expected wordset, category, and prompt-card payload.
+- `tests/e2e/specs/content-lesson-route-media.spec.js`
+  - Verifies a local WordPress-backed content lesson route renders its audio media source, parsed transcript cues, cue JSON payload, notes, localized player data, and related vocab lesson link.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
   - Verifies a teacher-role user can create a class from the frontend wordset classes page, return to the newly selected class, see the success notice, and delete the class again.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
@@ -279,7 +281,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/maintenance-doc-contracts.spec.js`
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md`, `CODEBASE_ARCHITECTURE.md` matching direct bootstrap include order, high-confidence hardcoded UI-string contexts using WordPress i18n wrappers, wordset-games public JS avoiding duplicated English `i18n` fallback strings, and Turkish PO high-risk glossary/tone checks.
 - Known E2E coverage gaps still worth adding:
-  - WordPress-backed content lesson fixtures for real content lesson routes and media payloads beyond the covered mixed-grid order/search/selection browser behavior.
+  - Content lessons now have WordPress-backed route/media/cue/related-vocab browser coverage beyond the covered mixed-grid order/search/selection behavior; remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
   - Prompt-card recorder permissions plus real media upload beyond the local WordPress-backed queue fixture, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
   - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
   - Offline app service-worker/install behavior and real remote snapshot sync edge cases.

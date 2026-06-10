@@ -3,7 +3,7 @@
 Updated June 10, 2026 after the weekly maintenance/performance audit, the
 first public lazy-card resource-protection follow-up pass, the E2E
 runner-health follow-up, the Speaking Practice E2E follow-up, and the shared
-flashcard shell follow-up.
+flashcard shell follow-up, and the content lesson route/media E2E follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -15,6 +15,13 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 content lesson route/media E2E follow-up:
+  `tests/e2e/specs/content-lesson-route-media.spec.js` now uses a marked
+  WP-CLI fixture to seed a real `ll_content_lesson` route with audio media,
+  parsed transcript cues, post notes, and a related vocab lesson link. This
+  closes the main WordPress-backed browser gap for content lesson route and
+  media payload rendering while leaving real uploaded media playback and
+  corpus-text route variants as deliberate future coverage.
 - June 10 flashcard shell duplication follow-up: added
   `includes/flashcard-shell.php` as the shared renderer for the flashcard
   overlay popup, mode switcher, results controls, and guarded repeat-button
@@ -66,7 +73,7 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
   lazy-card hydration, and diacritic-insensitive matching.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
-   - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, and category-only selection behavior. The remaining gap is a WordPress-backed browser fixture for real content lesson routes and media payloads.
+   - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, and a WordPress-backed real route/media/cue/related-vocab fixture. Remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
    - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior and a local WordPress-backed prompt-card queue item; the remaining gap is permissions plus real media upload. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class assignment, invite, and progress-table flows. Teacher class
      creation now has frontend Playwright coverage for a teacher-role user,
