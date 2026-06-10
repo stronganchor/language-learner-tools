@@ -598,9 +598,10 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
 
         $this->assertSame(
-            'Yı',
+            'Yi',
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("ji", $engine_rules, $wordset_id)['text'] ?? '')
         );
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Yi', "ji", $wordset_id, 'isolation', null)['matches'] ?? false));
 
         $this->assertSame(
             'Çend',

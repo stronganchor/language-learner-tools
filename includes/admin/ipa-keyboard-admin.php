@@ -3754,7 +3754,6 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
         'twı' => 'twe',
         'pwıre' => 'pwırı',
         'ye' => 'yı',
-        'yi' => 'yı',
         'çen' => 'çend',
         "'ez" => 'ez',
     ];
