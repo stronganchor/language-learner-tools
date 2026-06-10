@@ -161,6 +161,29 @@
                 : (root.llToolsFlashcardsData.userStudyState.starred_word_ids || []);
             root.llToolsFlashcardsData.userStudyState.star_mode = String(next.star_mode || root.llToolsFlashcardsData.userStudyState.star_mode || 'normal');
             root.llToolsFlashcardsData.userStudyState.fast_transitions = !!(next.fast_transitions ?? root.llToolsFlashcardsData.userStudyState.fast_transitions);
+
+            const syncedState = root.llToolsFlashcardsData.userStudyState;
+            const starredWordIds = Array.isArray(syncedState.starred_word_ids)
+                ? syncedState.starred_word_ids.map(toInt).filter(Boolean)
+                : [];
+            const starMode = String(syncedState.star_mode || 'normal');
+            const fastTransitions = !!syncedState.fast_transitions;
+
+            root.llToolsFlashcardsData.starredWordIds = starredWordIds.slice();
+            root.llToolsFlashcardsData.starred_word_ids = starredWordIds.slice();
+            root.llToolsFlashcardsData.starMode = starMode;
+            root.llToolsFlashcardsData.star_mode = starMode;
+            root.llToolsFlashcardsData.fastTransitions = fastTransitions;
+            root.llToolsFlashcardsData.fast_transitions = fastTransitions;
+
+            if (root.llToolsStudyPrefs && typeof root.llToolsStudyPrefs === 'object') {
+                root.llToolsStudyPrefs.starredWordIds = starredWordIds.slice();
+                root.llToolsStudyPrefs.starred_word_ids = starredWordIds.slice();
+                root.llToolsStudyPrefs.starMode = starMode;
+                root.llToolsStudyPrefs.star_mode = starMode;
+                root.llToolsStudyPrefs.fastTransitions = fastTransitions;
+                root.llToolsStudyPrefs.fast_transitions = fastTransitions;
+            }
         }
         persistSelectedCategoryIds((root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyState && root.llToolsFlashcardsData.userStudyState.category_ids) || []);
 

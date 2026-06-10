@@ -380,3 +380,100 @@ test('offline app sync panel signs in, syncs, and disconnects through the real s
   const actions = await page.evaluate(() => window.__offlineSyncRequests.map((request) => request.action));
   expect(actions).toContain('fixture_logout');
 });
+
+test('offline app applies remote sync snapshots to launcher state and next recommendation', async ({ page }) => {
+  await mountOfflineLauncher(page, { enableSync: true });
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:remote-sync-snapshot', [{
+      state: {
+        wordset_id: 777,
+        category_ids: [22],
+        starred_word_ids: [201],
+        star_mode: 'starred',
+        fast_transitions: true
+      },
+      progress_words: {
+        101: {
+          progress_status: 'studied',
+          last_seen_at: '2026-05-29T08:00:00Z'
+        },
+        201: {
+          progress_status: 'mastered',
+          last_seen_at: '2026-06-09T10:00:00Z'
+        },
+        202: {
+          progress_status: 'mastered',
+          last_seen_at: '2026-06-09T10:01:00Z'
+        },
+        203: {
+          progress_status: 'studied',
+          last_seen_at: '2026-06-09T10:02:00Z'
+        }
+      },
+      category_progress: {
+        11: {
+          exposure_total: 2,
+          last_seen_at: '2026-05-29T08:00:00Z'
+        },
+        22: {
+          exposure_total: 9,
+          last_seen_at: '2026-06-09T10:02:00Z'
+        }
+      },
+      next_activity: {
+        mode: 'practice',
+        category_ids: [22],
+        session_word_ids: [201, 202]
+      },
+      recommendation_queue: [{
+        mode: 'learning',
+        category_ids: [11],
+        session_word_ids: []
+      }]
+    }]);
+  });
+
+  await expect(page.locator('#ll-offline-selection-bar')).toBeVisible();
+  await expect(page.locator('#ll-offline-selection-text')).toHaveText('5 words');
+  await expect(page.locator('[data-ll-offline-category-select][data-cat-id="22"]')).toBeChecked();
+  await expect(page.locator('[data-ll-offline-category-select][data-cat-id="11"]')).not.toBeChecked();
+
+  await page.locator('[data-ll-offline-sort-toggle]').click();
+  await page.locator('[data-ll-offline-sort-option="progress-desc"]').click();
+  await expect(page.locator('.ll-wordset-card__title')).toHaveText(['Market', 'Animals']);
+
+  const progressWidths = await page.locator('#ll-offline-category-grid .ll-wordset-card').first().evaluate((card) => ({
+    mastered: card.querySelector('.ll-wordset-card__progress-segment--mastered')?.style.width || '',
+    studied: card.querySelector('.ll-wordset-card__progress-segment--studied')?.style.width || ''
+  }));
+  expect(progressWidths).toEqual({
+    mastered: '40%',
+    studied: '20%'
+  });
+
+  await expect(page.locator('#ll-offline-next-text .ll-wordset-next-card__line')).toHaveText(['Practice', 'Market']);
+  await expect(page.locator('#ll-offline-next-count')).toHaveText('2');
+  await expect(page.locator('#ll-offline-next-card')).toBeDisabled();
+
+  await page.locator('#ll-offline-selection-clear').click();
+  await expect(page.locator('#ll-offline-selection-bar')).toBeHidden();
+  await expect(page.locator('#ll-offline-next-card')).toBeEnabled();
+  await expect(page.locator('#ll-offline-next-card')).toHaveAttribute('aria-label', 'Recommended: Practice in Market (2 words).');
+
+  await page.locator('#ll-offline-next-card').click();
+  const launch = await page.evaluate(() => ({
+    launches: window.__offlineLaunches,
+    lastLaunchPlan: window.llToolsFlashcardsData && window.llToolsFlashcardsData.lastLaunchPlan,
+    userStudyState: window.llToolsFlashcardsData && window.llToolsFlashcardsData.userStudyState
+  }));
+
+  expect(launch.launches).toHaveLength(1);
+  expect(launch.launches[0].catNames).toEqual(['Market']);
+  expect(launch.launches[0].mode).toBe('practice');
+  expect(launch.lastLaunchPlan.category_ids).toEqual([22]);
+  expect(launch.lastLaunchPlan.session_word_ids).toEqual([201, 202]);
+  expect(launch.userStudyState.starred_word_ids).toEqual([201]);
+  expect(launch.userStudyState.star_mode).toBe('starred');
+  expect(launch.userStudyState.fast_transitions).toBe(true);
+});

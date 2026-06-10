@@ -6,7 +6,8 @@ runner-health follow-up, the Speaking Practice E2E follow-up, the shared
 flashcard shell follow-up, the content lesson route/media E2E follow-up, and
 the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
 verification follow-up, the Speaking Practice microphone-denial follow-up, and
-the Speaking Practice hosted API failure follow-up.
+the Speaking Practice hosted API failure follow-up, and the offline remote
+snapshot follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -18,6 +19,13 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 offline remote snapshot follow-up:
+  `offline-app/offline-app.js` now mirrors remote `userStudyState` starred
+  words, star mode, and fast-transition preferences into the top-level
+  flashcard fields consumed by offline launches. `tests/e2e/specs/offline-app-shell-launcher.spec.js`
+  now covers a remote sync snapshot updating selected categories, progress sort
+  metrics, next recommendation UI, session-word launch plans, and synced study
+  preferences.
 - June 10 Speaking Practice hosted API failure follow-up:
   `tests/e2e/specs/wordset-games-space-shooter.spec.js` now covers hosted
   transcribe and score failures in the real Speaking Practice popup flow. The
@@ -109,8 +117,11 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
      admin assignment of an existing learner, progress-table sorting, learner
      removal, and the limited-role `admin-post.php` selected-class redirect.
    - Offline app shell launcher and sync-panel wiring now have self-contained
-     browser coverage; remaining offline gaps are service-worker/install
-     behavior and real remote snapshot sync edge cases.
+     browser coverage for launcher selection/sort/launch, sync-panel sign-in,
+     manual sync/disconnect, and remote snapshot application to selected
+     categories, progress sorting, recommendations, and study preferences.
+     Remaining offline gaps are service-worker/install behavior and real server
+     sync conflict/error cases.
    - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior, microphone-denied retry state, and hosted transcribe/score failure retry states. Remaining live game gaps are real browser permission-prompt variations and live hosted API behavior under real credentials/latency.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,

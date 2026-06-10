@@ -192,7 +192,7 @@ tests/bin/run-e2e.sh --shard=4/4
 
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
-expanded the local inventory to 320 tests. Treat a short unsharded timeout as
+expanded the local inventory to 324 tests. Treat a short unsharded timeout as
 an automation budget problem unless a shard isolates a hung spec; if the
 unsharded command still stalls beyond 35 minutes after shards pass, investigate
 suite-level state leakage or Local-site slowness.
@@ -242,7 +242,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/listening-visualizer-regression.spec.js`
   - Verifies Listening visualizer warmup/resume behavior and countdown-hide recovery.
 - `tests/e2e/specs/offline-app-shell-launcher.spec.js`
-  - Verifies the offline app launcher filters/sorts/selects categories, launches the real shell wiring, and exercises the sync panel sign-in, manual sync, and disconnect flow against a fake progress tracker.
+  - Verifies the offline app launcher filters/sorts/selects categories, launches the real shell wiring, exercises the sync panel sign-in/manual-sync/disconnect flow against a fake progress tracker, and applies remote sync snapshots to selected categories, progress sorting, next recommendations, and synced study preferences.
 - `tests/e2e/specs/practice-option-constraints.spec.js`
   - Verifies Practice mode answer option counts/constraints across category setups.
 - `tests/e2e/specs/quiz-launch-config.spec.js`
@@ -287,7 +287,7 @@ Representative E2E coverage areas:
   - Content lessons now have WordPress-backed route/media/cue/related-vocab browser coverage beyond the covered mixed-grid order/search/selection behavior; remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
   - Prompt-card recorder real browser microphone permission permutations beyond the local WordPress-backed queue fixture, limited-recorder real upload regression, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
   - Real browser permission-prompt permutations and live hosted API behavior under real credentials/latency beyond the mocked Speaking Practice microphone-denial, record/transcribe/score, and hosted transcribe/score failure flows.
-  - Offline app service-worker/install behavior and real remote snapshot sync edge cases.
+  - Offline app service-worker/install behavior and real server sync conflict/error cases beyond the local remote-snapshot application coverage.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
