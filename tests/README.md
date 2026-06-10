@@ -170,7 +170,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
-- Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
+- Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
 
 ## 6) Browser E2E tests (Playwright)
 
@@ -211,7 +211,7 @@ find tests/e2e/specs -maxdepth 1 -name '*.spec.js' | sort
 Representative E2E coverage areas:
 
 - `tests/e2e/helpers/admin.js`
-  - Provides the shared admin login, temporary page creation, and cleanup helpers used by admin-authenticated browser specs.
+  - Provides the shared admin login, bounded REST fixture calls, temporary page creation, and cleanup helpers used by admin-authenticated browser specs.
 - `tests/e2e/specs/admin-maintenance-pages.spec.js`
   - Verifies the WebP optimizer and orphaned-media admin pages load their review controls without unrelated maintenance scans breaking the page.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`

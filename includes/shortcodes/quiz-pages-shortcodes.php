@@ -895,152 +895,27 @@ function ll_qpg_print_flashcard_shell_once() {
     $widget_rendered = function_exists('ll_tools_flashcard_widget_is_rendered_once')
         && ll_tools_flashcard_widget_is_rendered_once();
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
-    $practice_mode_ui = $mode_ui['practice'] ?? [];
-    $learning_mode_ui = $mode_ui['learning'] ?? [];
-    $self_check_mode_ui = $mode_ui['self-check'] ?? [];
-    $listening_mode_ui = $mode_ui['listening'] ?? [];
-    $gender_mode_ui = $mode_ui['gender'] ?? [];
-    $render_mode_icon = function (array $cfg, string $fallback, string $class = 'mode-icon'): void {
-        if (!empty($cfg['svg'])) {
-            echo '<span class="' . esc_attr($class) . '" aria-hidden="true">' . $cfg['svg'] . '</span>';
-            return;
-        }
-        $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
-        echo '<span class="' . esc_attr($class) . '" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
-    };
     if (!$widget_rendered) :
     ?>
     <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" style="display:none;">
-      <div id="ll-tools-flashcard-popup" style="display:none;">
-        <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
-          <button id="ll-tools-close-flashcard" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
-
-          <div id="ll-tools-flashcard-header" style="display:none;">
-            <div id="ll-tools-learning-progress" style="display:none;"></div>
-
-            <div id="ll-tools-category-stack" class="ll-tools-category-stack">
-              <span id="ll-tools-category-display" class="ll-tools-category-display"></span>
-              <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
-              </button>
-            </div>
-
-          </div>
-
-          <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
-
-          <div id="ll-tools-flashcard-content">
-            <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>
-            <div id="ll-tools-flashcard"></div>
-            <audio controls class="hidden"></audio>
-          </div>
-
-          <!-- Mode switcher: single toggle that expands to fixed-order options -->
-          <?php
-            $practice_label = $practice_mode_ui['switchLabel'] ?? __('Practice', 'll-tools-text-domain');
-            $learning_label = $learning_mode_ui['switchLabel'] ?? __('Learn', 'll-tools-text-domain');
-            $self_check_label = $self_check_mode_ui['switchLabel'] ?? __('Self check', 'll-tools-text-domain');
-            $listening_label = $listening_mode_ui['switchLabel'] ?? __('Listening', 'll-tools-text-domain');
-            $gender_label = $gender_mode_ui['switchLabel'] ?? __('Gender', 'll-tools-text-domain');
-          ?>
-          <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
-            <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-              <!-- Fixed order: learning, practice, listening, gender, self-check -->
-              <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
-                <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
-              </button>
-              <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice">
-                <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
-              </button>
-              <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
-                <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
-              </button>
-              <button class="ll-tools-mode-option gender hidden" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender" aria-hidden="true">
-                <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
-              </button>
-              <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
-                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
-              </button>
-            </div>
-            <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
-              <span class="mode-icon" aria-hidden="true">⇄</span>
-            </button>
-          </div>
-
-          <div id="quiz-results" style="display:none;">
-            <h2 id="quiz-results-title"><?php echo esc_html__('Quiz Results', 'll-tools-text-domain'); ?></h2>
-            <p id="quiz-results-message" style="display:none;"></p>
-            <p><strong><?php echo esc_html__('Correct', 'll-tools-text-domain'); ?>:</strong>
-              <span id="correct-count">0</span> / <span id="total-questions">0</span>
-            </p>
-            <p id="quiz-results-categories" style="margin-top:10px; display:none;"></p>
-            <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
-              <?php
-                $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice', 'll-tools-text-domain');
-                $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learn', 'll-tools-text-domain');
-                $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self check', 'll-tools-text-domain');
-                $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Listen', 'll-tools-text-domain');
-                $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender', 'll-tools-text-domain');
-              ?>
-              <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
-                <?php $render_mode_icon($practice_mode_ui, '❓', 'button-icon'); ?>
-                <?php echo esc_html($practice_label); ?>
-              </button>
-              <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
-                <?php $render_mode_icon($learning_mode_ui, '🎓', 'button-icon'); ?>
-                <span class="ll-learning-results-label"><?php echo esc_html($learning_label); ?></span>
-              </button>
-              <button id="restart-self-check-mode" class="quiz-button quiz-mode-button">
-                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'button-icon'); ?>
-                <?php echo esc_html($self_check_results_label); ?>
-              </button>
-              <button id="restart-gender-mode" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php $render_mode_icon($gender_mode_ui, '⚥', 'button-icon'); ?>
-                <span class="ll-gender-results-label"><?php echo esc_html($gender_results_label); ?></span>
-              </button>
-              <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php $render_mode_icon($listening_mode_ui, '🎧', 'button-icon'); ?>
-                <?php echo esc_html($listening_label); ?>
-              </button>
-            </div>
-            <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
-              <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Next', 'll-tools-text-domain'); ?>
-              </button>
-              <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Next Set', 'll-tools-text-domain'); ?>
-              </button>
-            </div>
-            <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
-              <p id="ll-study-results-suggestion" style="display:none; margin: 0 0 8px 0;"></p>
-              <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Repeat', 'll-tools-text-domain'); ?>
-              </button>
-              <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Categories', 'll-tools-text-domain'); ?>
-              </button>
-              <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?>
-              </button>
-            </div>
-            <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Replay', 'll-tools-text-domain'); ?></button>
-          </div>
-
-        </div>
-      </div>
+      <?php
+      ll_tools_render_flashcard_overlay_shell([
+          'include_category_selection' => false,
+          'include_loading_status' => false,
+          'show_category_display' => true,
+          'category_label_text' => '',
+          'mode_ui' => $mode_ui,
+          'gender_mode_visible' => false,
+          'mode_order' => ['learning', 'practice', 'listening', 'gender', 'self-check'],
+          'listening_results_fallback' => __('Listen', 'll-tools-text-domain'),
+      ]);
+      ?>
     </div>
     <?php endif; ?>
 
+    <?php ll_tools_render_flashcard_repeat_button_init_script(); ?>
     <script>
     (function($){
-        function initPlayIcon() {
-            if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.setRepeatButton === 'function') {
-                window.LLFlashcards.Dom.setRepeatButton('play');
-            } else {
-            setTimeout(initPlayIcon, 50);
-            }
-        }
-        initPlayIcon();
-
         function normalizeWordIdList(raw) {
             var values = [];
             if (Array.isArray(raw)) {

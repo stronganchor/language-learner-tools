@@ -90,40 +90,57 @@ async function adminRest(page, path, { method = 'GET', body = null, timeoutMs = 
     }
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs || 30000);
-    let response;
-    let data = null;
-    try {
-      response = await fetch(requestPath, {
-        method: requestMethod,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-WP-Nonce': nonce
-        },
-        body: requestBody ? JSON.stringify(requestBody) : undefined,
-        signal: controller.signal
-      });
+    const timeout = Math.max(1000, Number(requestTimeoutMs) || 30000);
+    let timeoutId = 0;
 
+    const requestPromise = (async () => {
+      let response;
+      let data = null;
       try {
-        data = await response.json();
-      } catch (_) {
-        data = null;
+        response = await fetch(requestPath, {
+          method: requestMethod,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': nonce
+          },
+          body: requestBody ? JSON.stringify(requestBody) : undefined,
+          signal: controller.signal
+        });
+
+        try {
+          data = await response.json();
+        } catch (_) {
+          data = null;
+        }
+      } catch (error) {
+        return { error: error && error.name === 'AbortError' ? 'rest-request-timeout' : 'rest-request-failed' };
       }
-    } catch (error) {
-      return { error: error && error.name === 'AbortError' ? 'rest-request-timeout' : 'rest-request-failed' };
-    } finally {
-      window.clearTimeout(timeout);
-    }
 
-    if (!response) {
-      return { error: 'rest-request-failed' };
-    }
+      if (!response) {
+        return { error: 'rest-request-failed' };
+      }
 
-    return {
-      ok: response.ok,
-      status: response.status,
-      data
-    };
+      return {
+        ok: response.ok,
+        status: response.status,
+        data
+      };
+    })();
+
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutId = window.setTimeout(() => {
+        try {
+          controller.abort();
+        } catch (_) {}
+        resolve({ error: 'rest-request-timeout' });
+      }, timeout);
+    });
+
+    const result = await Promise.race([requestPromise, timeoutPromise]);
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+    return result;
   }, { requestPath: path, requestMethod: method, requestBody: body, requestTimeoutMs: timeoutMs });
 
   let result = await performRequest();

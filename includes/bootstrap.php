@@ -24,6 +24,7 @@ require_once __DIR__ . '/lib/image-aspect.php';
 require_once __DIR__ . '/lib/image-animation.php';
 require_once __DIR__ . '/lib/word-option-rules.php';
 require_once __DIR__ . '/lib/image-hash.php';
+require_once __DIR__ . '/flashcard-shell.php';
 
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');

@@ -2,7 +2,8 @@
 
 Updated June 10, 2026 after the weekly maintenance/performance audit, the
 first public lazy-card resource-protection follow-up pass, the E2E
-runner-health follow-up, and the Speaking Practice E2E follow-up.
+runner-health follow-up, the Speaking Practice E2E follow-up, and the shared
+flashcard shell follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -10,11 +11,20 @@ being folded into a small opportunistic fix.
 ## Current Short List
 
 The active maintenance list for the current round is intentionally narrowed to
-browser regression coverage, flashcard-shell duplication, helper cleanup
-decisions, and documentation upkeep.
+browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 flashcard shell duplication follow-up: added
+  `includes/flashcard-shell.php` as the shared renderer for the flashcard
+  overlay popup, mode switcher, results controls, and guarded repeat-button
+  initializer. The public flashcard template, offline app shell, and
+  quiz-page/vocab-lesson popup bootstrap now call that renderer instead of
+  carrying separate copies of the same ID-sensitive shell.
+- June 10 E2E admin REST helper follow-up: `tests/e2e/helpers/admin.js` now
+  wraps in-page WordPress REST fixture calls with a hard Promise timeout, so
+  temporary admin fixture setup can fail fast and fall back instead of consuming
+  the full Playwright test timeout.
 - June 10 Speaking Practice browser coverage follow-up:
   `tests/e2e/specs/wordset-games-space-shooter.spec.js` now includes a
   self-contained mocked microphone/MediaRecorder/AudioContext path that launches
@@ -78,20 +88,16 @@ decisions, and documentation upkeep.
      Keep extending this kind of static coverage where it catches real
      maintenance drift with low flake risk.
 
-2. Reduce duplicated flashcard shell markup and startup behavior.
-   - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.
-   - Prefer a shared PHP renderer or small partials before adding more shell controls.
-
-3. Keep the site-sync snapshot policy unchanged unless live usage shows pressure.
+2. Keep the site-sync snapshot policy unchanged unless live usage shows pressure.
    - `GET /wordsets/{wordset}/site-sync/snapshot` intentionally continues to permit an unpaged snapshot when `per_page` is omitted or `0`; `include_media` defaults to true.
    - Automation users may depend on full snapshots, so treat any future cap/default change as a deliberate compatibility decision.
    - If production usage ever shows resource pressure, verify any behavior change against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
 
-4. Keep the audited helper decisions explicit.
+3. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.
    - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` is a legacy supported-language-map helper, not a duplicate of the wordset source/target resolver `ll_tools_get_deepl_language_codes()`. Keep it for compatibility unless a future external-usage audit proves it can be deprecated.
 
-5. Keep architecture and operator docs current after large feature work.
+4. Keep architecture and operator docs current after large feature work.
    - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, plus a source-contract-guarded direct bootstrap include index. Keep refreshing narrative flow docs whenever another large workflow lands.
    - `README.md` shortcode coverage is now guarded by a Playwright source-contract regression; update the README and the test together when intentionally adding or removing public shortcodes.
 

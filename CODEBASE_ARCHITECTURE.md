@@ -110,6 +110,7 @@ module list.
 - includes/lib/image-animation.php
 - includes/lib/word-option-rules.php
 - includes/lib/image-hash.php
+- includes/flashcard-shell.php
 - includes/post-types/words-post-type.php
 - includes/post-types/dictionary-entry-post-type.php
 - includes/post-types/word-image-post-type.php
@@ -208,6 +209,7 @@ language-learner-tools.php    # Bootstrap, constants, updates, /embed rewrite
 includes/
   assets.php                  # Versioned enqueue helper + public assets
   bootstrap.php               # Central includes
+  flashcard-shell.php         # Shared flashcard overlay shell/results/repeat-button renderer
   offline-app-sync.php        # REST/manifest sync support for offline exports
   privacy.php                 # Progress privacy controls, exporter/eraser hooks, policy text, retention cleanup
   template-loader.php         # Theme override resolver
@@ -505,6 +507,10 @@ Core settings live in `includes/admin/settings.php`:
 - `includes/shortcodes/flashcard-widget.php` builds categories, initial words, and localizes JS data into `llToolsFlashcardsData`.
   - Data includes category config, wordset scope, user study preferences, and mode UI labels/icons.
   - Editor Hub (`includes/shortcodes/editor-hub-shortcode.php`) reuses much of the same word payload shape and validation helpers for in-browser vocab editing.
+- `includes/flashcard-shell.php` renders the shared overlay shell used by the
+  public flashcard shortcode, offline app shell, and quiz-page/vocab-lesson
+  popup bootstrap so those surfaces keep the same IDs, mode switcher, result
+  controls, and repeat-button startup behavior.
 
 ## JS module map (`js/flashcard-widget/`)
 - `main.js` - orchestrates quiz lifecycle, mode switching, settings UI, and session guards.
