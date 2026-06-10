@@ -256,6 +256,8 @@ Representative E2E coverage areas:
   - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
+- `tests/e2e/specs/wordset-page-category-search.spec.js`
+  - Verifies main wordset category search uses the tokenized async word/translation lookup while preserving hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/site-tools-frontend.spec.js`

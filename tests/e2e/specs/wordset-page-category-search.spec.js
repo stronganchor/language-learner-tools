@@ -164,7 +164,6 @@ function buildConfig() {
         gender_supported: false,
         aspect_bucket: 'ratio:1_1',
         hidden: false,
-        search_text: 'apple elma banana muz pear armut',
         preview: []
       },
       {
@@ -181,7 +180,6 @@ function buildConfig() {
         gender_supported: false,
         aspect_bucket: 'ratio:1_1',
         hidden: false,
-        search_text: 'cat kedi dog kopek bird kus',
         preview: []
       },
       {
@@ -198,7 +196,6 @@ function buildConfig() {
         gender_supported: false,
         aspect_bucket: 'ratio:1_1',
         hidden: false,
-        search_text: 'plane ucak train tren cirûn otel',
         preview: []
       }
     ],
@@ -242,6 +239,13 @@ function buildConfig() {
       hard: 0
     },
     summaryCountsDeferred: false,
+    categorySearch: {
+      enabled: true,
+      nonce: 'search-nonce',
+      token: 'search-token',
+      wordsetId: 77,
+      minQueryLength: 1
+    },
     i18n: {
       selectionLabel: 'Select categories to study together',
       selectionWordsOnly: '%d words',
@@ -260,6 +264,7 @@ async function mountWordsetPage(page) {
   await page.evaluate((config) => {
     window.llWordsetPageData = config;
     window.alert = function () {};
+    window.__categorySearchRequests = [];
 
     const $ = window.jQuery;
     $.post = function () {
@@ -279,6 +284,47 @@ async function mountWordsetPage(page) {
         }
       });
       return deferred.promise();
+    };
+    $.ajax = function (options) {
+      const source = (options && typeof options === 'object') ? options : {};
+      const data = source.data || {};
+      const deferred = $.Deferred();
+      const request = deferred.promise();
+      request.abort = function () {
+        deferred.reject(null, 'abort');
+      };
+
+      if (data.action !== 'll_tools_wordset_page_category_search') {
+        window.setTimeout(function () {
+          deferred.reject(null, 'error');
+        }, 0);
+        return request;
+      }
+
+      const query = String(data.query || '').toLowerCase();
+      window.__categorySearchRequests.push({
+        action: data.action,
+        token: data.token,
+        query
+      });
+
+      window.setTimeout(function () {
+        let categoryIds = [];
+        if (query.indexOf('app') !== -1 || query.indexOf('elma') !== -1) {
+          categoryIds = [11];
+        } else if (query.indexOf('cirun') !== -1 || query.indexOf('otel') !== -1) {
+          categoryIds = [33];
+        }
+        deferred.resolve({
+          success: true,
+          data: {
+            query,
+            categoryIds
+          }
+        });
+      }, 35);
+
+      return request;
     };
   }, buildConfig());
 
@@ -320,6 +366,11 @@ test('main wordset search filters category cards by matching words and clears hi
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([11]);
+  await expect.poll(async () => page.evaluate(() => window.__categorySearchRequests || [])).toContainEqual({
+    action: 'll_tools_wordset_page_category_search',
+    token: 'search-token',
+    query: 'app'
+  });
 
   await expect(page.locator('[data-ll-wordset-select][value="22"]')).not.toBeChecked();
   await expect(page.locator('[data-ll-wordset-selection-bar]')).toBeHidden();

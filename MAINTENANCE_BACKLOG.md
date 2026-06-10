@@ -20,6 +20,12 @@ decisions, and documentation upkeep.
   with 313 passed and 1 skipped. No hung spec was isolated. Treat the
   unsharded local E2E command as a long serial suite in automation; use shards
   or a timeout of at least 35 minutes before declaring a runner hang.
+- June 10 wordset category search indexing follow-up: the main wordset render
+  path now localizes a tokenized `categorySearch` config instead of the full
+  per-category word-search text. The first word/translation search request uses
+  a cached public AJAX lookup that returns matching category IDs, preserving
+  hidden-selection cleanup, empty-state behavior, clear-button behavior,
+  lazy-card hydration, and diacritic-insensitive matching.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, and category-only selection behavior. The remaining gap is a WordPress-backed browser fixture for real content lesson routes and media payloads.
@@ -86,30 +92,7 @@ decisions, and documentation upkeep.
    - `includes/shortcodes/audio-recording-shortcode.php` (roughly 7k lines): recorder UI, queue construction, upload handling, prompt-card handling, and translation helpers should be separated.
    - `js/wordset-pages.js` and `js/wordset-games.js` are both large enough to make targeted game/page work riskier than it needs to be.
 
-3. Move main wordset category search indexing off the first render path.
-   - The wordset main page currently builds and localizes the full category
-     word-search index via `ll_tools_get_wordset_page_category_search_index()`
-     in `includes/pages/wordset-pages.php`.
-   - The June 10 lazy-card follow-up capped/chunked search-match hydration
-     requests and added anonymous cache-miss throttling for the existing
-     endpoint, but it did not move the search index itself off first render.
-   - The May 29 maintenance pass narrowed the SQL to words that have at least
-     one allowed category, which reduces wasted scans without changing the
-     client-side search contract.
-   - That preserves instant client-side category search, including matches on
-     word titles/translations and diacritic-insensitive text, but first render
-     can still scan many published words for large allowed category sets.
-   - Treat this as a larger performance project because the replacement should
-     be an on-demand cached AJAX/REST lookup that loads when search is focused
-     or typed, returns matching category IDs without forcing lazy-card loads,
-     and preserves hidden-selection cleanup, empty-state behavior, clear-button
-     behavior, and diacritic-insensitive matching.
-   - Reuse and extend the existing regressions around
-     `wordset-page-category-search.spec.js`, `wordset-page-lazy-loading.spec.js`,
-     and `wordset-page-speed-large-wordset.spec.js` before changing the search
-     data contract.
-
-4. Continue the tier-2 public UI translation rollout deliberately.
+3. Continue the tier-2 public UI translation rollout deliberately.
    - Run a QA pass over `languages/tier2-public-ui-strings.json` to reduce the
      public string set by removing unnecessary copy, replacing text with icons
      where appropriate, and reusing existing strings where the context allows.

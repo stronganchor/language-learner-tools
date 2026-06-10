@@ -53,6 +53,7 @@
     const INLINE_SORT_SCROLL_ROWS = 1;
     const INLINE_SORT_AUTOLOAD_VIEWPORT_OFFSET_PX = 240;
     const lazyCardsCfg = (cfg.lazyCards && typeof cfg.lazyCards === 'object') ? cfg.lazyCards : {};
+    const categorySearchCfg = (cfg.categorySearch && typeof cfg.categorySearch === 'object') ? cfg.categorySearch : {};
 
     let wordsByCategory = {};
     let categories = normalizeCategories(cfg.categories || []);
@@ -75,6 +76,11 @@
     let mainCategorySearchRenderTimer = null;
     let mainCategorySearchLoadingTimer = null;
     let mainCategorySearchRenderToken = 0;
+    let mainCategorySearchRequest = null;
+    let mainCategorySearchRequestToken = 0;
+    let mainCategorySearchPendingQuery = '';
+    const mainCategorySearchCache = {};
+    const mainCategorySearchFailedQueries = {};
     let mainCategorySort = 'default';
     let mainCategorySortMenuOpen = false;
     let mainCategoryMetricsReady = !!isLoggedIn && !cfg.summaryCountsDeferred;
@@ -537,6 +543,11 @@
     const lazyContentCardShells = normalizeLazyCardShells(lazyCardsCfg.contentShells).filter(function (shell) {
         return shell && String(shell.type || '').toLowerCase() === 'content';
     });
+    const categorySearchNonce = String(categorySearchCfg.nonce || '');
+    const categorySearchToken = String(categorySearchCfg.token || '');
+    const categorySearchWordsetId = Math.max(0, parseInt(categorySearchCfg.wordsetId, 10) || wordsetId || 0);
+    const categorySearchMinQueryLength = Math.max(1, parseInt(categorySearchCfg.minQueryLength, 10) || 1);
+    const categorySearchEnabled = !!categorySearchCfg.enabled && !!ajaxUrl && !!categorySearchNonce && !!categorySearchToken && !!categorySearchWordsetId;
     let lazyCardsRequest = null;
     let lazyCardsLoadAllPromise = null;
     let lazyCardsObserver = null;
@@ -6687,22 +6698,128 @@
         return uniqueIntList(ids);
     }
 
-    function mainCategoryMatchesSearch(category, query) {
-        const normalizedQuery = normalizeSearchText(query || '');
-        if (!normalizedQuery) {
-            return true;
+    function getMainCategorySearchQueryKey(query) {
+        return normalizeSearchText(query || '');
+    }
+
+    function getMainCategorySearchLookup(query) {
+        const key = getMainCategorySearchQueryKey(query);
+        if (!key || !Object.prototype.hasOwnProperty.call(mainCategorySearchCache, key)) {
+            return null;
         }
+        const lookup = mainCategorySearchCache[key];
+        return (lookup && typeof lookup === 'object') ? lookup : null;
+    }
+
+    function mainCategoryLabelMatchesSearch(category, normalizedQuery) {
         const cat = (category && typeof category === 'object') ? category : {};
-        const searchText = normalizeSearchText(cat.search_text || '');
-        if (searchText.indexOf(normalizedQuery) !== -1) {
-            return true;
-        }
         const label = normalizeSearchText(cat.translation || cat.name || '');
         if (label.indexOf(normalizedQuery) !== -1) {
             return true;
         }
         const rawName = normalizeSearchText(cat.name || '');
         return rawName.indexOf(normalizedQuery) !== -1;
+    }
+
+    function mainCategoryWordIndexMatchesSearch(category, normalizedQuery) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const categoryId = parseInt(cat.id, 10) || 0;
+        const lookup = getMainCategorySearchLookup(normalizedQuery);
+        if (lookup && categoryId > 0 && !!lookup[categoryId]) {
+            return true;
+        }
+
+        const legacySearchText = normalizeSearchText(cat.search_text || '');
+        return legacySearchText !== '' && legacySearchText.indexOf(normalizedQuery) !== -1;
+    }
+
+    function mainCategoryMatchesSearch(category, query) {
+        const normalizedQuery = getMainCategorySearchQueryKey(query || '');
+        if (!normalizedQuery) {
+            return true;
+        }
+        return mainCategoryLabelMatchesSearch(category, normalizedQuery)
+            || mainCategoryWordIndexMatchesSearch(category, normalizedQuery);
+    }
+
+    function isMainCategorySearchRequestPending(query) {
+        const key = getMainCategorySearchQueryKey(query || '');
+        return !!key && mainCategorySearchPendingQuery === key && !!mainCategorySearchRequest;
+    }
+
+    function requestMainCategorySearchMatches(query) {
+        const key = getMainCategorySearchQueryKey(query || '');
+        if (
+            !categorySearchEnabled
+            || key.length < categorySearchMinQueryLength
+            || Object.prototype.hasOwnProperty.call(mainCategorySearchCache, key)
+            || Object.prototype.hasOwnProperty.call(mainCategorySearchFailedQueries, key)
+        ) {
+            return false;
+        }
+
+        if (isMainCategorySearchRequestPending(key)) {
+            return true;
+        }
+
+        if (mainCategorySearchRequest && typeof mainCategorySearchRequest.abort === 'function') {
+            try {
+                mainCategorySearchRequest.abort();
+            } catch (_) { /* no-op */ }
+        }
+
+        const requestToken = ++mainCategorySearchRequestToken;
+        mainCategorySearchPendingQuery = key;
+        mainCategorySearchRequest = $.ajax({
+            url: ajaxUrl,
+            method: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'll_tools_wordset_page_category_search',
+                nonce: categorySearchNonce,
+                token: categorySearchToken,
+                wordset_id: categorySearchWordsetId,
+                query: query
+            }
+        }).done(function (response) {
+            if (requestToken !== mainCategorySearchRequestToken) {
+                return;
+            }
+
+            const payload = (response && response.success && response.data && typeof response.data === 'object')
+                ? response.data
+                : null;
+            if (!payload) {
+                mainCategorySearchFailedQueries[key] = true;
+                return;
+            }
+
+            const responseKey = getMainCategorySearchQueryKey(payload.query || key);
+            const categoryIds = uniqueIntList(payload.categoryIds || payload.category_ids || []);
+            const lookup = {};
+            categoryIds.forEach(function (categoryId) {
+                lookup[categoryId] = true;
+            });
+            mainCategorySearchCache[key] = lookup;
+            if (responseKey && responseKey !== key) {
+                mainCategorySearchCache[responseKey] = lookup;
+            }
+        }).fail(function (_xhr, status) {
+            if (requestToken !== mainCategorySearchRequestToken || status === 'abort') {
+                return;
+            }
+            mainCategorySearchFailedQueries[key] = true;
+        }).always(function () {
+            if (requestToken !== mainCategorySearchRequestToken) {
+                return;
+            }
+            mainCategorySearchRequest = null;
+            mainCategorySearchPendingQuery = '';
+            renderMainCategorySearch();
+            setMainCategorySearchLoading(false);
+        });
+
+        return true;
     }
 
     function setMainCategorySearchLoading(isLoading, options) {
@@ -8492,6 +8609,7 @@
         }
 
         const query = String(mainCategorySearchQuery || '').trim().toLowerCase();
+        const searchRequestPending = query ? requestMainCategorySearchMatches(query) : false;
         syncMainCategorySearchClearButton();
         const visibleLookup = {};
         let totalMatchingCount = 0;
@@ -8576,7 +8694,7 @@
                 .attr('aria-hidden', shouldShow ? 'false' : 'true');
         });
 
-        const pendingMatches = !!(searchRenderResult && searchRenderResult.pendingMatches);
+        const pendingMatches = !!(searchRenderResult && searchRenderResult.pendingMatches) || searchRequestPending;
 
         if (selectedCategoryIds.length !== previousSelectedIds.length) {
             renderSelectionBar();
@@ -8591,7 +8709,7 @@
         }
         $root.toggleClass('is-category-search-empty', shouldShowEmpty);
 
-        if (!opts.keepLoading) {
+        if (!opts.keepLoading && !searchRequestPending) {
             setMainCategorySearchLoading(false);
         }
         syncLazyCardsUi({
@@ -8603,7 +8721,8 @@
             query: query,
             visibleCount: visibleCount,
             totalMatchingCount: totalMatchingCount,
-            pendingMatches: pendingMatches
+            pendingMatches: pendingMatches,
+            searchRequestPending: searchRequestPending
         };
     }
 
@@ -8626,10 +8745,12 @@
 
         mainCategorySearchRenderTimer = setTimeout(function () {
             if (token !== mainCategorySearchRenderToken) { return; }
-            renderMainCategorySearch({ keepLoading: shouldShowLoading });
+            const result = renderMainCategorySearch({ keepLoading: shouldShowLoading });
             clearTimeout(mainCategorySearchLoadingTimer);
             mainCategorySearchLoadingTimer = null;
-            setMainCategorySearchLoading(false);
+            if (!result || !result.searchRequestPending) {
+                setMainCategorySearchLoading(false);
+            }
         }, shouldShowLoading ? 95 : 0);
     }
 
