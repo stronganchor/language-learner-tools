@@ -5874,7 +5874,13 @@ function ll_tools_handle_prompt_card_recording_upload(int $prompt_card_id, array
     }
 
     $filepath = (string) $upload_result['file'];
-    $mime_type = (string) ($upload_result['type'] ?? ($upload_validation['mime'] ?? 'audio/webm'));
+    $mime_type = ll_tools_normalize_recording_upload_mime((string) ($upload_result['type'] ?? ''));
+    if ($mime_type === '') {
+        $mime_type = ll_tools_normalize_recording_upload_mime((string) ($upload_validation['mime'] ?? ''));
+    }
+    if ($mime_type === '') {
+        $mime_type = 'audio/webm';
+    }
     $attachment_title = sprintf(
         /* translators: %s: prompt text or prompt card title */
         __('Prompt audio: %s', 'll-tools-text-domain'),

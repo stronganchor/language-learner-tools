@@ -190,9 +190,10 @@ tests/bin/run-e2e.sh --shard=3/4
 tests/bin/run-e2e.sh --shard=4/4
 ```
 
-The June 10, 2026 local runner-health check listed 314 tests, and the four
-shards completed with 313 passed and 1 skipped. Treat a short unsharded timeout
-as an automation budget problem unless a shard isolates a hung spec; if the
+The June 10, 2026 local runner-health check listed 314 tests at that point, and
+the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
+expanded the local inventory to 320 tests. Treat a short unsharded timeout as
+an automation budget problem unless a shard isolates a hung spec; if the
 unsharded command still stalls beyond 35 minutes after shards pass, investigate
 suite-level state leakage or Local-site slowness.
 
@@ -264,6 +265,8 @@ Representative E2E coverage areas:
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
   - Verifies a local WordPress-backed prompt-card fixture is exposed through `[audio_recording_interface]` as a prompt-audio queue item with the expected wordset, category, and prompt-card payload.
+- `tests/e2e/specs/audio-recorder-prompt-card-upload.spec.js`
+  - Verifies a limited `audio_recorder` user can upload prompt-card prompt audio through the real WordPress AJAX handler, stores the prompt-audio attachment, and cannot upload to an inaccessible prompt card.
 - `tests/e2e/specs/content-lesson-route-media.spec.js`
   - Verifies a local WordPress-backed content lesson route renders its audio media source, parsed transcript cues, cue JSON payload, notes, localized player data, and related vocab lesson link.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
@@ -282,7 +285,7 @@ Representative E2E coverage areas:
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md`, `CODEBASE_ARCHITECTURE.md` matching direct bootstrap include order, high-confidence hardcoded UI-string contexts using WordPress i18n wrappers, wordset-games public JS avoiding duplicated English `i18n` fallback strings, and Turkish PO high-risk glossary/tone checks.
 - Known E2E coverage gaps still worth adding:
   - Content lessons now have WordPress-backed route/media/cue/related-vocab browser coverage beyond the covered mixed-grid order/search/selection behavior; remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
-  - Prompt-card recorder permissions plus real media upload beyond the local WordPress-backed queue fixture, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
+  - Prompt-card recorder real browser microphone permission permutations beyond the local WordPress-backed queue fixture, limited-recorder real upload regression, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
   - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
   - Offline app service-worker/install behavior and real remote snapshot sync edge cases.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`

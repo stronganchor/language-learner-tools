@@ -2,8 +2,9 @@
 
 Updated June 10, 2026 after the weekly maintenance/performance audit, the
 first public lazy-card resource-protection follow-up pass, the E2E
-runner-health follow-up, the Speaking Practice E2E follow-up, and the shared
-flashcard shell follow-up, and the content lesson route/media E2E follow-up.
+runner-health follow-up, the Speaking Practice E2E follow-up, the shared
+flashcard shell follow-up, the content lesson route/media E2E follow-up, and
+the prompt-card recorder real-upload E2E follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -15,6 +16,14 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 prompt-card recorder real-upload E2E follow-up:
+  `tests/e2e/specs/audio-recorder-prompt-card-upload.spec.js` now seeds a
+  marked local WordPress fixture, logs in as the limited `audio_recorder` role,
+  verifies inaccessible prompt cards are rejected by the real AJAX handler, and
+  posts a valid WAV multipart upload that becomes the prompt card's prompt-audio
+  attachment. This closes the main permission plus real-media-upload browser
+  gap for prompt-card recorder queues while leaving real browser microphone
+  permission permutations as future coverage.
 - June 10 content lesson route/media E2E follow-up:
   `tests/e2e/specs/content-lesson-route-media.spec.js` now uses a marked
   WP-CLI fixture to seed a real `ll_content_lesson` route with audio media,
@@ -74,7 +83,7 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, and a WordPress-backed real route/media/cue/related-vocab fixture. Remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
-   - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior and a local WordPress-backed prompt-card queue item; the remaining gap is permissions plus real media upload. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
+   - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior, a local WordPress-backed prompt-card queue item, and a limited-recorder real multipart prompt-audio upload with an inaccessible-card rejection check. Remaining prompt-card recorder gaps are real browser microphone permission permutations and future data-contract changes. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class assignment, invite, and progress-table flows. Teacher class
      creation now has frontend Playwright coverage for a teacher-role user,
      including the limited-role `admin-post.php` path and selected-class
