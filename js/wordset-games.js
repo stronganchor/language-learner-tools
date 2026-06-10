@@ -220,6 +220,18 @@
             });
     }
 
+    function gameText(ctx, key) {
+        const i18n = (ctx && ctx.i18n && typeof ctx.i18n === 'object') ? ctx.i18n : {};
+        const value = i18n[key];
+        return (typeof value === 'string') ? value : '';
+    }
+
+    function gameTextFromConfig(cfg, key) {
+        const i18n = (cfg && cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
+        const value = i18n[key];
+        return (typeof value === 'string') ? value : '';
+    }
+
     function clampAspectRatio(value) {
         const num = Number(value);
         if (!num || !isFinite(num) || num <= 0) {
@@ -379,7 +391,7 @@
         const description = escapeHtml(String(data.description || ''));
         const statusText = escapeHtml(String(options.statusText || ''));
         const buttonText = escapeHtml(String(options.buttonText || ''));
-        const countLabel = escapeHtml(String(options.countLabel || 'Eligible words'));
+        const countLabel = escapeHtml(String(options.countLabel || ''));
 
         return '' +
             '<article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="' + escapeHtml(normalizedSlug) + '"' + hiddenAttr + '>' +
@@ -1069,24 +1081,24 @@
                 : slugOrRun
         );
         if (requestedSlug === BUBBLE_POP_GAME_SLUG) {
-            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelBubblePop || 'Bubble Pop game board');
+            return String(gameText(ctx, 'gamesBoardLabelBubblePop'));
         }
         if (requestedSlug === LINEUP_GAME_SLUG) {
-            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelLineup || 'Line-Up sequence board');
+            return String(gameText(ctx, 'gamesBoardLabelLineup'));
         }
         if (requestedSlug === UNSCRAMBLE_GAME_SLUG) {
-            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelUnscramble || 'Unscramble game board');
+            return String(gameText(ctx, 'gamesBoardLabelUnscramble'));
         }
         if (requestedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
-            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpeakingPractice || 'Speaking practice panel');
+            return String(gameText(ctx, 'gamesBoardLabelSpeakingPractice'));
         }
         if (requestedSlug === SPEAKING_STACK_GAME_SLUG) {
-            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpeakingStack || 'Word Stack game board');
+            return String(gameText(ctx, 'gamesBoardLabelSpeakingStack'));
         }
         if (requestedSlug === DEFAULT_GAME_SLUG) {
-            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpaceShooter || 'Space Shooter game board');
+            return String(gameText(ctx, 'gamesBoardLabelSpaceShooter'));
         }
-        return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board');
+        return String(gameText(ctx, 'gamesBoardLabelDefault'));
     }
 
     function getGamePromptRecordingTypes(word) {
@@ -3724,42 +3736,42 @@
 
     function getCardStatusText(ctx, entry) {
         if (!(ctx && (ctx.isLoggedIn || ctx.offlineMode))) {
-            return String(ctx.i18n.gamesLoginRequired || 'Sign in to play with your in-progress words.');
+            return String(gameText(ctx, 'gamesLoginRequired'));
         }
         if (!entry) {
-            return String(ctx.i18n.gamesLoadError || 'Unable to load games right now.');
+            return String(gameText(ctx, 'gamesLoadError'));
         }
         if (
             [SPEAKING_PRACTICE_GAME_SLUG, SPEAKING_STACK_GAME_SLUG].indexOf(normalizeGameSlug(entry.slug)) !== -1
             && String(entry.reason_code || '') === 'speaking_api_unavailable'
         ) {
-            return String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.');
+            return String(gameText(ctx, 'gamesSpeakingApiUnavailable'));
         }
         if (normalizeGameSlug(entry.slug) === LINEUP_GAME_SLUG) {
             if (entry.launchable) {
-                return formatMessage(ctx.i18n.gamesReadySequences || '%d sequences ready', [
+                return formatMessage(gameText(ctx, 'gamesReadySequences'), [
                     toInt(entry.available_sequence_count) || toInt(entry.available_word_count)
                 ]);
             }
             if (String(entry.reason_code || '') === 'lineup_not_configured') {
                 return formatMessage(
-                    ctx.i18n.gamesLineupNeedItems || 'Each Line-Up sequence needs at least %d cards.',
+                    gameText(ctx, 'gamesLineupNeedItems'),
                     [Math.max(2, toInt(entry.minimum_sequence_length) || 3)]
                 );
             }
         }
         if (entry.launchable) {
-            return formatMessage(ctx.i18n.gamesReadyCount || '%d words ready', [entry.available_word_count || 0]);
+            return formatMessage(gameText(ctx, 'gamesReadyCount'), [entry.available_word_count || 0]);
         }
         if (String(entry.reason_code || '') === 'not_enough_compatible_words') {
-            return String(ctx.i18n.gamesNeedCompatibleWords || 'This word set does not have a playable mix of picture cards yet.');
+            return String(gameText(ctx, 'gamesNeedCompatibleWords'));
         }
         if (String(entry.reason_code || '') === 'not_enough_learned_words') {
             const missingLearned = Math.max(0, (entry.minimum_word_count || ctx.minimumWordCount) - (entry.available_word_count || 0));
-            return formatMessage(ctx.i18n.gamesNeedLearnedWords || 'Need %d more learned words to unlock this game.', [missingLearned]);
+            return formatMessage(gameText(ctx, 'gamesNeedLearnedWords'), [missingLearned]);
         }
         const missing = Math.max(0, (entry.minimum_word_count || ctx.minimumWordCount) - (entry.available_word_count || 0));
-        return formatMessage(ctx.i18n.gamesNeedWords || 'Need %d more words to unlock this game.', [missing]);
+        return formatMessage(gameText(ctx, 'gamesNeedWords'), [missing]);
     }
 
     function renderCatalogCard(ctx, slug, entry, isLoading) {
@@ -3781,19 +3793,19 @@
             return;
         }
         const buttonLabel = (entry && entry.launchable)
-            ? String(ctx.i18n.gamesPlay || 'Play')
-            : String(ctx.i18n.gamesLocked || 'Locked');
+            ? String(gameText(ctx, 'gamesPlay'))
+            : String(gameText(ctx, 'gamesLocked'));
 
         const loadingText = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG
-            ? String(ctx.i18n.gamesSpeakingCheckingApi || ctx.i18n.gamesLoading || 'Checking game availability...')
-            : String(ctx.i18n.gamesLoading || 'Checking game availability...');
+            ? String(gameText(ctx, 'gamesSpeakingCheckingApi') || gameText(ctx, 'gamesLoading'))
+            : String(gameText(ctx, 'gamesLoading'));
         card.$status.text(isLoading ? loadingText : getCardStatusText(ctx, entry));
         card.$count.text(entry ? String(
             normalizedSlug === LINEUP_GAME_SLUG
                 ? (toInt(entry.available_sequence_count) || toInt(entry.available_word_count))
                 : toInt(entry.available_word_count)
         ) : '\u2014');
-        card.$launchButton.text((ctx.isLoggedIn || ctx.offlineMode) ? buttonLabel : String(ctx.i18n.gamesLocked || 'Locked'));
+        card.$launchButton.text((ctx.isLoggedIn || ctx.offlineMode) ? buttonLabel : String(gameText(ctx, 'gamesLocked')));
         card.$launchButton.prop('disabled', isLoading || !(ctx.isLoggedIn || ctx.offlineMode) || !(entry && entry.launchable));
         card.$card.toggleClass('is-launchable', !!(entry && entry.launchable));
         card.$card.toggleClass('is-loading', !!isLoading);
@@ -3844,13 +3856,11 @@
                 show: true,
                 reasonCode: 'speaking_api_unavailable',
                 message: String(
-                    ctx.i18n.gamesSpeakingHiddenConnection
-                    || 'Speaking games are hidden because the speaking service for this word set is not responding on this device.'
+                    gameText(ctx, 'gamesSpeakingHiddenConnection')
                 ),
                 settingsUrl: String(ctx.speakingSettingsUrl || '').trim(),
                 settingsLabel: String(
-                    ctx.i18n.gamesSpeakingOpenSettings
-                    || 'Open speaking settings'
+                    gameText(ctx, 'gamesSpeakingOpenSettings')
                 )
             };
         }
@@ -3864,13 +3874,11 @@
                 show: true,
                 reasonCode: 'speaking_hidden',
                 message: String(
-                    ctx.i18n.gamesSpeakingHiddenGeneric
-                    || 'Speaking games are hidden because this word set speaking setup is not available right now.'
+                    gameText(ctx, 'gamesSpeakingHiddenGeneric')
                 ),
                 settingsUrl: String(ctx.speakingSettingsUrl || '').trim(),
                 settingsLabel: String(
-                    ctx.i18n.gamesSpeakingOpenSettings
-                    || 'Open speaking settings'
+                    gameText(ctx, 'gamesSpeakingOpenSettings')
                 )
             };
         }
@@ -3905,8 +3913,7 @@
             const settingsUrl = String(notice.settingsUrl || ctx.speakingSettingsUrl || '').trim();
             const settingsLabel = String(
                 notice.settingsLabel
-                || ctx.i18n.gamesSpeakingOpenSettings
-                || 'Open speaking settings'
+                || gameText(ctx, 'gamesSpeakingOpenSettings')
             ).trim();
 
             if (settingsUrl) {
@@ -4691,8 +4698,8 @@
     function updatePauseUi(ctx) {
         const run = ctx.run;
         const isPaused = !!(run && run.paused);
-        const pauseLabel = String(ctx.i18n.gamesPauseRun || 'Pause run');
-        const resumeLabel = String(ctx.i18n.gamesResumeRun || 'Resume');
+        const pauseLabel = String(gameText(ctx, 'gamesPauseRun'));
+        const resumeLabel = String(gameText(ctx, 'gamesResumeRun'));
 
         if (ctx.$pauseButton && ctx.$pauseButton.length) {
             ctx.$pauseButton
@@ -4740,7 +4747,7 @@
     }
 
     function getGameCloseConfirmMessage(ctx) {
-        return String((ctx && ctx.i18n && ctx.i18n.gamesCloseConfirm) || 'Leave this game? Your current run will be lost.');
+        return String(gameText(ctx, 'gamesCloseConfirm'));
     }
 
     function pushGameHistoryState() {
@@ -5031,7 +5038,7 @@
             ctx.$lineupStage.attr('data-lineup-mode', isUnscramble ? 'unscramble' : (isLineup ? 'line-up' : ''));
         }
         if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
-            ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
+            ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(gameText(ctx, 'gamesBoardLabelDefault')));
         }
     }
 
@@ -5527,7 +5534,7 @@
             reason: PAUSE_REASON_INACTIVITY,
             resumeAction: RESUME_ACTION_NEXT_PROMPT,
             summary: formatMessage(
-                ctx.i18n.gamesInactivePauseSummary || 'Paused after %d rounds without input.',
+                gameText(ctx, 'gamesInactivePauseSummary'),
                 [INACTIVITY_ROUND_PAUSE_LIMIT]
             )
         });
@@ -6020,22 +6027,22 @@
         showOverlay(
             ctx,
             isWin
-                ? String(ctx.i18n.gamesSpeakingStackWinTitle || 'You cleared the stack')
+                ? String(gameText(ctx, 'gamesSpeakingStackWinTitle'))
                 : String(
                     reason === 'silence'
-                        ? (ctx.i18n.gamesSpeakingStackLoseSilenceTitle || 'Time ran out')
-                        : (ctx.i18n.gamesSpeakingStackLoseStackedTitle || 'The stack reached the top')
+                        ? (gameText(ctx, 'gamesSpeakingStackLoseSilenceTitle'))
+                        : (gameText(ctx, 'gamesSpeakingStackLoseStackedTitle'))
                 ),
-            formatMessage(ctx.i18n.gamesSpeakingStackSummary || 'Cleared: %1$d of %2$d', [
+            formatMessage(gameText(ctx, 'gamesSpeakingStackSummary'), [
                 toInt(run.clearedCount),
                 toInt(run.totalWordCount)
             ]),
             {
                 mode: 'game-over',
                 primaryLabel: String(isWin
-                    ? (ctx.i18n.gamesNewGame || 'New game')
-                    : (ctx.i18n.gamesReplayRun || 'Replay')),
-                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+                    ? (gameText(ctx, 'gamesNewGame'))
+                    : (gameText(ctx, 'gamesReplayRun'))),
+                secondaryLabel: String(gameText(ctx, 'gamesBackToCatalog'))
             }
         );
     }
@@ -6318,10 +6325,10 @@
         const summaryText = String(summary || '');
         const primaryLabel = Object.prototype.hasOwnProperty.call(opts, 'primaryLabel')
             ? String(opts.primaryLabel || '')
-            : String(ctx.i18n.gamesReplayRun || 'Replay');
+            : String(gameText(ctx, 'gamesReplayRun'));
         const secondaryLabel = Object.prototype.hasOwnProperty.call(opts, 'secondaryLabel')
             ? String(opts.secondaryLabel || '')
-            : String(ctx.i18n.gamesBackToCatalog || 'Back to games');
+            : String(gameText(ctx, 'gamesBackToCatalog'));
         const isLoadingMode = String(opts.mode || '') === 'loading';
 
         ctx.overlayMode = String(opts.mode || '');
@@ -6415,21 +6422,21 @@
         run.pauseReason = String(opts.reason || 'manual');
         if (isSpeakingStackRun(ctx, run)) {
             teardownSpeaking(ctx);
-            setSpeakingStatus(ctx, String(ctx.i18n.gamesPaused || 'Paused'));
+            setSpeakingStatus(ctx, String(gameText(ctx, 'gamesPaused')));
         }
         updatePauseUi(ctx);
         showOverlay(
             ctx,
             Object.prototype.hasOwnProperty.call(opts, 'title')
                 ? String(opts.title || '')
-                : String(ctx.i18n.gamesPaused || 'Paused'),
+                : String(gameText(ctx, 'gamesPaused')),
             Object.prototype.hasOwnProperty.call(opts, 'summary')
                 ? String(opts.summary || '')
                 : '',
             {
                 mode: 'paused',
-                primaryLabel: String(ctx.i18n.gamesResumeRun || 'Resume'),
-                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+                primaryLabel: String(gameText(ctx, 'gamesResumeRun')),
+                secondaryLabel: String(gameText(ctx, 'gamesBackToCatalog'))
             }
         );
     }
@@ -6453,7 +6460,7 @@
         updatePauseUi(ctx);
 
         if (isSpeakingStackRun(ctx, run)) {
-            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackReady || 'Mic ready'));
+            setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackReady')));
             queueSpeakingStackCaptureRestart(ctx, 40);
             return;
         }
@@ -6508,27 +6515,27 @@
         flushProgress(ctx);
 
         const summary = isWin
-            ? formatMessage(ctx.i18n.gamesWinSummary || 'Completed: %1$d of %2$d · Coins: %3$d', [
+            ? formatMessage(gameText(ctx, 'gamesWinSummary'), [
                 toInt(run.promptsResolved),
                 Math.max(toInt(run.promptsResolved), getRunTotalRounds(run)),
                 toInt(run.coins)
             ])
-            : formatMessage(ctx.i18n.gamesSummary || 'Coins: %1$d · Prompts: %2$d', [
+            : formatMessage(gameText(ctx, 'gamesSummary'), [
                 run.coins,
                 run.promptsResolved
             ]);
         showOverlay(
             ctx,
             String(isWin
-                ? (ctx.i18n.gamesWinTitle || 'You win')
-                : (ctx.i18n.gamesGameOver || 'Run Complete')),
+                ? (gameText(ctx, 'gamesWinTitle'))
+                : (gameText(ctx, 'gamesGameOver'))),
             summary,
             {
                 mode: 'game-over',
                 primaryLabel: String(isWin
-                    ? (ctx.i18n.gamesNewGame || 'New game')
-                    : (ctx.i18n.gamesReplayRun || 'Replay')),
-                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+                    ? (gameText(ctx, 'gamesNewGame'))
+                    : (gameText(ctx, 'gamesReplayRun'))),
+                secondaryLabel: String(gameText(ctx, 'gamesBackToCatalog'))
             }
         );
     }
@@ -6654,7 +6661,7 @@
             ctx.$lineupCategory.text('');
         }
         if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
-            ctx.$lineupInstruction.text(String(ctx.i18n.gamesLineupInstruction || 'Put the cards in the correct order.'));
+            ctx.$lineupInstruction.text(String(gameText(ctx, 'gamesLineupInstruction')));
         }
         if (ctx.$lineupPrompt && ctx.$lineupPrompt.length) {
             ctx.$lineupPrompt.prop('hidden', true);
@@ -6675,7 +6682,7 @@
             ctx.$lineupPromptText.text('');
         }
         if (ctx.$lineupPromptLabel && ctx.$lineupPromptLabel.length) {
-            ctx.$lineupPromptLabel.text(String(ctx.i18n.gamesUnscramblePromptLabel || 'Clue'));
+            ctx.$lineupPromptLabel.text(String(gameText(ctx, 'gamesUnscramblePromptLabel')));
         }
         if (ctx.$lineupStatus && ctx.$lineupStatus.length) {
             ctx.$lineupStatus.text('').attr('data-lineup-status-kind', '').prop('hidden', true);
@@ -6692,7 +6699,7 @@
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
             ctx.$lineupCheck
-                .text(String(ctx.i18n.gamesLineupCheck || 'Check'))
+                .text(String(gameText(ctx, 'gamesLineupCheck')))
                 .removeClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
                 .addClass('ll-wordset-lineup-stage__action--primary')
                 .prop('hidden', true)
@@ -6744,7 +6751,7 @@
             ctx.$lineupPromptImage
                 .attr('src', promptType === 'image' ? promptImage : '')
                 .attr('alt', promptType === 'image'
-                    ? String(ctx.i18n.gamesUnscramblePromptLabel || 'Clue')
+                    ? String(gameText(ctx, 'gamesUnscramblePromptLabel'))
                     : '');
         }
         if (ctx.$lineupPromptTextWrap && ctx.$lineupPromptTextWrap.length) {
@@ -6754,7 +6761,7 @@
             ctx.$lineupPromptText.text(promptType === 'image' ? '' : promptText);
         }
         if (ctx.$lineupPromptLabel && ctx.$lineupPromptLabel.length) {
-            ctx.$lineupPromptLabel.text(String(ctx.i18n.gamesUnscramblePromptLabel || 'Clue'));
+            ctx.$lineupPromptLabel.text(String(gameText(ctx, 'gamesUnscramblePromptLabel')));
         }
     }
 
@@ -7072,7 +7079,7 @@
 
         if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
             ctx.$lineupProgress.text(formatMessage(
-                ctx.i18n.gamesLineupProgress || 'Sequence %1$d of %2$d',
+                gameText(ctx, 'gamesLineupProgress'),
                 [Math.max(1, toInt(run.currentSequenceIndex) + 1), Math.max(1, getRunTotalRounds(run))]
             ));
         }
@@ -7080,7 +7087,7 @@
             ctx.$lineupCategory.text(String(sequence.category_name || ''));
         }
         if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
-            ctx.$lineupInstruction.text(String(ctx.i18n.gamesLineupInstruction || 'Put the cards in the correct order.'));
+            ctx.$lineupInstruction.text(String(gameText(ctx, 'gamesLineupInstruction')));
         }
         setLineupPrompt(ctx, null);
 
@@ -7102,7 +7109,7 @@
                         '<div class="ll-wordset-lineup-stage__card-order" aria-hidden="true">' + escapeHtml(String(index + 1)) + '</div>' +
                         '<div class="ll-wordset-lineup-stage__card-body">' +
                             '<p class="ll-wordset-lineup-stage__card-text" dir="auto">' + escapeHtml(String(cardText || '')) + '</p>' +
-                            '<button type="button" class="ll-wordset-lineup-stage__card-audio ll-prompt-audio-button" data-ll-wordset-lineup-audio aria-label="' + escapeHtml(String(ctx.i18n.gamesReplayRun || 'Replay')) + '"' + (hasCardAudio ? '' : ' disabled') + '>' +
+                            '<button type="button" class="ll-wordset-lineup-stage__card-audio ll-prompt-audio-button" data-ll-wordset-lineup-audio aria-label="' + escapeHtml(String(gameText(ctx, 'gamesReplayRun'))) + '"' + (hasCardAudio ? '' : ' disabled') + '>' +
                                 '<span class="ll-repeat-audio-ui">' +
                                     '<span class="ll-repeat-icon-wrap" aria-hidden="true">' +
                                         '<span class="ll-audio-play-icon" aria-hidden="true">' +
@@ -7124,11 +7131,11 @@
                             '<div class="ll-wordset-lineup-stage__card-actions">' +
                                 '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-lineup-move="earlier"' + (canMoveEarlier ? '' : ' disabled') + '>' +
                                     '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'earlier')) + '</span>' +
-                                    '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveEarlier || 'Move earlier')) + '</span>' +
+                                    '<span class="screen-reader-text">' + escapeHtml(String(gameText(ctx, 'gamesLineupMoveEarlier'))) + '</span>' +
                                 '</button>' +
                                 '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-lineup-move="later"' + (canMoveLater ? '' : ' disabled') + '>' +
                                     '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'later')) + '</span>' +
-                                    '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveLater || 'Move later')) + '</span>' +
+                                    '<span class="screen-reader-text">' + escapeHtml(String(gameText(ctx, 'gamesLineupMoveLater'))) + '</span>' +
                                 '</button>' +
                             '</div>' +
                         '</div>' +
@@ -7146,7 +7153,7 @@
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
             ctx.$lineupCheck
-                .text(String(ctx.i18n.gamesLineupCheck || 'Check'))
+                .text(String(gameText(ctx, 'gamesLineupCheck')))
                 .removeClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
                 .addClass('ll-wordset-lineup-stage__action--primary')
                 .prop('hidden', false);
@@ -7156,8 +7163,8 @@
             const isLastSequence = (toInt(run.currentSequenceIndex) + 1) >= getRunTotalRounds(run);
             ctx.$lineupNext
                 .text(String(isLastSequence
-                    ? (ctx.i18n.gamesLineupFinish || 'Finish')
-                    : (ctx.i18n.gamesLineupNext || 'Next')))
+                    ? (gameText(ctx, 'gamesLineupFinish'))
+                    : (gameText(ctx, 'gamesLineupNext'))))
                 .prop('hidden', !run.sequenceLocked)
                 .prop('disabled', !run.sequenceLocked);
         }
@@ -7318,16 +7325,16 @@
 
         showOverlay(
             ctx,
-            String(ctx.i18n.gamesLineupDoneTitle || 'Line-Up complete'),
-            formatMessage(ctx.i18n.gamesLineupSummary || 'Perfect: %1$d of %2$d · Retries: %3$d', [
+            String(gameText(ctx, 'gamesLineupDoneTitle')),
+            formatMessage(gameText(ctx, 'gamesLineupSummary'), [
                 toInt(run.perfectSequenceCount),
                 Math.max(1, getRunTotalRounds(run)),
                 Math.max(0, toInt(run.retryCount))
             ]),
             {
                 mode: 'game-over',
-                primaryLabel: String(ctx.i18n.gamesNewGame || 'New game'),
-                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+                primaryLabel: String(gameText(ctx, 'gamesNewGame')),
+                secondaryLabel: String(gameText(ctx, 'gamesBackToCatalog'))
             }
         );
     }
@@ -7362,7 +7369,7 @@
             setLineupStatus(
                 ctx,
                 formatMessage(
-                    ctx.i18n.gamesLineupTryAgain || 'Not quite yet. %1$d of %2$d are in the right place.',
+                    gameText(ctx, 'gamesLineupTryAgain'),
                     [check.matchedCount, Math.max(1, check.totalCount)]
                 ),
                 'incorrect'
@@ -7399,7 +7406,7 @@
             });
         });
 
-        setLineupStatus(ctx, String(ctx.i18n.gamesLineupCorrect || 'Correct order.'), 'correct');
+        setLineupStatus(ctx, String(gameText(ctx, 'gamesLineupCorrect')), 'correct');
         renderLineupSequence(ctx);
     }
 
@@ -7417,7 +7424,7 @@
 
         if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
             ctx.$lineupProgress.text(formatMessage(
-                ctx.i18n.gamesUnscrambleProgress || 'Word %1$d of %2$d',
+                gameText(ctx, 'gamesUnscrambleProgress'),
                 [Math.max(1, toInt(run.currentWordIndex) + 1), Math.max(1, getRunTotalRounds(run))]
             ));
         }
@@ -7425,7 +7432,7 @@
             ctx.$lineupCategory.text(String(word.category_name || ''));
         }
         if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
-            ctx.$lineupInstruction.text(String(ctx.i18n.gamesUnscrambleInstruction || 'Put the tiles back in the right order.'));
+            ctx.$lineupInstruction.text(String(gameText(ctx, 'gamesUnscrambleInstruction')));
         }
         setLineupPrompt(ctx, {
             type: String(word.unscramble_prompt_type || ''),
@@ -7443,7 +7450,7 @@
                 const tileText = String(unit && unit.text || '');
                 const tileAriaLabel = tileText.trim() !== ''
                     ? tileText
-                    : String(ctx.i18n.gamesUnscrambleStaticTile || 'Fixed tile');
+                    : String(gameText(ctx, 'gamesUnscrambleStaticTile'));
 
                 return '' +
                     '<li class="ll-wordset-lineup-stage__card ll-wordset-lineup-stage__card--tile'
@@ -7471,13 +7478,13 @@
         }
         if (ctx.$lineupSkip && ctx.$lineupSkip.length) {
             ctx.$lineupSkip
-                .text(String(ctx.i18n.gamesUnscrambleSkip || 'Skip'))
+                .text(String(gameText(ctx, 'gamesUnscrambleSkip')))
                 .prop('hidden', !!run.sequenceLocked)
                 .prop('disabled', !!run.sequenceLocked);
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
             ctx.$lineupCheck
-                .text(String(ctx.i18n.gamesLineupCheck || 'Check'))
+                .text(String(gameText(ctx, 'gamesLineupCheck')))
                 .removeClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
                 .addClass('ll-wordset-lineup-stage__action--primary')
                 .prop('hidden', true)
@@ -7485,7 +7492,7 @@
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
             ctx.$lineupNext
-                .text(String(ctx.i18n.gamesLineupNext || 'Next'))
+                .text(String(gameText(ctx, 'gamesLineupNext')))
                 .prop('hidden', true)
                 .prop('disabled', true);
         }
@@ -7585,7 +7592,7 @@
                 queueUnscrambleSolvedWordAdvance(ctx, run, run.currentWord);
             }
 
-            setLineupStatus(ctx, String(ctx.i18n.gamesUnscrambleCorrect || 'Solved.'), 'correct');
+            setLineupStatus(ctx, String(gameText(ctx, 'gamesUnscrambleCorrect')), 'correct');
             renderUnscrambleWord(ctx);
             return;
         }
@@ -7593,7 +7600,7 @@
         setLineupStatus(
             ctx,
             formatMessage(
-                ctx.i18n.gamesUnscrambleStatus || '%1$d of %2$d letters are in the right place.',
+                gameText(ctx, 'gamesUnscrambleStatus'),
                 [Math.max(0, check.matchedCount), Math.max(1, check.totalCount)]
             ),
             'progress'
@@ -8026,16 +8033,16 @@
 
         showOverlay(
             ctx,
-            String(ctx.i18n.gamesUnscrambleDoneTitle || 'Unscramble complete'),
-            formatMessage(ctx.i18n.gamesUnscrambleSummary || 'Solved: %1$d of %2$d · Moves: %3$d', [
+            String(gameText(ctx, 'gamesUnscrambleDoneTitle')),
+            formatMessage(gameText(ctx, 'gamesUnscrambleSummary'), [
                 Math.max(0, toInt(run.solvedWordCount)),
                 Math.max(1, getRunTotalRounds(run)),
                 Math.max(0, toInt(run.moveCount))
             ]),
             {
                 mode: 'game-over',
-                primaryLabel: String(ctx.i18n.gamesNewGame || 'New game'),
-                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+                primaryLabel: String(gameText(ctx, 'gamesNewGame')),
+                secondaryLabel: String(gameText(ctx, 'gamesBackToCatalog'))
             }
         );
     }
@@ -8068,7 +8075,7 @@
         });
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
-        showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
+        showOverlay(ctx, String(gameText(ctx, 'gamesPreparingRun')), '', {
             mode: 'loading',
             primaryLabel: '',
             secondaryLabel: ''
@@ -8134,7 +8141,7 @@
         });
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
-        showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
+        showOverlay(ctx, String(gameText(ctx, 'gamesPreparingRun')), '', {
             mode: 'loading',
             primaryLabel: '',
             secondaryLabel: ''
@@ -8214,7 +8221,7 @@
         });
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
-        showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
+        showOverlay(ctx, String(gameText(ctx, 'gamesPreparingRun')), '', {
             mode: 'loading',
             primaryLabel: '',
             secondaryLabel: ''
@@ -8525,7 +8532,7 @@
         if (!ctx || !ctx.$speakingRecord || !ctx.$speakingRecord.length) {
             return;
         }
-        const text = String(label || ctx.i18n.gamesSpeakingStartButton || 'Start');
+        const text = String(label || gameText(ctx, 'gamesSpeakingStartButton'));
         const visualState = String(state || '').trim() || (!!disabled ? 'processing' : 'idle');
         ctx.$speakingRecord
             .prop('disabled', !!disabled)
@@ -8650,7 +8657,7 @@
             ctx.$speakingTargetRow.prop('hidden', true);
         }
         if (ctx && ctx.$speakingTargetLabel && ctx.$speakingTargetLabel.length) {
-            ctx.$speakingTargetLabel.text(String(ctx.i18n.gamesSpeakingTargetLabel || 'Target'));
+            ctx.$speakingTargetLabel.text(String(gameText(ctx, 'gamesSpeakingTargetLabel')));
         }
         if (ctx && ctx.$speakingTarget && ctx.$speakingTarget.length) {
             ctx.$speakingTarget.text('');
@@ -8704,7 +8711,7 @@
         }
 
         setSpeakingStackProgress(ctx, formatMessage(
-            ctx.i18n.gamesSpeakingStackProgress || '%1$d left',
+            gameText(ctx, 'gamesSpeakingStackProgress'),
             [Math.max(0, toInt(run.totalWordCount) - toInt(run.clearedCount))]
         ));
     }
@@ -8714,7 +8721,7 @@
         const hasImage = String(word && word.image || '').trim() !== '';
         if (ctx.$speakingRound && ctx.$speakingRound.length) {
             ctx.$speakingRound.text(formatMessage(
-                ctx.i18n.gamesSpeakingRound || 'Word %1$d of %2$d',
+                gameText(ctx, 'gamesSpeakingRound'),
                 [Math.min(run.promptsResolved + 1, run.words.length), run.words.length]
             ));
         }
@@ -8978,7 +8985,7 @@
             return Promise.reject(new Error('missing_state'));
         }
         if (!ensureSpeakingSupported()) {
-            return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingNotSupported || 'This browser cannot record audio for speaking practice.')));
+            return Promise.reject(new Error(String(gameText(ctx, 'gamesSpeakingNotSupported'))));
         }
         if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
             return Promise.resolve();
@@ -8986,9 +8993,9 @@
 
         if (isSpeakingPracticeRun(ctx, run)) {
             resetSpeakingResultUi(ctx);
-            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'), true, 'listening');
+            setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingListening')), true, 'listening');
         } else if (isSpeakingStackRun(ctx, run)) {
-            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackListening || 'Listening for the next word...'), {
+            setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackListening')), {
                 icon: 'record'
             });
         }
@@ -10136,7 +10143,7 @@
         if (rawMessage !== '' && rawMessage.indexOf('_') === -1 && rawMessage.length <= 140) {
             return rawMessage;
         }
-        return String(fallbackMessage || ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.');
+        return String(fallbackMessage || gameText(ctx, 'gamesSpeakingSttError'));
     }
 
     function transcribeSpeakingBlob(ctx, run, blob) {
@@ -10147,14 +10154,14 @@
         if (ctx && ctx.offlineMode) {
             const bridge = getOfflineSpeakingBridge(ctx);
             if (!bridge || typeof bridge.transcribeSpeakingAttempt !== 'function') {
-                return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.')));
+                return Promise.reject(new Error(String(gameText(ctx, 'gamesSpeakingApiUnavailable'))));
             }
             return Promise.resolve(bridge.transcribeSpeakingAttempt(blob, run, ctx)).then(function (payload) {
                 const transcript = typeof payload === 'string'
                     ? String(payload).trim()
                     : extractTranscriptFromLocalPayload(payload);
                 if (!transcript) {
-                    throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+                    throw new Error(String(gameText(ctx, 'gamesSpeakingSttError')));
                 }
                 return transcript;
             });
@@ -10175,7 +10182,7 @@
             formData.append('audio', blob, 'speaking-attempt.webm');
             return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
                 if (!payload || !payload.success || !payload.data) {
-                    throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+                    throw new Error(String(gameText(ctx, 'gamesSpeakingSttError')));
                 }
                 return String(payload.data.transcript || payload.data.text || '').trim();
             });
@@ -10196,7 +10203,7 @@
         }).then(function (payload) {
             const transcript = extractTranscriptFromLocalPayload(payload);
             if (!transcript) {
-                throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+                throw new Error(String(gameText(ctx, 'gamesSpeakingSttError')));
             }
             return transcript;
         });
@@ -10206,7 +10213,7 @@
         if (ctx && ctx.offlineMode) {
             const bridge = getOfflineSpeakingBridge(ctx);
             if (!bridge || typeof bridge.scoreSpeakingAttempt !== 'function') {
-                return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.')));
+                return Promise.reject(new Error(String(gameText(ctx, 'gamesSpeakingSttError'))));
             }
             return Promise.resolve(bridge.scoreSpeakingAttempt(run, transcript, ctx));
         }
@@ -10220,7 +10227,7 @@
         formData.append('transcript', String(transcript || ''));
         return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
             if (!payload || !payload.success || !payload.data) {
-                throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+                throw new Error(String(gameText(ctx, 'gamesSpeakingSttError')));
             }
             return payload.data;
         });
@@ -10297,7 +10304,7 @@
                 return Promise.resolve(bridge.scoreSpeakingMatchAttempt(run, transcript, activeWordIds, ctx));
             }
             if (!bridge || typeof bridge.scoreSpeakingAttempt !== 'function') {
-                return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.')));
+                return Promise.reject(new Error(String(gameText(ctx, 'gamesSpeakingApiUnavailable'))));
             }
 
             return Promise.all(activeCards.map(function (card) {
@@ -10333,7 +10340,7 @@
 
         return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
             if (!payload || !payload.success || !payload.data) {
-                throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+                throw new Error(String(gameText(ctx, 'gamesSpeakingSttError')));
             }
             return payload.data;
         });
@@ -10383,16 +10390,16 @@
             : {};
         const title = String(displayTexts.title || '');
         const ipa = String(displayTexts.ipa || '');
-        const targetLabel = String(result && result.target_label || displayTexts.target_label || ctx.i18n.gamesSpeakingTargetLabel || 'Target');
+        const targetLabel = String(result && result.target_label || displayTexts.target_label || gameText(ctx, 'gamesSpeakingTargetLabel'));
         const targetText = String(result && result.target_text || displayTexts.target_text || '');
         const correctAudioUrl = String(result && result.best_correct_audio_url || '');
         const transcriptText = String(transcript || result && result.normalized_transcript_text || '');
         const showTitle = title !== '' && title !== targetText;
         const showIpa = ipa !== '' && ipa !== targetText;
         const bucketLabelMap = {
-            right: String(ctx.i18n.gamesSpeakingResultRight || 'Correct'),
-            close: String(ctx.i18n.gamesSpeakingResultClose || 'Close'),
-            wrong: String(ctx.i18n.gamesSpeakingResultWrong || 'Try again')
+            right: String(gameText(ctx, 'gamesSpeakingResultRight')),
+            close: String(gameText(ctx, 'gamesSpeakingResultClose')),
+            wrong: String(gameText(ctx, 'gamesSpeakingResultWrong'))
         };
 
         showSpeakingResult(ctx, true);
@@ -10403,7 +10410,7 @@
             ctx.$speakingBucket.text(bucketLabelMap[bucket] || bucketLabelMap.wrong);
         }
         if (ctx.$speakingScore && ctx.$speakingScore.length) {
-            ctx.$speakingScore.text(formatMessage(ctx.i18n.gamesSpeakingScoreLabel || 'Similarity', []) + ' ' + Math.round(score) + '%');
+            ctx.$speakingScore.text(formatMessage(gameText(ctx, 'gamesSpeakingScoreLabel'), []) + ' ' + Math.round(score) + '%');
         }
         if (ctx.$speakingBar && ctx.$speakingBar.length) {
             ctx.$speakingBar
@@ -10469,11 +10476,11 @@
         }
         applySpeakingResultUi(ctx, result, transcript);
         setSpeakingStatus(ctx, String({
-            right: ctx.i18n.gamesSpeakingResultRight || 'Correct',
-            close: ctx.i18n.gamesSpeakingResultClose || 'Close',
-            wrong: ctx.i18n.gamesSpeakingResultWrong || 'Try again'
-        }[bucket] || ctx.i18n.gamesSpeakingResultWrong || 'Try again'));
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
+            right: gameText(ctx, 'gamesSpeakingResultRight'),
+            close: gameText(ctx, 'gamesSpeakingResultClose'),
+            wrong: gameText(ctx, 'gamesSpeakingResultWrong')
+        }[bucket] || gameText(ctx, 'gamesSpeakingResultWrong')));
+        setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
 
         const feedbackPromise = bucket === 'close'
             ? Promise.resolve()
@@ -10524,8 +10531,7 @@
                 setSpeakingStatus(ctx, String(
                     captureError && captureError.message
                         || error && error.message
-                        || ctx.i18n.gamesSpeakingStackMicError
-                        || 'Microphone access failed.'
+                        || gameText(ctx, 'gamesSpeakingStackMicError')
                 ));
             });
         }, Math.max(0, toInt(delayMs) || 0));
@@ -10534,7 +10540,7 @@
     function handleSpeakingStackMatch(ctx, run, result, transcript) {
         const card = findSpeakingStackCardByWordId(run, toInt(result && result.word_id));
         if (!card) {
-            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackNoMatch || 'No match yet.'));
+            setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
             return false;
         }
 
@@ -10562,9 +10568,9 @@
         relayoutSpeakingStackCards(ctx, run);
         setSpeakingStackProgressFromRun(ctx, run);
         setSpeakingStatus(ctx, String({
-            right: ctx.i18n.gamesSpeakingResultRight || 'Correct',
-            close: ctx.i18n.gamesSpeakingResultClose || 'Close'
-        }[bucket] || ctx.i18n.gamesSpeakingResultRight || 'Correct'));
+            right: gameText(ctx, 'gamesSpeakingResultRight'),
+            close: gameText(ctx, 'gamesSpeakingResultClose')
+        }[bucket] || gameText(ctx, 'gamesSpeakingResultRight')));
         setSpeakingStackHeard(ctx, String(transcript || ''), {
             targetText: String(result && result.target_text || result && result.normalized_target_text || ''),
             score: score
@@ -10618,14 +10624,14 @@
 
         if (!state.speechDetected) {
             state.transcribing = false;
-            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackTooQuiet || 'No clear word detected.'));
+            setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackTooQuiet')));
             queueSpeakingStackCaptureRestart(ctx, 120);
             return;
         }
 
         const stackProcessingLabel = isAudioMatcherProvider(run.provider)
-            ? String(ctx.i18n.gamesSpeakingStackMatching || 'Matching your audio...')
-            : String(ctx.i18n.gamesSpeakingStackProcessing || 'Checking your word...');
+            ? String(gameText(ctx, 'gamesSpeakingStackMatching'))
+            : String(gameText(ctx, 'gamesSpeakingStackProcessing'));
         setSpeakingStatus(ctx, stackProcessingLabel);
         if (isAudioMatcherProvider(run.provider)) {
             const activeCards = getSpeakingStackActiveCards(run);
@@ -10645,7 +10651,7 @@
                 });
                 const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
                 if (!matched) {
-                    setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackNoMatch || 'No match yet.'));
+                    setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
                     return;
                 }
                 handleSpeakingStackMatch(ctx, run, result, String(result && result.transcript_text || ''));
@@ -10659,7 +10665,7 @@
                     resolveSpeakingMatcherErrorMessage(
                         ctx,
                         error,
-                        String(ctx.i18n.gamesSpeakingStackMicError || ctx.i18n.gamesSpeakingSttError || 'Microphone access failed.')
+                        String(gameText(ctx, 'gamesSpeakingStackMicError') || gameText(ctx, 'gamesSpeakingSttError'))
                     )
                 );
             }).finally(function () {
@@ -10687,7 +10693,7 @@
 
             const transcriptText = String(transcript || '').trim();
             if (!transcriptText) {
-                throw new Error(String(ctx.i18n.gamesSpeakingStackTooQuiet || 'No clear word detected.'));
+                throw new Error(String(gameText(ctx, 'gamesSpeakingStackTooQuiet')));
             }
             return scoreSpeakingStackTranscript(ctx, run, transcriptText).then(function (result) {
                 if (!ctx.run || ctx.run !== run || run.ended) {
@@ -10700,7 +10706,7 @@
                 });
                 const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
                 if (!matched) {
-                    setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackNoMatch || 'No match yet.'));
+                    setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
                     return;
                 }
                 handleSpeakingStackMatch(ctx, run, result, transcriptText);
@@ -10713,8 +10719,7 @@
             setSpeakingStatus(ctx, String(
                 error && error.message
                     || ctx.i18n.gamesSpeakingStackMicError
-                    || ctx.i18n.gamesSpeakingSttError
-                    || 'Microphone access failed.'
+                    || gameText(ctx, 'gamesSpeakingSttError')
             ));
         }).finally(function () {
             const completedAt = currentTimestamp();
@@ -10746,14 +10751,14 @@
             return;
         }
         if (!state.speechDetected) {
-            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingTooQuiet || 'That was too quiet. Try again.'));
-            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
+            setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingTooQuiet')));
+            setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
             return;
         }
 
         const speakingProcessingLabel = isAudioMatcherProvider(run.provider)
-            ? String(ctx.i18n.gamesSpeakingMatching || 'Matching your audio...')
-            : String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...');
+            ? String(gameText(ctx, 'gamesSpeakingMatching'))
+            : String(gameText(ctx, 'gamesSpeakingProcessing'));
         setSpeakingStatus(ctx, speakingProcessingLabel);
         setSpeakingRecordButton(ctx, speakingProcessingLabel, true, 'processing');
         setSpeakingAttemptAudioSource(ctx, blob);
@@ -10774,9 +10779,9 @@
                 }
                 setSpeakingStatus(
                     ctx,
-                    resolveSpeakingMatcherErrorMessage(ctx, error, String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'))
+                    resolveSpeakingMatcherErrorMessage(ctx, error, String(gameText(ctx, 'gamesSpeakingSttError')))
                 );
-                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
+                setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
             });
             return;
         }
@@ -10786,7 +10791,7 @@
                 return null;
             }
             if (!String(transcript || '').trim()) {
-                throw new Error(String(ctx.i18n.gamesSpeakingTooQuiet || 'That was too quiet. Try again.'));
+                throw new Error(String(gameText(ctx, 'gamesSpeakingTooQuiet')));
             }
             return scoreSpeakingTranscript(ctx, run, transcript).then(function (result) {
                 if (!ctx.run || ctx.run !== run || run.ended) {
@@ -10798,8 +10803,8 @@
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return;
             }
-            setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
-            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
+            setSpeakingStatus(ctx, String(error && error.message || gameText(ctx, 'gamesSpeakingSttError')));
+            setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
         });
     }
 
@@ -10812,8 +10817,8 @@
         clearSpeakingAutoStart(ctx);
         state.autoStartTimer = root.setTimeout(function () {
             startSpeakingCapture(ctx).catch(function (error) {
-                setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingMicError || 'Microphone access failed.'));
-                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
+                setSpeakingStatus(ctx, String(error && error.message || gameText(ctx, 'gamesSpeakingMicError')));
+                setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
             });
         }, Math.max(0, toInt(ctx.speakingPractice && ctx.speakingPractice.autoStartDelayMs) || 280));
     }
@@ -10827,8 +10832,8 @@
 
         resetSpeakingResultUi(ctx);
         clearSpeakingAutoStart(ctx);
-        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingReady || 'Get ready...'));
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingStartButton || 'Start'), false, 'idle');
+        setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingReady')));
+        setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingStartButton')), false, 'idle');
 
         if (!opts.retryCurrent) {
             if (run.prompt && run.prompt.target) {
@@ -10859,8 +10864,8 @@
         renderSpeakingPrompt(ctx, run, run.prompt.target);
         setSpeakingStatus(ctx, String(
             run.prompt.target && run.prompt.target.image
-                ? (ctx.i18n.gamesSpeakingPromptImage || 'Say the word for this picture.')
-                : (ctx.i18n.gamesSpeakingPromptText || 'Say the word for this prompt.')
+                ? (gameText(ctx, 'gamesSpeakingPromptImage'))
+                : (gameText(ctx, 'gamesSpeakingPromptText'))
         ));
         queueSpeakingPromptAutoStart(ctx);
     }
@@ -10875,16 +10880,16 @@
         flushProgress(ctx);
         showOverlay(
             ctx,
-            String(ctx.i18n.gamesSpeakingDoneTitle || 'Speaking round complete'),
-            formatMessage(ctx.i18n.gamesSpeakingDoneSummary || 'Right: %1$d · Close: %2$d · Wrong: %3$d', [
+            String(gameText(ctx, 'gamesSpeakingDoneTitle')),
+            formatMessage(gameText(ctx, 'gamesSpeakingDoneSummary'), [
                 toInt(run.summary.right),
                 toInt(run.summary.close),
                 toInt(run.summary.wrong)
             ]),
             {
                 mode: 'game-over',
-                primaryLabel: String(ctx.i18n.gamesNewGame || 'New game'),
-                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+                primaryLabel: String(gameText(ctx, 'gamesNewGame')),
+                secondaryLabel: String(gameText(ctx, 'gamesBackToCatalog'))
             }
         );
     }
@@ -10995,7 +11000,7 @@
         updatePauseUi(ctx);
         setTrackerContext(ctx);
         setSpeakingStackProgressFromRun(ctx, ctx.run);
-        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackReady || 'Mic ready'));
+        setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackReady')));
         setSpeakingStackHeard(ctx, '');
         scrollStageIntoView(ctx);
         queueSpeakingStackCaptureRestart(ctx, 40);
@@ -11413,8 +11418,8 @@
                 return;
             }
             startSpeakingCapture(ctx).catch(function (error) {
-                setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingMicError || 'Microphone access failed.'));
-                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
+                setSpeakingStatus(ctx, String(error && error.message || gameText(ctx, 'gamesSpeakingMicError')));
+                setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
             });
         });
 
@@ -11697,12 +11702,12 @@
         const staticCatalog = resolveStaticCatalog(gamesCfg, offlineMode);
         ensureCatalogCardsExist($gamesRoot, gamesCfg, {
             statusText: (cfg.isLoggedIn || offlineMode)
-                ? String(((cfg.i18n && cfg.i18n.gamesLoading) || 'Checking game availability...'))
-                : String(((cfg.i18n && cfg.i18n.gamesLoginRequired) || 'Sign in to play with your in-progress words.')),
+                ? String((gameTextFromConfig(cfg, 'gamesLoading')))
+                : String((gameTextFromConfig(cfg, 'gamesLoginRequired'))),
             buttonText: (cfg.isLoggedIn || offlineMode)
-                ? String(((cfg.i18n && cfg.i18n.gamesPlay) || 'Play'))
-                : String(((cfg.i18n && cfg.i18n.gamesLocked) || 'Locked')),
-            countLabel: String(((cfg.i18n && cfg.i18n.gamesEligibleWords) || 'Eligible words'))
+                ? String((gameTextFromConfig(cfg, 'gamesPlay')))
+                : String((gameTextFromConfig(cfg, 'gamesLocked'))),
+            countLabel: String((gameTextFromConfig(cfg, 'gamesEligibleWords')))
         });
         const catalogCards = {};
         const catalogOrder = [];

@@ -225,6 +225,31 @@ test('high-confidence user-facing strings are translation-ready', async () => {
   expect(formatted, `Hardcoded UI strings need WordPress i18n wrappers:\n${formatted.join('\n')}`).toEqual([]);
 });
 
+test('wordset games does not duplicate English i18n fallback strings in JS', async () => {
+  const file = path.join(repoRoot, 'js', 'wordset-games.js');
+  const source = fs.readFileSync(file, 'utf8');
+  const fallbackRegexes = [
+    /\b(?:ctx|cfg)\.i18n\.[A-Za-z0-9_]+\s*\|\|\s*(['"])(?=[A-Z])[\s\S]*?\1/g,
+    /\b(?:ctx|cfg)\s*&&\s*(?:ctx|cfg)\.i18n\s*&&\s*(?:ctx|cfg)\.i18n\.[A-Za-z0-9_]+\s*\|\|\s*(['"])(?=[A-Z])[\s\S]*?\1/g,
+    /\(\s*(?:ctx|cfg)\.i18n\s*&&\s*(?:ctx|cfg)\.i18n\.[A-Za-z0-9_]+\s*\)\s*\|\|\s*(['"])(?=[A-Z])[\s\S]*?\1/g
+  ];
+  const findings = [];
+
+  for (const regex of fallbackRegexes) {
+    let match;
+    regex.lastIndex = 0;
+    while ((match = regex.exec(source)) !== null) {
+      const line = source.slice(0, match.index).split(/\r?\n/).length;
+      findings.push(`js/wordset-games.js:${line} ${JSON.stringify(match[0])}`);
+    }
+  }
+
+  expect(
+    findings,
+    `Move localized game UI copy to ll_tools_get_wordset_games_i18n_messages():\n${findings.join('\n')}`
+  ).toEqual([]);
+});
+
 test('PHP include and template files block direct web access', async () => {
   const phpFiles = pluginSourceFiles().filter((file) => file.endsWith('.php'));
   const missingGuards = phpFiles

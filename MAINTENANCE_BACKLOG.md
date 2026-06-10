@@ -15,6 +15,12 @@ decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 public JS localization fallback follow-up: `js/wordset-games.js`
+  now reads game UI labels, status text, alerts, and ARIA copy through localized
+  `llWordsetPageData.i18n` helpers instead of duplicating English fallbacks in
+  the public runtime. The wordset-games Playwright fixture now supplies the full
+  game i18n payload, and the maintenance source-contract spec guards against
+  reintroducing English `ctx.i18n`/`cfg.i18n` fallback strings in the games JS.
 - June 10 Word Images admin category-count follow-up: the
   `word_images` list-table category filter now computes all visible image
   counts with one aggregate taxonomy/post query instead of running one
@@ -48,8 +54,9 @@ decisions, and documentation upkeep.
      recording-type controls, managed-page controls, maintenance action wiring,
      a safe cache-flush submit path, and mobile overflow.
    - A lightweight Playwright source-contract spec now checks that registered
-     public shortcodes stay listed in `README.md` and that high-confidence
-     user-facing PHP/JS string contexts use translation-ready wrappers. Keep
+     public shortcodes stay listed in `README.md`, high-confidence user-facing
+     PHP/JS string contexts use translation-ready wrappers, and wordset game
+     UI copy does not duplicate English `i18n` fallbacks in public JS. Keep
      extending this kind of static coverage where it catches real maintenance
      drift with low flake risk.
 
