@@ -734,6 +734,43 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             return (string) ($suggestion['ipa'] ?? '');
         }, (array) ($ipa_suggestion_detail['ipa_suggestions'] ?? []));
         $this->assertContains("ʕɛmɨr", $suggestions, 'Suggestions: ' . wp_json_encode($suggestions));
+
+        $front_vowel_ipa = "bɨx";
+        $front_vowel_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($front_vowel_ipa, $engine_rules, $wordset_id);
+        $this->assertSame('Bıx', (string) ($front_vowel_prediction['text'] ?? ''));
+        $front_vowel_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Bex',
+            $front_vowel_ipa,
+            $wordset_id,
+            'isolation',
+            $front_vowel_prediction
+        );
+        $front_vowel_suggestions = array_map(static function (array $suggestion): string {
+            return (string) ($suggestion['ipa'] ?? '');
+        }, (array) ($front_vowel_detail['ipa_suggestions'] ?? []));
+        $this->assertContains("bɛx", $front_vowel_suggestions, 'Suggestions: ' . wp_json_encode($front_vowel_suggestions));
+        foreach ($front_vowel_suggestions as $suggestion) {
+            $this->assertStringNotContainsString('ə', $suggestion);
+            $this->assertStringNotContainsString('ᵊ', $suggestion);
+        }
+
+        $hewru_actual = "Kûm ho hûnyen 'hewrû ra?";
+        $hewru_suggested = "Kûm ho hûnyen hewrû ra?";
+        $hewru_ipa = "kʰum ho hunjen hewru ra";
+        $hewru_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            $hewru_actual,
+            $hewru_ipa,
+            $wordset_id,
+            'question',
+            [
+                'text' => $hewru_suggested,
+                'complete' => true,
+            ]
+        );
+        $this->assertFalse((bool) ($hewru_detail['matches'] ?? true));
+        $this->assertSame(["'h"], $this->collectSpanText($hewru_actual, (array) ($hewru_detail['actual_spans'] ?? [])));
+        $this->assertSame(['h'], $this->collectSpanText($hewru_suggested, (array) ($hewru_detail['suggested_spans'] ?? [])));
+        $this->assertSame(['h'], $this->collectSpanText($hewru_ipa, (array) ($hewru_detail['ipa_spans'] ?? [])));
     }
 
     public function test_dropped_final_n_for_bread_is_dictionary_bound(): void

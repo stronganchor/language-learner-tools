@@ -3363,6 +3363,30 @@ function ll_tools_ipa_orthography_diff_span_pair(
     $actual_length = max(0, count($actual_chars) - $prefix - $suffix);
     $suggested_length = max(0, count($suggested_chars) - $prefix - $suffix);
 
+    if ($actual_length > 0 && $suggested_length === 0) {
+        $deleted_text = implode('', array_slice($actual_chars, $prefix, $actual_length));
+        $actual_anchor = $actual_compare[$prefix + $actual_length] ?? null;
+        $suggested_anchor = $suggested_compare[$prefix] ?? null;
+        if ($actual_anchor !== null
+            && $suggested_anchor !== null
+            && $actual_anchor === $suggested_anchor
+            && preg_match('/^\p{P}+$/u', $deleted_text) === 1) {
+            $actual_length++;
+            $suggested_length = 1;
+        }
+    } elseif ($suggested_length > 0 && $actual_length === 0) {
+        $inserted_text = implode('', array_slice($suggested_chars, $prefix, $suggested_length));
+        $actual_anchor = $actual_compare[$prefix] ?? null;
+        $suggested_anchor = $suggested_compare[$prefix + $suggested_length] ?? null;
+        if ($actual_anchor !== null
+            && $suggested_anchor !== null
+            && $actual_anchor === $suggested_anchor
+            && preg_match('/^\p{P}+$/u', $inserted_text) === 1) {
+            $actual_length = 1;
+            $suggested_length++;
+        }
+    }
+
     return [
         'actual' => $actual_length > 0 ? [
             'start' => $actual_start + $prefix,
@@ -3587,7 +3611,6 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'ø' => ['any' => 'ö'],
         'ʊ' => ['any' => 'u'],
         'u' => ['any' => 'û'],
-        'ə' => ['any' => 'e'],
         'ɔ' => ['any' => 'o'],
         'ʕ' => ['any' => "'"],
         'ʔ' => ['any' => "'"],
@@ -3806,16 +3829,6 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
             'orthography_key' => 'ı',
         ],
         [
-            'ipa' => 'ə',
-            'orthography' => 'ı',
-            'orthography_key' => 'ı',
-        ],
-        [
-            'ipa' => 'ᵊ',
-            'orthography' => 'ı',
-            'orthography_key' => 'ı',
-        ],
-        [
             'ipa' => 'd̪ɨ',
             'orthography' => 'dı',
             'orthography_key' => 'dı',
@@ -3965,6 +3978,9 @@ function ll_tools_ipa_orthography_replacement_rule_options(array $rules, string 
     $options = [];
     foreach ($rules as $rule) {
         if (!is_array($rule)) {
+            continue;
+        }
+        if (empty($rule['manual'])) {
             continue;
         }
 
