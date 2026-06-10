@@ -638,6 +638,11 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
         $this->assertTrue((bool) ($plural_detail['matches'] ?? false));
 
+        $bwiya_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("bʷija", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($bwiya_prediction['complete'] ?? false));
+        $this->assertSame('Bwiya', (string) ($bwiya_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Bwiya', "bʷija", $wordset_id, 'isolation', $bwiya_prediction)['matches'] ?? false));
+
         $proximal_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("ina", $engine_rules, $wordset_id);
         $this->assertTrue((bool) ($proximal_prediction['complete'] ?? false));
         $this->assertSame('Ina', (string) ($proximal_prediction['text'] ?? ''));
@@ -681,6 +686,53 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ve', (string) ($unresolved_final_detail['suggested_text'] ?? ''));
         $this->assertNotEmpty((array) ($unresolved_final_detail['actual_spans'] ?? []));
         $this->assertNotEmpty((array) ($unresolved_final_detail['ipa_spans'] ?? []));
+    }
+
+    public function test_zazaki_mismatch_detail_targets_ipa_symbols_and_suggests_ipa_variants(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Targeted Mismatch Detail');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+
+        $bahce_ipa = "bæχt͡ʃɨ";
+        $bahce_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($bahce_ipa, $engine_rules, $wordset_id);
+        $this->assertSame('Bâxçe', (string) ($bahce_prediction['text'] ?? ''));
+        $bahce_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Bâxçı',
+            $bahce_ipa,
+            $wordset_id,
+            'isolation',
+            $bahce_prediction
+        );
+        $this->assertFalse((bool) ($bahce_detail['matches'] ?? true));
+        $this->assertSame(['ı'], $this->collectSpanText('Bâxçı', (array) ($bahce_detail['actual_spans'] ?? [])));
+        $this->assertSame(['e'], $this->collectSpanText('Bâxçe', (array) ($bahce_detail['suggested_spans'] ?? [])));
+        $this->assertSame(['ɨ'], $this->collectSpanText($bahce_ipa, (array) ($bahce_detail['ipa_spans'] ?? [])));
+
+        $emir_ipa = "ʕæmir";
+        $emir_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($emir_ipa, $engine_rules, $wordset_id);
+        $emir_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Emir',
+            $emir_ipa,
+            $wordset_id,
+            'isolation',
+            $emir_prediction
+        );
+        $this->assertFalse((bool) ($emir_detail['matches'] ?? true));
+        $this->assertSame(['æ'], $this->collectSpanText($emir_ipa, (array) ($emir_detail['ipa_spans'] ?? [])));
+
+        $ipa_suggestion_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            "'Emır",
+            $emir_ipa,
+            $wordset_id,
+            'isolation',
+            $emir_prediction
+        );
+        $this->assertNotEmpty((array) ($ipa_suggestion_detail['word_mismatches'] ?? []), 'Detail: ' . wp_json_encode($ipa_suggestion_detail));
+        $suggestions = array_map(static function (array $suggestion): string {
+            return (string) ($suggestion['ipa'] ?? '');
+        }, (array) ($ipa_suggestion_detail['ipa_suggestions'] ?? []));
+        $this->assertContains("ʕɛmɨr", $suggestions, 'Suggestions: ' . wp_json_encode($suggestions));
     }
 
     public function test_dropped_final_n_for_bread_is_dictionary_bound(): void
