@@ -4,7 +4,8 @@ Updated June 10, 2026 after the weekly maintenance/performance audit, the
 first public lazy-card resource-protection follow-up pass, the E2E
 runner-health follow-up, the Speaking Practice E2E follow-up, the shared
 flashcard shell follow-up, the content lesson route/media E2E follow-up, and
-the prompt-card recorder real-upload E2E follow-up.
+the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
+verification follow-up, and the Speaking Practice microphone-denial follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -16,6 +17,18 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 Speaking Practice microphone-denial follow-up:
+  `tests/e2e/specs/wordset-games-space-shooter.spec.js` now covers a hosted
+  Speaking Practice launch where `getUserMedia()` rejects with a browser
+  permission error. The runtime shows the localized microphone failure message,
+  returns the record control to retry state, avoids transcription/scoring POSTs,
+  and no longer surfaces raw browser permission text.
+- June 10 teacher-class coverage verification follow-up:
+  `tests/e2e/specs/teacher-classes-frontend.spec.js` passed locally and already
+  covers the frontend teacher-role create/delete path, signup invite
+  registration, admin assignment of an existing learner, class progress-table
+  sorting, and learner removal. This closes the stale backlog wording that
+  listed assignment, invite, and progress-table flows as still uncovered.
 - June 10 prompt-card recorder real-upload E2E follow-up:
   `tests/e2e/specs/audio-recorder-prompt-card-upload.spec.js` now seeds a
   marked local WordPress fixture, logs in as the limited `audio_recorder` role,
@@ -84,14 +97,14 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, and a WordPress-backed real route/media/cue/related-vocab fixture. Remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
    - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior, a local WordPress-backed prompt-card queue item, and a limited-recorder real multipart prompt-audio upload with an inaccessible-card rejection check. Remaining prompt-card recorder gaps are real browser microphone permission permutations and future data-contract changes. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
-   - Teacher class assignment, invite, and progress-table flows. Teacher class
-     creation now has frontend Playwright coverage for a teacher-role user,
-     including the limited-role `admin-post.php` path and selected-class
-     redirect.
+   - Teacher class flows now have frontend Playwright coverage for a
+     teacher-role user creating/deleting a class, signup invite registration,
+     admin assignment of an existing learner, progress-table sorting, learner
+     removal, and the limited-role `admin-post.php` selected-class redirect.
    - Offline app shell launcher and sync-panel wiring now have self-contained
      browser coverage; remaining offline gaps are service-worker/install
      behavior and real remote snapshot sync edge cases.
-   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior. Remaining live game gaps are real browser/media permission variations and hosted API error edges.
+   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior plus a microphone-denied retry state. Remaining live game gaps are real browser permission-prompt variations and hosted API error edges.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,
      a safe cache-flush submit path, and mobile overflow.

@@ -2062,6 +2062,66 @@ test('speaking practice records an attempt and renders API scoring result', asyn
   await closeRunPopup(page);
 });
 
+test('speaking practice recovers to retry state when microphone permission is denied', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(5),
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-practice': {
+            slug: 'speaking-practice',
+            title: 'Speaking Practice',
+            description: 'Say each word and check the match.'
+          }
+        },
+        speakingPractice: {
+          slug: 'speaking-practice',
+          provider: 'hosted_api',
+          targetField: 'title',
+          maxLoadedWords: 5,
+          autoStartDelayMs: 60000,
+          maxRecordingMs: 1600
+        }
+      }
+    }
+  });
+
+  await page.evaluate(() => {
+    const deniedMediaDevices = {
+      getUserMedia() {
+        window.__mediaRecorderLog.push('get-user-media-denied');
+        const error = new Error('Permission denied by test browser');
+        error.name = 'NotAllowedError';
+        return Promise.reject(error);
+      }
+    };
+    Object.defineProperty(window.navigator, 'mediaDevices', {
+      configurable: true,
+      value: deniedMediaDevices
+    });
+  });
+
+  await expect(gameLaunchButton(page, 'speaking-practice')).toBeEnabled();
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('speaking-practice');
+  });
+
+  await expect(page.locator('[data-ll-wordset-speaking-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'idle');
+
+  await page.locator('[data-ll-wordset-speaking-record]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__mediaRecorderLog.includes('get-user-media-denied'))).toBe(true);
+  await expect(page.locator('[data-ll-wordset-speaking-status]')).toHaveText('Microphone access failed.');
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'retry');
+  await expect(page.locator('[data-ll-wordset-speaking-result]')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => window.__speakingFetchLog.filter((entry) => entry.method === 'POST').length)).toBe(0);
+  await expect(page.locator('[data-ll-wordset-speaking-status]')).not.toContainText('Permission denied by test browser');
+
+  await closeRunPopup(page);
+});
+
 test('word stack fills empty columns before stacking and keeps images from overlapping across columns', async ({ page }) => {
   await mountGamesPage(page, {
     isLoggedIn: true,

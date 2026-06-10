@@ -10146,6 +10146,32 @@
         return String(fallbackMessage || gameText(ctx, 'gamesSpeakingSttError'));
     }
 
+    function resolveSpeakingMicErrorMessage(ctx, error, fallbackKey) {
+        const fallback = String(gameText(ctx, fallbackKey || 'gamesSpeakingMicError'));
+        const errorName = String(error && error.name || '');
+        const browserMicErrors = [
+            'NotAllowedError',
+            'PermissionDeniedError',
+            'NotFoundError',
+            'DevicesNotFoundError',
+            'NotReadableError',
+            'TrackStartError',
+            'OverconstrainedError',
+            'ConstraintNotSatisfiedError',
+            'SecurityError',
+            'AbortError'
+        ];
+        if (browserMicErrors.indexOf(errorName) !== -1) {
+            return fallback;
+        }
+
+        const rawMessage = String(error && error.message || '').trim();
+        if (rawMessage === '' || rawMessage.indexOf('_') !== -1 || rawMessage.length > 140) {
+            return fallback;
+        }
+        return rawMessage;
+    }
+
     function transcribeSpeakingBlob(ctx, run, blob) {
         if (!blob || !run) {
             return Promise.reject(new Error('missing_blob'));
@@ -10528,10 +10554,10 @@
                 return;
             }
             startSpeakingCapture(ctx).catch(function (captureError) {
-                setSpeakingStatus(ctx, String(
-                    captureError && captureError.message
-                        || error && error.message
-                        || gameText(ctx, 'gamesSpeakingStackMicError')
+                setSpeakingStatus(ctx, resolveSpeakingMicErrorMessage(
+                    ctx,
+                    captureError || error,
+                    'gamesSpeakingStackMicError'
                 ));
             });
         }, Math.max(0, toInt(delayMs) || 0));
@@ -10817,7 +10843,7 @@
         clearSpeakingAutoStart(ctx);
         state.autoStartTimer = root.setTimeout(function () {
             startSpeakingCapture(ctx).catch(function (error) {
-                setSpeakingStatus(ctx, String(error && error.message || gameText(ctx, 'gamesSpeakingMicError')));
+                setSpeakingStatus(ctx, resolveSpeakingMicErrorMessage(ctx, error, 'gamesSpeakingMicError'));
                 setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
             });
         }, Math.max(0, toInt(ctx.speakingPractice && ctx.speakingPractice.autoStartDelayMs) || 280));
@@ -11418,7 +11444,7 @@
                 return;
             }
             startSpeakingCapture(ctx).catch(function (error) {
-                setSpeakingStatus(ctx, String(error && error.message || gameText(ctx, 'gamesSpeakingMicError')));
+                setSpeakingStatus(ctx, resolveSpeakingMicErrorMessage(ctx, error, 'gamesSpeakingMicError'));
                 setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
             });
         });
