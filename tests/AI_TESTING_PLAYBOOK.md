@@ -36,6 +36,16 @@ tests/bin/run-e2e.sh tests/e2e/specs/quiz-mode-transitions.spec.js
 tests/bin/run-e2e.sh specs/quiz-mode-transitions.spec.js
 ```
 
+Run full local Playwright coverage in shards when an automation timeout budget
+is too tight for the serial suite:
+
+```bash
+tests/bin/run-e2e.sh --shard=1/4
+tests/bin/run-e2e.sh --shard=2/4
+tests/bin/run-e2e.sh --shard=3/4
+tests/bin/run-e2e.sh --shard=4/4
+```
+
 Headed Playwright debug:
 
 ```bash
@@ -182,6 +192,12 @@ Playwright shows Local router `404 Site Not Found`:
 Playwright cannot find `.ll-quiz-page-trigger`:
 - Confirm target page has `[quiz_pages_grid popup="yes"...]`.
 - Check `LL_E2E_LEARN_PATH`.
+
+Full Playwright run times out under an automation cap:
+- Run `tests/bin/run-e2e.sh --list` first to confirm the inventory and catch discovery errors.
+- Then run `tests/bin/run-e2e.sh --shard=1/4` through `--shard=4/4` to isolate whether a spec actually hangs.
+- On June 10, 2026, the local suite listed 314 tests and all four shards completed with 313 passed and 1 skipped. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
+- If all shards pass but the unsharded command still stalls beyond 35 minutes, investigate suite-level state leakage, leftover browser/process state, or Local-site slowness before weakening assertions.
 
 `page-speed-throttled-load.spec.js` fails:
 - Open the Playwright HTML report and inspect the attached `page-speed-metrics` JSON.

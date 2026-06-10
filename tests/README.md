@@ -180,6 +180,22 @@ From plugin root:
 tests/bin/run-e2e.sh
 ```
 
+For automation runs where a 20-minute cap is too tight for the whole serial
+suite, use Playwright shards:
+
+```bash
+tests/bin/run-e2e.sh --shard=1/4
+tests/bin/run-e2e.sh --shard=2/4
+tests/bin/run-e2e.sh --shard=3/4
+tests/bin/run-e2e.sh --shard=4/4
+```
+
+The June 10, 2026 local runner-health check listed 314 tests, and the four
+shards completed with 313 passed and 1 skipped. Treat a short unsharded timeout
+as an automation budget problem unless a shard isolates a hung spec; if the
+unsharded command still stalls beyond 35 minutes after shards pass, investigate
+suite-level state leakage or Local-site slowness.
+
 Read-only live-site smoke checks use a separate Playwright config and a local-only site list:
 
 ```bash
