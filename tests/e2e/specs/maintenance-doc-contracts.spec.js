@@ -250,6 +250,69 @@ test('wordset games does not duplicate English i18n fallback strings in JS', asy
   ).toEqual([]);
 });
 
+test('Turkish translation avoids high-risk tone and glossary regressions', async () => {
+  const file = path.join(repoRoot, 'languages', 'll-tools-text-domain-tr_TR.po');
+  const source = fs.readFileSync(file, 'utf8');
+  const translationLines = [];
+  let inTranslation = false;
+
+  for (const line of source.split(/\r?\n/)) {
+    if (/^msgstr(?:\[\d+\])?\s+/.test(line)) {
+      inTranslation = true;
+      translationLines.push(line);
+    } else if (inTranslation && /^"/.test(line)) {
+      translationLines.push(line);
+    } else if (/^(msgid|msgctxt|#|$)/.test(line)) {
+      inTranslation = false;
+    }
+  }
+
+  const checks = [
+    {
+      name: 'formal second-person tone',
+      regex: /(?:hesab\u0131n\u0131z|\u015fifreniz|izniniz|yap\u0131n|misiniz|musunuz|unuz|\u00fcn\u00fcz)/iu
+    },
+    {
+      name: 'word set glossary',
+      regex: /s\u00f6zc\u00fck\s+k\u00fcmes/iu
+    },
+    {
+      name: 'part of speech glossary',
+      regex: /s\u00f6zc\u00fck\s+t\u00fcr/iu
+    },
+    {
+      name: 'word image glossary',
+      regex: /kelime\s+g\u00f6r\u00fcnt/iu
+    },
+    {
+      name: 'quiz glossary',
+      regex: /\b[Ss]\u0131nav\b/u
+    },
+    {
+      name: 'English entity fallback',
+      regex: /msgstr\s+"(?:Word Audio|Flashcard G\u00f6r\u00fcnt\u00fc)"/u
+    },
+    {
+      name: 'manager glossary',
+      regex: /M\u00fcd\u00fcr/u
+    }
+  ];
+  const findings = [];
+
+  translationLines.forEach((line, index) => {
+    for (const check of checks) {
+      if (check.regex.test(line)) {
+        findings.push(`${check.name} near translation segment ${index + 1}: ${line}`);
+      }
+    }
+  });
+
+  expect(
+    findings,
+    `Review languages/TURKISH_TRANSLATION_GUIDELINES.md before changing Turkish PO glossary/tone terms:\n${findings.join('\n')}`
+  ).toEqual([]);
+});
+
 test('PHP include and template files block direct web access', async () => {
   const phpFiles = pluginSourceFiles().filter((file) => file.endsWith('.php'));
   const missingGuards = phpFiles

@@ -6082,7 +6082,7 @@ msgstr "Ebeveyn kelimesi:"
 #: templates/vocab-lesson-template.php:540
 #: templates/vocab-lesson-template.php:559
 msgid "Part of Speech"
-msgstr "Sözcük Türü"
+msgstr "Konuşma Parçası"
 
 #: includes/pages/wordset-pages.php:13181
 #: includes/pages/wordset-pages.php:13551
@@ -6092,12 +6092,12 @@ msgstr "Sözcük Türü"
 #: includes/shortcodes/word-grid-shortcode.php:5283
 #: templates/vocab-lesson-template.php:557
 msgid "Part of speech"
-msgstr "Sözcük türü"
+msgstr "Konuşma parçası"
 
 #: includes/admin/admin-dashboard-menu.php:614
 #: includes/taxonomies/part-of-speech-taxonomy.php:8
 msgid "Parts of Speech"
-msgstr "Sözcük Türleri"
+msgstr "Konuşma Parçaları"
 
 #: includes/admin/offline-app-export.php:1594 includes/login-window.php:1650
 #: includes/login-window.php:1721 templates/offline-app-shell-template.php:686
@@ -16163,7 +16163,7 @@ msgstr "Sözlük girdisi yardımcıları mevcut değil."
 #: includes/cli/cli-support.php:701
 #, php-format
 msgid "Unknown part of speech: %s"
-msgstr "Konuşmanın bilinmeyen kısmı: %s"
+msgstr "Bilinmeyen konuşma parçası: %s"
 
 #: includes/cli/cli-support.php:723
 msgid "Gender can only be set on noun words."
@@ -23553,11 +23553,11 @@ msgstr "Geçersiz mod"
 
 #: includes/shortcodes/word-grid-shortcode.php:8240
 msgid "Missing part of speech"
-msgstr "Sözcük türü eksik"
+msgstr "Konuşma parçası eksik"
 
 #: includes/shortcodes/word-grid-shortcode.php:8244
 msgid "Invalid part of speech"
-msgstr "Geçersiz sözcük türü"
+msgstr "Geçersiz konuşma parçası"
 
 #: includes/shortcodes/word-grid-shortcode.php:8289
 msgid "Gender not enabled"
@@ -26734,7 +26734,7 @@ msgstr "Geçersiz fiil kipi değeri."
 
 #: includes/api/word-metadata-plan-rest.php:653
 msgid "Unknown part of speech."
-msgstr "Bilinmeyen sözcük türü."
+msgstr "Bilinmeyen konuşma parçası."
 
 #: includes/api/word-metadata-plan-rest.php:974
 msgid "Provide one or more word metadata updates."

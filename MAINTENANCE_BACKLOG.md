@@ -15,6 +15,11 @@ decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 Turkish localization quality follow-up: normalized the Turkish
+  `part of speech` glossary cluster from `Sözcük Türü`/`sözcük türü` to
+  `Konuşma Parçası`/`konuşma parçası`, rebuilt the compiled Turkish locale
+  files, added the glossary term to the Turkish review guide, and added a
+  maintenance source-contract check for high-risk Turkish tone/glossary drift.
 - June 10 public JS localization fallback follow-up: `js/wordset-games.js`
   now reads game UI labels, status text, alerts, and ARIA copy through localized
   `llWordsetPageData.i18n` helpers instead of duplicating English fallbacks in
@@ -55,10 +60,11 @@ decisions, and documentation upkeep.
      a safe cache-flush submit path, and mobile overflow.
    - A lightweight Playwright source-contract spec now checks that registered
      public shortcodes stay listed in `README.md`, high-confidence user-facing
-     PHP/JS string contexts use translation-ready wrappers, and wordset game
-     UI copy does not duplicate English `i18n` fallbacks in public JS. Keep
-     extending this kind of static coverage where it catches real maintenance
-     drift with low flake risk.
+     PHP/JS string contexts use translation-ready wrappers, wordset game
+     UI copy does not duplicate English `i18n` fallbacks in public JS, and the
+     Turkish PO avoids high-risk glossary/tone regressions. Keep extending this
+     kind of static coverage where it catches real maintenance drift with low
+     flake risk.
 
 2. Reduce duplicated flashcard shell markup and startup behavior.
    - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.

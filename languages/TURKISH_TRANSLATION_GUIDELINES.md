@@ -27,6 +27,7 @@
 | word images | `kelime görselleri` | Same rule as above. |
 | word audio | `kelime ses kaydı` | Distinct from generic `audio recording`. |
 | audio recording | `ses kaydı` | Use for actual recorded audio actions/items. |
+| part of speech | `konuşma parçası` | Use this for the taxonomy/filter label; avoid drifting to `sözcük türü`. |
 | recording type | `kayıt türü` | Keep consistent across taxonomy/admin labels. |
 | dictionary entry | `sözlük girişi` | |
 | quiz | `quiz` | Prefer `quiz` over `sınav` or `test`; it better conveys a lightweight knowledge check rather than a serious graded exam. |
@@ -56,7 +57,7 @@ Run these searches before finishing a translation pass:
 
 ```bash
 rg -n 'hesabınız|şifreniz|izniniz|yapın|misiniz|musunuz|unuz|ünüz' languages/ll-tools-text-domain-tr_TR.po
-rg -n 'sözcük kümes|kelime görünt|\\bSınav\\b|\\bsınav\\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür' languages/ll-tools-text-domain-tr_TR.po
+rg -n 'sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\\bSınav\\b|\\bsınav\\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür' languages/ll-tools-text-domain-tr_TR.po
 ```
 
 Manually review matches. Some hits may be false positives, but these searches catch most tone/glossary regressions quickly.
