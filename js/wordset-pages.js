@@ -531,6 +531,7 @@
     const lazyCardsToken = String(lazyCardsCfg.token || '');
     const lazyCardsWordsetId = Math.max(0, parseInt(lazyCardsCfg.wordsetId, 10) || wordsetId || 0);
     const lazyCardsPreviewLimit = Math.max(1, parseInt(lazyCardsCfg.previewLimit, 10) || 2);
+    const lazyCardsRequestIdBatchSize = Math.max(1, parseInt(lazyCardsCfg.requestIdBatchSize, 10) || 96);
     const lazyCardsShellBaseOffset = Math.max(0, parseInt(lazyCardsCfg.shellBaseOffset, 10) || Math.max(0, parseInt(lazyCardsCfg.initialCount, 10) || lazyCardsLoadedCount));
     const lazyCardShells = normalizeLazyCardShells(lazyCardsCfg.shells);
     const lazyContentCardShells = normalizeLazyCardShells(lazyCardsCfg.contentShells).filter(function (shell) {
@@ -2095,6 +2096,16 @@
             seen[id] = true;
             return true;
         });
+    }
+
+    function chunkIntList(values, chunkSize) {
+        const ids = uniqueIntList(values || []);
+        const size = Math.max(1, parseInt(chunkSize, 10) || ids.length || 1);
+        const chunks = [];
+        for (let index = 0; index < ids.length; index += size) {
+            chunks.push(ids.slice(index, index + size));
+        }
+        return chunks;
     }
 
     function uniqueModeList(values) {
@@ -7548,6 +7559,9 @@
         }
 
         const requestToken = ++searchCardHydrationRequestToken;
+        const categoryChunks = chunkIntList(ids, lazyCardsRequestIdBatchSize);
+        const contentChunks = chunkIntList(lessonIds, lazyCardsRequestIdBatchSize);
+        const requestCount = Math.max(categoryChunks.length, contentChunks.length);
         ids.forEach(function (categoryId) {
             searchCardHydratingIds[categoryId] = true;
         });
@@ -7555,6 +7569,16 @@
             searchContentCardHydratingIds[lessonId] = true;
         });
 
+        for (let chunkIndex = 0; chunkIndex < requestCount; chunkIndex += 1) {
+            requestHydratedSearchMatchCardsChunk(
+                categoryChunks[chunkIndex] || [],
+                contentChunks[chunkIndex] || [],
+                requestToken
+            );
+        }
+    }
+
+    function requestHydratedSearchMatchCardsChunk(ids, lessonIds, requestToken) {
         const requestData = {
             action: 'll_tools_wordset_page_lazy_cards',
             nonce: lazyCardsNonce,

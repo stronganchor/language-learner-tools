@@ -325,6 +325,7 @@ function buildConfig(options = {}) {
     wordsetId: 77,
     previewLimit: 2,
     batchSize: 1,
+    requestIdBatchSize: 96,
     initialCount: 1,
     loaded: 1,
     total: categories.length,
@@ -846,6 +847,70 @@ test('wordset search hydrates matching unloaded categories with real previews', 
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([11, 33]);
+});
+
+test('wordset search hydrates unloaded category matches in bounded chunks', async ({ page }) => {
+  const chunkCategories = [
+    Object.assign({}, allCategories[0], {
+      id: 101,
+      name: 'Visible Anchor',
+      search_text: 'visible anchor'
+    }),
+    Object.assign({}, allCategories[1], {
+      id: 102,
+      name: 'Chunk Alpha',
+      search_text: 'shared chunk alpha'
+    }),
+    Object.assign({}, allCategories[1], {
+      id: 103,
+      name: 'Chunk Bravo',
+      search_text: 'shared chunk bravo'
+    }),
+    Object.assign({}, allCategories[1], {
+      id: 104,
+      name: 'Chunk Charlie',
+      search_text: 'shared chunk charlie'
+    }),
+    Object.assign({}, allCategories[1], {
+      id: 105,
+      name: 'Chunk Delta',
+      search_text: 'shared chunk delta'
+    })
+  ];
+
+  await mountWordsetPage(page, {
+    categories: chunkCategories,
+    remainingCards: chunkCategories.slice(1),
+    lazyCards: {
+      requestIdBatchSize: 2,
+      total: chunkCategories.length,
+      remaining: chunkCategories.length - 1,
+      shells: buildLazyShells(chunkCategories)
+    },
+    lazyAjaxDelay: 50
+  });
+
+  await page.evaluate(() => {
+    window.__llLazyAjaxCalls = [];
+  });
+  await page.fill('[data-ll-wordset-page-search]', 'shared chunk');
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llLazyAjaxCalls
+      .map((call) => String(call.category_ids || ''))
+      .filter(Boolean));
+  }).toHaveLength(2);
+
+  const categoryCalls = await page.evaluate(() => window.__llLazyAjaxCalls
+    .map((call) => String(call.category_ids || ''))
+    .filter(Boolean));
+
+  expect(categoryCalls.every((call) => call.split(',').filter(Boolean).length <= 2)).toBe(true);
+  expect(categoryCalls.join(',')).toContain('102');
+  expect(categoryCalls.join(',')).toContain('105');
+
+  await expect(page.locator('.ll-wordset-card[data-cat-id="102"] .ll-wordset-card__title')).toHaveText('Chunk Alpha');
+  await expect(page.locator('.ll-wordset-card[data-cat-id="105"] .ll-wordset-card__title')).toHaveText('Chunk Delta');
 });
 
 test('wordset search hydrates matching unloaded content lessons', async ({ page }) => {

@@ -1,8 +1,7 @@
 # Maintenance Backlog
 
-Updated May 29, 2026 after the weekly maintenance/performance audit and the
-autonomous REST/docs, i18n, public-resource, and wordset-search follow-up
-passes.
+Updated June 10, 2026 after the weekly maintenance/performance audit and the
+first public lazy-card resource-protection follow-up pass.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -10,10 +9,21 @@ being folded into a small opportunistic fix.
 ## Current Short List
 
 The active maintenance list for the current round is intentionally narrowed to
-browser regression coverage, flashcard-shell duplication, helper cleanup
-decisions, and documentation upkeep.
+browser regression coverage, E2E runner health, flashcard-shell duplication,
+helper cleanup decisions, and documentation upkeep.
 
-1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
+1. Investigate the full local E2E timeout from the June 10 audit.
+   - `bash tests/bin/run-e2e.sh` timed out after 20 minutes with no useful
+     aggregate output, while focused specs still passed.
+   - First isolate whether the timeout comes from one hung spec, leftover
+     browser/process state, Local-site slowness, or an unbounded wait in the
+     Playwright wrapper.
+   - Keep this local-only; do not run live-site checks for the investigation.
+   - Verification target: identify the hung spec or runner condition, then run
+     the smallest affected spec plus the focused smoke/performance specs before
+     attempting another full E2E run.
+
+2. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, and category-only selection behavior. The remaining gap is a WordPress-backed browser fixture for real content lesson routes and media payloads.
    - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior and a local WordPress-backed prompt-card queue item; the remaining gap is permissions plus real media upload. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class assignment, invite, and progress-table flows. Teacher class
@@ -33,20 +43,20 @@ decisions, and documentation upkeep.
      extending this kind of static coverage where it catches real maintenance
      drift with low flake risk.
 
-2. Reduce duplicated flashcard shell markup and startup behavior.
+3. Reduce duplicated flashcard shell markup and startup behavior.
    - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.
    - Prefer a shared PHP renderer or small partials before adding more shell controls.
 
-3. Keep the site-sync snapshot policy unchanged unless live usage shows pressure.
+4. Keep the site-sync snapshot policy unchanged unless live usage shows pressure.
    - `GET /wordsets/{wordset}/site-sync/snapshot` intentionally continues to permit an unpaged snapshot when `per_page` is omitted or `0`; `include_media` defaults to true.
    - Automation users may depend on full snapshots, so treat any future cap/default change as a deliberate compatibility decision.
    - If production usage ever shows resource pressure, verify any behavior change against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
 
-4. Keep the audited helper decisions explicit.
+5. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.
    - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` is a legacy supported-language-map helper, not a duplicate of the wordset source/target resolver `ll_tools_get_deepl_language_codes()`. Keep it for compatibility unless a future external-usage audit proves it can be deprecated.
 
-5. Keep architecture and operator docs current after large feature work.
+6. Keep architecture and operator docs current after large feature work.
    - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, but it should be refreshed whenever another large workflow lands.
    - `README.md` shortcode coverage is now guarded by a Playwright source-contract regression; update the README and the test together when intentionally adding or removing public shortcodes.
 
@@ -82,6 +92,9 @@ decisions, and documentation upkeep.
    - The wordset main page currently builds and localizes the full category
      word-search index via `ll_tools_get_wordset_page_category_search_index()`
      in `includes/pages/wordset-pages.php`.
+   - The June 10 lazy-card follow-up capped/chunked search-match hydration
+     requests and added anonymous cache-miss throttling for the existing
+     endpoint, but it did not move the search index itself off first render.
    - The May 29 maintenance pass narrowed the SQL to words that have at least
      one allowed category, which reduces wasted scans without changing the
      client-side search contract.

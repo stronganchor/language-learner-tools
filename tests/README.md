@@ -241,7 +241,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
-  - Verifies lazy wordset-page card hydration, deferred preview shells, unloaded category/content search hydration, inactive-category card actions, and mixed content lesson order with category-only selection behavior.
+  - Verifies lazy wordset-page card hydration, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
