@@ -147,7 +147,22 @@ async function mountOfflineLauncher(page, options = {}) {
           window.__offlineSyncCalls.push({
             wordIds: Array.isArray(syncOptions.wordIds) ? syncOptions.wordIds.slice() : []
           });
+          if (mountOptions.syncFailure === 'failed-result') {
+            syncState.pending = 2;
+            syncState.auth.last_error = 'Server rejected one local progress event.';
+            return Promise.resolve({
+              failed: true,
+              error: 'Server rejected one local progress event.',
+              data: {}
+            });
+          }
+          if (mountOptions.syncFailure === 'rejected-promise') {
+            syncState.pending = 2;
+            syncState.auth.last_error = 'Temporary server sync failure.';
+            return Promise.reject(new Error('Temporary server sync failure.'));
+          }
           syncState.pending = 0;
+          delete syncState.auth.last_error;
           syncState.auth.last_sync_at = '2026-05-29T00:00:00Z';
           return Promise.resolve({
             failed: false,
@@ -175,6 +190,20 @@ async function mountOfflineLauncher(page, options = {}) {
         });
       }
       window.__offlineSyncRequests.push({ action, payload });
+
+      if (action === 'fixture_login' && mountOptions.loginFailure) {
+        return {
+          ok: false,
+          async text() {
+            return JSON.stringify({
+              success: false,
+              data: {
+                message: 'Invalid offline login.'
+              }
+            });
+          }
+        };
+      }
 
       const data = action === 'fixture_login'
         ? {
@@ -379,6 +408,63 @@ test('offline app sync panel signs in, syncs, and disconnects through the real s
 
   const actions = await page.evaluate(() => window.__offlineSyncRequests.map((request) => request.action));
   expect(actions).toContain('fixture_logout');
+});
+
+test('offline app sync panel keeps login failures recoverable', async ({ page }) => {
+  await mountOfflineLauncher(page, { enableSync: true, loginFailure: true });
+
+  await page.locator('#ll-offline-sync-connect').click();
+  await expect(page.locator('#ll-offline-sync-sheet')).toBeVisible();
+
+  await page.locator('#ll-offline-sync-identifier').fill('learner@example.com');
+  await page.locator('#ll-offline-sync-password').fill('wrong-password');
+  await page.locator('#ll-offline-sync-submit').click();
+
+  await expect(page.locator('#ll-offline-sync-sheet')).toBeVisible();
+  await expect(page.locator('#ll-offline-sync-sheet-feedback')).toHaveText('Invalid offline login.');
+  await expect(page.locator('#ll-offline-sync-submit')).toBeEnabled();
+  await expect(page.locator('#ll-offline-sync-status')).toHaveText('Local progress only');
+  await expect(page.locator('#ll-offline-sync-now')).toBeHidden();
+
+  const state = await page.evaluate(() => ({
+    requests: window.__offlineSyncRequests,
+    calls: window.__offlineSyncCalls,
+    syncState: window.LLFlashcards.ProgressTracker.getSyncState()
+  }));
+  expect(state.requests.map((request) => request.action)).toEqual(['fixture_login']);
+  expect(state.calls).toHaveLength(0);
+  expect(state.syncState.connected).toBe(false);
+});
+
+test('offline app sync panel surfaces failed server sync without dropping local pending progress', async ({ page }) => {
+  await mountOfflineLauncher(page, { enableSync: true, syncFailure: 'failed-result' });
+
+  await page.locator('#ll-offline-sync-connect').click();
+  await page.locator('#ll-offline-sync-identifier').fill('learner@example.com');
+  await page.locator('#ll-offline-sync-password').fill('secret-password');
+  await page.locator('#ll-offline-sync-submit').click();
+
+  await expect(page.locator('#ll-offline-sync-sheet')).toBeHidden();
+  await expect(page.locator('#ll-offline-sync-status')).toHaveText('Connected as Offline Learner');
+  await expect(page.locator('#ll-offline-sync-meta')).toHaveText('2 pending');
+  await expect(page.locator('#ll-offline-sync-feedback')).toHaveText('Server rejected one local progress event.');
+  await expect(page.locator('#ll-offline-sync-now')).toBeVisible();
+  await expect(page.locator('#ll-offline-sync-disconnect')).toBeVisible();
+
+  await page.locator('#ll-offline-sync-now').click();
+  await expect(page.locator('#ll-offline-sync-feedback')).toHaveText('Server rejected one local progress event.');
+
+  const state = await page.evaluate(() => ({
+    calls: window.__offlineSyncCalls,
+    syncState: window.LLFlashcards.ProgressTracker.getSyncState(),
+    categoryIds: window.llToolsFlashcardsData.userStudyState.category_ids
+  }));
+  expect(state.calls.length).toBeGreaterThanOrEqual(2);
+  expect(state.calls[0].wordIds).toEqual([101, 102, 103, 104, 105, 201, 202, 203, 204, 205]);
+  expect(state.syncState.connected).toBe(true);
+  expect(state.syncState.pending).toBe(2);
+  expect(state.syncState.auth.last_error).toBe('Server rejected one local progress event.');
+  expect(state.categoryIds).toEqual([]);
 });
 
 test('offline app applies remote sync snapshots to launcher state and next recommendation', async ({ page }) => {

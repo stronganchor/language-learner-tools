@@ -7,7 +7,7 @@ flashcard shell follow-up, the content lesson route/media E2E follow-up, and
 the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
 verification follow-up, the Speaking Practice microphone-denial follow-up, and
 the Speaking Practice hosted API failure follow-up, and the offline remote
-snapshot follow-up.
+snapshot follow-up, and the offline sync error-UX follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -19,6 +19,13 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 offline sync error-UX follow-up:
+  `tests/e2e/specs/offline-app-shell-launcher.spec.js` now covers offline sync
+  login failure and server sync failure responses in the real offline shell
+  wiring. Failed logins keep the sign-in sheet open and re-enable submit
+  without starting sync; failed server sync keeps the user connected, leaves
+  pending local progress visible, and exposes the failure feedback so progress
+  is not silently discarded.
 - June 10 offline remote snapshot follow-up:
   `offline-app/offline-app.js` now mirrors remote `userStudyState` starred
   words, star mode, and fast-transition preferences into the top-level
@@ -118,10 +125,11 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
      removal, and the limited-role `admin-post.php` selected-class redirect.
    - Offline app shell launcher and sync-panel wiring now have self-contained
      browser coverage for launcher selection/sort/launch, sync-panel sign-in,
-     manual sync/disconnect, and remote snapshot application to selected
-     categories, progress sorting, recommendations, and study preferences.
-     Remaining offline gaps are service-worker/install behavior and real server
-     sync conflict/error cases.
+     login failure, manual sync/disconnect, failed server sync feedback, and
+     remote snapshot application to selected categories, progress sorting,
+     recommendations, and study preferences. Remaining offline gaps are
+     service-worker/install behavior and WordPress-backed server sync
+     conflict/error fixtures beyond the local mocked browser shell.
    - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior, microphone-denied retry state, and hosted transcribe/score failure retry states. Remaining live game gaps are real browser permission-prompt variations and live hosted API behavior under real credentials/latency.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,
@@ -147,6 +155,24 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 4. Keep architecture and operator docs current after large feature work.
    - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, plus a source-contract-guarded direct bootstrap include index. Keep refreshing narrative flow docs whenever another large workflow lands.
    - `README.md` shortcode coverage is now guarded by a Playwright source-contract regression; update the README and the test together when intentionally adding or removing public shortcodes.
+
+## Follow-Up Notes
+
+- Offline app service-worker/install behavior is still a future coverage item
+  only if a browser PWA/service-worker runtime is added; the current offline app
+  path is a local-first web/APK shell and does not register a service worker.
+- Offline sync still deserves a WordPress-backed browser fixture for
+  admin-ajax conflict/error responses if the server contract gains explicit
+  merge-conflict semantics. Current coverage includes PHP endpoint throttling,
+  payload caps, token errors, local browser error UX, and remote snapshot
+  application.
+- Live hosted API checks for Speaking Practice should remain behind explicit
+  approval and credentials; local mocked coverage now covers success, mic
+  denial, transcribe failure, and score failure UI states.
+- Real browser permission-prompt permutations are best handled as targeted
+  manual/staged checks because Chromium automation can reliably fake device
+  errors but not every browser prompt/state combination users see in Chrome and
+  OS-level privacy settings.
 
 ## Deferred Larger Projects
 
