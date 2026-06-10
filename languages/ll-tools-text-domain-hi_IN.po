@@ -3909,3 +3909,63 @@ msgstr "%s को इस कक्षा से हटाएं?"
 #: includes/pages/wordset-pages.php:9375
 msgid "Remove"
 msgstr "हटाएं"
+
+#: includes/admin/admin-dashboard-menu.php:345 includes/admin/admin-dashboard-menu.php:648 includes/admin/admin-dashboard-menu.php:802 includes/admin/admin-dashboard-menu.php:803 includes/pages/quiz-pages.php:36 includes/pages/quiz-pages.php:38 includes/pages/quiz-pages.php:45 includes/pages/quiz-pages.php:52
+msgid "Quiz Pages"
+msgstr "क्विज़ पृष्ठ"
+
+#: includes/pages/quiz-pages.php:37 includes/pages/quiz-pages.php:39
+msgid "Quiz Page"
+msgstr "क्विज़ पृष्ठ"
+
+#: includes/pages/quiz-pages.php:40
+msgid "View Generated Quiz Page"
+msgstr "जनरेट किया गया क्विज़ पृष्ठ देखें"
+
+#: includes/pages/quiz-pages.php:41
+msgid "View Quiz Page"
+msgstr "क्विज़ पृष्ठ देखें"
+
+#: includes/pages/quiz-pages.php:42
+msgid "Search Quiz Pages"
+msgstr "क्विज़ पृष्ठ खोजें"
+
+#: includes/pages/quiz-pages.php:43
+msgid "No quiz pages found"
+msgstr "कोई क्विज़ पृष्ठ नहीं मिला"
+
+#: includes/pages/quiz-pages.php:44
+msgid "No quiz pages found in Trash"
+msgstr "ट्रैश में कोई क्विज़ पृष्ठ नहीं मिला"
+
+#: includes/pages/quiz-pages.php:46
+msgid "Filter quiz pages list"
+msgstr "क्विज़ पृष्ठों की सूची फ़िल्टर करें"
+
+#: includes/pages/quiz-pages.php:47
+msgid "Quiz pages list navigation"
+msgstr "क्विज़ पृष्ठों की सूची नेविगेशन"
+
+#: includes/pages/quiz-pages.php:48
+msgid "Quiz pages list"
+msgstr "क्विज़ पृष्ठों की सूची"
+
+#: includes/pages/quiz-pages.php:257
+msgid "Public Page"
+msgstr "सार्वजनिक पृष्ठ"
+
+#: includes/pages/quiz-pages.php:276
+msgid "Category ID: %d"
+msgstr "श्रेणी ID: %d"
+
+#: includes/pages/quiz-pages.php:280
+msgid "Missing category"
+msgstr "श्रेणी अनुपलब्ध"
+
+#: includes/pages/quiz-pages.php:1275
+msgid "Go to Quiz Pages"
+msgstr "क्विज़ पृष्ठों पर जाएँ"
+
+#: includes/pages/vocab-lesson-pages.php:423 includes/pages/vocab-lesson-pages.php:432
+msgid "Vocab lesson #%d"
+msgstr "शब्दावली पाठ #%d"

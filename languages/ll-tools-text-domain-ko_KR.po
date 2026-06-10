@@ -3901,3 +3901,63 @@ msgstr "이 수업에서 %s을(를) 제거할까요?"
 #: includes/pages/wordset-pages.php:9375
 msgid "Remove"
 msgstr "제거"
+
+#: includes/admin/admin-dashboard-menu.php:345 includes/admin/admin-dashboard-menu.php:648 includes/admin/admin-dashboard-menu.php:802 includes/admin/admin-dashboard-menu.php:803 includes/pages/quiz-pages.php:36 includes/pages/quiz-pages.php:38 includes/pages/quiz-pages.php:45 includes/pages/quiz-pages.php:52
+msgid "Quiz Pages"
+msgstr "퀴즈 페이지"
+
+#: includes/pages/quiz-pages.php:37 includes/pages/quiz-pages.php:39
+msgid "Quiz Page"
+msgstr "퀴즈 페이지"
+
+#: includes/pages/quiz-pages.php:40
+msgid "View Generated Quiz Page"
+msgstr "생성된 퀴즈 페이지 보기"
+
+#: includes/pages/quiz-pages.php:41
+msgid "View Quiz Page"
+msgstr "퀴즈 페이지 보기"
+
+#: includes/pages/quiz-pages.php:42
+msgid "Search Quiz Pages"
+msgstr "퀴즈 페이지 검색"
+
+#: includes/pages/quiz-pages.php:43
+msgid "No quiz pages found"
+msgstr "퀴즈 페이지를 찾을 수 없음"
+
+#: includes/pages/quiz-pages.php:44
+msgid "No quiz pages found in Trash"
+msgstr "휴지통에서 퀴즈 페이지를 찾을 수 없음"
+
+#: includes/pages/quiz-pages.php:46
+msgid "Filter quiz pages list"
+msgstr "퀴즈 페이지 목록 필터링"
+
+#: includes/pages/quiz-pages.php:47
+msgid "Quiz pages list navigation"
+msgstr "퀴즈 페이지 목록 탐색"
+
+#: includes/pages/quiz-pages.php:48
+msgid "Quiz pages list"
+msgstr "퀴즈 페이지 목록"
+
+#: includes/pages/quiz-pages.php:257
+msgid "Public Page"
+msgstr "공개 페이지"
+
+#: includes/pages/quiz-pages.php:276
+msgid "Category ID: %d"
+msgstr "카테고리 ID: %d"
+
+#: includes/pages/quiz-pages.php:280
+msgid "Missing category"
+msgstr "누락된 카테고리"
+
+#: includes/pages/quiz-pages.php:1275
+msgid "Go to Quiz Pages"
+msgstr "퀴즈 페이지로 이동"
+
+#: includes/pages/vocab-lesson-pages.php:423 includes/pages/vocab-lesson-pages.php:432
+msgid "Vocab lesson #%d"
+msgstr "단어 강의 #%d"

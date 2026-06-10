@@ -3909,3 +3909,63 @@ msgstr "Hapus %s dari kelas ini?"
 #: includes/pages/wordset-pages.php:9375
 msgid "Remove"
 msgstr "Hapus"
+
+#: includes/admin/admin-dashboard-menu.php:345 includes/admin/admin-dashboard-menu.php:648 includes/admin/admin-dashboard-menu.php:802 includes/admin/admin-dashboard-menu.php:803 includes/pages/quiz-pages.php:36 includes/pages/quiz-pages.php:38 includes/pages/quiz-pages.php:45 includes/pages/quiz-pages.php:52
+msgid "Quiz Pages"
+msgstr "Halaman Kuis"
+
+#: includes/pages/quiz-pages.php:37 includes/pages/quiz-pages.php:39
+msgid "Quiz Page"
+msgstr "Halaman Kuis"
+
+#: includes/pages/quiz-pages.php:40
+msgid "View Generated Quiz Page"
+msgstr "Lihat Halaman Kuis yang Dibuat"
+
+#: includes/pages/quiz-pages.php:41
+msgid "View Quiz Page"
+msgstr "Lihat Halaman Kuis"
+
+#: includes/pages/quiz-pages.php:42
+msgid "Search Quiz Pages"
+msgstr "Cari Halaman Kuis"
+
+#: includes/pages/quiz-pages.php:43
+msgid "No quiz pages found"
+msgstr "Tidak ada halaman kuis ditemukan"
+
+#: includes/pages/quiz-pages.php:44
+msgid "No quiz pages found in Trash"
+msgstr "Tidak ada halaman kuis ditemukan di Sampah"
+
+#: includes/pages/quiz-pages.php:46
+msgid "Filter quiz pages list"
+msgstr "Filter daftar halaman kuis"
+
+#: includes/pages/quiz-pages.php:47
+msgid "Quiz pages list navigation"
+msgstr "Navigasi daftar halaman kuis"
+
+#: includes/pages/quiz-pages.php:48
+msgid "Quiz pages list"
+msgstr "Daftar halaman kuis"
+
+#: includes/pages/quiz-pages.php:257
+msgid "Public Page"
+msgstr "Halaman Publik"
+
+#: includes/pages/quiz-pages.php:276
+msgid "Category ID: %d"
+msgstr "ID Kategori: %d"
+
+#: includes/pages/quiz-pages.php:280
+msgid "Missing category"
+msgstr "Kategori hilang"
+
+#: includes/pages/quiz-pages.php:1275
+msgid "Go to Quiz Pages"
+msgstr "Buka Halaman Kuis"
+
+#: includes/pages/vocab-lesson-pages.php:423 includes/pages/vocab-lesson-pages.php:432
+msgid "Vocab lesson #%d"
+msgstr "Pelajaran kosakata #%d"

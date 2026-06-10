@@ -3909,3 +3909,63 @@ msgstr "Rimuovere %s da questa classe?"
 #: includes/pages/wordset-pages.php:9375
 msgid "Remove"
 msgstr "Rimuovi"
+
+#: includes/admin/admin-dashboard-menu.php:345 includes/admin/admin-dashboard-menu.php:648 includes/admin/admin-dashboard-menu.php:802 includes/admin/admin-dashboard-menu.php:803 includes/pages/quiz-pages.php:36 includes/pages/quiz-pages.php:38 includes/pages/quiz-pages.php:45 includes/pages/quiz-pages.php:52
+msgid "Quiz Pages"
+msgstr "Pagine del quiz"
+
+#: includes/pages/quiz-pages.php:37 includes/pages/quiz-pages.php:39
+msgid "Quiz Page"
+msgstr "Pagina del quiz"
+
+#: includes/pages/quiz-pages.php:40
+msgid "View Generated Quiz Page"
+msgstr "Visualizza la pagina del quiz generata"
+
+#: includes/pages/quiz-pages.php:41
+msgid "View Quiz Page"
+msgstr "Visualizza pagina del quiz"
+
+#: includes/pages/quiz-pages.php:42
+msgid "Search Quiz Pages"
+msgstr "Cerca pagine del quiz"
+
+#: includes/pages/quiz-pages.php:43
+msgid "No quiz pages found"
+msgstr "Nessuna pagina del quiz trovata"
+
+#: includes/pages/quiz-pages.php:44
+msgid "No quiz pages found in Trash"
+msgstr "Nessuna pagina del quiz trovata nel Cestino"
+
+#: includes/pages/quiz-pages.php:46
+msgid "Filter quiz pages list"
+msgstr "Filtra elenco pagine del quiz"
+
+#: includes/pages/quiz-pages.php:47
+msgid "Quiz pages list navigation"
+msgstr "Navigazione elenco pagine del quiz"
+
+#: includes/pages/quiz-pages.php:48
+msgid "Quiz pages list"
+msgstr "Elenco pagine del quiz"
+
+#: includes/pages/quiz-pages.php:257
+msgid "Public Page"
+msgstr "Pagina pubblica"
+
+#: includes/pages/quiz-pages.php:276
+msgid "Category ID: %d"
+msgstr "ID categoria: %d"
+
+#: includes/pages/quiz-pages.php:280
+msgid "Missing category"
+msgstr "Categoria mancante"
+
+#: includes/pages/quiz-pages.php:1275
+msgid "Go to Quiz Pages"
+msgstr "Vai alle pagine del quiz"
+
+#: includes/pages/vocab-lesson-pages.php:423 includes/pages/vocab-lesson-pages.php:432
+msgid "Vocab lesson #%d"
+msgstr "Lezione di vocabolario n. %d"

@@ -3948,3 +3948,63 @@ msgstr "Удалить %s из этого класса?"
 #: includes/pages/wordset-pages.php:9375
 msgid "Remove"
 msgstr "Удалить"
+
+#: includes/admin/admin-dashboard-menu.php:345 includes/admin/admin-dashboard-menu.php:648 includes/admin/admin-dashboard-menu.php:802 includes/admin/admin-dashboard-menu.php:803 includes/pages/quiz-pages.php:36 includes/pages/quiz-pages.php:38 includes/pages/quiz-pages.php:45 includes/pages/quiz-pages.php:52
+msgid "Quiz Pages"
+msgstr "Страницы викторин"
+
+#: includes/pages/quiz-pages.php:37 includes/pages/quiz-pages.php:39
+msgid "Quiz Page"
+msgstr "Страница викторины"
+
+#: includes/pages/quiz-pages.php:40
+msgid "View Generated Quiz Page"
+msgstr "Просмотреть созданную страницу викторины"
+
+#: includes/pages/quiz-pages.php:41
+msgid "View Quiz Page"
+msgstr "Просмотреть страницу викторины"
+
+#: includes/pages/quiz-pages.php:42
+msgid "Search Quiz Pages"
+msgstr "Искать страницы викторин"
+
+#: includes/pages/quiz-pages.php:43
+msgid "No quiz pages found"
+msgstr "Страницы викторин не найдены"
+
+#: includes/pages/quiz-pages.php:44
+msgid "No quiz pages found in Trash"
+msgstr "Страницы викторин в корзине не найдены"
+
+#: includes/pages/quiz-pages.php:46
+msgid "Filter quiz pages list"
+msgstr "Фильтровать список страниц викторин"
+
+#: includes/pages/quiz-pages.php:47
+msgid "Quiz pages list navigation"
+msgstr "Навигация по списку страниц викторин"
+
+#: includes/pages/quiz-pages.php:48
+msgid "Quiz pages list"
+msgstr "Список страниц викторин"
+
+#: includes/pages/quiz-pages.php:257
+msgid "Public Page"
+msgstr "Публичная страница"
+
+#: includes/pages/quiz-pages.php:276
+msgid "Category ID: %d"
+msgstr "ID категории: %d"
+
+#: includes/pages/quiz-pages.php:280
+msgid "Missing category"
+msgstr "Категория отсутствует"
+
+#: includes/pages/quiz-pages.php:1275
+msgid "Go to Quiz Pages"
+msgstr "Перейти к страницам викторин"
+
+#: includes/pages/vocab-lesson-pages.php:423 includes/pages/vocab-lesson-pages.php:432
+msgid "Vocab lesson #%d"
+msgstr "Урок лексики № %d"

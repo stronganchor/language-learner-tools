@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 567,
+    "entry_count": 570,
     "entries": [
         {
             "key": "47f041331488f3e0f319f632b9eceed49917b9f3",
@@ -225,7 +225,7 @@
                 "includes/shortcodes/dictionary-shortcode.php:2017",
                 "includes/shortcodes/flashcard-widget.php:430",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:425",
-                "includes/shortcodes/quiz-pages-shortcodes.php:983",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1007",
                 "templates/flashcard-widget-template.php:159",
                 "templates/offline-app-shell-template.php:958"
             ],
@@ -236,7 +236,7 @@
                 "includes/shortcodes/dictionary-shortcode.php:2017",
                 "includes/shortcodes/flashcard-widget.php:430",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:425",
-                "includes/shortcodes/quiz-pages-shortcodes.php:983",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1007",
                 "templates/flashcard-widget-template.php:159",
                 "templates/offline-app-shell-template.php:958"
             ]
@@ -1937,39 +1937,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/embed-page.php:45",
-                "includes/pages/quiz-pages.php:198"
+                "includes/pages/quiz-pages.php:508"
             ],
             "public_references": [
                 "includes/pages/embed-page.php:45",
-                "includes/pages/quiz-pages.php:198"
-            ]
-        },
-        {
-            "key": "898d87817af54de72c595a6cc15fd8fa6b7b1e35",
-            "context": "",
-            "msgid": "%1$s | %2$s",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/quiz-pages.php:202"
-            ],
-            "public_references": [
-                "includes/pages/quiz-pages.php:202"
-            ]
-        },
-        {
-            "key": "a08b1cec78d61dc91c5c0cb188c06df9401f2316",
-            "context": "",
-            "msgid": "Invalid category.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/quiz-pages.php:530",
-                "includes/pages/vocab-lesson-pages.php:1848",
-                "includes/pages/vocab-lesson-pages.php:1999",
-                "includes/shortcodes/flashcard-widget.php:1375"
-            ],
-            "public_references": [
-                "includes/pages/quiz-pages.php:530",
-                "includes/shortcodes/flashcard-widget.php:1375"
+                "includes/pages/quiz-pages.php:508"
             ]
         },
         {
@@ -1978,11 +1950,11 @@
             "msgid": "Quiz",
             "msgid_plural": null,
             "references": [
-                "includes/pages/quiz-pages.php:899",
+                "includes/pages/quiz-pages.php:1199",
                 "templates/vocab-lesson-template.php:989"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:899"
+                "includes/pages/quiz-pages.php:1199"
             ]
         },
         {
@@ -1991,20 +1963,20 @@
             "msgid": "Close",
             "msgid_plural": null,
             "references": [
-                "includes/pages/quiz-pages.php:900",
-                "includes/pages/vocab-lesson-pages.php:2775",
+                "includes/pages/quiz-pages.php:1200",
+                "includes/pages/vocab-lesson-pages.php:2840",
                 "includes/pages/wordset-pages.php:9628",
                 "includes/shortcodes/audio-recording-shortcode.php:1566",
                 "includes/shortcodes/audio-recording-shortcode.php:1591",
-                "includes/shortcodes/quiz-pages-shortcodes.php:892",
+                "includes/shortcodes/quiz-pages-shortcodes.php:916",
                 "templates/flashcard-widget-template.php:56",
                 "templates/flashcard-widget-template.php:60",
                 "templates/offline-app-shell-template.php:867",
                 "templates/offline-app-shell-template.php:871"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:900",
-                "includes/shortcodes/quiz-pages-shortcodes.php:892",
+                "includes/pages/quiz-pages.php:1200",
+                "includes/shortcodes/quiz-pages-shortcodes.php:916",
                 "templates/flashcard-widget-template.php:56",
                 "templates/flashcard-widget-template.php:60",
                 "templates/offline-app-shell-template.php:867",
@@ -2017,10 +1989,10 @@
             "msgid": "Quiz Content",
             "msgid_plural": null,
             "references": [
-                "includes/pages/quiz-pages.php:901"
+                "includes/pages/quiz-pages.php:1201"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:901"
+                "includes/pages/quiz-pages.php:1201"
             ]
         },
         {
@@ -2029,12 +2001,42 @@
             "msgid": "Close this quiz? Your current progress in this popup will be lost.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/quiz-pages.php:902",
+                "includes/pages/quiz-pages.php:1202",
                 "includes/shortcodes/flashcard-widget.php:457"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:902",
+                "includes/pages/quiz-pages.php:1202",
                 "includes/shortcodes/flashcard-widget.php:457"
+            ]
+        },
+        {
+            "key": "898d87817af54de72c595a6cc15fd8fa6b7b1e35",
+            "context": "",
+            "msgid": "%1$s | %2$s",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/quiz-pages.php:512"
+            ],
+            "public_references": [
+                "includes/pages/quiz-pages.php:512"
+            ]
+        },
+        {
+            "key": "a08b1cec78d61dc91c5c0cb188c06df9401f2316",
+            "context": "",
+            "msgid": "Invalid category.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/quiz-pages.php:840",
+                "includes/pages/vocab-lesson-pages.php:1913",
+                "includes/pages/vocab-lesson-pages.php:2064",
+                "includes/shortcodes/flashcard-widget.php:1375"
+            ],
+            "public_references": [
+                "includes/pages/quiz-pages.php:840",
+                "includes/pages/vocab-lesson-pages.php:1913",
+                "includes/pages/vocab-lesson-pages.php:2064",
+                "includes/shortcodes/flashcard-widget.php:1375"
             ]
         },
         {
@@ -2043,11 +2045,12 @@
             "msgid": "Referenced item",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1386",
-                "includes/pages/vocab-lesson-pages.php:1482"
+                "includes/pages/vocab-lesson-pages.php:1451",
+                "includes/pages/vocab-lesson-pages.php:1547"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1386"
+                "includes/pages/vocab-lesson-pages.php:1451",
+                "includes/pages/vocab-lesson-pages.php:1547"
             ]
         },
         {
@@ -2056,11 +2059,12 @@
             "msgid": "Answer options",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1402",
-                "includes/pages/vocab-lesson-pages.php:1482"
+                "includes/pages/vocab-lesson-pages.php:1467",
+                "includes/pages/vocab-lesson-pages.php:1547"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1402"
+                "includes/pages/vocab-lesson-pages.php:1467",
+                "includes/pages/vocab-lesson-pages.php:1547"
             ]
         },
         {
@@ -2069,16 +2073,17 @@
             "msgid": "Correct",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1430",
-                "includes/pages/vocab-lesson-pages.php:1503",
+                "includes/pages/vocab-lesson-pages.php:1495",
+                "includes/pages/vocab-lesson-pages.php:1568",
                 "includes/pages/wordset-pages.php:9627",
-                "includes/shortcodes/quiz-pages-shortcodes.php:948",
+                "includes/shortcodes/quiz-pages-shortcodes.php:972",
                 "templates/flashcard-widget-template.php:123",
                 "templates/offline-app-shell-template.php:922"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1430",
-                "includes/shortcodes/quiz-pages-shortcodes.php:948",
+                "includes/pages/vocab-lesson-pages.php:1495",
+                "includes/pages/vocab-lesson-pages.php:1568",
+                "includes/shortcodes/quiz-pages-shortcodes.php:972",
                 "templates/flashcard-widget-template.php:123",
                 "templates/offline-app-shell-template.php:922"
             ]
@@ -2089,8 +2094,8 @@
             "msgid": "Wrong",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1431",
-                "includes/pages/vocab-lesson-pages.php:1504",
+                "includes/pages/vocab-lesson-pages.php:1496",
+                "includes/pages/vocab-lesson-pages.php:1569",
                 "includes/pages/wordset-pages.php:15967",
                 "includes/pages/wordset-pages.php:16403",
                 "includes/pages/wordset-pages.php:16414",
@@ -2098,7 +2103,112 @@
                 "includes/pages/wordset-pages.php:9734"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1431"
+                "includes/pages/vocab-lesson-pages.php:1496",
+                "includes/pages/vocab-lesson-pages.php:1569"
+            ]
+        },
+        {
+            "key": "aeb6743c42e56deec715bceece77a85f9cc93915",
+            "context": "",
+            "msgid": "Play audio",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:1539",
+                "includes/pages/vocab-lesson-pages.php:1560",
+                "includes/pages/wordset-pages.php:15957",
+                "includes/shortcodes/flashcard-widget.php:398",
+                "includes/shortcodes/flashcard-widget.php:403",
+                "includes/shortcodes/word-audio-shortcode.php:188",
+                "includes/taxonomies/word-category-taxonomy.php:1161"
+            ],
+            "public_references": [
+                "includes/pages/vocab-lesson-pages.php:1560",
+                "includes/pages/wordset-pages.php:15957",
+                "includes/shortcodes/flashcard-widget.php:398",
+                "includes/shortcodes/flashcard-widget.php:403",
+                "includes/shortcodes/word-audio-shortcode.php:188"
+            ]
+        },
+        {
+            "key": "25b265adb984b331fd14bf7144565be90f326333",
+            "context": "",
+            "msgid": "Invalid word set.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:1916",
+                "includes/pages/vocab-lesson-pages.php:2067",
+                "includes/pages/wordset-games.php:3851",
+                "includes/pages/wordset-games.php:4085"
+            ],
+            "public_references": [
+                "includes/pages/vocab-lesson-pages.php:1916",
+                "includes/pages/vocab-lesson-pages.php:2067",
+                "includes/pages/wordset-games.php:3851",
+                "includes/pages/wordset-games.php:4085"
+            ]
+        },
+        {
+            "key": "0c561b9836dd714922acb7c765f6b14587b78c0c",
+            "context": "",
+            "msgid": "Add back to print",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:3307"
+            ],
+            "public_references": [
+                "includes/pages/vocab-lesson-pages.php:3307"
+            ]
+        },
+        {
+            "key": "1acfc919bf65c69a8215b925ec219813c4a802da",
+            "context": "",
+            "msgid": "Restore all",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:3308",
+                "templates/vocab-lesson-print-template.php:136"
+            ],
+            "public_references": [
+                "includes/pages/vocab-lesson-pages.php:3308",
+                "templates/vocab-lesson-print-template.php:136"
+            ]
+        },
+        {
+            "key": "16759e864b8b8897f4c718b0086c05d11799cf61",
+            "context": "",
+            "msgid": "Removed",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:3309",
+                "templates/vocab-lesson-print-template.php:145"
+            ],
+            "public_references": [
+                "includes/pages/vocab-lesson-pages.php:3309",
+                "templates/vocab-lesson-print-template.php:145"
+            ]
+        },
+        {
+            "key": "a362e6366122fc85de31054926ecefea58f645e4",
+            "context": "",
+            "msgid": "All words removed.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:3310"
+            ],
+            "public_references": [
+                "includes/pages/vocab-lesson-pages.php:3310"
+            ]
+        },
+        {
+            "key": "2c3cd5956e56b559c8ebcd5467830c85209c9b6f",
+            "context": "",
+            "msgid": "Restore one or more words to print this lesson.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:3311"
+            ],
+            "public_references": [
+                "includes/pages/vocab-lesson-pages.php:3311"
             ]
         },
         {
@@ -2107,10 +2217,10 @@
             "msgid": "Vocab: %1$s (%2$s)",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:645"
+                "includes/pages/vocab-lesson-pages.php:710"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:645"
+                "includes/pages/vocab-lesson-pages.php:710"
             ]
         },
         {
@@ -2623,22 +2733,6 @@
             ]
         },
         {
-            "key": "25b265adb984b331fd14bf7144565be90f326333",
-            "context": "",
-            "msgid": "Invalid word set.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/vocab-lesson-pages.php:1851",
-                "includes/pages/vocab-lesson-pages.php:2002",
-                "includes/pages/wordset-games.php:3851",
-                "includes/pages/wordset-games.php:4085"
-            ],
-            "public_references": [
-                "includes/pages/wordset-games.php:3851",
-                "includes/pages/wordset-games.php:4085"
-            ]
-        },
-        {
             "key": "0bb47a62ae6bc2b54b909021f1cd8cc33f963eaf",
             "context": "",
             "msgid": "Speaking practice is not enabled for this word set.",
@@ -2747,7 +2841,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/admin-dashboard-menu.php:181",
-                "includes/admin/admin-dashboard-menu.php:376",
+                "includes/admin/admin-dashboard-menu.php:383",
                 "includes/admin/teacher-classes-page.php:36",
                 "includes/admin/teacher-classes-page.php:37",
                 "includes/admin/teacher-classes-page.php:538",
@@ -3022,7 +3116,7 @@
                 "includes/post-types/word-image-post-type.php:955",
                 "includes/post-types/words-post-type.php:987",
                 "includes/shortcodes/flashcard-widget.php:388",
-                "includes/shortcodes/quiz-pages-shortcodes.php:995",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1019",
                 "includes/shortcodes/word-grid-shortcode.php:5270",
                 "templates/flashcard-widget-template.php:171",
                 "templates/flashcard-widget-template.php:47",
@@ -3036,7 +3130,7 @@
                 "includes/pages/wordset-pages.php:15946",
                 "includes/pages/wordset-pages.php:16168",
                 "includes/shortcodes/flashcard-widget.php:388",
-                "includes/shortcodes/quiz-pages-shortcodes.php:995",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1019",
                 "templates/flashcard-widget-template.php:171",
                 "templates/flashcard-widget-template.php:47",
                 "templates/offline-app-shell-template.php:858",
@@ -3316,14 +3410,14 @@
             "references": [
                 "includes/pages/wordset-pages.php:15887",
                 "includes/shortcodes/flashcard-widget.php:438",
-                "includes/shortcodes/quiz-pages-shortcodes.php:992",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1016",
                 "templates/flashcard-widget-template.php:168",
                 "templates/offline-app-shell-template.php:967"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:15887",
                 "includes/shortcodes/flashcard-widget.php:438",
-                "includes/shortcodes/quiz-pages-shortcodes.php:992",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1016",
                 "templates/flashcard-widget-template.php:168",
                 "templates/offline-app-shell-template.php:967"
             ]
@@ -3358,7 +3452,7 @@
                 "includes/pages/wordset-pages.php:15890",
                 "includes/pages/wordset-pages.php:16783",
                 "includes/shortcodes/flashcard-widget.php:481",
-                "includes/shortcodes/quiz-pages-shortcodes.php:998",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1022",
                 "templates/flashcard-widget-template.php:174",
                 "templates/offline-app-shell-template.php:737",
                 "templates/offline-app-shell-template.php:973"
@@ -3366,7 +3460,7 @@
             "public_references": [
                 "includes/pages/wordset-pages.php:15890",
                 "includes/shortcodes/flashcard-widget.php:481",
-                "includes/shortcodes/quiz-pages-shortcodes.php:998",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1022",
                 "templates/flashcard-widget-template.php:174",
                 "templates/offline-app-shell-template.php:737",
                 "templates/offline-app-shell-template.php:973"
@@ -4142,9 +4236,9 @@
             "msgid": "Words",
             "msgid_plural": null,
             "references": [
-                "includes/admin/admin-dashboard-menu.php:345",
-                "includes/admin/admin-dashboard-menu.php:786",
-                "includes/admin/admin-dashboard-menu.php:787",
+                "includes/admin/admin-dashboard-menu.php:352",
+                "includes/admin/admin-dashboard-menu.php:810",
+                "includes/admin/admin-dashboard-menu.php:811",
                 "includes/admin/audio-processor-admin.php:1514",
                 "includes/admin/bulk-translation-admin.php:124",
                 "includes/admin/image-aspect-normalizer-admin.php:102",
@@ -4221,27 +4315,6 @@
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:15956"
-            ]
-        },
-        {
-            "key": "aeb6743c42e56deec715bceece77a85f9cc93915",
-            "context": "",
-            "msgid": "Play audio",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/vocab-lesson-pages.php:1474",
-                "includes/pages/vocab-lesson-pages.php:1495",
-                "includes/pages/wordset-pages.php:15957",
-                "includes/shortcodes/flashcard-widget.php:398",
-                "includes/shortcodes/flashcard-widget.php:403",
-                "includes/shortcodes/word-audio-shortcode.php:188",
-                "includes/taxonomies/word-category-taxonomy.php:1161"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:15957",
-                "includes/shortcodes/flashcard-widget.php:398",
-                "includes/shortcodes/flashcard-widget.php:403",
-                "includes/shortcodes/word-audio-shortcode.php:188"
             ]
         },
         {
@@ -4356,8 +4429,8 @@
                 "includes/shortcodes/flashcard-widget.php:476",
                 "includes/shortcodes/flashcard-widget.php:564",
                 "includes/shortcodes/flashcard-widget.php:565",
-                "includes/shortcodes/quiz-pages-shortcodes.php:919",
-                "includes/shortcodes/quiz-pages-shortcodes.php:958",
+                "includes/shortcodes/quiz-pages-shortcodes.php:943",
+                "includes/shortcodes/quiz-pages-shortcodes.php:982",
                 "includes/shortcodes/word-grid-shortcode.php:5948",
                 "templates/flashcard-widget-template.php:134",
                 "templates/flashcard-widget-template.php:93",
@@ -4378,8 +4451,8 @@
                 "includes/shortcodes/flashcard-widget.php:476",
                 "includes/shortcodes/flashcard-widget.php:564",
                 "includes/shortcodes/flashcard-widget.php:565",
-                "includes/shortcodes/quiz-pages-shortcodes.php:919",
-                "includes/shortcodes/quiz-pages-shortcodes.php:958",
+                "includes/shortcodes/quiz-pages-shortcodes.php:943",
+                "includes/shortcodes/quiz-pages-shortcodes.php:982",
                 "templates/flashcard-widget-template.php:134",
                 "templates/flashcard-widget-template.php:93",
                 "templates/offline-app-shell-template.php:836",
@@ -4492,8 +4565,8 @@
                 "includes/shortcodes/flashcard-widget.php:478",
                 "includes/shortcodes/flashcard-widget.php:538",
                 "includes/shortcodes/flashcard-widget.php:539",
-                "includes/shortcodes/quiz-pages-shortcodes.php:915",
-                "includes/shortcodes/quiz-pages-shortcodes.php:954",
+                "includes/shortcodes/quiz-pages-shortcodes.php:939",
+                "includes/shortcodes/quiz-pages-shortcodes.php:978",
                 "templates/content-lesson-template.php:230",
                 "templates/flashcard-widget-template.php:130",
                 "templates/flashcard-widget-template.php:89",
@@ -4511,8 +4584,8 @@
                 "includes/shortcodes/flashcard-widget.php:478",
                 "includes/shortcodes/flashcard-widget.php:538",
                 "includes/shortcodes/flashcard-widget.php:539",
-                "includes/shortcodes/quiz-pages-shortcodes.php:915",
-                "includes/shortcodes/quiz-pages-shortcodes.php:954",
+                "includes/shortcodes/quiz-pages-shortcodes.php:939",
+                "includes/shortcodes/quiz-pages-shortcodes.php:978",
                 "templates/flashcard-widget-template.php:130",
                 "templates/flashcard-widget-template.php:89",
                 "templates/offline-app-shell-template.php:830",
@@ -4536,8 +4609,8 @@
                 "includes/shortcodes/flashcard-widget.php:479",
                 "includes/shortcodes/flashcard-widget.php:544",
                 "includes/shortcodes/flashcard-widget.php:545",
-                "includes/shortcodes/quiz-pages-shortcodes.php:916",
-                "includes/shortcodes/quiz-pages-shortcodes.php:955",
+                "includes/shortcodes/quiz-pages-shortcodes.php:940",
+                "includes/shortcodes/quiz-pages-shortcodes.php:979",
                 "templates/flashcard-widget-template.php:131",
                 "templates/flashcard-widget-template.php:90",
                 "templates/offline-app-shell-template.php:827",
@@ -4553,8 +4626,8 @@
                 "includes/shortcodes/flashcard-widget.php:479",
                 "includes/shortcodes/flashcard-widget.php:544",
                 "includes/shortcodes/flashcard-widget.php:545",
-                "includes/shortcodes/quiz-pages-shortcodes.php:916",
-                "includes/shortcodes/quiz-pages-shortcodes.php:955",
+                "includes/shortcodes/quiz-pages-shortcodes.php:940",
+                "includes/shortcodes/quiz-pages-shortcodes.php:979",
                 "templates/flashcard-widget-template.php:131",
                 "templates/flashcard-widget-template.php:90",
                 "templates/offline-app-shell-template.php:827",
@@ -4579,8 +4652,8 @@
                 "includes/shortcodes/flashcard-widget.php:477",
                 "includes/shortcodes/flashcard-widget.php:551",
                 "includes/shortcodes/flashcard-widget.php:552",
-                "includes/shortcodes/quiz-pages-shortcodes.php:917",
-                "includes/shortcodes/quiz-pages-shortcodes.php:956",
+                "includes/shortcodes/quiz-pages-shortcodes.php:941",
+                "includes/shortcodes/quiz-pages-shortcodes.php:980",
                 "templates/flashcard-widget-template.php:132",
                 "templates/flashcard-widget-template.php:91",
                 "templates/offline-app-shell-template.php:839",
@@ -4597,8 +4670,8 @@
                 "includes/shortcodes/flashcard-widget.php:477",
                 "includes/shortcodes/flashcard-widget.php:551",
                 "includes/shortcodes/flashcard-widget.php:552",
-                "includes/shortcodes/quiz-pages-shortcodes.php:917",
-                "includes/shortcodes/quiz-pages-shortcodes.php:956",
+                "includes/shortcodes/quiz-pages-shortcodes.php:941",
+                "includes/shortcodes/quiz-pages-shortcodes.php:980",
                 "templates/flashcard-widget-template.php:132",
                 "templates/flashcard-widget-template.php:91",
                 "templates/offline-app-shell-template.php:839",
@@ -5575,13 +5648,13 @@
             "references": [
                 "includes/pages/wordset-pages.php:17784",
                 "includes/pages/wordset-pages.php:9585",
-                "includes/shortcodes/quiz-pages-shortcodes.php:1001",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1025",
                 "templates/flashcard-widget-template.php:177",
                 "templates/offline-app-shell-template.php:976"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:9585",
-                "includes/shortcodes/quiz-pages-shortcodes.php:1001",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1025",
                 "templates/flashcard-widget-template.php:177",
                 "templates/offline-app-shell-template.php:976"
             ]
@@ -6627,7 +6700,7 @@
                 "includes/shortcodes/flashcard-widget.php:411",
                 "includes/shortcodes/flashcard-widget.php:421",
                 "includes/shortcodes/flashcard-widget.php:557",
-                "includes/shortcodes/quiz-pages-shortcodes.php:918",
+                "includes/shortcodes/quiz-pages-shortcodes.php:942",
                 "templates/flashcard-widget-template.php:92",
                 "templates/offline-app-shell-template.php:892"
             ],
@@ -6635,7 +6708,7 @@
                 "includes/shortcodes/flashcard-widget.php:411",
                 "includes/shortcodes/flashcard-widget.php:421",
                 "includes/shortcodes/flashcard-widget.php:557",
-                "includes/shortcodes/quiz-pages-shortcodes.php:918",
+                "includes/shortcodes/quiz-pages-shortcodes.php:942",
                 "templates/flashcard-widget-template.php:92",
                 "templates/offline-app-shell-template.php:892"
             ]
@@ -6652,7 +6725,7 @@
                 "includes/shortcodes/flashcard-widget.php:416",
                 "includes/shortcodes/flashcard-widget.php:475",
                 "includes/shortcodes/flashcard-widget.php:558",
-                "includes/shortcodes/quiz-pages-shortcodes.php:957",
+                "includes/shortcodes/quiz-pages-shortcodes.php:981",
                 "templates/offline-app-shell-template.php:833",
                 "templates/offline-app-shell-template.php:931",
                 "templates/vocab-lesson-template.php:172"
@@ -6661,7 +6734,7 @@
                 "includes/shortcodes/flashcard-widget.php:416",
                 "includes/shortcodes/flashcard-widget.php:475",
                 "includes/shortcodes/flashcard-widget.php:558",
-                "includes/shortcodes/quiz-pages-shortcodes.php:957",
+                "includes/shortcodes/quiz-pages-shortcodes.php:981",
                 "templates/offline-app-shell-template.php:833",
                 "templates/offline-app-shell-template.php:931"
             ]
@@ -6797,13 +6870,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/shortcodes/flashcard-widget.php:431",
-                "includes/shortcodes/quiz-pages-shortcodes.php:986",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1010",
                 "templates/flashcard-widget-template.php:162",
                 "templates/offline-app-shell-template.php:961"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:431",
-                "includes/shortcodes/quiz-pages-shortcodes.php:986",
+                "includes/shortcodes/quiz-pages-shortcodes.php:1010",
                 "templates/flashcard-widget-template.php:162",
                 "templates/offline-app-shell-template.php:961"
             ]
@@ -7345,10 +7418,10 @@
             "msgid": "No quizzes found.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1359"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1383"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1359"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1383"
             ]
         },
         {
@@ -7357,10 +7430,10 @@
             "msgid": "Start %s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1412"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1436"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1412"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1436"
             ]
         },
         {
@@ -7369,10 +7442,10 @@
             "msgid": "Select a quiz\u2026",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1453"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1477"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1453"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1477"
             ]
         },
         {
@@ -7381,10 +7454,10 @@
             "msgid": "No quiz pages are available yet.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1472"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1496"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1472"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1496"
             ]
         },
         {
@@ -7393,10 +7466,10 @@
             "msgid": "Quiz selection",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1481"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1505"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1481"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1505"
             ]
         },
         {
@@ -7405,10 +7478,10 @@
             "msgid": "Go",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1496"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1520"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:1496"
+                "includes/shortcodes/quiz-pages-shortcodes.php:1520"
             ]
         },
         {
@@ -7418,12 +7491,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/shortcodes/audio-recording-shortcode.php:1465",
-                "includes/shortcodes/quiz-pages-shortcodes.php:899",
+                "includes/shortcodes/quiz-pages-shortcodes.php:923",
                 "templates/flashcard-widget-template.php:70",
                 "templates/offline-app-shell-template.php:876"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:899",
+                "includes/shortcodes/quiz-pages-shortcodes.php:923",
                 "templates/flashcard-widget-template.php:70",
                 "templates/offline-app-shell-template.php:876"
             ]
@@ -7434,12 +7507,12 @@
             "msgid": "Switch Mode",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:940",
+                "includes/shortcodes/quiz-pages-shortcodes.php:964",
                 "templates/flashcard-widget-template.php:114",
                 "templates/offline-app-shell-template.php:913"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:940",
+                "includes/shortcodes/quiz-pages-shortcodes.php:964",
                 "templates/flashcard-widget-template.php:114",
                 "templates/offline-app-shell-template.php:913"
             ]
@@ -7450,12 +7523,12 @@
             "msgid": "Quiz Results",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:946",
+                "includes/shortcodes/quiz-pages-shortcodes.php:970",
                 "templates/flashcard-widget-template.php:120",
                 "templates/offline-app-shell-template.php:919"
             ],
             "public_references": [
-                "includes/shortcodes/quiz-pages-shortcodes.php:946",
+                "includes/shortcodes/quiz-pages-shortcodes.php:970",
                 "templates/flashcard-widget-template.php:120",
                 "templates/offline-app-shell-template.php:919"
             ]
@@ -7555,13 +7628,13 @@
             "msgid": "Lesson not found.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3125",
-                "includes/pages/vocab-lesson-pages.php:3280",
-                "includes/pages/vocab-lesson-pages.php:3426",
-                "includes/pages/vocab-lesson-pages.php:4114",
-                "includes/pages/vocab-lesson-pages.php:4123",
-                "includes/pages/vocab-lesson-pages.php:4126",
-                "includes/pages/vocab-lesson-pages.php:4129",
+                "includes/pages/vocab-lesson-pages.php:3190",
+                "includes/pages/vocab-lesson-pages.php:3345",
+                "includes/pages/vocab-lesson-pages.php:3491",
+                "includes/pages/vocab-lesson-pages.php:4179",
+                "includes/pages/vocab-lesson-pages.php:4188",
+                "includes/pages/vocab-lesson-pages.php:4191",
+                "includes/pages/vocab-lesson-pages.php:4194",
                 "templates/content-lesson-template.php:32",
                 "templates/content-lesson-template.php:40",
                 "templates/vocab-lesson-print-template.php:107",
@@ -7910,32 +7983,6 @@
             "public_references": [
                 "templates/vocab-lesson-print-template.php:131",
                 "templates/vocab-lesson-template.php:1150"
-            ]
-        },
-        {
-            "key": "1acfc919bf65c69a8215b925ec219813c4a802da",
-            "context": "",
-            "msgid": "Restore all",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/vocab-lesson-pages.php:3243",
-                "templates/vocab-lesson-print-template.php:136"
-            ],
-            "public_references": [
-                "templates/vocab-lesson-print-template.php:136"
-            ]
-        },
-        {
-            "key": "16759e864b8b8897f4c718b0086c05d11799cf61",
-            "context": "",
-            "msgid": "Removed",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/vocab-lesson-pages.php:3244",
-                "templates/vocab-lesson-print-template.php:145"
-            ],
-            "public_references": [
-                "templates/vocab-lesson-print-template.php:145"
             ]
         },
         {

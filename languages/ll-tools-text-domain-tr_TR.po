@@ -26876,3 +26876,97 @@ msgstr "Cümle içinde"
 #: includes/shortcodes/word-grid-shortcode.php:6285
 msgid "Secondary"
 msgstr "İkincil"
+
+#: includes/admin/admin-dashboard-menu.php:345 includes/admin/admin-dashboard-menu.php:648 includes/admin/admin-dashboard-menu.php:802 includes/admin/admin-dashboard-menu.php:803 includes/pages/quiz-pages.php:36 includes/pages/quiz-pages.php:38 includes/pages/quiz-pages.php:45 includes/pages/quiz-pages.php:52
+msgid "Quiz Pages"
+msgstr "Quiz Sayfaları"
+
+#: includes/admin/admin-dashboard-menu.php:346
+msgid "Review generated public quiz pages without mixing them into normal Pages."
+msgstr "Oluşturulan herkese açık quiz sayfalarını, normal Sayfalarla karıştırmadan incele."
+
+#: includes/admin/admin-dashboard-menu.php:649
+msgid "Review generated quiz pages and open their public URLs without editing normal Pages."
+msgstr "Oluşturulan quiz sayfalarını incele ve normal Sayfaları düzenlemeden herkese açık URL'lerini aç."
+
+#: includes/api/automation-rest.php:2421
+msgid "Use field=word_translation or field=dictionary_entry_id with value. Legacy helper aliases are mapped to word_translation."
+msgstr "field=word_translation veya field=dictionary_entry_id ile value kullan. Eski yardımcı takma adları word_translation alanına eşlenir."
+
+#: includes/pages/quiz-pages.php:37 includes/pages/quiz-pages.php:39
+msgid "Quiz Page"
+msgstr "Quiz Sayfası"
+
+#: includes/pages/quiz-pages.php:40
+msgid "View Generated Quiz Page"
+msgstr "Oluşturulan Quiz Sayfasını Görüntüle"
+
+#: includes/pages/quiz-pages.php:41
+msgid "View Quiz Page"
+msgstr "Quiz Sayfasını Görüntüle"
+
+#: includes/pages/quiz-pages.php:42
+msgid "Search Quiz Pages"
+msgstr "Quiz Sayfalarını Ara"
+
+#: includes/pages/quiz-pages.php:43
+msgid "No quiz pages found"
+msgstr "Quiz sayfası bulunamadı"
+
+#: includes/pages/quiz-pages.php:44
+msgid "No quiz pages found in Trash"
+msgstr "Çöpte quiz sayfası bulunamadı"
+
+#: includes/pages/quiz-pages.php:46
+msgid "Filter quiz pages list"
+msgstr "Quiz sayfaları listesini filtrele"
+
+#: includes/pages/quiz-pages.php:47
+msgid "Quiz pages list navigation"
+msgstr "Quiz sayfaları listesi gezintisi"
+
+#: includes/pages/quiz-pages.php:48
+msgid "Quiz pages list"
+msgstr "Quiz sayfaları listesi"
+
+#: includes/pages/quiz-pages.php:54
+msgid "Program-managed public quiz pages generated from word categories."
+msgstr "Kelime kategorilerinden oluşturulan, program tarafından yönetilen herkese açık quiz sayfaları."
+
+#: includes/pages/quiz-pages.php:257
+msgid "Public Page"
+msgstr "Herkese Açık Sayfa"
+
+#: includes/pages/quiz-pages.php:276
+msgid "Category ID: %d"
+msgstr "Kategori ID'si: %d"
+
+#: includes/pages/quiz-pages.php:280
+msgid "Missing category"
+msgstr "Eksik kategori"
+
+#: includes/pages/quiz-pages.php:312
+msgid "Quiz pages are generated from word categories. Edit the category or its words, then run quiz page sync if the public page needs to be regenerated."
+msgstr "Quiz sayfaları kelime kategorilerinden oluşturulur. Kategoriyi veya kelimelerini düzenle, ardından herkese açık sayfanın yeniden oluşturulması gerekiyorsa quiz sayfası senkronizasyonunu çalıştır."
+
+#: includes/pages/quiz-pages.php:1275
+msgid "Go to Quiz Pages"
+msgstr "Quiz Sayfalarına Git"
+
+#: includes/pages/vocab-lesson-pages.php:423 includes/pages/vocab-lesson-pages.php:432
+msgid "Vocab lesson #%d"
+msgstr "Kelime dersi #%d"
+
+#: includes/pages/vocab-lesson-pages.php:454
+msgid "\"%s\" was moved to the Trash. Use Undo to restore it if this was unintentional."
+msgstr "\"%s\" çöpe taşındı. Bu yanlışlıkla olduysa geri yüklemek için Geri Al'ı kullan."
+
+#: includes/pages/vocab-lesson-pages.php:462
+msgid "\"%1$s\" and \"%2$s\" were moved to the Trash. Use Undo to restore them if this was unintentional."
+msgstr "\"%1$s\" ve \"%2$s\" çöpe taşındı. Bu yanlışlıkla olduysa geri yüklemek için Geri Al'ı kullan."
+
+#: includes/pages/vocab-lesson-pages.php:471
+msgid "\"%1$s\", \"%2$s\", and %3$d additional vocab lesson were moved to the Trash. Use Undo to restore them if this was unintentional."
+msgid_plural "\"%1$s\", \"%2$s\", and %3$d additional vocab lessons were moved to the Trash. Use Undo to restore them if this was unintentional."
+msgstr[0] "\"%1$s\", \"%2$s\" ve %3$d ek kelime dersi çöpe taşındı. Bu yanlışlıkla olduysa geri yüklemek için Geri Al'ı kullan."
+msgstr[1] "\"%1$s\", \"%2$s\" ve %3$d ek kelime dersi çöpe taşındı. Bu yanlışlıkla olduysa geri yüklemek için Geri Al'ı kullan."
