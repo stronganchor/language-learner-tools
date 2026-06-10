@@ -872,42 +872,37 @@ function ll_modify_word_images_admin_page() {
  * Add a category filter dropdown to the Word Images admin page
  */
 function ll_add_word_images_category_filter() {
-    global $typenow, $wpdb;
+    global $typenow;
 
     if ($typenow === 'word_images') {
-        $selected_category = isset($_GET['word_category_filter']) ? $_GET['word_category_filter'] : '';
+        $selected_category = isset($_GET['word_category_filter']) ? absint(wp_unslash($_GET['word_category_filter'])) : 0;
 
-        // Get categories with accurate counts for word_images only
         $categories = get_terms(array(
             'taxonomy' => 'word-category',
             'hide_empty' => false,
             'hierarchical' => true,
         ));
 
+        if (is_wp_error($categories)) {
+            $categories = array();
+        }
+
+        $category_ids = array_map(static function ($category): int {
+            return (int) $category->term_id;
+        }, $categories);
+        $category_counts = ll_tools_get_word_images_category_counts($category_ids);
+
         echo '<select name="word_category_filter" id="word_category_filter">';
-        echo '<option value="">' . __('All Categories', 'll-tools-text-domain') . '</option>';
+        echo '<option value="">' . esc_html__('All Categories', 'll-tools-text-domain') . '</option>';
 
         foreach ($categories as $category) {
-            // Count word_images posts in this category
-            $count_query = new WP_Query(array(
-                'post_type' => 'word_images',
-                'posts_per_page' => -1,
-                'fields' => 'ids',
-                'tax_query' => array(
-                    array(
-                        'taxonomy' => 'word-category',
-                        'field' => 'term_id',
-                        'terms' => $category->term_id,
-                    )
-                ),
-            ));
-            $count = $count_query->found_posts;
-
-            $indent = str_repeat('&nbsp;&nbsp;', ll_get_category_depth($category->term_id));
+            $category_id = (int) $category->term_id;
+            $count = (int) ($category_counts[$category_id] ?? 0);
+            $indent = str_repeat('&nbsp;&nbsp;', ll_get_category_depth($category_id));
             printf(
                 '<option value="%d" %s>%s%s (%d)</option>',
-                $category->term_id,
-                selected($selected_category, $category->term_id, false),
+                $category_id,
+                selected($selected_category, $category_id, false),
                 $indent,
                 esc_html($category->name),
                 $count
@@ -916,6 +911,100 @@ function ll_add_word_images_category_filter() {
 
         echo '</select>';
     }
+}
+
+/**
+ * Count visible Word Image admin-list posts per category in one query.
+ *
+ * @param int[] $term_ids Word category term IDs.
+ * @return array<int,int> Counts keyed by term ID.
+ */
+function ll_tools_get_word_images_category_counts(array $term_ids): array {
+    global $wpdb;
+
+    $term_ids = array_values(array_unique(array_filter(array_map('intval', $term_ids), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+
+    if (empty($term_ids)) {
+        return array();
+    }
+
+    $status_clause = ll_tools_get_word_images_admin_visible_status_clause();
+    $term_placeholders = implode(', ', array_fill(0, count($term_ids), '%d'));
+    $sql = "
+        SELECT tt.term_id, COUNT(DISTINCT p.ID) AS image_count
+        FROM {$wpdb->term_taxonomy} AS tt
+        INNER JOIN {$wpdb->term_relationships} AS tr
+            ON tr.term_taxonomy_id = tt.term_taxonomy_id
+        INNER JOIN {$wpdb->posts} AS p
+            ON p.ID = tr.object_id
+        WHERE p.post_type = %s
+            AND tt.taxonomy = %s
+            AND tt.term_id IN ({$term_placeholders})
+            AND {$status_clause['sql']}
+        GROUP BY tt.term_id
+    ";
+
+    $query_args = array_merge(array('word_images', 'word-category'), $term_ids, $status_clause['args']);
+    $rows = $wpdb->get_results($wpdb->prepare($sql, $query_args), ARRAY_A);
+    $counts = array();
+
+    foreach ((array) $rows as $row) {
+        $counts[(int) $row['term_id']] = (int) $row['image_count'];
+    }
+
+    return $counts;
+}
+
+/**
+ * Build the post-status clause that matches WordPress' default admin list query.
+ *
+ * @return array{sql:string,args:array<int,int|string>}
+ */
+function ll_tools_get_word_images_admin_visible_status_clause(): array {
+    $status_conditions = array();
+    $args = array();
+    $visible_statuses = array_merge(
+        get_post_stati(array('public' => true)),
+        get_post_stati(array(
+            'protected' => true,
+            'show_in_admin_all_list' => true,
+        ))
+    );
+
+    $post_type_object = get_post_type_object('word_images');
+    if (is_user_logged_in() && $post_type_object instanceof WP_Post_Type) {
+        $private_statuses = get_post_stati(array('private' => true));
+        $read_private_cap = $post_type_object->cap->read_private_posts;
+
+        if (current_user_can($read_private_cap)) {
+            $visible_statuses = array_merge($visible_statuses, $private_statuses);
+        } elseif (!empty($private_statuses)) {
+            $private_placeholders = implode(', ', array_fill(0, count($private_statuses), '%s'));
+            $status_conditions[] = "(p.post_author = %d AND p.post_status IN ({$private_placeholders}))";
+            $args = array_merge($args, array(get_current_user_id()), array_values($private_statuses));
+        }
+    }
+
+    $visible_statuses = array_values(array_unique(array_filter(array_map('sanitize_key', $visible_statuses))));
+    if (!empty($visible_statuses)) {
+        $status_placeholders = implode(', ', array_fill(0, count($visible_statuses), '%s'));
+        $status_conditions[] = "p.post_status IN ({$status_placeholders})";
+        $args = array_merge($args, $visible_statuses);
+    }
+
+    if (empty($status_conditions)) {
+        return array(
+            'sql' => '0 = 1',
+            'args' => array(),
+        );
+    }
+
+    return array(
+        'sql' => '(' . implode(' OR ', $status_conditions) . ')',
+        'args' => $args,
+    );
 }
 
 /**

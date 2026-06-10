@@ -15,6 +15,12 @@ decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 Word Images admin category-count follow-up: the
+  `word_images` list-table category filter now computes all visible image
+  counts with one aggregate taxonomy/post query instead of running one
+  `WP_Query` per category. Focused PHPUnit coverage verifies visible admin
+  status semantics, empty categories, selected-option rendering, and the
+  single-query shape.
 - June 10 full local E2E timeout investigation: `bash tests/bin/run-e2e.sh --list`
   found 314 Playwright tests, and all four local shards completed successfully
   with 313 passed and 1 skipped. No hung spec was isolated. Treat the
