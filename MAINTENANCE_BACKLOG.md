@@ -5,7 +5,8 @@ first public lazy-card resource-protection follow-up pass, the E2E
 runner-health follow-up, the Speaking Practice E2E follow-up, the shared
 flashcard shell follow-up, the content lesson route/media E2E follow-up, and
 the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
-verification follow-up, and the Speaking Practice microphone-denial follow-up.
+verification follow-up, the Speaking Practice microphone-denial follow-up, and
+the Speaking Practice hosted API failure follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -17,6 +18,12 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 10 Speaking Practice hosted API failure follow-up:
+  `tests/e2e/specs/wordset-games-space-shooter.spec.js` now covers hosted
+  transcribe and score failures in the real Speaking Practice popup flow. The
+  runtime returns to retry state, keeps the result panel hidden, avoids progress
+  outcome writes, does not call score after transcribe failure, and resolves raw
+  upstream/provider messages to the localized retry message.
 - June 10 Speaking Practice microphone-denial follow-up:
   `tests/e2e/specs/wordset-games-space-shooter.spec.js` now covers a hosted
   Speaking Practice launch where `getUserMedia()` rejects with a browser
@@ -104,7 +111,7 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
    - Offline app shell launcher and sync-panel wiring now have self-contained
      browser coverage; remaining offline gaps are service-worker/install
      behavior and real remote snapshot sync edge cases.
-   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior plus a microphone-denied retry state. Remaining live game gaps are real browser permission-prompt variations and hosted API error edges.
+   - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior, microphone-denied retry state, and hosted transcribe/score failure retry states. Remaining live game gaps are real browser permission-prompt variations and live hosted API behavior under real credentials/latency.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,
      a safe cache-flush submit path, and mobile overflow.

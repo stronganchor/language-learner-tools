@@ -286,12 +286,12 @@ Representative E2E coverage areas:
 - Known E2E coverage gaps still worth adding:
   - Content lessons now have WordPress-backed route/media/cue/related-vocab browser coverage beyond the covered mixed-grid order/search/selection behavior; remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
   - Prompt-card recorder real browser microphone permission permutations beyond the local WordPress-backed queue fixture, limited-recorder real upload regression, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
-  - Real browser permission-prompt permutations and hosted API error edges beyond the mocked Speaking Practice microphone-denial and record/transcribe/score flows.
+  - Real browser permission-prompt permutations and live hosted API behavior under real credentials/latency beyond the mocked Speaking Practice microphone-denial, record/transcribe/score, and hosted transcribe/score failure flows.
   - Offline app service-worker/install behavior and real remote snapshot sync edge cases.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
-  - Verifies the wordset games page bootstraps availability correctly, covers Line Up startup/retry/reorder/completion and Unscramble startup/keyboard tile reorder/completion, checks Word Stack layout/fall-speed regressions, verifies Speaking Practice's mocked mic record -> transcribe -> score path and microphone-denied retry state, and verifies Space Shooter/Bubble Pop runtime behavior and progress events.
+  - Verifies the wordset games page bootstraps availability correctly, covers Line Up startup/retry/reorder/completion and Unscramble startup/keyboard tile reorder/completion, checks Word Stack layout/fall-speed regressions, verifies Speaking Practice's mocked mic record -> transcribe -> score path, microphone-denied retry state, and hosted transcribe/score failure retry states, and verifies Space Shooter/Bubble Pop runtime behavior and progress events.
 - Additional specs in the same folder cover audio-recorder new-word flows, quiz audio gating, mobile/layout regressions, text fitting, wordset progress/loading shells, and more. Treat this section as a representative summary rather than a full inventory.
 
 Optional env vars (set directly or in `tests/.env`):

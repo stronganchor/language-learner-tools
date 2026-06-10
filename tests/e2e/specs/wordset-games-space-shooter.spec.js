@@ -320,6 +320,53 @@ async function closeRunPopup(page, { expectConfirm = true } = {}) {
   await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
 }
 
+async function failSpeakingHostedAction(page, actionName, options = {}) {
+  await page.evaluate(({ failedAction, status, statusText, message }) => {
+    const originalFetch = window.fetch;
+
+    window.fetch = function (url, requestOptions = {}) {
+      const method = String(requestOptions.method || 'GET').toUpperCase();
+      const entries = [];
+      if (requestOptions.body && typeof requestOptions.body.forEach === 'function') {
+        requestOptions.body.forEach((value, key) => {
+          entries.push([
+            key,
+            value instanceof Blob ? `blob:${value.size}:${value.type}` : String(value)
+          ]);
+        });
+      }
+
+      const action = entries.find(([key]) => key === 'action');
+      if (method === 'POST' && action && action[1] === failedAction) {
+        window.__speakingFetchLog.push({
+          url: String(url || ''),
+          method,
+          entries,
+          forcedFailure: failedAction
+        });
+        return Promise.resolve({
+          ok: false,
+          status,
+          statusText,
+          json: () => Promise.resolve({
+            success: false,
+            data: {
+              message
+            }
+          })
+        });
+      }
+
+      return originalFetch(url, requestOptions);
+    };
+  }, {
+    failedAction: actionName,
+    status: options.status || 503,
+    statusText: options.statusText || 'Service Unavailable',
+    message: options.message || 'Provider quota exceeded: raw upstream error'
+  });
+}
+
 async function clickOutsideGamePopup(page) {
   await page.evaluate(() => {
     const dialog = document.querySelector('[data-ll-wordset-game-run-dialog]');
@@ -2118,6 +2165,137 @@ test('speaking practice recovers to retry state when microphone permission is de
   await expect(page.locator('[data-ll-wordset-speaking-result]')).toBeHidden();
   await expect.poll(async () => page.evaluate(() => window.__speakingFetchLog.filter((entry) => entry.method === 'POST').length)).toBe(0);
   await expect(page.locator('[data-ll-wordset-speaking-status]')).not.toContainText('Permission denied by test browser');
+
+  await closeRunPopup(page);
+});
+
+test('speaking practice handles hosted transcribe failure without leaking provider text', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(5),
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-practice': {
+            slug: 'speaking-practice',
+            title: 'Speaking Practice',
+            description: 'Say each word and check the match.'
+          }
+        },
+        speakingPractice: {
+          slug: 'speaking-practice',
+          provider: 'hosted_api',
+          targetField: 'title',
+          maxLoadedWords: 5,
+          autoStartDelayMs: 60000,
+          maxRecordingMs: 1600,
+          silenceWindowMs: 420,
+          minSpeechMs: 120
+        }
+      }
+    }
+  });
+
+  await failSpeakingHostedAction(page, 'll_wordset_games_transcribe_speaking_attempt', {
+    message: 'Provider quota exceeded: raw upstream transcription error'
+  });
+
+  await expect(gameLaunchButton(page, 'speaking-practice')).toBeEnabled();
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('speaking-practice');
+  });
+
+  await expect(page.locator('[data-ll-wordset-speaking-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'idle');
+
+  await page.locator('[data-ll-wordset-speaking-record]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__mediaRecorderLog.includes('recorder-stop'))).toBe(true);
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'retry', { timeout: 6000 });
+  await expect(page.locator('[data-ll-wordset-speaking-status]')).toHaveText('Transcription failed. Try again.');
+  await expect(page.locator('[data-ll-wordset-speaking-status]')).not.toContainText('Provider quota exceeded');
+  await expect(page.locator('[data-ll-wordset-speaking-result]')).toBeHidden();
+
+  const postActions = await page.evaluate(() => window.__speakingFetchLog
+    .filter((entry) => entry.method === 'POST')
+    .map((entry) => entry.entries.find(([key]) => key === 'action')?.[1]));
+  expect(postActions).toEqual([
+    'll_wordset_games_transcribe_speaking_attempt'
+  ]);
+
+  const progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
+  expect(progressEvents.some((event) => (
+    event.type === 'word_outcome'
+    && event.entry
+    && event.entry.payload
+    && event.entry.payload.event_source === 'speaking_practice'
+  ))).toBe(false);
+
+  await closeRunPopup(page);
+});
+
+test('speaking practice handles hosted score failure without leaking provider text', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(5),
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-practice': {
+            slug: 'speaking-practice',
+            title: 'Speaking Practice',
+            description: 'Say each word and check the match.'
+          }
+        },
+        speakingPractice: {
+          slug: 'speaking-practice',
+          provider: 'hosted_api',
+          targetField: 'title',
+          maxLoadedWords: 5,
+          autoStartDelayMs: 60000,
+          maxRecordingMs: 1600,
+          silenceWindowMs: 420,
+          minSpeechMs: 120
+        }
+      }
+    }
+  });
+
+  await failSpeakingHostedAction(page, 'll_wordset_games_score_speaking_attempt', {
+    message: 'Provider scoring backend returned raw timeout detail'
+  });
+
+  await expect(gameLaunchButton(page, 'speaking-practice')).toBeEnabled();
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('speaking-practice');
+  });
+
+  await expect(page.locator('[data-ll-wordset-speaking-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'idle');
+
+  await page.locator('[data-ll-wordset-speaking-record]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__mediaRecorderLog.includes('recorder-stop'))).toBe(true);
+  await expect(page.locator('[data-ll-wordset-speaking-record]')).toHaveAttribute('data-speaking-state', 'retry', { timeout: 6000 });
+  await expect(page.locator('[data-ll-wordset-speaking-status]')).toHaveText('Transcription failed. Try again.');
+  await expect(page.locator('[data-ll-wordset-speaking-status]')).not.toContainText('Provider scoring backend');
+  await expect(page.locator('[data-ll-wordset-speaking-result]')).toBeHidden();
+
+  const postActions = await page.evaluate(() => window.__speakingFetchLog
+    .filter((entry) => entry.method === 'POST')
+    .map((entry) => entry.entries.find(([key]) => key === 'action')?.[1]));
+  expect(postActions).toEqual([
+    'll_wordset_games_transcribe_speaking_attempt',
+    'll_wordset_games_score_speaking_attempt'
+  ]);
+
+  const progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
+  expect(progressEvents.some((event) => (
+    event.type === 'word_outcome'
+    && event.entry
+    && event.entry.payload
+    && event.entry.payload.event_source === 'speaking_practice'
+  ))).toBe(false);
 
   await closeRunPopup(page);
 });

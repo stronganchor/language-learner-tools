@@ -9030,17 +9030,36 @@
         });
     }
 
+    function buildFetchJsonError(message, response, payload) {
+        const error = new Error(String(message || 'request_failed'));
+        error.llToolsRequestFailed = true;
+        error.llToolsStatus = response && typeof response.status !== 'undefined' ? response.status : 0;
+        error.llToolsPayload = payload || null;
+        return error;
+    }
+
     function fetchJsonForm(url, formData, options) {
-        return root.fetch(url, $.extend({
+        const request = root.fetch(url, $.extend({
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
-        }, (options && typeof options === 'object') ? options : {})).then(function (response) {
+        }, (options && typeof options === 'object') ? options : {})).catch(function (error) {
+            throw buildFetchJsonError(error && error.message || 'request_failed', null, null);
+        });
+
+        return request.then(function (response) {
             return response.json().catch(function () {
                 return {};
             }).then(function (payload) {
                 if (!response.ok) {
-                    throw new Error(String(payload && payload.data && payload.data.message || payload && payload.message || response.statusText || 'request_failed'));
+                    throw buildFetchJsonError(
+                        payload && payload.data && payload.data.message
+                            || payload && payload.message
+                            || response.statusText
+                            || 'request_failed',
+                        response,
+                        payload
+                    );
                 }
                 return payload;
             });
@@ -10172,6 +10191,19 @@
         return rawMessage;
     }
 
+    function resolveSpeakingServiceErrorMessage(ctx, error, fallbackKey) {
+        const fallback = String(gameText(ctx, fallbackKey || 'gamesSpeakingSttError'));
+        if (error && error.llToolsRequestFailed) {
+            return fallback;
+        }
+
+        const rawMessage = String(error && error.message || '').trim();
+        if (rawMessage === '' || rawMessage.indexOf('_') !== -1 || rawMessage.length > 140) {
+            return fallback;
+        }
+        return rawMessage;
+    }
+
     function transcribeSpeakingBlob(ctx, run, blob) {
         if (!blob || !run) {
             return Promise.reject(new Error('missing_blob'));
@@ -10742,11 +10774,7 @@
                 return;
             }
             run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
-            setSpeakingStatus(ctx, String(
-                error && error.message
-                    || ctx.i18n.gamesSpeakingStackMicError
-                    || gameText(ctx, 'gamesSpeakingSttError')
-            ));
+            setSpeakingStatus(ctx, resolveSpeakingServiceErrorMessage(ctx, error, 'gamesSpeakingSttError'));
         }).finally(function () {
             const completedAt = currentTimestamp();
             const playbackCooldownMs = Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
@@ -10829,7 +10857,7 @@
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return;
             }
-            setSpeakingStatus(ctx, String(error && error.message || gameText(ctx, 'gamesSpeakingSttError')));
+            setSpeakingStatus(ctx, resolveSpeakingServiceErrorMessage(ctx, error, 'gamesSpeakingSttError'));
             setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
         });
     }
