@@ -139,6 +139,59 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('isolation', (string) ($rows_with_audio[0]['audio_recording_type'] ?? ''));
     }
 
+    public function test_build_analytics_payload_can_omit_word_rows_for_summary_refresh(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        [$word_a, $word_b] = $fixture['word_ids'];
+        [$cat_a] = $fixture['category_ids'];
+
+        $this->seedWordProgressRow($user_id, $word_a, $cat_a, $fixture['wordset_id'], [
+            'total_coverage' => 6,
+            'correct_clean' => 4,
+            'stage' => 6,
+        ]);
+        $this->seedWordProgressRow($user_id, $word_b, $cat_a, $fixture['wordset_id'], [
+            'total_coverage' => 2,
+            'incorrect' => 2,
+            'lapse_count' => 2,
+            'stage' => 1,
+        ]);
+        ll_tools_save_user_study_state([
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'starred_word_ids' => [$word_b],
+            'star_mode' => 'normal',
+            'fast_transitions' => false,
+        ], $user_id);
+
+        $full = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $fixture['wordset_id'],
+            $fixture['category_ids'],
+            14
+        );
+        $summary_only = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $fixture['wordset_id'],
+            $fixture['category_ids'],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+
+        $this->assertFalse((bool) ($full['words_omitted'] ?? false));
+        $this->assertSame(10, (int) ($summary_only['summary']['total_words'] ?? 0));
+        $this->assertSame($full['summary'], $summary_only['summary']);
+        $this->assertCount(2, (array) ($summary_only['categories'] ?? []));
+        $this->assertSame(count((array) ($full['categories'] ?? [])), count((array) ($summary_only['categories'] ?? [])));
+        $this->assertSame([], (array) ($summary_only['words'] ?? []));
+        $this->assertTrue((bool) ($summary_only['words_omitted'] ?? false));
+        $this->assertCount(14, (array) ($summary_only['daily_activity']['days'] ?? []));
+    }
+
     public function test_analytics_payload_includes_vocab_lesson_urls_for_private_categories(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -531,6 +584,43 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertArrayHasKey('summary', $response['data']['analytics']);
         $this->assertArrayHasKey('categories', $response['data']['analytics']);
         $this->assertArrayHasKey('words', $response['data']['analytics']);
+        $this->assertNotEmpty((array) ($response['data']['analytics']['words'] ?? []));
+        $this->assertFalse((bool) ($response['data']['analytics']['words_omitted'] ?? false));
+    }
+
+    public function test_analytics_ajax_can_return_summary_without_word_rows(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $nonce = wp_create_nonce('ll_user_study');
+
+        $_POST = [
+            'nonce' => $nonce,
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'days' => 14,
+            'summary_only' => '1',
+            'include_words' => '0',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_analytics_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $analytics = (array) ($response['data']['analytics'] ?? []);
+        $this->assertSame(10, (int) ($analytics['summary']['total_words'] ?? 0));
+        $this->assertCount(2, (array) ($analytics['categories'] ?? []));
+        $this->assertSame([], (array) ($analytics['words'] ?? []));
+        $this->assertTrue((bool) ($analytics['words_omitted'] ?? false));
     }
 
     public function test_build_analytics_payload_includes_part_of_speech_details_when_available(): void

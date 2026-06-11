@@ -10724,7 +10724,9 @@
             nonce: nonce,
             wordset_id: wordsetId,
             category_ids: getVisibleCategoryIds(),
-            days: 14
+            days: 14,
+            summary_only: 1,
+            include_words: 0
         }).done(function (res) {
             if (metricsLoadingToken !== summaryMetricsLoadingToken) { return; }
             const analytics = (res && res.success && res.data && res.data.analytics && typeof res.data.analytics === 'object')

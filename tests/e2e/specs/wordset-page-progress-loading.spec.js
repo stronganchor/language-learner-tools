@@ -377,6 +377,17 @@ test('offscreen loading progress bars keep the loading mask until real category 
   await expect.poll(async () => {
     return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
   }).toBe(1);
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      const request = Array.isArray(window.__llAnalyticsRequests) && window.__llAnalyticsRequests[0]
+        ? window.__llAnalyticsRequests[0].request
+        : {};
+      return {
+        summaryOnly: String(request.summary_only ?? ''),
+        includeWords: String(request.include_words ?? '')
+      };
+    });
+  }).toEqual({ summaryOnly: '1', includeWords: '0' });
 
   await expect(page.locator('.ll-wordset-card__progress-track')).toHaveClass(/is-loading/);
 

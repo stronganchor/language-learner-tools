@@ -219,6 +219,31 @@ final class UserProgressGenderTrackingTest extends LL_Tools_TestCase
         $this->assertSame('', (string) ($word_e_row['normalized_grammatical_gender'] ?? ''));
         $this->assertFalse((bool) ($word_e_row['gender_marked'] ?? false));
         $this->assertFalse((bool) ($word_e_row['gender_progress_tracked'] ?? false));
+
+        $summary_only = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$category_id],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+        $summary_only_gender_progress = (array) ($summary_only['gender_progress'] ?? []);
+        $summary_only_categories = (array) ($summary_only['categories'] ?? []);
+        $summary_only_category = (array) ($summary_only_categories[0] ?? []);
+        $summary_only_category_gender_progress = (array) ($summary_only_category['gender_progress'] ?? []);
+
+        $this->assertSame([], (array) ($summary_only['words'] ?? []));
+        $this->assertTrue((bool) ($summary_only['words_omitted'] ?? false));
+        $this->assertSame($gender_progress['tracked_word_total'], $summary_only_gender_progress['tracked_word_total'] ?? null);
+        $this->assertSame($gender_progress['not_started_words'], $summary_only_gender_progress['not_started_words'] ?? null);
+        $this->assertSame($gender_progress['level_2_words'], $summary_only_gender_progress['level_2_words'] ?? null);
+        $this->assertSame($gender_progress['level_3_words'], $summary_only_gender_progress['level_3_words'] ?? null);
+        $this->assertSame($category_gender_progress['tracked_word_total'], $summary_only_category_gender_progress['tracked_word_total'] ?? null);
+        $this->assertSame($category_gender_progress['not_started_words'], $summary_only_category_gender_progress['not_started_words'] ?? null);
+        $this->assertSame($category_gender_progress['level_2_words'], $summary_only_category_gender_progress['level_2_words'] ?? null);
+        $this->assertSame($category_gender_progress['level_3_words'], $summary_only_category_gender_progress['level_3_words'] ?? null);
+        $this->assertSame($category_gender_progress['last_seen_at'], $summary_only_category_gender_progress['last_seen_at'] ?? null);
     }
 
     /**
