@@ -573,6 +573,8 @@ function ll_tools_get_word_gender_support_snapshot(array $word, int $wordset_id,
 }
 
 function ll_tools_get_word_practice_recording_types_map(array $word_ids): array {
+    global $wpdb;
+
     $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
         return $word_id > 0;
     })));
@@ -590,57 +592,55 @@ function ll_tools_get_word_practice_recording_types_map(array $word_ids): array 
     }
 
     if (!empty($missing)) {
-        $word_audio_posts = get_posts([
-            'post_type'        => 'word_audio',
-            'post_parent__in'  => $missing,
-            'post_status'      => 'publish',
-            'posts_per_page'   => -1,
-            'suppress_filters' => true,
-            'orderby'          => 'date',
-            'order'            => 'DESC',
-            'no_found_rows'    => true,
-        ]);
-
-        $audio_ids = array_values(array_filter(array_map(static function ($post): int {
-            return ($post instanceof WP_Post) ? (int) $post->ID : 0;
-        }, (array) $word_audio_posts), static function (int $post_id): bool {
-            return $post_id > 0;
-        }));
-
-        if (!empty($audio_ids)) {
-            update_postmeta_cache($audio_ids);
-            update_object_term_cache($audio_ids, 'word_audio');
-        }
-
         $types_by_word = [];
-        foreach ($word_audio_posts as $audio_post) {
-            if (!($audio_post instanceof WP_Post)) {
+        foreach (array_chunk($missing, 500) as $chunk) {
+            $chunk = array_values(array_filter(array_map('intval', $chunk), static function (int $word_id): bool {
+                return $word_id > 0;
+            }));
+            if (empty($chunk)) {
                 continue;
             }
 
-            $word_id = (int) $audio_post->post_parent;
-            if ($word_id <= 0) {
-                continue;
-            }
+            $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+            $sql = $wpdb->prepare(
+                "
+                SELECT p.post_parent AS word_id, t.slug AS recording_type
+                FROM {$wpdb->posts} p
+                INNER JOIN {$wpdb->postmeta} pm
+                    ON pm.post_id = p.ID
+                   AND pm.meta_key = %s
+                   AND pm.meta_value <> ''
+                INNER JOIN {$wpdb->term_relationships} tr
+                    ON tr.object_id = p.ID
+                INNER JOIN {$wpdb->term_taxonomy} tt
+                    ON tt.term_taxonomy_id = tr.term_taxonomy_id
+                   AND tt.taxonomy = %s
+                INNER JOIN {$wpdb->terms} t
+                    ON t.term_id = tt.term_id
+                WHERE p.post_type = %s
+                  AND p.post_status = %s
+                  AND p.post_parent IN ({$placeholders})
+                ",
+                array_merge(['audio_file_path', 'recording_type', 'word_audio', 'publish'], $chunk)
+            );
 
-            $audio_path = trim((string) get_post_meta($audio_post->ID, 'audio_file_path', true));
-            if ($audio_path === '') {
-                continue;
-            }
+            foreach ((array) $wpdb->get_results($sql, ARRAY_A) as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
 
-            $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
-            if (is_wp_error($recording_types) || empty($recording_types)) {
-                continue;
-            }
+                $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+                if ($word_id <= 0) {
+                    continue;
+                }
 
-            if (!isset($types_by_word[$word_id])) {
-                $types_by_word[$word_id] = [];
-            }
-
-            foreach ((array) $recording_types as $recording_type) {
-                $slug = ll_tools_normalize_practice_recording_type_slug($recording_type);
+                $slug = ll_tools_normalize_practice_recording_type_slug((string) ($row['recording_type'] ?? ''));
                 if ($slug === '') {
                     continue;
+                }
+
+                if (!isset($types_by_word[$word_id])) {
+                    $types_by_word[$word_id] = [];
                 }
                 $types_by_word[$word_id][$slug] = $slug;
             }

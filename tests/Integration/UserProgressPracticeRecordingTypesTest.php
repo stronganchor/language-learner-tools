@@ -483,6 +483,33 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         $this->assertSame(3, (int) ($words[0]['progress_total_coverage'] ?? 0));
     }
 
+    public function test_practice_recording_types_map_does_not_hydrate_word_audio_posts(): void
+    {
+        [$word_id] = $this->createScopedWordWithRecordingTypes([
+            'isolation' => 'Isolation text',
+            'question' => 'Question text',
+        ]);
+
+        $word_audio_queries = 0;
+        $capture_word_audio_query = static function (WP_Query $query) use (&$word_audio_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? array_map('strval', $post_type) : [(string) $post_type];
+            if (in_array('word_audio', $post_types, true)) {
+                $word_audio_queries++;
+            }
+        };
+
+        add_action('pre_get_posts', $capture_word_audio_query);
+        try {
+            $map = ll_tools_get_word_practice_recording_types_map([$word_id]);
+        } finally {
+            remove_action('pre_get_posts', $capture_word_audio_query);
+        }
+
+        $this->assertSame(['question', 'isolation'], $map[$word_id] ?? []);
+        $this->assertSame(0, $word_audio_queries, 'Practice recording type resolution should not hydrate word_audio post rows.');
+    }
+
     /**
      * @param array<string,string> $recording_types
      * @return array{0:int,1:int,2:int}
