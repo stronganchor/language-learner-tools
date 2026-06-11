@@ -354,6 +354,115 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey((string) $non_quizzable_category_id, $words_by_category);
     }
 
+    public function test_user_study_bootstrap_payload_can_defer_words_with_metadata(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createMixedQuizzableFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $quizzable_category_id = (int) $fixture['quizzable_category_id'];
+
+        $payload = ll_tools_build_user_study_payload(
+            $user_id,
+            $wordset_id,
+            [$quizzable_category_id],
+            [
+                'defer_words' => true,
+                'candidate_word_limit' => 2,
+            ]
+        );
+
+        $this->assertTrue((bool) ($payload['words_deferred'] ?? false));
+        $this->assertSame([], (array) ($payload['words_by_category'] ?? []));
+
+        $meta = (array) ($payload['words_by_category_meta'][$quizzable_category_id] ?? []);
+        $this->assertSame($quizzable_category_id, (int) ($meta['category_id'] ?? 0));
+        $this->assertSame(5, (int) ($meta['available_word_count'] ?? 0));
+        $this->assertSame(2, (int) ($meta['candidate_count'] ?? 0));
+        $this->assertCount(2, (array) ($meta['candidate_word_ids'] ?? []));
+        $this->assertFalse((bool) ($meta['fully_loaded'] ?? true));
+        $this->assertTrue((bool) ($meta['has_more'] ?? false));
+    }
+
+    public function test_user_study_fetch_words_ajax_remains_complete_after_deferred_bootstrap(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createMixedQuizzableFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $quizzable_category_id = (int) $fixture['quizzable_category_id'];
+
+        $payload = ll_tools_build_user_study_payload(
+            $user_id,
+            $wordset_id,
+            [$quizzable_category_id],
+            [
+                'defer_words' => true,
+                'candidate_word_limit' => 2,
+            ]
+        );
+        $this->assertTrue((bool) ($payload['words_deferred'] ?? false));
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$quizzable_category_id],
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_fetch_words_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $words_by_category = (array) ($response['data']['words_by_category'] ?? []);
+        $this->assertArrayHasKey((string) $quizzable_category_id, $words_by_category);
+        $this->assertCount(5, (array) $words_by_category[$quizzable_category_id]);
+    }
+
+    public function test_user_study_bootstrap_ajax_returns_deferred_metadata_when_requested(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createMixedQuizzableFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $quizzable_category_id = (int) $fixture['quizzable_category_id'];
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$quizzable_category_id],
+            'defer_words' => '1',
+            'candidate_word_limit' => '2',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_bootstrap_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertTrue((bool) ($response['data']['words_deferred'] ?? false));
+        $this->assertSame([], (array) ($response['data']['words_by_category'] ?? []));
+
+        $meta = (array) ($response['data']['words_by_category_meta'][$quizzable_category_id] ?? []);
+        $this->assertSame(5, (int) ($meta['available_word_count'] ?? 0));
+        $this->assertSame(2, (int) ($meta['candidate_count'] ?? 0));
+    }
+
     public function test_analytics_ajax_returns_payload(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
