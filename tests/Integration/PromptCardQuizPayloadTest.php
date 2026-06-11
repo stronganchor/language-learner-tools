@@ -18,6 +18,7 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Term::class, $term);
 
         $config = ll_tools_get_category_quiz_config($term);
+        $cold_count = ll_get_words_by_category_count($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
         $rows = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
         $count = ll_get_words_by_category_count($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
 
@@ -38,6 +39,7 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
 
         $this->assertCount(2, $prompt_rows);
         $this->assertCount(2, $support_rows);
+        $this->assertSame(2, $cold_count, 'Cold count helper should count prompt-card rounds before full row payloads are cached.');
         $this->assertSame(2, $count, 'Count helper should count prompt-card rounds, not support rows.');
 
         $horse_prompt_row = $prompt_rows[$fixture['horse_or_cow_card_id']] ?? [];

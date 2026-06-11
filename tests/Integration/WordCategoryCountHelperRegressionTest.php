@@ -169,6 +169,39 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         $this->assertTrue(ll_can_category_generate_quiz(get_term($category_id, 'word-category'), 5, [$wordset_id]));
     }
 
+    public function test_count_helper_cold_cache_does_not_materialize_audio_rows(): void
+    {
+        $category_name = 'Count Helper Cold Audio ' . (string) wp_rand(1000, 9999);
+        $category_id = $this->createCategory($category_name, 'audio', 'text_title');
+
+        for ($index = 1; $index <= 3; $index++) {
+            $word_id = $this->createWord($category_id, 'Cold Audio Word ' . $index, 'Cold Audio Translation ' . $index);
+            $this->addAudio($word_id, '-' . (string) $index);
+        }
+
+        $word_audio_queries = 0;
+        $capture = static function (WP_Query $query) use (&$word_audio_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? array_map('strval', $post_type) : [(string) $post_type];
+            if (in_array('word_audio', $post_types, true)) {
+                $word_audio_queries++;
+            }
+        };
+
+        add_action('pre_get_posts', $capture);
+        try {
+            $count = ll_get_words_by_category_count($category_name, 'text', null, [
+                'prompt_type' => 'audio',
+                'option_type' => 'text_title',
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $this->assertSame(3, $count);
+        $this->assertSame(0, $word_audio_queries, 'Cold count-only calls should not materialize full word_audio row payloads.');
+    }
+
     public function test_count_helper_preserves_raw_title_fallback_when_translation_titles_are_empty(): void
     {
         $previous_title_role = get_option('ll_word_title_language_role', null);

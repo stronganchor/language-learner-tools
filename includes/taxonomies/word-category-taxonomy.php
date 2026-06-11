@@ -3907,6 +3907,85 @@ function ll_tools_get_word_audio_presence_map(array $word_ids): array {
     return $map;
 }
 
+function ll_tools_get_word_effective_image_presence_map(array $word_ids): array {
+    global $wpdb;
+
+    $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $word_ids = array_values(array_unique($word_ids));
+    sort($word_ids, SORT_NUMERIC);
+
+    $map = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+
+        $word_thumbnail_sql = $wpdb->prepare(
+            "
+            SELECT pm.post_id
+            FROM {$wpdb->postmeta} pm
+            WHERE pm.meta_key = %s
+              AND pm.meta_value <> ''
+              AND CAST(pm.meta_value AS UNSIGNED) > 0
+              AND pm.post_id IN ({$placeholders})
+            GROUP BY pm.post_id
+            ",
+            array_merge(['_thumbnail_id'], $chunk)
+        );
+        foreach ((array) $wpdb->get_col($word_thumbnail_sql) as $word_id_raw) {
+            $word_id = (int) $word_id_raw;
+            if ($word_id > 0) {
+                $map[$word_id] = true;
+            }
+        }
+
+        $linked_image_sql = $wpdb->prepare(
+            "
+            SELECT linked.post_id
+            FROM {$wpdb->postmeta} linked
+            INNER JOIN {$wpdb->posts} image_posts
+                ON image_posts.ID = CAST(linked.meta_value AS UNSIGNED)
+               AND image_posts.post_type = %s
+               AND image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
+            INNER JOIN {$wpdb->postmeta} image_thumb
+                ON image_thumb.post_id = image_posts.ID
+               AND image_thumb.meta_key = %s
+               AND image_thumb.meta_value <> ''
+               AND CAST(image_thumb.meta_value AS UNSIGNED) > 0
+            WHERE linked.meta_key = %s
+              AND linked.meta_value <> ''
+              AND CAST(linked.meta_value AS UNSIGNED) > 0
+              AND linked.post_id IN ({$placeholders})
+            GROUP BY linked.post_id
+            ",
+            array_merge(['word_images', '_thumbnail_id', '_ll_autopicked_image_id'], $chunk)
+        );
+        foreach ((array) $wpdb->get_col($linked_image_sql) as $word_id_raw) {
+            $word_id = (int) $word_id_raw;
+            if ($word_id > 0) {
+                $map[$word_id] = true;
+            }
+        }
+    }
+
+    if (function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')) {
+        foreach ($word_ids as $word_id) {
+            if (!empty($map[$word_id])) {
+                continue;
+            }
+            if ((int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true) > 0) {
+                $map[$word_id] = true;
+            }
+        }
+    }
+
+    return $map;
+}
+
 function ll_tools_get_object_term_ids_map(array $object_ids, string $taxonomy): array {
     $object_ids = array_values(array_filter(array_map('intval', $object_ids), static function (int $id): bool {
         return $id > 0;
@@ -4184,6 +4263,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'text_label_schema'    => 5,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
+        'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
             : true,
@@ -4193,7 +4273,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     ];
 
     $rows_cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
-    $count_cache_key = 'll_wc_words_count_' . md5($rows_cache_key . '|v2');
+    $count_cache_key = 'll_wc_words_count_' . md5($rows_cache_key . '|v3');
     $cache_ttl = 6 * HOUR_IN_SECONDS;
     $count_cache_group = 'll_tools_words_count';
 
@@ -4289,13 +4369,235 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         return (int) $count;
     }
 
-    $rows = ll_get_words_by_category(
-        $term instanceof WP_Term ? $term : $categoryName,
-        $displayMode,
-        !empty($wordset_terms) ? $wordset_terms : null,
-        array_merge($config, ['__skip_quiz_config_merge' => true])
-    );
-    $count = $count_promptable_rows(is_array($rows) ? $rows : []);
+    $args = [
+        'post_type'      => 'words',
+        'post_status'    => 'publish',
+        'posts_per_page' => -1,
+        'suppress_filters' => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'tax_query'      => [[
+            'taxonomy' => 'word-category',
+            'field'    => (string) ($category_context['query_field'] ?? 'name'),
+            'terms'    => $category_context['query_terms'] ?? '',
+        ]],
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ];
+
+    if (!empty($wordset_terms)) {
+        $args['tax_query'][] = [
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => $wordset_terms,
+        ];
+        $args['tax_query']['relation'] = 'AND';
+    }
+
+    $query = new WP_Query($args);
+    $primary_word_ids = array_values(array_filter(array_map('intval', (array) $query->posts), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+    $primary_word_lookup = array_fill_keys($primary_word_ids, true);
+
+    $track_prompt_card_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
+    $prompt_cards = [];
+    $prompt_card_support_word_ids = [];
+    $prompt_card_support_lookup = [];
+    $prompt_card_wrong_support_lookup = [];
+    if (
+        function_exists('ll_tools_get_prompt_card_posts_for_category_context')
+        && function_exists('ll_tools_get_prompt_card_data')
+    ) {
+        foreach (ll_tools_get_prompt_card_posts_for_category_context($category_context, $wordset_terms) as $prompt_card_post) {
+            if (!($prompt_card_post instanceof WP_Post)) {
+                continue;
+            }
+
+            $prompt_card_id = (int) $prompt_card_post->ID;
+            if ($prompt_card_id <= 0) {
+                continue;
+            }
+
+            $card = ll_tools_get_prompt_card_data($prompt_card_id);
+            if (empty($card) || empty($card['correct_answer_word_id'])) {
+                continue;
+            }
+
+            $prompt_cards[] = $card;
+            $support_ids = [(int) $card['correct_answer_word_id']];
+            if (!empty($card['prompt_image_word_id'])) {
+                $support_ids[] = (int) $card['prompt_image_word_id'];
+            }
+            foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
+                $wrong_word_id = (int) $wrong_word_id_raw;
+                if ($wrong_word_id > 0) {
+                    $support_ids[] = $wrong_word_id;
+                    if (!isset($primary_word_lookup[$wrong_word_id])) {
+                        $prompt_card_wrong_support_lookup[$wrong_word_id] = true;
+                    }
+                }
+            }
+
+            foreach ($support_ids as $support_word_id) {
+                $support_word_id = (int) $support_word_id;
+                if ($support_word_id <= 0) {
+                    continue;
+                }
+                $prompt_card_support_word_ids[] = $support_word_id;
+                if ($track_prompt_card_support_only) {
+                    $prompt_card_support_lookup[$support_word_id] = true;
+                }
+            }
+        }
+    }
+
+    $all_word_ids = array_values(array_unique(array_filter(array_merge(
+        $primary_word_ids,
+        array_map('intval', $prompt_card_support_word_ids)
+    ), static function (int $post_id): bool {
+        return $post_id > 0;
+    })));
+
+    if (!empty($all_word_ids)) {
+        update_meta_cache('post', $all_word_ids);
+    }
+
+    $requires_option_label = in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true);
+    $requires_prompt_label = ($prompt_text_type !== '');
+    $display_text_by_word = ($requires_option_label || $requires_prompt_label)
+        ? ll_tools_get_word_display_text_map($all_word_ids)
+        : [];
+    $has_audio_by_word = $require_audio || $option_requires_audio
+        ? ll_tools_get_word_audio_presence_map($all_word_ids)
+        : [];
+    $has_image_by_word = $require_prompt_image || $require_option_image
+        ? ll_tools_get_word_effective_image_presence_map($all_word_ids)
+        : [];
+    $wrong_only_lookup = function_exists('ll_tools_get_specific_wrong_answer_only_word_lookup')
+        ? ll_tools_get_specific_wrong_answer_only_word_lookup()
+        : [];
+
+    $word_state = static function (int $word_id) use (
+        $display_text_by_word,
+        $has_audio_by_word,
+        $has_image_by_word,
+        $option_type,
+        $prompt_text_type,
+        $wrong_only_lookup
+    ): array {
+        $display_values = isset($display_text_by_word[$word_id]) && is_array($display_text_by_word[$word_id])
+            ? $display_text_by_word[$word_id]
+            : [];
+        $raw_title = trim((string) ($display_values['raw_title'] ?? get_the_title($word_id)));
+        $word_text = trim((string) ($display_values['word_text'] ?? ''));
+        $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
+
+        $title = $word_text !== '' ? $word_text : $raw_title;
+        $translation_label = $translation_text;
+        $label = $title;
+        if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation_label !== '') {
+            $label = $translation_label;
+        }
+
+        $prompt_label = $title;
+        if ($prompt_text_type === 'text_translation' && $translation_label !== '') {
+            $prompt_label = $translation_label;
+        } elseif ($prompt_text_type === 'text_title') {
+            $prompt_label = $title;
+        }
+
+        return [
+            'has_audio' => !empty($has_audio_by_word[$word_id]),
+            'has_image' => !empty($has_image_by_word[$word_id]),
+            'label' => $label,
+            'prompt_label' => $prompt_label,
+            'is_specific_wrong_answer_only' => !empty($wrong_only_lookup[$word_id]),
+        ];
+    };
+
+    $count = 0;
+    foreach ($primary_word_ids as $word_id) {
+        if (!empty($prompt_card_support_lookup[$word_id])) {
+            continue;
+        }
+
+        $state = $word_state($word_id);
+        $is_specific_wrong_answer_only = !empty($state['is_specific_wrong_answer_only']);
+        if ($require_audio && empty($state['has_audio'])) {
+            if (!$is_specific_wrong_answer_only || $option_requires_audio) {
+                continue;
+            }
+        }
+        if (($require_prompt_image || $require_option_image) && empty($state['has_image'])) {
+            if (!$is_specific_wrong_answer_only || $require_option_image) {
+                continue;
+            }
+        }
+        if ($requires_option_label && trim((string) $state['label']) === '') {
+            continue;
+        }
+        if ($requires_prompt_label && trim((string) $state['prompt_label']) === '') {
+            continue;
+        }
+
+        $count++;
+    }
+
+    foreach ($prompt_cards as $card) {
+        $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+        if ($answer_word_id <= 0) {
+            continue;
+        }
+
+        $answer_state = $word_state($answer_word_id);
+        if ($option_requires_audio && empty($answer_state['has_audio'])) {
+            continue;
+        }
+        if ($requires_option_label && trim((string) $answer_state['label']) === '') {
+            continue;
+        }
+        if ($require_option_image && empty($answer_state['has_image'])) {
+            continue;
+        }
+        if (ll_tools_quiz_prompt_type_has_audio($prompt_type) && trim((string) ($card['prompt_audio_url'] ?? '')) === '') {
+            continue;
+        }
+
+        $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+        if ($require_prompt_image) {
+            if ($prompt_image_word_id <= 0) {
+                continue;
+            }
+            $prompt_image_state = $word_state($prompt_image_word_id);
+            if (empty($prompt_image_state['has_image'])) {
+                continue;
+            }
+        }
+
+        $count++;
+    }
+
+    if ($require_audio && !$option_requires_audio && !empty($prompt_card_wrong_support_lookup)) {
+        foreach (array_keys($prompt_card_wrong_support_lookup) as $wrong_word_id) {
+            $wrong_word_id = (int) $wrong_word_id;
+            if ($wrong_word_id <= 0) {
+                continue;
+            }
+
+            $wrong_state = $word_state($wrong_word_id);
+            if (!empty($wrong_state['has_audio'])) {
+                continue;
+            }
+            if ($require_option_image && empty($wrong_state['has_image'])) {
+                continue;
+            }
+            if ($requires_option_label && trim((string) $wrong_state['label']) === '') {
+                continue;
+            }
+            $count++;
+        }
+    }
 
     $payload = [
         '__ll_words_count_cache_format' => 1,
