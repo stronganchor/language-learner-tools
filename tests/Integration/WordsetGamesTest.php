@@ -818,6 +818,62 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertNotContains($animatedWordId, $returnedIds);
     }
 
+    public function test_speaking_stack_excludes_words_with_animated_webp_images_by_default(): void
+    {
+        $fixture = $this->createSpeakingGamesFixture(5);
+        $animatedAttachmentId = $this->createAnimatedWebpAttachment('animated-speaking-stack-word.webp');
+        $animatedWordId = $this->createWordWithGameMedia(
+            'Animated Speaking Stack Word',
+            'Animated Stack Translation',
+            (int) $fixture['category_id'],
+            (int) $fixture['wordset_id'],
+            true,
+            ['isolation' => 'Animated stack isolation'],
+            $animatedAttachmentId
+        );
+        $audioPosts = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $animatedWordId,
+            'posts_per_page' => -1,
+        ]);
+        $this->assertNotEmpty($audioPosts);
+        foreach ($audioPosts as $audioPost) {
+            $this->assertInstanceOf(WP_Post::class, $audioPost);
+            update_post_meta((int) $audioPost->ID, 'recording_ipa', 'animated stack ipa');
+        }
+        $this->seedWordProgressRow((int) $fixture['user_id'], $animatedWordId, (int) $fixture['category_id'], (int) $fixture['wordset_id'], [
+            'total_coverage' => 6,
+            'coverage_practice' => 6,
+            'correct_clean' => 4,
+            'incorrect' => 0,
+            'lapse_count' => 0,
+            'stage' => 6,
+        ]);
+
+        wp_set_current_user((int) $fixture['user_id']);
+        $countPool = ll_tools_wordset_games_build_speaking_deferred_count_pool(
+            (int) $fixture['wordset_id'],
+            (int) $fixture['user_id'],
+            'speaking-stack',
+            true
+        );
+        $launchPool = ll_tools_wordset_games_build_speaking_launch_pool(
+            (int) $fixture['wordset_id'],
+            (int) $fixture['user_id'],
+            'speaking-stack',
+            true
+        );
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($launchPool['words'] ?? []))));
+
+        $this->assertSame(5, (int) ($countPool['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($launchPool['available_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($launchPool['words'] ?? []));
+        $this->assertNotContains($animatedWordId, $returnedIds);
+    }
+
     public function test_space_shooter_pool_caps_launch_words_but_preserves_full_available_count(): void
     {
         $fixture = $this->createGamesFixture(10);
@@ -1614,6 +1670,42 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame(3, (int) ($launch['available_word_count'] ?? 0));
     }
 
+    public function test_unscramble_launch_caps_words_before_attaching_progress_payload(): void
+    {
+        $fixture = $this->createUnscrambleFixture(false, 'Cap Clue', 10, ['unscramble']);
+        foreach ((array) $fixture['word_ids'] as $wordId) {
+            $this->seedWordProgressRow((int) $fixture['user_id'], (int) $wordId, (int) $fixture['category_id'], (int) $fixture['wordset_id'], [
+                'total_coverage' => 3,
+                'coverage_practice' => 3,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+        }
+        $capFilter = static function (): int {
+            return 5;
+        };
+
+        add_filter('ll_tools_wordset_games_unscramble_launch_word_cap', $capFilter);
+        try {
+            $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        } finally {
+            remove_filter('ll_tools_wordset_games_unscramble_launch_word_cap', $capFilter);
+        }
+
+        $this->assertIsArray($launch);
+        $this->assertSame(10, (int) ($launch['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($launch['launch_word_cap'] ?? 0));
+        $this->assertSame(5, (int) ($launch['launch_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($launch['words'] ?? []));
+        foreach ((array) ($launch['words'] ?? []) as $wordRow) {
+            $this->assertIsArray($wordRow);
+            $this->assertSame('studied', (string) ($wordRow['progress_status'] ?? ''));
+            $this->assertSame(3, (int) ($wordRow['practice_exposure_count'] ?? 0));
+            $this->assertSame(3, (int) ($wordRow['progress_total_coverage'] ?? 0));
+        }
+    }
+
     public function test_wordset_games_frontend_config_uses_three_cards_for_large_image_wordsets(): void
     {
         $wordset = wp_insert_term('Games Large Images ' . wp_generate_password(6, false), 'wordset');
@@ -1826,6 +1918,61 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             $this->assertSame($expectedCap, (int) ($entry['launch_word_count'] ?? 0));
             $this->assertCount($expectedCap, (array) ($entry['words'] ?? []));
             $this->assertTrue((bool) ($entry['launchable'] ?? false));
+        }
+    }
+
+    public function test_speaking_catalog_payload_uses_capped_candidate_pool(): void
+    {
+        $fixture = $this->createSpeakingGamesFixture(10);
+        $practiceCapFilter = static function (): int {
+            return 7;
+        };
+        $stackCapFilter = static function (): int {
+            return 8;
+        };
+
+        add_filter('ll_tools_wordset_games_speaking_practice_launch_word_cap', $practiceCapFilter);
+        add_filter('ll_tools_wordset_games_speaking_stack_launch_word_cap', $stackCapFilter);
+        try {
+            $practiceCountPool = ll_tools_wordset_games_build_speaking_deferred_count_pool(
+                (int) $fixture['wordset_id'],
+                (int) $fixture['user_id'],
+                'speaking-practice',
+                false,
+                7
+            );
+            $stackCountPool = ll_tools_wordset_games_build_speaking_deferred_count_pool(
+                (int) $fixture['wordset_id'],
+                (int) $fixture['user_id'],
+                'speaking-stack',
+                true,
+                8
+            );
+            $catalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        } finally {
+            remove_filter('ll_tools_wordset_games_speaking_practice_launch_word_cap', $practiceCapFilter);
+            remove_filter('ll_tools_wordset_games_speaking_stack_launch_word_cap', $stackCapFilter);
+        }
+
+        $this->assertSame(10, (int) ($practiceCountPool['available_word_count'] ?? 0));
+        $this->assertCount(7, (array) ($practiceCountPool['launch_candidate_words'] ?? []));
+        $this->assertCount(7, (array) ($practiceCountPool['launch_candidate_word_ids'] ?? []));
+        $this->assertSame(10, (int) ($stackCountPool['available_word_count'] ?? 0));
+        $this->assertCount(8, (array) ($stackCountPool['launch_candidate_words'] ?? []));
+        $this->assertCount(8, (array) ($stackCountPool['launch_candidate_word_ids'] ?? []));
+
+        $expectedCaps = [
+            'speaking-practice' => 7,
+            'speaking-stack' => 8,
+        ];
+        foreach ($expectedCaps as $slug => $expectedCap) {
+            $entry = $catalog[$slug] ?? null;
+            $this->assertIsArray($entry);
+            $this->assertSame(10, (int) ($entry['available_word_count'] ?? 0));
+            $this->assertSame($expectedCap, (int) ($entry['launch_word_cap'] ?? 0));
+            $this->assertSame($expectedCap, (int) ($entry['launch_word_count'] ?? 0));
+            $this->assertCount($expectedCap, (array) ($entry['words'] ?? []));
+            $this->assertSame('recording_ipa', (string) ($entry['target_field'] ?? ''));
         }
     }
 
