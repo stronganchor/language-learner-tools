@@ -228,6 +228,148 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertStringNotContainsStringIgnoringCase('SELECT * FROM ' . $progress_table, $joined_queries);
         $this->assertStringNotContainsString('word_translation', $joined_queries);
         $this->assertStringNotContainsString('_ll_autopicked_image_id', $joined_queries);
+        global $wpdb;
+        $this->assertStringNotContainsString("SELECT ID, post_type FROM {$wpdb->posts}", $joined_queries);
+    }
+
+    public function test_summary_only_analytics_word_id_cache_hits_for_repeated_scope(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $cache_events = [];
+        $capture_cache_event = static function ($status) use (&$cache_events): void {
+            $cache_events[] = (string) $status;
+        };
+
+        add_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_event, 10, 1);
+        try {
+            $first = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $fixture['wordset_id'],
+                $fixture['category_ids'],
+                14,
+                false,
+                ['summary_only' => true]
+            );
+            $second = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $fixture['wordset_id'],
+                $fixture['category_ids'],
+                14,
+                false,
+                ['summary_only' => true]
+            );
+            $reversed_word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category(
+                array_reverse($fixture['category_ids']),
+                (int) $fixture['wordset_id']
+            );
+        } finally {
+            remove_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_event, 10);
+        }
+
+        $this->assertSame($first['summary'], $second['summary']);
+        $this->assertSame($first['categories'], $second['categories']);
+        $this->assertSame(array_reverse($fixture['category_ids']), array_map('intval', array_keys($reversed_word_ids_by_category)));
+        $this->assertSame([], (array) ($second['words'] ?? []));
+        $this->assertTrue((bool) ($second['words_omitted'] ?? false));
+        $this->assertContains('miss', $cache_events);
+        $this->assertContains('store', $cache_events);
+        $this->assertContains('request_hit', $cache_events);
+    }
+
+    public function test_summary_only_analytics_word_id_cache_misses_after_category_version_bump(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        [$category_id] = $fixture['category_ids'];
+
+        $first = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $fixture['wordset_id'],
+            [$category_id],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+
+        ll_tools_bump_category_cache_version([$category_id]);
+
+        $cache_events = [];
+        $capture_cache_event = static function ($status) use (&$cache_events): void {
+            $cache_events[] = (string) $status;
+        };
+
+        add_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_event, 10, 1);
+        try {
+            $second = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $fixture['wordset_id'],
+                [$category_id],
+                14,
+                false,
+                ['summary_only' => true]
+            );
+        } finally {
+            remove_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_event, 10);
+        }
+
+        $this->assertSame($first['summary'], $second['summary']);
+        $this->assertSame($first['categories'], $second['categories']);
+        $this->assertContains('miss', $cache_events);
+        $this->assertContains('store', $cache_events);
+    }
+
+    public function test_summary_only_analytics_scope_cache_refreshes_when_word_moves_out_of_category(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        [$category_a_id, $category_b_id] = $fixture['category_ids'];
+        $wordset_id = (int) $fixture['wordset_id'];
+        $moved_word_id = $this->createWordWithAudio(
+            'Analytics Moving Word',
+            'Analytics Moving Translation',
+            $category_a_id,
+            $wordset_id,
+            'analytics-moving.mp3'
+        );
+
+        $before = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$category_a_id],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+        $this->assertSame(6, (int) ($before['summary']['total_words'] ?? 0));
+
+        wp_set_post_terms($moved_word_id, [$category_b_id], 'word-category', false);
+
+        $after_a = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$category_a_id],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+        $after_b = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$category_b_id],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+
+        $this->assertSame(5, (int) ($after_a['summary']['total_words'] ?? 0));
+        $this->assertSame(6, (int) ($after_b['summary']['total_words'] ?? 0));
     }
 
     public function test_analytics_payload_includes_vocab_lesson_urls_for_private_categories(): void

@@ -1148,7 +1148,28 @@ function ll_tools_sync_categories_for_post($post_id, $post, $update) {
 add_action('save_post_words',       'll_tools_sync_categories_for_post', 10, 3);
 add_action('save_post_word_images', 'll_tools_sync_categories_for_post', 10, 3);
 
-function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxonomy) {
+function ll_tools_quiz_pages_term_taxonomy_ids_to_term_ids(array $term_taxonomy_ids, string $taxonomy): array {
+    global $wpdb;
+
+    $term_taxonomy_ids = array_values(array_unique(array_filter(array_map('intval', $term_taxonomy_ids), static function (int $term_taxonomy_id): bool {
+        return $term_taxonomy_id > 0;
+    })));
+    if (empty($term_taxonomy_ids) || !isset($wpdb) || !($wpdb instanceof wpdb)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($term_taxonomy_ids), '%d'));
+    $sql = $wpdb->prepare(
+        "SELECT term_id FROM {$wpdb->term_taxonomy} WHERE taxonomy = %s AND term_taxonomy_id IN ({$placeholders})",
+        array_merge([$taxonomy], $term_taxonomy_ids)
+    );
+
+    return array_values(array_unique(array_filter(array_map('intval', (array) $wpdb->get_col($sql)), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+}
+
+function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxonomy, $append = false, $old_tt_ids = []) {
     if ($taxonomy === 'wordset' && get_transient('ll_tools_wordset_backfill_running')) {
         return;
     }
@@ -1157,7 +1178,10 @@ function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxo
 
     $term_ids = [];
     if ($taxonomy === 'word-category') {
-        $term_ids = array_map('intval', (array) $terms);
+        $term_ids = array_merge(
+            array_map('intval', (array) $terms),
+            ll_tools_quiz_pages_term_taxonomy_ids_to_term_ids((array) $old_tt_ids, 'word-category')
+        );
     } elseif ($taxonomy === 'wordset') {
         $term_ids = wp_get_post_terms($object_id, 'word-category', ['fields' => 'ids']);
         if (is_wp_error($term_ids)) {
@@ -1171,7 +1195,7 @@ function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxo
     foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
     ll_tools_bump_category_cache_version($term_ids);
 }
-add_action('set_object_terms', 'll_tools_sync_categories_on_term_set', 10, 4);
+add_action('set_object_terms', 'll_tools_sync_categories_on_term_set', 10, 6);
 
 function ll_tools_sync_categories_before_delete($post_id) {
     $post = get_post($post_id);
