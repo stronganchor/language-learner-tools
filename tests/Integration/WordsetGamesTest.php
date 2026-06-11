@@ -668,6 +668,29 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         return $path . ($query !== '' ? ('?' . $query) : '');
     }
 
+    private function captureUnboundedWordIdQueries(array &$captured_queries): callable
+    {
+        return static function (WP_Query $query) use (&$captured_queries): void {
+            if ((string) $query->get('post_type') !== 'words') {
+                return;
+            }
+
+            if ((string) $query->get('fields') !== 'ids') {
+                return;
+            }
+
+            if ((int) $query->get('posts_per_page') !== -1) {
+                return;
+            }
+
+            if (!empty($query->get('post__in'))) {
+                return;
+            }
+
+            $captured_queries[] = $query->query_vars;
+        };
+    }
+
     private function setValidWordsetRewriteRules(string $slug): void
     {
         update_option('permalink_structure', '/%postname%/');
@@ -939,6 +962,78 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame(count($fullRows), count($fullRowsAfterLimited));
     }
 
+    public function test_practice_deferred_count_pool_does_not_query_all_visible_words_for_capped_launch_candidates(): void
+    {
+        $fixture = $this->createGamesFixture(10);
+        $capturedQueries = [];
+        $queryCapture = $this->captureUnboundedWordIdQueries($capturedQueries);
+
+        add_action('pre_get_posts', $queryCapture);
+        try {
+            $pool = ll_tools_wordset_games_build_practice_deferred_count_pool(
+                (int) $fixture['wordset_id'],
+                (int) $fixture['user_id'],
+                'space-shooter',
+                5
+            );
+        } finally {
+            remove_action('pre_get_posts', $queryCapture);
+        }
+
+        $this->assertSame('studied_deferred_count', (string) ($pool['pool_source'] ?? ''));
+        $this->assertSame(10, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($pool['launch_candidate_words'] ?? []));
+        $this->assertCount(5, (array) ($pool['launch_candidate_word_ids'] ?? []));
+        $this->assertSame([], $capturedQueries);
+    }
+
+    public function test_practice_deferred_count_pool_counts_entire_selected_frontier_category_for_capped_launch_candidates(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Games Frontier Count ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Games Frontier Count Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
+
+        for ($index = 1; $index <= 7; $index++) {
+            $this->createWordWithGameMedia(
+                'Frontier Count Word ' . $index,
+                'Frontier Count Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['question' => 'Frontier count ' . $index]
+            );
+        }
+
+        wp_set_current_user($userId);
+        $capturedQueries = [];
+        $queryCapture = $this->captureUnboundedWordIdQueries($capturedQueries);
+
+        add_action('pre_get_posts', $queryCapture);
+        try {
+            $pool = ll_tools_wordset_games_build_practice_deferred_count_pool($wordsetId, $userId, 'space-shooter', 5);
+        } finally {
+            remove_action('pre_get_posts', $queryCapture);
+        }
+
+        $this->assertSame('frontier_new_deferred_count', (string) ($pool['pool_source'] ?? ''));
+        $this->assertSame(7, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($pool['launch_candidate_words'] ?? []));
+        $this->assertCount(5, (array) ($pool['launch_candidate_word_ids'] ?? []));
+        $this->assertSame([], $capturedQueries);
+    }
+
     public function test_space_shooter_pool_falls_back_to_mastered_words_when_studied_words_are_below_minimum_count(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
@@ -1088,7 +1183,15 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }
 
         wp_set_current_user($userId);
-        $pool = ll_tools_wordset_games_build_space_shooter_pool($wordsetId, $userId);
+        $capturedQueries = [];
+        $queryCapture = $this->captureUnboundedWordIdQueries($capturedQueries);
+
+        add_action('pre_get_posts', $queryCapture);
+        try {
+            $pool = ll_tools_wordset_games_build_space_shooter_pool($wordsetId, $userId);
+        } finally {
+            remove_action('pre_get_posts', $queryCapture);
+        }
         $returnedIds = array_values(array_filter(array_map(static function ($row): int {
             return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
         }, (array) ($pool['words'] ?? []))));
@@ -1108,6 +1211,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($pool['launchable'] ?? false));
         $this->assertSame($expectedIds, $returnedIds);
         $this->assertSame([$rootAId, $rootBId], $returnedCategoryIds);
+        $this->assertSame([], $capturedQueries);
     }
 
     public function test_categories_are_disabled_for_games_by_default_until_enabled(): void
