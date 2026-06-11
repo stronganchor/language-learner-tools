@@ -158,137 +158,244 @@ function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_t
  */
 function ll_flashcards_build_categories(?string $raw, bool $use_translations, array $wordset_ids = []): array {
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
-    $all_terms = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-    ]);
-    if (is_wp_error($all_terms)) $all_terms = [];
-
-    if (!empty($wordset_ids) && function_exists('ll_collect_wc_ids_for_wordset_term_ids')) {
-        $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($wordset_ids);
-        $allowed_term_ids = array_map('intval', (array) $allowed_term_ids);
-        $allowed_term_ids = array_filter($allowed_term_ids, function ($id) { return $id > 0; });
-        if (!empty($allowed_term_ids)) {
-            $allowed_lookup = array_flip($allowed_term_ids);
-            $all_terms = array_values(array_filter($all_terms, function ($term) use ($allowed_lookup) {
-                return isset($allowed_lookup[(int) $term->term_id]);
-            }));
-        } else {
-            $all_terms = [];
-        }
-    }
-
-    if (function_exists('ll_tools_filter_category_terms_for_user')) {
-        $all_terms = ll_tools_filter_category_terms_for_user((array) $all_terms);
-    }
-
-    // No specific categories provided → offer all; not preselected.
-    if (empty($raw)) {
-        $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
-        return [$all_processed, false];
-    }
-
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
     $wanted = array_map('trim', explode(',', (string) $raw));
     $wanted = array_values(array_filter($wanted, static function ($value): bool {
         return $value !== '';
     }));
-    if (empty($wanted)) {
-        $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
-        return [$all_processed, false];
+
+    $allowed_term_ids = null;
+    if (!empty($wordset_ids) && function_exists('ll_collect_wc_ids_for_wordset_term_ids')) {
+        $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($wordset_ids);
+        $allowed_term_ids = array_map('intval', (array) $allowed_term_ids);
+        $allowed_term_ids = array_values(array_unique(array_filter($allowed_term_ids, function ($id) { return $id > 0; })));
     }
 
-    // Build a reduced term list first so we don't process every category when only a few were requested.
-    $terms_by_id = [];
-    $terms_by_slug = [];
-    $terms_by_name = [];
-    foreach ($all_terms as $term) {
-        if (!($term instanceof WP_Term)) {
-            continue;
-        }
-        $term_id = (int) $term->term_id;
-        if ($term_id > 0 && !isset($terms_by_id[(string) $term_id])) {
-            $terms_by_id[(string) $term_id] = $term;
-        }
+    $fetch_terms = static function (array $args = []) use ($allowed_term_ids): array {
+        $query_args = array_merge([
+            'taxonomy'   => 'word-category',
+            'hide_empty' => false,
+        ], $args);
 
-        $slug_key = strtolower((string) $term->slug);
-        if ($slug_key !== '' && !isset($terms_by_slug[$slug_key])) {
-            $terms_by_slug[$slug_key] = $term;
-        }
+        if (is_array($allowed_term_ids)) {
+            if (empty($allowed_term_ids)) {
+                return [];
+            }
 
-        $name_raw_key = strtolower((string) $term->name);
-        if ($name_raw_key !== '' && !isset($terms_by_name[$name_raw_key])) {
-            $terms_by_name[$name_raw_key] = $term;
-        }
-
-        $name_decoded_key = strtolower(html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8'));
-        if ($name_decoded_key !== '' && !isset($terms_by_name[$name_decoded_key])) {
-            $terms_by_name[$name_decoded_key] = $term;
-        }
-    }
-
-    $requested_terms = [];
-    $requested_term_ids = [];
-    foreach ($wanted as $w) {
-        $w_lc = strtolower($w);
-        $matched = null;
-        if (isset($terms_by_id[$w])) {
-            $matched = $terms_by_id[$w];
-        } elseif (isset($terms_by_slug[$w_lc])) {
-            $matched = $terms_by_slug[$w_lc];
-        } elseif (isset($terms_by_name[$w_lc])) {
-            $matched = $terms_by_name[$w_lc];
-        }
-
-        if ($matched instanceof WP_Term) {
-            $tid = (int) $matched->term_id;
-            if ($tid > 0 && !isset($requested_term_ids[$tid])) {
-                $requested_terms[] = $matched;
-                $requested_term_ids[$tid] = true;
+            $requested_include = isset($query_args['include'])
+                ? array_values(array_filter(array_map('intval', (array) $query_args['include']), static function (int $id): bool {
+                    return $id > 0;
+                }))
+                : [];
+            $query_args['include'] = empty($requested_include)
+                ? $allowed_term_ids
+                : array_values(array_intersect($requested_include, $allowed_term_ids));
+            if (empty($query_args['include'])) {
+                return [];
             }
         }
+
+        $terms = get_terms($query_args);
+        return is_wp_error($terms) ? [] : array_values((array) $terms);
+    };
+
+    if (!empty($wanted)) {
+        $candidate_terms = [];
+        $candidate_term_ids = [];
+        $resolved_ids_by_wanted = [];
+        $add_candidate_terms = static function (array $terms) use (&$candidate_terms, &$candidate_term_ids): void {
+            foreach ($terms as $term) {
+                if (!($term instanceof WP_Term) || is_wp_error($term)) {
+                    continue;
+                }
+                $term_id = (int) $term->term_id;
+                if ($term_id <= 0 || isset($candidate_term_ids[$term_id])) {
+                    continue;
+                }
+                $candidate_terms[] = $term;
+                $candidate_term_ids[$term_id] = true;
+            }
+        };
+
+        if (
+            count($wordset_ids) === 1
+            && function_exists('ll_tools_resolve_word_category_term')
+            && function_exists('ll_tools_get_effective_category_id_for_wordset')
+        ) {
+            $wordset_id = (int) $wordset_ids[0];
+            foreach ($wanted as $w) {
+                $base_term = ll_tools_resolve_word_category_term($w);
+                if (!($base_term instanceof WP_Term) || is_wp_error($base_term)) {
+                    continue;
+                }
+
+                $effective_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $base_term->term_id, $wordset_id, false);
+                if ($effective_id <= 0) {
+                    $effective_id = (int) $base_term->term_id;
+                }
+                if (is_array($allowed_term_ids) && !in_array($effective_id, $allowed_term_ids, true)) {
+                    continue;
+                }
+
+                $term = get_term($effective_id, 'word-category');
+                if ($term instanceof WP_Term && !is_wp_error($term)) {
+                    $resolved_ids_by_wanted[strtolower($w)] = (int) $term->term_id;
+                    $add_candidate_terms([$term]);
+                }
+            }
+        }
+
+        $wanted_ids = [];
+        $wanted_slugs = [];
+        $wanted_names = [];
+        foreach ($wanted as $w) {
+            if (preg_match('/^\d+$/', $w) === 1) {
+                $wanted_ids[] = (int) $w;
+            }
+
+            $slug = sanitize_title($w);
+            if ($slug !== '') {
+                $wanted_slugs[] = $slug;
+            }
+
+            $wanted_names[] = $w;
+            $decoded = html_entity_decode($w, ENT_QUOTES, 'UTF-8');
+            if ($decoded !== $w) {
+                $wanted_names[] = $decoded;
+            }
+        }
+        $wanted_ids = array_values(array_unique(array_filter($wanted_ids, static function (int $id): bool {
+            return $id > 0;
+        })));
+        $wanted_slugs = array_values(array_unique(array_filter($wanted_slugs, static function (string $slug): bool {
+            return $slug !== '';
+        })));
+        $wanted_names = array_values(array_unique(array_filter($wanted_names, static function (string $name): bool {
+            return $name !== '';
+        })));
+
+        if (!empty($wanted_ids)) {
+            $add_candidate_terms($fetch_terms(['include' => $wanted_ids]));
+        }
+        if (!empty($wanted_slugs)) {
+            $add_candidate_terms($fetch_terms(['slug' => $wanted_slugs]));
+        }
+        if (!empty($wanted_names)) {
+            $add_candidate_terms($fetch_terms(['name' => $wanted_names]));
+        }
+
+        if (function_exists('ll_tools_filter_category_terms_for_user')) {
+            $candidate_terms = ll_tools_filter_category_terms_for_user((array) $candidate_terms);
+        }
+
+        $terms_by_id = [];
+        $terms_by_slug = [];
+        $terms_by_name = [];
+        foreach ($candidate_terms as $term) {
+            if (!($term instanceof WP_Term)) {
+                continue;
+            }
+            $term_id = (int) $term->term_id;
+            if ($term_id > 0 && !isset($terms_by_id[(string) $term_id])) {
+                $terms_by_id[(string) $term_id] = $term;
+            }
+
+            $slug_key = strtolower((string) $term->slug);
+            if ($slug_key !== '' && !isset($terms_by_slug[$slug_key])) {
+                $terms_by_slug[$slug_key] = $term;
+            }
+
+            $name_raw_key = strtolower((string) $term->name);
+            if ($name_raw_key !== '' && !isset($terms_by_name[$name_raw_key])) {
+                $terms_by_name[$name_raw_key] = $term;
+            }
+
+            $name_decoded_key = strtolower(html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8'));
+            if ($name_decoded_key !== '' && !isset($terms_by_name[$name_decoded_key])) {
+                $terms_by_name[$name_decoded_key] = $term;
+            }
+        }
+
+        $requested_terms = [];
+        $requested_term_ids = [];
+        foreach ($wanted as $w) {
+            $w_lc = strtolower($w);
+            $matched = null;
+            $resolved_id = $resolved_ids_by_wanted[$w_lc] ?? 0;
+            if ($resolved_id > 0 && isset($terms_by_id[(string) $resolved_id])) {
+                $matched = $terms_by_id[(string) $resolved_id];
+            } elseif (isset($terms_by_id[$w])) {
+                $matched = $terms_by_id[$w];
+            } elseif (isset($terms_by_slug[$w_lc])) {
+                $matched = $terms_by_slug[$w_lc];
+            } elseif (isset($terms_by_name[$w_lc])) {
+                $matched = $terms_by_name[$w_lc];
+            }
+
+            if ($matched instanceof WP_Term) {
+                $tid = (int) $matched->term_id;
+                if ($tid > 0 && !isset($requested_term_ids[$tid])) {
+                    $requested_terms[] = $matched;
+                    $requested_term_ids[$tid] = true;
+                }
+            }
+        }
+
+        $all_processed = ll_flashcards_get_processed_categories_cached($requested_terms, $use_translations, $min_word_count, $wordset_ids);
+
+        $processed_by_id = [];
+        $processed_by_slug = [];
+        $processed_by_name = [];
+        foreach ($all_processed as $cat) {
+            if (!is_array($cat)) {
+                continue;
+            }
+            if (isset($cat['id'])) {
+                $processed_by_id[(string) $cat['id']] = $cat;
+            }
+            if (!empty($cat['slug'])) {
+                $processed_by_slug[strtolower((string) $cat['slug'])] = $cat;
+            }
+            if (!empty($cat['name'])) {
+                $processed_by_name[strtolower((string) $cat['name'])] = $cat;
+            }
+        }
+
+        $out = [];
+        foreach ($wanted as $w) {
+            $w_lc = strtolower($w);
+            $cat = null;
+            $resolved_id = $resolved_ids_by_wanted[$w_lc] ?? 0;
+
+            if ($resolved_id > 0 && isset($processed_by_id[(string) $resolved_id])) {
+                $cat = $processed_by_id[(string) $resolved_id];
+            } elseif (isset($processed_by_id[$w])) {
+                $cat = $processed_by_id[$w];
+            } elseif (isset($processed_by_slug[$w_lc])) {
+                $cat = $processed_by_slug[$w_lc];
+            } elseif (isset($processed_by_name[$w_lc])) {
+                $cat = $processed_by_name[$w_lc];
+            }
+
+            if (is_array($cat)) {
+                $out[] = $cat;
+            } else {
+                ll_tools_log_missing_flashcard_category_once((string) $w);
+            }
+        }
+        return [$out, true];
     }
 
-    $all_processed = ll_flashcards_get_processed_categories_cached($requested_terms, $use_translations, $min_word_count, $wordset_ids);
-
-    // Specific categories requested → pick matching ones; preselected = true.
-    $processed_by_id = [];
-    $processed_by_slug = [];
-    $processed_by_name = [];
-    foreach ($all_processed as $cat) {
-        if (!is_array($cat)) {
-            continue;
-        }
-        if (isset($cat['id'])) {
-            $processed_by_id[(string) $cat['id']] = $cat;
-        }
-        if (!empty($cat['slug'])) {
-            $processed_by_slug[strtolower((string) $cat['slug'])] = $cat;
-        }
-        if (!empty($cat['name'])) {
-            $processed_by_name[strtolower((string) $cat['name'])] = $cat;
-        }
+    $all_terms = $fetch_terms();
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $all_terms = ll_tools_filter_category_terms_for_user((array) $all_terms);
     }
 
-    $out = [];
-    foreach ($wanted as $w) {
-        $w_lc = strtolower($w);
-        $cat = null;
-
-        if (isset($processed_by_id[$w])) {
-            $cat = $processed_by_id[$w];
-        } elseif (isset($processed_by_slug[$w_lc])) {
-            $cat = $processed_by_slug[$w_lc];
-        } elseif (isset($processed_by_name[$w_lc])) {
-            $cat = $processed_by_name[$w_lc];
-        }
-
-        if (is_array($cat)) {
-            $out[] = $cat;
-        } else {
-            ll_tools_log_missing_flashcard_category_once((string) $w);
-        }
-    }
-    return [$out, true];
+    // No specific categories provided: offer all; not preselected.
+    $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
+    return [$all_processed, false];
 }
 
 /**
