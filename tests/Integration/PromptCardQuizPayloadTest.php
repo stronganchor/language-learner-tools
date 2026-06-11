@@ -71,6 +71,49 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertSame([$fixture['is_this_horse_card_id']], $this->normalizeIds((array) ($no_support_row['specific_wrong_answer_owner_ids'] ?? [])));
     }
 
+    public function test_candidate_scoped_prompt_card_payload_only_expands_matching_answer_cards(): void
+    {
+        $fixture = $this->createPromptCardFixture();
+        $term = get_term($fixture['effective_prompt_category_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $config = ll_tools_get_category_quiz_config($term);
+        $fullRows = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+        $candidateRows = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], array_merge($config, [
+            '__candidate_word_ids' => [(int) $fixture['horse_id']],
+        ]));
+        $fullRowsAfterCandidate = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+
+        $candidatePromptRows = [];
+        $candidateSupportRows = [];
+        $candidateWordRows = [];
+        foreach ((array) $candidateRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if (!empty($row['is_prompt_card'])) {
+                $candidatePromptRows[(int) ($row['prompt_card_id'] ?? 0)] = $row;
+                continue;
+            }
+            if (!empty($row['is_specific_wrong_answer_only'])) {
+                $candidateSupportRows[(int) ($row['id'] ?? 0)] = $row;
+                continue;
+            }
+            $candidateWordRows[(int) ($row['id'] ?? 0)] = $row;
+        }
+
+        $this->assertNotEmpty($this->findPromptCardRow((array) $fullRows, (int) $fixture['horse_or_cow_card_id']));
+        $this->assertNotEmpty($this->findPromptCardRow((array) $fullRows, (int) $fixture['is_this_horse_card_id']));
+        $this->assertSame([(int) $fixture['horse_or_cow_card_id']], $this->normalizeIds(array_keys($candidatePromptRows)));
+        $this->assertArrayHasKey((int) $fixture['horse_or_cow_card_id'], $candidatePromptRows);
+        $this->assertArrayNotHasKey((int) $fixture['is_this_horse_card_id'], $candidatePromptRows);
+        $this->assertArrayHasKey((int) $fixture['cow_id'], $candidateSupportRows);
+        $this->assertArrayNotHasKey((int) $fixture['no_id'], $candidateSupportRows);
+        $this->assertArrayNotHasKey((int) $fixture['yes_id'], $candidateWordRows);
+        $this->assertNotEmpty($this->findPromptCardRow((array) $fullRowsAfterCandidate, (int) $fixture['horse_or_cow_card_id']));
+        $this->assertNotEmpty($this->findPromptCardRow((array) $fullRowsAfterCandidate, (int) $fixture['is_this_horse_card_id']));
+    }
+
     public function test_prompt_card_rows_support_image_prompts_with_image_answer_options(): void
     {
         $asset_category_id = $this->createCategory('ASL Prompt Card Assets ' . wp_generate_password(5, false), 'image', 'image');

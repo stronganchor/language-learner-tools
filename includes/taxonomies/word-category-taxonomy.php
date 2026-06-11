@@ -5287,6 +5287,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             return $word_id > 0;
         })));
     }
+    $candidate_word_lookup = !empty($candidate_word_ids) ? array_fill_keys($candidate_word_ids, true) : [];
     $disable_words_cache = !empty($candidate_word_ids);
     $term_id = (int) ($category_context['term_id'] ?? 0);
     $cache_flags = [
@@ -5433,6 +5434,10 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             }
 
             $correct_answer_word_id = (int) $card['correct_answer_word_id'];
+            if (!empty($candidate_word_lookup) && empty($candidate_word_lookup[$correct_answer_word_id])) {
+                continue;
+            }
+
             $prompt_cards[] = $card;
             $prompt_card_post_ids[] = $prompt_card_id;
             $prompt_card_support_word_ids[] = $correct_answer_word_id;
