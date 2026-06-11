@@ -4206,6 +4206,424 @@ function ll_tools_get_word_display_text_map(array $word_ids): array {
 }
 
 /**
+ * Return quiz-renderable item IDs for a category/config without hydrating full
+ * word rows, audio rows, or image URLs.
+ *
+ * IDs match the row IDs returned by ll_get_words_by_category(): primary word
+ * IDs, prompt-card IDs when prompt cards are renderable, and specific wrong
+ * answer support word IDs when those support rows would be included.
+ *
+ * @return int[]
+ */
+function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []): array {
+    $category_context = ll_tools_get_word_category_query_context($categoryName);
+    $wordset_terms = [];
+    $requested_wordset_terms = [];
+    if (!empty($wordset_id)) {
+        $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
+        $wordset_terms = array_values(array_filter($wordset_terms, static function ($id): bool {
+            return $id > 0;
+        }));
+        $requested_wordset_terms = $wordset_terms;
+        if (function_exists('ll_tools_filter_viewable_wordset_ids')) {
+            $wordset_terms = ll_tools_filter_viewable_wordset_ids($wordset_terms, (int) get_current_user_id());
+        }
+        if (!empty($requested_wordset_terms) && empty($wordset_terms)) {
+            return [];
+        }
+    }
+
+    $category_context = ll_tools_remap_word_category_query_context_for_wordset($category_context, $wordset_terms);
+    $term = $category_context['term'];
+    if ($term instanceof WP_Term && function_exists('ll_tools_user_can_view_category')) {
+        if (!ll_tools_user_can_view_category($term)) {
+            return [];
+        }
+    }
+
+    $config = $quiz_config;
+    $skip_merge = !empty($quiz_config['__skip_quiz_config_merge']);
+    if ($term instanceof WP_Term && !$skip_merge) {
+        $config = array_merge(ll_tools_get_category_quiz_config($term), (array) $quiz_config);
+    }
+    $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_terms);
+
+    $use_titles  = !empty($config['use_titles']);
+    $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+    $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $displayMode;
+    $require_audio = ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type);
+    $option_requires_audio = in_array($option_type, ['audio', 'text_audio'], true);
+    $prompt_text_type = ll_tools_get_quiz_prompt_text_type($prompt_type, $use_titles);
+    $require_prompt_image = ll_tools_quiz_prompt_type_has_image($prompt_type);
+    $require_option_image = ll_tools_quiz_option_type_has_image($option_type);
+    $term_id = (int) ($category_context['term_id'] ?? 0);
+    $cache_flags = [
+        'require_audio'        => $require_audio,
+        'require_prompt_image' => $require_prompt_image,
+        'require_option_image' => $require_option_image,
+        'use_titles'           => $use_titles,
+        'term_slug'            => (string) ($category_context['slug'] ?? ''),
+        'text_label_schema'    => 5,
+        'prompt_card_schema'   => 4,
+        'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
+        'image_animation_meta' => true,
+        'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
+            ? ll_tools_should_use_masked_image_proxy()
+            : true,
+        'include_pos'          => true,
+        'include_gender'       => true,
+        'include_plurality'    => true,
+    ];
+
+    $rows_cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
+    $ids_cache_key = 'll_wc_item_ids_' . md5($rows_cache_key . '|v1');
+    $ids_cache_group = 'll_tools_words_ids';
+    $cache_ttl = 6 * HOUR_IN_SECONDS;
+
+    static $request_cache = [];
+    if (array_key_exists($ids_cache_key, $request_cache)) {
+        return $request_cache[$ids_cache_key];
+    }
+
+    $cached_ids = wp_cache_get($ids_cache_key, $ids_cache_group);
+    if ($cached_ids === false) {
+        $cached_ids = get_transient($ids_cache_key);
+    }
+    if (
+        is_array($cached_ids)
+        && isset($cached_ids['__ll_words_item_ids_cache_format'])
+        && (int) $cached_ids['__ll_words_item_ids_cache_format'] === 1
+        && isset($cached_ids['ids'])
+        && is_array($cached_ids['ids'])
+    ) {
+        $ids = array_values(array_filter(array_map('intval', $cached_ids['ids']), static function (int $id): bool {
+            return $id > 0;
+        }));
+        $request_cache[$ids_cache_key] = $ids;
+        return $ids;
+    }
+
+    $store_ids = static function (array $ids) use (&$request_cache, $ids_cache_key, $ids_cache_group, $cache_ttl): array {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static function (int $id): bool {
+            return $id > 0;
+        })));
+        $payload = [
+            '__ll_words_item_ids_cache_format' => 1,
+            'ids' => $ids,
+        ];
+        $request_cache[$ids_cache_key] = $ids;
+        wp_cache_set($ids_cache_key, $payload, $ids_cache_group, $cache_ttl);
+        set_transient($ids_cache_key, $payload, $cache_ttl);
+        return $ids;
+    };
+
+    $ids_from_rows = static function (array $rows) use ($require_audio, $option_requires_audio): array {
+        $ids = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $id = isset($row['id']) ? (int) $row['id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+
+            $is_wrong_only = false;
+            if (array_key_exists('is_specific_wrong_answer_only', $row)) {
+                $raw_flag = $row['is_specific_wrong_answer_only'];
+                if (is_bool($raw_flag)) {
+                    $is_wrong_only = $raw_flag;
+                } elseif (is_numeric($raw_flag)) {
+                    $is_wrong_only = ((int) $raw_flag) > 0;
+                } else {
+                    $normalized_flag = strtolower(trim((string) $raw_flag));
+                    $is_wrong_only = in_array($normalized_flag, ['1', 'true', 'yes', 'on'], true);
+                }
+            }
+            if ($is_wrong_only) {
+                $has_audio = !empty($row['has_audio']);
+                if ($require_audio && !$option_requires_audio && !$has_audio) {
+                    $ids[] = $id;
+                }
+                continue;
+            }
+
+            $is_prompt_card_support_only = false;
+            if (array_key_exists('is_prompt_card_support_only', $row)) {
+                $raw_flag = $row['is_prompt_card_support_only'];
+                if (is_bool($raw_flag)) {
+                    $is_prompt_card_support_only = $raw_flag;
+                } elseif (is_numeric($raw_flag)) {
+                    $is_prompt_card_support_only = ((int) $raw_flag) > 0;
+                } else {
+                    $normalized_flag = strtolower(trim((string) $raw_flag));
+                    $is_prompt_card_support_only = in_array($normalized_flag, ['1', 'true', 'yes', 'on'], true);
+                }
+            }
+            if ($is_prompt_card_support_only) {
+                continue;
+            }
+
+            $ids[] = $id;
+        }
+
+        return $ids;
+    };
+
+    $cached_rows = wp_cache_get($rows_cache_key, 'll_tools_words');
+    if ($cached_rows === false) {
+        $cached_rows = get_transient($rows_cache_key);
+    }
+    if ($cached_rows !== false) {
+        if (
+            is_array($cached_rows)
+            && isset($cached_rows['__ll_words_cache_format'])
+            && (int) $cached_rows['__ll_words_cache_format'] === 3
+            && isset($cached_rows['rows'])
+            && is_array($cached_rows['rows'])
+        ) {
+            return $store_ids($ids_from_rows($cached_rows['rows']));
+        }
+
+        return $store_ids(is_array($cached_rows) ? $ids_from_rows($cached_rows) : []);
+    }
+
+    $args = [
+        'post_type'      => 'words',
+        'post_status'    => 'publish',
+        'posts_per_page' => -1,
+        'suppress_filters' => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'tax_query'      => [[
+            'taxonomy' => 'word-category',
+            'field'    => (string) ($category_context['query_field'] ?? 'name'),
+            'terms'    => $category_context['query_terms'] ?? '',
+        ]],
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ];
+
+    if (!empty($wordset_terms)) {
+        $args['tax_query'][] = [
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => $wordset_terms,
+        ];
+        $args['tax_query']['relation'] = 'AND';
+    }
+
+    $query = new WP_Query($args);
+    $primary_word_ids = array_values(array_filter(array_map('intval', (array) $query->posts), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+    $primary_word_lookup = array_fill_keys($primary_word_ids, true);
+
+    $track_prompt_card_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
+    $prompt_cards = [];
+    $prompt_card_support_word_ids = [];
+    $prompt_card_support_lookup = [];
+    $prompt_card_wrong_support_lookup = [];
+    if (
+        function_exists('ll_tools_get_prompt_card_posts_for_category_context')
+        && function_exists('ll_tools_get_prompt_card_data')
+    ) {
+        foreach (ll_tools_get_prompt_card_posts_for_category_context($category_context, $wordset_terms) as $prompt_card_post) {
+            if (!($prompt_card_post instanceof WP_Post)) {
+                continue;
+            }
+
+            $prompt_card_id = (int) $prompt_card_post->ID;
+            if ($prompt_card_id <= 0) {
+                continue;
+            }
+
+            $card = ll_tools_get_prompt_card_data($prompt_card_id);
+            if (empty($card) || empty($card['correct_answer_word_id'])) {
+                continue;
+            }
+
+            $card['id'] = $prompt_card_id;
+            $prompt_cards[] = $card;
+            $support_ids = [(int) $card['correct_answer_word_id']];
+            if (!empty($card['prompt_image_word_id'])) {
+                $support_ids[] = (int) $card['prompt_image_word_id'];
+            }
+            foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
+                $wrong_word_id = (int) $wrong_word_id_raw;
+                if ($wrong_word_id > 0) {
+                    $support_ids[] = $wrong_word_id;
+                    if (!isset($primary_word_lookup[$wrong_word_id])) {
+                        $prompt_card_wrong_support_lookup[$wrong_word_id] = true;
+                    }
+                }
+            }
+
+            foreach ($support_ids as $support_word_id) {
+                $support_word_id = (int) $support_word_id;
+                if ($support_word_id <= 0) {
+                    continue;
+                }
+                $prompt_card_support_word_ids[] = $support_word_id;
+                if ($track_prompt_card_support_only) {
+                    $prompt_card_support_lookup[$support_word_id] = true;
+                }
+            }
+        }
+    }
+
+    $all_word_ids = array_values(array_unique(array_filter(array_merge(
+        $primary_word_ids,
+        array_map('intval', $prompt_card_support_word_ids)
+    ), static function (int $post_id): bool {
+        return $post_id > 0;
+    })));
+
+    if (!empty($all_word_ids)) {
+        update_meta_cache('post', $all_word_ids);
+    }
+
+    $requires_option_label = in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true);
+    $requires_prompt_label = ($prompt_text_type !== '');
+    $display_text_by_word = ($requires_option_label || $requires_prompt_label)
+        ? ll_tools_get_word_display_text_map($all_word_ids)
+        : [];
+    $has_audio_by_word = $require_audio || $option_requires_audio
+        ? ll_tools_get_word_audio_presence_map($all_word_ids)
+        : [];
+    $has_image_by_word = $require_prompt_image || $require_option_image
+        ? ll_tools_get_word_effective_image_presence_map($all_word_ids)
+        : [];
+    $wrong_only_lookup = function_exists('ll_tools_get_specific_wrong_answer_only_word_lookup')
+        ? ll_tools_get_specific_wrong_answer_only_word_lookup()
+        : [];
+
+    $word_state = static function (int $word_id) use (
+        $display_text_by_word,
+        $has_audio_by_word,
+        $has_image_by_word,
+        $option_type,
+        $prompt_text_type,
+        $wrong_only_lookup
+    ): array {
+        $display_values = isset($display_text_by_word[$word_id]) && is_array($display_text_by_word[$word_id])
+            ? $display_text_by_word[$word_id]
+            : [];
+        $raw_title = trim((string) ($display_values['raw_title'] ?? get_the_title($word_id)));
+        $word_text = trim((string) ($display_values['word_text'] ?? ''));
+        $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
+
+        $title = $word_text !== '' ? $word_text : $raw_title;
+        $translation_label = $translation_text;
+        $label = $title;
+        if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation_label !== '') {
+            $label = $translation_label;
+        }
+
+        $prompt_label = $title;
+        if ($prompt_text_type === 'text_translation' && $translation_label !== '') {
+            $prompt_label = $translation_label;
+        } elseif ($prompt_text_type === 'text_title') {
+            $prompt_label = $title;
+        }
+
+        return [
+            'has_audio' => !empty($has_audio_by_word[$word_id]),
+            'has_image' => !empty($has_image_by_word[$word_id]),
+            'label' => $label,
+            'prompt_label' => $prompt_label,
+            'is_specific_wrong_answer_only' => !empty($wrong_only_lookup[$word_id]),
+        ];
+    };
+
+    $item_ids = [];
+    foreach ($primary_word_ids as $word_id) {
+        if (!empty($prompt_card_support_lookup[$word_id])) {
+            continue;
+        }
+
+        $state = $word_state($word_id);
+        $is_specific_wrong_answer_only = !empty($state['is_specific_wrong_answer_only']);
+        if ($require_audio && empty($state['has_audio'])) {
+            if (!$is_specific_wrong_answer_only || $option_requires_audio) {
+                continue;
+            }
+        }
+        if (($require_prompt_image || $require_option_image) && empty($state['has_image'])) {
+            if (!$is_specific_wrong_answer_only || $require_option_image) {
+                continue;
+            }
+        }
+        if ($requires_option_label && trim((string) $state['label']) === '') {
+            continue;
+        }
+        if ($requires_prompt_label && trim((string) $state['prompt_label']) === '') {
+            continue;
+        }
+
+        $item_ids[] = $word_id;
+    }
+
+    foreach ($prompt_cards as $card) {
+        $prompt_card_id = (int) ($card['id'] ?? 0);
+        $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+        if ($prompt_card_id <= 0 || $answer_word_id <= 0) {
+            continue;
+        }
+
+        $answer_state = $word_state($answer_word_id);
+        if ($option_requires_audio && empty($answer_state['has_audio'])) {
+            continue;
+        }
+        if ($requires_option_label && trim((string) $answer_state['label']) === '') {
+            continue;
+        }
+        if ($require_option_image && empty($answer_state['has_image'])) {
+            continue;
+        }
+        if (ll_tools_quiz_prompt_type_has_audio($prompt_type) && trim((string) ($card['prompt_audio_url'] ?? '')) === '') {
+            continue;
+        }
+
+        $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+        if ($require_prompt_image) {
+            if ($prompt_image_word_id <= 0) {
+                continue;
+            }
+            $prompt_image_state = $word_state($prompt_image_word_id);
+            if (empty($prompt_image_state['has_image'])) {
+                continue;
+            }
+        }
+
+        $item_ids[] = $prompt_card_id;
+    }
+
+    if ($require_audio && !$option_requires_audio && !empty($prompt_card_wrong_support_lookup)) {
+        foreach (array_keys($prompt_card_wrong_support_lookup) as $wrong_word_id) {
+            $wrong_word_id = (int) $wrong_word_id;
+            if ($wrong_word_id <= 0) {
+                continue;
+            }
+
+            $wrong_state = $word_state($wrong_word_id);
+            if (!empty($wrong_state['has_audio'])) {
+                continue;
+            }
+            if ($require_option_image && empty($wrong_state['has_image'])) {
+                continue;
+            }
+            if ($requires_option_label && trim((string) $wrong_state['label']) === '') {
+                continue;
+            }
+            $item_ids[] = $wrong_word_id;
+        }
+    }
+
+    return $store_ids($item_ids);
+}
+
+/**
  * Return an exact count of quiz-eligible words for a category/config without
  * building the full flashcard payload rows.
  *
