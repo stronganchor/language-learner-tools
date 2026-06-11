@@ -291,6 +291,69 @@ function ll_tools_user_study_filter_quizzable_category_ids(array $category_ids, 
 }
 
 /**
+ * Fetch renderable item IDs for a set of category IDs, scoped to a wordset if provided.
+ *
+ * This mirrors ll_tools_user_study_words() category/config resolution without
+ * hydrating labels, media URLs, audio rows, or full progress payloads.
+ *
+ * @param int[] $category_ids
+ * @return array<int,int[]>
+ */
+function ll_tools_user_study_renderable_word_ids_by_category(array $category_ids, $wordset_id): array {
+    $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, (int) $wordset_id);
+    if (empty($category_ids) || !function_exists('ll_tools_get_renderable_category_item_ids')) {
+        return [];
+    }
+
+    $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $wordset_ids = $wordset_id ? [(int) $wordset_id] : [];
+    $terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'include'    => $category_ids,
+    ]);
+    if (is_wp_error($terms)) {
+        $terms = [];
+    }
+
+    $by_id = [];
+    foreach ($terms as $term) {
+        if ($term instanceof WP_Term && (int) $term->term_id > 0) {
+            $by_id[(int) $term->term_id] = $term;
+        }
+    }
+
+    $result = [];
+    foreach ($category_ids as $cid) {
+        $cid = (int) $cid;
+        if ($cid <= 0 || !isset($by_id[$cid])) {
+            continue;
+        }
+
+        $term = $by_id[$cid];
+        $config = function_exists('ll_tools_get_category_quiz_config')
+            ? ll_tools_get_category_quiz_config($term)
+            : ['prompt_type' => 'audio', 'option_type' => 'image'];
+        if (function_exists('ll_tools_resolve_effective_category_quiz_config')) {
+            $config = ll_tools_resolve_effective_category_quiz_config($term, $min_word_count, $wordset_ids);
+        }
+        $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
+        $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+        $merged_config = array_merge((array) $config, [
+            'option_type' => $option_type,
+            'prompt_type' => $prompt_type,
+        ]);
+
+        $ids = ll_tools_get_renderable_category_item_ids($term, $option_type, $wordset_ids, $merged_config);
+        $result[$cid] = array_values(array_unique(array_filter(array_map('intval', (array) $ids), static function (int $id): bool {
+            return $id > 0;
+        })));
+    }
+
+    return $result;
+}
+
+/**
  * Fetch words for a set of category IDs, scoped to a wordset if provided.
  */
 function ll_tools_user_study_words(array $category_ids, $wordset_id): array {

@@ -561,8 +561,7 @@ function ll_tools_wordset_page_collect_category_metrics_for_user(int $user_id, i
     }
 
     if (
-        !function_exists('ll_tools_user_study_filter_quizzable_category_ids')
-        || !function_exists('ll_tools_get_renderable_category_item_ids')
+        !function_exists('ll_tools_user_study_renderable_word_ids_by_category')
         || !function_exists('ll_tools_user_progress_word_status')
         || !function_exists('ll_tools_get_user_category_progress')
     ) {
@@ -578,59 +577,23 @@ function ll_tools_wordset_page_collect_category_metrics_for_user(int $user_id, i
         return $request_cache[$cache_key];
     }
 
-    $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, $wordset_id);
-    if (empty($category_ids)) {
+    $category_word_ids = ll_tools_user_study_renderable_word_ids_by_category($category_ids, $wordset_id);
+    if (empty($category_word_ids)) {
         $request_cache[$cache_key] = [];
         return [];
     }
 
+    $category_ids = array_values(array_filter(array_map('intval', array_keys($category_word_ids)), static function (int $category_id): bool {
+        return $category_id > 0;
+    }));
     $all_word_ids = [];
-    $category_word_ids = [];
-    $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
-    $wordset_ids = $wordset_id > 0 ? [$wordset_id] : [];
-    $terms = get_terms([
-        'taxonomy' => 'word-category',
-        'hide_empty' => false,
-        'include' => $category_ids,
-    ]);
-    if (is_wp_error($terms)) {
-        $terms = [];
-    }
-    $terms_by_id = [];
-    foreach ((array) $terms as $term) {
-        if ($term instanceof WP_Term && (int) $term->term_id > 0) {
-            $terms_by_id[(int) $term->term_id] = $term;
-        }
-    }
-
-    foreach ($category_ids as $category_id) {
-        $category_word_ids[$category_id] = [];
-        $term = $terms_by_id[$category_id] ?? null;
-        if (!($term instanceof WP_Term)) {
-            continue;
-        }
-
-        $config = function_exists('ll_tools_get_category_quiz_config')
-            ? ll_tools_get_category_quiz_config($term)
-            : ['prompt_type' => 'audio', 'option_type' => 'image'];
-        if (function_exists('ll_tools_resolve_effective_category_quiz_config')) {
-            $config = ll_tools_resolve_effective_category_quiz_config($term, $min_word_count, $wordset_ids);
-        }
-        $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
-        $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
-        $merged_config = array_merge((array) $config, [
-            'option_type' => $option_type,
-            'prompt_type' => $prompt_type,
-        ]);
-
-        $word_ids = ll_tools_get_renderable_category_item_ids($term, $option_type, $wordset_ids, $merged_config);
+    foreach ($category_word_ids as $word_ids) {
         foreach ($word_ids as $word_id) {
             $word_id = (int) $word_id;
             if ($word_id <= 0) {
                 continue;
             }
 
-            $category_word_ids[$category_id][$word_id] = true;
             $all_word_ids[$word_id] = true;
         }
     }
@@ -641,7 +604,9 @@ function ll_tools_wordset_page_collect_category_metrics_for_user(int $user_id, i
 
     foreach ($category_ids as $category_id) {
         $word_ids = isset($category_word_ids[$category_id]) && is_array($category_word_ids[$category_id])
-            ? array_values(array_map('intval', array_keys($category_word_ids[$category_id])))
+            ? array_values(array_filter(array_map('intval', $category_word_ids[$category_id]), static function (int $word_id): bool {
+                return $word_id > 0;
+            }))
             : [];
         $total_words = count($word_ids);
         $studied_words = 0;

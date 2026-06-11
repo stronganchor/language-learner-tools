@@ -4597,13 +4597,59 @@ function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_
     ];
 }
 
+function ll_tools_get_user_word_study_metric_rows(int $user_id, array $word_ids): array {
+    global $wpdb;
+
+    if ($user_id <= 0 || empty($word_ids) || !function_exists('ll_tools_user_progress_table_names')) {
+        return [];
+    }
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $tables = ll_tools_user_progress_table_names();
+    $table = isset($tables['words']) ? (string) $tables['words'] : '';
+    if ($table === '') {
+        return [];
+    }
+
+    $out = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
+        $sql = "
+            SELECT
+                word_id,
+                total_coverage,
+                correct_clean,
+                correct_after_retry,
+                incorrect
+            FROM {$table}
+            WHERE user_id = %d
+              AND word_id IN ({$placeholders})
+        ";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge([$user_id], $chunk)), ARRAY_A);
+        foreach ((array) $rows as $row) {
+            $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+            if ($word_id > 0) {
+                $out[$word_id] = $row;
+            }
+        }
+    }
+
+    return $out;
+}
+
 function ll_tools_recommendation_category_completion_map(int $user_id, int $wordset_id, array $category_ids): array {
     static $cache = [];
 
     $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), function ($id) {
         return $id > 0;
     })));
-    if ($user_id <= 0 || $wordset_id <= 0 || empty($category_ids) || !function_exists('ll_tools_user_study_words')) {
+    if ($user_id <= 0 || $wordset_id <= 0 || empty($category_ids) || !function_exists('ll_tools_user_study_renderable_word_ids_by_category')) {
         return [];
     }
 
@@ -4612,26 +4658,33 @@ function ll_tools_recommendation_category_completion_map(int $user_id, int $word
         return $cache[$cache_key];
     }
 
-    $words_by_category = ll_tools_user_study_words($category_ids, $wordset_id);
+    $word_ids_by_category = ll_tools_user_study_renderable_word_ids_by_category($category_ids, $wordset_id);
+    $all_word_ids = [];
+    foreach ($word_ids_by_category as $word_ids) {
+        foreach ((array) $word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id > 0) {
+                $all_word_ids[$word_id] = true;
+            }
+        }
+    }
+    $progress_rows = ll_tools_get_user_word_study_metric_rows($user_id, array_keys($all_word_ids));
+
     $out = [];
     foreach ($category_ids as $cid) {
-        $rows = isset($words_by_category[$cid]) && is_array($words_by_category[$cid]) ? $words_by_category[$cid] : [];
+        $word_ids = isset($word_ids_by_category[$cid]) && is_array($word_ids_by_category[$cid]) ? $word_ids_by_category[$cid] : [];
         $total_words = 0;
         $studied_words = 0;
-        foreach ($rows as $word) {
-            if (!is_array($word)) {
-                continue;
-            }
-            $wid = isset($word['id']) ? (int) $word['id'] : 0;
+        foreach ($word_ids as $wid) {
+            $wid = (int) $wid;
             if ($wid <= 0) {
                 continue;
             }
             $total_words++;
-            $coverage = max(0, (int) ($word['progress_total_coverage'] ?? 0));
-            $correct_clean = max(0, (int) ($word['progress_correct_clean'] ?? 0));
-            $correct_retry = max(0, (int) ($word['progress_correct_after_retry'] ?? 0));
-            $incorrect = max(0, (int) ($word['progress_incorrect'] ?? 0));
-            if ($coverage > 0 || $correct_clean > 0 || $correct_retry > 0 || $incorrect > 0) {
+            $progress_row = isset($progress_rows[$wid]) && is_array($progress_rows[$wid])
+                ? $progress_rows[$wid]
+                : [];
+            if (ll_tools_user_progress_word_is_studied($progress_row)) {
                 $studied_words++;
             }
         }
@@ -5031,7 +5084,6 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
     }
 
     $selected = [];
-    $words_by_category = [];
     $all_word_ids = [];
     $word_category_lookup = [];
     $category_word_ids_lookup = [];
@@ -5096,38 +5148,31 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
         return $activity;
     };
 
-    $load_scope_words = static function () use (&$scope_words_loaded, &$words_by_category, &$all_word_ids, &$word_category_lookup, &$category_word_ids_lookup, &$selected, $wordset_id): void {
+    $load_scope_words = static function () use (&$scope_words_loaded, &$all_word_ids, &$word_category_lookup, &$category_word_ids_lookup, &$selected, $wordset_id): void {
         if ($scope_words_loaded) {
             return;
         }
         $scope_words_loaded = true;
 
-        $words_by_category = [];
         $all_word_ids = [];
         $word_category_lookup = [];
         $category_word_ids_lookup = [];
 
-        if (empty($selected) || !function_exists('ll_tools_user_study_words')) {
+        if (empty($selected) || !function_exists('ll_tools_user_study_renderable_word_ids_by_category')) {
             return;
         }
 
-        $words_by_category = ll_tools_user_study_words($selected, (int) $wordset_id);
+        $word_ids_by_category = ll_tools_user_study_renderable_word_ids_by_category($selected, (int) $wordset_id);
         foreach ($selected as $cid_raw) {
             $cid = (int) $cid_raw;
             if ($cid <= 0) {
                 continue;
             }
 
-            if (!isset($category_word_ids_lookup[$cid])) {
-                $category_word_ids_lookup[$cid] = [];
-            }
-
-            $rows = isset($words_by_category[$cid]) && is_array($words_by_category[$cid]) ? $words_by_category[$cid] : [];
-            foreach ($rows as $word) {
-                if (!is_array($word)) {
-                    continue;
-                }
-                $wid = isset($word['id']) ? (int) $word['id'] : 0;
+            $category_word_ids_lookup[$cid] = [];
+            $word_ids = isset($word_ids_by_category[$cid]) && is_array($word_ids_by_category[$cid]) ? $word_ids_by_category[$cid] : [];
+            foreach ($word_ids as $wid) {
+                $wid = (int) $wid;
                 if ($wid <= 0) {
                     continue;
                 }
@@ -5330,7 +5375,7 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
     }
 
     // 2) Review chunk recommendation (typically 8-15 words) shaped by user priorities.
-    if (!function_exists('ll_tools_user_study_words')) {
+    if (!function_exists('ll_tools_user_study_renderable_word_ids_by_category')) {
         return null;
     }
 

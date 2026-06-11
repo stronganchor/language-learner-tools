@@ -69,6 +69,85 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
         $this->assert_recommendation_word_count_within_bounds($recommendation, 'pipeline');
     }
 
+    public function test_pipeline_recommendation_scope_does_not_materialize_word_audio_posts(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $fixture = $this->create_wordset_category_with_words(18);
+
+        ll_tools_save_user_study_goals([
+            'enabled_modes' => ['learning', 'practice', 'self-check', 'listening'],
+            'ignored_category_ids' => [],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [],
+            'daily_new_word_target' => 2,
+        ], $user_id);
+
+        $word_audio_queries = 0;
+        $capture_word_audio_query = static function (WP_Query $query) use (&$word_audio_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? array_map('strval', $post_type) : [(string) $post_type];
+            if (in_array('word_audio', $post_types, true)) {
+                $word_audio_queries++;
+            }
+        };
+
+        add_action('pre_get_posts', $capture_word_audio_query);
+        try {
+            $recommendation = ll_tools_build_next_activity_recommendation(
+                $user_id,
+                $fixture['wordset_id'],
+                [$fixture['category_id']],
+                [$fixture['category_payload']]
+            );
+        } finally {
+            remove_action('pre_get_posts', $capture_word_audio_query);
+        }
+
+        $this->assertIsArray($recommendation);
+        $this->assertSame('pipeline', $recommendation['type']);
+        $this->assert_recommendation_word_count_within_bounds($recommendation, 'pipeline no audio rows');
+        $this->assertSame(0, $word_audio_queries, 'Recommendation scope loading should not hydrate word_audio post rows.');
+    }
+
+    public function test_completion_map_counts_outcome_only_progress_as_studied(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $fixture = $this->create_wordset_with_category_counts([5, 5]);
+        $category_ids = array_values(array_map('intval', (array) ($fixture['category_ids'] ?? [])));
+        $this->assertCount(2, $category_ids);
+
+        $studied_category_id = (int) $category_ids[0];
+        $new_category_id = (int) $category_ids[1];
+        $studied_word_ids = array_values(array_map('intval', (array) ($fixture['word_ids_by_category'][$studied_category_id] ?? [])));
+        $this->assertCount(5, $studied_word_ids);
+
+        foreach ($studied_word_ids as $index => $word_id) {
+            $this->seedWordProgressRow($user_id, $word_id, $studied_category_id, (int) $fixture['wordset_id'], [
+                'total_coverage' => 0,
+                'correct_clean' => ($index % 2 === 0) ? 1 : 0,
+                'incorrect' => ($index % 2 === 0) ? 0 : 1,
+            ]);
+        }
+
+        $completion = ll_tools_recommendation_category_completion_map(
+            $user_id,
+            (int) $fixture['wordset_id'],
+            [$studied_category_id, $new_category_id]
+        );
+
+        $this->assertSame(5, (int) ($completion[$studied_category_id]['total_words'] ?? 0));
+        $this->assertSame(5, (int) ($completion[$studied_category_id]['studied_words'] ?? 0));
+        $this->assertSame(0, (int) ($completion[$studied_category_id]['unstudied_words'] ?? -1));
+        $this->assertTrue((bool) ($completion[$studied_category_id]['is_fully_studied'] ?? false));
+        $this->assertTrue((bool) ($completion[$studied_category_id]['has_any_studied'] ?? false));
+
+        $this->assertSame(5, (int) ($completion[$new_category_id]['total_words'] ?? 0));
+        $this->assertSame(0, (int) ($completion[$new_category_id]['studied_words'] ?? -1));
+        $this->assertSame(5, (int) ($completion[$new_category_id]['unstudied_words'] ?? 0));
+        $this->assertFalse((bool) ($completion[$new_category_id]['is_fully_studied'] ?? true));
+        $this->assertFalse((bool) ($completion[$new_category_id]['has_any_studied'] ?? true));
+    }
+
     public function test_pipeline_recommendation_rotates_to_next_category_after_last_recommendation(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
