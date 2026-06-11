@@ -273,7 +273,6 @@ function ll_get_all_quiz_pages_data($opts = []) {
         return $cached_items;
     }
 
-    // Load all generated quiz pages, including legacy Page records during migration.
     $quiz_page_post_types = function_exists('ll_tools_get_quiz_page_post_types')
         ? ll_tools_get_quiz_page_post_types(true)
         : ['page'];
@@ -281,7 +280,41 @@ function ll_get_all_quiz_pages_data($opts = []) {
         ? LL_TOOLS_QUIZ_PAGE_CATEGORY_META
         : '_ll_tools_word_category_id';
 
-    $pages = get_posts([
+    $allowed_term_ids = null;
+    $ws_ids = [];
+    $filtered_wordset_id = 0;
+    $quiz_page_meta_category_ids = [];
+    if (!empty($opts['wordset'])) {
+        $ws_ids = ll_raw_resolve_wordset_term_ids($opts['wordset']);
+        if (empty($ws_ids)) return []; // nothing by that slug/name/id
+        $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($ws_ids);
+        if (empty($allowed_term_ids)) return []; // no categories used by that wordset
+        $filtered_wordset_id = (int) ($ws_ids[0] ?? 0);
+
+        $quiz_page_meta_category_ids = array_map('intval', (array) $allowed_term_ids);
+        if (function_exists('ll_tools_wordset_isolation_get_category_query_scope_for_wordset')) {
+            $scoped_meta_category_ids = [];
+            foreach ($ws_ids as $scope_wordset_id) {
+                $scope_wordset_id = (int) $scope_wordset_id;
+                if ($scope_wordset_id <= 0) {
+                    continue;
+                }
+                foreach (ll_tools_wordset_isolation_get_category_query_scope_for_wordset($quiz_page_meta_category_ids, $scope_wordset_id) as $scope_category_id) {
+                    $scoped_meta_category_ids[] = (int) $scope_category_id;
+                }
+            }
+            if (!empty($scoped_meta_category_ids)) {
+                $quiz_page_meta_category_ids = $scoped_meta_category_ids;
+            }
+        }
+        $quiz_page_meta_category_ids = array_values(array_unique(array_filter(array_map('intval', (array) $quiz_page_meta_category_ids), static function (int $id): bool {
+            return $id > 0;
+        })));
+        if (empty($quiz_page_meta_category_ids)) return [];
+    }
+
+    // Load generated quiz pages, including legacy Page records during migration.
+    $page_query_args = [
         'post_type'        => $quiz_page_post_types,
         'post_status'      => 'publish',
         'has_password'     => false,
@@ -289,10 +322,23 @@ function ll_get_all_quiz_pages_data($opts = []) {
         'suppress_filters' => true,
         'posts_per_page'   => -1,
         'fields'           => 'ids',
-        'meta_key'         => $quiz_page_category_meta,
         'orderby'          => 'ID',  // Ensure consistent ordering for deduplication
         'order'            => 'ASC',
-    ]);
+    ];
+    if (!empty($quiz_page_meta_category_ids)) {
+        $page_query_args['meta_query'] = [
+            [
+                'key'     => $quiz_page_category_meta,
+                'value'   => $quiz_page_meta_category_ids,
+                'compare' => 'IN',
+                'type'    => 'NUMERIC',
+            ],
+        ];
+    } else {
+        $page_query_args['meta_key'] = $quiz_page_category_meta;
+    }
+
+    $pages = get_posts($page_query_args);
     if (empty($pages)) {
         ll_tools_quiz_pages_data_cache_set($cache_key, []);
         return [];
@@ -308,18 +354,6 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
             return (int) $a <=> (int) $b;
         });
-    }
-
-    $allowed_term_ids = null;
-
-    $ws_ids = [];
-    $filtered_wordset_id = 0;
-    if (!empty($opts['wordset'])) {
-        $ws_ids = ll_raw_resolve_wordset_term_ids($opts['wordset']);
-        if (empty($ws_ids)) return []; // nothing by that slug/name/id
-        $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($ws_ids);
-        if (empty($allowed_term_ids)) return []; // no categories used by that wordset
-        $filtered_wordset_id = (int) ($ws_ids[0] ?? 0);
     }
 
     $items = [];
