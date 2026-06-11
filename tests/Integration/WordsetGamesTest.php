@@ -1840,6 +1840,10 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             foreach ($audioPosts as $audioPost) {
                 $this->assertInstanceOf(WP_Post::class, $audioPost);
                 update_post_meta((int) $audioPost->ID, 'recording_ipa', 'ipa ' . $index);
+                if ($index === 1) {
+                    update_post_meta((int) $audioPost->ID, 'recording_type', 'isolation');
+                    wp_set_object_terms((int) $audioPost->ID, [], 'recording_type', false);
+                }
             }
             $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
                 'total_coverage' => 6,
@@ -1924,6 +1928,15 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         foreach ((array) ($catalog['speaking-practice']['words'] ?? []) as $wordRow) {
             $this->assertSame('mastered', (string) ($wordRow['progress_status'] ?? ''));
         }
+
+        $summaryCatalog = ll_tools_wordset_games_build_catalog($wordsetId, $userId, false);
+        $this->assertArrayHasKey('speaking-practice', $summaryCatalog);
+        $this->assertTrue((bool) ($summaryCatalog['speaking-practice']['payload_deferred'] ?? false));
+        $this->assertSame(5, (int) ($summaryCatalog['speaking-practice']['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($summaryCatalog['speaking-practice']['launch_word_count'] ?? 0));
+        $this->assertTrue((bool) ($summaryCatalog['speaking-practice']['launchable'] ?? false));
+        $this->assertSame([], (array) ($summaryCatalog['speaking-practice']['words'] ?? []));
+        $this->assertSame('recording_ipa', (string) ($summaryCatalog['speaking-practice']['target_field'] ?? ''));
     }
 
     public function test_speaking_practice_payload_preserves_recording_text_and_ipa_for_display(): void
@@ -2117,6 +2130,15 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             $this->assertNotSame('', trim((string) ($wordRow['image'] ?? '')));
             $this->assertSame('mastered', (string) ($wordRow['progress_status'] ?? ''));
         }
+
+        $summaryCatalog = ll_tools_wordset_games_build_catalog($wordsetId, $userId, false);
+        $this->assertArrayHasKey('speaking-stack', $summaryCatalog);
+        $this->assertTrue((bool) ($summaryCatalog['speaking-stack']['payload_deferred'] ?? false));
+        $this->assertSame(5, (int) ($summaryCatalog['speaking-stack']['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($summaryCatalog['speaking-stack']['launch_word_count'] ?? 0));
+        $this->assertTrue((bool) ($summaryCatalog['speaking-stack']['launchable'] ?? false));
+        $this->assertSame([], (array) ($summaryCatalog['speaking-stack']['words'] ?? []));
+        $this->assertSame('recording_ipa', (string) ($summaryCatalog['speaking-stack']['target_field'] ?? ''));
     }
 
     public function test_speaking_games_can_be_restricted_to_managers_and_hidden_from_learners(): void

@@ -2339,6 +2339,321 @@ function ll_tools_wordset_games_build_lineup_deferred_count_pool(int $wordset_id
     ];
 }
 
+function ll_tools_wordset_games_filter_visible_candidate_word_ids(array $word_ids, int $wordset_id, array $category_ids): array {
+    $wordset_id = max(0, $wordset_id);
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    $category_ids = array_values(array_filter(array_map('intval', $category_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if ($wordset_id <= 0 || empty($word_ids) || empty($category_ids)) {
+        return [];
+    }
+
+    $visible_lookup = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $query = new WP_Query([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'post__in' => $chunk,
+            'no_found_rows' => true,
+            'suppress_filters' => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'tax_query' => [
+                'relation' => 'AND',
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$wordset_id],
+                ],
+                [
+                    'taxonomy' => 'word-category',
+                    'field' => 'term_id',
+                    'terms' => $category_ids,
+                ],
+            ],
+        ]);
+
+        foreach ((array) $query->posts as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id > 0) {
+                $visible_lookup[$word_id] = true;
+            }
+        }
+    }
+
+    return array_values(array_map('intval', array_keys($visible_lookup)));
+}
+
+function ll_tools_wordset_games_query_speaking_mastered_word_ids(int $wordset_id, int $user_id, array $category_ids): array {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    $user_id = max(0, $user_id);
+    $category_ids = array_values(array_filter(array_map('intval', $category_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if ($wordset_id <= 0 || $user_id <= 0 || empty($category_ids) || !function_exists('ll_tools_user_progress_table_names')) {
+        return [];
+    }
+
+    $tables = ll_tools_user_progress_table_names();
+    $table = isset($tables['words']) ? (string) $tables['words'] : '';
+    if ($table === '') {
+        return [];
+    }
+
+    $stage_threshold = function_exists('ll_tools_user_progress_mastered_stage_threshold')
+        ? ll_tools_user_progress_mastered_stage_threshold()
+        : 5;
+    $clean_threshold = function_exists('ll_tools_user_progress_mastered_clean_threshold')
+        ? ll_tools_user_progress_mastered_clean_threshold()
+        : 3;
+
+    $rows = $wpdb->get_results(
+        $wpdb->prepare(
+            "
+            SELECT *
+            FROM {$table}
+            WHERE user_id = %d
+              AND wordset_id = %d
+              AND (mastery_unlocked = 1 OR (stage >= %d AND correct_clean >= %d))
+              AND (total_coverage > 0 OR correct_clean > 0 OR correct_after_retry > 0 OR incorrect > 0)
+            ",
+            $user_id,
+            $wordset_id,
+            $stage_threshold,
+            $clean_threshold
+        ),
+        ARRAY_A
+    );
+    if (empty($rows)) {
+        return [];
+    }
+
+    $mastered_ids = [];
+    foreach ((array) $rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $row['practice_required_recording_types_json'] = (string) ($row['practice_required_recording_types'] ?? '');
+        $row['practice_correct_recording_types_json'] = (string) ($row['practice_correct_recording_types'] ?? '');
+        $status = function_exists('ll_tools_user_progress_word_status')
+            ? ll_tools_user_progress_word_status($row)
+            : (!empty($row['mastery_unlocked']) ? 'mastered' : 'studied');
+        if ($status === 'mastered') {
+            $mastered_ids[] = $word_id;
+        }
+    }
+
+    return ll_tools_wordset_games_filter_visible_candidate_word_ids($mastered_ids, $wordset_id, $category_ids);
+}
+
+function ll_tools_wordset_games_word_ids_with_speaking_isolation_audio(array $word_ids, string $target_field): array {
+    global $wpdb;
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $target_field = function_exists('ll_tools_sanitize_wordset_speaking_game_target')
+        ? ll_tools_sanitize_wordset_speaking_game_target($target_field)
+        : sanitize_key($target_field);
+    $duration_meta_key = ll_tools_wordset_games_get_audio_duration_cache_meta_key();
+    $isolation_term = get_term_by('slug', 'isolation', 'recording_type');
+    $isolation_ttid = ($isolation_term instanceof WP_Term) ? (int) $isolation_term->term_taxonomy_id : 0;
+
+    $eligible_lookup = [];
+    $checked_lookup = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $sql = $wpdb->prepare(
+            "
+            SELECT p.ID, p.post_parent, path.meta_value AS audio_path,
+                   text_meta.meta_value AS recording_text,
+                   ipa_meta.meta_value AS recording_ipa,
+                   duration_meta.meta_value AS duration_seconds
+            FROM {$wpdb->posts} p
+            LEFT JOIN {$wpdb->term_relationships} tr
+                ON tr.object_id = p.ID
+               AND tr.term_taxonomy_id = %d
+            LEFT JOIN {$wpdb->postmeta} type_meta
+                ON type_meta.post_id = p.ID
+               AND type_meta.meta_key = %s
+            INNER JOIN {$wpdb->postmeta} path
+                ON path.post_id = p.ID
+               AND path.meta_key = %s
+               AND path.meta_value <> ''
+            LEFT JOIN {$wpdb->postmeta} text_meta
+                ON text_meta.post_id = p.ID
+               AND text_meta.meta_key = %s
+            LEFT JOIN {$wpdb->postmeta} ipa_meta
+                ON ipa_meta.post_id = p.ID
+               AND ipa_meta.meta_key = %s
+            LEFT JOIN {$wpdb->postmeta} duration_meta
+                ON duration_meta.post_id = p.ID
+               AND duration_meta.meta_key = %s
+            WHERE p.post_type = %s
+              AND p.post_status = %s
+              AND (tr.object_id IS NOT NULL OR LOWER(TRIM(type_meta.meta_value)) = %s)
+              AND p.post_parent IN ({$placeholders})
+            ORDER BY p.post_parent ASC, p.post_date DESC, p.ID DESC
+            ",
+            array_merge([
+                $isolation_ttid,
+                'recording_type',
+                'audio_file_path',
+                'recording_text',
+                'recording_ipa',
+                $duration_meta_key,
+                'word_audio',
+                'publish',
+                'isolation',
+            ], $chunk)
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        foreach ((array) $rows as $row) {
+            $word_id = isset($row['post_parent']) ? (int) $row['post_parent'] : 0;
+            if ($word_id <= 0 || isset($checked_lookup[$word_id])) {
+                continue;
+            }
+
+            $recording_text = trim((string) ($row['recording_text'] ?? ''));
+            if ($recording_text !== '' && function_exists('ll_tools_trim_isolation_transcript')) {
+                $recording_text = ll_tools_trim_isolation_transcript($recording_text);
+            }
+            $recording_ipa = trim((string) ($row['recording_ipa'] ?? ''));
+
+            if (
+                $target_field !== 'recording_ipa'
+                && $recording_text !== ''
+                && ll_tools_wordset_games_count_isolation_words($recording_text) > ll_tools_wordset_games_speaking_isolation_max_word_count()
+            ) {
+                continue;
+            }
+
+            $duration = isset($row['duration_seconds']) && is_numeric($row['duration_seconds'])
+                ? (float) $row['duration_seconds']
+                : null;
+            if ($duration !== null && $duration > ll_tools_wordset_games_speaking_isolation_max_duration_seconds()) {
+                continue;
+            }
+
+            $checked_lookup[$word_id] = true;
+            if ($target_field === 'recording_ipa' && $recording_ipa === '') {
+                continue;
+            }
+            if ($target_field === 'recording_text' && $recording_text === '') {
+                continue;
+            }
+
+            $eligible_lookup[$word_id] = true;
+        }
+    }
+
+    return array_values(array_map('intval', array_keys($eligible_lookup)));
+}
+
+function ll_tools_wordset_games_build_speaking_deferred_count_pool(
+    int $wordset_id,
+    int $user_id = 0,
+    string $game_slug = 'speaking-practice',
+    bool $require_image = false
+): array {
+    $wordset_id = max(0, $wordset_id);
+    $uid = (int) ($user_id ?: get_current_user_id());
+    $minimum_word_count = ll_tools_wordset_games_min_word_count();
+    $disabled = [
+        'minimum_word_count' => $minimum_word_count,
+        'pool_source' => 'speaking_deferred_count',
+        'category_ids' => [],
+        'available_word_count' => 0,
+        'words' => [],
+        'target_field' => '',
+        'target_label' => '',
+        'enabled' => false,
+        'reason_code' => 'invalid_wordset',
+        'provider' => '',
+        'provider_label' => '',
+        'service_enabled' => false,
+        'local_endpoint' => '',
+    ];
+    if ($wordset_id <= 0) {
+        return $disabled;
+    }
+
+    $config = function_exists('ll_tools_get_wordset_speaking_game_config')
+        ? ll_tools_get_wordset_speaking_game_config([$wordset_id], true)
+        : [
+            'enabled' => false,
+            'provider' => '',
+            'provider_label' => '',
+            'uses_local_browser' => false,
+            'local_endpoint' => '',
+            'service_enabled' => false,
+            'target' => 'recording_text',
+            'target_label' => __('Written text', 'll-tools-text-domain'),
+        ];
+    $target_field = function_exists('ll_tools_sanitize_wordset_speaking_game_target')
+        ? ll_tools_sanitize_wordset_speaking_game_target((string) ($config['target'] ?? 'recording_text'))
+        : sanitize_key((string) ($config['target'] ?? 'recording_text'));
+    $target_label = (string) ($config['target_label'] ?? __('Written text', 'll-tools-text-domain'));
+    $base = array_merge($disabled, [
+        'target_field' => $target_field,
+        'target_label' => $target_label,
+        'provider' => (string) ($config['provider'] ?? ''),
+        'provider_label' => (string) ($config['provider_label'] ?? ''),
+        'service_enabled' => !empty($config['service_enabled']),
+        'local_endpoint' => ll_tools_wordset_games_public_local_endpoint((string) ($config['provider'] ?? ''), (string) ($config['local_endpoint'] ?? '')),
+    ]);
+
+    if (function_exists('ll_tools_user_can_access_wordset_speaking_games') && !ll_tools_user_can_access_wordset_speaking_games($wordset_id, $uid)) {
+        $base['pool_source'] = 'access_restricted';
+        $base['reason_code'] = 'speaking_access_restricted';
+        return $base;
+    }
+    if (empty($config['enabled'])) {
+        $base['pool_source'] = 'stt_disabled';
+        $base['reason_code'] = 'stt_not_enabled';
+        return $base;
+    }
+
+    $visible_category_ids = ll_tools_wordset_games_visible_category_ids($wordset_id, $uid, $game_slug);
+    $mastered_ids = ll_tools_wordset_games_query_speaking_mastered_word_ids($wordset_id, $uid, $visible_category_ids);
+
+    if ($require_image && !empty($mastered_ids) && function_exists('ll_tools_get_word_effective_image_presence_map')) {
+        $has_image_by_word = ll_tools_get_word_effective_image_presence_map($mastered_ids);
+        $mastered_ids = array_values(array_filter($mastered_ids, static function (int $word_id) use ($has_image_by_word): bool {
+            return !empty($has_image_by_word[$word_id]);
+        }));
+    }
+
+    $eligible_ids = ll_tools_wordset_games_word_ids_with_speaking_isolation_audio($mastered_ids, $target_field);
+    $available_count = count($eligible_ids);
+
+    return array_merge($base, [
+        'pool_source' => $require_image ? 'speaking_stack_deferred_count' : 'speaking_deferred_count',
+        'category_ids' => $visible_category_ids,
+        'available_word_count' => $available_count,
+        'enabled' => true,
+        'launchable' => $available_count >= $minimum_word_count,
+        'reason_code' => $available_count >= $minimum_word_count ? '' : 'not_enough_learned_words',
+    ]);
+}
+
 function ll_tools_wordset_games_defer_catalog_entry_payload(array $entry, bool $include_payload): array {
     if ($include_payload) {
         return $entry;
@@ -2472,13 +2787,21 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0,
         ], $include_payload);
     }
 
-    $speaking_pool = ll_tools_wordset_games_build_speaking_practice_pool($wordset_id, $user_id);
+    $speaking_pool = $include_payload
+        ? ll_tools_wordset_games_build_speaking_practice_pool($wordset_id, $user_id)
+        : ll_tools_wordset_games_build_speaking_deferred_count_pool($wordset_id, $user_id, 'speaking-practice', false);
     $speaking_minimum = (int) ($speaking_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
-    $speaking_available = count((array) ($speaking_pool['words'] ?? []));
-    $speaking_launch_words = ll_tools_wordset_games_limit_launch_words(
-        isset($speaking_pool['words']) && is_array($speaking_pool['words']) ? $speaking_pool['words'] : [],
-        ll_tools_wordset_games_speaking_practice_launch_word_cap()
-    );
+    $speaking_words = isset($speaking_pool['words']) && is_array($speaking_pool['words']) ? $speaking_pool['words'] : [];
+    $speaking_available = $include_payload
+        ? count((array) $speaking_words)
+        : (int) ($speaking_pool['available_word_count'] ?? 0);
+    $speaking_launch_cap = ll_tools_wordset_games_speaking_practice_launch_word_cap();
+    $speaking_launch_words = $include_payload
+        ? ll_tools_wordset_games_limit_launch_words($speaking_words, $speaking_launch_cap)
+        : [];
+    $speaking_launch_count = $include_payload
+        ? count($speaking_launch_words)
+        : min($speaking_available, $speaking_launch_cap);
     $speaking_enabled = !empty($speaking_pool['enabled']) && !empty($speaking_pool['service_enabled']);
     if ($speaking_enabled) {
         $catalog['speaking-practice'] = ll_tools_wordset_games_defer_catalog_entry_payload([
@@ -2487,8 +2810,8 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0,
             'description' => __('Say the word aloud. Compare what you said to the target text.', 'll-tools-text-domain'),
             'minimum_word_count' => $speaking_minimum,
             'available_word_count' => $speaking_available,
-            'launch_word_cap' => ll_tools_wordset_games_speaking_practice_launch_word_cap(),
-            'launch_word_count' => count($speaking_launch_words),
+            'launch_word_cap' => $speaking_launch_cap,
+            'launch_word_count' => $speaking_launch_count,
             'launchable' => $speaking_available >= $speaking_minimum,
             'reason_code' => $speaking_available >= $speaking_minimum
                 ? ''
@@ -2503,13 +2826,21 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0,
         ], $include_payload);
     }
 
-    $speaking_stack_pool = ll_tools_wordset_games_build_speaking_stack_pool($wordset_id, $user_id);
+    $speaking_stack_pool = $include_payload
+        ? ll_tools_wordset_games_build_speaking_stack_pool($wordset_id, $user_id)
+        : ll_tools_wordset_games_build_speaking_deferred_count_pool($wordset_id, $user_id, 'speaking-stack', true);
     $speaking_stack_minimum = (int) ($speaking_stack_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
-    $speaking_stack_available = count((array) ($speaking_stack_pool['words'] ?? []));
-    $speaking_stack_launch_words = ll_tools_wordset_games_limit_launch_words(
-        isset($speaking_stack_pool['words']) && is_array($speaking_stack_pool['words']) ? $speaking_stack_pool['words'] : [],
-        ll_tools_wordset_games_speaking_stack_launch_word_cap()
-    );
+    $speaking_stack_words = isset($speaking_stack_pool['words']) && is_array($speaking_stack_pool['words']) ? $speaking_stack_pool['words'] : [];
+    $speaking_stack_available = $include_payload
+        ? count((array) $speaking_stack_words)
+        : (int) ($speaking_stack_pool['available_word_count'] ?? 0);
+    $speaking_stack_launch_cap = ll_tools_wordset_games_speaking_stack_launch_word_cap();
+    $speaking_stack_launch_words = $include_payload
+        ? ll_tools_wordset_games_limit_launch_words($speaking_stack_words, $speaking_stack_launch_cap)
+        : [];
+    $speaking_stack_launch_count = $include_payload
+        ? count($speaking_stack_launch_words)
+        : min($speaking_stack_available, $speaking_stack_launch_cap);
     $speaking_stack_enabled = !empty($speaking_stack_pool['enabled']) && !empty($speaking_stack_pool['service_enabled']);
     if ($speaking_stack_enabled) {
         $catalog['speaking-stack'] = ll_tools_wordset_games_defer_catalog_entry_payload([
@@ -2518,8 +2849,8 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0,
             'description' => __('Say the picture before the stack reaches the top.', 'll-tools-text-domain'),
             'minimum_word_count' => $speaking_stack_minimum,
             'available_word_count' => $speaking_stack_available,
-            'launch_word_cap' => ll_tools_wordset_games_speaking_stack_launch_word_cap(),
-            'launch_word_count' => count($speaking_stack_launch_words),
+            'launch_word_cap' => $speaking_stack_launch_cap,
+            'launch_word_count' => $speaking_stack_launch_count,
             'launchable' => $speaking_stack_available >= $speaking_stack_minimum,
             'reason_code' => $speaking_stack_available >= $speaking_stack_minimum
                 ? ''
