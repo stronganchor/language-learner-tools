@@ -889,6 +889,45 @@ function ll_tools_wordset_page_get_category_word_status_summary(int $category_id
     return $summary;
 }
 
+/**
+ * @return int[]
+ */
+function ll_tools_wordset_page_get_category_word_ids(int $category_id, int $wordset_id): array {
+    $category_id = (int) $category_id;
+    $wordset_id = (int) $wordset_id;
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        return [];
+    }
+
+    $ids = get_posts([
+        'post_type'              => 'words',
+        'post_status'            => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'         => -1,
+        'fields'                 => 'ids',
+        'no_found_rows'          => true,
+        'cache_results'          => false,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'tax_query'              => [
+            'relation' => 'AND',
+            [
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => [$category_id],
+            ],
+            [
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => [$wordset_id],
+            ],
+        ],
+    ]);
+
+    return array_values(array_filter(array_map('intval', (array) $ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+}
+
 function ll_tools_wordset_page_get_staff_category_terms(int $wordset_id, array $counts = []): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
@@ -1192,14 +1231,101 @@ function ll_tools_wordset_page_category_delete_blocker(WP_Term $category, int $w
     if (empty($summary)) {
         $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
     }
-    if (max(0, (int) ($summary['total'] ?? 0)) > 0) {
-        return __('Remove or move the words in this category first.', 'll-tools-text-domain');
-    }
     if (max(0, (int) ($summary['prompt_card_count'] ?? 0)) > 0) {
         return __('Remove prompt cards in this category first.', 'll-tools-text-domain');
     }
 
     return '';
+}
+
+/**
+ * @return int|WP_Error
+ */
+function ll_tools_wordset_page_detach_category_from_words(int $category_id, int $wordset_id) {
+    $category_id = (int) $category_id;
+    $wordset_id = (int) $wordset_id;
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        return new WP_Error('category_delete', __('Choose a valid category.', 'll-tools-text-domain'));
+    }
+
+    $word_ids = ll_tools_wordset_page_get_category_word_ids($category_id, $wordset_id);
+    if (empty($word_ids)) {
+        return 0;
+    }
+
+    $detached = 0;
+    foreach ($word_ids as $word_id) {
+        $category_ids = wp_get_object_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($category_ids)) {
+            return new WP_Error('category_delete', __('Unable to remove this category from its words right now.', 'll-tools-text-domain'));
+        }
+
+        $remaining_category_ids = array_values(array_filter(array_map('intval', (array) $category_ids), static function (int $existing_category_id) use ($category_id): bool {
+            return $existing_category_id > 0 && $existing_category_id !== $category_id;
+        }));
+
+        $updated = wp_set_object_terms((int) $word_id, $remaining_category_ids, 'word-category', false);
+        if (is_wp_error($updated)) {
+            return new WP_Error('category_delete', __('Unable to remove this category from its words right now.', 'll-tools-text-domain'));
+        }
+
+        $detached++;
+    }
+
+    if (function_exists('ll_tools_word_grid_bump_category_cache_for_words')) {
+        ll_tools_word_grid_bump_category_cache_for_words($word_ids, $category_id);
+    } elseif (function_exists('ll_tools_bump_category_cache_version')) {
+        ll_tools_bump_category_cache_version([$category_id]);
+    }
+
+    return $detached;
+}
+
+/**
+ * @return array{deleted_lesson_count:int,detached_word_count:int}|WP_Error
+ */
+function ll_tools_wordset_page_delete_category_for_wordset(int $category_id, int $wordset_id, string $blocked_error_code = 'category_delete') {
+    $category_id = (int) $category_id;
+    $wordset_id = (int) $wordset_id;
+    $blocked_error_code = sanitize_key($blocked_error_code);
+    if ($blocked_error_code === '') {
+        $blocked_error_code = 'category_delete';
+    }
+
+    $category = ll_tools_wordset_page_get_owned_category_term($category_id, $wordset_id);
+    if (!($category instanceof WP_Term)) {
+        return new WP_Error($blocked_error_code, __('Choose a category from this word set.', 'll-tools-text-domain'));
+    }
+
+    $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
+    $delete_reason = ll_tools_wordset_page_category_delete_blocker($category, $wordset_id, $summary);
+    if ($delete_reason !== '') {
+        return new WP_Error($blocked_error_code, $delete_reason);
+    }
+
+    $lesson_delete_result = ll_tools_wordset_page_delete_vocab_lessons_for_category($category_id, $wordset_id);
+    if (is_wp_error($lesson_delete_result)) {
+        return $lesson_delete_result;
+    }
+
+    $detached_word_count = ll_tools_wordset_page_detach_category_from_words($category_id, $wordset_id);
+    if (is_wp_error($detached_word_count)) {
+        return $detached_word_count;
+    }
+
+    $deleted = wp_delete_term($category_id, 'word-category');
+    if (is_wp_error($deleted) || empty($deleted)) {
+        return new WP_Error('category_delete', __('Unable to delete that category right now.', 'll-tools-text-domain'));
+    }
+
+    if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+        ll_tools_bump_wordset_cache_epoch();
+    }
+
+    return [
+        'deleted_lesson_count' => (int) $lesson_delete_result,
+        'detached_word_count' => (int) $detached_word_count,
+    ];
 }
 
 /**
@@ -1402,29 +1528,17 @@ function ll_tools_wordset_page_process_inactive_category_action(string $action, 
 
     $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
     if ($action === 'delete') {
-        $delete_reason = ll_tools_wordset_page_category_delete_blocker($category, $wordset_id, $summary);
-        if ($delete_reason !== '') {
-            return new WP_Error('delete_blocked', $delete_reason);
-        }
-
-        $lesson_delete_result = ll_tools_wordset_page_delete_vocab_lessons_for_category($category_id, $wordset_id);
-        if (is_wp_error($lesson_delete_result)) {
-            return $lesson_delete_result;
-        }
-
-        $deleted = wp_delete_term($category_id, 'word-category');
-        if (is_wp_error($deleted) || empty($deleted)) {
-            return new WP_Error('delete_failed', __('Unable to delete this category right now.', 'll-tools-text-domain'));
-        }
-        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
-            ll_tools_bump_wordset_cache_epoch();
+        $delete_result = ll_tools_wordset_page_delete_category_for_wordset($category_id, $wordset_id, 'delete_blocked');
+        if (is_wp_error($delete_result)) {
+            return $delete_result;
         }
 
         return [
             'result' => 'deleted',
             'wordset_id' => $wordset_id,
             'category_id' => $category_id,
-            'deleted_lesson_count' => (int) $lesson_delete_result,
+            'deleted_lesson_count' => (int) ($delete_result['deleted_lesson_count'] ?? 0),
+            'detached_word_count' => (int) ($delete_result['detached_word_count'] ?? 0),
         ];
     }
 
@@ -12144,8 +12258,12 @@ function ll_tools_wordset_page_get_managed_category_rows(int $wordset_id, array 
         $delete_reason = '';
         if ($child_count > 0) {
             $delete_reason = __('Delete child categories first.', 'll-tools-text-domain');
-        } elseif ((int) ($row['word_count'] ?? 0) > 0) {
-            $delete_reason = __('Remove or move the words in this category first.', 'll-tools-text-domain');
+        } elseif (isset($term_lookup[$category_id]) && $term_lookup[$category_id] instanceof WP_Term) {
+            $delete_reason = ll_tools_wordset_page_category_delete_blocker(
+                $term_lookup[$category_id],
+                $wordset_id,
+                ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id)
+            );
         }
 
         $ordered_rows[$index]['child_count'] = $child_count;
@@ -12422,36 +12540,9 @@ function ll_tools_wordset_page_save_categories_settings(int $wordset_id) {
     }
 
     if ($action === 'delete') {
-        $child_terms = get_terms([
-            'taxonomy'   => 'word-category',
-            'hide_empty' => false,
-            'parent'     => $category_id,
-            'number'     => 1,
-            'meta_query' => defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')
-                ? [
-                    [
-                        'key'   => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
-                        'value' => $wordset_id,
-                    ],
-                ]
-                : [],
-        ]);
-        if (!is_wp_error($child_terms) && !empty($child_terms)) {
-            return new WP_Error('category_delete', __('Delete child categories first.', 'll-tools-text-domain'));
-        }
-        $delete_reason = ll_tools_wordset_page_category_delete_blocker($category, $wordset_id);
-        if ($delete_reason !== '') {
-            return new WP_Error('category_delete', $delete_reason);
-        }
-
-        $lesson_delete_result = ll_tools_wordset_page_delete_vocab_lessons_for_category($category_id, $wordset_id);
-        if (is_wp_error($lesson_delete_result)) {
-            return $lesson_delete_result;
-        }
-
-        $deleted = wp_delete_term($category_id, 'word-category');
-        if (is_wp_error($deleted) || !$deleted) {
-            return new WP_Error('category_delete', __('Unable to delete that category right now.', 'll-tools-text-domain'));
+        $delete_result = ll_tools_wordset_page_delete_category_for_wordset($category_id, $wordset_id, 'category_delete');
+        if (is_wp_error($delete_result)) {
+            return $delete_result;
         }
 
         return [
@@ -12598,7 +12689,7 @@ function ll_tools_wordset_page_render_settings_categories_tool(WP_Term $wordset_
             <div class="ll-wordset-settings-card__group">
                 <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Existing Categories', 'll-tools-text-domain'); ?></h3>
                 <p class="description" style="margin-top:0;">
-                    <?php echo esc_html__('Rename categories, update translated names, move them under a different parent, or delete empty categories.', 'll-tools-text-domain'); ?>
+                    <?php echo esc_html__('Rename categories, update translated names, move them under a different parent, or delete categories.', 'll-tools-text-domain'); ?>
                 </p>
                 <?php if (empty($category_rows)) : ?>
                     <div class="ll-wordset-settings-empty">
@@ -12615,7 +12706,7 @@ function ll_tools_wordset_page_render_settings_categories_tool(WP_Term $wordset_
                             $translation_value = (string) ($category_row['translation'] ?? '');
                             $presentation_label = (string) ($category_row['presentation_label'] ?? '');
                             $delete_reason = (string) ($category_row['delete_reason'] ?? '');
-                            $delete_confirm = esc_js(__('Delete this category and any linked vocab lesson?', 'll-tools-text-domain'));
+                            $delete_confirm = esc_js(__('Delete this category? Words in it will become uncategorized and any linked vocab lesson will be deleted. This cannot be undone.', 'll-tools-text-domain'));
                             ?>
                             <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-settings-category-row">
                                 <input type="hidden" name="ll_wordset_manager_settings_action" value="save" />
@@ -12705,7 +12796,7 @@ function ll_tools_wordset_page_render_settings_categories_tool(WP_Term $wordset_
                                         class="ll-wordset-settings-action ll-wordset-settings-action--danger"
                                         <?php disabled(empty($category_row['can_delete'])); ?>
                                         onclick="return confirm('<?php echo $delete_confirm; ?>');"
-                                    ><?php echo esc_html__('Delete Empty Category', 'll-tools-text-domain'); ?></button>
+                                    ><?php echo esc_html__('Delete Category', 'll-tools-text-domain'); ?></button>
                                 </div>
                                 <?php if ($delete_reason !== '') : ?>
                                     <p class="description ll-wordset-settings-category-row__delete-note"><?php echo esc_html($delete_reason); ?></p>

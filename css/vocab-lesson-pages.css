@@ -987,6 +987,13 @@ body.ll-vocab-lesson-category-settings-open {
     color: #1f2937;
 }
 
+.ll-vocab-lesson-category-settings-tool-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
 .ll-vocab-lesson-category-settings-tool-link {
     display: inline-flex !important;
     align-items: center !important;
@@ -1026,6 +1033,52 @@ body.ll-vocab-lesson-category-settings-open {
 .ll-vocab-lesson-category-settings-tool-link__icon svg {
     width: 18px !important;
     height: 18px !important;
+}
+
+.ll-vocab-lesson-category-settings-delete.ll-vocab-lesson-category-settings-delete {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    width: fit-content !important;
+    max-width: 100% !important;
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    border: 1px solid #e2b8b8 !important;
+    border-radius: 8px !important;
+    background: #fff5f5 !important;
+    color: #b42318 !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    box-shadow: none !important;
+}
+
+.ll-vocab-lesson-category-settings-delete:hover,
+.ll-vocab-lesson-category-settings-delete:focus-visible {
+    border-color: #d92d20 !important;
+    background: #fde8e8 !important;
+    color: #912018 !important;
+    outline: none !important;
+}
+
+.ll-vocab-lesson-category-settings-delete:disabled,
+.ll-vocab-lesson-category-settings-delete[disabled] {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+.ll-vocab-lesson-category-settings-delete__icon,
+.ll-vocab-lesson-category-settings-delete__svg {
+    display: inline-flex !important;
+    width: 16px !important;
+    height: 16px !important;
+    flex: 0 0 16px !important;
+    fill: currentColor !important;
 }
 
 .ll-vocab-lesson-category-settings-field {
@@ -2238,6 +2291,19 @@ body.ll-vocab-lesson-category-settings-open {
     margin-top: 12px;
 }
 
+.ll-vocab-lesson-empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 24px auto 0;
+}
+
+.ll-vocab-lesson-empty-actions .ll-vocab-lesson-add-word {
+    margin: 0;
+}
+
 .ll-vocab-lesson-add-word {
     display: flex;
     flex-direction: column;
@@ -2316,6 +2382,56 @@ body.ll-vocab-lesson-category-settings-open {
 
 .ll-vocab-lesson-add-word__status.is-error {
     color: #b42318;
+}
+
+.ll-vocab-lesson-empty-category-delete {
+    display: inline-flex;
+    margin: 0;
+}
+
+.ll-vocab-lesson-empty-category-delete__button.ll-vocab-lesson-empty-category-delete__button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
+    min-height: 52px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 2px solid rgba(180, 35, 24, 0.24) !important;
+    border-radius: 50% !important;
+    background: #fff5f5 !important;
+    background-image: none !important;
+    color: #b42318 !important;
+    box-shadow: 0 10px 24px rgba(46, 42, 36, 0.1) !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.ll-vocab-lesson-empty-category-delete__button:hover,
+.ll-vocab-lesson-empty-category-delete__button:focus-visible {
+    border-color: rgba(180, 35, 24, 0.54) !important;
+    background: #fee4e2 !important;
+    box-shadow: 0 14px 28px rgba(46, 42, 36, 0.14) !important;
+    transform: translateY(-2px);
+    outline: none !important;
+}
+
+.ll-vocab-lesson-empty-category-delete__button:focus-visible {
+    outline: 3px solid rgba(180, 35, 24, 0.28) !important;
+    outline-offset: 3px;
+}
+
+.ll-vocab-lesson-empty-category-delete__icon {
+    display: block;
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+    pointer-events: none;
 }
 
 .ll-vocab-lesson-print-body {

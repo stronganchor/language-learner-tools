@@ -43,7 +43,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-card__inactive-action--hide', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $inactive_card);
         $this->assertStringContainsString('ll-wordset-trash-icon', $inactive_card);
-        $this->assertStringContainsString('disabled', $inactive_card);
+        $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete" disabled', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-select', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-category-mode', $inactive_card);
         $this->assertStringNotContainsString('href="', $inactive_card);
@@ -235,6 +235,41 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertNull(get_post($lesson_id));
     }
 
+    public function test_inactive_category_action_process_deletes_non_empty_category_without_deleting_words(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['inactive_category_id'];
+        $word_id = (int) $fixture['inactive_word_id'];
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $result = ll_tools_wordset_page_process_inactive_category_action(
+            'delete',
+            $wordset_id,
+            $wordset_id,
+            $category_id,
+            wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)
+        );
+
+        $this->assertIsArray($result);
+        $this->assertSame('deleted', $result['result']);
+        $this->assertSame(1, (int) ($result['detached_word_count'] ?? 0));
+
+        $deleted_term = get_term($category_id, 'word-category');
+        $this->assertTrue($deleted_term === null || is_wp_error($deleted_term));
+        $this->assertSame('publish', get_post_status($word_id));
+
+        $word_categories = wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']);
+        $this->assertIsArray($word_categories);
+        $this->assertNotContains($category_id, array_map('intval', $word_categories));
+
+        $wordsets = wp_get_object_terms($word_id, 'wordset', ['fields' => 'ids']);
+        $this->assertIsArray($wordsets);
+        $this->assertContains($wordset_id, array_map('intval', $wordsets));
+    }
+
     private function findWordsetPageCategory(int $wordset_id, int $category_id): ?array
     {
         foreach (ll_tools_get_wordset_page_categories($wordset_id, 2) as $category) {
@@ -280,7 +315,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
     }
 
     /**
-     * @return array{wordset_id:int,inactive_category_id:int,empty_owned_category_id:int,image_only_category_id:int,image_id:int}
+     * @return array{wordset_id:int,inactive_category_id:int,inactive_word_id:int,empty_owned_category_id:int,image_only_category_id:int,image_id:int}
      */
     private function createWordsetFixture(): array
     {
@@ -325,7 +360,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
             );
         }
 
-        $this->createWord(
+        $inactive_word_id = $this->createWord(
             'Inactive Staff Only Word',
             'Inactive Staff Only Translation',
             $inactive_category_id,
@@ -356,6 +391,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         return [
             'wordset_id' => $wordset_id,
             'inactive_category_id' => $inactive_category_id,
+            'inactive_word_id' => $inactive_word_id,
             'empty_owned_category_id' => $empty_owned_category_id,
             'image_only_category_id' => $image_only_category_id,
             'image_id' => (int) $image_id,

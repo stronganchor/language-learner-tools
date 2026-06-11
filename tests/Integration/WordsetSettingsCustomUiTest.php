@@ -980,7 +980,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_categories_action" value="create"', $html);
         $this->assertStringContainsString('name="ll_wordset_categories_action" value="update"', $html);
         $this->assertStringContainsString('name="ll_wordset_category_translation"', $html);
-        $this->assertStringContainsString('Delete Empty Category', $html);
+        $this->assertStringContainsString('Delete Category', $html);
     }
 
     public function test_categories_settings_action_creates_updates_and_deletes_owned_categories_for_manager(): void
@@ -1473,13 +1473,15 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_tools_recorder_invite=', (string) ($captured[0]['message'] ?? ''));
     }
 
-    public function test_categories_settings_action_rejects_deleting_non_empty_owned_category_for_manager(): void
+    public function test_categories_settings_action_deletes_non_empty_owned_category_for_manager(): void
     {
         $this->ensureWordsetManagerRole();
         $fixture = $this->createWordsetFixtureWithCategory();
         $wordset_id = (int) $fixture['wordset_id'];
         $wordset_slug = (string) $fixture['wordset_slug'];
         $category_id = (int) $fixture['category_id'];
+        $word_id = (int) $fixture['word_id'];
+        $template_image_id = (int) $fixture['template_image_id'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
 
@@ -1508,12 +1510,21 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         });
 
         $query = $this->parseRedirectQuery($redirect_url);
-        $this->assertSame('error', (string) ($query['ll_wordset_manager_settings'] ?? ''));
-        $this->assertSame('category_delete', (string) ($query['ll_wordset_manager_settings_error'] ?? ''));
-        $this->assertSame('Remove or move the words in this category first.', (string) ($query['ll_wordset_manager_settings_message'] ?? ''));
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
+        $this->assertSame('Category deleted.', (string) ($query['ll_wordset_manager_settings_message'] ?? ''));
 
-        $category = get_term($category_id, 'word-category');
-        $this->assertInstanceOf(WP_Term::class, $category);
+        $deleted_category = get_term($category_id, 'word-category');
+        $this->assertTrue($deleted_category === null || is_wp_error($deleted_category));
+        $this->assertSame('publish', get_post_status($word_id));
+        $this->assertSame('publish', get_post_status($template_image_id));
+
+        $word_categories = wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']);
+        $this->assertIsArray($word_categories);
+        $this->assertNotContains($category_id, array_map('intval', $word_categories));
+
+        $word_wordsets = wp_get_object_terms($word_id, 'wordset', ['fields' => 'ids']);
+        $this->assertIsArray($word_wordsets);
+        $this->assertContains($wordset_id, array_map('intval', $word_wordsets));
     }
 
     public function test_offline_app_tool_renders_frontend_export_form_for_current_wordset(): void

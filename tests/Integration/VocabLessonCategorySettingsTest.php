@@ -48,6 +48,8 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_vocab_lesson_category_enabled_games[]"', $html);
         $this->assertStringContainsString('name="ll_vocab_lesson_category_lineup_word_ids"', $html);
         $this->assertStringContainsString('data-ll-category-settings-status', $html);
+        $this->assertStringContainsString('data-ll-category-settings-delete', $html);
+        $this->assertStringContainsString('Delete Category', $html);
         $this->assertStringContainsString('ll_editor_split_category=1', $html);
         $this->assertStringContainsString('ll_editor_category=' . (int) $fixture['category_id'], $html);
         $this->assertStringContainsString('#ll-wordset-editor-split', $html);
@@ -71,6 +73,26 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-add-lesson-word', $html);
         $this->assertStringContainsString('data-lesson-id="' . (int) $fixture['lesson_id'] . '"', $html);
         $this->assertStringContainsString('ll-vocab-lesson-add-word__button', $html);
+    }
+
+    public function test_managed_empty_lesson_page_renders_category_delete_shortcut_for_managers(): void
+    {
+        $manager_id = $this->createManagerUser();
+        wp_set_current_user($manager_id);
+
+        $fixture = $this->createManagedLessonFixture($manager_id, false);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $fixture['lesson_id']);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('ll-vocab-lesson-empty-actions', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-empty-category-delete', $html);
+        $this->assertStringContainsString('name="ll_vocab_lesson_category_settings_action" value="delete"', $html);
+        $this->assertStringContainsString('Delete empty category', $html);
     }
 
     public function test_wordset_manager_can_save_category_settings_from_lesson_page(): void
@@ -123,6 +145,52 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
             [(int) $fixture['word_b_id'], (int) $fixture['word_a_id']],
             array_map('intval', (array) get_term_meta((int) $fixture['category_id'], LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, true))
         );
+    }
+
+    public function test_wordset_manager_can_delete_category_from_lesson_page_without_deleting_words(): void
+    {
+        $manager_id = $this->createManagerUser();
+        wp_set_current_user($manager_id);
+
+        $fixture = $this->createManagedLessonFixture($manager_id);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $fixture['lesson_id']);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_vocab_lesson_category_settings_action' => 'delete',
+            'll_vocab_lesson_category_settings_lesson_id' => (string) $fixture['lesson_id'],
+            'll_vocab_lesson_category_settings_wordset_id' => (string) $fixture['wordset_id'],
+            'll_vocab_lesson_category_settings_category_id' => (string) $fixture['category_id'],
+            'll_vocab_lesson_category_settings_nonce' => wp_create_nonce('ll_vocab_lesson_category_settings_' . $fixture['lesson_id']),
+        ];
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_vocab_lesson_category_settings_submit();
+        });
+
+        $query = [];
+        parse_str((string) wp_parse_url($redirect_url, PHP_URL_QUERY), $query);
+
+        $this->assertSame('ok', (string) ($query['ll_wordset_inactive_category'] ?? ''));
+        $this->assertSame('deleted', (string) ($query['ll_wordset_inactive_category_result'] ?? ''));
+
+        $deleted_category = get_term((int) $fixture['category_id'], 'word-category');
+        $this->assertTrue($deleted_category === null || is_wp_error($deleted_category));
+        $this->assertNull(get_post((int) $fixture['lesson_id']));
+
+        foreach ([(int) $fixture['word_a_id'], (int) $fixture['word_b_id']] as $word_id) {
+            $this->assertSame('publish', get_post_status($word_id));
+
+            $word_categories = wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']);
+            $this->assertIsArray($word_categories);
+            $this->assertNotContains((int) $fixture['category_id'], array_map('intval', $word_categories));
+
+            $wordsets = wp_get_object_terms($word_id, 'wordset', ['fields' => 'ids']);
+            $this->assertIsArray($wordsets);
+            $this->assertContains((int) $fixture['wordset_id'], array_map('intval', $wordsets));
+        }
     }
 
     public function test_wordset_manager_can_reset_text_visibility_and_disable_recording_types_from_lesson_page(): void
@@ -253,7 +321,7 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
     /**
      * @return array<string,int>
      */
-    private function createManagedLessonFixture(int $manager_id): array
+    private function createManagedLessonFixture(int $manager_id, bool $with_words = true): array
     {
         $wordset = wp_insert_term('Managed Settings Wordset ' . wp_generate_password(4, false), 'wordset');
         $this->assertIsArray($wordset);
@@ -266,21 +334,25 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $category_id = (int) $category['term_id'];
         ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
 
-        $word_a_id = self::factory()->post->create([
-            'post_type' => 'words',
-            'post_status' => 'publish',
-            'post_title' => 'Alpha',
-        ]);
-        wp_set_post_terms($word_a_id, [$category_id], 'word-category', false);
-        wp_set_post_terms($word_a_id, [$wordset_id], 'wordset', false);
+        $word_a_id = 0;
+        $word_b_id = 0;
+        if ($with_words) {
+            $word_a_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Alpha',
+            ]);
+            wp_set_post_terms($word_a_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_a_id, [$wordset_id], 'wordset', false);
 
-        $word_b_id = self::factory()->post->create([
-            'post_type' => 'words',
-            'post_status' => 'publish',
-            'post_title' => 'Beta',
-        ]);
-        wp_set_post_terms($word_b_id, [$category_id], 'word-category', false);
-        wp_set_post_terms($word_b_id, [$wordset_id], 'wordset', false);
+            $word_b_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Beta',
+            ]);
+            wp_set_post_terms($word_b_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_b_id, [$wordset_id], 'wordset', false);
+        }
 
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',

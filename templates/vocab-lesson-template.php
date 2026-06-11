@@ -194,6 +194,27 @@ if (have_posts()) {
         && function_exists('ll_tools_vocab_lesson_prompt_cards_use_image_choice_grid')
         && ll_tools_vocab_lesson_prompt_cards_use_image_choice_grid($wordset_id, $category);
     $can_add_lesson_word = $can_edit_words && $wordset_id > 0 && $category_id > 0 && !$lesson_uses_prompt_cards;
+    $lesson_category_content_summary = (
+        $wordset_id > 0
+        && $category_id > 0
+        && function_exists('ll_tools_wordset_page_get_category_content_summary')
+    )
+        ? ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id)
+        : [];
+    $lesson_category_word_count = max(0, (int) ($lesson_category_content_summary['total'] ?? 0));
+    $lesson_category_delete_reason = '';
+    $can_delete_lesson_category = false;
+    if (
+        $can_manage_category_settings
+        && $category instanceof WP_Term
+        && !is_wp_error($category)
+        && function_exists('ll_tools_wordset_page_category_delete_blocker')
+    ) {
+        $lesson_category_delete_reason = ll_tools_wordset_page_category_delete_blocker($category, $wordset_id, $lesson_category_content_summary);
+        $can_delete_lesson_category = ($lesson_category_delete_reason === '');
+    }
+    $show_empty_category_delete_action = $can_delete_lesson_category && $lesson_category_word_count === 0;
+    $category_delete_confirm = __('Delete this category? Words in it will become uncategorized and the linked vocab lesson will be deleted. This cannot be undone.', 'll-tools-text-domain');
     $lesson_prereq_editor = [
         'show' => false,
         'options_json' => '[]',
@@ -909,19 +930,49 @@ if (have_posts()) {
                                         </div>
                                     </div>
 
-                                    <?php if ($category_split_url !== '') : ?>
+                                    <?php if ($category_split_url !== '' || $can_delete_lesson_category || $lesson_category_delete_reason !== '') : ?>
                                         <div class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-category-settings-section--tools">
                                             <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Tools', 'll-tools-text-domain'); ?></div>
-                                            <a class="ll-vocab-lesson-category-settings-tool-link" href="<?php echo esc_url($category_split_url); ?>">
-                                                <span class="ll-vocab-lesson-category-settings-tool-link__icon" aria-hidden="true">
-                                                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                                                        <path d="M5 4v4a5 5 0 0 0 5 5h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                                        <path d="M5 20v-4a5 5 0 0 1 5-5h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                                        <path d="M14 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                                    </svg>
-                                                </span>
-                                                <span><?php echo esc_html__('Split Category', 'll-tools-text-domain'); ?></span>
-                                            </a>
+                                            <div class="ll-vocab-lesson-category-settings-tool-actions">
+                                                <?php if ($category_split_url !== '') : ?>
+                                                    <a class="ll-vocab-lesson-category-settings-tool-link" href="<?php echo esc_url($category_split_url); ?>">
+                                                        <span class="ll-vocab-lesson-category-settings-tool-link__icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                                                <path d="M5 4v4a5 5 0 0 0 5 5h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                                                <path d="M5 20v-4a5 5 0 0 1 5-5h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                                                <path d="M14 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            </svg>
+                                                        </span>
+                                                        <span><?php echo esc_html__('Split Category', 'll-tools-text-domain'); ?></span>
+                                                    </a>
+                                                <?php endif; ?>
+                                                <button
+                                                    type="submit"
+                                                    name="ll_vocab_lesson_category_settings_action"
+                                                    value="delete"
+                                                    class="ll-vocab-lesson-category-settings-delete"
+                                                    data-ll-category-settings-delete
+                                                    data-confirm="<?php echo esc_attr($category_delete_confirm); ?>"
+                                                    <?php disabled(!$can_delete_lesson_category); ?>>
+                                                    <span class="ll-vocab-lesson-category-settings-delete__icon" aria-hidden="true">
+                                                        <?php
+                                                        if (function_exists('ll_tools_wordset_page_render_trash_icon')) {
+                                                            echo ll_tools_wordset_page_render_trash_icon('ll-vocab-lesson-category-settings-delete__svg'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                                        } else {
+                                                            ?>
+                                                            <svg class="ll-vocab-lesson-category-settings-delete__svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                                                <path d="M5 7h14M10 11v6M14 11v6M8 7l1-3h6l1 3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            </svg>
+                                                            <?php
+                                                        }
+                                                        ?>
+                                                    </span>
+                                                    <span><?php echo esc_html__('Delete Category', 'll-tools-text-domain'); ?></span>
+                                                </button>
+                                            </div>
+                                            <?php if (!$can_delete_lesson_category && $lesson_category_delete_reason !== '') : ?>
+                                                <p class="ll-vocab-lesson-category-settings-help"><?php echo esc_html($lesson_category_delete_reason); ?></p>
+                                            <?php endif; ?>
                                         </div>
                                     <?php endif; ?>
 
@@ -1547,21 +1598,56 @@ if (have_posts()) {
             <?php else : ?>
                 <?php the_content(); ?>
             <?php endif; ?>
-            <?php if ($can_add_lesson_word) : ?>
-                <div class="ll-vocab-lesson-add-word" data-ll-add-lesson-word-wrap>
-                    <button
-                        type="button"
-                        class="ll-vocab-lesson-add-word__button"
-                        data-ll-add-lesson-word
-                        data-lesson-id="<?php echo esc_attr((string) $post_id); ?>"
-                        aria-label="<?php echo esc_attr__('Add word to this lesson', 'll-tools-text-domain'); ?>"
-                        title="<?php echo esc_attr__('Add word to this lesson', 'll-tools-text-domain'); ?>">
-                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-                        </svg>
-                        <span class="screen-reader-text"><?php echo esc_html__('Add word', 'll-tools-text-domain'); ?></span>
-                    </button>
-                    <span class="ll-vocab-lesson-add-word__status" data-ll-add-lesson-word-status role="status" aria-live="polite" hidden></span>
+            <?php if ($can_add_lesson_word || $show_empty_category_delete_action) : ?>
+                <div class="ll-vocab-lesson-empty-actions">
+                    <?php if ($can_add_lesson_word) : ?>
+                        <div class="ll-vocab-lesson-add-word" data-ll-add-lesson-word-wrap>
+                            <button
+                                type="button"
+                                class="ll-vocab-lesson-add-word__button"
+                                data-ll-add-lesson-word
+                                data-lesson-id="<?php echo esc_attr((string) $post_id); ?>"
+                                aria-label="<?php echo esc_attr__('Add word to this lesson', 'll-tools-text-domain'); ?>"
+                                title="<?php echo esc_attr__('Add word to this lesson', 'll-tools-text-domain'); ?>">
+                                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                    <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                                </svg>
+                                <span class="screen-reader-text"><?php echo esc_html__('Add word', 'll-tools-text-domain'); ?></span>
+                            </button>
+                            <span class="ll-vocab-lesson-add-word__status" data-ll-add-lesson-word-status role="status" aria-live="polite" hidden></span>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($show_empty_category_delete_action) : ?>
+                        <form
+                            class="ll-vocab-lesson-empty-category-delete"
+                            method="post"
+                            action="<?php echo esc_url(get_permalink($post_id)); ?>"
+                            onsubmit="return window.confirm('<?php echo esc_js($category_delete_confirm); ?>');">
+                            <input type="hidden" name="ll_vocab_lesson_category_settings_action" value="delete" />
+                            <input type="hidden" name="ll_vocab_lesson_category_settings_lesson_id" value="<?php echo esc_attr((string) $post_id); ?>" />
+                            <input type="hidden" name="ll_vocab_lesson_category_settings_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
+                            <input type="hidden" name="ll_vocab_lesson_category_settings_category_id" value="<?php echo esc_attr((string) $category_id); ?>" />
+                            <input type="hidden" name="ll_vocab_lesson_category_settings_nonce" value="<?php echo esc_attr($category_settings_nonce); ?>" />
+                            <button
+                                type="submit"
+                                class="ll-vocab-lesson-empty-category-delete__button"
+                                aria-label="<?php echo esc_attr__('Delete empty category', 'll-tools-text-domain'); ?>"
+                                title="<?php echo esc_attr__('Delete empty category', 'll-tools-text-domain'); ?>">
+                                <?php
+                                if (function_exists('ll_tools_wordset_page_render_trash_icon')) {
+                                    echo ll_tools_wordset_page_render_trash_icon('ll-vocab-lesson-empty-category-delete__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                } else {
+                                    ?>
+                                    <svg class="ll-vocab-lesson-empty-category-delete__icon" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                        <path d="M5 7h14M10 11v6M14 11v6M8 7l1-3h6l1 3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    <?php
+                                }
+                                ?>
+                                <span class="screen-reader-text"><?php echo esc_html__('Delete empty category', 'll-tools-text-domain'); ?></span>
+                            </button>
+                        </form>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>

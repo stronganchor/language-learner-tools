@@ -129,9 +129,9 @@ const inactiveCategory = {
   has_images: false,
   can_manage_inactive: true,
   can_hide: true,
-  can_delete: false,
+  can_delete: true,
   can_preview: true,
-  delete_reason: 'Needs word records.',
+  delete_reason: '',
   inactive_action_nonce: 'inactive-action-nonce',
   inactive_action_url: '/wordsets/lazy-wordset/',
   public_note: 'Needs word records.',
@@ -957,7 +957,7 @@ test('client-rendered inactive categories include hide and trash controls', asyn
   await expect(inactiveCard).toBeVisible();
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-actions')).toHaveCount(1);
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--hide')).toHaveCount(1);
-  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeDisabled();
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeEnabled();
   await expect(inactiveCard.locator('.ll-wordset-card__hide-spacer')).toHaveCount(0);
   await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-trigger]')).toHaveCount(2);
   await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-form]')).toHaveCount(1);
@@ -1004,7 +1004,7 @@ test('legacy inactive cards missing action controls are repaired on init', async
   const inactiveCard = page.locator('.ll-wordset-card--inactive[data-cat-id="44"]');
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-actions')).toHaveCount(1);
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--hide')).toHaveCount(1);
-  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeDisabled();
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeEnabled();
   await expect(inactiveCard.locator('.ll-wordset-card__hide-spacer')).toHaveCount(0);
 });
 

@@ -543,6 +543,31 @@
         performCategorySettingsSave($panel);
     }
 
+    function getCategorySettingsSubmittedAction(event, $panel) {
+        const originalEvent = event && event.originalEvent ? event.originalEvent : null;
+        const submitter = originalEvent && originalEvent.submitter ? originalEvent.submitter : null;
+        if (submitter && submitter.name === 'll_vocab_lesson_category_settings_action') {
+            return (submitter.value || '').toString();
+        }
+
+        const storedAction = ($panel.data('llCategorySettingsSubmitAction') || '').toString();
+        if (storedAction) {
+            return storedAction;
+        }
+
+        return ($panel.find('input[name="ll_vocab_lesson_category_settings_action"]').first().val() || '').toString();
+    }
+
+    function getCategorySettingsSubmitter(event) {
+        const originalEvent = event && event.originalEvent ? event.originalEvent : null;
+        if (originalEvent && originalEvent.submitter) {
+            return $(originalEvent.submitter);
+        }
+
+        const storedSubmitter = $(document).data('llCategorySettingsSubmitter');
+        return storedSubmitter ? $(storedSubmitter) : $();
+    }
+
     function isCategorySettingsAutosaveField(target) {
         if (!target || !target.matches || $(target).closest('[data-ll-prereq-editor]').length) {
             return false;
@@ -858,10 +883,40 @@
                 scheduleCategorySettingsSave($panel, 350);
             });
 
+            $categorySettings.on('click', '[data-ll-category-settings-delete]', function () {
+                const $panel = $(this).closest('.ll-vocab-lesson-category-settings-panel');
+                $panel.data('llCategorySettingsSubmitAction', 'delete');
+                $(document).data('llCategorySettingsSubmitter', this);
+            });
+
             $categorySettings.on('submit', '.ll-vocab-lesson-category-settings-panel', function (event) {
+                const $panel = $(this);
+                const submittedAction = getCategorySettingsSubmittedAction(event, $panel);
+                if (submittedAction === 'delete') {
+                    const $submitter = getCategorySettingsSubmitter(event);
+                    const message = (
+                        $submitter.attr('data-confirm') ||
+                        $panel.attr('data-ll-category-settings-delete-confirm') ||
+                        ''
+                    ).toString().trim();
+                    if (message && !window.confirm(message)) {
+                        event.preventDefault();
+                        $panel.removeData('llCategorySettingsSubmitAction');
+                        $(document).removeData('llCategorySettingsSubmitter');
+                        return;
+                    }
+                    clearCategorySettingsSaveTimer($panel);
+                    clearCategorySettingsResetTimer($panel);
+                    $panel.removeData('llCategorySettingsSubmitAction');
+                    $(document).removeData('llCategorySettingsSubmitter');
+                    return;
+                }
+
                 event.preventDefault();
-                syncCategoryLineupInput($(this));
-                saveCategorySettingsNow($(this));
+                $panel.removeData('llCategorySettingsSubmitAction');
+                $(document).removeData('llCategorySettingsSubmitter');
+                syncCategoryLineupInput($panel);
+                saveCategorySettingsNow($panel);
             });
         }
 

@@ -3189,6 +3189,11 @@ function ll_tools_get_vocab_lesson_category_settings_notice(): ?array {
         case 'lesson':
             $message = __('Lesson not found.', 'll-tools-text-domain');
             break;
+        case 'delete_blocked':
+        case 'category_delete':
+        case 'delete':
+            $message = __('Unable to delete this category right now.', 'll-tools-text-domain');
+            break;
         default:
             $message = __('Unable to save this category right now.', 'll-tools-text-domain');
             break;
@@ -3271,6 +3276,26 @@ function ll_tools_get_vocab_lesson_category_settings_success_redirect_url(int $w
         'll_wordset_manager_settings' => 'ok',
         'll_wordset_manager_settings_message' => __('Category settings were saved. This category no longer has a vocab lesson page for the current setup.', 'll-tools-text-domain'),
     ], $wordset_redirect);
+}
+
+function ll_tools_get_vocab_lesson_category_delete_redirect_url(int $wordset_id, string $fallback_url = ''): string {
+    $wordset_id = (int) $wordset_id;
+    $fallback_url = is_string($fallback_url) && $fallback_url !== '' ? $fallback_url : home_url('/');
+    $redirect_url = $fallback_url;
+
+    $wordset_term = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
+    if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term)) {
+        if (function_exists('ll_tools_get_wordset_page_view_url')) {
+            $redirect_url = ll_tools_get_wordset_page_view_url($wordset_term);
+        } else {
+            $redirect_url = home_url('/' . (string) $wordset_term->slug . '/');
+        }
+    }
+
+    return add_query_arg([
+        'll_wordset_inactive_category' => 'ok',
+        'll_wordset_inactive_category_result' => 'deleted',
+    ], $redirect_url);
 }
 
 function ll_tools_vocab_lesson_enqueue_assets() {
@@ -3463,7 +3488,7 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
     $action = isset($request['ll_vocab_lesson_category_settings_action'])
         ? sanitize_key(wp_unslash((string) $request['ll_vocab_lesson_category_settings_action']))
         : '';
-    if ($action !== 'save') {
+    if (!in_array($action, ['save', 'delete'], true)) {
         return ll_tools_vocab_lesson_category_settings_error(
             'action',
             __('Invalid request.', 'll-tools-text-domain'),
@@ -3537,6 +3562,35 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
             __('This lesson no longer matches that word set category.', 'll-tools-text-domain'),
             400
         );
+    }
+
+    if ($action === 'delete') {
+        if (!function_exists('ll_tools_wordset_page_delete_category_for_wordset')) {
+            return ll_tools_vocab_lesson_category_settings_error(
+                'delete',
+                __('Unable to delete this category right now.', 'll-tools-text-domain'),
+                500
+            );
+        }
+
+        $delete_result = ll_tools_wordset_page_delete_category_for_wordset($category_id, $wordset_id, 'delete_blocked');
+        if (is_wp_error($delete_result)) {
+            return ll_tools_vocab_lesson_category_settings_error(
+                ll_tools_get_vocab_lesson_category_settings_error_code($delete_result),
+                $delete_result->get_error_message(),
+                $delete_result->get_error_code() === 'delete_blocked' ? 409 : 400
+            );
+        }
+
+        return [
+            'lesson_id' => $lesson_id,
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'result' => 'deleted',
+            'deleted_lesson_count' => (int) ($delete_result['deleted_lesson_count'] ?? 0),
+            'detached_word_count' => (int) ($delete_result['detached_word_count'] ?? 0),
+            'message' => __('Category deleted.', 'll-tools-text-domain'),
+        ];
     }
 
     $existing_quiz_config = function_exists('ll_tools_get_category_quiz_config')
@@ -3673,7 +3727,7 @@ function ll_tools_handle_vocab_lesson_category_settings_submit(): void {
     $action = isset($_POST['ll_vocab_lesson_category_settings_action'])
         ? sanitize_key(wp_unslash((string) $_POST['ll_vocab_lesson_category_settings_action']))
         : '';
-    if ($action !== 'save') {
+    if (!in_array($action, ['save', 'delete'], true)) {
         return;
     }
 
@@ -3703,6 +3757,14 @@ function ll_tools_handle_vocab_lesson_category_settings_submit(): void {
         ]);
     }
 
+    if (($result['result'] ?? '') === 'deleted') {
+        wp_safe_redirect(ll_tools_get_vocab_lesson_category_delete_redirect_url(
+            (int) ($result['wordset_id'] ?? 0),
+            $base_redirect
+        ));
+        exit;
+    }
+
     wp_safe_redirect(ll_tools_get_vocab_lesson_category_settings_success_redirect_url(
         (int) ($result['wordset_id'] ?? 0),
         (int) ($result['category_id'] ?? 0),
@@ -3730,13 +3792,16 @@ function ll_tools_save_vocab_lesson_category_settings_ajax_handler(): void {
     if (!is_string($fallback_url)) {
         $fallback_url = '';
     }
+    $redirect_url = (($result['result'] ?? '') === 'deleted')
+        ? ll_tools_get_vocab_lesson_category_delete_redirect_url($wordset_id, $fallback_url)
+        : ll_tools_get_vocab_lesson_category_settings_success_redirect_url($wordset_id, $category_id, $fallback_url);
 
     wp_send_json_success([
         'message' => (string) ($result['message'] ?? __('Changes saved.', 'll-tools-text-domain')),
         'lesson_id' => $lesson_id,
         'wordset_id' => $wordset_id,
         'category_id' => $category_id,
-        'redirect_url' => ll_tools_get_vocab_lesson_category_settings_success_redirect_url($wordset_id, $category_id, $fallback_url),
+        'redirect_url' => $redirect_url,
     ]);
 }
 add_action('wp_ajax_ll_tools_save_vocab_lesson_category_settings', 'll_tools_save_vocab_lesson_category_settings_ajax_handler');
