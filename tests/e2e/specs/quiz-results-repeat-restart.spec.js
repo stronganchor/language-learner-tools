@@ -196,6 +196,7 @@ async function mountPracticeProgressHarness(page, options = {}) {
   await page.evaluate((bootstrap) => {
     window.__LLFlashcardsMainLoaded = false;
     window.__progressCalls = [];
+    window.__progressDisplayRatios = [];
     window.__showResultsCount = 0;
     window.__currentTarget = null;
     window.__targets = bootstrap.roundTargets.slice();
@@ -230,11 +231,20 @@ async function mountPracticeProgressHarness(page, options = {}) {
       disableRepeatButton() {},
       bindRepeatButtonAudio() {},
       hideAutoplayBlockedOverlay() {},
-      updateSimpleProgress(currentCount, totalCount) {
+      updateSimpleProgress(currentCount, totalCount, progressOptions) {
+        const total = Math.max(0, Number(totalCount) || 0);
+        const current = Math.max(0, Number(currentCount) || 0);
+        const clampedCurrent = total > 0 ? Math.min(total, current) : 0;
+        const rawRatio = total > 0 ? (clampedCurrent / total) : 0;
+        const minDisplayRatio = Number(progressOptions && progressOptions.minDisplayRatio);
+        const displayRatio = Number.isFinite(minDisplayRatio)
+          ? Math.max(rawRatio, Math.max(0, Math.min(1, minDisplayRatio)))
+          : rawRatio;
         window.__progressCalls.push({
-          current: Number(currentCount) || 0,
-          total: Number(totalCount) || 0
+          current,
+          total
         });
+        window.__progressDisplayRatios.push(displayRatio);
       }
     };
     window.LLFlashcards.Effects = {
@@ -280,6 +290,7 @@ async function mountPracticeProgressHarness(page, options = {}) {
 
     window.FlashcardOptions = {
       initializeOptionsCount() {},
+      calculateNumberOfOptions() { return 2; },
       categoryOptionsCount: { Kitchen: 2 }
     };
     window.FlashcardLoader = {
@@ -408,6 +419,71 @@ test('practice progress reaches full on the actual last answer without inserting
   }));
   expect(finalState.remainingTargets).toBe(0);
   expect(finalState.flowState).toBe('showing_results');
+});
+
+test('practice progress reopens a completed word while its wrong-answer replay is pending', async ({ page }) => {
+  const cup = { id: 501, title: 'Cup', __categoryName: 'Kitchen' };
+  const plate = { id: 502, title: 'Plate', __categoryName: 'Kitchen' };
+
+  await mountPracticeProgressHarness(page, {
+    targets: [cup, plate],
+    roundTargets: [cup, plate, cup, cup]
+  });
+
+  const answerCurrentRound = async () => {
+    await page.evaluate(() => {
+      window.LLFlashcards.Main.onCorrectAnswer(
+        window.__currentTarget,
+        window.jQuery('.correct-card')
+      );
+    });
+  };
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  await answerCurrentRound();
+  await page.waitForFunction(() => window.__currentTarget && window.__currentTarget.id === 502);
+
+  await answerCurrentRound();
+  await page.waitForFunction(() => window.__currentTarget && window.__currentTarget.id === 501);
+
+  let progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  let displayRatios = await page.evaluate(() => window.__progressDisplayRatios.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 2, total: 2 });
+  expect(displayRatios.at(-1)).toBe(1);
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.onWrongAnswer(
+      window.__currentTarget,
+      0,
+      window.jQuery('.wrong-card')
+    );
+  });
+  await page.waitForFunction(() => window.__progressCalls.at(-1).current === 1);
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  displayRatios = await page.evaluate(() => window.__progressDisplayRatios.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
+  expect(displayRatios.at(-1)).toBe(0.5);
+
+  await answerCurrentRound();
+  await page.waitForFunction(() => window.__currentTarget && window.__currentTarget.id === 501 && window.__targets.length === 0);
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  displayRatios = await page.evaluate(() => window.__progressDisplayRatios.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
+  expect(displayRatios.at(-1)).toBe(0.5);
+
+  await answerCurrentRound();
+  await page.waitForFunction(() => window.__progressCalls.at(-1).current === 2);
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  displayRatios = await page.evaluate(() => window.__progressDisplayRatios.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 2, total: 2 });
+  expect(displayRatios.at(-1)).toBe(1);
 });
 
 test('practice progress waits for a clean replay round after a wrong guess', async ({ page }) => {

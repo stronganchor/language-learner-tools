@@ -615,6 +615,7 @@
         if (existingIndex !== -1) {
             if (force) {
                 queue[existingIndex].forceReplay = true;
+                queue[existingIndex].needsCleanReplay = true;
             }
             return;
         }
@@ -638,7 +639,8 @@
         queue.push({
             wordData: targetWord,
             reappearRound: base + offset,
-            forceReplay: force
+            forceReplay: force,
+            needsCleanReplay: force
         });
     }
 

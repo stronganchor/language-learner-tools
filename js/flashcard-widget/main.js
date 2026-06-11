@@ -1393,15 +1393,28 @@
         if (!idNum) return;
         const key = String(idNum);
         const results = ensureQuizResultsShape();
-        const stats = results.wordAttempts[key] || { seen: 0, clean: 0, hadWrong: false };
+        const stats = results.wordAttempts[key] || { seen: 0, clean: 0, hadWrong: false, needsCleanReplay: false };
         stats.seen += 1;
         if (!hadWrongThisTurn) {
             stats.clean += 1;
+            stats.needsCleanReplay = false;
         } else {
             stats.hadWrong = true;
+            stats.needsCleanReplay = true;
         }
         results.wordAttempts[key] = stats;
         recomputeQuizResultTotals();
+    }
+
+    function markPracticeProgressNeedsCleanReplay(wordId) {
+        const idNum = parseInt(wordId, 10);
+        if (!idNum) return;
+        const key = String(idNum);
+        const results = ensureQuizResultsShape();
+        const stats = results.wordAttempts[key] || { seen: 0, clean: 0, hadWrong: false, needsCleanReplay: false };
+        stats.hadWrong = true;
+        stats.needsCleanReplay = true;
+        results.wordAttempts[key] = stats;
     }
 
     function getPracticeProgressStarMode() {
@@ -1618,14 +1631,56 @@
         return loadedTotal;
     }
 
+    function getPracticeProgressPendingCleanReplayWordIds() {
+        const results = ensureQuizResultsShape();
+        const attempts = results.wordAttempts || {};
+        const pending = {};
+        Object.keys(attempts).forEach(function (key) {
+            const info = attempts[key] || {};
+            const id = parseInt(key, 10) || 0;
+            if (id > 0 && info.needsCleanReplay) {
+                pending[id] = true;
+            }
+        });
+
+        const forced = (State.practiceForcedReplays && typeof State.practiceForcedReplays === 'object')
+            ? State.practiceForcedReplays
+            : {};
+        Object.keys(forced).forEach(function (key) {
+            const id = parseInt(key, 10) || 0;
+            const count = parseInt(forced[key], 10) || 0;
+            if (id > 0 && count > 0) {
+                pending[id] = true;
+            }
+        });
+
+        const queues = (State.categoryRepetitionQueues && typeof State.categoryRepetitionQueues === 'object')
+            ? State.categoryRepetitionQueues
+            : {};
+        Object.keys(queues).forEach(function (categoryName) {
+            const queue = queues[categoryName];
+            if (!Array.isArray(queue)) return;
+            queue.forEach(function (item) {
+                const id = parseInt(item && item.wordData && item.wordData.id, 10) || 0;
+                if (id > 0 && item && item.needsCleanReplay) {
+                    pending[id] = true;
+                }
+            });
+        });
+
+        return pending;
+    }
+
     function getPracticeProgressAnsweredUniqueCount() {
         const results = ensureQuizResultsShape();
         const attempts = results.wordAttempts || {};
+        const pendingCleanReplay = getPracticeProgressPendingCleanReplayWordIds();
         let count = 0;
         Object.keys(attempts).forEach(function (key) {
             const info = attempts[key] || {};
             const clean = parseInt(info.clean, 10) || 0;
-            if (clean > 0) {
+            const id = parseInt(key, 10) || 0;
+            if (clean > 0 && !(id > 0 && pendingCleanReplay[id])) {
                 count += 1;
             }
         });
@@ -1643,9 +1698,14 @@
 
         const safeTotal = Math.max(1, total);
         const rawRatio = Math.max(0, Math.min(1, answeredUnique / safeTotal));
+        const hasPendingCleanReplay = Object.keys(getPracticeProgressPendingCleanReplayWordIds()).length > 0;
         // Categories load asynchronously in practice mode; keep display monotonic
         // so late category loads cannot make progress appear to move backwards.
-        practiceProgressMinDisplayRatio = Math.max(practiceProgressMinDisplayRatio, rawRatio);
+        // A wrong-answer replay is different: it reopens a word until a clean
+        // replay round, so progress must be allowed to drop below its prior peak.
+        practiceProgressMinDisplayRatio = hasPendingCleanReplay
+            ? Math.min(practiceProgressMinDisplayRatio, rawRatio)
+            : Math.max(practiceProgressMinDisplayRatio, rawRatio);
         try {
             Dom.updateSimpleProgress(answeredUnique, total, {
                 minDisplayRatio: practiceProgressMinDisplayRatio
@@ -3544,6 +3604,10 @@
             trackWordExposureForProgress(targetWord, State.currentCategoryName);
         }
         trackWordOutcomeForProgress(targetWord, false, false, State.currentCategoryName);
+        if (!State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode) {
+            markPracticeProgressNeedsCleanReplay(targetWord.id);
+            updatePracticeModeProgress();
+        }
 
         if (!isAudioLineLayout && State.wrongIndexes.length === 2) {
             $('.flashcard-container').not(function () {

@@ -1057,6 +1057,43 @@ test('practice selector marks forced replays so the next round can downgrade opt
   });
 });
 
+test('practice wrong-answer queue marks words as needing a clean replay', async ({ page }) => {
+  const category = 'Replay marker category';
+  await mountPracticeModeHarness(page, {
+    state: {
+      currentCategoryName: category,
+      categoryRoundCount: {
+        [category]: 2
+      },
+      categoryRepetitionQueues: {},
+      practiceForcedReplays: {}
+    }
+  });
+
+  const queueState = await page.evaluate(() => {
+    const targetWord = {
+      id: 2071,
+      title: 'Replay marker word'
+    };
+    window.LLFlashcards.Modes.Practice.onWrongAnswer({ targetWord });
+    const queue = window.LLFlashcards.State.categoryRepetitionQueues['Replay marker category'] || [];
+    const queued = queue[0] || {};
+    return {
+      forcedReplayCount: Number(window.LLFlashcards.State.practiceForcedReplays['2071']) || 0,
+      queueLength: queue.length,
+      forceReplay: !!queued.forceReplay,
+      needsCleanReplay: !!queued.needsCleanReplay
+    };
+  });
+
+  expect(queueState).toEqual({
+    forcedReplayCount: 1,
+    queueLength: 1,
+    forceReplay: true,
+    needsCleanReplay: true
+  });
+});
+
 test('practice selector bridges to an already covered word before replaying the wrong word', async ({ page }) => {
   const replayCategory = 'Replay category';
   const bridgeCategory = 'Bridge category';
