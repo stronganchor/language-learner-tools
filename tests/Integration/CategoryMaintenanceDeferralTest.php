@@ -68,6 +68,52 @@ final class CategoryMaintenanceDeferralTest extends LL_Tools_TestCase
         $this->assertNotFalse(has_action(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT, 'll_tools_sync_vocab_lesson_pages'));
     }
 
+    public function test_content_save_does_not_rebuild_existing_quiz_page_shell(): void
+    {
+        $fixture = $this->createQuizzableCategoryFixture();
+        $category_id = (int) $fixture['category_id'];
+        $wordset_id = (int) $fixture['wordset_id'];
+
+        $quiz_page_id = (int) ll_tools_get_or_create_quiz_page_for_category($category_id);
+        $this->assertGreaterThan(0, $quiz_page_id);
+
+        $word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'tax_query' => [
+                'relation' => 'AND',
+                [
+                    'taxonomy' => 'word-category',
+                    'field' => 'term_id',
+                    'terms' => [$category_id],
+                ],
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$wordset_id],
+                ],
+            ],
+        ]);
+        $word_id = (int) ($word_ids[0] ?? 0);
+        $this->assertGreaterThan(0, $word_id);
+
+        wp_update_post([
+            'ID' => $quiz_page_id,
+            'post_modified' => '2024-01-01 00:00:00',
+            'post_modified_gmt' => '2024-01-01 00:00:00',
+        ]);
+        clean_post_cache($quiz_page_id);
+        $before_modified_gmt = (string) get_post($quiz_page_id)->post_modified_gmt;
+
+        ll_tools_sync_categories_for_post($word_id, get_post($word_id), true);
+
+        clean_post_cache($quiz_page_id);
+        $this->assertSame($before_modified_gmt, (string) get_post($quiz_page_id)->post_modified_gmt);
+    }
+
     /**
      * @return array{wordset_id:int, category_id:int}
      */

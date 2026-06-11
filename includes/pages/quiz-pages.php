@@ -977,6 +977,38 @@ function ll_tools_handle_category_sync($term_id) {
     ll_tools_handle_category_sync_immediate($category_id);
 }
 
+function ll_tools_category_has_active_quiz_page_shell(int $category_id): bool {
+    if ($category_id <= 0) {
+        return false;
+    }
+
+    $existing = ll_tools_get_quiz_page_ids_for_category(
+        $category_id,
+        ['publish', 'draft', 'pending', 'private'],
+        true
+    );
+
+    return !empty($existing);
+}
+
+function ll_tools_sync_category_shell_for_content_change(int $category_id): void {
+    $category_id = (int) $category_id;
+    if ($category_id <= 0) {
+        return;
+    }
+
+    if (ll_tools_category_maintenance_is_deferred()) {
+        ll_tools_queue_deferred_category_maintenance([$category_id]);
+        return;
+    }
+
+    if (ll_tools_category_has_active_quiz_page_shell($category_id)) {
+        return;
+    }
+
+    ll_tools_handle_category_sync_immediate($category_id);
+}
+
 function ll_tools_handle_category_delete($term_id) {
     $existing = ll_tools_get_quiz_page_ids_for_category((int) $term_id, ['publish','draft','pending','private'], true);
     foreach ($existing as $post_id) {
@@ -1110,7 +1142,7 @@ function ll_tools_sync_categories_for_post($post_id, $post, $update) {
     $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (is_wp_error($term_ids) || empty($term_ids)) return;
     $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
-    foreach ($term_ids as $tid) ll_tools_handle_category_sync((int) $tid);
+    foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
     ll_tools_bump_category_cache_version($term_ids);
 }
 add_action('save_post_words',       'll_tools_sync_categories_for_post', 10, 3);
@@ -1136,7 +1168,7 @@ function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxo
     }
 
     $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
-    foreach ($term_ids as $tid) ll_tools_handle_category_sync($tid);
+    foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
     ll_tools_bump_category_cache_version($term_ids);
 }
 add_action('set_object_terms', 'll_tools_sync_categories_on_term_set', 10, 4);
