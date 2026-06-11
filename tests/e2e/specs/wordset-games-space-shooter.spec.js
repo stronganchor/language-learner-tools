@@ -1085,6 +1085,7 @@ async function mountGamesPage(page, {
       window.__flushCount = 0;
       window.__scrollCalls = [];
       window.__dialogScrollCalls = [];
+      window.__gameAjaxCalls = [];
       window.__audioLoadDelay = Number(audioLoadDelay || 0);
       window.__promptAudioDurationSeconds = Number(promptAudioDuration || 4.2);
       window.__audioEventLog = [];
@@ -1497,6 +1498,10 @@ async function mountGamesPage(page, {
 
       const $ = window.jQuery;
       $.post = function (_url, data) {
+        window.__gameAjaxCalls.push({
+          action: String(data && data.action || ''),
+          game_slug: String(data && data.game_slug || '')
+        });
         const deferred = $.Deferred();
         const normalizePositiveInt = (value) => {
           const parsed = Number.parseInt(value, 10);
@@ -4049,6 +4054,51 @@ test('space shooter launches with safe option mixes and records progress flows',
 
   const progressContext = await page.evaluate(() => window.__progressContext);
   expect(progressContext.wordsetId || progressContext.wordset_id).toBe(77);
+});
+
+test('deferred catalog metadata launches with selected-game payload', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    configOverrides: {
+      games: {
+        catalog: {
+          'space-shooter': {
+            slug: 'space-shooter',
+            title: 'Space Shooter',
+            description: 'Hear the word. Blast the matching picture.',
+            minimum_word_count: 5,
+            available_word_count: 7,
+            launch_word_cap: 6,
+            launch_word_count: 6,
+            launchable: true,
+            reason_code: '',
+            category_ids: [11, 22],
+            payload_deferred: true,
+            words: []
+          }
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
+  await expect(gameStatus(page, 'space-shooter')).toHaveText('7 words ready');
+  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.slice())).toEqual([]);
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  const runState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(runState.totalRounds).toBeGreaterThanOrEqual(5);
+  expect(runState.cardWordIds.length).toBeGreaterThan(0);
+  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls)).toEqual([
+    {
+      action: 'll_wordset_games_launch',
+      game_slug: 'space-shooter'
+    }
+  ]);
 });
 
 test('space shooter only deducts one life when buffered shots hit wrong cards in one prompt', async ({ page }) => {

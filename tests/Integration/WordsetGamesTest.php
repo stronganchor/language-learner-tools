@@ -1682,7 +1682,8 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame(5, (int) ($allowed['data']['games']['space-shooter']['available_word_count'] ?? 0));
         $this->assertSame(5, (int) ($allowed['data']['games']['space-shooter']['launch_word_cap'] ?? 0));
         $this->assertSame(5, (int) ($allowed['data']['games']['space-shooter']['launch_word_count'] ?? 0));
-        $this->assertCount(5, (array) ($allowed['data']['games']['space-shooter']['words'] ?? []));
+        $this->assertTrue((bool) ($allowed['data']['games']['space-shooter']['payload_deferred'] ?? false));
+        $this->assertSame([], (array) ($allowed['data']['games']['space-shooter']['words'] ?? []));
         $this->assertTrue((bool) ($allowed['data']['games']['space-shooter']['launchable'] ?? false));
     }
 

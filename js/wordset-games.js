@@ -452,6 +452,23 @@
             || Object.prototype.hasOwnProperty.call(entry, 'offline_stt');
     }
 
+    function isLaunchPayloadDeferred(entry) {
+        return !!(entry && typeof entry === 'object' && entry.payload_deferred);
+    }
+
+    function entryHasLaunchPayload(entry) {
+        if (!entry || typeof entry !== 'object' || isLaunchPayloadDeferred(entry)) {
+            return false;
+        }
+
+        const slug = normalizeGameSlug(entry.slug || '');
+        if (slug === LINEUP_GAME_SLUG) {
+            return Array.isArray(entry.sequences) && entry.sequences.length > 0;
+        }
+
+        return Array.isArray(entry.words) && entry.words.length > 0;
+    }
+
     function resolveStaticCatalog(gamesCfg, offlineMode) {
         const catalog = (gamesCfg && gamesCfg.catalog && typeof gamesCfg.catalog === 'object')
             ? gamesCfg.catalog
@@ -3590,6 +3607,7 @@
         const entry = $.extend({}, rawEntry || {});
         const normalizedSlug = normalizeGameSlug(entry.slug || slug);
         const gameConfig = getGameConfig(ctx, slug);
+        const payloadDeferred = isLaunchPayloadDeferred(entry);
         if (normalizedSlug === UNSCRAMBLE_GAME_SLUG) {
             const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
             const minTileCount = Math.max(2, toInt(entry.minimum_tile_count) || toInt(gameConfig && gameConfig.minTileCount) || 3);
@@ -3604,6 +3622,26 @@
                     || toInt(gameConfig && gameConfig.maxLoadedWords)
                     || minimumCount
             );
+            if (payloadDeferred) {
+                const availableCount = toInt(entry.available_word_count);
+                const launchCount = toInt(entry.launch_word_count) || Math.min(availableCount, maxLoadedWords);
+
+                return $.extend({}, entry, {
+                    slug: normalizedSlug,
+                    payload_deferred: true,
+                    words: [],
+                    playableTargets: [],
+                    available_word_count: availableCount,
+                    launch_word_cap: maxLoadedWords,
+                    launch_word_count: launchCount,
+                    launchable: !!entry.launchable,
+                    minimum_word_count: minimumCount,
+                    minimum_tile_count: minTileCount,
+                    maximum_tile_count: maxTileCount,
+                    maximum_unit_count: maxUnitCount,
+                    category_ids: uniqueIntList(entry.category_ids || [])
+                });
+            }
             const eligibleWords = (Array.isArray(entry.words) ? entry.words : [])
                 .map(normalizeWord)
                 .filter(function (word) {
@@ -3666,6 +3704,29 @@
                     || eligibleSequences.length
                     || minimumSequenceCount
             );
+            if (payloadDeferred) {
+                const availableSequenceCount = toInt(entry.available_sequence_count || entry.available_word_count);
+                const launchSequenceCount = toInt(entry.launch_sequence_count || entry.launch_word_count)
+                    || Math.min(availableSequenceCount, maxLoadedSequences);
+
+                return $.extend({}, entry, {
+                    slug: normalizedSlug,
+                    payload_deferred: true,
+                    words: [],
+                    playableTargets: [],
+                    sequences: [],
+                    available_sequence_count: availableSequenceCount,
+                    available_word_count: toInt(entry.available_word_count) || availableSequenceCount,
+                    launch_word_cap: maxLoadedSequences,
+                    launch_sequence_cap: maxLoadedSequences,
+                    launch_word_count: launchSequenceCount,
+                    launchable: !!entry.launchable,
+                    minimum_word_count: 1,
+                    minimum_sequence_count: minimumSequenceCount,
+                    minimum_sequence_length: minimumSequenceLength,
+                    category_ids: uniqueIntList(entry.category_ids || [])
+                });
+            }
             const sequences = eligibleSequences.slice(0, maxLoadedSequences);
 
             return $.extend({}, entry, {
@@ -3692,6 +3753,23 @@
                 || toInt(gameConfig && gameConfig.maxLoadedWords)
                 || minimumCount
         );
+        if (payloadDeferred) {
+            const availableCount = toInt(entry.available_word_count);
+            const launchCount = toInt(entry.launch_word_count) || Math.min(availableCount, maxLoadedWords);
+
+            return $.extend({}, entry, {
+                slug: normalizedSlug,
+                payload_deferred: true,
+                words: [],
+                playableTargets: [],
+                available_word_count: availableCount,
+                launch_word_cap: maxLoadedWords,
+                launch_word_count: launchCount,
+                launchable: !!entry.launchable,
+                minimum_word_count: minimumCount,
+                category_ids: uniqueIntList(entry.category_ids || [])
+            });
+        }
         const eligibleWords = (Array.isArray(entry.words) ? entry.words : [])
             .map(normalizeWord)
             .filter(function (word) {
@@ -4134,9 +4212,9 @@
         }
 
         return fetchLaunchEntry(ctx, normalizedSlug).catch(function () {
-            return fallbackEntry;
+            return entryHasLaunchPayload(fallbackEntry) ? fallbackEntry : null;
         }).then(function (entry) {
-            if (!entry || !entry.launchable) {
+            if (!entry || !entry.launchable || !entryHasLaunchPayload(entry)) {
                 return null;
             }
 
