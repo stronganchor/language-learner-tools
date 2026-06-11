@@ -99,6 +99,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
         $this->ensureRecordingType('Question', 'question');
         update_term_meta((int) $fixture['category_id'], 'll_desired_recording_types', ['isolation', 'question']);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, 'hide');
 
         $recorder_id = self::factory()->user->create([
             'role' => 'audio_recorder',
@@ -159,6 +160,10 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Hidden (1)', $html);
         $this->assertStringContainsString('Change queue settings', $html);
         $this->assertStringContainsString('data-ll-recorder-queue-autosave="settings"', $html);
+        $this->assertStringContainsString('Recorder text visibility', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="save_wordset_settings"', $html);
+        $this->assertStringContainsString('name="ll_wordset_recorder_text_visibility"', $html);
+        $this->assertStringContainsString('Current effective recorder state: hidden.', $html);
         $this->assertStringContainsString('Skipped types', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_allow_new_words"', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_auto_process_recordings"', $html);
@@ -344,6 +349,53 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('sentence', (string) ($config['exclude_recording_types'] ?? ''));
         $this->assertSame('1', (string) ($config['allow_new_words'] ?? ''));
         $this->assertSame('1', (string) ($config['auto_process_recordings'] ?? ''));
+    }
+
+    public function test_recorder_queue_action_saves_wordset_recorder_text_visibility(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        update_option('ll_tools_wordset_cache_epoch', 11, false);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_recorder_queue_action' => 'save_wordset_settings',
+            'll_wordset_manager_recorder_queue_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_recorder_queue_nonce' => wp_create_nonce('ll_wordset_manager_recorder_queue_' . $wordset_id),
+            'll_wordset_recorder_text_visibility' => 'hide',
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'recorder-queues',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_recorder_queue_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect);
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_recorder_queue'] ?? ''));
+        $this->assertSame('wordset-settings', (string) ($query['ll_wordset_manager_recorder_queue_result'] ?? ''));
+        $this->assertSame('hide', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, true));
+        $this->assertSame(12, (int) get_option('ll_tools_wordset_cache_epoch', 0));
+
+        $_POST['ll_wordset_recorder_text_visibility'] = 'inherit';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_recorder_queue_action();
+        });
+
+        $this->assertSame('', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, true));
     }
 
     public function test_recorder_queue_action_saves_recording_prompts_for_queue_items(): void
@@ -737,7 +789,6 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_view' => 'settings',
             'll_wordset_tool' => 'study',
             'll_wordset_hide_lesson_text_for_non_text_quiz' => '1',
-            'll_wordset_recorder_text_visibility' => 'hide',
         ];
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
@@ -751,7 +802,6 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $query = $this->parseRedirectQuery($redirect_url);
         $this->assertSame('study', (string) ($query['ll_wordset_tool'] ?? ''));
         $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true));
-        $this->assertSame('hide', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, true));
         $this->assertSame(8, (int) get_option('ll_tools_wordset_cache_epoch', 0));
     }
 

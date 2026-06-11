@@ -5326,6 +5326,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     padding: 0 10px 10px;
 }
 
+.ll-wordset-recorder-queue-settings__form--wordset {
+    padding: 0;
+}
+
 .ll-wordset-recorder-queue-settings__grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -5365,6 +5369,25 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     line-height: 1.35;
 }
 
+.ll-wordset-recorder-queue-settings__select-row {
+    display: grid;
+    gap: 6px;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.ll-wordset-recorder-queue-settings__select-row select {
+    width: min(100%, 320px);
+    min-height: 34px;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background-color: #fff;
+    font: inherit;
+}
+
 .ll-wordset-recorder-queue-settings__checks input,
 .ll-wordset-recorder-queue-settings__toggle input {
     flex: 0 0 auto;
@@ -5373,6 +5396,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-recorder-queue-settings__note {
     margin: -4px 0 0 24px;
+}
+
+.ll-wordset-recorder-queue-settings__note--wordset {
+    margin: 0;
 }
 
 .ll-wordset-page .ll-wordset-recorder-queue-settings__save {

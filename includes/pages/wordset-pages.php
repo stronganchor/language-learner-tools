@@ -6838,10 +6838,6 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
     $sign_language_mode = isset($_POST['ll_wordset_sign_language_mode']) ? 1 : 0;
     $autoplay_text_audio_answer_options = isset($_POST['ll_wordset_autoplay_text_audio_answer_options']) ? 1 : 0;
     $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
-    $recorder_text_visibility_submitted = array_key_exists('ll_wordset_recorder_text_visibility', $_POST);
-    $recorder_text_visibility = $recorder_text_visibility_submitted
-        ? ll_tools_normalize_wordset_recorder_text_visibility(wp_unslash((string) $_POST['ll_wordset_recorder_text_visibility']))
-        : 'inherit';
     $submitted_tool = ll_tools_get_wordset_settings_tool();
 
     $base_redirect = ll_tools_get_wordset_settings_tool_url(
@@ -6974,13 +6970,6 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, $sign_language_mode);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
         update_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
-        if ($recorder_text_visibility_submitted) {
-            if ($recorder_text_visibility === 'inherit') {
-                delete_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY);
-            } else {
-                update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, $recorder_text_visibility);
-            }
-        }
     } elseif ($submitted_tool === 'categories') {
         $categories_result = ll_tools_wordset_page_save_categories_settings($wordset_id);
         if (is_wp_error($categories_result)) {
@@ -8882,6 +8871,9 @@ function ll_tools_wordset_page_manager_recorder_queue_result_message(string $res
     if ($result === 'prompts') {
         return __('Recorder queue updated. Recording prompts saved.', 'll-tools-text-domain');
     }
+    if ($result === 'wordset-settings') {
+        return __('Recorder queue settings saved.', 'll-tools-text-domain');
+    }
     if ($result === 'settings') {
         return __('Recorder queue settings saved.', 'll-tools-text-domain');
     }
@@ -9348,7 +9340,7 @@ function ll_tools_wordset_page_recorder_queue_request_scalar(array $request, str
  */
 function ll_tools_wordset_page_process_manager_recorder_queue_action(array $request, WP_Term $wordset_term) {
     $action = sanitize_key(ll_tools_wordset_page_recorder_queue_request_scalar($request, 'll_wordset_manager_recorder_queue_action'));
-    if (!in_array($action, ['hide', 'unhide', 'save_prompts', 'save_settings'], true)) {
+    if (!in_array($action, ['hide', 'unhide', 'save_prompts', 'save_settings', 'save_wordset_settings'], true)) {
         return new WP_Error('action', ll_tools_wordset_page_manager_recorder_queue_error_message(''));
     }
 
@@ -9366,6 +9358,32 @@ function ll_tools_wordset_page_process_manager_recorder_queue_action(array $requ
     if (!wp_verify_nonce($nonce, 'll_wordset_manager_recorder_queue_' . $wordset_id)) {
         return new WP_Error('nonce', ll_tools_wordset_page_manager_recorder_queue_error_message('nonce'));
     }
+    if ($action === 'save_wordset_settings') {
+        if (array_key_exists('ll_wordset_recorder_text_visibility', $request)) {
+            $recorder_text_visibility = function_exists('ll_tools_normalize_wordset_recorder_text_visibility')
+                ? ll_tools_normalize_wordset_recorder_text_visibility(
+                    ll_tools_wordset_page_recorder_queue_request_scalar($request, 'll_wordset_recorder_text_visibility')
+                )
+                : 'inherit';
+
+            if ($recorder_text_visibility === 'inherit') {
+                delete_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY);
+            } else {
+                update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY, $recorder_text_visibility);
+            }
+
+            if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+                ll_tools_bump_wordset_cache_epoch();
+            }
+        }
+
+        return [
+            'result' => 'wordset-settings',
+            'wordset_id' => $wordset_id,
+            'recorder_user_id' => 0,
+        ];
+    }
+
     if ($recorder_user_id <= 0) {
         return new WP_Error('user', ll_tools_wordset_page_manager_recorder_queue_error_message('user'));
     }
@@ -9521,7 +9539,7 @@ function ll_tools_wordset_page_handle_manager_recorder_queue_action(): void {
     $action = isset($_POST['ll_wordset_manager_recorder_queue_action'])
         ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_manager_recorder_queue_action']))
         : '';
-    if (!in_array($action, ['hide', 'unhide', 'save_prompts', 'save_settings'], true)) {
+    if (!in_array($action, ['hide', 'unhide', 'save_prompts', 'save_settings', 'save_wordset_settings'], true)) {
         return;
     }
 
@@ -14328,6 +14346,65 @@ function ll_tools_wordset_page_render_recorder_queue_category_group(array $categ
     return (string) ob_get_clean();
 }
 
+function ll_tools_wordset_page_render_recorder_queue_wordset_settings_form(
+    WP_Term $wordset_term,
+    int $wordset_id,
+    string $action_url,
+    string $back_url
+): string {
+    if ($wordset_id <= 0 || $action_url === '') {
+        return '';
+    }
+
+    $recorder_text_visibility = function_exists('ll_tools_get_wordset_recorder_text_visibility')
+        ? ll_tools_get_wordset_recorder_text_visibility($wordset_id)
+        : 'inherit';
+    $recorder_text_visibility = function_exists('ll_tools_normalize_wordset_recorder_text_visibility')
+        ? ll_tools_normalize_wordset_recorder_text_visibility($recorder_text_visibility)
+        : 'inherit';
+    $hide_recorder_text_effective = function_exists('ll_tools_wordset_should_hide_recorder_text')
+        ? ll_tools_wordset_should_hide_recorder_text([$wordset_id])
+        : (bool) get_option('ll_hide_recording_titles', 0);
+    $field_id = 'll-wordset-recorder-queue-text-visibility';
+
+    ob_start();
+    ?>
+    <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-recorder-queue-settings__form ll-wordset-recorder-queue-settings__form--wordset" data-ll-recorder-queue-autosave="settings">
+        <input type="hidden" name="ll_wordset_manager_recorder_queue_action" value="save_wordset_settings" />
+        <input type="hidden" name="ll_wordset_manager_recorder_queue_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+        <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+        <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+        <input type="hidden" name="ll_wordset_view" value="settings" />
+        <input type="hidden" name="ll_wordset_tool" value="recorder-queues" />
+        <?php wp_nonce_field('ll_wordset_manager_recorder_queue_' . $wordset_id, 'll_wordset_manager_recorder_queue_nonce'); ?>
+
+        <label class="ll-wordset-recorder-queue-settings__select-row" for="<?php echo esc_attr($field_id); ?>">
+            <span><?php echo esc_html__('Recorder text visibility', 'll-tools-text-domain'); ?></span>
+            <select id="<?php echo esc_attr($field_id); ?>" name="ll_wordset_recorder_text_visibility">
+                <option value="inherit" <?php selected($recorder_text_visibility, 'inherit'); ?>><?php echo esc_html__('Follow lesson/grid text setting', 'll-tools-text-domain'); ?></option>
+                <option value="show" <?php selected($recorder_text_visibility, 'show'); ?>><?php echo esc_html__('Show word text in recorder', 'll-tools-text-domain'); ?></option>
+                <option value="hide" <?php selected($recorder_text_visibility, 'hide'); ?>><?php echo esc_html__('Hide word text in recorder', 'll-tools-text-domain'); ?></option>
+            </select>
+        </label>
+        <p class="description ll-wordset-recorder-queue-settings__note ll-wordset-recorder-queue-settings__note--wordset">
+            <?php
+            echo esc_html(sprintf(
+                /* translators: %s: effective recorder text state. */
+                __('Current effective recorder state: %s. Applies to every recorder assigned to this word set.', 'll-tools-text-domain'),
+                $hide_recorder_text_effective ? __('hidden', 'll-tools-text-domain') : __('shown', 'll-tools-text-domain')
+            ));
+            ?>
+        </p>
+        <span class="ll-wordset-recorder-queue-autosave-status" data-ll-recorder-queue-save-status role="status" aria-live="polite" hidden></span>
+        <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary ll-wordset-recorder-queue-settings__save">
+            <?php echo esc_html__('Save recorder text setting', 'll-tools-text-domain'); ?>
+        </button>
+    </form>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_wordset_page_render_recorder_queue_settings_form(array $queue_row, array $args): string {
     $action_url = (string) ($args['action_url'] ?? '');
     $wordset_id = isset($args['wordset_id']) ? (int) $args['wordset_id'] : 0;
@@ -14493,6 +14570,20 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                 </a>
             </div>
         </div>
+
+        <?php if (!$hidden_view) : ?>
+            <div class="ll-wordset-settings-card ll-wordset-recorder-queue-wordset-settings">
+                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Recorder text', 'll-tools-text-domain'); ?></h2>
+                <?php
+                echo ll_tools_wordset_page_render_recorder_queue_wordset_settings_form(
+                    $wordset_term,
+                    $wordset_id,
+                    $action_url,
+                    $back_url
+                ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                ?>
+            </div>
+        <?php endif; ?>
 
         <?php if (empty($recorder_queue_rows)) : ?>
             <div class="ll-wordset-settings-card">
@@ -15227,10 +15318,6 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
     $sign_language_mode = !empty($args['sign_language_mode']);
     $autoplay_text_audio_answer_options = !empty($args['autoplay_text_audio_answer_options']);
     $hide_lesson_text_for_non_text_quiz = !empty($args['hide_lesson_text_for_non_text_quiz']);
-    $recorder_text_visibility = isset($args['recorder_text_visibility'])
-        ? ll_tools_normalize_wordset_recorder_text_visibility((string) $args['recorder_text_visibility'])
-        : 'inherit';
-    $hide_recorder_text_effective = !empty($args['hide_recorder_text_effective']);
     $study_settings_action_url = ($can_manage_wordset_content && $wordset_term instanceof WP_Term && $wordset_id > 0)
         ? ll_tools_get_wordset_settings_tool_url($wordset_term, 'study', $back_url)
         : '';
@@ -15357,29 +15444,6 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
                     </label>
                     <p class="description" style="margin-top:8px;">
                         <?php echo esc_html__('Categories can override this in their quiz settings.', 'll-tools-text-domain'); ?>
-                    </p>
-                </div>
-
-                <div class="ll-wordset-settings-card__group">
-                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Recorder text', 'll-tools-text-domain'); ?></h3>
-                    <label for="ll-wordset-settings-recorder-text-visibility">
-                        <span class="screen-reader-text"><?php echo esc_html__('Recorder text visibility', 'll-tools-text-domain'); ?></span>
-                        <select
-                            id="ll-wordset-settings-recorder-text-visibility"
-                            name="ll_wordset_recorder_text_visibility">
-                            <option value="inherit" <?php selected($recorder_text_visibility, 'inherit'); ?>><?php echo esc_html__('Follow lesson/grid text setting', 'll-tools-text-domain'); ?></option>
-                            <option value="show" <?php selected($recorder_text_visibility, 'show'); ?>><?php echo esc_html__('Show word text in recorder', 'll-tools-text-domain'); ?></option>
-                            <option value="hide" <?php selected($recorder_text_visibility, 'hide'); ?>><?php echo esc_html__('Hide word text in recorder', 'll-tools-text-domain'); ?></option>
-                        </select>
-                    </label>
-                    <p class="description" style="margin-top:8px;">
-                        <?php
-                        echo esc_html(sprintf(
-                            /* translators: %s: effective recorder text state. */
-                            __('Current effective recorder state: %s.', 'll-tools-text-domain'),
-                            $hide_recorder_text_effective ? __('hidden', 'll-tools-text-domain') : __('shown', 'll-tools-text-domain')
-                        ));
-                        ?>
                     </p>
                 </div>
 
@@ -15609,12 +15673,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ? ll_tools_wordset_uses_sign_language_mode([$wordset_id])
         : false;
     $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
-    $recorder_text_visibility = function_exists('ll_tools_get_wordset_recorder_text_visibility')
-        ? ll_tools_get_wordset_recorder_text_visibility($wordset_id)
-        : 'inherit';
-    $hide_recorder_text_effective = function_exists('ll_tools_wordset_should_hide_recorder_text')
-        ? ll_tools_wordset_should_hide_recorder_text([$wordset_id])
-        : (bool) get_option('ll_hide_recording_titles', 0);
     $wordset_is_private = ($wordset_visibility === 'private');
     $plugin_update_status = function_exists('ll_tools_get_plugin_update_status_details')
         ? ll_tools_get_plugin_update_status_details()
@@ -17464,8 +17522,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'sign_language_mode' => $sign_language_mode,
                     'autoplay_text_audio_answer_options' => $autoplay_text_audio_answer_options,
                     'hide_lesson_text_for_non_text_quiz' => $hide_lesson_text_for_non_text_quiz,
-                    'recorder_text_visibility' => $recorder_text_visibility,
-                    'hide_recorder_text_effective' => $hide_recorder_text_effective,
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 ?>
             <?php elseif ($settings_tool === 'language' && $can_manage_wordset_content) : ?>

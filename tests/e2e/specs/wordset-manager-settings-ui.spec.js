@@ -133,6 +133,26 @@ function buildRecorderQueueToolMarkup() {
           </div>
         </div>
 
+        <div class="ll-wordset-settings-card ll-wordset-recorder-queue-wordset-settings">
+          <h2 class="ll-wordset-settings-card__title">Recorder text</h2>
+          <form class="ll-wordset-recorder-queue-settings__form ll-wordset-recorder-queue-settings__form--wordset" data-ll-recorder-queue-autosave="settings">
+            <input type="hidden" name="ll_wordset_manager_recorder_queue_action" value="save_wordset_settings" />
+            <input type="hidden" name="ll_wordset_manager_recorder_queue_wordset_id" value="22" />
+            <input type="hidden" name="ll_wordset_manager_recorder_queue_nonce" value="queue-nonce" />
+            <label class="ll-wordset-recorder-queue-settings__select-row" for="fixture-recorder-text-visibility">
+              <span>Recorder text visibility</span>
+              <select id="fixture-recorder-text-visibility" name="ll_wordset_recorder_text_visibility">
+                <option value="inherit">Follow lesson/grid text setting</option>
+                <option value="show">Show word text in recorder</option>
+                <option value="hide" selected>Hide word text in recorder</option>
+              </select>
+            </label>
+            <p class="description ll-wordset-recorder-queue-settings__note ll-wordset-recorder-queue-settings__note--wordset">Current effective recorder state: hidden. Applies to every recorder assigned to this word set.</p>
+            <span class="ll-wordset-recorder-queue-autosave-status" data-ll-recorder-queue-save-status role="status" aria-live="polite" hidden></span>
+            <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary ll-wordset-recorder-queue-settings__save">Save recorder text setting</button>
+          </form>
+        </div>
+
         <article class="ll-wordset-settings-card ll-wordset-recorder-queue-card" id="ll-recorder-queue-44">
           <div class="ll-wordset-recorder-queue-card__head">
             <div class="ll-wordset-recorder-queue-card__identity">
@@ -795,6 +815,7 @@ test('manager recorder queue uses compact category cards and focused prompt edit
 
   await expect(page.getByRole('link', { name: 'Hidden (1)' }).first()).toBeVisible();
   await expect(page.getByText('Change queue settings')).toBeVisible();
+  await expect(page.getByLabel('Recorder text visibility')).toHaveValue('hide');
   await page.getByText('Change queue settings').click();
   await expect(page.getByText('Skipped types')).toBeVisible();
   await expect(page.getByText('Allow this recorder to record new words')).toBeVisible();
