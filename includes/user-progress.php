@@ -2737,6 +2737,388 @@ function ll_tools_user_progress_get_word_audio_entry(array $audio_files, int $pr
     return [];
 }
 
+function ll_tools_user_progress_get_post_type_map(array $post_ids): array {
+    global $wpdb;
+
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), static function (int $post_id): bool {
+        return $post_id > 0;
+    })));
+    if (empty($post_ids)) {
+        return [];
+    }
+
+    $map = [];
+    foreach (array_chunk($post_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT ID, post_type FROM {$wpdb->posts} WHERE ID IN ({$placeholders})",
+                $chunk
+            ),
+            ARRAY_A
+        );
+        foreach ((array) $rows as $row) {
+            $post_id = isset($row['ID']) ? (int) $row['ID'] : 0;
+            if ($post_id > 0) {
+                $map[$post_id] = (string) ($row['post_type'] ?? '');
+            }
+        }
+    }
+
+    return $map;
+}
+
+function ll_tools_user_progress_prompt_card_answer_word_id_map(array $prompt_card_ids): array {
+    $prompt_card_ids = array_values(array_unique(array_filter(array_map('intval', $prompt_card_ids), static function (int $prompt_card_id): bool {
+        return $prompt_card_id > 0;
+    })));
+    if (empty($prompt_card_ids) || !function_exists('ll_tools_get_prompt_card_data')) {
+        return [];
+    }
+
+    $map = [];
+    foreach ($prompt_card_ids as $prompt_card_id) {
+        $card = ll_tools_get_prompt_card_data($prompt_card_id);
+        $answer_word_id = is_array($card) ? (int) ($card['correct_answer_word_id'] ?? 0) : 0;
+        if ($answer_word_id > 0) {
+            $map[$prompt_card_id] = $answer_word_id;
+        }
+    }
+
+    return $map;
+}
+
+function ll_tools_user_progress_analytics_word_ids_by_category(array $category_ids, int $wordset_id): array {
+    if (empty($category_ids) || !function_exists('ll_tools_user_study_renderable_word_ids_by_category')) {
+        return [];
+    }
+
+    $renderable_ids_by_category = ll_tools_user_study_renderable_word_ids_by_category($category_ids, $wordset_id);
+    if (empty($renderable_ids_by_category)) {
+        return [];
+    }
+
+    $item_ids = [];
+    foreach ($renderable_ids_by_category as $item_ids_for_category) {
+        foreach ((array) $item_ids_for_category as $item_id) {
+            $item_id = (int) $item_id;
+            if ($item_id > 0) {
+                $item_ids[$item_id] = true;
+            }
+        }
+    }
+
+    $post_types = ll_tools_user_progress_get_post_type_map(array_keys($item_ids));
+    $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
+    $prompt_card_ids = [];
+    foreach ($post_types as $item_id => $post_type) {
+        if ((string) $post_type === $prompt_card_post_type) {
+            $prompt_card_ids[] = (int) $item_id;
+        }
+    }
+    $prompt_card_answer_ids = ll_tools_user_progress_prompt_card_answer_word_id_map($prompt_card_ids);
+
+    $word_ids_by_category = [];
+    foreach ($renderable_ids_by_category as $category_id => $item_ids_for_category) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0) {
+            continue;
+        }
+
+        $word_lookup = [];
+        foreach ((array) $item_ids_for_category as $item_id) {
+            $item_id = (int) $item_id;
+            if ($item_id <= 0) {
+                continue;
+            }
+
+            $post_type = (string) ($post_types[$item_id] ?? '');
+            $word_id = 0;
+            if ($post_type === 'words') {
+                $word_id = $item_id;
+            } elseif ($post_type === $prompt_card_post_type) {
+                $word_id = (int) ($prompt_card_answer_ids[$item_id] ?? 0);
+            }
+
+            if ($word_id > 0) {
+                $word_lookup[$word_id] = true;
+            }
+        }
+
+        $word_ids_by_category[$category_id] = array_values(array_map('intval', array_keys($word_lookup)));
+    }
+
+    return $word_ids_by_category;
+}
+
+function ll_tools_user_progress_category_quiz_config_map(array $category_ids, int $wordset_id): array {
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $terms = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'include' => $category_ids,
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    $wordset_ids = $wordset_id > 0 ? [$wordset_id] : [];
+    $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $configs = [];
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term)) {
+            continue;
+        }
+
+        $config = function_exists('ll_tools_get_category_quiz_config')
+            ? (array) ll_tools_get_category_quiz_config($term)
+            : ['prompt_type' => 'audio', 'option_type' => 'image'];
+        if (function_exists('ll_tools_resolve_effective_category_quiz_config')) {
+            $config = (array) ll_tools_resolve_effective_category_quiz_config($term, $min_word_count, $wordset_ids);
+        }
+        $configs[(int) $term->term_id] = $config;
+    }
+
+    return $configs;
+}
+
+function ll_tools_user_progress_get_word_gender_meta_map(array $word_ids): array {
+    global $wpdb;
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $map = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "
+                SELECT post_id, meta_value
+                FROM {$wpdb->postmeta}
+                WHERE meta_key = %s
+                  AND post_id IN ({$placeholders})
+                ",
+                array_merge(['ll_grammatical_gender'], $chunk)
+            ),
+            ARRAY_A
+        );
+        foreach ((array) $rows as $row) {
+            $word_id = isset($row['post_id']) ? (int) $row['post_id'] : 0;
+            if ($word_id > 0) {
+                $map[$word_id] = trim((string) ($row['meta_value'] ?? ''));
+            }
+        }
+    }
+
+    return $map;
+}
+
+function ll_tools_user_progress_get_word_image_url_map(array $word_ids, string $size = 'thumbnail'): array {
+    global $wpdb;
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $attachment_ids_by_word = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $linked_rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "
+                SELECT linked.post_id AS word_id, image_thumb.meta_value AS attachment_id
+                FROM {$wpdb->postmeta} linked
+                INNER JOIN {$wpdb->posts} image_posts
+                    ON image_posts.ID = CAST(linked.meta_value AS UNSIGNED)
+                   AND image_posts.post_type = %s
+                   AND image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
+                INNER JOIN {$wpdb->postmeta} image_thumb
+                    ON image_thumb.post_id = image_posts.ID
+                   AND image_thumb.meta_key = %s
+                   AND image_thumb.meta_value <> ''
+                   AND CAST(image_thumb.meta_value AS UNSIGNED) > 0
+                WHERE linked.meta_key = %s
+                  AND linked.meta_value <> ''
+                  AND CAST(linked.meta_value AS UNSIGNED) > 0
+                  AND linked.post_id IN ({$placeholders})
+                ",
+                array_merge(['word_images', '_thumbnail_id', '_ll_autopicked_image_id'], $chunk)
+            ),
+            ARRAY_A
+        );
+        foreach ((array) $linked_rows as $row) {
+            $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+            $attachment_id = isset($row['attachment_id']) ? (int) $row['attachment_id'] : 0;
+            if ($word_id > 0 && $attachment_id > 0 && empty($attachment_ids_by_word[$word_id])) {
+                $attachment_ids_by_word[$word_id] = $attachment_id;
+            }
+        }
+
+        $word_thumb_rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "
+                SELECT post_id AS word_id, meta_value AS attachment_id
+                FROM {$wpdb->postmeta}
+                WHERE meta_key = %s
+                  AND meta_value <> ''
+                  AND CAST(meta_value AS UNSIGNED) > 0
+                  AND post_id IN ({$placeholders})
+                ",
+                array_merge(['_thumbnail_id'], $chunk)
+            ),
+            ARRAY_A
+        );
+        foreach ((array) $word_thumb_rows as $row) {
+            $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+            $attachment_id = isset($row['attachment_id']) ? (int) $row['attachment_id'] : 0;
+            if ($word_id > 0 && $attachment_id > 0 && empty($attachment_ids_by_word[$word_id])) {
+                $attachment_ids_by_word[$word_id] = $attachment_id;
+            }
+        }
+    }
+
+    $size = sanitize_key($size);
+    if ($size === '') {
+        $size = 'thumbnail';
+    }
+
+    $url_by_attachment = [];
+    foreach (array_values(array_unique(array_filter(array_map('intval', $attachment_ids_by_word)))) as $attachment_id) {
+        $url = function_exists('ll_tools_get_masked_image_url')
+            ? (string) ll_tools_get_masked_image_url($attachment_id, $size)
+            : '';
+        if ($url === '') {
+            $url = (string) (wp_get_attachment_image_url($attachment_id, $size) ?: '');
+        }
+        if ($url !== '') {
+            $url_by_attachment[$attachment_id] = $url;
+        }
+    }
+
+    $map = [];
+    foreach ($attachment_ids_by_word as $word_id => $attachment_id) {
+        $attachment_id = (int) $attachment_id;
+        if ($attachment_id > 0 && !empty($url_by_attachment[$attachment_id])) {
+            $map[(int) $word_id] = (string) $url_by_attachment[$attachment_id];
+        }
+    }
+
+    return $map;
+}
+
+function ll_tools_user_progress_get_word_audio_summary_map(array $word_ids): array {
+    global $wpdb;
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $audio_files_by_word = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "
+                SELECT
+                    p.ID AS audio_id,
+                    p.post_parent AS word_id,
+                    p.post_author AS post_author,
+                    path_meta.meta_value AS audio_path,
+                    speaker_meta.meta_value AS speaker_user_id,
+                    terms.slug AS recording_type
+                FROM {$wpdb->posts} p
+                INNER JOIN {$wpdb->postmeta} path_meta
+                    ON path_meta.post_id = p.ID
+                   AND path_meta.meta_key = %s
+                   AND path_meta.meta_value <> ''
+                LEFT JOIN {$wpdb->postmeta} speaker_meta
+                    ON speaker_meta.post_id = p.ID
+                   AND speaker_meta.meta_key = %s
+                LEFT JOIN (
+                    {$wpdb->term_relationships} rel
+                    INNER JOIN {$wpdb->term_taxonomy} tax
+                        ON tax.term_taxonomy_id = rel.term_taxonomy_id
+                       AND tax.taxonomy = %s
+                    INNER JOIN {$wpdb->terms} terms
+                        ON terms.term_id = tax.term_id
+                ) ON rel.object_id = p.ID
+                WHERE p.post_type = %s
+                  AND p.post_status = %s
+                  AND p.post_parent IN ({$placeholders})
+                ORDER BY p.post_parent ASC, p.post_date DESC, p.ID DESC
+                ",
+                array_merge(['audio_file_path', 'speaker_user_id', 'recording_type', 'word_audio', 'publish'], $chunk)
+            ),
+            ARRAY_A
+        );
+
+        foreach ((array) $rows as $row) {
+            $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+            $audio_path = trim((string) ($row['audio_path'] ?? ''));
+            if ($word_id <= 0 || $audio_path === '') {
+                continue;
+            }
+
+            $recording_type = sanitize_key((string) ($row['recording_type'] ?? ''));
+            if ($recording_type === '') {
+                $recording_type = 'unknown';
+            }
+            $speaker_user_id = isset($row['speaker_user_id']) ? (int) $row['speaker_user_id'] : 0;
+            if ($speaker_user_id <= 0) {
+                $speaker_user_id = isset($row['post_author']) ? (int) $row['post_author'] : 0;
+            }
+
+            if (!isset($audio_files_by_word[$word_id])) {
+                $audio_files_by_word[$word_id] = [];
+            }
+            $audio_files_by_word[$word_id][] = [
+                'id' => isset($row['audio_id']) ? (int) $row['audio_id'] : 0,
+                'url' => function_exists('ll_tools_resolve_audio_file_url')
+                    ? (string) ll_tools_resolve_audio_file_url($audio_path)
+                    : ((strpos($audio_path, 'http') === 0) ? $audio_path : site_url($audio_path)),
+                'recording_type' => $recording_type,
+                'speaker_user_id' => $speaker_user_id,
+            ];
+        }
+    }
+
+    $summary = [];
+    foreach ($audio_files_by_word as $word_id => $audio_files) {
+        $audio_files = array_values(array_filter((array) $audio_files, static function ($entry): bool {
+            return is_array($entry) && !empty($entry['url']);
+        }));
+        if (empty($audio_files)) {
+            continue;
+        }
+
+        $audio_entry = ll_tools_user_progress_get_word_audio_entry($audio_files, 0, 0);
+        $summary[(int) $word_id] = [
+            'audio_url' => (string) ($audio_entry['url'] ?? ''),
+            'audio_recording_type' => (string) ($audio_entry['recording_type'] ?? ''),
+            'audio_files_count' => count($audio_files),
+        ];
+    }
+
+    return $summary;
+}
+
 function ll_tools_user_progress_empty_gender_analytics(bool $enabled = false): array {
     return [
         'enabled' => $enabled,
@@ -2879,54 +3261,119 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     $requested_scope_included = !empty(array_intersect($requested_scope_category_ids, $scope_category_ids));
     $scope_mode = $requested_scope_included ? 'selected' : 'all';
 
-    $words_by_category = function_exists('ll_tools_user_study_words')
-        ? ll_tools_user_study_words($scope_category_ids, $scope_wordset_id)
+    $category_word_ids = ll_tools_user_progress_analytics_word_ids_by_category($scope_category_ids, $scope_wordset_id);
+    foreach ($scope_category_ids as $cid) {
+        $cid = (int) $cid;
+        if ($cid > 0 && !isset($category_word_ids[$cid])) {
+            $category_word_ids[$cid] = [];
+        }
+    }
+
+    $word_lookup = [];
+    foreach ($category_word_ids as $word_ids) {
+        foreach ((array) $word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id > 0) {
+                $word_lookup[$word_id] = true;
+            }
+        }
+    }
+    $all_word_ids = array_values(array_filter(array_map('intval', array_keys($word_lookup)), function ($id) {
+        return $id > 0;
+    }));
+    sort($all_word_ids, SORT_NUMERIC);
+
+    if (!empty($all_word_ids)) {
+        update_meta_cache('post', $all_word_ids);
+    }
+
+    $display_text_by_word = function_exists('ll_tools_get_word_display_text_map')
+        ? ll_tools_get_word_display_text_map($all_word_ids)
         : [];
+    $part_of_speech_by_word = ll_tools_get_word_part_of_speech_map($all_word_ids);
+    $audio_summary_by_word = ll_tools_user_progress_get_word_audio_summary_map($all_word_ids);
+    $analytics_image_size = (string) apply_filters('ll_tools_user_progress_analytics_word_image_size', 'thumbnail');
+    $image_url_by_word = ll_tools_user_progress_get_word_image_url_map($all_word_ids, $analytics_image_size);
+    $gender_meta_by_word = $gender_enabled ? ll_tools_user_progress_get_word_gender_meta_map($all_word_ids) : [];
+    $category_quiz_configs = ll_tools_user_progress_category_quiz_config_map($scope_category_ids, $scope_wordset_id);
 
     $word_map = [];
-    $category_word_ids = [];
+    foreach ($category_word_ids as $cid => $word_ids) {
+        $cid = (int) $cid;
+        if ($cid <= 0) {
+            continue;
+        }
 
-    foreach ($scope_category_ids as $cid) {
-        $category_word_ids[$cid] = [];
-        $rows = isset($words_by_category[$cid]) && is_array($words_by_category[$cid]) ? $words_by_category[$cid] : [];
-        foreach ($rows as $word) {
-            if (!is_array($word)) {
-                continue;
-            }
-            $wid = isset($word['id']) ? (int) $word['id'] : 0;
+        $quiz_config = isset($category_quiz_configs[$cid]) && is_array($category_quiz_configs[$cid])
+            ? $category_quiz_configs[$cid]
+            : [];
+        foreach ((array) $word_ids as $wid) {
+            $wid = (int) $wid;
             if ($wid <= 0) {
                 continue;
             }
-            $category_word_ids[$cid][$wid] = true;
 
             if (!isset($word_map[$wid])) {
-                $title = isset($word['title']) ? (string) $word['title'] : '';
-                $translation = isset($word['translation']) ? (string) $word['translation'] : '';
+                $display = isset($display_text_by_word[$wid]) && is_array($display_text_by_word[$wid])
+                    ? $display_text_by_word[$wid]
+                    : [];
+                $title = trim((string) ($display['word_text'] ?? ''));
+                if ($title === '') {
+                    $title = trim((string) ($display['raw_title'] ?? get_the_title($wid)));
+                }
+                $translation = trim((string) ($display['translation_text'] ?? ''));
+                $audio_summary = isset($audio_summary_by_word[$wid]) && is_array($audio_summary_by_word[$wid])
+                    ? $audio_summary_by_word[$wid]
+                    : [];
+                $part_of_speech = isset($part_of_speech_by_word[$wid]) && is_array($part_of_speech_by_word[$wid])
+                    ? $part_of_speech_by_word[$wid]
+                    : [];
+                $part_of_speech_slug = sanitize_key((string) ($part_of_speech['slug'] ?? ''));
+                $image_url = (string) ($image_url_by_word[$wid] ?? '');
+
                 $word_map[$wid] = [
                     'id' => $wid,
                     'title' => $title,
                     'translation' => $translation,
-                    'label' => isset($word['label']) ? (string) $word['label'] : '',
-                    'image' => isset($word['image']) ? (string) $word['image'] : '',
-                    'audio_files' => isset($word['audio_files']) && is_array($word['audio_files']) ? array_values($word['audio_files']) : [],
-                    'audio_files_count' => isset($word['audio_files']) && is_array($word['audio_files']) ? count($word['audio_files']) : 0,
-                    'preferred_speaker_user_id' => isset($word['preferred_speaker_user_id']) ? (int) $word['preferred_speaker_user_id'] : 0,
-                    'normalized_grammatical_gender' => isset($word['normalized_grammatical_gender']) ? (string) $word['normalized_grammatical_gender'] : '',
-                    'gender_marked' => !empty($word['gender_marked']),
-                    'gender_progress_tracked' => !empty($word['gender_progress_tracked']),
-                    'gender_eligible' => !empty($word['gender_eligible']),
-                    'prompt_blocked' => ll_tools_word_is_blocked_from_prompt_rounds($word),
+                    'label' => $title,
+                    'image' => $image_url,
+                    'audio_url' => (string) ($audio_summary['audio_url'] ?? ''),
+                    'audio_recording_type' => (string) ($audio_summary['audio_recording_type'] ?? ''),
+                    'audio_files_count' => max(0, (int) ($audio_summary['audio_files_count'] ?? 0)),
+                    'preferred_speaker_user_id' => 0,
+                    'grammatical_gender' => (string) ($gender_meta_by_word[$wid] ?? ''),
+                    'part_of_speech' => $part_of_speech_slug !== '' ? [$part_of_speech_slug] : [],
+                    'has_audio' => !empty($audio_summary['audio_url']) || !empty($audio_summary['audio_files_count']),
+                    'has_image' => $image_url !== '',
+                    'normalized_grammatical_gender' => '',
+                    'gender_marked' => false,
+                    'gender_progress_tracked' => false,
+                    'gender_eligible' => false,
+                    'prompt_blocked' => false,
                     'category_ids' => [],
                 ];
             }
             $word_map[$wid]['category_ids'][$cid] = true;
+
+            if ($gender_enabled) {
+                $gender_support = ll_tools_get_word_gender_support_snapshot(
+                    $word_map[$wid],
+                    $scope_wordset_id,
+                    [
+                        'category_id' => $cid,
+                        'wordset_id' => $scope_wordset_id,
+                        'quiz_config' => $quiz_config,
+                    ]
+                );
+                if ((string) ($word_map[$wid]['normalized_grammatical_gender'] ?? '') === '' && !empty($gender_support['normalized_gender'])) {
+                    $word_map[$wid]['normalized_grammatical_gender'] = (string) $gender_support['normalized_gender'];
+                }
+                $word_map[$wid]['gender_marked'] = !empty($word_map[$wid]['gender_marked']) || !empty($gender_support['gender_marked']);
+                $word_map[$wid]['gender_progress_tracked'] = !empty($word_map[$wid]['gender_progress_tracked']) || !empty($gender_support['gender_progress_tracked']);
+                $word_map[$wid]['gender_eligible'] = !empty($word_map[$wid]['gender_eligible']) || !empty($gender_support['gender_eligible']);
+            }
         }
     }
-
-    $all_word_ids = array_values(array_filter(array_map('intval', array_keys($word_map)), function ($id) {
-        return $id > 0;
-    }));
-    $part_of_speech_by_word = ll_tools_get_word_part_of_speech_map($all_word_ids);
     $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     $category_progress = ll_tools_get_user_category_progress($uid);
     $category_url_map = ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
@@ -3021,11 +3468,17 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         if ($part_of_speech_abbreviation === '' && $part_of_speech_slug !== '') {
             $part_of_speech_abbreviation = ll_tools_get_part_of_speech_abbreviation($part_of_speech_slug, $part_of_speech_label);
         }
-        $audio_entry = ll_tools_user_progress_get_word_audio_entry(
-            isset($word['audio_files']) && is_array($word['audio_files']) ? $word['audio_files'] : [],
-            (int) ($word['preferred_speaker_user_id'] ?? 0),
-            (int) $wid
-        );
+        $audio_entry = [
+            'url' => (string) ($word['audio_url'] ?? ''),
+            'recording_type' => (string) ($word['audio_recording_type'] ?? ''),
+        ];
+        if ($audio_entry['url'] === '' && !empty($word['audio_files']) && is_array($word['audio_files'])) {
+            $audio_entry = ll_tools_user_progress_get_word_audio_entry(
+                $word['audio_files'],
+                (int) ($word['preferred_speaker_user_id'] ?? 0),
+                0
+            );
+        }
 
         $word_category_labels = [];
         $word_category_urls = [];

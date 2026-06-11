@@ -101,6 +101,44 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('isolation', (string) ($words_by_id[$word_a]['audio_recording_type'] ?? ''));
     }
 
+    public function test_build_analytics_payload_does_not_hydrate_word_audio_posts(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $word_audio_queries = 0;
+        $capture_word_audio_query = static function (WP_Query $query) use (&$word_audio_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? $post_type : [$post_type];
+            if (in_array('word_audio', array_map('strval', $post_types), true)) {
+                $word_audio_queries++;
+            }
+        };
+
+        add_action('pre_get_posts', $capture_word_audio_query);
+        try {
+            $analytics = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $fixture['wordset_id'],
+                $fixture['category_ids'],
+                14
+            );
+        } finally {
+            remove_action('pre_get_posts', $capture_word_audio_query);
+        }
+
+        $this->assertSame(10, (int) ($analytics['summary']['total_words'] ?? 0));
+        $this->assertCount(10, (array) ($analytics['words'] ?? []));
+        $this->assertSame(0, $word_audio_queries, 'Analytics should use the lightweight audio summary map instead of hydrating word_audio posts.');
+
+        $rows_with_audio = array_values(array_filter((array) ($analytics['words'] ?? []), static function ($row): bool {
+            return is_array($row) && trim((string) ($row['audio_url'] ?? '')) !== '';
+        }));
+        $this->assertNotEmpty($rows_with_audio);
+        $this->assertSame('isolation', (string) ($rows_with_audio[0]['audio_recording_type'] ?? ''));
+    }
+
     public function test_analytics_payload_includes_vocab_lesson_urls_for_private_categories(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
