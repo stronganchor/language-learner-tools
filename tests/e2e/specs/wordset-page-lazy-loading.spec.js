@@ -142,6 +142,41 @@ const inactiveCategory = {
   ]
 };
 
+const uncategorizedVirtualCategory = {
+  id: 2147483001,
+  slug: 'uncategorized',
+  name: 'Uncategorized',
+  translation: 'Uncategorized',
+  count: 1,
+  url: '/wordsets/lazy-wordset/settings/?ll_wordset_tool=editor&ll_editor_category_state=uncategorized',
+  wordset_id: 77,
+  mode: 'text',
+  prompt_type: 'text_title',
+  option_type: 'text_title',
+  learning_supported: false,
+  self_check_supported: false,
+  gender_supported: false,
+  aspect_bucket: 'no-image',
+  hidden: false,
+  is_public: '0',
+  has_images: false,
+  can_manage_inactive: false,
+  can_hide: false,
+  can_delete: false,
+  can_preview: false,
+  inactive_action_nonce: '',
+  inactive_action_url: '',
+  inactive_link_allowed: true,
+  is_virtual_category: true,
+  virtual_category_type: 'uncategorized',
+  public_note_label: 'Manager view',
+  public_note: 'Words without a category in this word set.',
+  search_text: 'uncategorized orphan word',
+  preview: [
+    { type: 'text', label: 'Orphan Word' }
+  ]
+};
+
 function buildCardMarkup(category, options = {}) {
   const cat = category || {};
   const extraStyle = String(options.extraStyle || '').trim();
@@ -305,8 +340,26 @@ function buildLazyShells(categories) {
     name: category.name,
     translation: category.translation,
     count: category.count,
+    search_text: category.search_text || '',
+    url: category.url || '',
+    mode: category.mode || '',
+    prompt_type: category.prompt_type || '',
+    option_type: category.option_type || '',
     is_public: category.is_public !== '0',
+    public_note: category.public_note || '',
+    public_note_label: category.public_note_label || '',
     has_images: !!category.has_images,
+    wordset_id: category.wordset_id || 0,
+    can_manage_inactive: !!category.can_manage_inactive,
+    can_hide: !!category.can_hide,
+    can_delete: !!category.can_delete,
+    can_preview: !!category.can_preview,
+    delete_reason: category.delete_reason || '',
+    inactive_action_nonce: category.inactive_action_nonce || '',
+    inactive_action_url: category.inactive_action_url || '',
+    inactive_link_allowed: !!category.inactive_link_allowed,
+    is_virtual_category: !!category.is_virtual_category,
+    virtual_category_type: category.virtual_category_type || '',
     preview_limit: category.preview_limit || 2,
     preview_requires_images: !!category.preview_requires_images,
     preview_aspect_ratio: category.preview_aspect_ratio || '',
@@ -962,6 +1015,34 @@ test('client-rendered inactive categories include hide and trash controls', asyn
   await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-trigger]')).toHaveCount(2);
   await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-form]')).toHaveCount(1);
   await expect(inactiveCard.locator('.ll-wordset-card__staff-action--preview')).toHaveCount(0);
+});
+
+test('client-rendered uncategorized virtual category links to the manager editor without delete controls', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categories: [allCategories[0], uncategorizedVirtualCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 2,
+      remaining: 0
+    }
+  });
+
+  await page.fill('[data-ll-wordset-page-search]', 'orphan');
+
+  const uncategorizedCard = page.locator('.ll-wordset-card--virtual[data-ll-wordset-virtual-category="uncategorized"]');
+  await expect(uncategorizedCard).toBeVisible();
+  await expect(uncategorizedCard).toHaveClass(/ll-wordset-card--inactive/);
+  await expect(uncategorizedCard.locator('.ll-wordset-card__public-note-label')).toHaveText('Manager view');
+  await expect(uncategorizedCard.locator('.ll-wordset-card__public-note-text')).toHaveText('Words without a category in this word set.');
+  await expect(uncategorizedCard.locator('.ll-wordset-preview-text')).toHaveText('Orphan Word');
+  await expect(uncategorizedCard.locator('.ll-wordset-card__inactive-actions')).toHaveCount(0);
+  await expect(uncategorizedCard.locator('[data-ll-wordset-select]')).toHaveCount(0);
+  await expect(uncategorizedCard.locator('[data-ll-wordset-category-mode]')).toHaveCount(0);
+  await expect(uncategorizedCard.locator('.ll-wordset-card__heading--inactive-link')).toHaveAttribute('href', /ll_editor_category_state=uncategorized/);
+  await expect(uncategorizedCard.locator('.ll-wordset-card__lesson-link--inactive-link')).toHaveAttribute('href', /ll_editor_category_state=uncategorized/);
 });
 
 test('inactive category card body submits preview form without a visible preview button', async ({ page }) => {

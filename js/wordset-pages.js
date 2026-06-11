@@ -1583,6 +1583,7 @@
                     ? normalizeBooleanFlag(cat.is_public)
                     : true,
                 public_note: String((cat && cat.public_note) || ''),
+                public_note_label: String((cat && cat.public_note_label) || ''),
                 hidden: normalizeBooleanFlag(cat && cat.hidden),
                 has_images: normalizeBooleanFlag(cat && cat.has_images),
                 search_text: String((cat && cat.search_text) || ''),
@@ -1598,6 +1599,9 @@
                 delete_reason: String((cat && cat.delete_reason) || ''),
                 inactive_action_nonce: String((cat && cat.inactive_action_nonce) || ''),
                 inactive_action_url: String((cat && cat.inactive_action_url) || ''),
+                inactive_link_allowed: normalizeBooleanFlag(cat && cat.inactive_link_allowed),
+                is_virtual_category: normalizeBooleanFlag(cat && cat.is_virtual_category),
+                virtual_category_type: String((cat && cat.virtual_category_type) || ''),
                 preview_deferred: normalizeBooleanFlag(cat && cat.preview_deferred),
                 preview_limit: Math.max(1, parseInt(cat && cat.preview_limit, 10) || 2),
                 preview_requires_images: normalizeBooleanFlag(cat && cat.preview_requires_images),
@@ -1629,10 +1633,28 @@
                 name: String(source.name || ''),
                 translation: String(source.translation || source.name || ''),
                 count: Math.max(0, parseInt(source.count, 10) || 0),
+                search_text: String(source.search_text || ''),
+                url: String(source.url || ''),
+                mode: String(source.mode || 'image'),
+                prompt_type: String(source.prompt_type || 'audio'),
+                option_type: String(source.option_type || 'image'),
                 is_public: Object.prototype.hasOwnProperty.call(source, 'is_public')
                     ? normalizeBooleanFlag(source.is_public)
                     : true,
+                public_note: String(source.public_note || ''),
+                public_note_label: String(source.public_note_label || ''),
                 has_images: normalizeBooleanFlag(source.has_images),
+                wordset_id: parseInt(source.wordset_id, 10) || wordsetId,
+                can_manage_inactive: normalizeBooleanFlag(source.can_manage_inactive),
+                can_hide: normalizeBooleanFlag(source.can_hide),
+                can_delete: normalizeBooleanFlag(source.can_delete),
+                can_preview: normalizeBooleanFlag(source.can_preview),
+                delete_reason: String(source.delete_reason || ''),
+                inactive_action_nonce: String(source.inactive_action_nonce || ''),
+                inactive_action_url: String(source.inactive_action_url || ''),
+                inactive_link_allowed: normalizeBooleanFlag(source.inactive_link_allowed),
+                is_virtual_category: normalizeBooleanFlag(source.is_virtual_category),
+                virtual_category_type: String(source.virtual_category_type || ''),
                 preview_limit: Math.max(1, parseInt(source.preview_limit, 10) || 2),
                 preview_requires_images: normalizeBooleanFlag(source.preview_requires_images),
                 preview_aspect_ratio: String(source.preview_aspect_ratio || ''),
@@ -7160,10 +7182,15 @@
         const starredLookup = (opts.starredLookup && typeof opts.starredLookup === 'object') ? opts.starredLookup : {};
         const temporarySearchCard = !!opts.temporarySearchCard;
         const catName = String(cat.name || cat.translation || '').trim();
-        const catUrl = String(cat.url || '#').trim() || '#';
+        const rawCatUrl = String(cat.url || '').trim();
+        const catUrl = rawCatUrl || '#';
+        const isVirtualCategory = !!cat.is_virtual_category;
+        const virtualCategoryType = String(cat.virtual_category_type || '').trim();
         const isPublic = categoryIsPublic(cat);
         const canPreviewInactive = !isPublic && canRenderInactiveCategoryActions(cat) && !!cat.can_preview;
+        const canLinkInactive = !isPublic && rawCatUrl !== '' && !!cat.inactive_link_allowed;
         const publicNote = String(cat.public_note || i18n.categoryNotPublicDefaultNote || '').trim();
+        const publicNoteLabel = String(cat.public_note_label || i18n.notPublicLabel || '').trim();
         const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
         const starredCount = Math.max(0, parseInt(starredLookup[categoryId], 10) || 0);
         const trackLoadingClass = (summaryMetricsLoading || cardProgressInitialLoading) ? ' is-loading' : '';
@@ -7177,9 +7204,12 @@
         const quizModesAria = formatTemplate(i18n.quizModesCategoryAria || '', [catName]);
         const cardModes = getWordsetCategoryCardModes(cat);
 
-        let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + (canPreviewInactive ? ' ll-wordset-card--inactive-previewable' : '') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
+        let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + (canPreviewInactive ? ' ll-wordset-card--inactive-previewable' : '') + (isVirtualCategory ? ' ll-wordset-card--virtual' : '') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
         if (canPreviewInactive) {
             html += ' data-ll-wordset-inactive-preview-card="true"';
+        }
+        if (isVirtualCategory) {
+            html += ' data-ll-wordset-virtual-category="' + escapeHtml(virtualCategoryType) + '"';
         }
         if (temporarySearchCard) {
             html += ' data-ll-wordset-search-rendered="true"';
@@ -7196,11 +7226,17 @@
             html += '  </a>';
         } else {
             html += '  <span class="ll-wordset-card__select ll-wordset-card__select--inactive" aria-hidden="true"><span class="ll-wordset-card__select-box"></span></span>';
-            html += '  <div class="ll-wordset-card__heading' + (canPreviewInactive ? ' ll-wordset-card__heading--inactive-preview' : '') + '" aria-label="' + escapeHtml(catName) + '"'
-                + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
-                + '>';
-            html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
-            html += '  </div>';
+            if (canLinkInactive) {
+                html += '  <a class="ll-wordset-card__heading ll-wordset-card__heading--inactive-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
+                html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
+                html += '  </a>';
+            } else {
+                html += '  <div class="ll-wordset-card__heading' + (canPreviewInactive ? ' ll-wordset-card__heading--inactive-preview' : '') + '" aria-label="' + escapeHtml(catName) + '"'
+                    + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
+                    + '>';
+                html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
+                html += '  </div>';
+            }
         }
         if (isPublic && isLoggedIn) {
             html += '  <button type="button" class="ll-wordset-card__hide" data-ll-wordset-hide data-cat-id="' + categoryId + '" aria-label="' + escapeHtml(hideAria) + '">'
@@ -7214,6 +7250,8 @@
         html += '</div>';
         if (isPublic) {
             html += '<a class="ll-wordset-card__lesson-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
+        } else if (canLinkInactive) {
+            html += '<a class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive ll-wordset-card__lesson-link--inactive-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
         } else {
             html += '<div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive' + (canPreviewInactive ? ' ll-wordset-card__lesson-link--inactive-preview' : '') + '" aria-label="' + escapeHtml(catName) + '"'
                 + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
@@ -7228,10 +7266,10 @@
         }
         html += buildWordsetCategoryPreviewMarkup(cat);
         html += '  </div>';
-        html += isPublic ? '</a>' : '</div>';
+        html += (isPublic || canLinkInactive) ? '</a>' : '</div>';
         if (!isPublic) {
             html += '<div class="ll-wordset-card__public-note" role="note">'
-                + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(i18n.notPublicLabel || '') + '</span>'
+                + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(publicNoteLabel) + '</span>'
                 + '<span class="ll-wordset-card__public-note-text">' + escapeHtml(publicNote) + '</span>'
                 + '</div>';
             if (canPreviewInactive) {

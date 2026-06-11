@@ -12,17 +12,20 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $guest_html = $this->renderWordsetMainView($wordset_id);
         $this->assertStringContainsString('Public Staff Visible Category', $guest_html);
         $this->assertStringNotContainsString('Inactive Staff Only Category', $guest_html);
+        $this->assertStringNotContainsString('Uncategorized Staff Orphan Word', $guest_html);
 
         $subscriber_id = self::factory()->user->create(['role' => 'subscriber']);
         wp_set_current_user($subscriber_id);
         $subscriber_html = $this->renderWordsetMainView($wordset_id);
         $this->assertStringNotContainsString('Inactive Staff Only Category', $subscriber_html);
+        $this->assertStringNotContainsString('Uncategorized Staff Orphan Word', $subscriber_html);
 
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($admin_id);
         $staff_html = $this->renderWordsetMainView($wordset_id);
         $inactive_card = $this->extractCategoryCardMarkupByText($staff_html, 'Inactive Staff Only Category');
         $image_card = $this->extractCategoryCardMarkupByText($staff_html, 'Image Only Staff Category');
+        $uncategorized_card = $this->extractCategoryCardMarkupByText($staff_html, 'Uncategorized');
 
         $this->assertStringContainsString('Inactive Staff Only Category', $staff_html);
         $this->assertStringNotContainsString('Empty Owned Staff Category', $staff_html);
@@ -59,6 +62,17 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $image_card);
         $this->assertStringContainsString('ll-wordset-trash-icon', $image_card);
         $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete" disabled', $image_card);
+
+        $this->assertStringContainsString('ll-wordset-card--inactive', $uncategorized_card);
+        $this->assertStringContainsString('ll-wordset-card--virtual', $uncategorized_card);
+        $this->assertStringContainsString('data-ll-wordset-virtual-category="uncategorized"', $uncategorized_card);
+        $this->assertStringContainsString('Manager view', $uncategorized_card);
+        $this->assertStringContainsString('Words without a category in this word set.', $uncategorized_card);
+        $this->assertStringContainsString('ll_editor_category_state=uncategorized', $uncategorized_card);
+        $this->assertStringContainsString('Uncategorized Staff Orphan Word', $uncategorized_card);
+        $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete', $uncategorized_card);
+        $this->assertStringNotContainsString('data-ll-wordset-select', $uncategorized_card);
+        $this->assertStringNotContainsString('data-ll-wordset-category-mode', $uncategorized_card);
     }
 
     public function test_preview_prepares_draft_words_from_word_images(): void
@@ -315,7 +329,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
     }
 
     /**
-     * @return array{wordset_id:int,inactive_category_id:int,inactive_word_id:int,empty_owned_category_id:int,image_only_category_id:int,image_id:int}
+     * @return array{wordset_id:int,inactive_category_id:int,inactive_word_id:int,uncategorized_word_id:int,empty_owned_category_id:int,image_only_category_id:int,image_id:int}
      */
     private function createWordsetFixture(): array
     {
@@ -366,6 +380,11 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
             $inactive_category_id,
             $wordset_id
         );
+        $uncategorized_word_id = $this->createUncategorizedWord(
+            'Uncategorized Staff Orphan Word',
+            'Uncategorized Staff Orphan Translation',
+            $wordset_id
+        );
 
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',
@@ -392,6 +411,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'inactive_category_id' => $inactive_category_id,
             'inactive_word_id' => $inactive_word_id,
+            'uncategorized_word_id' => $uncategorized_word_id,
             'empty_owned_category_id' => $empty_owned_category_id,
             'image_only_category_id' => $image_only_category_id,
             'image_id' => (int) $image_id,
@@ -406,6 +426,19 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
             'post_title' => $title . ' ' . wp_generate_password(4, false),
         ]);
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', $translation);
+
+        return (int) $word_id;
+    }
+
+    private function createUncategorizedWord(string $title, string $translation, int $wordset_id): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title . ' ' . wp_generate_password(4, false),
+        ]);
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
         update_post_meta($word_id, 'word_translation', $translation);
 

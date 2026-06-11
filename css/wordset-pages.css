@@ -2797,11 +2797,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     cursor: default;
 }
 
+.ll-wordset-card__heading--inactive-link,
+.ll-wordset-card__lesson-link--inactive-link {
+    cursor: pointer;
+}
+
 .ll-wordset-card__heading--inactive-preview,
 .ll-wordset-card__lesson-link--inactive-preview {
     cursor: pointer;
 }
 
+.ll-wordset-card__heading--inactive-link:focus-visible,
+.ll-wordset-card__lesson-link--inactive-link:focus-visible,
 .ll-wordset-card__heading--inactive-preview:focus-visible,
 .ll-wordset-card__lesson-link--inactive-preview:focus-visible {
     outline: 3px solid rgba(77, 93, 113, 0.22);

@@ -336,6 +336,99 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertTrue($category_query_seen, 'Expected the editor word query to apply the selected category in SQL.');
     }
 
+    public function test_uncategorized_filter_renders_orphaned_words_for_managers(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-uncategorized');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $orphan_word_id = $this->createUncategorizedWord(
+            'Orphan Word',
+            'Orphan Translation',
+            $wordset_id
+        );
+
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+            : [];
+        $result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, [
+            'category_state' => 'uncategorized',
+            'sort' => 'word',
+            'dir' => 'asc',
+            'paged' => 1,
+        ]);
+        $row_ids = array_map('intval', wp_list_pluck((array) ($result['rows'] ?? []), 'id'));
+        $this->assertSame([$orphan_word_id], $row_ids);
+
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_category_state' => 'uncategorized',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg($_GET, ll_tools_get_wordset_page_view_url($wordset_term, 'settings')));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('Orphan Word', $html);
+        $this->assertStringContainsString('Orphan Translation', $html);
+        $this->assertStringContainsString('No category', $html);
+        $this->assertStringContainsString('name="ll_editor_category_state" value="uncategorized"', $html);
+        $this->assertStringContainsString('All 1 filtered word', $html);
+        $this->assertStringNotContainsString('Alpha Word', $html);
+        $this->assertStringNotContainsString('Beta Word', $html);
+    }
+
+    public function test_all_filtered_bulk_category_move_can_target_uncategorized_words(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-all-filtered-uncategorized');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $orphan_word_id = $this->createUncategorizedWord(
+            'All Filtered Orphan Word',
+            'All Filtered Orphan Translation',
+            $wordset_id
+        );
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'move_category',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_all_filtered' => '1',
+            'll_editor_category_state' => 'uncategorized',
+            'll_editor_sort' => 'word',
+            'll_editor_dir' => 'asc',
+            'll_wordset_editor_target_category' => (string) $fixture['category_b_id'],
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect);
+        $this->assertSame('move_category', (string) ($query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('1', (string) ($query['ll_wordset_manager_editor_count'] ?? ''));
+        $this->assertSame('uncategorized', (string) ($query['ll_editor_category_state'] ?? ''));
+
+        $orphan_categories = array_map('intval', wp_get_post_terms($orphan_word_id, 'word-category', ['fields' => 'ids']));
+        $alpha_categories = array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids']));
+        $beta_categories = array_map('intval', wp_get_post_terms((int) $fixture['beta_word_id'], 'word-category', ['fields' => 'ids']));
+        $this->assertContains((int) $fixture['category_b_id'], $orphan_categories);
+        $this->assertContains((int) $fixture['category_a_id'], $alpha_categories);
+        $this->assertContains((int) $fixture['category_a_id'], $beta_categories);
+    }
+
     public function test_owned_category_editor_rows_do_not_scan_all_words_or_images(): void
     {
         $this->loginEditor();
@@ -1028,6 +1121,19 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         }
 
         return $category_id;
+    }
+
+    private function createUncategorizedWord(string $title, string $translation, int $wordset_id): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', $translation);
+
+        return (int) $word_id;
     }
 
     private function extractCategoryFilterHtml(string $html): string
