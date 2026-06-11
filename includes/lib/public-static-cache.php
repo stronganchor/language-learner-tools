@@ -846,51 +846,56 @@ add_action('shutdown', 'll_tools_store_public_static_cache', 0);
  */
 function ll_tools_purge_public_static_cache(array $criteria = []): int {
     $dir = ll_tools_public_static_cache_dir();
-    if ($dir === '' || !is_dir($dir)) {
-        return 0;
-    }
-
     $deleted = 0;
     $criteria = ll_tools_public_static_cache_normalize_purge_criteria($criteria);
 
-    foreach (glob(trailingslashit($dir) . 'public-*.html') ?: [] as $file) {
-        if (!is_file($file)) {
-            continue;
-        }
+    if ($dir !== '' && is_dir($dir)) {
+        foreach (glob(trailingslashit($dir) . 'public-*.html') ?: [] as $file) {
+            if (!is_file($file)) {
+                continue;
+            }
 
-        $meta = ll_tools_public_static_cache_read_meta($file);
-        if (!ll_tools_public_static_cache_meta_matches_criteria($meta, $criteria)) {
-            continue;
-        }
+            $meta = ll_tools_public_static_cache_read_meta($file);
+            if (!ll_tools_public_static_cache_meta_matches_criteria($meta, $criteria)) {
+                continue;
+            }
 
-        if (@unlink($file)) {
-            $deleted++;
-        }
+            if (@unlink($file)) {
+                $deleted++;
+            }
 
-        $meta_file = ll_tools_public_static_cache_meta_file_path($file);
-        if ($meta_file !== '' && is_file($meta_file)) {
-            @unlink($meta_file);
-        }
-    }
-
-    if (empty($criteria)) {
-        foreach (glob(trailingslashit($dir) . 'public-*.meta.json') ?: [] as $meta_file) {
-            if (is_file($meta_file)) {
+            $meta_file = ll_tools_public_static_cache_meta_file_path($file);
+            if ($meta_file !== '' && is_file($meta_file)) {
                 @unlink($meta_file);
+            }
+        }
+
+        if (empty($criteria)) {
+            foreach (glob(trailingslashit($dir) . 'public-*.meta.json') ?: [] as $meta_file) {
+                if (is_file($meta_file)) {
+                    @unlink($meta_file);
+                }
+            }
+        }
+
+        foreach (glob(trailingslashit($dir) . 'public-*.html.tmp-*') ?: [] as $tmp_file) {
+            if (is_file($tmp_file) && @unlink($tmp_file)) {
+                $deleted++;
+            }
+        }
+
+        foreach (glob(trailingslashit($dir) . 'public-*.meta.json.tmp-*') ?: [] as $tmp_file) {
+            if (is_file($tmp_file)) {
+                @unlink($tmp_file);
             }
         }
     }
 
-    foreach (glob(trailingslashit($dir) . 'public-*.html.tmp-*') ?: [] as $tmp_file) {
-        if (is_file($tmp_file) && @unlink($tmp_file)) {
-            $deleted++;
-        }
-    }
-
-    foreach (glob(trailingslashit($dir) . 'public-*.meta.json.tmp-*') ?: [] as $tmp_file) {
-        if (is_file($tmp_file)) {
-            @unlink($tmp_file);
-        }
+    if (
+        empty($GLOBALS['ll_tools_static_cache_suppress_edge_purge'])
+        && function_exists('ll_tools_cloudflare_static_cache_purge_once')
+    ) {
+        ll_tools_cloudflare_static_cache_purge_once('public');
     }
 
     return $deleted;
@@ -1154,6 +1159,240 @@ function ll_tools_static_cache_purge_targets(): array {
     return ['all', 'dictionary', 'public'];
 }
 
+function ll_tools_cloudflare_static_cache_zone_id(): string {
+    $zone_id = defined('LL_TOOLS_CLOUDFLARE_ZONE_ID')
+        ? (string) constant('LL_TOOLS_CLOUDFLARE_ZONE_ID')
+        : '';
+
+    $zone_id = (string) apply_filters('ll_tools_cloudflare_static_cache_zone_id', $zone_id);
+    return preg_replace('/[^a-zA-Z0-9_-]/', '', trim($zone_id)) ?: '';
+}
+
+function ll_tools_cloudflare_static_cache_api_token(): string {
+    $token = defined('LL_TOOLS_CLOUDFLARE_API_TOKEN')
+        ? (string) constant('LL_TOOLS_CLOUDFLARE_API_TOKEN')
+        : '';
+
+    $token = (string) apply_filters('ll_tools_cloudflare_static_cache_api_token', $token);
+    return trim($token);
+}
+
+function ll_tools_cloudflare_static_cache_purge_enabled(): bool {
+    $configured = ll_tools_cloudflare_static_cache_zone_id() !== ''
+        && ll_tools_cloudflare_static_cache_api_token() !== '';
+    $enabled = $configured;
+
+    return $configured && (bool) apply_filters('ll_tools_cloudflare_static_cache_purge_enabled', $enabled);
+}
+
+/**
+ * Return known public dictionary URLs that can have matching edge HTML.
+ *
+ * @return string[]
+ */
+function ll_tools_cloudflare_static_cache_dictionary_urls(): array {
+    $urls = [];
+    $page_id = (int) get_option('ll_default_dictionary_page_id');
+
+    if (
+        $page_id <= 0
+        && function_exists('ll_tools_find_dictionary_page_id')
+    ) {
+        $page_id = (int) ll_tools_find_dictionary_page_id();
+    }
+
+    if ($page_id > 0) {
+        $permalink = function_exists('ll_tools_get_published_page_permalink')
+            ? ll_tools_get_published_page_permalink($page_id)
+            : (string) get_permalink($page_id);
+        if ($permalink !== '') {
+            $urls[] = $permalink;
+        }
+    }
+
+    /**
+     * Filter dictionary URLs purged from Cloudflare after LL dictionary cache invalidation.
+     *
+     * Sites with multiple public dictionary pages can add exact canonical URLs here.
+     *
+     * @param string[] $urls
+     */
+    $urls = apply_filters('ll_tools_cloudflare_static_cache_dictionary_urls', $urls);
+
+    return ll_tools_cloudflare_static_cache_normalize_urls($urls);
+}
+
+/**
+ * @param mixed $urls
+ * @return string[]
+ */
+function ll_tools_cloudflare_static_cache_normalize_urls($urls): array {
+    if (!is_array($urls)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($urls as $url) {
+        if (!is_scalar($url)) {
+            continue;
+        }
+        $url = trim((string) $url);
+        if ($url === '') {
+            continue;
+        }
+
+        $scheme = strtolower((string) wp_parse_url($url, PHP_URL_SCHEME));
+        $host = (string) wp_parse_url($url, PHP_URL_HOST);
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            continue;
+        }
+
+        $normalized[] = esc_url_raw($url);
+    }
+
+    return array_values(array_unique(array_filter($normalized)));
+}
+
+/**
+ * Return edge URLs to purge for one LL static-cache target.
+ *
+ * @return string[]
+ */
+function ll_tools_cloudflare_static_cache_purge_urls(string $target): array {
+    $target = ll_tools_normalize_static_cache_purge_target($target);
+    if ($target === '') {
+        $target = 'all';
+    }
+
+    $urls = [];
+    if ($target === 'all' || $target === 'dictionary') {
+        $urls = array_merge($urls, ll_tools_cloudflare_static_cache_dictionary_urls());
+    }
+
+    /**
+     * Filter exact URLs purged from Cloudflare after LL static-cache invalidation.
+     *
+     * The default only includes discovered dictionary pages. Public wordset or
+     * lesson URLs are intentionally site-specific and should be added here by
+     * sites that edge-cache those pages.
+     *
+     * @param string[] $urls
+     * @param string   $target Normalized purge target: all, dictionary, or public.
+     */
+    $urls = apply_filters('ll_tools_cloudflare_static_cache_purge_urls', $urls, $target);
+
+    return ll_tools_cloudflare_static_cache_normalize_urls($urls);
+}
+
+function ll_tools_cloudflare_static_cache_purge(string $target = 'all'): array {
+    $target = ll_tools_normalize_static_cache_purge_target($target);
+    if ($target === '') {
+        $target = 'all';
+    }
+
+    $zone_id = ll_tools_cloudflare_static_cache_zone_id();
+    $token = ll_tools_cloudflare_static_cache_api_token();
+    $enabled = ll_tools_cloudflare_static_cache_purge_enabled();
+    $urls = $enabled ? ll_tools_cloudflare_static_cache_purge_urls($target) : [];
+
+    $result = [
+        'provider' => 'cloudflare',
+        'target' => $target,
+        'configured' => $zone_id !== '' && $token !== '',
+        'enabled' => $enabled,
+        'attempted' => false,
+        'purged' => false,
+        'urls' => $urls,
+        'batches' => [],
+        'error' => '',
+    ];
+
+    if (!$result['configured']) {
+        $result['error'] = 'not_configured';
+        return $result;
+    }
+
+    if (!$enabled) {
+        $result['error'] = 'disabled';
+        return $result;
+    }
+
+    if (empty($urls)) {
+        $result['error'] = 'no_urls';
+        return $result;
+    }
+
+    $endpoint = 'https://api.cloudflare.com/client/v4/zones/' . rawurlencode($zone_id) . '/purge_cache';
+    $all_success = true;
+
+    foreach (array_chunk($urls, 30) as $batch) {
+        $result['attempted'] = true;
+        $response = wp_remote_post($endpoint, [
+            'timeout' => 10,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type' => 'application/json',
+            ],
+            'body' => wp_json_encode([
+                'files' => array_values($batch),
+            ]),
+        ]);
+
+        $batch_result = [
+            'count' => count($batch),
+            'success' => false,
+            'status' => 0,
+            'error' => '',
+        ];
+
+        if ($response instanceof WP_Error) {
+            $batch_result['error'] = $response->get_error_code();
+            $all_success = false;
+        } else {
+            $batch_result['status'] = (int) wp_remote_retrieve_response_code($response);
+            $body = json_decode((string) wp_remote_retrieve_body($response), true);
+            $batch_result['success'] = is_array($body) && !empty($body['success']);
+            if (!$batch_result['success']) {
+                $batch_result['error'] = 'api_error';
+                $all_success = false;
+            }
+        }
+
+        $result['batches'][] = $batch_result;
+    }
+
+    $result['purged'] = $result['attempted'] && $all_success;
+    if (!$result['purged'] && $result['error'] === '') {
+        $result['error'] = 'purge_failed';
+    }
+
+    return $result;
+}
+
+function ll_tools_cloudflare_static_cache_purge_once(string $target = 'all'): array {
+    $target = ll_tools_normalize_static_cache_purge_target($target);
+    if ($target === '') {
+        $target = 'all';
+    }
+
+    if (!isset($GLOBALS['ll_tools_cloudflare_static_cache_purge_results']) || !is_array($GLOBALS['ll_tools_cloudflare_static_cache_purge_results'])) {
+        $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'] = [];
+    }
+
+    if (isset($GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$target])) {
+        return $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$target];
+    }
+
+    $result = ll_tools_cloudflare_static_cache_purge($target);
+    $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$target] = $result;
+
+    return $result;
+}
+
+function ll_tools_cloudflare_static_cache_reset_purge_once_state(): void {
+    $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'] = [];
+}
+
 function ll_tools_normalize_static_cache_purge_target($target): string {
     $target = sanitize_key((string) $target);
     if ($target === '') {
@@ -1184,15 +1423,40 @@ function ll_tools_purge_static_caches($target = 'all'): array {
         ],
     ];
 
-    if (($target === 'all' || $target === 'dictionary') && function_exists('ll_tools_purge_dictionary_static_cache')) {
-        $result['caches']['dictionary']['deleted'] = ll_tools_purge_dictionary_static_cache();
-    }
+    $previous_suppress_edge_purge = !empty($GLOBALS['ll_tools_static_cache_suppress_edge_purge']);
+    $GLOBALS['ll_tools_static_cache_suppress_edge_purge'] = true;
+    try {
+        if (($target === 'all' || $target === 'dictionary') && function_exists('ll_tools_purge_dictionary_static_cache')) {
+            $result['caches']['dictionary']['deleted'] = ll_tools_purge_dictionary_static_cache();
+        }
 
-    if (($target === 'all' || $target === 'public') && function_exists('ll_tools_purge_public_static_cache')) {
-        $result['caches']['public']['deleted'] = ll_tools_purge_public_static_cache();
+        if (($target === 'all' || $target === 'public') && function_exists('ll_tools_purge_public_static_cache')) {
+            $result['caches']['public']['deleted'] = ll_tools_purge_public_static_cache();
+        }
+    } finally {
+        if ($previous_suppress_edge_purge) {
+            $GLOBALS['ll_tools_static_cache_suppress_edge_purge'] = true;
+        } else {
+            unset($GLOBALS['ll_tools_static_cache_suppress_edge_purge']);
+        }
     }
 
     $result['deleted'] = (int) $result['caches']['dictionary']['deleted'] + (int) $result['caches']['public']['deleted'];
+    $result['edge'] = [
+        'cloudflare' => function_exists('ll_tools_cloudflare_static_cache_purge_once')
+            ? ll_tools_cloudflare_static_cache_purge_once($target)
+            : [
+                'provider' => 'cloudflare',
+                'target' => $target,
+                'configured' => false,
+                'enabled' => false,
+                'attempted' => false,
+                'purged' => false,
+                'urls' => [],
+                'batches' => [],
+                'error' => 'unavailable',
+            ],
+    ];
 
     return $result;
 }

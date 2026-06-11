@@ -35,6 +35,42 @@ function normalizeList(value) {
   return Array.isArray(value) ? value.filter(Boolean).map((item) => String(item)) : [];
 }
 
+function normalizeUpperList(value) {
+  if (Array.isArray(value)) {
+    return value
+      .filter(Boolean)
+      .map((item) => String(item).trim().toUpperCase())
+      .filter(Boolean);
+  }
+  if (value === undefined || value === null || value === '') {
+    return [];
+  }
+  return [String(value).trim().toUpperCase()].filter(Boolean);
+}
+
+function normalizeHeaderMap(value) {
+  const headers = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return headers;
+  }
+
+  for (const [rawName, rawValue] of Object.entries(value)) {
+    const name = String(rawName || '').trim();
+    if (!name || rawValue === undefined || rawValue === null || typeof rawValue === 'object') {
+      continue;
+    }
+    headers[name] = String(rawValue);
+  }
+
+  return headers;
+}
+
+function resolveSmokeUrl(rawUrl, baseUrl) {
+  const value = String(rawUrl || baseUrl || '').trim();
+  expect(value, 'Smoke check URL should not be empty.').not.toBe('');
+  return new URL(value, baseUrl).toString();
+}
+
 function parseRequestDetails(request) {
   const url = request.url();
   const method = String(request.method() || '').toUpperCase();
@@ -350,6 +386,76 @@ async function maybePerformNavigation(page, navigationConfig) {
   throw new Error('Unsupported live-smoke navigation type: ' + String(navigationConfig.type || ''));
 }
 
+async function runCloudflareCacheChecks(apiRequest, site) {
+  const checks = Array.isArray(site.cloudflareCache) ? site.cloudflareCache : [];
+  const results = [];
+
+  for (let index = 0; index < checks.length; index += 1) {
+    const check = checks[index] && typeof checks[index] === 'object' ? checks[index] : {};
+    const name = String(check.name || ('cloudflare-cache-' + (index + 1))).trim();
+    const url = resolveSmokeUrl(check.url || site.url, site.url);
+    const method = String(check.method || 'GET').trim().toUpperCase();
+    const headers = normalizeHeaderMap(check.headers);
+    const warmupRequests = Math.max(0, parseInt(check.warmupRequests || '', 10) || 0);
+    const timeout = Math.max(1000, parseInt(check.timeoutMs || '', 10) || 30000);
+    const expectedServer = String(check.expectServerIncludes || '').trim().toLowerCase();
+    const expectedCacheStatuses = normalizeUpperList(check.expectCacheStatus || check.expectCacheStatuses);
+
+    expect(['GET', 'HEAD'].includes(method), name + ' method must be GET or HEAD.').toBe(true);
+
+    const attempts = [];
+    for (let attempt = 0; attempt <= warmupRequests; attempt += 1) {
+      const phase = attempt < warmupRequests ? 'warmup' : 'assertion';
+      const response = await apiRequest.fetch(url, {
+        method,
+        headers,
+        timeout,
+        failOnStatusCode: false
+      });
+      const responseHeaders = response.headers();
+      const attemptSummary = {
+        phase,
+        status: response.status(),
+        url: response.url(),
+        server: String(responseHeaders.server || ''),
+        cfCacheStatus: String(responseHeaders['cf-cache-status'] || ''),
+        cacheControl: String(responseHeaders['cache-control'] || ''),
+        age: String(responseHeaders.age || '')
+      };
+      attempts.push(attemptSummary);
+      expect(attemptSummary.status, name + ' returned an unsuccessful status during ' + phase + '.').toBeLessThan(400);
+      await response.dispose().catch(() => null);
+    }
+
+    const finalAttempt = attempts[attempts.length - 1] || {};
+    if (expectedServer) {
+      expect(
+        String(finalAttempt.server || '').toLowerCase(),
+        name + ' final Server header did not include expected text.'
+      ).toContain(expectedServer);
+    }
+    if (expectedCacheStatuses.length > 0) {
+      expect(
+        expectedCacheStatuses,
+        name + ' final CF-Cache-Status was not one of the configured values.'
+      ).toContain(String(finalAttempt.cfCacheStatus || '').toUpperCase());
+    }
+
+    results.push({
+      name,
+      url,
+      method,
+      headers,
+      warmupRequests,
+      expectedServerIncludes: expectedServer,
+      expectedCacheStatuses,
+      attempts
+    });
+  }
+
+  return results;
+}
+
 async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
   const searchInput = page.locator('#ll-wordset-page-search-input');
   await expect(searchInput).toBeVisible();
@@ -432,7 +538,7 @@ if (loadSitesError) {
   });
 } else {
   for (const site of loadedSites.sites) {
-    test(site.name + ' public smoke check', async ({ page }, testInfo) => {
+    test(site.name + ' public smoke check', async ({ page, request }, testInfo) => {
       const siteUrl = new URL(site.url);
       const expected = site.expected && typeof site.expected === 'object' ? site.expected : {};
       const exercise = site.exercise && typeof site.exercise === 'object' ? site.exercise : {};
@@ -450,7 +556,8 @@ if (loadSitesError) {
         allowedSameOriginNonGetRequests: [],
         unexpectedSameOriginNonGetRequests: [],
         sameOriginRequestFailures: [],
-        sameOriginServerErrors: []
+        sameOriginServerErrors: [],
+        cloudflareCacheChecks: []
       };
 
       page.on('console', (message) => {
@@ -512,6 +619,8 @@ if (loadSitesError) {
           });
         }
       });
+
+      summary.cloudflareCacheChecks = await runCloudflareCacheChecks(request, site);
 
       const response = await page.goto(site.url, {
         waitUntil: 'domcontentloaded',

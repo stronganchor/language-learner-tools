@@ -68,6 +68,8 @@ For a normal Codex session against a live LL Tools site:
    scope.
 7. If public anonymous HTML is stale after a site edit, call
    `POST /cache/static/purge` to clear the LL dictionary/public static caches.
+   When Cloudflare credentials are configured, the same purge reports edge-purge
+   status for exact public URLs such as the configured dictionary page.
 8. Then call `GET /wordsets/{wordset}/report-summary` to confirm the exact
    target wordset and current coverage without running the heavier full report.
 9. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
@@ -396,6 +398,21 @@ curl -u codex-temp:YOUR_PASSWORD \
   -X POST \
   "https://example.com/wp-json/ll-tools/v1/cache/static/purge?cache=dictionary"
 ```
+
+Optional Cloudflare edge purge support:
+
+- Define `LL_TOOLS_CLOUDFLARE_ZONE_ID` and `LL_TOOLS_CLOUDFLARE_API_TOKEN` in
+  site configuration, or provide equivalent values with
+  `ll_tools_cloudflare_static_cache_zone_id` and
+  `ll_tools_cloudflare_static_cache_api_token`.
+- The default edge purge targets the configured public dictionary page URL for
+  dictionary/all purges. Add site-specific public URLs through
+  `ll_tools_cloudflare_static_cache_purge_urls` only when those pages are
+  intentionally cached at the edge.
+- The REST response includes an `edge.cloudflare` object with `configured`,
+  `enabled`, `attempted`, `purged`, `urls`, `batches`, and `error` fields. A
+  missing Cloudflare configuration is reported as `error: "not_configured"` and
+  does not make the local cache purge fail.
 
 Dump a live report:
 

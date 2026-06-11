@@ -10,6 +10,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
             ll_tools_reset_dictionary_static_cache_purge_once_state();
         }
+        if (function_exists('ll_tools_cloudflare_static_cache_reset_purge_once_state')) {
+            ll_tools_cloudflare_static_cache_reset_purge_once_state();
+        }
     }
 
     protected function tearDown(): void
@@ -93,6 +96,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ll_tools_bump_dictionary_browser_cache_version();
         if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
             ll_tools_reset_dictionary_static_cache_purge_once_state();
+        }
+        if (function_exists('ll_tools_cloudflare_static_cache_reset_purge_once_state')) {
+            ll_tools_cloudflare_static_cache_reset_purge_once_state();
         }
         parent::tearDown();
     }
@@ -339,6 +345,64 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ll_tools_bump_dictionary_browser_cache_version();
 
         $this->assertFileDoesNotExist($file);
+    }
+
+    public function test_dictionary_browser_cache_bump_purges_cloudflare_dictionary_url_when_configured(): void
+    {
+        $dictionary_page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Cloudflare Dictionary',
+            'post_content' => '[ll_dictionary]',
+        ]);
+        update_option('ll_default_dictionary_page_id', $dictionary_page_id);
+        $dictionary_url = (string) get_permalink($dictionary_page_id);
+        $this->assertNotSame('', $dictionary_url);
+
+        $zone_filter = static function (): string {
+            return 'test-zone-id';
+        };
+        $token_filter = static function (): string {
+            return 'test-api-token';
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => $url,
+                'args' => $args,
+            ];
+
+            return [
+                'headers' => [],
+                'body' => wp_json_encode(['success' => true]),
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+
+        ll_tools_cloudflare_static_cache_reset_purge_once_state();
+        if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
+            ll_tools_reset_dictionary_static_cache_purge_once_state();
+        }
+        add_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        add_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        try {
+            ll_tools_bump_dictionary_browser_cache_version();
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            remove_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+            remove_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        }
+
+        $this->assertCount(1, $http_requests);
+        $this->assertSame('https://api.cloudflare.com/client/v4/zones/test-zone-id/purge_cache', (string) ($http_requests[0]['url'] ?? ''));
+        $body = json_decode((string) ($http_requests[0]['args']['body'] ?? ''), true);
+        $this->assertSame(['files' => [$dictionary_url]], $body);
     }
 
     public function test_dictionary_browser_cache_bump_purges_static_html_once_per_request(): void

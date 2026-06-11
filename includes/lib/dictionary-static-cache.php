@@ -904,22 +904,29 @@ add_action('shutdown', 'll_tools_store_dictionary_static_cache', 0);
  */
 function ll_tools_purge_dictionary_static_cache(): int {
     $dir = ll_tools_dictionary_static_cache_dir();
-    if ($dir === '' || !is_dir($dir)) {
-        return 0;
-    }
-
     $deleted = 0;
-    $patterns = [
-        trailingslashit($dir) . 'dictionary-*.html',
-        trailingslashit($dir) . 'dictionary-*.html.tmp-*',
-    ];
+    if ($dir === '' || !is_dir($dir)) {
+        $deleted = 0;
+    } else {
+        $patterns = [
+            trailingslashit($dir) . 'dictionary-*.html',
+            trailingslashit($dir) . 'dictionary-*.html.tmp-*',
+        ];
 
-    foreach ($patterns as $pattern) {
-        foreach (glob($pattern) ?: [] as $file) {
-            if (is_file($file) && @unlink($file)) {
-                $deleted++;
+        foreach ($patterns as $pattern) {
+            foreach (glob($pattern) ?: [] as $file) {
+                if (is_file($file) && @unlink($file)) {
+                    $deleted++;
+                }
             }
         }
+    }
+
+    if (
+        empty($GLOBALS['ll_tools_static_cache_suppress_edge_purge'])
+        && function_exists('ll_tools_cloudflare_static_cache_purge_once')
+    ) {
+        ll_tools_cloudflare_static_cache_purge_once('dictionary');
     }
 
     return $deleted;

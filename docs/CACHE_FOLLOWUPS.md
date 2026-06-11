@@ -10,11 +10,17 @@
 
 - Dictionary static-cache files now default to a 7-day internal TTL because dictionary content changes relatively rarely and existing dictionary edit paths purge the cache.
 - Dictionary static-cache hits still send a 1-day browser/downstream `Cache-Control` max-age by default, so browsers and intermediary caches are not asked to keep dictionary HTML for a full week.
+- Static-cache purge helpers can optionally purge Cloudflare edge HTML when `LL_TOOLS_CLOUDFLARE_ZONE_ID` and `LL_TOOLS_CLOUDFLARE_API_TOKEN` are configured, or when equivalent filters provide those values. The default edge purge discovers the configured public dictionary page and purges that exact URL; sites can add more URLs with `ll_tools_cloudflare_static_cache_purge_urls`.
 - Both values remain configurable through constants and filters:
   - `LL_TOOLS_DICTIONARY_STATIC_CACHE_TTL`
   - `ll_tools_dictionary_static_cache_ttl`
   - `LL_TOOLS_DICTIONARY_STATIC_CACHE_BROWSER_MAX_AGE`
   - `ll_tools_dictionary_static_cache_browser_max_age`
+  - `LL_TOOLS_CLOUDFLARE_ZONE_ID`
+  - `LL_TOOLS_CLOUDFLARE_API_TOKEN`
+  - `ll_tools_cloudflare_static_cache_zone_id`
+  - `ll_tools_cloudflare_static_cache_api_token`
+  - `ll_tools_cloudflare_static_cache_purge_urls`
 
 ## Future Work
 
@@ -24,3 +30,17 @@
 - Add an admin cache diagnostic panel that shows current LL cache status, page-cache bypass reason, cache directory size, and last purge/prewarm time.
 - Make public language-switcher links more cache-safe on generic pages, either by avoiding nonce-bearing URLs in cacheable markup or by resolving the switch action dynamically.
 - Re-run a small live sitemap/header audit after major cache or template changes to confirm expected pages are cached and LL-specific pages remain excluded.
+
+## Cloudflare Edge Cache Follow-Ups
+
+Operational note from the June 11, 2026 Zazacaogren Cloudflare migration:
+
+- The initial safe Cloudflare rule should stay narrow: anonymous `GET`/`HEAD`, host `zazacaogren.com`, path `/sozluk/`, empty query string, and no cookies. A 1-hour Edge TTL with a 30-minute Browser TTL was enough to produce `CF-Cache-Status: HIT` while keeping stale browser HTML bounded.
+- Do not broadly edge-cache LL Tools HTML while public dictionary pages can vary by `Accept-Language`. Free Cloudflare cache rules use a URL-oriented cache key unless a custom cache-key feature is available, so a Turkish-language visitor can receive a cached default-language `/sozluk/` response if the cache key does not account for language.
+- For the current Zazacaogren rule, prefer bypassing Turkish language negotiation until LL Tools has deterministic public locale URLs. The Cloudflare expression can keep caching default/non-Turkish traffic while excluding Turkish browser preferences:
+  `http.host eq "zazacaogren.com" and http.request.method in {"GET" "HEAD"} and http.request.uri.path eq "/sozluk/" and http.request.uri.query eq "" and http.cookie eq "" and not any(lower(http.request.headers["accept-language"][*])[*] contains "tr")`
+- Implement a deterministic locale strategy for cacheable public dictionary pages. Either make the locale explicit in the URL/path or serve a canonical anonymous dictionary shell that does not change by `Accept-Language`.
+- Move request-fresh public nonces out of edge-cacheable HTML where practical. A small uncached bootstrap endpoint for live-search and locale-switch nonces would allow longer CDN TTLs without relying on placeholder refresh during PHP execution.
+- Extend optional Cloudflare purge integration beyond the discovered dictionary page if a site starts edge-caching public wordset, lesson, or article HTML. Add those exact URLs through `ll_tools_cloudflare_static_cache_purge_urls`; do not purge the full Cloudflare zone for routine LL content edits.
+- Consider `Cloudflare-CDN-Cache-Control` headers only after locale and nonce behavior are proven edge-safe. Until then, dashboard rules should remain explicit and site-specific rather than emitted by the plugin for all installs.
+- Use the optional live-smoke `cloudflareCache` checks to verify repeated anonymous `/sozluk/` requests return `Server: cloudflare` and `CF-Cache-Status: HIT`, while language-specific variants such as Turkish `Accept-Language` bypass edge HTML caching as intended.

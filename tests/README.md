@@ -323,6 +323,7 @@ Live smoke runner config:
 - Keep live-site entries read-only. If opening the quiz UI triggers same-origin `POST` traffic or throws client errors on a public site, omit that entry's `interaction` block and limit coverage to shell assertions plus optional search exercises.
 - If a homepage is only a wordset-button hub, add `"navigation": { "type": "wordsetButtonMostLessons" }` so the smoke run clicks the visible button with the highest lesson count before applying the normal wordset-page assertions.
 - The runner treats `POST /wp-admin/admin-ajax.php?action=ll_get_words_by_category` and `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_lazy_cards` as allowed read-style public-page requests; other same-origin non-GET requests still fail unless you explicitly allow them in the site config.
+- To verify a Cloudflare page rule/cache rule without changing the normal browser smoke flow, add an optional `cloudflareCache` array to a site entry. Each item can set `url`, anonymous request `headers`, `warmupRequests`, `expectServerIncludes`, and `expectCacheStatus`/`expectCacheStatuses`. For Zazacaogren, the useful pair is one default-language `/sozluk/` check expecting `HIT` and one Turkish `Accept-Language` check expecting `DYNAMIC`.
 
 You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).
 

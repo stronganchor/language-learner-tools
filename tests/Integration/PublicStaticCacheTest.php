@@ -15,6 +15,9 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_purge_public_static_cache')) {
             ll_tools_purge_public_static_cache();
         }
+        if (function_exists('ll_tools_cloudflare_static_cache_reset_purge_once_state')) {
+            ll_tools_cloudflare_static_cache_reset_purge_once_state();
+        }
     }
 
     protected function tearDown(): void
@@ -31,6 +34,9 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         }
         if (function_exists('ll_tools_public_static_cache_reset_purge_once_state')) {
             ll_tools_public_static_cache_reset_purge_once_state();
+        }
+        if (function_exists('ll_tools_cloudflare_static_cache_reset_purge_once_state')) {
+            ll_tools_cloudflare_static_cache_reset_purge_once_state();
         }
         parent::tearDown();
     }
@@ -391,9 +397,143 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) $result['deleted']);
         $this->assertSame(1, (int) $result['caches']['dictionary']['deleted']);
         $this->assertSame(1, (int) $result['caches']['public']['deleted']);
+        $this->assertIsArray($result['edge']['cloudflare'] ?? null);
+        $this->assertFalse((bool) ($result['edge']['cloudflare']['attempted'] ?? true));
         $this->assertFileDoesNotExist($dictionary_file);
         $this->assertFileDoesNotExist($public_file);
         $this->assertFileDoesNotExist(ll_tools_public_static_cache_meta_file_path($public_file));
+    }
+
+    public function test_static_cache_purge_does_not_call_cloudflare_when_not_configured(): void
+    {
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => $url,
+                'args' => $args,
+            ];
+            return new WP_Error('unexpected_http', 'Cloudflare purge should not run without configuration.');
+        };
+
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        try {
+            $result = ll_tools_purge_static_caches('dictionary');
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+        }
+
+        $edge = $result['edge']['cloudflare'] ?? [];
+        $this->assertIsArray($edge);
+        $this->assertFalse((bool) ($edge['configured'] ?? true));
+        $this->assertFalse((bool) ($edge['attempted'] ?? true));
+        $this->assertSame('not_configured', (string) ($edge['error'] ?? ''));
+        $this->assertSame([], $http_requests);
+    }
+
+    public function test_static_cache_purge_respects_cloudflare_disabled_filter_when_configured(): void
+    {
+        $zone_filter = static function (): string {
+            return 'test-zone-id';
+        };
+        $token_filter = static function (): string {
+            return 'test-api-token';
+        };
+        $enabled_filter = static function (): bool {
+            return false;
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => $url,
+                'args' => $args,
+            ];
+            return new WP_Error('unexpected_http', 'Cloudflare purge should not run while disabled.');
+        };
+
+        add_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        add_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+        add_filter('ll_tools_cloudflare_static_cache_purge_enabled', $enabled_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        try {
+            $result = ll_tools_purge_static_caches('dictionary');
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            remove_filter('ll_tools_cloudflare_static_cache_purge_enabled', $enabled_filter);
+            remove_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+            remove_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        }
+
+        $edge = $result['edge']['cloudflare'] ?? [];
+        $this->assertIsArray($edge);
+        $this->assertTrue((bool) ($edge['configured'] ?? false));
+        $this->assertFalse((bool) ($edge['enabled'] ?? true));
+        $this->assertFalse((bool) ($edge['attempted'] ?? true));
+        $this->assertSame('disabled', (string) ($edge['error'] ?? ''));
+        $this->assertSame([], $http_requests);
+    }
+
+    public function test_dictionary_static_cache_purge_sends_dictionary_url_to_cloudflare_when_configured(): void
+    {
+        $dictionary_page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Cloudflare Dictionary',
+            'post_content' => '[ll_dictionary]',
+        ]);
+        update_option('ll_default_dictionary_page_id', $dictionary_page_id);
+        $dictionary_url = (string) get_permalink($dictionary_page_id);
+        $this->assertNotSame('', $dictionary_url);
+
+        $zone_filter = static function (): string {
+            return 'test-zone-id';
+        };
+        $token_filter = static function (): string {
+            return 'test-api-token';
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => $url,
+                'args' => $args,
+            ];
+
+            return [
+                'headers' => [],
+                'body' => wp_json_encode(['success' => true]),
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+
+        ll_tools_cloudflare_static_cache_reset_purge_once_state();
+        add_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        add_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        try {
+            $result = ll_tools_purge_static_caches('dictionary');
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            remove_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+            remove_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        }
+
+        $edge = $result['edge']['cloudflare'] ?? [];
+        $this->assertIsArray($edge);
+        $this->assertTrue((bool) ($edge['configured'] ?? false));
+        $this->assertTrue((bool) ($edge['attempted'] ?? false));
+        $this->assertTrue((bool) ($edge['purged'] ?? false));
+        $this->assertSame([$dictionary_url], $edge['urls'] ?? []);
+        $this->assertCount(1, $http_requests);
+        $this->assertSame('https://api.cloudflare.com/client/v4/zones/test-zone-id/purge_cache', (string) ($http_requests[0]['url'] ?? ''));
+
+        $args = $http_requests[0]['args'] ?? [];
+        $this->assertSame('Bearer test-api-token', (string) ($args['headers']['Authorization'] ?? ''));
+        $body = json_decode((string) ($args['body'] ?? ''), true);
+        $this->assertSame(['files' => [$dictionary_url]], $body);
     }
 
     public function test_static_cache_purge_capability_defaults_to_manage_options(): void

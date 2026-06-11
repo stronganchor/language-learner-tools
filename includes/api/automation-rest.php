@@ -1499,6 +1499,7 @@ function ll_tools_rest_automation_purge_static_cache(WP_REST_Request $request) {
         'target' => (string) ($result['target'] ?? $target),
         'deleted' => max(0, (int) ($result['deleted'] ?? 0)),
         'caches' => is_array($result['caches'] ?? null) ? $result['caches'] : [],
+        'edge' => is_array($result['edge'] ?? null) ? $result['edge'] : [],
     ]);
 }
 
