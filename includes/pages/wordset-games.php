@@ -301,31 +301,15 @@ function ll_tools_wordset_games_categories_for_wordset(int $wordset_id): array {
         return [];
     }
 
-    $query = new WP_Query([
-        'post_type' => 'words',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'suppress_filters' => true,
-        'tax_query' => [[
-            'taxonomy' => 'wordset',
-            'field' => 'term_id',
-            'terms' => [$wordset_id],
-        ]],
-    ]);
-
-    $word_ids = array_values(array_filter(array_map('intval', (array) $query->posts), static function (int $word_id): bool {
-        return $word_id > 0;
-    }));
-    if (empty($word_ids)) {
+    $category_ids = ll_tools_wordset_games_category_ids_for_wordset($wordset_id);
+    if (empty($category_ids)) {
         return [];
     }
 
     $terms = get_terms([
         'taxonomy' => 'word-category',
         'hide_empty' => false,
-        'object_ids' => $word_ids,
+        'include' => $category_ids,
     ]);
     if (is_wp_error($terms) || !is_array($terms)) {
         return [];
@@ -406,6 +390,44 @@ function ll_tools_wordset_games_categories_for_wordset(int $wordset_id): array {
     }
 
     return $categories;
+}
+
+function ll_tools_wordset_games_category_ids_for_wordset(int $wordset_id): array {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $sql = $wpdb->prepare(
+        "
+        SELECT DISTINCT category_tt.term_id
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->term_relationships} wordset_rel
+            ON wordset_rel.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} wordset_tt
+            ON wordset_tt.term_taxonomy_id = wordset_rel.term_taxonomy_id
+            AND wordset_tt.taxonomy = %s
+            AND wordset_tt.term_id = %d
+        INNER JOIN {$wpdb->term_relationships} category_rel
+            ON category_rel.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} category_tt
+            ON category_tt.term_taxonomy_id = category_rel.term_taxonomy_id
+            AND category_tt.taxonomy = %s
+        WHERE p.post_type = %s
+            AND p.post_status = %s
+        ",
+        'wordset',
+        $wordset_id,
+        'word-category',
+        'words',
+        'publish'
+    );
+
+    return array_values(array_unique(array_filter(array_map('intval', (array) $wpdb->get_col($sql)), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
 }
 
 function ll_tools_wordset_games_visible_categories(int $wordset_id, int $user_id = 0, string $game_slug = ''): array {
