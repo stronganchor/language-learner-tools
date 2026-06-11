@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION')) {
-    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.3.0');
+    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.3.1');
 }
 if (!defined('LL_TOOLS_USER_PROGRESS_VERSION_OPTION')) {
     define('LL_TOOLS_USER_PROGRESS_VERSION_OPTION', 'll_tools_user_progress_schema_version');
@@ -841,7 +841,9 @@ function ll_tools_install_user_progress_schema(): void {
         UNIQUE KEY uniq_event_uuid (event_uuid),
         KEY idx_user_created (user_id, created_at),
         KEY idx_user_word (user_id, word_id),
-        KEY idx_user_category (user_id, category_id)
+        KEY idx_user_category (user_id, category_id),
+        KEY idx_user_wordset_created (user_id, wordset_id, created_at),
+        KEY idx_user_category_created (user_id, category_id, created_at)
     ) {$charset_collate};";
 
     dbDelta($sql_words);
@@ -3196,6 +3198,325 @@ function ll_tools_user_progress_get_vocab_lesson_url_map(int $wordset_id): array
     return $map;
 }
 
+function ll_tools_get_user_word_progress_summary_rows(int $user_id, array $word_ids): array {
+    global $wpdb;
+    if ($user_id <= 0 || empty($word_ids)) {
+        return [];
+    }
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $table = ll_tools_user_progress_table_names()['words'];
+    $out = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
+        $sql = "
+            SELECT
+                word_id,
+                last_seen_at,
+                last_mode,
+                total_coverage,
+                coverage_learning,
+                coverage_practice,
+                coverage_listening,
+                coverage_gender,
+                coverage_self_check,
+                correct_clean,
+                correct_after_retry,
+                current_correct_streak,
+                mastery_unlocked,
+                incorrect,
+                lapse_count,
+                stage,
+                practice_required_recording_types,
+                practice_correct_recording_types
+            FROM {$table}
+            WHERE user_id = %d
+              AND word_id IN ({$placeholders})
+        ";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge([$user_id], $chunk)), ARRAY_A);
+        foreach ((array) $rows as $row) {
+            $wid = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+            if ($wid > 0) {
+                $out[$wid] = $row;
+            }
+        }
+    }
+
+    if (empty($out)) {
+        return [];
+    }
+
+    $needs_required_type_resolution = [];
+    foreach ($out as $wid => $row) {
+        $required_json = (string) ($row['practice_required_recording_types'] ?? '');
+        $correct_json = (string) ($row['practice_correct_recording_types'] ?? '');
+        $required_types = ll_tools_decode_practice_recording_types($required_json);
+        $correct_types = ll_tools_decode_practice_recording_types($correct_json);
+
+        $out[$wid]['practice_required_recording_types_json'] = $required_json;
+        $out[$wid]['practice_correct_recording_types_json'] = $correct_json;
+        $out[$wid]['practice_required_recording_types'] = $required_types;
+        $out[$wid]['practice_correct_recording_types'] = $correct_types;
+
+        if (
+            empty($required_types)
+            && !empty($correct_types)
+            && ll_tools_user_progress_word_is_studied($out[$wid])
+            && !ll_tools_user_progress_word_is_hard($out[$wid])
+            && max(0, (int) ($out[$wid]['stage'] ?? 0)) >= ll_tools_user_progress_mastered_stage_threshold()
+            && max(0, (int) ($out[$wid]['correct_clean'] ?? 0)) >= ll_tools_user_progress_mastered_clean_threshold()
+        ) {
+            $needs_required_type_resolution[] = (int) $wid;
+        }
+    }
+
+    if (!empty($needs_required_type_resolution)) {
+        $required_types_map = ll_tools_get_word_practice_recording_types_map($needs_required_type_resolution);
+        foreach ($needs_required_type_resolution as $wid) {
+            $out[$wid]['practice_required_recording_types_resolved'] = $required_types_map[$wid] ?? [];
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Build the summary-only analytics shape without hydrating per-word display rows.
+ *
+ * This fast path intentionally handles non-gender wordsets only. Gender
+ * aggregates need per-word gender/POS eligibility checks, so the full aggregate
+ * loop remains the source of truth for those wordsets.
+ *
+ * @param int[]               $scope_category_ids
+ * @param array<int,array>    $category_lookup
+ * @param array<int,int[]>    $category_word_ids
+ * @param int[]               $all_word_ids
+ * @return array<string,mixed>
+ */
+function ll_tools_build_user_study_analytics_summary_only_payload(
+    int $uid,
+    int $scope_wordset_id,
+    array $scope_category_ids,
+    string $scope_mode,
+    array $category_lookup,
+    array $category_word_ids,
+    array $all_word_ids,
+    int $days
+): array {
+    $progress_rows = ll_tools_get_user_word_progress_summary_rows($uid, $all_word_ids);
+    $category_progress = ll_tools_get_user_category_progress($uid);
+    $category_url_map = ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
+    $progress_modes = ll_tools_progress_modes();
+    $all_word_lookup = array_fill_keys($all_word_ids, true);
+
+    $summary_total = count($all_word_ids);
+    $summary_mastered = 0;
+    $summary_studied = 0;
+    $summary_hard = 0;
+    foreach ($progress_rows as $wid => $progress) {
+        $wid = (int) $wid;
+        if ($wid <= 0 || empty($all_word_lookup[$wid]) || !is_array($progress)) {
+            continue;
+        }
+        $status = ll_tools_user_progress_word_status($progress);
+        if ($status !== 'new') {
+            $summary_studied++;
+        }
+        if ($status === 'mastered') {
+            $summary_mastered++;
+        }
+        if (ll_tools_user_progress_word_is_hard($progress)) {
+            $summary_hard++;
+        }
+    }
+
+    $summary_starred = 0;
+    $study_state = function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [];
+    foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_id) {
+        $sid = (int) $starred_id;
+        if ($sid > 0 && !empty($all_word_lookup[$sid])) {
+            $summary_starred++;
+        }
+    }
+
+    $category_stats = [];
+    foreach ($scope_category_ids as $cid) {
+        $cid = (int) $cid;
+        if ($cid <= 0) {
+            continue;
+        }
+        $category_stats[$cid] = [
+            'word_count' => isset($category_word_ids[$cid]) && is_array($category_word_ids[$cid]) ? count($category_word_ids[$cid]) : 0,
+            'studied_words' => 0,
+            'mastered_words' => 0,
+            'progress_rows' => 0,
+            'last_word_seen' => '',
+            'last_word_mode' => '',
+            'last_word_mode_seen' => '',
+            'mode_floor' => array_fill_keys($progress_modes, null),
+        ];
+    }
+
+    foreach ($category_word_ids as $cid => $word_ids) {
+        $cid = (int) $cid;
+        if ($cid <= 0 || !isset($category_stats[$cid])) {
+            continue;
+        }
+        foreach ((array) $word_ids as $wid) {
+            $wid = (int) $wid;
+            if ($wid <= 0 || !isset($progress_rows[$wid]) || !is_array($progress_rows[$wid])) {
+                continue;
+            }
+
+            $progress = $progress_rows[$wid];
+            $category_stats[$cid]['progress_rows']++;
+            $status = ll_tools_user_progress_word_status($progress);
+            if ($status !== 'new') {
+                $category_stats[$cid]['studied_words']++;
+            }
+            if ($status === 'mastered') {
+                $category_stats[$cid]['mastered_words']++;
+            }
+
+            $last_seen_at = isset($progress['last_seen_at']) ? (string) $progress['last_seen_at'] : '';
+            if ($last_seen_at !== '') {
+                if (
+                    (string) $category_stats[$cid]['last_word_seen'] === ''
+                    || strcmp($last_seen_at, (string) $category_stats[$cid]['last_word_seen']) > 0
+                ) {
+                    $category_stats[$cid]['last_word_seen'] = $last_seen_at;
+                }
+                if (
+                    (string) $category_stats[$cid]['last_word_mode_seen'] === ''
+                    || strcmp($last_seen_at, (string) $category_stats[$cid]['last_word_mode_seen']) > 0
+                ) {
+                    $category_stats[$cid]['last_word_mode_seen'] = $last_seen_at;
+                    $category_stats[$cid]['last_word_mode'] = isset($progress['last_mode'])
+                        ? ll_tools_normalize_progress_mode((string) $progress['last_mode'])
+                        : '';
+                }
+            }
+
+            foreach ($progress_modes as $mode_key) {
+                $mode_column = ll_tools_progress_mode_column($mode_key);
+                $word_count_for_mode = max(0, (int) ($progress[$mode_column] ?? 0));
+                $existing_floor = $category_stats[$cid]['mode_floor'][$mode_key];
+                if ($existing_floor === null || $word_count_for_mode < (int) $existing_floor) {
+                    $category_stats[$cid]['mode_floor'][$mode_key] = $word_count_for_mode;
+                }
+            }
+        }
+    }
+
+    $category_rows = [];
+    foreach ($scope_category_ids as $cid) {
+        $cid = (int) $cid;
+        $cat_meta = isset($category_lookup[$cid]) && is_array($category_lookup[$cid]) ? $category_lookup[$cid] : [];
+        $cat_label = isset($cat_meta['translation']) && (string) $cat_meta['translation'] !== ''
+            ? (string) $cat_meta['translation']
+            : (string) ($cat_meta['name'] ?? '');
+        if ($cat_label === '') {
+            $cat_label = (string) ll_tools_get_category_display_name($cid);
+        }
+
+        $stats = isset($category_stats[$cid]) && is_array($category_stats[$cid])
+            ? $category_stats[$cid]
+            : [
+                'word_count' => 0,
+                'studied_words' => 0,
+                'mastered_words' => 0,
+                'progress_rows' => 0,
+                'last_word_seen' => '',
+                'last_word_mode' => '',
+                'mode_floor' => array_fill_keys($progress_modes, null),
+            ];
+        $cat_word_total = max(0, (int) ($stats['word_count'] ?? 0));
+        $mode_floor_raw = isset($stats['mode_floor']) && is_array($stats['mode_floor'])
+            ? $stats['mode_floor']
+            : [];
+        $has_missing_progress_rows = max(0, (int) ($stats['progress_rows'] ?? 0)) < $cat_word_total;
+        $exposure_by_mode = [];
+        foreach ($progress_modes as $mode) {
+            $exposure_by_mode[$mode] = $has_missing_progress_rows
+                ? 0
+                : max(0, (int) ($mode_floor_raw[$mode] ?? 0));
+        }
+        $last_seen_at = isset($category_progress[$cid]) && is_array($category_progress[$cid])
+            ? (string) ($category_progress[$cid]['last_seen_at'] ?? '')
+            : '';
+        if (!empty($stats['last_word_seen']) && ($last_seen_at === '' || strcmp((string) $stats['last_word_seen'], $last_seen_at) > 0)) {
+            $last_seen_at = (string) $stats['last_word_seen'];
+        }
+
+        $last_mode = !empty($stats['last_word_mode']) ? ll_tools_normalize_progress_mode((string) $stats['last_word_mode']) : '';
+        if ($last_mode === '' && isset($category_progress[$cid]) && is_array($category_progress[$cid])) {
+            $last_mode = ll_tools_normalize_progress_mode((string) ($category_progress[$cid]['last_mode'] ?? ''));
+        }
+        if ($last_mode === '') {
+            $last_mode = 'practice';
+        }
+
+        $cat_studied = max(0, (int) ($stats['studied_words'] ?? 0));
+        $category_rows[] = [
+            'id' => $cid,
+            'label' => $cat_label,
+            'url' => (string) ($category_url_map[$cid] ?? ''),
+            'word_count' => $cat_word_total,
+            'studied_words' => $cat_studied,
+            'mastered_words' => max(0, (int) ($stats['mastered_words'] ?? 0)),
+            'new_words' => max(0, $cat_word_total - $cat_studied),
+            'exposure_total' => array_sum($exposure_by_mode),
+            'exposure_by_mode' => $exposure_by_mode,
+            'last_mode' => $last_mode,
+            'last_seen_at' => $last_seen_at,
+            'gender_progress' => [
+                'tracked_word_total' => 0,
+                'not_started_words' => 0,
+                'level_1_words' => 0,
+                'level_2_words' => 0,
+                'level_3_words' => 0,
+                'last_seen_at' => '',
+            ],
+        ];
+    }
+
+    usort($category_rows, function ($left, $right) {
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+        }
+        return strcasecmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+    });
+
+    return [
+        'scope' => [
+            'wordset_id' => $scope_wordset_id,
+            'category_ids' => $scope_category_ids,
+            'category_count' => count($scope_category_ids),
+            'mode' => $scope_mode,
+        ],
+        'summary' => [
+            'total_words' => $summary_total,
+            'mastered_words' => $summary_mastered,
+            'studied_words' => $summary_studied,
+            'new_words' => max(0, $summary_total - $summary_studied),
+            'hard_words' => $summary_hard,
+            'starred_words' => $summary_starred,
+        ],
+        'daily_activity' => ll_tools_user_study_daily_activity_series($uid, $scope_wordset_id, $scope_category_ids, $days),
+        'gender_progress' => ll_tools_user_progress_empty_gender_analytics(false),
+        'categories' => $category_rows,
+        'words' => [],
+        'words_omitted' => true,
+        'generated_at' => gmdate('c'),
+    ];
+}
+
 /**
  * Build analytics used by learner-facing study surfaces.
  *
@@ -3296,6 +3617,19 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         return $id > 0;
     }));
     sort($all_word_ids, SORT_NUMERIC);
+
+    if (!$include_words && !$gender_enabled) {
+        return ll_tools_build_user_study_analytics_summary_only_payload(
+            $uid,
+            $scope_wordset_id,
+            $scope_category_ids,
+            $scope_mode,
+            $category_lookup,
+            $category_word_ids,
+            $all_word_ids,
+            (int) $days
+        );
+    }
 
     if ($include_words && !empty($all_word_ids)) {
         update_meta_cache('post', $all_word_ids);

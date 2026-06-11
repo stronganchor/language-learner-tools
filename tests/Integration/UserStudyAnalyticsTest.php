@@ -101,6 +101,23 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('isolation', (string) ($words_by_id[$word_a]['audio_recording_type'] ?? ''));
     }
 
+    public function test_user_progress_events_schema_includes_scoped_daily_activity_indexes(): void
+    {
+        global $wpdb;
+        $events_table = ll_tools_user_progress_table_names()['events'];
+        $index_rows = $wpdb->get_results("SHOW INDEX FROM {$events_table}", ARRAY_A);
+        $index_names = [];
+        foreach ((array) $index_rows as $row) {
+            $key_name = isset($row['Key_name']) ? (string) $row['Key_name'] : '';
+            if ($key_name !== '') {
+                $index_names[$key_name] = true;
+            }
+        }
+
+        $this->assertArrayHasKey('idx_user_wordset_created', $index_names);
+        $this->assertArrayHasKey('idx_user_category_created', $index_names);
+    }
+
     public function test_build_analytics_payload_does_not_hydrate_word_audio_posts(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -173,23 +190,44 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             $fixture['category_ids'],
             14
         );
-        $summary_only = ll_tools_build_user_study_analytics_payload(
-            $user_id,
-            $fixture['wordset_id'],
-            $fixture['category_ids'],
-            14,
-            false,
-            ['summary_only' => true]
-        );
+        $summary_queries = [];
+        $query_capture = static function (string $query) use (&$summary_queries): string {
+            $summary_queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $query_capture);
+        try {
+            $summary_only = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $fixture['wordset_id'],
+                $fixture['category_ids'],
+                14,
+                false,
+                ['summary_only' => true]
+            );
+        } finally {
+            remove_filter('query', $query_capture);
+        }
 
         $this->assertFalse((bool) ($full['words_omitted'] ?? false));
         $this->assertSame(10, (int) ($summary_only['summary']['total_words'] ?? 0));
+        $this->assertSame(1, (int) ($summary_only['summary']['mastered_words'] ?? 0));
+        $this->assertSame(1, (int) ($summary_only['summary']['hard_words'] ?? 0));
+        $this->assertSame(1, (int) ($summary_only['summary']['starred_words'] ?? 0));
+        $this->assertSame($full['scope'], $summary_only['scope']);
         $this->assertSame($full['summary'], $summary_only['summary']);
+        $this->assertSame($full['gender_progress'], $summary_only['gender_progress']);
         $this->assertCount(2, (array) ($summary_only['categories'] ?? []));
-        $this->assertSame(count((array) ($full['categories'] ?? [])), count((array) ($summary_only['categories'] ?? [])));
+        $this->assertSame($full['categories'], $summary_only['categories']);
         $this->assertSame([], (array) ($summary_only['words'] ?? []));
         $this->assertTrue((bool) ($summary_only['words_omitted'] ?? false));
-        $this->assertCount(14, (array) ($summary_only['daily_activity']['days'] ?? []));
+        $this->assertSame($full['daily_activity'], $summary_only['daily_activity']);
+
+        $progress_table = ll_tools_user_progress_table_names()['words'];
+        $joined_queries = implode("\n", $summary_queries);
+        $this->assertStringNotContainsStringIgnoringCase('SELECT * FROM ' . $progress_table, $joined_queries);
+        $this->assertStringNotContainsString('word_translation', $joined_queries);
+        $this->assertStringNotContainsString('_ll_autopicked_image_id', $joined_queries);
     }
 
     public function test_analytics_payload_includes_vocab_lesson_urls_for_private_categories(): void
@@ -391,6 +429,25 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }, (array) ($analytics['categories'] ?? []));
         $this->assertContains($quizzable_category_id, $category_ids);
         $this->assertNotContains($non_quizzable_category_id, $category_ids);
+
+        $summary_only = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$quizzable_category_id, $non_quizzable_category_id],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+
+        $this->assertSame(5, (int) ($summary_only['summary']['total_words'] ?? 0));
+        $this->assertCount(1, (array) ($summary_only['categories'] ?? []));
+        $summary_only_category_ids = array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($summary_only['categories'] ?? []));
+        $this->assertContains($quizzable_category_id, $summary_only_category_ids);
+        $this->assertNotContains($non_quizzable_category_id, $summary_only_category_ids);
+        $this->assertSame([], (array) ($summary_only['words'] ?? []));
+        $this->assertTrue((bool) ($summary_only['words_omitted'] ?? false));
     }
 
     public function test_user_study_words_filters_out_non_quizzable_requested_categories(): void
@@ -665,6 +722,53 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('', (string) ($words_by_id[$word_c]['part_of_speech_slug'] ?? ''));
         $this->assertSame('', (string) ($words_by_id[$word_c]['part_of_speech_label'] ?? ''));
         $this->assertSame('', (string) ($words_by_id[$word_c]['part_of_speech_abbreviation'] ?? ''));
+    }
+
+    public function test_summary_only_analytics_uses_current_taxonomy_membership_for_category_counts(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        [$word_a] = $fixture['word_ids'];
+        [$cat_a, $cat_b] = $fixture['category_ids'];
+        $wordset_id = (int) $fixture['wordset_id'];
+
+        wp_set_post_terms($word_a, [$cat_a, $cat_b], 'word-category', false);
+        $this->seedWordProgressRow($user_id, $word_a, $cat_b, 0, [
+            'total_coverage' => 2,
+            'coverage_practice' => 2,
+            'correct_clean' => 1,
+            'last_mode' => 'practice',
+            'stage' => 1,
+        ]);
+
+        $full = ll_tools_build_user_study_analytics_payload($user_id, $wordset_id, [$cat_a, $cat_b], 14);
+        $summary_only = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$cat_a, $cat_b],
+            14,
+            false,
+            ['summary_only' => true]
+        );
+
+        $this->assertSame($full['summary'], $summary_only['summary']);
+        $this->assertSame(10, (int) ($summary_only['summary']['total_words'] ?? 0));
+        $this->assertSame(1, (int) ($summary_only['summary']['studied_words'] ?? 0));
+        $this->assertSame($full['categories'], $summary_only['categories']);
+
+        $categories_by_id = [];
+        foreach ((array) ($summary_only['categories'] ?? []) as $row) {
+            if (is_array($row)) {
+                $categories_by_id[(int) ($row['id'] ?? 0)] = $row;
+            }
+        }
+
+        $this->assertSame(1, (int) ($categories_by_id[$cat_a]['studied_words'] ?? 0));
+        $this->assertSame(1, (int) ($categories_by_id[$cat_b]['studied_words'] ?? 0));
+        $this->assertSame([], (array) ($summary_only['words'] ?? []));
+        $this->assertTrue((bool) ($summary_only['words_omitted'] ?? false));
     }
 
     public function test_reset_user_progress_clears_scope_when_stored_row_scope_is_stale(): void
