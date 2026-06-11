@@ -543,6 +543,42 @@ function ll_tools_wordset_games_word_has_supported_image(array $word): bool {
     return !$is_animated_webp || $allow_animated_webp;
 }
 
+function ll_tools_wordset_games_supported_image_word_lookup(array $word_ids, array $has_image_by_word): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $lookup = [];
+    foreach ($word_ids as $word_id) {
+        if (!empty($has_image_by_word[$word_id])) {
+            $lookup[$word_id] = true;
+        }
+    }
+    if (empty($lookup) || !function_exists('ll_tools_get_effective_word_image_attachment_id_for_word') || !function_exists('ll_tools_is_attachment_animated_webp')) {
+        return $lookup;
+    }
+
+    foreach (array_keys($lookup) as $word_id) {
+        $attachment_id = (int) ll_tools_get_effective_word_image_attachment_id_for_word((int) $word_id, true);
+        if ($attachment_id <= 0 || !ll_tools_is_attachment_animated_webp($attachment_id)) {
+            continue;
+        }
+
+        $allow_animated_webp = (bool) apply_filters('ll_tools_wordset_games_allow_animated_webp_images', false, [
+            'id' => (int) $word_id,
+            'image_is_animated_webp' => true,
+        ]);
+        if (!$allow_animated_webp) {
+            unset($lookup[$word_id]);
+        }
+    }
+
+    return $lookup;
+}
+
 function ll_tools_wordset_games_prompt_recording_types(): array {
     $types = function_exists('ll_tools_get_main_recording_types')
         ? ll_tools_get_main_recording_types()
@@ -1554,6 +1590,224 @@ function ll_tools_wordset_games_limit_launch_words(array $words, int $word_cap):
     return array_slice($selected, 0, $word_cap);
 }
 
+function ll_tools_wordset_games_collect_visible_words_for_candidate_pool(
+    int $wordset_id,
+    int $user_id,
+    string $game_slug,
+    array $candidate_words
+): array {
+    $wordset_id = max(0, $wordset_id);
+    $uid = (int) ($user_id ?: get_current_user_id());
+    $candidate_words = array_values(array_filter($candidate_words, 'is_array'));
+    if ($wordset_id <= 0 || empty($candidate_words)) {
+        return [
+            'categories' => [],
+            'category_ids' => [],
+            'words' => [],
+        ];
+    }
+
+    $visible_categories = ll_tools_wordset_games_visible_categories($wordset_id, $uid, $game_slug);
+    $visible_category_ids = array_values(array_filter(array_map(static function ($row): int {
+        return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+    }, $visible_categories), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if (empty($visible_categories) || empty($visible_category_ids)) {
+        return [
+            'categories' => [],
+            'category_ids' => [],
+            'words' => [],
+        ];
+    }
+
+    $visible_category_lookup = array_fill_keys($visible_category_ids, true);
+    $visible_category_names = [];
+    foreach ($visible_categories as $category_row) {
+        if (!is_array($category_row)) {
+            continue;
+        }
+
+        $category_id = (int) ($category_row['id'] ?? 0);
+        if ($category_id > 0) {
+            $visible_category_names[$category_id] = (string) ($category_row['name'] ?? '');
+        }
+    }
+
+    $candidate_by_id = [];
+    $candidate_ids_by_category = [];
+    $candidate_order = [];
+    foreach ($candidate_words as $candidate) {
+        $word_id = (int) ($candidate['id'] ?? 0);
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $category_ids = isset($candidate['category_ids']) && is_array($candidate['category_ids'])
+            ? array_values(array_filter(array_map('intval', $candidate['category_ids']), static function (int $category_id) use ($visible_category_lookup): bool {
+                return $category_id > 0 && !empty($visible_category_lookup[$category_id]);
+            }))
+            : [];
+        if (empty($category_ids) && !empty($candidate['category_id']) && !empty($visible_category_lookup[(int) $candidate['category_id']])) {
+            $category_ids = [(int) $candidate['category_id']];
+        }
+        if (empty($category_ids)) {
+            continue;
+        }
+
+        $candidate['category_id'] = (int) reset($category_ids);
+        $candidate['category_ids'] = $category_ids;
+        $candidate_by_id[$word_id] = $candidate;
+        $candidate_order[] = $word_id;
+        foreach ($category_ids as $category_id) {
+            if (!isset($candidate_ids_by_category[$category_id])) {
+                $candidate_ids_by_category[$category_id] = [];
+            }
+            $candidate_ids_by_category[$category_id][$word_id] = $word_id;
+        }
+    }
+    if (empty($candidate_by_id)) {
+        return [
+            'categories' => $visible_categories,
+            'category_ids' => $visible_category_ids,
+            'words' => [],
+        ];
+    }
+
+    $words_by_id = [];
+    foreach ($visible_categories as $category_row) {
+        $category_id = is_array($category_row) ? (int) ($category_row['id'] ?? 0) : 0;
+        if ($category_id <= 0 || empty($candidate_ids_by_category[$category_id])) {
+            continue;
+        }
+
+        $term = get_term($category_id, 'word-category');
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            continue;
+        }
+
+        $config = function_exists('ll_tools_get_category_quiz_config')
+            ? ll_tools_get_category_quiz_config($term)
+            : ['prompt_type' => 'audio', 'option_type' => 'image'];
+        $merged_config = array_merge((array) $config, [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+            '__candidate_word_ids' => array_values($candidate_ids_by_category[$category_id]),
+        ]);
+
+        $words = ll_get_words_by_category($term, 'image', [$wordset_id], $merged_config);
+        foreach ((array) $words as $word) {
+            if (!is_array($word)) {
+                continue;
+            }
+
+            $word_id = (int) ($word['id'] ?? 0);
+            if ($word_id <= 0 || !isset($candidate_by_id[$word_id]) || isset($words_by_id[$word_id])) {
+                continue;
+            }
+
+            $candidate = $candidate_by_id[$word_id];
+            $category_ids = isset($candidate['category_ids']) && is_array($candidate['category_ids'])
+                ? array_values(array_filter(array_map('intval', $candidate['category_ids']), static function (int $id): bool {
+                    return $id > 0;
+                }))
+                : [$category_id];
+            $category_names = [];
+            foreach ($category_ids as $candidate_category_id) {
+                $name = (string) ($visible_category_names[$candidate_category_id] ?? '');
+                if ($name === '') {
+                    $candidate_term = get_term($candidate_category_id, 'word-category');
+                    $name = ($candidate_term instanceof WP_Term && !is_wp_error($candidate_term)) ? (string) $candidate_term->name : '';
+                }
+                if ($name !== '') {
+                    $category_names[] = $name;
+                }
+            }
+
+            $word['category_id'] = (int) ($candidate['category_id'] ?? $category_id);
+            $word['category_ids'] = $category_ids;
+            $word['category_name'] = (string) ($category_names[0] ?? $term->name);
+            $word['category_names'] = array_values(array_unique($category_names));
+            $word['progress_status'] = (string) ($candidate['progress_status'] ?? 'new');
+            $words_by_id[$word_id] = $word;
+        }
+    }
+
+    $ordered_words = [];
+    $seen = [];
+    foreach ($candidate_order as $word_id) {
+        if (!isset($words_by_id[$word_id]) || isset($seen[$word_id])) {
+            continue;
+        }
+
+        $word = $words_by_id[$word_id];
+        if (!ll_tools_wordset_games_word_has_supported_image($word)) {
+            continue;
+        }
+
+        $prompt_recording_types = ll_tools_wordset_games_get_word_prompt_recording_types($word);
+        if (empty($prompt_recording_types)) {
+            continue;
+        }
+
+        $word['game_prompt_recording_types'] = $prompt_recording_types;
+        $ordered_words[] = $word;
+        $seen[$word_id] = true;
+    }
+
+    return [
+        'categories' => $visible_categories,
+        'category_ids' => $visible_category_ids,
+        'words' => $ordered_words,
+    ];
+}
+
+function ll_tools_wordset_games_build_practice_launch_pool(int $wordset_id, int $user_id = 0, string $game_slug = ''): array {
+    $game_slug = sanitize_key($game_slug);
+    $launch_word_cap = $game_slug === 'bubble-pop'
+        ? ll_tools_wordset_games_bubble_pop_launch_word_cap()
+        : ll_tools_wordset_games_space_shooter_launch_word_cap();
+    $count_pool = ll_tools_wordset_games_build_practice_deferred_count_pool($wordset_id, $user_id, $game_slug, $launch_word_cap);
+    $minimum_word_count = max(1, (int) ($count_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count()));
+    $available_word_count = max(0, (int) ($count_pool['available_word_count'] ?? 0));
+    $resolved_launch_word_cap = max($minimum_word_count, $launch_word_cap);
+    $candidate_words = isset($count_pool['launch_candidate_words']) && is_array($count_pool['launch_candidate_words'])
+        ? array_values(array_filter($count_pool['launch_candidate_words'], 'is_array'))
+        : [];
+    $collected = !empty($candidate_words)
+        ? ll_tools_wordset_games_collect_visible_words_for_candidate_pool($wordset_id, $user_id, $game_slug, $candidate_words)
+        : [
+            'category_ids' => isset($count_pool['category_ids']) && is_array($count_pool['category_ids']) ? $count_pool['category_ids'] : [],
+            'words' => [],
+        ];
+    $launch_words = isset($collected['words']) && is_array($collected['words'])
+        ? array_values(array_filter($collected['words'], 'is_array'))
+        : [];
+    if (!empty($launch_words) && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
+        $launch_words = ll_tools_attach_user_practice_progress_to_words($launch_words, (int) ($user_id ?: get_current_user_id()));
+    }
+    $pool_source = (string) ($count_pool['pool_source'] ?? 'deferred_count');
+    $deferred_suffix = '_deferred_count';
+    if (substr($pool_source, -strlen($deferred_suffix)) === $deferred_suffix) {
+        $pool_source = substr($pool_source, 0, -strlen($deferred_suffix));
+    }
+    if ($pool_source === '') {
+        $pool_source = 'deferred_count';
+    }
+
+    return [
+        'slug' => $game_slug,
+        'minimum_word_count' => $minimum_word_count,
+        'available_word_count' => $available_word_count,
+        'launch_word_cap' => $resolved_launch_word_cap,
+        'launch_word_count' => count($launch_words),
+        'launchable' => $available_word_count >= $minimum_word_count,
+        'pool_source' => $pool_source,
+        'category_ids' => isset($count_pool['category_ids']) && is_array($count_pool['category_ids']) ? $count_pool['category_ids'] : [],
+        'words' => $launch_words,
+    ];
+}
+
 function ll_tools_wordset_games_build_practice_source_pool(int $wordset_id, int $user_id = 0, string $game_slug = ''): array {
     $uid = (int) ($user_id ?: get_current_user_id());
     $collected = function_exists('ll_tools_wordset_games_collect_visible_words')
@@ -2002,23 +2256,11 @@ function ll_tools_wordset_games_finalize_pool(array $source_pool, string $slug, 
 }
 
 function ll_tools_wordset_games_build_space_shooter_pool(int $wordset_id, int $user_id = 0): array {
-    $source_pool = ll_tools_wordset_games_build_practice_source_pool($wordset_id, $user_id, 'space-shooter');
-
-    return ll_tools_wordset_games_finalize_pool(
-        $source_pool,
-        'space-shooter',
-        ll_tools_wordset_games_space_shooter_launch_word_cap()
-    );
+    return ll_tools_wordset_games_build_practice_launch_pool($wordset_id, $user_id, 'space-shooter');
 }
 
 function ll_tools_wordset_games_build_bubble_pop_pool(int $wordset_id, int $user_id = 0): array {
-    $source_pool = ll_tools_wordset_games_build_practice_source_pool($wordset_id, $user_id, 'bubble-pop');
-
-    return ll_tools_wordset_games_finalize_pool(
-        $source_pool,
-        'bubble-pop',
-        ll_tools_wordset_games_bubble_pop_launch_word_cap()
-    );
+    return ll_tools_wordset_games_build_practice_launch_pool($wordset_id, $user_id, 'bubble-pop');
 }
 
 function ll_tools_wordset_games_pool_category_ids(array $pool): array {
@@ -2128,7 +2370,7 @@ function ll_tools_wordset_games_finalize_deferred_count_pool(array $source_pool,
     ];
 }
 
-function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_id, int $user_id = 0, string $game_slug = ''): array {
+function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_id, int $user_id = 0, string $game_slug = '', int $launch_word_cap = 0): array {
     $wordset_id = max(0, $wordset_id);
     $uid = (int) ($user_id ?: get_current_user_id());
     $minimum_word_count = ll_tools_wordset_games_min_word_count();
@@ -2201,6 +2443,7 @@ function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_
     $has_image_by_word = function_exists('ll_tools_get_word_effective_image_presence_map')
         ? ll_tools_get_word_effective_image_presence_map($word_ids)
         : [];
+    $supported_image_word_lookup = ll_tools_wordset_games_supported_image_word_lookup($word_ids, $has_image_by_word);
     $recording_types_by_word = function_exists('ll_tools_get_word_practice_recording_types_map')
         ? ll_tools_get_word_practice_recording_types_map($word_ids)
         : [];
@@ -2214,7 +2457,7 @@ function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_
     $mastered_words = [];
     $has_recorded_progress = false;
     foreach ($word_ids as $word_id) {
-        if (empty($has_image_by_word[$word_id])) {
+        if (empty($supported_image_word_lookup[$word_id])) {
             continue;
         }
 
@@ -2256,6 +2499,7 @@ function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_
             'id' => $word_id,
             'category_id' => (int) reset($word_category_ids),
             'category_ids' => $word_category_ids,
+            'progress_status' => $status,
         ];
         $eligible_words[] = $word;
         if ($status === 'studied') {
@@ -2279,11 +2523,22 @@ function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_
         $pool_source = 'frontier_new';
     }
 
+    $launch_candidate_words = $launch_word_cap > 0
+        ? ll_tools_wordset_games_limit_launch_words($pool, max($minimum_word_count, $launch_word_cap))
+        : [];
+    $launch_candidate_word_ids = array_values(array_filter(array_map(static function ($word): int {
+        return is_array($word) ? (int) ($word['id'] ?? 0) : 0;
+    }, $launch_candidate_words), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+
     return [
         'minimum_word_count' => $minimum_word_count,
         'pool_source' => $pool_source . '_deferred_count',
         'category_ids' => $visible_category_ids,
         'available_word_count' => count($pool),
+        'launch_candidate_words' => $launch_candidate_words,
+        'launch_candidate_word_ids' => $launch_candidate_word_ids,
         'words' => [],
     ];
 }
@@ -4796,22 +5051,17 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
     $uid = (int) ($user_id ?: get_current_user_id());
 
     if ($slug === 'space-shooter' || $slug === 'bubble-pop') {
-        $source_pool = ll_tools_wordset_games_build_practice_source_pool($wordset_id, $uid, $slug);
-        $minimum = (int) ($source_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
-        $launch_word_cap = $slug === 'space-shooter'
-            ? ll_tools_wordset_games_space_shooter_launch_word_cap()
-            : ll_tools_wordset_games_bubble_pop_launch_word_cap();
-        $launch_pool = ll_tools_wordset_games_finalize_pool(
-            $source_pool,
-            $slug,
-            $launch_word_cap
-        );
+        $launch_pool = ll_tools_wordset_games_build_practice_launch_pool($wordset_id, $uid, $slug);
+        $minimum = (int) ($launch_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
         $base_entry = isset($catalog[$slug]) && is_array($catalog[$slug]) ? $catalog[$slug] : [
             'slug' => $slug,
             'title' => '',
             'description' => '',
         ];
         $available_count = (int) ($launch_pool['available_word_count'] ?? 0);
+        $launch_word_cap = $slug === 'space-shooter'
+            ? ll_tools_wordset_games_space_shooter_launch_word_cap()
+            : ll_tools_wordset_games_bubble_pop_launch_word_cap();
 
         return array_merge($base_entry, [
             'minimum_word_count' => $minimum,

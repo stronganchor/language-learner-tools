@@ -44,6 +44,11 @@ read_first:
 - Dictionary tooling: TSV import into `ll_dictionary_entry`, grouped sense metadata, snapshot import/export, and a public `[ll_dictionary]` browse/search page.
 - Template override system and GitHub update checker (`main` stable via release asset zip, `dev` via branch for testing).
 
+# Production scale invariant
+- Large wordsets are normal production data. A single wordset may have thousands of `words` posts and many thousands of `word_audio`, `word_images`, prompt cards, and generated media records.
+- Interactive UI, AJAX, shortcode, and game-launch paths should stay bounded by the page size or launch-candidate size. Do not hydrate or iterate a whole wordset's posts just to render a catalog card, count availability, or launch a game.
+- Prefer ID-only queries, capped launch pools, pagination, cached/materialized aggregates, and explicit admin batch jobs with progress behavior for operations that intentionally need the whole wordset.
+
 # Entry points and runtime flow
 - `language-learner-tools.php`
   - Defines `LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`, `LL_TOOLS_MAIN_FILE`, `LL_TOOLS_MIN_WORDS_PER_QUIZ`.

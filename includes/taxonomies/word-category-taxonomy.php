@@ -4863,6 +4863,13 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $require_prompt_image = ll_tools_quiz_prompt_type_has_image($prompt_type);
     $require_option_image = ll_tools_quiz_option_type_has_image($option_type);
     $track_prompt_card_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
+    $candidate_word_ids = [];
+    if (isset($config['__candidate_word_ids']) && is_array($config['__candidate_word_ids'])) {
+        $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $config['__candidate_word_ids']), static function (int $word_id): bool {
+            return $word_id > 0;
+        })));
+    }
+    $disable_words_cache = !empty($candidate_word_ids);
     $term_id = (int) ($category_context['term_id'] ?? 0);
     $cache_flags = [
         'require_audio'        => $require_audio,
@@ -4888,15 +4895,18 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $cache_ttl = 6 * HOUR_IN_SECONDS;
 
     static $request_cache = [];
-    if (isset($request_cache[$cache_key])) {
+    if (!$disable_words_cache && isset($request_cache[$cache_key])) {
         return $request_cache[$cache_key];
     }
 
-    $cached = wp_cache_get($cache_key, 'll_tools_words');
-    if ($cached === false) {
-        $cached = get_transient($cache_key);
+    $cached = false;
+    if (!$disable_words_cache) {
+        $cached = wp_cache_get($cache_key, 'll_tools_words');
+        if ($cached === false) {
+            $cached = get_transient($cache_key);
+        }
     }
-    if ($cached !== false) {
+    if (!$disable_words_cache && $cached !== false) {
         if (
             is_array($cached)
             && isset($cached['__ll_words_cache_format'])
@@ -4945,6 +4955,10 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'terms'    => $wordset_terms,
         ];
         $args['tax_query']['relation'] = 'AND';
+    }
+    if (!empty($candidate_word_ids)) {
+        $args['post__in'] = $candidate_word_ids;
+        $args['orderby'] = 'post__in';
     }
 
     $query = new WP_Query($args);
@@ -5681,13 +5695,15 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     }
 
     $words = ll_tools_normalize_words_audio_urls($words);
-    $request_cache[$cache_key] = $words;
-    $cache_payload = [
-        '__ll_words_cache_format' => 3,
-        'rows' => $words,
-    ];
-    wp_cache_set($cache_key, $cache_payload, 'll_tools_words', $cache_ttl);
-    set_transient($cache_key, $cache_payload, $cache_ttl);
+    if (!$disable_words_cache) {
+        $request_cache[$cache_key] = $words;
+        $cache_payload = [
+            '__ll_words_cache_format' => 3,
+            'rows' => $words,
+        ];
+        wp_cache_set($cache_key, $cache_payload, 'll_tools_words', $cache_ttl);
+        set_transient($cache_key, $cache_payload, $cache_ttl);
+    }
 
     return $words;
 }

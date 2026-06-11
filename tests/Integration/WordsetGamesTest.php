@@ -852,6 +852,37 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame($expectedLaunchIds, $returnedIds);
     }
 
+    public function test_limited_candidate_word_rows_do_not_replace_full_category_cache(): void
+    {
+        $fixture = $this->createGamesFixture(6);
+        $term = get_term((int) $fixture['category_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $config = [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+            '__skip_quiz_config_merge' => true,
+        ];
+        $fullRows = ll_get_words_by_category($term, 'image', [(int) $fixture['wordset_id']], $config);
+        $limitedIds = array_slice(array_map('intval', (array) $fixture['eligible_word_ids']), 0, 2);
+        $limitedRows = ll_get_words_by_category($term, 'image', [(int) $fixture['wordset_id']], array_merge($config, [
+            '__candidate_word_ids' => $limitedIds,
+        ]));
+        $fullRowsAfterLimited = ll_get_words_by_category($term, 'image', [(int) $fixture['wordset_id']], $config);
+
+        $limitedReturnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) $limitedRows), static function (int $id): bool {
+            return $id > 0;
+        }));
+        sort($limitedReturnedIds);
+        sort($limitedIds);
+
+        $this->assertGreaterThan(count($limitedRows), count($fullRows));
+        $this->assertSame($limitedIds, $limitedReturnedIds);
+        $this->assertSame(count($fullRows), count($fullRowsAfterLimited));
+    }
+
     public function test_space_shooter_pool_falls_back_to_mastered_words_when_studied_words_are_below_minimum_count(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
@@ -2812,6 +2843,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         return [
             'user_id' => $userId,
             'wordset_id' => $wordsetId,
+            'category_id' => $categoryId,
             'eligible_word_ids' => $eligibleWordIds,
             'missing_image_word_id' => $missingImageWordId,
             'sentence_only_word_id' => $sentenceOnlyWordId,

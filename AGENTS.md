@@ -3,6 +3,7 @@ See `CODEBASE_ARCHITECTURE.md` for the canonical map of entry points, flows, and
 Codebase-specific guidelines:
 - For testing workflows and conventions (PHPUnit + Playwright), see `tests/AI_TESTING_PLAYBOOK.md` and `tests/README.md`.
 - When a request reveals that a larger structural change would make the solution cleaner or more maintainable, agents should use judgment: implement it when the broader change is safe and obvious; document it as a maintenance follow-up when it is useful but not needed immediately; or pause and ask whether to take the more elegant out-of-scope path or keep the smaller scoped fix.
+- Treat large wordsets as a normal production case. New code paths should avoid unbounded scans or hydration of all `words`, `word_audio`, `word_images`, prompt cards, or generated media for a wordset unless the operation is explicitly a bounded batch job, cached/materialized aggregate, or admin maintenance flow with clear progress behavior.
 - When adding buttons or using emojis, ensure the styling remains consistent across WordPress themes and devices by applying explicit classes and theme-resistant CSS (avoid relying on theme defaults).
 - For user-facing pages, prefer icons and language-agnostic visual cues; keep text minimal and only when needed. Admin pages can be more verbose.
 - For editing UIs, prefer autosaving changes as users work instead of requiring explicit Save clicks; show small inline Saving/Saved status messages and avoid page refreshes after successful saves whenever practical.
