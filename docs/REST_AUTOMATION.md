@@ -270,6 +270,7 @@ Routes:
 - `POST /wordsets/{wordset}/word-helper-updates`
 - `POST /wordsets/{wordset}/word-category-updates`
 - `POST /wordsets/{wordset}/word-category-terms`
+- `POST /wordsets/{wordset}/word-image-category-ownership`
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs`
 - `GET /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}`
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process`
@@ -880,6 +881,41 @@ The route resolves wordset-isolated effective category IDs, refuses categories
 outside the requested wordset, validates prerequisite IDs, rejects prerequisite
 cycles, and refuses to delete a category that still has word posts in the
 wordset. Dry-run first, then send `dry_run=false` for the same action list.
+
+### `POST /wordsets/{wordset}/word-image-category-ownership`
+
+Repairs or adopts an image-only `word-category` and its `word_images` posts into
+the requested wordset by setting LL Tools wordset ownership metadata. Use this
+when images were uploaded through core WordPress REST/admin tooling and the
+category is visible in `/wp-json/wp/v2/word_images?word-category=...` but missing
+from the recorder queue for the wordset.
+
+Body fields:
+
+- `category_id` or `category_slug` required
+- `expected_category_slug` optional stale-data guard
+- `image_ids` optional array; `word_image_ids` is accepted as an alias
+- `include_category_images` optional boolean; default false
+- `dry_run` optional boolean; defaults to true
+- `purge_public_static_cache` optional boolean; default false
+
+Example:
+
+```json
+{
+  "category_id": 8347,
+  "expected_category_slug": "karmasik-isim-obekleri-kirsal-genc-palu",
+  "image_ids": [82759, 82761, 82763],
+  "dry_run": true
+}
+```
+
+The route refuses categories or images that are already owned by another
+wordset, and it refuses an image ID that is not currently assigned to the target
+category. Dry-run first, then submit the identical payload with `dry_run=false`.
+After a write, verify the recorder queue or wordset report again. Do not rely on
+core `/wp/v2/word_images` writes alone for scoped recorder categories; those
+writes create WordPress objects but do not satisfy LL Tools wordset isolation.
 
 ### `POST /wordsets/{wordset}/word-metadata-plan-jobs`
 

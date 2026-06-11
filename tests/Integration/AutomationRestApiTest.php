@@ -65,6 +65,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/legacy-translation-cleanup', (string) ($data['routes']['legacy_translation_cleanup'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-updates', (string) ($data['routes']['word_category_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-terms', (string) ($data['routes']['word_category_terms'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership', (string) ($data['routes']['word_image_category_ownership'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', (string) ($data['routes']['word_metadata_plan_jobs'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs', (string) ($data['routes']['transcription_validation_jobs'] ?? ''));
         $this->assertSame(5, (int) (($data['resource_guard']['word_category_updates_batch']['default_write_limit'] ?? 0)));
@@ -1332,6 +1333,88 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             [$effective_source_id => [$effective_prereq_id]],
             ll_tools_wordset_get_category_prereq_map($wordset_id, [$effective_source_id, $effective_prereq_id, (int) $created->term_id])
         );
+    }
+
+    public function test_word_image_category_ownership_route_adopts_unowned_image_only_category(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Image Ownership Wordset', 'rest-image-ownership-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Image Ownership Rural', 'rest-image-ownership-rural-genc-palu');
+        $image_one_id = $this->create_word_image([$category_id], 'REST Image Ownership One');
+        $image_two_id = $this->create_word_image([$category_id], 'REST Image Ownership Two');
+
+        $this->assertSame(0, ll_tools_get_category_wordset_owner_id($category_id));
+        $this->assertSame(0, ll_tools_get_word_image_wordset_owner_id($image_one_id));
+        $this->assertSame(0, ll_tools_get_word_image_wordset_owner_id($image_two_id));
+
+        wp_set_current_user($admin_id);
+
+        $payload = [
+            'category_id' => $category_id,
+            'expected_category_slug' => 'rest-image-ownership-rural-genc-palu',
+            'image_ids' => [$image_one_id, $image_two_id],
+        ];
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-image-ownership-wordset/word-image-category-ownership', $payload);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['dry_run'] ?? false));
+        $this->assertSame(3, (int) ($dry_data['matched_count'] ?? 0));
+        $this->assertSame(3, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertSame(0, (int) ($dry_data['updated_count'] ?? -1));
+        $this->assertSame(0, ll_tools_get_category_wordset_owner_id($category_id));
+        $this->assertSame(0, ll_tools_get_word_image_wordset_owner_id($image_one_id));
+        $this->assertSame(0, ll_tools_get_word_image_wordset_owner_id($image_two_id));
+
+        $apply = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-image-ownership-wordset/word-image-category-ownership', $payload + [
+            'dry_run' => false,
+        ]);
+
+        $this->assertSame(200, $apply->get_status());
+        $data = $apply->get_data();
+        $this->assertIsArray($data);
+        $this->assertFalse((bool) ($data['dry_run'] ?? true));
+        $this->assertSame(3, (int) ($data['matched_count'] ?? 0));
+        $this->assertSame(3, (int) ($data['changed_count'] ?? 0));
+        $this->assertSame(3, (int) ($data['updated_count'] ?? 0));
+        $this->assertContains($category_id, array_map('intval', (array) ($data['invalidated_category_ids'] ?? [])));
+        $this->assertTrue((bool) ($data['invalidated_wordset_cache'] ?? false));
+        $this->assertSame($wordset_id, ll_tools_get_category_wordset_owner_id($category_id));
+        $this->assertSame($category_id, (int) get_term_meta($category_id, LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY, true));
+        $this->assertSame($wordset_id, ll_tools_get_word_image_wordset_owner_id($image_one_id));
+        $this->assertSame($wordset_id, ll_tools_get_word_image_wordset_owner_id($image_two_id));
+        $this->assertSame($image_one_id, (int) get_post_meta($image_one_id, LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY, true));
+        $this->assertSame($image_two_id, (int) get_post_meta($image_two_id, LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY, true));
+    }
+
+    public function test_word_image_category_ownership_route_rejects_foreign_owned_images_without_changes(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Image Ownership Target', 'rest-image-ownership-target');
+        $foreign_wordset_id = $this->ensure_term('wordset', 'REST Image Ownership Foreign', 'rest-image-ownership-foreign');
+        $category_id = $this->ensure_term('word-category', 'REST Image Ownership Guard', 'rest-image-ownership-guard');
+        $image_id = $this->create_word_image([$category_id], 'REST Image Ownership Guard Image');
+        ll_tools_set_word_image_wordset_owner($image_id, $foreign_wordset_id, $image_id);
+
+        wp_set_current_user($admin_id);
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-image-ownership-target/word-image-category-ownership', [
+            'category_id' => $category_id,
+            'image_ids' => [$image_id],
+            'dry_run' => false,
+        ]);
+
+        $this->assertSame(400, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame('ll_tools_rest_word_image_category_ownership_preflight_failed', (string) ($data['code'] ?? ''));
+        $summary = is_array($data['data']['summary'] ?? null) ? $data['data']['summary'] : [];
+        $errors = is_array($summary['errors'] ?? null) ? $summary['errors'] : [];
+        $this->assertSame('image_owned_by_another_wordset', (string) ($errors[0]['code'] ?? ''));
+        $this->assertSame(0, ll_tools_get_category_wordset_owner_id($category_id));
+        $this->assertSame($foreign_wordset_id, ll_tools_get_word_image_wordset_owner_id($image_id));
+        $this->assertNotSame($wordset_id, ll_tools_get_word_image_wordset_owner_id($image_id));
     }
 
     public function test_word_metadata_plan_job_processes_mixed_word_metadata_in_chunks(): void
@@ -3367,6 +3450,21 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         return (int) $word_id;
+    }
+
+    /**
+     * @param int[] $category_ids
+     */
+    private function create_word_image(array $category_ids, string $title): int
+    {
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+        wp_set_post_terms($image_id, $category_ids, 'word-category', false);
+
+        return (int) $image_id;
     }
 
     private function create_recording(int $word_id, string $recording_text, string $recording_ipa): int

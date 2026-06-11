@@ -35,6 +35,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             '/ll-tools/v1/wordsets/spanish/bulk-update' => 'll_tools_bulk-update',
             '/ll-tools/v1/wordsets/spanish/word-title-updates' => 'll_tools_word-title-updates',
             '/ll-tools/v1/wordsets/spanish/word-helper-updates' => 'll_tools_word-helper-updates',
+            '/ll-tools/v1/wordsets/spanish/word-image-category-ownership' => 'll_tools_word-image-category-ownership',
             '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs' => 'll_tools_word_metadata_plan_create',
             '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/job-123/process' => 'll_tools_word_metadata_plan_process',
             '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/job-123/discard' => 'll_tools_word_metadata_plan_discard',
@@ -147,6 +148,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result', $guardedReadRoutes);
         $this->assertContains('/ll-tools/v1/automation/plugin-update', $automationRoutes);
         $this->assertContains('/ll-tools/v1/cache/static/purge', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', $automationRoutes);

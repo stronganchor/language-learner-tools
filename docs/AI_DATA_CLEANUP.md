@@ -52,6 +52,20 @@ category labels, delete empty retired categories, or set category prerequisite
 IDs. It defaults to dry-run mode and should be followed by word-level moves via
 `word-metadata-plan-jobs` once any newly created category IDs are known.
 
+For image-only recorder categories that were created or populated through core
+WordPress REST/admin tooling, repair the LL Tools ownership metadata with:
+
+```text
+POST /wp-json/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership
+```
+
+Use this when `word_images` exist in the target `word-category` but the recorder
+queue does not show that category for the wordset. Provide the explicit
+`category_id`, `expected_category_slug`, and `image_ids` from a fresh readback,
+dry-run first, then repeat with `dry_run=false`. Core `/wp/v2/word_images`
+writes alone are not enough for wordset-isolated recorder queues because they do
+not set `ll_wordset_owner_id` or isolation source metadata.
+
 On the Local/WSL development setup, use the local helper so the dry-run and
 write payloads stay identical. Omit `--apply` for dry-run review:
 
