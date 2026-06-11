@@ -3969,3 +3969,18 @@ msgstr "Vai alle pagine del quiz"
 #: includes/pages/vocab-lesson-pages.php:423 includes/pages/vocab-lesson-pages.php:432
 msgid "Vocab lesson #%d"
 msgstr "Lezione di vocabolario n. %d"
+
+#. ll-tools-public-key: 9e28e6f2cbe4746a6861ad3a328bea92f6205a3e
+#: includes/pages/wordset-pages.php:17550 includes/pages/wordset-pages.php:17557 includes/pages/wordset-pages.php:17564
+msgid "Could not search this word set right now."
+msgstr "Non è possibile cercare in questo set di parole in questo momento."
+
+#. ll-tools-public-key: e7b99708ce2251ebdce8845fbafb28155883073b
+#: includes/pages/wordset-pages.php:17588
+msgid "Too many search requests. Please wait a few minutes and try again."
+msgstr "Troppe richieste di ricerca. Attendi qualche minuto e riprova."
+
+#. ll-tools-public-key: e912e100ddf8c5fa130a02c1083dced28be796f9
+#: includes/pages/wordset-pages.php:17683
+msgid "Too many card loading requests. Please wait a few minutes and try again."
+msgstr "Troppe richieste di caricamento delle carte. Attendi qualche minuto e riprova."
