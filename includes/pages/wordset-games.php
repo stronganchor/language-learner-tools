@@ -2935,30 +2935,55 @@ function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_
     }
 
     $progress_word_ids = ll_tools_wordset_games_query_progress_word_ids_for_wordset($wordset_id, $uid);
-    $progress_candidates = ll_tools_wordset_games_collect_practice_candidate_rows_for_word_ids($progress_word_ids, $uid, $visible_category_ids);
-    $eligible_words = [];
+    $launch_candidate_target_count = $launch_word_cap > 0 ? max($minimum_word_count, $launch_word_cap) : 0;
+    $progress_batch_size = $launch_candidate_target_count > 0
+        ? max(50, min(500, $launch_candidate_target_count * 4))
+        : 250;
+    $eligible_progress_count = 0;
+    $studied_count = 0;
+    $mastered_count = 0;
     $studied_words = [];
     $mastered_words = [];
-    foreach ($progress_candidates as $word) {
-        $eligible_words[] = $word;
-        $status = (string) ($word['progress_status'] ?? 'new');
-        if ($status === 'studied') {
-            $studied_words[] = $word;
-        } elseif ($status === 'mastered') {
-            $mastered_words[] = $word;
+    $studied_retained_counts_by_category = [];
+    $mastered_retained_counts_by_category = [];
+    $retained_candidate_count = $launch_candidate_target_count > 0 ? $launch_candidate_target_count : $minimum_word_count;
+    foreach (array_chunk($progress_word_ids, $progress_batch_size) as $progress_word_id_batch) {
+        $progress_candidates = ll_tools_wordset_games_collect_practice_candidate_rows_for_word_ids($progress_word_id_batch, $uid, $visible_category_ids);
+        foreach ($progress_candidates as $word) {
+            $eligible_progress_count++;
+            $status = (string) ($word['progress_status'] ?? 'new');
+            $category_id = !empty($word['category_id'])
+                ? (int) $word['category_id']
+                : (!empty($word['category_ids']) && is_array($word['category_ids']) ? (int) reset($word['category_ids']) : 0);
+            if ($status === 'studied') {
+                $studied_count++;
+                $retained_count = (int) ($studied_retained_counts_by_category[$category_id] ?? 0);
+                if ($retained_count < $retained_candidate_count) {
+                    $studied_words[] = $word;
+                    $studied_retained_counts_by_category[$category_id] = $retained_count + 1;
+                }
+            } elseif ($status === 'mastered') {
+                $mastered_count++;
+                $retained_count = (int) ($mastered_retained_counts_by_category[$category_id] ?? 0);
+                if ($retained_count < $retained_candidate_count) {
+                    $mastered_words[] = $word;
+                    $mastered_retained_counts_by_category[$category_id] = $retained_count + 1;
+                }
+            }
         }
     }
-    $has_recorded_progress = !empty($eligible_words);
+    $has_recorded_progress = $eligible_progress_count > 0;
 
     $pool = $studied_words;
+    $pool_available_word_count = $studied_count;
     $pool_source = 'studied';
-    if (count($pool) < $minimum_word_count && !empty($mastered_words)) {
+    if ($studied_count < $minimum_word_count && $mastered_count > 0) {
         $pool = array_merge($studied_words, $mastered_words);
+        $pool_available_word_count = $studied_count + $mastered_count;
         $pool_source = 'studied_mastered';
     }
 
-    $pool_available_word_count = null;
-    if (count($pool) < $minimum_word_count && !$has_recorded_progress) {
+    if ($pool_available_word_count < $minimum_word_count && !$has_recorded_progress) {
         $frontier_target_count = max($minimum_word_count, $launch_word_cap);
         $frontier_pool = ll_tools_wordset_games_collect_frontier_new_practice_candidates(
             $wordset_id,
@@ -2991,7 +3016,7 @@ function ll_tools_wordset_games_build_practice_deferred_count_pool(int $wordset_
         'minimum_word_count' => $minimum_word_count,
         'pool_source' => $pool_source . '_deferred_count',
         'category_ids' => $visible_category_ids,
-        'available_word_count' => $pool_available_word_count !== null ? $pool_available_word_count : count($pool),
+        'available_word_count' => $pool_available_word_count,
         'launch_candidate_words' => $launch_candidate_words,
         'launch_candidate_word_ids' => $launch_candidate_word_ids,
         'words' => [],

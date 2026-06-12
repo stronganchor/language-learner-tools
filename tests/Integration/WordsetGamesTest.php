@@ -691,6 +691,49 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         };
     }
 
+    /**
+     * @param int[] $candidate_word_ids
+     */
+    private function captureCandidateHydrationInListSizes(array $candidate_word_ids, array &$captured_sizes): callable
+    {
+        $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+            return $word_id > 0;
+        })));
+        $candidate_lookup = array_fill_keys($candidate_word_ids, true);
+
+        return static function (string $sql) use ($candidate_lookup, &$captured_sizes): string {
+            if (empty($candidate_lookup)) {
+                return $sql;
+            }
+
+            if (!preg_match_all('/`?(?:post_parent|post_id|object_id|word_id)`?\s+IN\s*\(([^)]*)\)/i', $sql, $matches)) {
+                return $sql;
+            }
+
+            foreach ((array) ($matches[1] ?? []) as $raw_list) {
+                if (!preg_match_all('/\d+/', (string) $raw_list, $number_matches)) {
+                    continue;
+                }
+
+                $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($number_matches[0] ?? [])), static function (int $word_id): bool {
+                    return $word_id > 0;
+                })));
+                if (empty($ids)) {
+                    continue;
+                }
+
+                foreach ($ids as $word_id) {
+                    if (isset($candidate_lookup[$word_id])) {
+                        $captured_sizes[] = count($ids);
+                        break;
+                    }
+                }
+            }
+
+            return $sql;
+        };
+    }
+
     private function setValidWordsetRewriteRules(string $slug): void
     {
         update_option('permalink_structure', '/%postname%/');
@@ -964,11 +1007,21 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
     public function test_practice_deferred_count_pool_does_not_query_all_visible_words_for_capped_launch_candidates(): void
     {
-        $fixture = $this->createGamesFixture(10);
+        $fixture = $this->createGamesFixture(60);
         $capturedQueries = [];
         $queryCapture = $this->captureUnboundedWordIdQueries($capturedQueries);
+        $hydrationInListSizes = [];
+        $sqlCapture = $this->captureCandidateHydrationInListSizes(array_merge(
+            array_map('intval', (array) $fixture['eligible_word_ids']),
+            [
+                (int) $fixture['missing_image_word_id'],
+                (int) $fixture['sentence_only_word_id'],
+                (int) $fixture['mastered_word_id'],
+            ]
+        ), $hydrationInListSizes);
 
         add_action('pre_get_posts', $queryCapture);
+        add_filter('query', $sqlCapture);
         try {
             $pool = ll_tools_wordset_games_build_practice_deferred_count_pool(
                 (int) $fixture['wordset_id'],
@@ -977,14 +1030,17 @@ final class WordsetGamesTest extends LL_Tools_TestCase
                 5
             );
         } finally {
+            remove_filter('query', $sqlCapture);
             remove_action('pre_get_posts', $queryCapture);
         }
 
         $this->assertSame('studied_deferred_count', (string) ($pool['pool_source'] ?? ''));
-        $this->assertSame(10, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertSame(60, (int) ($pool['available_word_count'] ?? 0));
         $this->assertCount(5, (array) ($pool['launch_candidate_words'] ?? []));
         $this->assertCount(5, (array) ($pool['launch_candidate_word_ids'] ?? []));
         $this->assertSame([], $capturedQueries);
+        $this->assertNotEmpty($hydrationInListSizes);
+        $this->assertLessThanOrEqual(50, max($hydrationInListSizes));
     }
 
     public function test_practice_deferred_count_pool_counts_entire_selected_frontier_category_for_capped_launch_candidates(): void
@@ -1032,6 +1088,168 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertCount(5, (array) ($pool['launch_candidate_words'] ?? []));
         $this->assertCount(5, (array) ($pool['launch_candidate_word_ids'] ?? []));
         $this->assertSame([], $capturedQueries);
+    }
+
+    public function test_practice_deferred_count_pool_counts_mastered_fallback_beyond_capped_launch_candidates(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Games Deferred Mastered Count ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Games Deferred Mastered Count Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
+
+        $expectedIds = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Deferred Fallback Studied Word ' . $index,
+                'Deferred Fallback Studied Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Deferred fallback studied ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 2,
+                'coverage_practice' => 2,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+            $expectedIds[] = $wordId;
+        }
+
+        for ($index = 1; $index <= 8; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Deferred Fallback Mastered Word ' . $index,
+                'Deferred Fallback Mastered Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['question' => 'Deferred fallback mastered ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 6,
+                'coverage_practice' => 6,
+                'correct_clean' => 4,
+                'incorrect' => 0,
+                'lapse_count' => 0,
+                'stage' => 6,
+            ]);
+            $expectedIds[] = $wordId;
+        }
+
+        $newWordId = $this->createWordWithGameMedia(
+            'Deferred Fallback New Word',
+            'Deferred Fallback New Translation',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['introduction' => 'Deferred fallback new']
+        );
+
+        wp_set_current_user($userId);
+        $pool = ll_tools_wordset_games_build_practice_deferred_count_pool($wordsetId, $userId, 'space-shooter', 5);
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($pool['launch_candidate_words'] ?? []))));
+
+        $this->assertSame('studied_mastered_deferred_count', (string) ($pool['pool_source'] ?? ''));
+        $this->assertSame(11, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertCount(5, $returnedIds);
+        foreach ($returnedIds as $wordId) {
+            $this->assertContains($wordId, $expectedIds);
+        }
+        $this->assertNotContains($newWordId, $returnedIds);
+    }
+
+    public function test_practice_deferred_count_pool_retains_capped_launch_candidates_per_category_for_balancing(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Games Deferred Balance ' . wp_generate_password(6, false), 'wordset');
+        $categoryA = wp_insert_term('Games Deferred Balance A ' . wp_generate_password(6, false), 'word-category');
+        $categoryB = wp_insert_term('Games Deferred Balance B ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($categoryA));
+        $this->assertFalse(is_wp_error($categoryB));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($categoryA);
+        $this->assertIsArray($categoryB);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryAId = (int) $categoryA['term_id'];
+        $categoryBId = (int) $categoryB['term_id'];
+
+        foreach ([$categoryAId, $categoryBId] as $categoryId) {
+            update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+            $this->setCategoryEnabledGames($categoryId);
+        }
+
+        for ($index = 1; $index <= 5; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Deferred Balance Older B Word ' . $index,
+                'Deferred Balance Older B Translation ' . $index,
+                $categoryBId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Deferred balance older B ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryBId, $wordsetId, [
+                'total_coverage' => 3,
+                'coverage_practice' => 3,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+        }
+
+        for ($index = 1; $index <= 10; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Deferred Balance Newer A Word ' . $index,
+                'Deferred Balance Newer A Translation ' . $index,
+                $categoryAId,
+                $wordsetId,
+                true,
+                ['question' => 'Deferred balance newer A ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryAId, $wordsetId, [
+                'total_coverage' => 3,
+                'coverage_practice' => 3,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+        }
+
+        wp_set_current_user($userId);
+        $pool = ll_tools_wordset_games_build_practice_deferred_count_pool($wordsetId, $userId, 'space-shooter', 5);
+        $categoryAId = $this->resolveEffectiveCategoryId($categoryAId, $wordsetId);
+        $categoryBId = $this->resolveEffectiveCategoryId($categoryBId, $wordsetId);
+        $categoryCounts = [];
+        foreach ((array) ($pool['launch_candidate_words'] ?? []) as $word) {
+            if (!is_array($word)) {
+                continue;
+            }
+            $categoryId = (int) ($word['category_id'] ?? 0);
+            $categoryCounts[$categoryId] = (int) ($categoryCounts[$categoryId] ?? 0) + 1;
+        }
+
+        $this->assertSame('studied_deferred_count', (string) ($pool['pool_source'] ?? ''));
+        $this->assertSame(15, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($pool['launch_candidate_words'] ?? []));
+        $this->assertSame(3, (int) ($categoryCounts[$categoryAId] ?? 0));
+        $this->assertSame(2, (int) ($categoryCounts[$categoryBId] ?? 0));
     }
 
     public function test_space_shooter_pool_falls_back_to_mastered_words_when_studied_words_are_below_minimum_count(): void
