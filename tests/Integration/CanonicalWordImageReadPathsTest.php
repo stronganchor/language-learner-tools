@@ -92,6 +92,89 @@ final class CanonicalWordImageReadPathsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('<img', $image_html);
     }
 
+    public function test_aggregate_image_counts_use_wordset_owned_effective_image_copy(): void
+    {
+        $isolation_option = defined('LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION')
+            ? (string) LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION
+            : 'll_tools_wordset_isolation_enabled';
+        $missing_sentinel = '__ll_tools_missing_option__';
+        $previous_isolation = get_option($isolation_option, $missing_sentinel);
+        update_option($isolation_option, '1');
+
+        try {
+            $source_wordset_id = $this->ensureTerm('wordset', 'Canonical Source Image Wordset', 'canonical-source-image-wordset');
+            $target_wordset_id = $this->ensureTerm('wordset', 'Canonical Target Image Wordset', 'canonical-target-image-wordset');
+            $category_id = $this->ensureTerm('word-category', 'Canonical Aggregate Image Category', 'canonical-aggregate-image-category');
+
+            update_term_meta($category_id, 'll_quiz_prompt_type', 'image');
+            update_term_meta($category_id, 'll_quiz_option_type', 'image');
+            if (function_exists('ll_tools_set_category_wordset_owner')) {
+                ll_tools_set_category_wordset_owner($category_id, $target_wordset_id, $category_id);
+            }
+
+            $attachment_id = $this->createImageAttachment('canonical-effective-copy-count.png');
+            $source_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Source Image Without Thumb',
+            ]);
+            $copy_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Target Image With Thumb',
+            ]);
+            set_post_thumbnail($copy_image_id, $attachment_id);
+
+            if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+                ll_tools_set_word_image_wordset_owner($source_image_id, $source_wordset_id, $source_image_id);
+                ll_tools_set_word_image_wordset_owner($copy_image_id, $target_wordset_id, $source_image_id);
+            } else {
+                update_post_meta($source_image_id, 'll_wordset_owner_id', $source_wordset_id);
+                update_post_meta($source_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+                update_post_meta($copy_image_id, 'll_wordset_owner_id', $target_wordset_id);
+                update_post_meta($copy_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+            }
+
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Effective Copy Count Word',
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$target_wordset_id], 'wordset', false);
+            update_post_meta($word_id, '_ll_autopicked_image_id', $source_image_id);
+            update_post_meta($word_id, 'word_translation', 'Effective copy count translation');
+            delete_post_meta($word_id, '_thumbnail_id');
+
+            $counts = ll_tools_get_vocab_lesson_deepest_counts_for_wordset($target_wordset_id, true);
+            $this->assertSame(1, (int) ($counts['with_images'][$category_id] ?? 0));
+            $this->assertSame(1, ll_tools_get_vocab_lesson_category_word_count($category_id, $target_wordset_id, $counts));
+
+            $editor_summary = ll_tools_wordset_editor_get_aggregate_summary($target_wordset_id, [
+                'q' => '',
+                'exact' => false,
+                'category' => 0,
+                'status' => '',
+                'image' => '',
+                'recording' => '',
+                'sort' => 'word',
+                'dir' => 'asc',
+            ], 1);
+            $this->assertSame(0, (int) ($editor_summary['missing_image'] ?? -1));
+            $this->assertSame($source_image_id, (int) get_post_meta($word_id, '_ll_autopicked_image_id', true));
+
+            $image_data = ll_tools_get_effective_word_image_data_for_word($word_id, 'large', true);
+            $this->assertSame($copy_image_id, (int) ($image_data['word_image_id'] ?? 0));
+            $this->assertSame($attachment_id, (int) ($image_data['attachment_id'] ?? 0));
+        } finally {
+            if ($previous_isolation === $missing_sentinel) {
+                delete_option($isolation_option);
+            } else {
+                update_option($isolation_option, $previous_isolation);
+            }
+        }
+    }
+
     private function ensureTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

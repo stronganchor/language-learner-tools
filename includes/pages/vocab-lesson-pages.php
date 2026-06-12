@@ -1897,40 +1897,20 @@ function ll_tools_vocab_lesson_merge_count_maps(array ...$maps): array {
  * @param int[] $excluded_word_ids
  * @return array<int,int>
  */
-function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_tt_id, string $depth_table_sql, bool $only_with_images, array $excluded_word_ids = []): array {
+function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_id, int $wordset_tt_id, string $depth_table_sql, bool $only_with_images, array $excluded_word_ids = []): array {
     if ($wordset_tt_id <= 0 || $depth_table_sql === '') {
         return [];
     }
 
     global $wpdb;
 
-    $image_joins = '';
     $image_where = '';
-    $params = [$wordset_tt_id];
+    $image_params = [];
     if ($only_with_images) {
-        $image_joins = "
-            LEFT JOIN {$wpdb->postmeta} AS word_thumb
-                ON word_thumb.post_id = posts.ID
-                AND word_thumb.meta_key = %s
-                AND word_thumb.meta_value <> ''
-                AND CAST(word_thumb.meta_value AS UNSIGNED) > 0
-            LEFT JOIN {$wpdb->postmeta} AS linked_image
-                ON linked_image.post_id = posts.ID
-                AND linked_image.meta_key = %s
-                AND linked_image.meta_value <> ''
-                AND CAST(linked_image.meta_value AS UNSIGNED) > 0
-            LEFT JOIN {$wpdb->posts} AS image_posts
-                ON image_posts.ID = CAST(linked_image.meta_value AS UNSIGNED)
-                AND image_posts.post_type = %s
-                AND image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
-            LEFT JOIN {$wpdb->postmeta} AS image_thumb
-                ON image_thumb.post_id = image_posts.ID
-                AND image_thumb.meta_key = %s
-                AND image_thumb.meta_value <> ''
-                AND CAST(image_thumb.meta_value AS UNSIGNED) > 0
-        ";
-        $image_where = 'AND (word_thumb.post_id IS NOT NULL OR image_thumb.post_id IS NOT NULL)';
-        array_push($params, '_thumbnail_id', '_ll_autopicked_image_id', 'word_images', '_thumbnail_id');
+        $image_presence_sql = function_exists('ll_tools_effective_word_image_presence_sql')
+            ? ll_tools_effective_word_image_presence_sql('posts.ID', $wordset_id, $image_params)
+            : '0 = 1';
+        $image_where = "AND {$image_presence_sql}";
     }
 
     $excluded_word_ids = array_values(array_unique(array_filter(array_map('intval', $excluded_word_ids), static function (int $word_id): bool {
@@ -1956,17 +1936,15 @@ function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_tt_id,
         LEFT JOIN {$depth_table_sql} AS deeper_depths
             ON deeper_depths.term_taxonomy_id = deeper_relationships.term_taxonomy_id
             AND deeper_depths.depth > category_depths.depth
-        {$image_joins}
         WHERE posts.post_type = %s
             AND posts.post_status = %s
             AND deeper_depths.term_taxonomy_id IS NULL
-            {$exclusion_where}
             {$image_where}
+            {$exclusion_where}
         GROUP BY category_depths.term_id
     ";
 
-    $params[] = 'words';
-    $params[] = 'publish';
+    $params = array_merge([$wordset_tt_id, 'words', 'publish'], $image_params);
     if (!empty($excluded_word_ids)) {
         $params = array_merge($params, $excluded_word_ids);
     }
@@ -1977,7 +1955,7 @@ function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_tt_id,
 /**
  * @return array<int,int>
  */
-function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset_tt_id, string $depth_table_sql, string $prompt_card_post_type, bool $only_with_images): array {
+function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset_id, int $wordset_tt_id, string $depth_table_sql, string $prompt_card_post_type, bool $only_with_images): array {
     $prompt_card_post_type = sanitize_key($prompt_card_post_type);
     if ($wordset_tt_id <= 0 || $depth_table_sql === '' || $prompt_card_post_type === '') {
         return [];
@@ -1987,7 +1965,8 @@ function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset
 
     $image_joins = '';
     $image_where = '';
-    $params = [$wordset_tt_id];
+    $image_join_params = [];
+    $image_where_params = [];
     if ($only_with_images) {
         $prompt_image_meta_key = defined('LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY')
             ? LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY
@@ -2015,40 +1994,19 @@ function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset
                 ON prompt_image_words.ID = CAST(prompt_image_meta.meta_value AS UNSIGNED)
                 AND prompt_image_words.post_type = %s
                 AND prompt_image_words.post_status = %s
-            LEFT JOIN {$wpdb->postmeta} AS prompt_word_thumb
-                ON prompt_word_thumb.post_id = COALESCE(prompt_image_words.ID, correct_answer_words.ID)
-                AND prompt_word_thumb.meta_key = %s
-                AND prompt_word_thumb.meta_value <> ''
-                AND CAST(prompt_word_thumb.meta_value AS UNSIGNED) > 0
-            LEFT JOIN {$wpdb->postmeta} AS linked_image
-                ON linked_image.post_id = COALESCE(prompt_image_words.ID, correct_answer_words.ID)
-                AND linked_image.meta_key = %s
-                AND linked_image.meta_value <> ''
-                AND CAST(linked_image.meta_value AS UNSIGNED) > 0
-            LEFT JOIN {$wpdb->posts} AS image_posts
-                ON image_posts.ID = CAST(linked_image.meta_value AS UNSIGNED)
-                AND image_posts.post_type = %s
-                AND image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
-            LEFT JOIN {$wpdb->postmeta} AS image_thumb
-                ON image_thumb.post_id = image_posts.ID
-                AND image_thumb.meta_key = %s
-                AND image_thumb.meta_value <> ''
-                AND CAST(image_thumb.meta_value AS UNSIGNED) > 0
         ";
-        $image_where = 'AND correct_answer_words.ID IS NOT NULL AND (prompt_word_thumb.post_id IS NOT NULL OR image_thumb.post_id IS NOT NULL)';
-        array_push(
-            $params,
+        $image_join_params = [
             $correct_answer_meta_key,
             'words',
             'publish',
             $prompt_image_meta_key,
             'words',
-            'publish',
-            '_thumbnail_id',
-            '_ll_autopicked_image_id',
-            'word_images',
-            '_thumbnail_id'
-        );
+            'publish'
+        ];
+        $image_presence_sql = function_exists('ll_tools_effective_word_image_presence_sql')
+            ? ll_tools_effective_word_image_presence_sql('COALESCE(prompt_image_words.ID, correct_answer_words.ID)', $wordset_id, $image_where_params)
+            : '0 = 1';
+        $image_where = "AND correct_answer_words.ID IS NOT NULL AND {$image_presence_sql}";
     }
 
     $sql = "
@@ -2074,8 +2032,12 @@ function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset
         GROUP BY category_depths.term_id
     ";
 
-    $params[] = $prompt_card_post_type;
-    $params[] = 'publish';
+    $params = array_merge(
+        [$wordset_tt_id],
+        $image_join_params,
+        [$prompt_card_post_type, 'publish'],
+        $image_where_params
+    );
 
     return ll_tools_vocab_lesson_normalize_count_rows($wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A));
 }
@@ -2134,10 +2096,10 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
     $excluded_word_ids = ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids();
 
-    $word_all_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_tt_id, $depth_table_sql, false, $excluded_word_ids);
-    $word_image_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_tt_id, $depth_table_sql, true, $excluded_word_ids);
-    $prompt_card_all_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_tt_id, $depth_table_sql, $prompt_card_post_type, false);
-    $prompt_card_image_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_tt_id, $depth_table_sql, $prompt_card_post_type, true);
+    $word_all_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, false, $excluded_word_ids);
+    $word_image_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, true, $excluded_word_ids);
+    $prompt_card_all_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, $prompt_card_post_type, false);
+    $prompt_card_image_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, $prompt_card_post_type, true);
 
     $result = [
         'all' => ll_tools_vocab_lesson_merge_count_maps($word_all_counts, $prompt_card_all_counts),

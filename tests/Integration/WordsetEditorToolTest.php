@@ -466,6 +466,8 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $wordset_id = (int) $fixture['wordset_id'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        update_term_meta((int) $fixture['category_a_id'], 'll_quiz_option_type', 'text_title');
+        update_term_meta((int) $fixture['category_b_id'], 'll_quiz_option_type', 'text_title');
         $this->createPagedWords('Bounded Pagination', $wordset_id, (int) $fixture['category_a_id'], 80);
 
         $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
@@ -516,6 +518,105 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
             }
             $this->assertNotSame(-1, (int) ($query_vars['posts_per_page'] ?? 0), 'Normal editor render should not query every word ID before slicing: ' . wp_json_encode($query_vars));
         }
+    }
+
+    public function test_wordset_editor_translation_backed_word_sort_preserves_page_boundaries(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-translation-pagination');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $early_raw_late_display_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'AAAA Raw Title',
+        ]);
+        wp_set_object_terms($early_raw_late_display_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($early_raw_late_display_id, [(int) $fixture['category_a_id']], 'word-category', false);
+        update_post_meta($early_raw_late_display_id, 'word_translation', 'Zulu Visible Text');
+
+        $late_raw_early_display_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'ZZZZ Raw Title',
+        ]);
+        wp_set_object_terms($late_raw_early_display_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($late_raw_early_display_id, [(int) $fixture['category_a_id']], 'word-category', false);
+        update_post_meta($late_raw_early_display_id, 'word_translation', 'Aardvark Visible Text');
+
+        for ($index = 1; $index <= 76; $index++) {
+            $label = sprintf('Middle Visible %03d', $index);
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Middle Raw %03d', $index),
+            ]);
+            wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+            wp_set_object_terms($word_id, [(int) $fixture['category_a_id']], 'word-category', false);
+            update_post_meta($word_id, 'word_translation', $label);
+        }
+
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+            : [];
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_page' => '1',
+            'll_editor_sort' => 'word',
+            'll_editor_dir' => 'asc',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg($_GET, ll_tools_get_wordset_page_view_url($wordset_term, 'settings')));
+
+        $filters = ll_tools_wordset_editor_get_filters();
+        $this->assertFalse(ll_tools_wordset_editor_can_use_paged_query($filters, $wordset_id, $category_rows));
+
+        $html = ll_tools_wordset_page_render_settings_editor_tool($wordset_term, $wordset_id, '', $category_rows);
+
+        $this->assertStringContainsString('Aardvark Visible Text', $html);
+        $this->assertStringNotContainsString('Zulu Visible Text', $html);
+        $this->assertSame(75, substr_count($html, 'data-ll-wordset-editor-row '));
+    }
+
+    public function test_wordset_editor_modal_category_choices_are_not_limited_to_visible_page_words(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-modal-category-scope');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $legacy_category = wp_insert_term('Legacy Off Page Category', 'word-category', [
+            'slug' => 'legacy-off-page-category',
+        ]);
+        $this->assertFalse(is_wp_error($legacy_category));
+        $legacy_category_id = (int) ($legacy_category['term_id'] ?? 0);
+        update_term_meta($legacy_category_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($legacy_category_id, 'll_quiz_option_type', 'text_title');
+
+        $off_page_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Off Page Legacy Category Word',
+        ]);
+        wp_set_object_terms($off_page_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($off_page_word_id, [$legacy_category_id], 'word-category', false);
+        update_post_meta($off_page_word_id, 'word_translation', 'Off page legacy category translation');
+
+        $html = ll_tools_wordset_editor_render_modal_grid(
+            $wordset_term,
+            $wordset_id,
+            [(int) $fixture['alpha_word_id']],
+            []
+        );
+
+        $this->assertStringContainsString('data-ll-wordset-editor-modal-grid', $html);
+        $this->assertStringContainsString('Legacy Off Page Category', $html);
+        $this->assertMatchesRegularExpression(
+            '/data-ll-word-category-option[^>]+data-ll-word-category-label="Legacy Off Page Category"[^>]*>\\s*<input[^>]+data-ll-word-category-input/',
+            $html
+        );
     }
 
     public function test_all_filtered_bulk_selection_still_includes_words_beyond_visible_page(): void

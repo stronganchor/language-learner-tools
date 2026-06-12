@@ -3358,6 +3358,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'word_ids' => '',
         'lesson_id' => '',
         'editor_context' => '',
+        'category_editor_scope' => '',
     ], (array) $atts);
 
     $sanitized_category = sanitize_text_field((string) ($atts['category'] ?? ''));
@@ -3375,6 +3376,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
     }
     $editor_context = !empty($atts['editor_context']) && filter_var($atts['editor_context'], FILTER_VALIDATE_BOOLEAN);
+    $category_editor_scope = sanitize_key((string) ($atts['category_editor_scope'] ?? ''));
 
     $wordset_term = null;
     $wordset_id = 0;
@@ -3497,6 +3499,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'sanitized_category'           => $sanitized_category,
         'sanitized_wordset'            => $sanitized_wordset,
         'specific_word_ids'            => $specific_word_ids,
+        'category_editor_word_ids'     => ($editor_context && $category_editor_scope === 'wordset') ? [] : $specific_word_ids,
         'deepest_only'                 => $deepest_only,
         'lesson_id'                    => $lesson_id,
         'access_denied'                => $access_denied,
@@ -5433,8 +5436,11 @@ function ll_tools_word_grid_shortcode($atts) {
         && function_exists('ll_tools_render_recording_interlinear_block')
         && ll_tools_current_user_can_view_interlinear($lesson_id)
         && ll_tools_interlinear_has_payload($lesson_id);
+    $category_editor_word_ids = array_values(array_filter(array_map('intval', (array) ($context['category_editor_word_ids'] ?? $specific_word_ids)), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
     $category_editor_rows = $show_word_category_editor
-        ? ll_tools_word_grid_get_category_editor_rows($wordset_id, $specific_word_ids)
+        ? ll_tools_word_grid_get_category_editor_rows($wordset_id, $category_editor_word_ids)
         : [];
     $category_editor_ids = ll_tools_word_grid_normalize_category_id_list(wp_list_pluck($category_editor_rows, 'id'));
 

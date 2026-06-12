@@ -1553,7 +1553,43 @@ function ll_tools_wordset_editor_sort_rows(array $rows, array $filters): array {
     return $rows;
 }
 
-function ll_tools_wordset_editor_can_use_paged_query(array $filters): bool {
+function ll_tools_wordset_editor_word_sort_uses_post_titles(int $wordset_id, array $category_rows): bool {
+    if ($wordset_id <= 0) {
+        return true;
+    }
+
+    if (
+        function_exists('ll_tools_get_wordset_title_language_role')
+        && ll_tools_get_wordset_title_language_role([$wordset_id], true) !== 'target'
+    ) {
+        return false;
+    }
+
+    if (empty($category_rows) && function_exists('ll_tools_word_grid_get_category_editor_rows')) {
+        $category_rows = ll_tools_word_grid_get_category_editor_rows($wordset_id);
+    }
+
+    if (!function_exists('ll_tools_get_category_quiz_config')) {
+        return true;
+    }
+
+    foreach ($category_rows as $category_row) {
+        $category_id = (int) ($category_row['id'] ?? 0);
+        if ($category_id <= 0) {
+            continue;
+        }
+
+        $quiz_config = ll_tools_get_category_quiz_config($category_id);
+        $option_type = sanitize_key((string) ($quiz_config['option_type'] ?? ''));
+        if (in_array($option_type, ['text_translation', 'text_audio'], true)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_wordset_editor_can_use_paged_query(array $filters, int $wordset_id = 0, array $category_rows = []): bool {
     $search_exact = !empty($filters['exact']);
     $search = ll_tools_wordset_editor_normalize_search_text((string) ($filters['q'] ?? ''), $search_exact);
     if ($search !== '') {
@@ -1570,7 +1606,11 @@ function ll_tools_wordset_editor_can_use_paged_query(array $filters): bool {
     }
 
     $sort = sanitize_key((string) ($filters['sort'] ?? 'word'));
-    return $sort === '' || $sort === 'word';
+    if ($sort !== '' && $sort !== 'word') {
+        return false;
+    }
+
+    return ll_tools_wordset_editor_word_sort_uses_post_titles($wordset_id, $category_rows);
 }
 
 function ll_tools_wordset_editor_get_term_taxonomy_ids(string $taxonomy, array $term_ids): array {
@@ -1692,40 +1732,18 @@ function ll_tools_wordset_editor_get_aggregate_summary(int $wordset_id, array $f
         array_merge($base_params, ['audio_file_path', 'word_audio', 'publish'])
     ));
 
+    $image_params = [];
+    $image_presence_sql = function_exists('ll_tools_effective_word_image_presence_sql')
+        ? ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params)
+        : '0 = 1';
     $image_sql = "
         SELECT COUNT(DISTINCT p.ID)
         {$base_sql}
-          AND (
-              EXISTS (
-                  SELECT 1
-                  FROM {$wpdb->postmeta} direct_thumb
-                  WHERE direct_thumb.post_id = p.ID
-                    AND direct_thumb.meta_key = %s
-                    AND direct_thumb.meta_value <> ''
-                    AND CAST(direct_thumb.meta_value AS UNSIGNED) > 0
-              )
-              OR EXISTS (
-                  SELECT 1
-                  FROM {$wpdb->postmeta} linked_image
-                  INNER JOIN {$wpdb->posts} image_posts
-                      ON image_posts.ID = CAST(linked_image.meta_value AS UNSIGNED)
-                     AND image_posts.post_type = %s
-                     AND image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
-                  INNER JOIN {$wpdb->postmeta} image_thumb
-                      ON image_thumb.post_id = image_posts.ID
-                     AND image_thumb.meta_key = %s
-                     AND image_thumb.meta_value <> ''
-                     AND CAST(image_thumb.meta_value AS UNSIGNED) > 0
-                  WHERE linked_image.post_id = p.ID
-                    AND linked_image.meta_key = %s
-                    AND linked_image.meta_value <> ''
-                    AND CAST(linked_image.meta_value AS UNSIGNED) > 0
-              )
-          )
+          AND {$image_presence_sql}
     ";
     $has_image = (int) $wpdb->get_var($wpdb->prepare(
         $image_sql,
-        array_merge($base_params, ['_thumbnail_id', 'word_images', '_thumbnail_id', '_ll_autopicked_image_id'])
+        array_merge($base_params, $image_params)
     ));
 
     $summary['missing_audio'] = max(0, $total - max(0, $has_audio));
@@ -2951,9 +2969,10 @@ function ll_tools_wordset_editor_render_modal_grid(WP_Term $wordset_term, int $w
     }
 
     $atts = [
-        'wordset'        => (string) $wordset_id,
-        'word_ids'       => implode(',', $word_ids),
-        'editor_context' => '1',
+        'wordset'               => (string) $wordset_id,
+        'word_ids'              => implode(',', $word_ids),
+        'editor_context'        => '1',
+        'category_editor_scope' => 'wordset',
     ];
 
     $filter_category_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
@@ -3074,7 +3093,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $per_page = 75;
     $paged = max(1, (int) ($filters['paged'] ?? 1));
     $available_category_ids = ll_tools_wordset_editor_get_available_category_ids($category_rows);
-    $use_paged_word_query = ll_tools_wordset_editor_can_use_paged_query($filters);
+    $use_paged_word_query = ll_tools_wordset_editor_can_use_paged_query($filters, $wordset_id, $category_rows);
 
     if ($use_paged_word_query) {
         $query_result = ll_tools_wordset_editor_query_word_ids($wordset_id, $filters, [

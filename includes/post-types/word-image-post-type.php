@@ -618,6 +618,120 @@ function ll_tools_filter_word_ids_with_effective_images(array $word_ids, bool $a
     }));
 }
 
+function ll_tools_effective_word_image_presence_sql(string $word_id_sql, int $wordset_id, array &$params): string {
+    global $wpdb;
+
+    $word_id_sql = trim($word_id_sql);
+    if ($word_id_sql === '') {
+        return '0 = 1';
+    }
+
+    $linked_image_has_thumb_sql = "
+        EXISTS (
+            SELECT 1
+            FROM {$wpdb->postmeta} linked_image
+            INNER JOIN {$wpdb->posts} image_posts
+                ON image_posts.ID = CAST(linked_image.meta_value AS UNSIGNED)
+               AND image_posts.post_type = %s
+               AND image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
+            INNER JOIN {$wpdb->postmeta} image_thumb
+                ON image_thumb.post_id = image_posts.ID
+               AND image_thumb.meta_key = %s
+               AND image_thumb.meta_value <> ''
+               AND CAST(image_thumb.meta_value AS UNSIGNED) > 0
+            WHERE linked_image.post_id = {$word_id_sql}
+              AND linked_image.meta_key = %s
+              AND linked_image.meta_value <> ''
+              AND CAST(linked_image.meta_value AS UNSIGNED) > 0
+        )
+    ";
+    $linked_image_params = ['word_images', '_thumbnail_id', '_ll_autopicked_image_id'];
+
+    $wordset_id = max(0, (int) $wordset_id);
+    $include_effective_copy = $wordset_id > 0
+        && function_exists('ll_tools_is_wordset_isolation_enabled')
+        && ll_tools_is_wordset_isolation_enabled();
+
+    $effective_copy_has_thumb_sql = '';
+    $effective_copy_params = [];
+    if ($include_effective_copy) {
+        $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')
+            ? (string) LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY
+            : 'll_wordset_owner_id';
+        $source_meta_key = defined('LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY')
+            ? (string) LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY
+            : 'll_word_image_isolation_source_id';
+
+        $effective_copy_has_thumb_sql = "
+            OR EXISTS (
+                SELECT 1
+                FROM {$wpdb->postmeta} linked_image
+                INNER JOIN {$wpdb->posts} image_posts
+                    ON image_posts.ID = CAST(linked_image.meta_value AS UNSIGNED)
+                   AND image_posts.post_type = %s
+                   AND image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
+                LEFT JOIN {$wpdb->postmeta} linked_image_source
+                    ON linked_image_source.post_id = image_posts.ID
+                   AND linked_image_source.meta_key = %s
+                   AND linked_image_source.meta_value <> ''
+                   AND CAST(linked_image_source.meta_value AS UNSIGNED) > 0
+                INNER JOIN {$wpdb->postmeta} effective_owner
+                    ON effective_owner.meta_key = %s
+                   AND CAST(effective_owner.meta_value AS UNSIGNED) = %d
+                INNER JOIN {$wpdb->postmeta} effective_source
+                    ON effective_source.post_id = effective_owner.post_id
+                   AND effective_source.meta_key = %s
+                   AND CAST(effective_source.meta_value AS UNSIGNED) = COALESCE(NULLIF(CAST(linked_image_source.meta_value AS UNSIGNED), 0), image_posts.ID)
+                INNER JOIN {$wpdb->posts} effective_image_posts
+                    ON effective_image_posts.ID = effective_owner.post_id
+                   AND effective_image_posts.post_type = %s
+                   AND effective_image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
+                INNER JOIN {$wpdb->postmeta} effective_image_thumb
+                    ON effective_image_thumb.post_id = effective_image_posts.ID
+                   AND effective_image_thumb.meta_key = %s
+                   AND effective_image_thumb.meta_value <> ''
+                   AND CAST(effective_image_thumb.meta_value AS UNSIGNED) > 0
+                WHERE linked_image.post_id = {$word_id_sql}
+                  AND linked_image.meta_key = %s
+                  AND linked_image.meta_value <> ''
+                  AND CAST(linked_image.meta_value AS UNSIGNED) > 0
+            )
+        ";
+        $effective_copy_params = [
+            'word_images',
+            $source_meta_key,
+            $owner_meta_key,
+            $wordset_id,
+            $source_meta_key,
+            'word_images',
+            '_thumbnail_id',
+            '_ll_autopicked_image_id',
+        ];
+    }
+
+    $params = array_merge(
+        $params,
+        ['_thumbnail_id'],
+        $linked_image_params,
+        $effective_copy_params
+    );
+
+    return "
+        (
+            EXISTS (
+                SELECT 1
+                FROM {$wpdb->postmeta} direct_thumb
+                WHERE direct_thumb.post_id = {$word_id_sql}
+                  AND direct_thumb.meta_key = %s
+                  AND direct_thumb.meta_value <> ''
+                  AND CAST(direct_thumb.meta_value AS UNSIGNED) > 0
+            )
+            OR {$linked_image_has_thumb_sql}
+            {$effective_copy_has_thumb_sql}
+        )
+    ";
+}
+
 function ll_tools_get_effective_word_image_html_for_word(int $word_id, $size = 'post-thumbnail', array $attr = [], bool $allow_legacy_lookup = false): string {
     $image_data = ll_tools_get_effective_word_image_data_for_word($word_id, $size, $allow_legacy_lookup);
     $attachment_id = (int) ($image_data['attachment_id'] ?? 0);
