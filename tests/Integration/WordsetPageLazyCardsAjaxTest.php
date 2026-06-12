@@ -508,6 +508,7 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
                 'content_ids' => [],
             ];
             $this->assertSame($response['data'], ll_tools_wordset_page_lazy_cards_ajax_cache_get($canonical_cache_args));
+            $this->assertFalse(get_option(ll_tools_wordset_page_lazy_cards_ajax_cache_lock_option($canonical_cache_args), false));
         } finally {
             $_GET = $original_get;
             set_query_var('ll_wordset_page', $original_wordset_page);
@@ -694,6 +695,117 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
             remove_filter('ll_tools_wordset_page_lazy_cards_cache_miss_token_limit', $token_limit_filter);
             remove_filter('ll_tools_wordset_page_lazy_cards_cache_miss_ip_limit', $ip_limit_filter);
+            remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
+        }
+    }
+
+    public function test_guest_ajax_skips_expensive_lazy_card_rebuild_when_response_cache_lock_is_held(): void
+    {
+        $fixture = $this->createWordsetFixture(10);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        wp_set_current_user(0);
+
+        $original_get = $_GET;
+        $original_wordset_page = get_query_var('ll_wordset_page');
+        $original_wordset_view = get_query_var('ll_wordset_view');
+
+        $batch_size_filter = static function (): int {
+            return 6;
+        };
+        $wait_filter = static function (): int {
+            return 0;
+        };
+        $bootstrap_filter = static function ($should_bootstrap, $view, $filter_wordset_id): bool {
+            if ((int) $filter_wordset_id === 0) {
+                return (bool) $should_bootstrap;
+            }
+
+            return (string) $view === 'progress';
+        };
+
+        add_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+        add_filter('ll_tools_wordset_page_lazy_cards_ajax_cache_build_wait_ms', $wait_filter);
+        add_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10, 4);
+
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+
+        $cache_args = [];
+        $cache_key = '';
+        $lock_option = '';
+
+        try {
+            ll_tools_render_wordset_page_content($wordset_id, [
+                'show_title' => false,
+                'wrapper_tag' => 'div',
+            ]);
+
+            $config = $this->extractLocalizedConfig((string) wp_scripts()->get_data('ll-wordset-pages-js', 'data'));
+            $token = (string) ($config['lazyCards']['token'] ?? '');
+
+            $cache_args = [
+                'mode' => 'offset',
+                'token' => $token,
+                'wordset_id' => $wordset_id,
+                'preview_limit' => 2,
+                'offset' => 6,
+                'count' => 2,
+                'category_ids' => [],
+                'content_ids' => [],
+            ];
+            $cache_key = ll_tools_wordset_page_lazy_cards_ajax_cache_key($cache_args);
+            $lock_option = ll_tools_wordset_page_lazy_cards_ajax_cache_lock_option($cache_args);
+
+            wp_cache_delete($cache_key, 'll_tools');
+            delete_transient($cache_key);
+            delete_option($lock_option);
+            add_option($lock_option, (string) (time() + 30), '', false);
+
+            $word_preview_query_count = 0;
+            $query_counter = static function (WP_Query $query) use (&$word_preview_query_count): void {
+                $post_type = $query->get('post_type');
+                $post_types = is_array($post_type) ? $post_type : [$post_type];
+                if (in_array('words', array_map('strval', $post_types), true)) {
+                    $word_preview_query_count++;
+                }
+            };
+
+            add_action('pre_get_posts', $query_counter);
+            try {
+                $response = $this->postLazyCardsAjax([
+                    'nonce' => wp_create_nonce('ll_tools_wordset_page_lazy_cards'),
+                    'token' => $token,
+                    'wordset_id' => $wordset_id,
+                    'preview_limit' => 2,
+                    'offset' => 6,
+                    'count' => 2,
+                ]);
+            } finally {
+                remove_action('pre_get_posts', $query_counter);
+            }
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertStringContainsString('Card previews are still being prepared', (string) ($response['data']['message'] ?? ''));
+            $this->assertNull(ll_tools_wordset_page_lazy_cards_ajax_cache_get($cache_args));
+            $this->assertSame(0, $word_preview_query_count);
+        } finally {
+            $_GET = $original_get;
+            set_query_var('ll_wordset_page', $original_wordset_page);
+            set_query_var('ll_wordset_view', $original_wordset_view);
+            if ($cache_key !== '') {
+                wp_cache_delete($cache_key, 'll_tools');
+                delete_transient($cache_key);
+            }
+            if ($lock_option !== '') {
+                delete_option($lock_option);
+            }
+            remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+            remove_filter('ll_tools_wordset_page_lazy_cards_ajax_cache_build_wait_ms', $wait_filter);
             remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
         }
     }

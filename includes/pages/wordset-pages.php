@@ -3954,6 +3954,50 @@ function ll_tools_wordset_page_lazy_cards_ajax_cache_key(array $args): string {
     return ll_tools_wordset_page_build_cache_key('lazy_cards_ajax', $payload);
 }
 
+function ll_tools_wordset_page_lazy_cards_ajax_cache_lock_option(array $args): string {
+    return '_ll_tools_wsp_lazy_ajax_lock_' . md5(ll_tools_wordset_page_lazy_cards_ajax_cache_key($args));
+}
+
+function ll_tools_wordset_page_acquire_lazy_cards_ajax_cache_lock(array $args, int $ttl = 15): bool {
+    $ttl = max(5, (int) $ttl);
+    $option_name = ll_tools_wordset_page_lazy_cards_ajax_cache_lock_option($args);
+    $now = time();
+    $expires_at = $now + $ttl;
+
+    if (add_option($option_name, (string) $expires_at, '', false)) {
+        return true;
+    }
+
+    $current_expires_at = (int) get_option($option_name, 0);
+    if ($current_expires_at > $now) {
+        return false;
+    }
+
+    delete_option($option_name);
+    return add_option($option_name, (string) $expires_at, '', false);
+}
+
+function ll_tools_wordset_page_release_lazy_cards_ajax_cache_lock(array $args): void {
+    delete_option(ll_tools_wordset_page_lazy_cards_ajax_cache_lock_option($args));
+}
+
+function ll_tools_wordset_page_wait_for_lazy_cards_ajax_cached_response(array $args, int $wait_ms = 1000) {
+    $deadline = microtime(true) + (max(0, $wait_ms) / 1000);
+
+    do {
+        $cached = ll_tools_wordset_page_lazy_cards_ajax_cache_get($args);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        if (microtime(true) >= $deadline) {
+            break;
+        }
+        usleep(100000);
+    } while (true);
+
+    return null;
+}
+
 function ll_tools_wordset_page_lazy_cards_cache_miss_throttle_config(): array {
     $config = [
         'window' => apply_filters('ll_tools_wordset_page_lazy_cards_cache_miss_window', 5 * MINUTE_IN_SECONDS),
@@ -18225,6 +18269,26 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
         ], 429);
     }
 
+    $public_cache_lock_acquired = false;
+    if (ll_tools_wordset_page_lazy_cards_ajax_cache_enabled($token)) {
+        $lock_ttl = max(5, (int) apply_filters('ll_tools_wordset_page_lazy_cards_ajax_cache_build_lock_ttl', 15));
+        $public_cache_lock_acquired = ll_tools_wordset_page_acquire_lazy_cards_ajax_cache_lock($public_cache_args, $lock_ttl);
+        if (!$public_cache_lock_acquired) {
+            $wait_ms = max(0, (int) apply_filters('ll_tools_wordset_page_lazy_cards_ajax_cache_build_wait_ms', 1000));
+            $cached_after_wait = ll_tools_wordset_page_wait_for_lazy_cards_ajax_cached_response($public_cache_args, $wait_ms);
+            if (is_array($cached_after_wait)) {
+                ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('WAIT_HIT');
+                wp_send_json_success($cached_after_wait);
+            }
+
+            ll_tools_wordset_page_record_lazy_cards_cache_miss($token);
+            ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('LOCKED');
+            wp_send_json_error([
+                'message' => __('Card previews are still being prepared. Please try again in a moment.', 'll-tools-text-domain'),
+            ], 409);
+        }
+    }
+
     if ($specific_card_request) {
         $requested_lookup = array_fill_keys($requested_category_ids, true);
         $requested_content_lookup = array_fill_keys($requested_content_ids, true);
@@ -18266,6 +18330,9 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
         ];
         ll_tools_wordset_page_record_lazy_cards_cache_miss($token);
         ll_tools_wordset_page_lazy_cards_ajax_cache_set($public_cache_args, $response);
+        if ($public_cache_lock_acquired) {
+            ll_tools_wordset_page_release_lazy_cards_ajax_cache_lock($public_cache_args);
+        }
         ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('MISS');
         wp_send_json_success($response);
     }
@@ -18279,6 +18346,9 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
         ];
         ll_tools_wordset_page_record_lazy_cards_cache_miss($token);
         ll_tools_wordset_page_lazy_cards_ajax_cache_set($public_cache_args, $response);
+        if ($public_cache_lock_acquired) {
+            ll_tools_wordset_page_release_lazy_cards_ajax_cache_lock($public_cache_args);
+        }
         ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('MISS');
         wp_send_json_success($response);
     }
@@ -18304,6 +18374,9 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     ];
     ll_tools_wordset_page_record_lazy_cards_cache_miss($token);
     ll_tools_wordset_page_lazy_cards_ajax_cache_set($public_cache_args, $response);
+    if ($public_cache_lock_acquired) {
+        ll_tools_wordset_page_release_lazy_cards_ajax_cache_lock($public_cache_args);
+    }
     ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('MISS');
     wp_send_json_success($response);
 }
