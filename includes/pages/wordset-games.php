@@ -3169,6 +3169,385 @@ function ll_tools_wordset_games_query_speaking_mastered_word_ids(int $wordset_id
     return ll_tools_wordset_games_filter_visible_candidate_word_ids($mastered_ids, $wordset_id, $category_ids);
 }
 
+function ll_tools_wordset_games_speaking_text_overflow_regex(int $max_word_count): string {
+    $max_word_count = max(1, $max_word_count);
+    return '([^[:space:][:punct:]]+[[:space:][:punct:]]+){' . $max_word_count . '}[^[:space:][:punct:]]+';
+}
+
+function ll_tools_wordset_games_build_speaking_eligible_sql_parts(
+    int $wordset_id,
+    int $user_id,
+    array $category_ids,
+    string $target_field
+): array {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    $user_id = max(0, $user_id);
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if ($wordset_id <= 0 || $user_id <= 0 || empty($category_ids) || !function_exists('ll_tools_user_progress_table_names')) {
+        return [
+            'sql' => '',
+            'params' => [],
+        ];
+    }
+
+    $tables = ll_tools_user_progress_table_names();
+    $table = isset($tables['words']) ? (string) $tables['words'] : '';
+    if ($table === '') {
+        return [
+            'sql' => '',
+            'params' => [],
+        ];
+    }
+
+    $target_field = function_exists('ll_tools_sanitize_wordset_speaking_game_target')
+        ? ll_tools_sanitize_wordset_speaking_game_target($target_field)
+        : sanitize_key($target_field);
+    $stage_threshold = function_exists('ll_tools_user_progress_mastered_stage_threshold')
+        ? ll_tools_user_progress_mastered_stage_threshold()
+        : 5;
+    $clean_threshold = function_exists('ll_tools_user_progress_mastered_clean_threshold')
+        ? ll_tools_user_progress_mastered_clean_threshold()
+        : 3;
+    $hard_threshold = function_exists('ll_tools_user_progress_hard_difficulty_threshold')
+        ? ll_tools_user_progress_hard_difficulty_threshold()
+        : 4;
+    $duration_meta_key = ll_tools_wordset_games_get_audio_duration_cache_meta_key();
+    $isolation_term = get_term_by('slug', 'isolation', 'recording_type');
+    $isolation_ttid = ($isolation_term instanceof WP_Term) ? (int) $isolation_term->term_taxonomy_id : 0;
+    $category_placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
+    $difficulty_sql = "
+        (
+            (CAST(progress.incorrect AS SIGNED) * 3)
+            + (CAST(progress.lapse_count AS SIGNED) * 2)
+            + GREATEST(0, 2 - CAST(progress.stage AS SIGNED))
+            - LEAST(4, CAST(progress.correct_clean AS SIGNED))
+            - LEAST(2, CAST(progress.correct_after_retry AS SIGNED))
+            - FLOOR((CAST(progress.current_correct_streak AS SIGNED) * (CAST(progress.current_correct_streak AS SIGNED) + 1)) / 2)
+        )
+    ";
+    $target_sql = $target_field === 'recording_ipa'
+        ? "AND TRIM(COALESCE(ipa_meta.meta_value, '')) <> ''"
+        : "AND TRIM(COALESCE(text_meta.meta_value, '')) <> ''
+           AND TRIM(COALESCE(text_meta.meta_value, '')) NOT REGEXP %s";
+    $target_params = $target_field === 'recording_ipa'
+        ? []
+        : [ll_tools_wordset_games_speaking_text_overflow_regex(ll_tools_wordset_games_speaking_isolation_max_word_count())];
+
+    $sql = "
+        FROM {$table} progress
+        INNER JOIN {$wpdb->posts} word_post
+            ON word_post.ID = progress.word_id
+           AND word_post.post_type = %s
+           AND word_post.post_status = %s
+        INNER JOIN {$wpdb->term_relationships} wordset_rel
+            ON wordset_rel.object_id = word_post.ID
+        INNER JOIN {$wpdb->term_taxonomy} wordset_tt
+            ON wordset_tt.term_taxonomy_id = wordset_rel.term_taxonomy_id
+           AND wordset_tt.taxonomy = %s
+           AND wordset_tt.term_id = %d
+        INNER JOIN {$wpdb->term_relationships} category_rel
+            ON category_rel.object_id = word_post.ID
+        INNER JOIN {$wpdb->term_taxonomy} category_tt
+            ON category_tt.term_taxonomy_id = category_rel.term_taxonomy_id
+           AND category_tt.taxonomy = %s
+           AND category_tt.term_id IN ({$category_placeholders})
+        WHERE progress.user_id = %d
+          AND progress.wordset_id = %d
+          AND (progress.total_coverage > 0 OR progress.correct_clean > 0 OR progress.correct_after_retry > 0 OR progress.incorrect > 0)
+          AND (
+              progress.mastery_unlocked = 1
+              OR (
+                  progress.stage >= %d
+                  AND progress.correct_clean >= %d
+                  AND (
+                      progress.practice_required_recording_types IS NULL
+                      OR progress.practice_required_recording_types = ''
+                      OR progress.practice_required_recording_types = progress.practice_correct_recording_types
+                  )
+              )
+          )
+          AND {$difficulty_sql} < %d
+          AND EXISTS (
+              SELECT 1
+              FROM {$wpdb->posts} audio_post
+              LEFT JOIN {$wpdb->term_relationships} recording_type_rel
+                  ON recording_type_rel.object_id = audio_post.ID
+                 AND recording_type_rel.term_taxonomy_id = %d
+              LEFT JOIN {$wpdb->postmeta} type_meta
+                  ON type_meta.post_id = audio_post.ID
+                 AND type_meta.meta_key = %s
+              INNER JOIN {$wpdb->postmeta} path_meta
+                  ON path_meta.post_id = audio_post.ID
+                 AND path_meta.meta_key = %s
+                 AND path_meta.meta_value <> ''
+              LEFT JOIN {$wpdb->postmeta} text_meta
+                  ON text_meta.post_id = audio_post.ID
+                 AND text_meta.meta_key = %s
+              LEFT JOIN {$wpdb->postmeta} ipa_meta
+                  ON ipa_meta.post_id = audio_post.ID
+                 AND ipa_meta.meta_key = %s
+              LEFT JOIN {$wpdb->postmeta} duration_meta
+                  ON duration_meta.post_id = audio_post.ID
+                 AND duration_meta.meta_key = %s
+              WHERE audio_post.post_parent = progress.word_id
+                AND audio_post.post_type = %s
+                AND audio_post.post_status = %s
+                AND (recording_type_rel.object_id IS NOT NULL OR LOWER(TRIM(type_meta.meta_value)) = %s)
+                AND (
+                    duration_meta.meta_value IS NULL
+                    OR duration_meta.meta_value = ''
+                    OR CAST(duration_meta.meta_value AS DECIMAL(10,3)) <= %f
+                )
+                {$target_sql}
+              LIMIT 1
+          )
+    ";
+
+    $params = array_merge([
+        'words',
+        'publish',
+        'wordset',
+        $wordset_id,
+        'word-category',
+    ], $category_ids, [
+        $user_id,
+        $wordset_id,
+        $stage_threshold,
+        $clean_threshold,
+        $hard_threshold,
+        $isolation_ttid,
+        'recording_type',
+        'audio_file_path',
+        'recording_text',
+        'recording_ipa',
+        $duration_meta_key,
+        'word_audio',
+        'publish',
+        'isolation',
+        ll_tools_wordset_games_speaking_isolation_max_duration_seconds(),
+    ], $target_params);
+
+    return [
+        'sql' => $sql,
+        'params' => $params,
+    ];
+}
+
+function ll_tools_wordset_games_count_speaking_eligible_word_ids(int $wordset_id, int $user_id, array $category_ids, string $target_field): int {
+    global $wpdb;
+
+    $parts = ll_tools_wordset_games_build_speaking_eligible_sql_parts($wordset_id, $user_id, $category_ids, $target_field);
+    $sql = isset($parts['sql']) ? (string) $parts['sql'] : '';
+    $params = isset($parts['params']) && is_array($parts['params']) ? $parts['params'] : [];
+    if ($sql === '' || empty($params)) {
+        return 0;
+    }
+
+    return max(0, (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT progress.word_id) {$sql}",
+        $params
+    )));
+}
+
+function ll_tools_wordset_games_speaking_can_use_sql_eligibility(string $target_field): bool {
+    $target_field = function_exists('ll_tools_sanitize_wordset_speaking_game_target')
+        ? ll_tools_sanitize_wordset_speaking_game_target($target_field)
+        : sanitize_key($target_field);
+
+    if ($target_field !== 'recording_ipa') {
+        return false;
+    }
+
+    return !has_filter('ll_tools_user_progress_streak_difficulty_relief');
+}
+
+function ll_tools_wordset_games_has_ambiguous_speaking_mastery_rows(int $wordset_id, int $user_id): bool {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    $user_id = max(0, $user_id);
+    if ($wordset_id <= 0 || $user_id <= 0 || !function_exists('ll_tools_user_progress_table_names')) {
+        return false;
+    }
+
+    $tables = ll_tools_user_progress_table_names();
+    $table = isset($tables['words']) ? (string) $tables['words'] : '';
+    if ($table === '') {
+        return false;
+    }
+
+    $stage_threshold = function_exists('ll_tools_user_progress_mastered_stage_threshold')
+        ? ll_tools_user_progress_mastered_stage_threshold()
+        : 5;
+    $clean_threshold = function_exists('ll_tools_user_progress_mastered_clean_threshold')
+        ? ll_tools_user_progress_mastered_clean_threshold()
+        : 3;
+
+    $found = $wpdb->get_var($wpdb->prepare(
+        "
+        SELECT 1
+        FROM {$table}
+        WHERE user_id = %d
+          AND wordset_id = %d
+          AND mastery_unlocked = 0
+          AND stage >= %d
+          AND correct_clean >= %d
+          AND (practice_required_recording_types IS NULL OR practice_required_recording_types = '')
+          AND practice_correct_recording_types IS NOT NULL
+          AND practice_correct_recording_types <> ''
+        LIMIT 1
+        ",
+        $user_id,
+        $wordset_id,
+        $stage_threshold,
+        $clean_threshold
+    ));
+
+    return $found !== null;
+}
+
+function ll_tools_wordset_games_query_speaking_eligible_word_ids(
+    int $wordset_id,
+    int $user_id,
+    array $category_ids,
+    string $target_field,
+    int $limit = 0,
+    int $offset = 0
+): array {
+    global $wpdb;
+
+    $parts = ll_tools_wordset_games_build_speaking_eligible_sql_parts($wordset_id, $user_id, $category_ids, $target_field);
+    $sql = isset($parts['sql']) ? (string) $parts['sql'] : '';
+    $params = isset($parts['params']) && is_array($parts['params']) ? $parts['params'] : [];
+    if ($sql === '' || empty($params)) {
+        return [];
+    }
+
+    $limit = max(0, $limit);
+    $offset = max(0, $offset);
+    $limit_sql = '';
+    if ($limit > 0) {
+        $limit_sql = ' LIMIT %d OFFSET %d';
+        $params[] = $limit;
+        $params[] = $offset;
+    }
+
+    $rows = $wpdb->get_col($wpdb->prepare(
+        "
+        SELECT DISTINCT progress.word_id
+        {$sql}
+        ORDER BY progress.updated_at DESC, word_post.post_date DESC, progress.word_id DESC
+        {$limit_sql}
+        ",
+        $params
+    ));
+
+    return array_values(array_unique(array_filter(array_map('intval', (array) $rows), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+}
+
+function ll_tools_wordset_games_filter_supported_image_word_ids(array $word_ids): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    if (!function_exists('ll_tools_get_word_effective_image_presence_map')) {
+        return $word_ids;
+    }
+
+    $has_image_by_word = ll_tools_get_word_effective_image_presence_map($word_ids);
+    $supported_image_word_lookup = ll_tools_wordset_games_supported_image_word_lookup($word_ids, $has_image_by_word);
+
+    return array_values(array_filter($word_ids, static function (int $word_id) use ($supported_image_word_lookup): bool {
+        return !empty($supported_image_word_lookup[$word_id]);
+    }));
+}
+
+function ll_tools_wordset_games_collect_speaking_eligible_word_ids(
+    int $wordset_id,
+    int $user_id,
+    array $category_ids,
+    string $target_field,
+    bool $require_image,
+    int $candidate_limit = 0
+): array {
+    $candidate_limit = max(0, $candidate_limit);
+    if (
+        !ll_tools_wordset_games_speaking_can_use_sql_eligibility($target_field)
+        || ll_tools_wordset_games_has_ambiguous_speaking_mastery_rows($wordset_id, $user_id)
+    ) {
+        $mastered_ids = ll_tools_wordset_games_query_speaking_mastered_word_ids($wordset_id, $user_id, $category_ids);
+        if ($require_image) {
+            $mastered_ids = ll_tools_wordset_games_filter_supported_image_word_ids($mastered_ids);
+        }
+        $eligible_ids = ll_tools_wordset_games_word_ids_with_speaking_isolation_audio($mastered_ids, $target_field);
+
+        return [
+            'available_word_count' => count($eligible_ids),
+            'candidate_word_ids' => $candidate_limit > 0 ? array_slice($eligible_ids, 0, $candidate_limit) : [],
+        ];
+    }
+
+    if (!$require_image) {
+        $available_count = ll_tools_wordset_games_count_speaking_eligible_word_ids($wordset_id, $user_id, $category_ids, $target_field);
+        $candidate_ids = $candidate_limit > 0
+            ? ll_tools_wordset_games_query_speaking_eligible_word_ids($wordset_id, $user_id, $category_ids, $target_field, $candidate_limit, 0)
+            : [];
+
+        return [
+            'available_word_count' => $available_count,
+            'candidate_word_ids' => $candidate_ids,
+        ];
+    }
+
+    $available_count = 0;
+    $candidate_ids = [];
+    $offset = 0;
+    $batch_size = max(50, min(500, $candidate_limit > 0 ? $candidate_limit * 4 : 250));
+    while (true) {
+        $batch_ids = ll_tools_wordset_games_query_speaking_eligible_word_ids(
+            $wordset_id,
+            $user_id,
+            $category_ids,
+            $target_field,
+            $batch_size,
+            $offset
+        );
+        if (empty($batch_ids)) {
+            break;
+        }
+
+        $supported_ids = ll_tools_wordset_games_filter_supported_image_word_ids($batch_ids);
+        $available_count += count($supported_ids);
+        if ($candidate_limit > 0 && count($candidate_ids) < $candidate_limit) {
+            foreach ($supported_ids as $word_id) {
+                if (count($candidate_ids) >= $candidate_limit) {
+                    break;
+                }
+                $candidate_ids[] = (int) $word_id;
+            }
+        }
+
+        if (count($batch_ids) < $batch_size) {
+            break;
+        }
+        $offset += $batch_size;
+    }
+
+    return [
+        'available_word_count' => $available_count,
+        'candidate_word_ids' => $candidate_ids,
+    ];
+}
+
 function ll_tools_wordset_games_word_ids_with_speaking_isolation_audio(array $word_ids, string $target_field): array {
     global $wpdb;
 
@@ -3349,27 +3728,30 @@ function ll_tools_wordset_games_build_speaking_deferred_count_pool(
     }
 
     $visible_category_ids = ll_tools_wordset_games_visible_category_ids($wordset_id, $uid, $game_slug);
-    $mastered_ids = ll_tools_wordset_games_query_speaking_mastered_word_ids($wordset_id, $uid, $visible_category_ids);
-
-    if ($require_image && !empty($mastered_ids) && function_exists('ll_tools_get_word_effective_image_presence_map')) {
-        $has_image_by_word = ll_tools_get_word_effective_image_presence_map($mastered_ids);
-        $supported_image_word_lookup = ll_tools_wordset_games_supported_image_word_lookup($mastered_ids, $has_image_by_word);
-        $mastered_ids = array_values(array_filter($mastered_ids, static function (int $word_id) use ($supported_image_word_lookup): bool {
-            return !empty($supported_image_word_lookup[$word_id]);
-        }));
-    }
-
-    $eligible_ids = ll_tools_wordset_games_word_ids_with_speaking_isolation_audio($mastered_ids, $target_field);
-    $available_count = count($eligible_ids);
+    $candidate_limit = $launch_word_cap > 0 ? max($minimum_word_count, $launch_word_cap) : 0;
+    $eligible_pool = ll_tools_wordset_games_collect_speaking_eligible_word_ids(
+        $wordset_id,
+        $uid,
+        $visible_category_ids,
+        $target_field,
+        $require_image,
+        $candidate_limit
+    );
+    $available_count = max(0, (int) ($eligible_pool['available_word_count'] ?? 0));
+    $candidate_ids = isset($eligible_pool['candidate_word_ids']) && is_array($eligible_pool['candidate_word_ids'])
+        ? array_values(array_filter(array_map('intval', $eligible_pool['candidate_word_ids']), static function (int $word_id): bool {
+            return $word_id > 0;
+        }))
+        : [];
     $launch_candidate_words = [];
     $launch_candidate_word_ids = [];
-    if ($launch_word_cap > 0 && !empty($eligible_ids)) {
+    if ($launch_word_cap > 0 && !empty($candidate_ids)) {
         $word_category_ids_map = function_exists('ll_tools_get_object_term_ids_map')
-            ? ll_tools_get_object_term_ids_map($eligible_ids, 'word-category')
+            ? ll_tools_get_object_term_ids_map($candidate_ids, 'word-category')
             : [];
         $visible_category_lookup = array_fill_keys($visible_category_ids, true);
         $candidate_words = [];
-        foreach ($eligible_ids as $word_id) {
+        foreach ($candidate_ids as $word_id) {
             $word_id = (int) $word_id;
             if ($word_id <= 0) {
                 continue;

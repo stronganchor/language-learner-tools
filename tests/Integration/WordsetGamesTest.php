@@ -2080,6 +2080,53 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_speaking_deferred_count_pool_does_not_scan_all_mastered_progress_before_capping_candidates(): void
+    {
+        $fixture = $this->createSpeakingGamesFixture(10);
+        $progressTable = ll_tools_user_progress_table_names()['words'];
+        $capturedFullProgressScans = [];
+        $capturedAudioParentInSizes = [];
+        $capture = static function (string $sql) use ($progressTable, &$capturedFullProgressScans, &$capturedAudioParentInSizes): string {
+            if (
+                stripos($sql, 'SELECT *') !== false
+                && stripos($sql, $progressTable) !== false
+                && stripos($sql, 'wordset_id') !== false
+            ) {
+                $capturedFullProgressScans[] = $sql;
+            }
+
+            if (preg_match('/post_parent\s+IN\s*\(([^)]*)\)/i', $sql, $matches)) {
+                $ids = array_values(array_filter(array_map('trim', explode(',', (string) $matches[1])), static function (string $id): bool {
+                    return $id !== '';
+                }));
+                $capturedAudioParentInSizes[] = count($ids);
+            }
+
+            return $sql;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $countPool = ll_tools_wordset_games_build_speaking_deferred_count_pool(
+                (int) $fixture['wordset_id'],
+                (int) $fixture['user_id'],
+                'speaking-practice',
+                false,
+                7
+            );
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame(10, (int) ($countPool['available_word_count'] ?? 0));
+        $this->assertCount(7, (array) ($countPool['launch_candidate_words'] ?? []));
+        $this->assertCount(7, (array) ($countPool['launch_candidate_word_ids'] ?? []));
+        $this->assertSame([], $capturedFullProgressScans, 'Speaking deferred count should not SELECT * all mastered progress rows before capping launch candidates.');
+        if (!empty($capturedAudioParentInSizes)) {
+            $this->assertLessThanOrEqual(7, max($capturedAudioParentInSizes), 'Speaking deferred count should not probe isolation audio for the full mastered set before capping launch candidates.');
+        }
+    }
+
     public function test_speaking_practice_catalog_only_uses_learned_text_prompt_words(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
