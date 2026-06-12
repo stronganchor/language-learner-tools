@@ -201,9 +201,66 @@ test('flashcard loader preserves explicit listening word order when provided', a
 
   const payloadCandidateIds = await page.evaluate(() => String((window.__llLastWordsPayload || {}).candidate_word_ids || ''));
   expect(payloadCandidateIds).toBe('3,1,2');
+  const payloadIncludeOptionPool = await page.evaluate(() => String((window.__llLastWordsPayload || {}).include_option_pool || ''));
+  const payloadOptionPoolLimit = await page.evaluate(() => String((window.__llLastWordsPayload || {}).option_pool_limit || ''));
+  expect(payloadIncludeOptionPool).toBe('1');
+  expect(payloadOptionPoolLimit).toBe('12');
 
   const optionIds = await page.evaluate(() => (window.optionWordsByCategory.Numbers || []).map((word) => Number(word && word.id) || 0));
   expect(optionIds).toEqual([3, 1, 2]);
+});
+
+test('flashcard loader keeps session targets scoped while preserving returned option-pool rows', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['New words'];
+    window.getCategoryDisplayMode = function () { return 'image'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'genc-palu',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      sessionWordIds: [84226],
+      session_word_ids: [84226],
+      categories: [
+        { id: 11, name: 'New words', prompt_type: 'audio', option_type: 'image' }
+      ]
+    };
+
+    const $ = window.jQuery;
+    $.ajax = function (opts) {
+      window.__llLastWordsPayload = Object.assign({}, opts.data || {});
+      setTimeout(() => {
+        opts.success({
+          success: true,
+          data: [
+            { id: 84226, title: 'Target', label: 'Target', audio: 'target.mp3', image: 'target.jpg', audio_files: [], wordset_ids: [101] },
+            { id: 84227, title: 'Distractor', label: 'Distractor', audio: 'distractor.mp3', image: 'distractor.jpg', audio_files: [], wordset_ids: [101] }
+          ]
+        });
+      }, 0);
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  await page.evaluate(() => window.FlashcardLoader.loadResourcesForCategory('New words'));
+
+  await expect.poll(async () => {
+    return await page.evaluate(() => (window.wordsByCategory['New words'] || []).map((word) => Number(word && word.id) || 0));
+  }).toEqual([84226]);
+
+  const optionIds = await page.evaluate(() => (window.optionWordsByCategory['New words'] || []).map((word) => Number(word && word.id) || 0).sort((a, b) => a - b));
+  const payload = await page.evaluate(() => Object.assign({}, window.__llLastWordsPayload || {}));
+
+  expect(optionIds).toEqual([84226, 84227]);
+  expect(String(payload.candidate_word_ids || '')).toBe('84226');
+  expect(String(payload.include_option_pool || '')).toBe('1');
 });
 
 test('flashcard loader keeps prompt-card support rows out of the target pool while preserving options', async ({ page }) => {

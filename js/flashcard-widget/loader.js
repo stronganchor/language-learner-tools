@@ -23,6 +23,7 @@
         let requestSerial = 0;
         let lastWordsetKey = null;
         const defaultConfig = { prompt_type: 'audio', option_type: 'image' };
+        const SESSION_OPTION_POOL_LIMIT = 12;
         const AUDIO_LOAD_TIMEOUT_MS = 4500;
         const AUDIO_LOAD_MAX_RETRIES = 1;
         const IMAGE_LOAD_TIMEOUT_MS = 3500;
@@ -1006,6 +1007,8 @@
             }
             if (candidateWordIds.length) {
                 payload.candidate_word_ids = candidateWordIds.join(',');
+                payload.include_option_pool = '1';
+                payload.option_pool_limit = String(SESSION_OPTION_POOL_LIMIT);
             }
             const requestId = ++requestSerial;
             let callbackInvoked = false;

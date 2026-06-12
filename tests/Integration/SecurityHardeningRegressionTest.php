@@ -254,6 +254,43 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame($expected_full_ids, $full_ids);
     }
 
+    public function test_public_word_fetch_can_expand_candidate_scope_with_bounded_option_pool(): void
+    {
+        $first_fixture = $this->create_flashcard_word_with_audio(111);
+        $second_fixture = $this->create_flashcard_word_with_audio(222);
+        wp_set_current_user(0);
+
+        $_POST = [
+            'category' => $first_fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $second_fixture['word_id'],
+            'include_option_pool' => '1',
+            'option_pool_limit' => '4',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $rows)));
+
+        $this->assertContains((int) $first_fixture['word_id'], $ids);
+        $this->assertContains((int) $second_fixture['word_id'], $ids);
+        $this->assertLessThanOrEqual(5, count($ids));
+    }
+
     public function test_public_flashcard_ajax_cache_is_anonymous_and_epoch_scoped(): void
     {
         wp_set_current_user(0);

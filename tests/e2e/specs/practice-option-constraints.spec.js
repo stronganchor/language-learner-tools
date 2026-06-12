@@ -2414,3 +2414,56 @@ test('throws a hard error when fewer than two options are truly available', asyn
   expect(result.threw).toBe(true);
   expect(result.code).toBe('LL_MINIMUM_OPTIONS_VIOLATION');
 });
+
+test('uses expanded option pool for progress-filtered practice sessions', async ({ page }) => {
+  const category = 'Progress filtered images';
+  const targetWord = {
+    id: 84226,
+    title: 'Target',
+    label: 'Target',
+    audio: 'target.mp3',
+    image: 'target.jpg',
+    wordset_ids: [101]
+  };
+  const distractorWord = {
+    id: 84227,
+    title: 'Distractor',
+    label: 'Distractor',
+    audio: 'distractor.mp3',
+    image: 'distractor.jpg',
+    wordset_ids: [101]
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    desiredCount: 2,
+    wordsByCategory: {
+      [category]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, distractorWord]
+    }
+  });
+
+  const result = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Progress filtered images' }, word);
+    try {
+      window.LLFlashcards.Selection.fillQuizOptions(target);
+      return {
+        threw: false,
+        optionIds: Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+          .map((card) => Number(card.getAttribute('data-word-id')) || 0)
+      };
+    } catch (error) {
+      return {
+        threw: true,
+        code: String((error && error.code) || ''),
+        optionIds: []
+      };
+    }
+  }, targetWord);
+
+  expect(result.threw).toBe(false);
+  expect(result.optionIds.sort((a, b) => a - b)).toEqual([84226, 84227]);
+});

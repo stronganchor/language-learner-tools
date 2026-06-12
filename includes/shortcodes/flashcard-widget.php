@@ -1467,6 +1467,96 @@ function ll_tools_flashcards_send_public_ajax_cache_header(string $status): void
     }
 }
 
+function ll_tools_flashcards_public_ajax_bool_value($value): bool {
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    if (is_numeric($value)) {
+        return ((int) $value) !== 0;
+    }
+
+    $normalized = strtolower(trim(is_scalar($value) ? (string) wp_unslash($value) : ''));
+    return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+}
+
+function ll_tools_flashcards_public_ajax_option_pool_limit($value): int {
+    $requested = is_scalar($value) ? absint(wp_unslash($value)) : 0;
+    $default = (int) apply_filters('ll_tools_flashcards_public_ajax_option_pool_limit', 12);
+    $limit = $requested > 0 ? $requested : $default;
+    return max(0, min(50, $limit));
+}
+
+function ll_tools_flashcards_public_ajax_option_pool_word_ids(WP_Term $term, array $wordset_ids, array $exclude_word_ids, int $limit): array {
+    $limit = max(0, min(50, $limit));
+    if ($limit <= 0) {
+        return [];
+    }
+
+    $exclude_word_ids = array_values(array_unique(array_filter(array_map('intval', $exclude_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    $wordset_terms = array_values(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    }));
+    if (!empty($wordset_terms) && function_exists('ll_tools_filter_viewable_wordset_ids')) {
+        $wordset_terms = ll_tools_filter_viewable_wordset_ids($wordset_terms, (int) get_current_user_id());
+        if (empty($wordset_terms)) {
+            return [];
+        }
+    }
+
+    if (function_exists('ll_tools_get_word_category_query_context')) {
+        $category_context = ll_tools_get_word_category_query_context($term);
+    } else {
+        $category_context = [
+            'query_field' => 'term_id',
+            'query_terms' => [(int) $term->term_id],
+            'term' => $term,
+        ];
+    }
+    if (function_exists('ll_tools_remap_word_category_query_context_for_wordset')) {
+        $category_context = ll_tools_remap_word_category_query_context_for_wordset($category_context, $wordset_terms);
+    }
+
+    $tax_query = [[
+        'taxonomy' => 'word-category',
+        'field' => (string) ($category_context['query_field'] ?? 'term_id'),
+        'terms' => $category_context['query_terms'] ?? [(int) $term->term_id],
+    ]];
+    if (!empty($wordset_terms)) {
+        $tax_query[] = [
+            'taxonomy' => 'wordset',
+            'field' => 'term_id',
+            'terms' => $wordset_terms,
+        ];
+        $tax_query['relation'] = 'AND';
+    }
+
+    $args = [
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => $limit,
+        'fields' => 'ids',
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+        'cache_results' => false,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'tax_query' => $tax_query,
+    ];
+    if (!empty($exclude_word_ids)) {
+        $args['post__not_in'] = $exclude_word_ids;
+    }
+
+    $query = new WP_Query($args);
+    return array_values(array_unique(array_filter(array_map('intval', (array) $query->posts), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+}
+
 function ll_get_words_by_category_ajax() {
     $category = isset($_POST['category']) ? ll_tools_flashcards_public_ajax_request_value($_POST['category']) : '';
     $category_slug = isset($_POST['category_slug']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['category_slug']) : '';
@@ -1482,6 +1572,12 @@ function ll_get_words_by_category_ajax() {
     $candidate_word_ids = isset($_POST['candidate_word_ids']) && function_exists('ll_tools_parse_request_id_list')
         ? ll_tools_parse_request_id_list($_POST['candidate_word_ids'], $candidate_word_limit)
         : [];
+    $include_option_pool = !empty($candidate_word_ids)
+        && isset($_POST['include_option_pool'])
+        && ll_tools_flashcards_public_ajax_bool_value($_POST['include_option_pool']);
+    $option_pool_limit = $include_option_pool
+        ? ll_tools_flashcards_public_ajax_option_pool_limit($_POST['option_pool_limit'] ?? null)
+        : 0;
 
     if (!$category && !$category_slug) { wp_send_json_error(__('Invalid category.', 'll-tools-text-domain')); }
 
@@ -1533,8 +1629,23 @@ function ll_get_words_by_category_ajax() {
     if (!empty($meta_config)) {
         $base_config = array_merge($meta_config, $base_config);
     }
-    if (!empty($candidate_word_ids)) {
-        $base_config['__candidate_word_ids'] = $candidate_word_ids;
+    $effective_candidate_word_ids = $candidate_word_ids;
+    if ($include_option_pool && $option_pool_limit > 0 && $term instanceof WP_Term) {
+        $option_pool_word_ids = ll_tools_flashcards_public_ajax_option_pool_word_ids($term, $wordset_ids, $candidate_word_ids, $option_pool_limit);
+        if (!empty($option_pool_word_ids)) {
+            $seen_candidate_word_ids = array_fill_keys(array_map('intval', $effective_candidate_word_ids), true);
+            foreach ($option_pool_word_ids as $option_pool_word_id) {
+                $option_pool_word_id = (int) $option_pool_word_id;
+                if ($option_pool_word_id <= 0 || isset($seen_candidate_word_ids[$option_pool_word_id])) {
+                    continue;
+                }
+                $effective_candidate_word_ids[] = $option_pool_word_id;
+                $seen_candidate_word_ids[$option_pool_word_id] = true;
+            }
+        }
+    }
+    if (!empty($effective_candidate_word_ids)) {
+        $base_config['__candidate_word_ids'] = $effective_candidate_word_ids;
     }
 
     $public_cache_args = [
@@ -1549,6 +1660,11 @@ function ll_get_words_by_category_ajax() {
     ];
     if (!empty($candidate_word_ids)) {
         $public_cache_args['candidate_word_ids'] = $candidate_word_ids;
+    }
+    if ($include_option_pool) {
+        $public_cache_args['include_option_pool'] = true;
+        $public_cache_args['option_pool_limit'] = $option_pool_limit;
+        $public_cache_args['effective_candidate_word_ids'] = $effective_candidate_word_ids;
     }
     $cached_words = ll_tools_flashcards_public_ajax_cache_get($public_cache_args);
     if (is_array($cached_words)) {
