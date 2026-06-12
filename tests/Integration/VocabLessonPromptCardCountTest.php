@@ -29,6 +29,72 @@ final class VocabLessonPromptCardCountTest extends LL_Tools_TestCase
         $this->assertContains($effective_prompt_category_id, ll_tools_get_vocab_lesson_category_ids_for_wordset($wordset_id, true));
     }
 
+    public function test_deepest_counts_use_grouped_relationship_queries_without_unbounded_wordset_id_queries(): void
+    {
+        global $wpdb;
+
+        $asset_category_id = $this->createCategory('Prompt Card Query Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
+        $prompt_category_id = $this->createCategory('Prompt Card Query Lesson ' . wp_generate_password(5, false), 'text_title', 'text_title');
+        $wordset_id = $this->createWordset('Prompt Card Query Wordset ' . wp_generate_password(5, false));
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $word_id = $this->createWord($effective_prompt_category_id, 'Query Word With Image');
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        $this->addImage($word_id, '-query-word');
+
+        $answer_word_id = $this->createWord($asset_category_id, 'Query Answer With Image');
+        $this->addImage($answer_word_id, '-query-answer');
+        $wrong_word_id = $this->createWord($asset_category_id, 'Query Wrong');
+        $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'Prompt Card Query Lesson',
+            'prompt_text' => 'Prompt Card Query Question',
+            'correct_answer_word_id' => $answer_word_id,
+            'wrong_answer_word_ids' => [$wrong_word_id],
+        ]);
+
+        $captured_queries = [];
+        $capture = static function (string $query) use (&$captured_queries): string {
+            $captured_queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $counts = ll_tools_get_vocab_lesson_deepest_counts_for_wordset($wordset_id, true);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame(2, (int) ($counts['all'][$effective_prompt_category_id] ?? 0));
+        $this->assertSame(2, (int) ($counts['with_images'][$effective_prompt_category_id] ?? 0));
+
+        $queries_sql = implode("\n", $captured_queries);
+        $this->assertStringContainsString('COUNT(DISTINCT posts.ID) AS total', $queries_sql);
+        $this->assertStringNotContainsString('posts.ID AS object_id', $queries_sql);
+        $this->assertStringNotContainsString('SELECT ' . $wpdb->posts . '.ID', $queries_sql);
+    }
+
+    public function test_deepest_counts_exclude_specific_wrong_answer_only_words(): void
+    {
+        $category_id = $this->createCategory('Prompt Card Wrong Only ' . wp_generate_password(5, false), 'text_title', 'text_title');
+        $wordset_id = $this->createWordset('Prompt Card Wrong Only Wordset ' . wp_generate_password(5, false));
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
+
+        $owner_word_id = $this->createWord($effective_category_id, 'Wrong Only Owner');
+        wp_set_post_terms($owner_word_id, [$wordset_id], 'wordset', false);
+        $reserved_word_id = $this->createWord($effective_category_id, 'Wrong Only Reserved');
+        wp_set_post_terms($reserved_word_id, [$wordset_id], 'wordset', false);
+
+        update_post_meta($owner_word_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, [$reserved_word_id]);
+        update_post_meta($owner_word_id, LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY, ['Typed Wrong']);
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+
+        $counts = ll_tools_get_vocab_lesson_deepest_counts_for_wordset($wordset_id, true);
+
+        $this->assertSame(1, (int) ($counts['all'][$effective_category_id] ?? 0));
+        $this->assertSame(0, (int) ($counts['with_images'][$effective_category_id] ?? 0));
+    }
+
     public function test_prompt_card_counts_do_not_pull_child_words_up_to_parent_vocab_lesson_counts(): void
     {
         $asset_category_id = $this->createCategory('Prompt Card Tree Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
@@ -101,6 +167,18 @@ final class VocabLessonPromptCardCountTest extends LL_Tools_TestCase
         return (int) $word_id;
     }
 
+    private function addImage(int $word_id, string $suffix = ''): void
+    {
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Image ' . $suffix,
+            'post_mime_type' => 'image/jpeg',
+        ]);
+        update_post_meta($attachment_id, '_wp_attached_file', '2026/06/vocab-lesson-count-' . $word_id . $suffix . '.jpg');
+        set_post_thumbnail($word_id, $attachment_id);
+    }
+
     /**
      * @param array<string,mixed> $args
      */
@@ -115,6 +193,7 @@ final class VocabLessonPromptCardCountTest extends LL_Tools_TestCase
         wp_set_post_terms($post_id, [$category_id], 'word-category', false);
         wp_set_post_terms($post_id, [$wordset_id], 'wordset', false);
         update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, (string) ($args['prompt_text'] ?? ''));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY, (int) ($args['prompt_image_word_id'] ?? 0));
         update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, (int) ($args['correct_answer_word_id'] ?? 0));
         update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, array_values(array_map('intval', (array) ($args['wrong_answer_word_ids'] ?? []))));
 
