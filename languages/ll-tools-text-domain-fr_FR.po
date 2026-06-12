@@ -3984,3 +3984,120 @@ msgstr "Trop de demandes de recherche. Attends quelques minutes, puis réessaie.
 #: includes/pages/wordset-pages.php:17683
 msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Trop de demandes de chargement de cartes. Attends quelques minutes, puis réessaie."
+
+#: includes/api/automation-rest.php:3808
+msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
+msgstr "La catégorie contient plus de %d images de mots. Fournissez une liste image_ids explicite plus petite."
+
+#: includes/api/automation-rest.php:3909
+msgid "Provide an existing word-category category_id or category_slug."
+msgstr "Fournissez un category_id ou un category_slug word-category existant."
+
+#: includes/api/automation-rest.php:3932
+msgid "Category slug does not match expected_category_slug."
+msgstr "Le slug de catégorie ne correspond pas à expected_category_slug."
+
+#: includes/api/automation-rest.php:3941
+msgid "Category is already owned by another word set."
+msgstr "La catégorie appartient déjà à un autre ensemble de mots."
+
+#: includes/api/automation-rest.php:3964
+msgid "Too many word images in one request. Maximum is %d."
+msgstr "Trop d’images de mots dans une seule requête. Le maximum est %d."
+
+#: includes/api/automation-rest.php:3980
+msgid "Image ID does not refer to a word_images post."
+msgstr "L’ID d’image ne renvoie pas à un contenu word_images."
+
+#: includes/api/automation-rest.php:3994
+msgid "Word image is not assigned to the requested category."
+msgstr "L’image de mot n’est pas attribuée à la catégorie demandée."
+
+#: includes/api/automation-rest.php:4009
+msgid "Word image is also assigned to a category owned by another word set."
+msgstr "L’image de mot est aussi attribuée à une catégorie appartenant à un autre ensemble de mots."
+
+#: includes/api/automation-rest.php:4022
+msgid "Word image is already owned by another word set."
+msgstr "L’image de mot appartient déjà à un autre ensemble de mots."
+
+#: includes/api/automation-rest.php:4052
+msgid "Word image category ownership preflight failed. No ownership metadata was changed."
+msgstr "La vérification préalable de propriété de catégorie de l’image de mot a échoué. Aucune métadonnée de propriété n’a été modifiée."
+
+#: includes/pages/wordset-pages.php:1152
+msgid "Manager view"
+msgstr "Vue gestionnaire"
+
+#: includes/pages/wordset-pages.php:1153
+msgid "Words without a category in this word set."
+msgstr "Mots sans catégorie dans cet ensemble de mots."
+
+#: includes/pages/wordset-pages.php:1161
+msgid "The uncategorized lesson is a system view and cannot be deleted."
+msgstr "La leçon sans catégorie est une vue système et ne peut pas être supprimée."
+
+#: includes/pages/wordset-pages.php:1499 includes/pages/wordset-pages.php:1508
+msgid "Unable to remove this category from its words right now."
+msgstr "Impossible de retirer cette catégorie de ses mots pour le moment."
+
+#: includes/pages/wordset-pages.php:12985
+msgid "Rename categories, update translated names, move them under a different parent, or delete categories."
+msgstr "Renommez les catégories, mettez à jour les noms traduits, déplacez-les sous un autre parent ou supprimez des catégories."
+
+#: includes/pages/wordset-pages.php:13002
+msgid "Delete this category? Words in it will become uncategorized and any linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Supprimer cette catégorie ? Les mots qu’elle contient deviendront sans catégorie et toute leçon de vocabulaire liée sera supprimée. Cette action est irréversible."
+
+#: includes/pages/wordset-pages.php:13092 templates/vocab-lesson-template.php:970
+msgid "Delete Category"
+msgstr "Supprimer la catégorie"
+
+#: includes/pages/wordset-pages.php:14444
+msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
+msgstr "État effectif actuel de l’enregistreur : %s. S’applique à chaque enregistreur affecté à cet ensemble de mots."
+
+#: includes/pages/wordset-pages.php:14451
+msgid "Save recorder text setting"
+msgstr "Enregistrer le réglage du texte de l’enregistreur"
+
+#: templates/vocab-lesson-template.php:217
+msgid "Delete this category? Words in it will become uncategorized and the linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Supprimer cette catégorie ? Les mots qu’elle contient deviendront sans catégorie et la leçon de vocabulaire liée sera supprimée. Cette action est irréversible."
+
+#: templates/vocab-lesson-template.php:1634 templates/vocab-lesson-template.php:1635 templates/vocab-lesson-template.php:1647
+msgid "Delete empty category"
+msgstr "Supprimer la catégorie vide"
+
+#: includes/pages/wordset-pages.php:16205
+msgid "This will permanently delete your progress for all categories in this word set. This cannot be undone. Continue?"
+msgstr "Cela supprimera définitivement votre progression pour toutes les catégories de cet ensemble de mots. Cette action est irréversible. Continuer ?"
+
+#: includes/pages/wordset-pages.php:16206
+msgid "This will permanently delete your progress for %s. This cannot be undone. Continue?"
+msgstr "Cela supprimera définitivement votre progression pour %s. Cette action est irréversible. Continuer ?"
+
+#: includes/pages/wordset-pages.php:16207
+msgid "Reset progress for %s"
+msgstr "Réinitialiser la progression pour %s"
+
+#: includes/pages/wordset-pages.php:10709 includes/pages/wordset-pages.php:17915
+msgid "Priority words only"
+msgstr "Mots prioritaires uniquement"
+
+#: includes/pages/wordset-games.php:273
+msgid "Speaking games are hidden because speaking practice is turned off for this word set."
+msgstr "Les jeux d’expression orale sont masqués, car l’entraînement oral est désactivé pour cet ensemble de mots."
+
+#: includes/pages/wordset-games.php:280
+#, php-format
+msgid "Speaking games are hidden because the current speaking configuration is incompatible: %s"
+msgstr "Les jeux d’expression orale sont masqués, car la configuration orale actuelle est incompatible : %s"
+
+#: includes/pages/wordset-games.php:283
+msgid "Speaking games are hidden because the current speaking configuration is incompatible."
+msgstr "Les jeux d’expression orale sont masqués, car la configuration orale actuelle est incompatible."
+
+#: includes/pages/wordset-games.php:286
+msgid "Speaking games are hidden because the current speaking configuration is incomplete for this word set."
+msgstr "Les jeux d’expression orale sont masqués, car la configuration orale actuelle est incomplète pour cet ensemble de mots."

@@ -3984,3 +3984,120 @@ msgstr "Terlalu banyak permintaan pencarian. Tunggu beberapa menit lalu coba lag
 #: includes/pages/wordset-pages.php:17683
 msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Terlalu banyak permintaan pemuatan kartu. Tunggu beberapa menit lalu coba lagi."
+
+#: includes/api/automation-rest.php:3808
+msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
+msgstr "Kategori memiliki lebih dari %d gambar kata. Berikan daftar image_ids yang eksplisit dan lebih kecil."
+
+#: includes/api/automation-rest.php:3909
+msgid "Provide an existing word-category category_id or category_slug."
+msgstr "Berikan category_id atau category_slug word-category yang sudah ada."
+
+#: includes/api/automation-rest.php:3932
+msgid "Category slug does not match expected_category_slug."
+msgstr "Slug kategori tidak cocok dengan expected_category_slug."
+
+#: includes/api/automation-rest.php:3941
+msgid "Category is already owned by another word set."
+msgstr "Kategori sudah dimiliki oleh kumpulan kata lain."
+
+#: includes/api/automation-rest.php:3964
+msgid "Too many word images in one request. Maximum is %d."
+msgstr "Terlalu banyak gambar kata dalam satu permintaan. Maksimum %d."
+
+#: includes/api/automation-rest.php:3980
+msgid "Image ID does not refer to a word_images post."
+msgstr "ID gambar tidak merujuk ke posting word_images."
+
+#: includes/api/automation-rest.php:3994
+msgid "Word image is not assigned to the requested category."
+msgstr "Gambar kata tidak ditetapkan ke kategori yang diminta."
+
+#: includes/api/automation-rest.php:4009
+msgid "Word image is also assigned to a category owned by another word set."
+msgstr "Gambar kata juga ditetapkan ke kategori milik kumpulan kata lain."
+
+#: includes/api/automation-rest.php:4022
+msgid "Word image is already owned by another word set."
+msgstr "Gambar kata sudah dimiliki oleh kumpulan kata lain."
+
+#: includes/api/automation-rest.php:4052
+msgid "Word image category ownership preflight failed. No ownership metadata was changed."
+msgstr "Prapemeriksaan kepemilikan kategori gambar kata gagal. Tidak ada metadata kepemilikan yang diubah."
+
+#: includes/pages/wordset-pages.php:1152
+msgid "Manager view"
+msgstr "Tampilan pengelola"
+
+#: includes/pages/wordset-pages.php:1153
+msgid "Words without a category in this word set."
+msgstr "Kata tanpa kategori dalam kumpulan kata ini."
+
+#: includes/pages/wordset-pages.php:1161
+msgid "The uncategorized lesson is a system view and cannot be deleted."
+msgstr "Pelajaran tanpa kategori adalah tampilan sistem dan tidak dapat dihapus."
+
+#: includes/pages/wordset-pages.php:1499 includes/pages/wordset-pages.php:1508
+msgid "Unable to remove this category from its words right now."
+msgstr "Tidak dapat menghapus kategori ini dari kata-katanya saat ini."
+
+#: includes/pages/wordset-pages.php:12985
+msgid "Rename categories, update translated names, move them under a different parent, or delete categories."
+msgstr "Ganti nama kategori, perbarui nama terjemahan, pindahkan ke induk lain, atau hapus kategori."
+
+#: includes/pages/wordset-pages.php:13002
+msgid "Delete this category? Words in it will become uncategorized and any linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Hapus kategori ini? Kata di dalamnya akan menjadi tanpa kategori dan pelajaran kosakata terkait apa pun akan dihapus. Ini tidak dapat dibatalkan."
+
+#: includes/pages/wordset-pages.php:13092 templates/vocab-lesson-template.php:970
+msgid "Delete Category"
+msgstr "Hapus Kategori"
+
+#: includes/pages/wordset-pages.php:14444
+msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
+msgstr "Status perekam efektif saat ini: %s. Berlaku untuk setiap perekam yang ditetapkan ke kumpulan kata ini."
+
+#: includes/pages/wordset-pages.php:14451
+msgid "Save recorder text setting"
+msgstr "Simpan pengaturan teks perekam"
+
+#: templates/vocab-lesson-template.php:217
+msgid "Delete this category? Words in it will become uncategorized and the linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Hapus kategori ini? Kata di dalamnya akan menjadi tanpa kategori dan pelajaran kosakata terkait akan dihapus. Ini tidak dapat dibatalkan."
+
+#: templates/vocab-lesson-template.php:1634 templates/vocab-lesson-template.php:1635 templates/vocab-lesson-template.php:1647
+msgid "Delete empty category"
+msgstr "Hapus kategori kosong"
+
+#: includes/pages/wordset-pages.php:16205
+msgid "This will permanently delete your progress for all categories in this word set. This cannot be undone. Continue?"
+msgstr "Ini akan menghapus permanen progres Anda untuk semua kategori dalam kumpulan kata ini. Ini tidak dapat dibatalkan. Lanjutkan?"
+
+#: includes/pages/wordset-pages.php:16206
+msgid "This will permanently delete your progress for %s. This cannot be undone. Continue?"
+msgstr "Ini akan menghapus permanen progres Anda untuk %s. Ini tidak dapat dibatalkan. Lanjutkan?"
+
+#: includes/pages/wordset-pages.php:16207
+msgid "Reset progress for %s"
+msgstr "Atur ulang progres untuk %s"
+
+#: includes/pages/wordset-pages.php:10709 includes/pages/wordset-pages.php:17915
+msgid "Priority words only"
+msgstr "Hanya kata prioritas"
+
+#: includes/pages/wordset-games.php:273
+msgid "Speaking games are hidden because speaking practice is turned off for this word set."
+msgstr "Game berbicara disembunyikan karena latihan berbicara dimatikan untuk set kata ini."
+
+#: includes/pages/wordset-games.php:280
+#, php-format
+msgid "Speaking games are hidden because the current speaking configuration is incompatible: %s"
+msgstr "Game berbicara disembunyikan karena konfigurasi berbicara saat ini tidak kompatibel: %s"
+
+#: includes/pages/wordset-games.php:283
+msgid "Speaking games are hidden because the current speaking configuration is incompatible."
+msgstr "Game berbicara disembunyikan karena konfigurasi berbicara saat ini tidak kompatibel."
+
+#: includes/pages/wordset-games.php:286
+msgid "Speaking games are hidden because the current speaking configuration is incomplete for this word set."
+msgstr "Game berbicara disembunyikan karena konfigurasi berbicara saat ini belum lengkap untuk set kata ini."

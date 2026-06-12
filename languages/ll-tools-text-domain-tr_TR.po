@@ -26985,3 +26985,87 @@ msgstr "Çok fazla arama isteği var. Lütfen birkaç dakika bekleyip yeniden de
 #: includes/pages/wordset-pages.php:17683
 msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Çok fazla kart yükleme isteği var. Lütfen birkaç dakika bekleyip yeniden dene."
+
+#: includes/api/automation-rest.php:3808
+msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
+msgstr "Kategoride %d adetten fazla kelime görseli var. Açık ve daha küçük bir image_ids listesi ver."
+
+#: includes/api/automation-rest.php:3909
+msgid "Provide an existing word-category category_id or category_slug."
+msgstr "Mevcut bir word-category category_id veya category_slug ver."
+
+#: includes/api/automation-rest.php:3932
+msgid "Category slug does not match expected_category_slug."
+msgstr "Kategori slug'ı expected_category_slug ile eşleşmiyor."
+
+#: includes/api/automation-rest.php:3941
+msgid "Category is already owned by another word set."
+msgstr "Kategori zaten başka bir kelime setine ait."
+
+#: includes/api/automation-rest.php:3964
+msgid "Too many word images in one request. Maximum is %d."
+msgstr "Tek istekte çok fazla kelime görseli var. En fazla %d olabilir."
+
+#: includes/api/automation-rest.php:3980
+msgid "Image ID does not refer to a word_images post."
+msgstr "Görsel ID'si bir word_images gönderisine karşılık gelmiyor."
+
+#: includes/api/automation-rest.php:3994
+msgid "Word image is not assigned to the requested category."
+msgstr "Kelime görseli istenen kategoriye atanmamış."
+
+#: includes/api/automation-rest.php:4009
+msgid "Word image is also assigned to a category owned by another word set."
+msgstr "Kelime görseli ayrıca başka bir kelime setine ait bir kategoriye atanmış."
+
+#: includes/api/automation-rest.php:4022
+msgid "Word image is already owned by another word set."
+msgstr "Kelime görseli zaten başka bir kelime setine ait."
+
+#: includes/api/automation-rest.php:4052
+msgid "Word image category ownership preflight failed. No ownership metadata was changed."
+msgstr "Kelime görseli kategori sahipliği ön denetimi başarısız oldu. Hiçbir sahiplik meta verisi değiştirilmedi."
+
+#: includes/pages/wordset-pages.php:1152
+msgid "Manager view"
+msgstr "Yönetici görünümü"
+
+#: includes/pages/wordset-pages.php:1153
+msgid "Words without a category in this word set."
+msgstr "Bu kelime setinde kategorisiz kelimeler."
+
+#: includes/pages/wordset-pages.php:1161
+msgid "The uncategorized lesson is a system view and cannot be deleted."
+msgstr "Kategorisiz ders bir sistem görünümüdür ve silinemez."
+
+#: includes/pages/wordset-pages.php:1499 includes/pages/wordset-pages.php:1508
+msgid "Unable to remove this category from its words right now."
+msgstr "Bu kategori şu anda kelimelerinden kaldırılamıyor."
+
+#: includes/pages/wordset-pages.php:12985
+msgid "Rename categories, update translated names, move them under a different parent, or delete categories."
+msgstr "Kategorileri yeniden adlandır, çevrilmiş adları güncelle, farklı bir üst kategori altına taşı veya kategorileri sil."
+
+#: includes/pages/wordset-pages.php:13002
+msgid "Delete this category? Words in it will become uncategorized and any linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Bu kategoriyi sil? İçindeki kelimeler kategorisiz kalacak ve bağlantılı herhangi bir kelime dersi silinecek. Bu geri alınamaz."
+
+#: includes/pages/wordset-pages.php:13092 templates/vocab-lesson-template.php:970
+msgid "Delete Category"
+msgstr "Kategoriyi Sil"
+
+#: includes/pages/wordset-pages.php:14444
+msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
+msgstr "Geçerli etkin ses kaydedici durumu: %s. Bu kelime setine atanmış her ses kaydedici için geçerlidir."
+
+#: includes/pages/wordset-pages.php:14451
+msgid "Save recorder text setting"
+msgstr "Ses kaydedici metin ayarını kaydet"
+
+#: templates/vocab-lesson-template.php:217
+msgid "Delete this category? Words in it will become uncategorized and the linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Bu kategoriyi sil? İçindeki kelimeler kategorisiz kalacak ve bağlantılı kelime dersi silinecek. Bu geri alınamaz."
+
+#: templates/vocab-lesson-template.php:1634 templates/vocab-lesson-template.php:1635 templates/vocab-lesson-template.php:1647
+msgid "Delete empty category"
+msgstr "Boş kategoriyi sil"

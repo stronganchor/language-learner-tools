@@ -3976,3 +3976,120 @@ msgstr "검색 요청이 너무 많습니다. 몇 분 후 다시 시도하세요
 #: includes/pages/wordset-pages.php:17683
 msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "카드 불러오기 요청이 너무 많습니다. 몇 분 후 다시 시도하세요."
+
+#: includes/api/automation-rest.php:3808
+msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
+msgstr "카테고리에 %d개보다 많은 단어 이미지가 있습니다. 더 작은 image_ids 목록을 명시적으로 제공하세요."
+
+#: includes/api/automation-rest.php:3909
+msgid "Provide an existing word-category category_id or category_slug."
+msgstr "기존 word-category category_id 또는 category_slug를 제공하세요."
+
+#: includes/api/automation-rest.php:3932
+msgid "Category slug does not match expected_category_slug."
+msgstr "카테고리 슬러그가 expected_category_slug와 일치하지 않습니다."
+
+#: includes/api/automation-rest.php:3941
+msgid "Category is already owned by another word set."
+msgstr "카테고리가 이미 다른 단어 세트에 속해 있습니다."
+
+#: includes/api/automation-rest.php:3964
+msgid "Too many word images in one request. Maximum is %d."
+msgstr "한 요청에 단어 이미지가 너무 많습니다. 최대 %d개입니다."
+
+#: includes/api/automation-rest.php:3980
+msgid "Image ID does not refer to a word_images post."
+msgstr "이미지 ID가 word_images 게시물을 가리키지 않습니다."
+
+#: includes/api/automation-rest.php:3994
+msgid "Word image is not assigned to the requested category."
+msgstr "단어 이미지가 요청한 카테고리에 배정되지 않았습니다."
+
+#: includes/api/automation-rest.php:4009
+msgid "Word image is also assigned to a category owned by another word set."
+msgstr "단어 이미지가 다른 단어 세트에 속한 카테고리에도 배정되어 있습니다."
+
+#: includes/api/automation-rest.php:4022
+msgid "Word image is already owned by another word set."
+msgstr "단어 이미지가 이미 다른 단어 세트에 속해 있습니다."
+
+#: includes/api/automation-rest.php:4052
+msgid "Word image category ownership preflight failed. No ownership metadata was changed."
+msgstr "단어 이미지 카테고리 소유권 사전 확인에 실패했습니다. 소유권 메타데이터는 변경되지 않았습니다."
+
+#: includes/pages/wordset-pages.php:1152
+msgid "Manager view"
+msgstr "관리자 보기"
+
+#: includes/pages/wordset-pages.php:1153
+msgid "Words without a category in this word set."
+msgstr "이 단어 세트에서 카테고리가 없는 단어."
+
+#: includes/pages/wordset-pages.php:1161
+msgid "The uncategorized lesson is a system view and cannot be deleted."
+msgstr "카테고리 없는 레슨은 시스템 보기이므로 삭제할 수 없습니다."
+
+#: includes/pages/wordset-pages.php:1499 includes/pages/wordset-pages.php:1508
+msgid "Unable to remove this category from its words right now."
+msgstr "지금은 이 카테고리를 해당 단어에서 제거할 수 없습니다."
+
+#: includes/pages/wordset-pages.php:12985
+msgid "Rename categories, update translated names, move them under a different parent, or delete categories."
+msgstr "카테고리 이름을 바꾸고, 번역된 이름을 업데이트하고, 다른 상위 항목 아래로 이동하거나 카테고리를 삭제하세요."
+
+#: includes/pages/wordset-pages.php:13002
+msgid "Delete this category? Words in it will become uncategorized and any linked vocab lesson will be deleted. This cannot be undone."
+msgstr "이 카테고리를 삭제할까요? 그 안의 단어는 카테고리가 없어지고 연결된 모든 어휘 레슨이 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+
+#: includes/pages/wordset-pages.php:13092 templates/vocab-lesson-template.php:970
+msgid "Delete Category"
+msgstr "카테고리 삭제"
+
+#: includes/pages/wordset-pages.php:14444
+msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
+msgstr "현재 적용 중인 녹음자 상태: %s. 이 단어 세트에 배정된 모든 녹음자에게 적용됩니다."
+
+#: includes/pages/wordset-pages.php:14451
+msgid "Save recorder text setting"
+msgstr "녹음자 텍스트 설정 저장"
+
+#: templates/vocab-lesson-template.php:217
+msgid "Delete this category? Words in it will become uncategorized and the linked vocab lesson will be deleted. This cannot be undone."
+msgstr "이 카테고리를 삭제할까요? 그 안의 단어는 카테고리가 없어지고 연결된 어휘 레슨이 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+
+#: templates/vocab-lesson-template.php:1634 templates/vocab-lesson-template.php:1635 templates/vocab-lesson-template.php:1647
+msgid "Delete empty category"
+msgstr "빈 카테고리 삭제"
+
+#: includes/pages/wordset-pages.php:16205
+msgid "This will permanently delete your progress for all categories in this word set. This cannot be undone. Continue?"
+msgstr "이 단어 세트의 모든 카테고리에 대한 진행 상황이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다. 계속할까요?"
+
+#: includes/pages/wordset-pages.php:16206
+msgid "This will permanently delete your progress for %s. This cannot be undone. Continue?"
+msgstr "%s에 대한 진행 상황이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다. 계속할까요?"
+
+#: includes/pages/wordset-pages.php:16207
+msgid "Reset progress for %s"
+msgstr "%s 진행 상황 초기화"
+
+#: includes/pages/wordset-pages.php:10709 includes/pages/wordset-pages.php:17915
+msgid "Priority words only"
+msgstr "우선순위 단어만"
+
+#: includes/pages/wordset-games.php:273
+msgid "Speaking games are hidden because speaking practice is turned off for this word set."
+msgstr "이 단어 세트에서 말하기 연습이 꺼져 있어 말하기 게임이 숨겨져 있습니다."
+
+#: includes/pages/wordset-games.php:280
+#, php-format
+msgid "Speaking games are hidden because the current speaking configuration is incompatible: %s"
+msgstr "현재 말하기 구성이 호환되지 않아 말하기 게임이 숨겨져 있습니다: %s"
+
+#: includes/pages/wordset-games.php:283
+msgid "Speaking games are hidden because the current speaking configuration is incompatible."
+msgstr "현재 말하기 구성이 호환되지 않아 말하기 게임이 숨겨져 있습니다."
+
+#: includes/pages/wordset-games.php:286
+msgid "Speaking games are hidden because the current speaking configuration is incomplete for this word set."
+msgstr "이 단어 세트의 현재 말하기 구성이 완료되지 않아 말하기 게임이 숨겨져 있습니다."

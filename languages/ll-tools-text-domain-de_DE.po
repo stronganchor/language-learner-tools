@@ -27151,3 +27151,87 @@ msgstr "Zu viele Suchanfragen. Bitte warte ein paar Minuten und versuche es erne
 #: includes/pages/wordset-pages.php:17683
 msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Zu viele Anfragen zum Laden von Karten. Bitte warte ein paar Minuten und versuche es erneut."
+
+#: includes/api/automation-rest.php:3808
+msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
+msgstr "Die Kategorie hat mehr als %d Vokabelbilder. Gib eine explizite, kleinere image_ids-Liste an."
+
+#: includes/api/automation-rest.php:3909
+msgid "Provide an existing word-category category_id or category_slug."
+msgstr "Gib eine vorhandene category_id oder category_slug für word-category an."
+
+#: includes/api/automation-rest.php:3932
+msgid "Category slug does not match expected_category_slug."
+msgstr "Der Kategorie-Slug entspricht nicht expected_category_slug."
+
+#: includes/api/automation-rest.php:3941
+msgid "Category is already owned by another word set."
+msgstr "Die Kategorie gehört bereits zu einem anderen Vokabelset."
+
+#: includes/api/automation-rest.php:3964
+msgid "Too many word images in one request. Maximum is %d."
+msgstr "Zu viele Vokabelbilder in einer Anfrage. Maximum ist %d."
+
+#: includes/api/automation-rest.php:3980
+msgid "Image ID does not refer to a word_images post."
+msgstr "Die Bild-ID verweist nicht auf einen word_images-Beitrag."
+
+#: includes/api/automation-rest.php:3994
+msgid "Word image is not assigned to the requested category."
+msgstr "Das Vokabelbild ist der angeforderten Kategorie nicht zugewiesen."
+
+#: includes/api/automation-rest.php:4009
+msgid "Word image is also assigned to a category owned by another word set."
+msgstr "Das Vokabelbild ist auch einer Kategorie zugewiesen, die zu einem anderen Vokabelset gehört."
+
+#: includes/api/automation-rest.php:4022
+msgid "Word image is already owned by another word set."
+msgstr "Das Vokabelbild gehört bereits zu einem anderen Vokabelset."
+
+#: includes/api/automation-rest.php:4052
+msgid "Word image category ownership preflight failed. No ownership metadata was changed."
+msgstr "Die Vorabprüfung der Vokabelbild-Kategoriezuordnung ist fehlgeschlagen. Es wurden keine Besitz-Metadaten geändert."
+
+#: includes/pages/wordset-pages.php:1152
+msgid "Manager view"
+msgstr "Manager-Ansicht"
+
+#: includes/pages/wordset-pages.php:1153
+msgid "Words without a category in this word set."
+msgstr "Vokabeln ohne Kategorie in diesem Vokabelset."
+
+#: includes/pages/wordset-pages.php:1161
+msgid "The uncategorized lesson is a system view and cannot be deleted."
+msgstr "Die nicht kategorisierte Lektion ist eine Systemansicht und kann nicht gelöscht werden."
+
+#: includes/pages/wordset-pages.php:1499 includes/pages/wordset-pages.php:1508
+msgid "Unable to remove this category from its words right now."
+msgstr "Diese Kategorie kann gerade nicht von ihren Vokabeln entfernt werden."
+
+#: includes/pages/wordset-pages.php:12985
+msgid "Rename categories, update translated names, move them under a different parent, or delete categories."
+msgstr "Benenne Kategorien um, aktualisiere übersetzte Namen, verschiebe sie unter eine andere übergeordnete Kategorie oder lösche Kategorien."
+
+#: includes/pages/wordset-pages.php:13002
+msgid "Delete this category? Words in it will become uncategorized and any linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Diese Kategorie löschen? Die Vokabeln darin werden kategorielos und jede verknüpfte Vokabellektion wird gelöscht. Dies kann nicht rückgängig gemacht werden."
+
+#: includes/pages/wordset-pages.php:13092 templates/vocab-lesson-template.php:970
+msgid "Delete Category"
+msgstr "Kategorie löschen"
+
+#: includes/pages/wordset-pages.php:14444
+msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
+msgstr "Aktueller effektiver Recorder-Status: %s. Gilt für jedes diesem Vokabelset zugewiesene Aufnahme-Konto."
+
+#: includes/pages/wordset-pages.php:14451
+msgid "Save recorder text setting"
+msgstr "Aufnahmetext-Einstellung speichern"
+
+#: templates/vocab-lesson-template.php:217
+msgid "Delete this category? Words in it will become uncategorized and the linked vocab lesson will be deleted. This cannot be undone."
+msgstr "Diese Kategorie löschen? Die Vokabeln darin werden kategorielos und die verknüpfte Vokabellektion wird gelöscht. Dies kann nicht rückgängig gemacht werden."
+
+#: templates/vocab-lesson-template.php:1634 templates/vocab-lesson-template.php:1635 templates/vocab-lesson-template.php:1647
+msgid "Delete empty category"
+msgstr "Leere Kategorie löschen"
