@@ -380,6 +380,9 @@ tests/bin/run-performance-benchmark.sh
 ```
 
 - By default, history is appended to `tests/performance/history/performance-history.jsonl`.
+- Set `LL_PERF_PROFILE=xl` to use the opt-in XL fixture (`60 x 50 = 3000`
+  words), one run per scenario by default, and
+  `tests/performance/history/performance-history-xl.jsonl`.
 - Set `LL_E2E_PERF_WRITE_HISTORY=0` for a dry verification run that does not modify the history log.
 - Set `LL_E2E_PERF_COMPARE_HISTORY=0` to record metrics without failing on a historical comparison.
 - Set `LL_PERF_FORCE_SEED=1` for a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify or refresh the fixture.

@@ -9,4 +9,6 @@
 /languages/*.pot_
 /tests/.env.local
 /tests/.phpunit.cache/
+/tests/performance/history/*.jsonl
+!/tests/performance/history/.gitkeep
 /dist/

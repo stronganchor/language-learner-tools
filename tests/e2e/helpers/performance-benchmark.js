@@ -126,17 +126,30 @@ function pathForSlug(slug, suffix = '') {
   return `/${[normalizedSlug, normalizedSuffix].filter(Boolean).join('/')}/`;
 }
 
+function resolveBenchmarkWordsets(manifest) {
+  return Array.isArray(manifest.wordsets) ? manifest.wordsets : [];
+}
+
+function resolveBenchmarkTargetWordset(manifest, wordsets) {
+  const targetSize = String(manifest.benchmarkTargetSize || 'large');
+  return wordsets.find((wordset) => String(wordset.size || '') === targetSize)
+    || wordsets.find((wordset) => String(wordset.size || '') === 'large')
+    || wordsets[wordsets.length - 1]
+    || {};
+}
+
 function buildBenchmarkScenarios(manifest) {
-  const wordsets = Array.isArray(manifest.wordsets) ? manifest.wordsets : [];
-  const largeWordset = wordsets.find((wordset) => String(wordset.size || '') === 'large') || wordsets[wordsets.length - 1] || {};
+  const wordsets = resolveBenchmarkWordsets(manifest);
+  const targetWordset = resolveBenchmarkTargetWordset(manifest, wordsets);
+  const targetSize = String(targetWordset.size || manifest.benchmarkTargetSize || 'large');
   const learnSlug = manifest.learnPage && manifest.learnPage.slug ? manifest.learnPage.slug : 'll-perf-learn';
   const scenarios = [
     {
-      name: 'learn-grid-large-load',
+      name: `learn-grid-${targetSize}-load`,
       kind: 'navigation',
       path: pathForSlug(learnSlug),
       selector: '.ll-quiz-page-trigger',
-      minActionableCount: Number(largeWordset.categoryCount || 1),
+      minActionableCount: Number(targetWordset.categoryCount || 1),
       primaryMetric: 'firstActionableMs'
     }
   ];
@@ -153,48 +166,48 @@ function buildBenchmarkScenarios(manifest) {
     });
   });
 
-  if (largeWordset.slug) {
+  if (targetWordset.slug) {
     scenarios.push(
       {
-        name: 'wordset-large-search-filter',
+        name: `wordset-${targetSize}-search-filter`,
         kind: 'interaction',
-        path: pathForSlug(largeWordset.slug),
+        path: pathForSlug(targetWordset.slug),
         selector: '[data-ll-wordset-page-search]',
         minActionableCount: 1,
         primaryMetric: 'interactionMs',
         action: 'wordset-search',
-        query: 'LLPerf large 01 01'
+        query: `LLPerf ${targetSize} 01 01`
       },
       {
-        name: 'wordset-large-games-load',
+        name: `wordset-${targetSize}-games-load`,
         kind: 'navigation',
-        path: pathForSlug(largeWordset.slug, 'games'),
+        path: pathForSlug(targetWordset.slug, 'games'),
         selector: '[data-ll-wordset-games-root]',
         minActionableCount: 1,
         primaryMetric: 'firstActionableMs'
       },
       {
-        name: 'learn-grid-large-quiz-popup',
+        name: `learn-grid-${targetSize}-quiz-popup`,
         kind: 'interaction',
         path: pathForSlug(learnSlug),
         selector: '.ll-quiz-page-trigger',
-        minActionableCount: Number(largeWordset.categoryCount || 1),
+        minActionableCount: Number(targetWordset.categoryCount || 1),
         primaryMetric: 'interactionMs',
         action: 'quiz-popup'
       },
       {
-        name: 'wordset-large-progress-load',
+        name: `wordset-${targetSize}-progress-load`,
         kind: 'navigation',
-        path: pathForSlug(largeWordset.slug, 'progress'),
+        path: pathForSlug(targetWordset.slug, 'progress'),
         selector: '[data-ll-wordset-progress-root]',
         minActionableCount: 1,
         primaryMetric: 'firstActionableMs',
         requiresAuth: true
       },
       {
-        name: 'wordset-large-progress-words-tab',
+        name: `wordset-${targetSize}-progress-words-tab`,
         kind: 'interaction',
-        path: pathForSlug(largeWordset.slug, 'progress'),
+        path: pathForSlug(targetWordset.slug, 'progress'),
         selector: '[data-ll-wordset-progress-root]',
         minActionableCount: 1,
         primaryMetric: 'interactionMs',
@@ -236,9 +249,20 @@ function sameThrottleProfile(left, right) {
 }
 
 function findPreviousComparableRun(records, currentRecord) {
+  const currentManifestSha = currentRecord
+    && currentRecord.fixtureManifest
+    && currentRecord.fixtureManifest.sha256
+    ? String(currentRecord.fixtureManifest.sha256)
+    : '';
   for (let index = records.length - 1; index >= 0; index -= 1) {
     const candidate = records[index];
     if (!candidate || candidate.fixtureVersion !== currentRecord.fixtureVersion) {
+      continue;
+    }
+    const candidateManifestSha = candidate.fixtureManifest && candidate.fixtureManifest.sha256
+      ? String(candidate.fixtureManifest.sha256)
+      : '';
+    if (currentManifestSha && candidateManifestSha && currentManifestSha !== candidateManifestSha) {
       continue;
     }
     if (!sameThrottleProfile(candidate.throttleProfile, currentRecord.throttleProfile)) {
@@ -295,6 +319,8 @@ module.exports = {
   readEnvFlag,
   readHistoryRecords,
   resolvePluginPath,
+  resolveBenchmarkWordsets,
+  resolveBenchmarkTargetWordset,
   summarizeScenarioSamples,
   appendHistoryRecord
 };

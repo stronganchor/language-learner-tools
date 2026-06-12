@@ -1,0 +1,27 @@
+{
+  "fixtureVersion": "2026-06-12-xl.1",
+  "description": "Opt-in XL LL Tools performance benchmark fixture. Use LL_PERF_PROFILE=xl or set this manifest path explicitly.",
+  "benchmarkTargetSize": "xl",
+  "learnPage": {
+    "slug": "ll-perf-xl-learn",
+    "title": "LL Performance XL Learn Grid",
+    "wordsetSlug": "ll-perf-xl"
+  },
+  "quizConfig": {
+    "promptType": "text_title",
+    "optionType": "text_translation"
+  },
+  "media": {
+    "imagePerCategory": true,
+    "audioPerWord": true
+  },
+  "wordsets": [
+    {
+      "size": "xl",
+      "slug": "ll-perf-xl",
+      "title": "LL Performance XL",
+      "categoryCount": 60,
+      "wordsPerCategory": 50
+    }
+  ]
+}

@@ -58,6 +58,16 @@ to_runtime_path() {
     printf '%s\n' "$path_value"
 }
 
+resolve_plugin_path() {
+    local path_value="$1"
+    if [[ "$path_value" == /* || "$path_value" =~ ^[A-Za-z]:[\\/].* ]]; then
+        printf '%s\n' "$path_value"
+        return
+    fi
+
+    printf '%s\n' "$ROOT_DIR/$path_value"
+}
+
 find_wp_cli() {
     WP_CLI_BIN="${WP_CLI:-wp}"
     WP_CLI_ARGS=()
@@ -113,10 +123,46 @@ if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
     eval "$("$SCRIPT_DIR/setup-local-http-env.sh")"
 fi
 
+configure_perf_profile() {
+    local profile="${LL_PERF_PROFILE:-default}"
+    case "$profile" in
+        ""|"default")
+            return
+            ;;
+        "xl")
+            local xl_manifest="$TESTS_DIR/performance/fixtures/performance-wordsets-xl.json"
+            local xl_manifest_rel="tests/performance/fixtures/performance-wordsets-xl.json"
+            export LL_TOOLS_PERF_FIXTURE_MANIFEST="${LL_TOOLS_PERF_FIXTURE_MANIFEST:-$xl_manifest}"
+            export LL_E2E_PERF_FIXTURE_MANIFEST="${LL_E2E_PERF_FIXTURE_MANIFEST:-$xl_manifest_rel}"
+            export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-tests/performance/history/performance-history-xl.jsonl}"
+            export LL_E2E_PERF_RUNS="${LL_E2E_PERF_RUNS:-1}"
+            echo "Using LL Tools performance profile: xl"
+            ;;
+        *)
+            echo "Unknown LL_PERF_PROFILE: $profile" >&2
+            echo "Supported profiles: default, xl" >&2
+            exit 1
+            ;;
+    esac
+}
+
+configure_perf_profile
+
 if [[ "${LL_PERF_SKIP_SEED:-0}" != "1" ]]; then
     find_wp_cli
     echo "Seeding LL Tools performance fixture in ${WP_ROOT}"
-    "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" --path="$(to_runtime_path "$WP_ROOT")" eval-file "$(to_runtime_path "$SEED_SCRIPT")"
+    seed_env=()
+    if [[ -n "${LL_TOOLS_PERF_FIXTURE_MANIFEST:-}" ]]; then
+        seed_env+=("LL_TOOLS_PERF_FIXTURE_MANIFEST=$(to_runtime_path "$(resolve_plugin_path "$LL_TOOLS_PERF_FIXTURE_MANIFEST")")")
+    fi
+    if [[ -n "${LL_E2E_PERF_FIXTURE_MANIFEST:-}" ]]; then
+        seed_env+=("LL_E2E_PERF_FIXTURE_MANIFEST=$(to_runtime_path "$(resolve_plugin_path "$LL_E2E_PERF_FIXTURE_MANIFEST")")")
+    fi
+    if [[ "${#seed_env[@]}" -gt 0 ]]; then
+        env "${seed_env[@]}" "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" --path="$(to_runtime_path "$WP_ROOT")" eval-file "$(to_runtime_path "$SEED_SCRIPT")"
+    else
+        "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" --path="$(to_runtime_path "$WP_ROOT")" eval-file "$(to_runtime_path "$SEED_SCRIPT")"
+    fi
 else
     echo "Skipping performance fixture seeding because LL_PERF_SKIP_SEED=1"
 fi

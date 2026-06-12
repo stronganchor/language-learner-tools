@@ -23,14 +23,27 @@ The runner:
 6. Appends one JSONL record to `tests/performance/history/performance-history.jsonl`
    unless `LL_E2E_PERF_WRITE_HISTORY=0` is set.
 
+The default fixture is intentionally modest for routine release-to-release
+checks. For thousands-of-words coverage, use the opt-in XL profile:
+
+```bash
+LL_PERF_PROFILE=xl tests/bin/run-performance-benchmark.sh
+```
+
+The XL profile uses `tests/performance/fixtures/performance-wordsets-xl.json`,
+targets `benchmarkTargetSize: "xl"`, defaults to one run per scenario, and
+writes history to `tests/performance/history/performance-history-xl.jsonl`.
+
 Change `fixtureVersion` whenever fixture shape changes. History comparisons only
-use records with the same fixture version so older results are not mixed with a
-different test dataset.
+use records with the same fixture version, matching manifest checksum when both
+records have one, and the same throttle profile so older results are not mixed
+with a different test dataset.
 
 Useful overrides:
 
 ```bash
 LL_PERF_FORCE_SEED=1
+LL_PERF_PROFILE=xl
 LL_PERF_SEED_ONLY=1
 LL_PERF_SKIP_SEED=1
 LL_E2E_PERF_RUNS=5

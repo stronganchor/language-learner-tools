@@ -213,8 +213,9 @@ Full Playwright run times out under an automation cap:
 - Run it through `tests/bin/run-performance-benchmark.sh` unless you deliberately seeded the fixture yourself.
 - Inspect the attached `performance-benchmark-summary` JSON.
 - Set `LL_PERF_FORCE_SEED=1` when you need a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify the fixture state.
+- Set `LL_PERF_PROFILE=xl` when the default fixture is too small for a performance claim; the XL profile uses a separate manifest and history file.
 - Confirm `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` are set because progress-page scenarios are authenticated.
-- If the fixture manifest changed intentionally, bump `fixtureVersion`; historical comparison only makes sense for the same fixture shape.
+- If the fixture manifest changed intentionally, bump `fixtureVersion`; historical comparison only makes sense for the same fixture version, manifest checksum, and throttle profile.
 - If a slower machine produced acceptable timings, tune `LL_E2E_PERF_MAX_REGRESSION_RATIO` and `LL_E2E_PERF_MAX_REGRESSION_MS` rather than weakening scenario selectors.
 
 `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:
