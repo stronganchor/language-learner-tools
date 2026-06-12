@@ -135,6 +135,7 @@ configure_perf_profile() {
             export LL_TOOLS_PERF_FIXTURE_MANIFEST="${LL_TOOLS_PERF_FIXTURE_MANIFEST:-$xl_manifest}"
             export LL_E2E_PERF_FIXTURE_MANIFEST="${LL_E2E_PERF_FIXTURE_MANIFEST:-$xl_manifest_rel}"
             export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-tests/performance/history/performance-history-xl.jsonl}"
+            export LL_E2E_PERF_REPORT_FILE="${LL_E2E_PERF_REPORT_FILE:-tests/performance/reports/performance-latest-xl.json}"
             export LL_E2E_PERF_RUNS="${LL_E2E_PERF_RUNS:-1}"
             echo "Using LL Tools performance profile: xl"
             ;;
@@ -175,5 +176,6 @@ export LL_E2E_PERF_ENABLED="${LL_E2E_PERF_ENABLED:-1}"
 export LL_E2E_PERF_WRITE_HISTORY="${LL_E2E_PERF_WRITE_HISTORY:-1}"
 export LL_E2E_PERF_COMPARE_HISTORY="${LL_E2E_PERF_COMPARE_HISTORY:-1}"
 export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-$DEFAULT_HISTORY}"
+export LL_E2E_PERF_REPORT_FILE="${LL_E2E_PERF_REPORT_FILE:-tests/performance/reports/performance-latest.json}"
 
 "$SCRIPT_DIR/run-e2e.sh" specs/performance-benchmark.spec.js

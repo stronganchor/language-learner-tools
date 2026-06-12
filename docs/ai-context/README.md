@@ -10,6 +10,7 @@ Generate them with:
 php scripts/build-ai-context-pack.php --list
 php scripts/build-ai-context-pack.php --pack wordset-vocab-manager
 php scripts/build-ai-context-pack.php --pack performance-benchmark --output -
+php scripts/build-ai-context-pack.php --pack performance-benchmark --changed-only --manifest-only
 php scripts/build-ai-context-pack.php --all --format both
 ```
 
@@ -30,9 +31,13 @@ Useful options:
 --max-file-chars 12000
 --excerpt-lines 80
 --manifest-only
+--changed-only
+--include-untracked
 --check
 ```
 
+Use `--changed-only` to narrow a workflow pack to files changed from `HEAD`.
+Add `--include-untracked` when new files should be included too.
 Use `--check` when tightening a specific pack contract; some broader packs
 include optional glob patterns that may not exist in every checkout.
 

@@ -2,7 +2,9 @@ const { test, expect } = require('@playwright/test');
 const { ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin');
 const {
   DEFAULT_HISTORY,
+  DEFAULT_REPORT,
   appendHistoryRecord,
+  buildBenchmarkReport,
   buildBenchmarkScenarios,
   compareWithPrevious,
   fileChecksum,
@@ -12,7 +14,9 @@ const {
   readEnvFlag,
   readHistoryRecords,
   resolvePluginPath,
-  summarizeScenarioSamples
+  summarizeScenarioSamples,
+  formatBenchmarkReportMarkdown,
+  writeBenchmarkReport
 } = require('../helpers/performance-benchmark');
 const {
   collectPageSpeedMetrics,
@@ -210,18 +214,15 @@ test('seeded LL Tools benchmark scenarios stay within the historical performance
     })
     : [];
   record.comparison = comparison;
+  const reportFile = resolvePluginPath(process.env.LL_E2E_PERF_REPORT_FILE, DEFAULT_REPORT);
+  const report = buildBenchmarkReport(record, previousRecord, historyFile);
+  const reportFiles = writeBenchmarkReport(reportFile, report);
+  console.log(formatBenchmarkReportMarkdown(report));
 
   await testInfo.attach('performance-benchmark-summary', {
     body: JSON.stringify({
-      historyFile,
-      previousRecord: previousRecord
-        ? {
-          recordedAt: previousRecord.recordedAt,
-          pluginVersion: previousRecord.pluginVersion,
-          git: previousRecord.git
-        }
-        : null,
-      current: record
+      reportFiles,
+      report
     }, null, 2),
     contentType: 'application/json'
   });

@@ -212,6 +212,7 @@ Full Playwright run times out under an automation cap:
 `performance-benchmark.spec.js` fails:
 - Run it through `tests/bin/run-performance-benchmark.sh` unless you deliberately seeded the fixture yourself.
 - Inspect the attached `performance-benchmark-summary` JSON.
+- Inspect the latest local reports under `tests/performance/reports/` when the Playwright HTML report is not open.
 - Set `LL_PERF_FORCE_SEED=1` when you need a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify the fixture state.
 - Set `LL_PERF_PROFILE=xl` when the default fixture is too small for a performance claim; the XL profile uses a separate manifest and history file.
 - Confirm `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` are set because progress-page scenarios are authenticated.

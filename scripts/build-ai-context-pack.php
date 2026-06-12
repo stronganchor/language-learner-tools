@@ -27,6 +27,8 @@ $options = getopt('', [
     'max-file-chars:',
     'excerpt-lines:',
     'manifest-only',
+    'changed-only',
+    'include-untracked',
     'check',
 ]);
 
@@ -69,6 +71,8 @@ $settings = [
     'max_file_chars' => max(500, (int) ($options['max-file-chars'] ?? 12000)),
     'excerpt_lines' => max(20, (int) ($options['excerpt-lines'] ?? 80)),
     'manifest_only' => isset($options['manifest-only']),
+    'changed_only' => isset($options['changed-only']),
+    'include_untracked' => isset($options['include-untracked']),
     'check' => isset($options['check']),
 ];
 
@@ -379,6 +383,8 @@ function ll_tools_context_pack_print_usage(): void
     echo "  --max-file-chars <n>  Per-file excerpt budget, default 12000.\n";
     echo "  --excerpt-lines <n>   Max lines per file excerpt window, default 80.\n";
     echo "  --manifest-only       Write indexes and metadata without source excerpts.\n";
+    echo "  --changed-only        Include only tracked files changed from HEAD.\n";
+    echo "  --include-untracked   Include untracked files with --changed-only.\n";
     echo "  --check               Exit non-zero when configured source patterns are missing.\n";
 }
 
@@ -395,6 +401,14 @@ function ll_tools_context_pack_build(string $root, string $packName, array $pack
     $expandedSources = ll_tools_context_pack_expand_patterns($root, $sourcePatterns);
     $expandedTests = ll_tools_context_pack_expand_patterns($root, $testPatterns);
     $files = array_values(array_unique(array_merge($expandedSources['files'], $expandedTests['files'])));
+    $changedFiles = [];
+    if ($settings['changed_only']) {
+        $changedFiles = ll_tools_context_pack_changed_files($root, $settings['include_untracked']);
+        $changedLookup = array_fill_keys($changedFiles, true);
+        $files = array_values(array_filter($files, static function (string $file) use ($changedLookup): bool {
+            return isset($changedLookup[$file]);
+        }));
+    }
 
     $sourceRows = [];
     foreach ($files as $file) {
@@ -418,6 +432,9 @@ function ll_tools_context_pack_build(string $root, string $packName, array $pack
         'worktree_status' => ll_tools_context_pack_git($root, ['status', '--short']) === '' ? 'clean' : 'dirty',
         'max_chars' => $settings['max_chars'],
         'max_file_chars' => $settings['max_file_chars'],
+        'changed_only' => $settings['changed_only'] ? 'true' : 'false',
+        'include_untracked' => $settings['include_untracked'] ? 'true' : 'false',
+        'changed_source_count' => count($changedFiles),
         'source_count' => count($sourceRows),
         'missing_patterns' => $missing,
     ];
@@ -477,6 +494,32 @@ function ll_tools_context_pack_expand_patterns(string $root, array $patterns): a
         'files' => array_values(array_unique($files)),
         'missing' => array_values(array_unique($missing)),
     ];
+}
+
+function ll_tools_context_pack_changed_files(string $root, bool $includeUntracked): array
+{
+    $outputs = [
+        ll_tools_context_pack_git($root, ['diff', '--name-only', '--diff-filter=ACMRTUXB', 'HEAD', '--']),
+        ll_tools_context_pack_git($root, ['diff', '--cached', '--name-only', '--diff-filter=ACMRTUXB', '--']),
+    ];
+    if ($includeUntracked) {
+        $outputs[] = ll_tools_context_pack_git($root, ['ls-files', '--others', '--exclude-standard']);
+    }
+
+    $files = [];
+    foreach ($outputs as $output) {
+        foreach (preg_split('/\r\n|\r|\n/', trim((string) $output)) as $file) {
+            $file = str_replace('\\', '/', trim($file));
+            if ($file === '' || ll_tools_context_pack_is_excluded($file)) {
+                continue;
+            }
+            $files[] = $file;
+        }
+    }
+
+    $files = array_values(array_unique($files));
+    sort($files);
+    return $files;
 }
 
 function ll_tools_context_pack_has_glob(string $pattern): bool

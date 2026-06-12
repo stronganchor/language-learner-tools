@@ -69,9 +69,12 @@ LL_PERF_PROFILE=xl tests/bin/run-performance-benchmark.sh
 
 The XL profile uses `tests/performance/fixtures/performance-wordsets-xl.json`,
 targets `benchmarkTargetSize: "xl"`, defaults to one run per scenario, and
-writes to `tests/performance/history/performance-history-xl.jsonl`.
+writes to `tests/performance/history/performance-history-xl.jsonl` plus
+`tests/performance/reports/performance-latest-xl.*`.
 
 The benchmark writes history when run through `tests/bin/run-performance-benchmark.sh`.
+It also writes latest JSON and Markdown summaries under
+`tests/performance/reports/`.
 Use a longer command timeout for full runs; a timeout means the runner stopped,
 not necessarily that the page under test failed.
 
@@ -84,6 +87,7 @@ planning when the whole plugin is too large to read at once.
 ```bash
 php scripts/build-ai-context-pack.php --list
 php scripts/build-ai-context-pack.php --pack wordset-vocab-manager
+php scripts/build-ai-context-pack.php --pack performance-benchmark --changed-only --manifest-only
 php scripts/build-ai-context-pack.php --pack performance-benchmark --output -
 ```
 

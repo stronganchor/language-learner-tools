@@ -11,4 +11,7 @@
 /tests/.phpunit.cache/
 /tests/performance/history/*.jsonl
 !/tests/performance/history/.gitkeep
+/tests/performance/reports/*.json
+/tests/performance/reports/*.md
+!/tests/performance/reports/.gitkeep
 /dist/

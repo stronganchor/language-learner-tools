@@ -5,6 +5,7 @@ const { execFileSync } = require('child_process');
 const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', '..');
 const DEFAULT_MANIFEST = path.join(PLUGIN_ROOT, 'tests', 'performance', 'fixtures', 'performance-wordsets.json');
 const DEFAULT_HISTORY = path.join(PLUGIN_ROOT, 'tests', 'performance', 'history', 'performance-history.jsonl');
+const DEFAULT_REPORT = path.join(PLUGIN_ROOT, 'tests', 'performance', 'reports', 'performance-latest.json');
 const DEFAULT_WORDSET_INITIAL_CARD_COUNT = 18;
 
 function readEnvFlag(name, fallback = false) {
@@ -308,8 +309,103 @@ function appendHistoryRecord(historyFile, record) {
   fs.appendFileSync(historyFile, `${JSON.stringify(record)}\n`, 'utf8');
 }
 
+function buildBenchmarkReport(record, previousRecord, historyFile) {
+  const comparisonByName = {};
+  (record.comparison || []).forEach((row) => {
+    comparisonByName[row.name] = row;
+  });
+
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    historyFile,
+    previousRecord: previousRecord
+      ? {
+        recordedAt: previousRecord.recordedAt,
+        pluginVersion: previousRecord.pluginVersion,
+        git: previousRecord.git
+      }
+      : null,
+    current: record,
+    summary: (record.scenarios || []).map((scenario) => {
+      const metricName = scenario.primaryMetric || 'firstActionableMs';
+      const comparison = comparisonByName[scenario.name] || {};
+      const medianMs = Number(scenario.median && scenario.median[metricName] ? scenario.median[metricName] : 0);
+      const p95Ms = Number(scenario.p95 && scenario.p95[metricName] ? scenario.p95[metricName] : 0);
+      return {
+        name: scenario.name,
+        metric: metricName,
+        medianMs,
+        p95Ms,
+        previousMs: Number(comparison.previousMs || 0),
+        deltaMs: Number(comparison.deltaMs || 0),
+        regressionRatio: Number(comparison.regressionRatio || 0),
+        failed: !!comparison.failed
+      };
+    })
+  };
+}
+
+function formatBenchmarkReportMarkdown(report) {
+  const lines = [];
+  lines.push('# LL Tools Performance Benchmark');
+  lines.push('');
+  lines.push(`- Generated: ${report.generatedAt}`);
+  lines.push(`- Fixture version: ${report.current.fixtureVersion || ''}`);
+  lines.push(`- Plugin version: ${report.current.pluginVersion || ''}`);
+  lines.push(`- Git: ${(report.current.git && report.current.git.describe) || ''}`);
+  lines.push(`- Runs per scenario: ${report.current.runsPerScenario || 0}`);
+  lines.push(`- History file: ${report.historyFile}`);
+  lines.push(`- Previous run: ${report.previousRecord ? report.previousRecord.recordedAt : 'none'}`);
+  lines.push('');
+  lines.push('| Scenario | Metric | Median | P95 | Previous | Delta | Result |');
+  lines.push('| --- | --- | ---: | ---: | ---: | ---: | --- |');
+  (report.summary || []).forEach((row) => {
+    const previous = row.previousMs > 0 ? `${row.previousMs} ms` : '';
+    const delta = row.previousMs > 0 ? `${row.deltaMs >= 0 ? '+' : ''}${row.deltaMs} ms` : '';
+    lines.push(`| ${row.name} | ${row.metric} | ${row.medianMs} ms | ${row.p95Ms} ms | ${previous} | ${delta} | ${row.failed ? 'FAIL' : 'pass'} |`);
+  });
+  lines.push('');
+  return `${lines.join('\n')}\n`;
+}
+
+function markdownReportPath(reportFile) {
+  if (/\.md$/i.test(reportFile)) {
+    return reportFile;
+  }
+  if (/\.json$/i.test(reportFile)) {
+    return reportFile.replace(/\.json$/i, '.md');
+  }
+  return `${reportFile}.md`;
+}
+
+function jsonReportPath(reportFile) {
+  if (/\.json$/i.test(reportFile)) {
+    return reportFile;
+  }
+  if (/\.md$/i.test(reportFile)) {
+    return reportFile.replace(/\.md$/i, '.json');
+  }
+  return `${reportFile}.json`;
+}
+
+function writeBenchmarkReport(reportFile, report) {
+  const jsonFile = jsonReportPath(reportFile);
+  const markdownFile = markdownReportPath(reportFile);
+  fs.mkdirSync(path.dirname(jsonFile), { recursive: true });
+  fs.mkdirSync(path.dirname(markdownFile), { recursive: true });
+  fs.writeFileSync(jsonFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(markdownFile, formatBenchmarkReportMarkdown(report), 'utf8');
+  return {
+    json: jsonFile,
+    markdown: markdownFile
+  };
+}
+
 module.exports = {
   DEFAULT_HISTORY,
+  DEFAULT_REPORT,
+  buildBenchmarkReport,
   buildBenchmarkScenarios,
   compareWithPrevious,
   fileChecksum,
@@ -322,5 +418,7 @@ module.exports = {
   resolveBenchmarkWordsets,
   resolveBenchmarkTargetWordset,
   summarizeScenarioSamples,
-  appendHistoryRecord
+  appendHistoryRecord,
+  formatBenchmarkReportMarkdown,
+  writeBenchmarkReport
 };

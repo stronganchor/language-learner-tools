@@ -22,6 +22,8 @@ The runner:
 5. Runs `tests/e2e/specs/performance-benchmark.spec.js` under Playwright.
 6. Appends one JSONL record to `tests/performance/history/performance-history.jsonl`
    unless `LL_E2E_PERF_WRITE_HISTORY=0` is set.
+7. Writes the latest machine-readable and Markdown summaries under
+   `tests/performance/reports/`.
 
 The default fixture is intentionally modest for routine release-to-release
 checks. For thousands-of-words coverage, use the opt-in XL profile:
@@ -32,7 +34,8 @@ LL_PERF_PROFILE=xl tests/bin/run-performance-benchmark.sh
 
 The XL profile uses `tests/performance/fixtures/performance-wordsets-xl.json`,
 targets `benchmarkTargetSize: "xl"`, defaults to one run per scenario, and
-writes history to `tests/performance/history/performance-history-xl.jsonl`.
+writes history to `tests/performance/history/performance-history-xl.jsonl` plus
+latest reports to `tests/performance/reports/performance-latest-xl.*`.
 
 Change `fixtureVersion` whenever fixture shape changes. History comparisons only
 use records with the same fixture version, matching manifest checksum when both
@@ -49,6 +52,7 @@ LL_PERF_SKIP_SEED=1
 LL_E2E_PERF_RUNS=5
 LL_E2E_PERF_WRITE_HISTORY=0
 LL_E2E_PERF_COMPARE_HISTORY=0
+LL_E2E_PERF_REPORT_FILE=tests/performance/reports/performance-latest.json
 LL_E2E_PERF_MAX_REGRESSION_RATIO=0.2
 LL_E2E_PERF_MAX_REGRESSION_MS=500
 LL_E2E_PERF_HISTORY_FILE=tests/performance/history/performance-history.jsonl
