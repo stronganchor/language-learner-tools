@@ -73,38 +73,42 @@ For a normal Codex session against a live LL Tools site:
 8. Then call `GET /wordsets/{wordset}/report-summary` to confirm the exact
    target wordset and current coverage without running the heavier full report.
 9. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
-10. For AI-planned batches that touch multiple word metadata fields or final
+10. For transcription or STT audio-download work, use
+    `GET /wordsets/{wordset}/site-sync/snapshot?surface=transcriptions&include_media=1&ensure_sync_ids=0`
+    as the manifest source. Download audio from each row's `media.audio.url`;
+    do not load `/wp-admin/post.php?...&action=edit` per recording.
+11. For AI-planned batches that touch multiple word metadata fields or final
     category assignments, prefer `word-metadata-plan-jobs`: take a metadata
     snapshot, submit explicit per-word final states with expected current values,
     then process the job in serial chunks.
-11. Use the narrowest synchronous write route for small single-surface jobs, with
+12. Use the narrowest synchronous write route for small single-surface jobs, with
     `dry_run=true` first:
     `word-title-updates` for title-only maintenance, `word-helper-updates` for
     helper/known-language translation repair, and `bulk-update` for bounded
     mixed metadata edits.
-12. Re-run the same request without `dry_run` to apply changes. The server
+13. Re-run the same request without `dry_run` to apply changes. The server
     applies write batches in small chunks by default, so keep the returned
     `resume_state` and repeat until `batch.has_more` is false.
-13. Keep automation calls serial. If the server returns `429`, wait at least
+14. Keep automation calls serial. If the server returns `429`, wait at least
     the `Retry-After` header value before retrying. On slow live sites, add a
     larger client-side delay even after successful write requests.
-14. For word-option groups, call
+15. For word-option groups, call
     `POST /wordsets/{wordset}/word-option-rules` with `dry_run=true` before
     applying the same payload without `dry_run`.
-15. For bundle imports, preview with `POST /imports/preview`, start with
+16. For bundle imports, preview with `POST /imports/preview`, start with
     `POST /imports/start`, then poll `POST /imports/{job_id}/process` until the
     job is completed.
-16. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
+17. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
     undo availability, and the import history entry ID.
-17. For LL Tools dev-channel plugin updates, call
+18. For LL Tools dev-channel plugin updates, call
     `POST /automation/plugin-update` with `dry_run=true` first. Apply only with
     `dry_run=false`, `confirm=true`, and `expected_current_version` set to the
     version you just observed from status/readback.
-18. For a new workflow that needs to touch hundreds of rows and each row does
+19. For a new workflow that needs to touch hundreds of rows and each row does
     expensive validation, media work, taxonomy repair, cache rebuilding, or
     cross-post recomputation, prefer a WP-CLI command or a job-style REST route
     before adding a synchronous REST endpoint.
-19. Delete or downgrade the temporary user when the session is complete.
+20. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -1083,7 +1087,27 @@ remote records so staging and live can keep matching the same recordings after a
 pull.
 
 Use `surface=transcriptions` for recording text, recording transcription,
-transcription review flags, review notes, and recording media references.
+transcription review flags, review notes, and recording media references. When
+`include_media=true`, each record includes:
+
+- `recording.id` / `recording.slug` / `recording.types`
+- `word.id`, title, slug, translation fields, and category rows
+- `values.recording_text`, `values.recording_ipa`, review flags, and review note
+- `media.audio.path`, `media.audio.url`, `media.audio.mime_type`, and
+  `media.audio.has_local_file`
+
+For STT or review jobs that need local copies of live audio, treat this snapshot
+as the download manifest:
+
+```text
+GET /wp-json/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot?surface=transcriptions&include_media=1&ensure_sync_ids=0&per_page=250&offset=0
+```
+
+Read pages until `pagination.has_more` is false, select the rows that need
+local audio, and download the files directly from `records[].media.audio.url`
+with low concurrency. Do not discover audio by loading
+`/wp-admin/post.php?post={id}&action=edit` for each `word_audio` post; admin edit
+screens are expensive and can saturate PHP-FPM on live sites.
 
 Use `surface=metadata` for a paged, one-row-per-word local snapshot. Metadata
 records include:

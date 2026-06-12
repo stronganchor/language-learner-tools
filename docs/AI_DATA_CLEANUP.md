@@ -125,9 +125,13 @@ The metadata snapshot is the best general planning surface because it includes:
 - linked word image/media summary when requested;
 - wordset-level settings, category ordering, manual order, and prerequisites.
 
-For transcription-heavy cleanup, use `surface=transcriptions` as well. For media
-or category coverage checks, also save `report-summary` and use the full report
-only when per-category detail is needed.
+For transcription-heavy cleanup, use `surface=transcriptions` as well. When
+audio needs to be downloaded for local STT or review, request
+`include_media=1`, page the snapshot, and download directly from
+`records[].media.audio.url`; do not scrape `/wp-admin/post.php` edit pages to
+discover audio URLs. For media or category coverage checks, also save
+`report-summary` and use the full report only when per-category detail is
+needed.
 
 Keep snapshots and derived CSV/JSON plans as local artifacts. Future agents
 should be able to answer "what did you intend to change?" and "what live state
