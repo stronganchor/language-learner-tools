@@ -79,6 +79,7 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
 
         $config = ll_tools_get_category_quiz_config($term);
         $captured_queries = [];
+        $captured_sql = [];
         $capture = static function (WP_Query $query) use (&$captured_queries): void {
             if ((string) $query->get('post_type') !== LL_TOOLS_PROMPT_CARD_POST_TYPE) {
                 return;
@@ -90,12 +91,18 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
                 'update_post_term_cache' => $query->get('update_post_term_cache'),
             ];
         };
+        $capture_sql = static function (string $sql) use (&$captured_sql): string {
+            $captured_sql[] = $sql;
+            return $sql;
+        };
 
         add_action('pre_get_posts', $capture);
+        add_filter('query', $capture_sql);
         try {
             $count = ll_get_words_by_category_count($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
             $ids = ll_tools_get_renderable_category_item_ids($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
         } finally {
+            remove_filter('query', $capture_sql);
             remove_action('pre_get_posts', $capture);
         }
 
@@ -108,6 +115,11 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
             $this->assertFalse((bool) ($query_args['update_post_meta_cache'] ?? true));
             $this->assertFalse((bool) ($query_args['update_post_term_cache'] ?? true));
         }
+
+        $sql_text = implode("\n", $captured_sql);
+        $this->assertStringNotContainsString('SELECT ID, post_title', $sql_text);
+        $this->assertStringNotContainsString(LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, $sql_text);
+        $this->assertStringNotContainsString(LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY, $sql_text);
     }
 
     public function test_candidate_scoped_prompt_card_payload_only_expands_matching_answer_cards(): void

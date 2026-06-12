@@ -4442,9 +4442,9 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
     $prompt_card_support_word_ids = [];
     $prompt_card_support_lookup = [];
     $prompt_card_wrong_support_lookup = [];
-    if (function_exists('ll_tools_get_prompt_card_data_for_category_context')) {
+    if (function_exists('ll_tools_get_prompt_card_reference_data_for_category_context')) {
         $include_prompt_card_audio_url = ll_tools_quiz_prompt_type_has_audio($prompt_type);
-        foreach (ll_tools_get_prompt_card_data_for_category_context($category_context, $wordset_terms, $include_prompt_card_audio_url) as $card) {
+        foreach (ll_tools_get_prompt_card_reference_data_for_category_context($category_context, $wordset_terms, $include_prompt_card_audio_url) as $card) {
             if (!is_array($card)) {
                 continue;
             }
@@ -4838,9 +4838,9 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     $prompt_card_support_word_ids = [];
     $prompt_card_support_lookup = [];
     $prompt_card_wrong_support_lookup = [];
-    if (function_exists('ll_tools_get_prompt_card_data_for_category_context')) {
+    if (function_exists('ll_tools_get_prompt_card_reference_data_for_category_context')) {
         $include_prompt_card_audio_url = ll_tools_quiz_prompt_type_has_audio($prompt_type);
-        foreach (ll_tools_get_prompt_card_data_for_category_context($category_context, $wordset_terms, $include_prompt_card_audio_url) as $card) {
+        foreach (ll_tools_get_prompt_card_reference_data_for_category_context($category_context, $wordset_terms, $include_prompt_card_audio_url) as $card) {
             if (!is_array($card)) {
                 continue;
             }
