@@ -1247,6 +1247,25 @@ function ll_tools_normalize_quiz_option_type($value, bool $use_titles = false, s
     return $normalized;
 }
 
+function ll_tools_should_keep_word_titles_for_audio_meta(string $prompt_type, string $option_type, bool $existing_use_titles): bool {
+    if ($option_type === 'text_title') {
+        return true;
+    }
+
+    return $existing_use_titles
+        && $prompt_type === 'audio'
+        && $option_type === 'text_translation';
+}
+
+function ll_tools_sync_word_titles_for_audio_meta(int $term_id, string $prompt_type, string $option_type, bool $existing_use_titles): void {
+    if (ll_tools_should_keep_word_titles_for_audio_meta($prompt_type, $option_type, $existing_use_titles)) {
+        update_term_meta($term_id, 'use_word_titles_for_audio', '1');
+        return;
+    }
+
+    delete_term_meta($term_id, 'use_word_titles_for_audio');
+}
+
 /**
  * Resolve defaults + persisted settings for how a category should quiz.
  *
@@ -2298,12 +2317,7 @@ function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
             $prompt_for_option
         );
         update_term_meta($term_id, 'll_quiz_option_type', $option);
-        // Keep legacy meta in sync for compatibility
-        if ($option === 'text_title') {
-            update_term_meta($term_id, 'use_word_titles_for_audio', '1');
-        } else {
-            delete_term_meta($term_id, 'use_word_titles_for_audio');
-        }
+        ll_tools_sync_word_titles_for_audio_meta($term_id, $prompt_for_option, $option, $use_titles);
     }
     if (isset($_POST['ll_lesson_grid_text_visibility_override'])) {
         $visibility_override = sanitize_key((string) $_POST['ll_lesson_grid_text_visibility_override']);

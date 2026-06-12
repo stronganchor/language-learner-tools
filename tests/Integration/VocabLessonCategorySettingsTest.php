@@ -193,6 +193,44 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_wordset_manager_can_preserve_title_backed_audio_translation_answers(): void
+    {
+        $manager_id = $this->createManagerUser();
+        wp_set_current_user($manager_id);
+
+        $fixture = $this->createManagedLessonFixture($manager_id);
+        update_term_meta((int) $fixture['category_id'], 'll_quiz_prompt_type', 'audio');
+        update_term_meta((int) $fixture['category_id'], 'll_quiz_option_type', 'text_translation');
+        update_term_meta((int) $fixture['category_id'], 'use_word_titles_for_audio', '1');
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $fixture['lesson_id']);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_vocab_lesson_category_settings_action' => 'save',
+            'll_vocab_lesson_category_settings_lesson_id' => (string) $fixture['lesson_id'],
+            'll_vocab_lesson_category_settings_wordset_id' => (string) $fixture['wordset_id'],
+            'll_vocab_lesson_category_settings_category_id' => (string) $fixture['category_id'],
+            'll_vocab_lesson_category_settings_nonce' => wp_create_nonce('ll_vocab_lesson_category_settings_' . $fixture['lesson_id']),
+            'll_vocab_lesson_quiz_prompt_type' => 'audio',
+            'll_vocab_lesson_quiz_option_type' => 'text_translation',
+            'll_vocab_lesson_grid_text_visibility' => 'inherit',
+        ];
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_vocab_lesson_category_settings_submit();
+        });
+
+        $query = [];
+        parse_str((string) wp_parse_url($redirect_url, PHP_URL_QUERY), $query);
+
+        $this->assertSame('ok', (string) ($query['ll_vocab_lesson_category_settings'] ?? ''));
+        $this->assertSame('audio', (string) get_term_meta((int) $fixture['category_id'], 'll_quiz_prompt_type', true));
+        $this->assertSame('text_translation', (string) get_term_meta((int) $fixture['category_id'], 'll_quiz_option_type', true));
+        $this->assertSame('1', (string) get_term_meta((int) $fixture['category_id'], 'use_word_titles_for_audio', true));
+    }
+
     public function test_wordset_manager_can_reset_text_visibility_and_disable_recording_types_from_lesson_page(): void
     {
         wp_insert_term('Isolation', 'recording_type', ['slug' => 'isolation']);

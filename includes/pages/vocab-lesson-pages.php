@@ -3614,7 +3614,9 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
 
     update_term_meta($category_id, 'll_quiz_prompt_type', $prompt_type);
     update_term_meta($category_id, 'll_quiz_option_type', $option_type);
-    if ($option_type === 'text_title') {
+    if (function_exists('ll_tools_sync_word_titles_for_audio_meta')) {
+        ll_tools_sync_word_titles_for_audio_meta($category_id, $prompt_type, $option_type, $use_titles);
+    } elseif ($option_type === 'text_title') {
         update_term_meta($category_id, 'use_word_titles_for_audio', '1');
     } else {
         delete_term_meta($category_id, 'use_word_titles_for_audio');
