@@ -130,7 +130,7 @@ test('reviewed rows stay visible until the transcription search is manually refr
         categories: [
           {
             name: 'Regression Category',
-            url: ''
+            url: '/quiz/regression-category/'
           }
         ],
         issues: [],
@@ -346,6 +346,44 @@ test('reviewed rows stay visible until the transcription search is manually refr
   expect(laptopLayout.metaCategoryText).toContain('Regression Category');
   expect(laptopLayout.transcriptionWidth / laptopLayout.tableWidth).toBeGreaterThan(0.45);
   expect(laptopLayout.transcriptionWidth).toBeGreaterThan(laptopLayout.issuesWidth * 1.75);
+
+  await page.evaluate(() => {
+    window.__llCategoryLinkClicks = 0;
+    document.querySelectorAll('.ll-ipa-search-category-link').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.__llCategoryLinkClicks += 1;
+      });
+    });
+  });
+
+  const categoryEmptyTarget = await rows.nth(0).evaluate((row) => {
+    const wrap = row.querySelector('.ll-ipa-search-meta-categories');
+    const link = row.querySelector('.ll-ipa-search-category-link');
+    const wrapRect = wrap.getBoundingClientRect();
+    const linkRect = link.getBoundingClientRect();
+    const emptyWidth = wrapRect.right - linkRect.right;
+    const x = Math.round(Math.min(wrapRect.right - 2, linkRect.right + Math.max(6, emptyWidth / 2)));
+    const y = Math.round(linkRect.top + (linkRect.height / 2));
+    const hit = document.elementFromPoint(x, y);
+
+    return {
+      x,
+      y,
+      wrapperWidth: Math.round(wrapRect.width),
+      linkWidth: Math.round(linkRect.width),
+      hitClass: hit && hit.className ? String(hit.className) : ''
+    };
+  });
+
+  expect(categoryEmptyTarget.wrapperWidth - categoryEmptyTarget.linkWidth).toBeGreaterThan(20);
+  expect(categoryEmptyTarget.hitClass).not.toContain('ll-ipa-search-category-link');
+
+  await page.mouse.click(categoryEmptyTarget.x, categoryEmptyTarget.y);
+  await expect.poll(async () => page.evaluate(() => window.__llCategoryLinkClicks)).toBe(0);
+
+  await rows.nth(0).locator('.ll-ipa-search-category-link').click();
+  await expect.poll(async () => page.evaluate(() => window.__llCategoryLinkClicks)).toBe(1);
 
   await page.evaluate(() => {
     window.__llTranscriptionManagerMock.holdReviewStateRequests = true;

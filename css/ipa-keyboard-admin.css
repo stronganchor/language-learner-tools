@@ -1704,6 +1704,7 @@ body.ll-ipa-keyboard-open {
 
 .ll-ipa-search-categories {
     gap: 4px;
+    justify-items: start;
 }
 
 .ll-ipa-search-category-link {
