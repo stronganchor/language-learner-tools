@@ -4281,7 +4281,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
-        'text_label_schema'    => 5,
+        'text_label_schema'    => 6,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -4693,7 +4693,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
-        'text_label_schema'    => 5,
+        'text_label_schema'    => 6,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -5311,7 +5311,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         // test cases when term IDs are recycled after DB resets.
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
-        'text_label_schema'    => 5,
+        'text_label_schema'    => 6,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
