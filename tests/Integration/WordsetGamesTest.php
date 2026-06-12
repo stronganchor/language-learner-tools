@@ -1008,10 +1008,12 @@ final class WordsetGamesTest extends LL_Tools_TestCase
     public function test_practice_deferred_count_pool_does_not_query_all_visible_words_for_capped_launch_candidates(): void
     {
         $fixture = $this->createGamesFixture(60);
+        $progressTable = ll_tools_user_progress_table_names()['words'];
         $capturedQueries = [];
         $queryCapture = $this->captureUnboundedWordIdQueries($capturedQueries);
         $hydrationInListSizes = [];
-        $sqlCapture = $this->captureCandidateHydrationInListSizes(array_merge(
+        $capturedUnboundedProgressScans = [];
+        $candidateSqlCapture = $this->captureCandidateHydrationInListSizes(array_merge(
             array_map('intval', (array) $fixture['eligible_word_ids']),
             [
                 (int) $fixture['missing_image_word_id'],
@@ -1019,6 +1021,17 @@ final class WordsetGamesTest extends LL_Tools_TestCase
                 (int) $fixture['mastered_word_id'],
             ]
         ), $hydrationInListSizes);
+        $sqlCapture = static function (string $sql) use ($candidateSqlCapture, $progressTable, &$capturedUnboundedProgressScans): string {
+            if (
+                stripos($sql, 'SELECT DISTINCT progress.word_id') !== false
+                && stripos($sql, $progressTable) !== false
+                && stripos($sql, 'LIMIT') === false
+            ) {
+                $capturedUnboundedProgressScans[] = $sql;
+            }
+
+            return $candidateSqlCapture($sql);
+        };
 
         add_action('pre_get_posts', $queryCapture);
         add_filter('query', $sqlCapture);
@@ -1039,6 +1052,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertCount(5, (array) ($pool['launch_candidate_words'] ?? []));
         $this->assertCount(5, (array) ($pool['launch_candidate_word_ids'] ?? []));
         $this->assertSame([], $capturedQueries);
+        $this->assertSame([], $capturedUnboundedProgressScans, 'Practice deferred count should stream progress word ids in bounded batches.');
         $this->assertNotEmpty($hydrationInListSizes);
         $this->assertLessThanOrEqual(50, max($hydrationInListSizes));
     }
@@ -2343,6 +2357,80 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         if (!empty($capturedAudioParentInSizes)) {
             $this->assertLessThanOrEqual(7, max($capturedAudioParentInSizes), 'Speaking deferred count should not probe isolation audio for the full mastered set before capping launch candidates.');
         }
+    }
+
+    public function test_speaking_text_deferred_count_pool_pages_fallback_progress_and_audio_checks(): void
+    {
+        $fixture = $this->createSpeakingGamesFixture(60);
+        update_term_meta((int) $fixture['wordset_id'], LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_text');
+        update_term_meta((int) $fixture['wordset_id'], LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_text');
+        foreach (array_values((array) ($fixture['eligible_word_ids'] ?? [])) as $index => $wordId) {
+            $audioPosts = get_posts([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => (int) $wordId,
+                'posts_per_page' => -1,
+            ]);
+            foreach ($audioPosts as $audioPost) {
+                if ($audioPost instanceof WP_Post) {
+                    update_post_meta((int) $audioPost->ID, 'recording_text', 'speak' . ($index + 1));
+                }
+            }
+        }
+
+        $progressTable = ll_tools_user_progress_table_names()['words'];
+        $capturedFullProgressScans = [];
+        $capturedUnboundedProgressScans = [];
+        $capturedAudioParentInSizes = [];
+        $capture = static function (string $sql) use ($progressTable, &$capturedFullProgressScans, &$capturedUnboundedProgressScans, &$capturedAudioParentInSizes): string {
+            if (
+                stripos($sql, 'SELECT *') !== false
+                && stripos($sql, $progressTable) !== false
+                && stripos($sql, 'wordset_id') !== false
+            ) {
+                $capturedFullProgressScans[] = $sql;
+            }
+
+            if (
+                stripos($sql, 'SELECT DISTINCT') !== false
+                && stripos($sql, 'progress.word_id') !== false
+                && stripos($sql, $progressTable) !== false
+                && stripos($sql, 'LIMIT') === false
+            ) {
+                $capturedUnboundedProgressScans[] = $sql;
+            }
+
+            if (preg_match('/post_parent\s+IN\s*\(([^)]*)\)/i', $sql, $matches)) {
+                $ids = array_values(array_filter(array_map('trim', explode(',', (string) $matches[1])), static function (string $id): bool {
+                    return $id !== '';
+                }));
+                $capturedAudioParentInSizes[] = count($ids);
+            }
+
+            return $sql;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $countPool = ll_tools_wordset_games_build_speaking_deferred_count_pool(
+                (int) $fixture['wordset_id'],
+                (int) $fixture['user_id'],
+                'speaking-practice',
+                false,
+                7
+            );
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame('recording_text', (string) ($countPool['target_field'] ?? ''));
+        $this->assertSame(60, (int) ($countPool['available_word_count'] ?? 0));
+        $this->assertCount(7, (array) ($countPool['launch_candidate_words'] ?? []));
+        $this->assertCount(7, (array) ($countPool['launch_candidate_word_ids'] ?? []));
+        $this->assertSame([], $capturedFullProgressScans, 'Speaking text fallback should not SELECT * all mastered progress rows before capping launch candidates.');
+        $this->assertSame([], $capturedUnboundedProgressScans, 'Speaking text fallback should page mastered progress rows with LIMIT.');
+        $this->assertNotEmpty($capturedAudioParentInSizes);
+        $this->assertLessThanOrEqual(50, max($capturedAudioParentInSizes), 'Speaking text fallback should keep isolation-audio probes bounded.');
     }
 
     public function test_speaking_practice_catalog_only_uses_learned_text_prompt_words(): void
