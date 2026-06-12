@@ -154,6 +154,122 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertSame($expected_attachment_ids, $image_attachment_ids);
     }
 
+    public function test_prompt_card_preview_helpers_do_not_issue_unbounded_prompt_card_queries(): void
+    {
+        $wordset = wp_insert_term('Prompt Preview Bounded Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $prompt_category = wp_insert_term('Prompt Preview Bounded Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($prompt_category));
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'text_title');
+
+        $asset_category = wp_insert_term('Prompt Preview Bounded Assets ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($asset_category));
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        $answer_word_ids = [];
+        $shared_answer_word_id = 0;
+        for ($index = 1; $index <= 12; $index++) {
+            if ($index <= 10) {
+                if ($shared_answer_word_id <= 0) {
+                    $attachment_id = $this->createImageAttachment('prompt-preview-bounded-shared.png');
+                    $shared_answer_word_id = $this->createWordWithThumbnail(
+                        $asset_category_id,
+                        $wordset_id,
+                        $attachment_id,
+                        'Prompt Preview Bounded Shared Answer'
+                    );
+                    $this->createAudioRecording($shared_answer_word_id, 'prompt-preview-bounded-shared.mp3');
+                }
+                $answer_word_id = $shared_answer_word_id;
+            } else {
+                $attachment_id = $this->createImageAttachment('prompt-preview-bounded-' . $index . '.png');
+                $answer_word_id = $this->createWordWithThumbnail(
+                    $asset_category_id,
+                    $wordset_id,
+                    $attachment_id,
+                    'Prompt Preview Bounded Answer ' . $index
+                );
+                $this->createAudioRecording($answer_word_id, 'prompt-preview-bounded-' . $index . '.mp3');
+            }
+            $answer_word_ids[] = $answer_word_id;
+
+            $this->createPromptCard($prompt_category_id, $wordset_id, [
+                'title' => 'Prompt Preview Bounded Card ' . sprintf('%02d', $index),
+                'correct_answer_word_id' => $answer_word_id,
+            ]);
+        }
+
+        $captured_prompt_card_queries = [];
+        $captured_prompt_card_sql = [];
+        $capture = static function (WP_Query $query) use (&$captured_prompt_card_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? array_map('strval', $post_type) : [(string) $post_type];
+            if (in_array(LL_TOOLS_PROMPT_CARD_POST_TYPE, $post_types, true)) {
+                $captured_prompt_card_queries[] = $query->query_vars;
+            }
+        };
+        $capture_sql = static function (string $query) use (&$captured_prompt_card_sql): string {
+            if (strpos($query, LL_TOOLS_PROMPT_CARD_POST_TYPE) !== false) {
+                $captured_prompt_card_sql[] = $query;
+            }
+            return $query;
+        };
+
+        add_action('pre_get_posts', $capture, 10, 1);
+        add_filter('query', $capture_sql, 10, 1);
+        try {
+            $pairs = ll_tools_get_vocab_lesson_prompt_card_preview_pairs($wordset_id, $prompt_category_id, 2);
+            $image_word_ids = ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids($wordset_id, $prompt_category_id, 2);
+            $preview = ll_tools_get_wordset_category_preview($wordset_id, $prompt_category_id, 2, false);
+        } finally {
+            remove_filter('query', $capture_sql, 10);
+            remove_action('pre_get_posts', $capture, 10);
+        }
+
+        $this->assertCount(2, $pairs);
+        $this->assertCount(2, $image_word_ids);
+        $expected_image_word_ids = array_values(array_map(static function (array $pair): int {
+            return (int) ($pair['prompt_image_word_id'] ?? 0);
+        }, $pairs));
+        $this->assertSame($expected_image_word_ids, $image_word_ids);
+        foreach ($image_word_ids as $image_word_id) {
+            $this->assertContains((int) $image_word_id, $answer_word_ids);
+        }
+
+        $preview_items = array_values((array) ($preview['items'] ?? []));
+        $this->assertCount(2, $preview_items);
+        foreach ($preview_items as $item) {
+            $this->assertIsArray($item);
+            $this->assertSame('text', (string) ($item['type'] ?? ''));
+        }
+
+        foreach ($captured_prompt_card_queries as $query_vars) {
+            $this->assertNotSame(
+                -1,
+                (int) ($query_vars['posts_per_page'] ?? 0),
+                'Prompt-card previews should not issue unbounded ll_prompt_card WP_Query calls.'
+            );
+        }
+
+        $preview_id_queries = array_values(array_filter($captured_prompt_card_sql, static function (string $query): bool {
+            return strpos($query, 'SELECT DISTINCT posts.ID') !== false
+                && strpos($query, LL_TOOLS_PROMPT_CARD_POST_TYPE) !== false;
+        }));
+        $this->assertNotEmpty($preview_id_queries, 'Expected prompt-card preview helpers to use bounded ID SQL.');
+        foreach ($preview_id_queries as $query) {
+            $this->assertStringContainsString('LIMIT', $query);
+            $this->assertStringContainsString('wordset_relationships', $query);
+            $this->assertStringContainsString('category_depths', $query);
+        }
+    }
+
     public function test_sign_language_image_choice_preview_uses_answer_images(): void
     {
         $wordset = wp_insert_term('Sign Preview Wordset ' . wp_generate_password(6, false), 'wordset');

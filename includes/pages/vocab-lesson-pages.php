@@ -891,78 +891,187 @@ function ll_tools_get_vocab_lesson_prompt_card_posts(int $wordset_id, $category,
     }));
 }
 
-function ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids(int $wordset_id, $category, int $limit = 2): array {
-    $limit = max(1, (int) $limit);
-    $posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
-    if (empty($posts)) {
+/**
+ * @return int[]
+ */
+function ll_tools_get_vocab_lesson_prompt_card_preview_ids(int $wordset_id, $category, int $limit = 2, int $offset = 0): array {
+    $wordset_id = (int) $wordset_id;
+    $limit = max(1, min(100, (int) $limit));
+    $offset = max(0, (int) $offset);
+    if ($wordset_id <= 0 || !function_exists('ll_tools_get_prompt_card_data_for_ids')) {
         return [];
     }
 
+    $original_category_id = 0;
+    if ($category instanceof WP_Term) {
+        $original_category_id = (int) $category->term_id;
+    } elseif (is_numeric($category)) {
+        $original_category_id = (int) $category;
+    }
+
+    $resolved_category = ll_tools_resolve_vocab_lesson_category_for_wordset($category, $wordset_id);
+    if (!($resolved_category instanceof WP_Term) || is_wp_error($resolved_category)) {
+        return [];
+    }
+
+    if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($resolved_category)) {
+        return [];
+    }
+
+    $category_ids = ll_tools_get_vocab_lesson_category_meta_candidates((int) $resolved_category->term_id, $wordset_id);
+    if ($original_category_id > 0 && $original_category_id !== (int) $resolved_category->term_id) {
+        $category_ids = array_merge($category_ids, ll_tools_get_vocab_lesson_category_meta_candidates($original_category_id, $wordset_id));
+    }
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $wordset_tt_id = function_exists('ll_tools_vocab_lesson_get_wordset_term_taxonomy_id')
+        ? ll_tools_vocab_lesson_get_wordset_term_taxonomy_id($wordset_id)
+        : 0;
+    $depth_table_sql = function_exists('ll_tools_vocab_lesson_build_depth_table_sql') && function_exists('ll_tools_vocab_lesson_get_word_category_depth_rows')
+        ? ll_tools_vocab_lesson_build_depth_table_sql(ll_tools_vocab_lesson_get_word_category_depth_rows())
+        : '';
+    if ($wordset_tt_id <= 0 || $depth_table_sql === '') {
+        return [];
+    }
+
+    global $wpdb;
+
+    $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
+    $category_placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
+    $sql = "
+        SELECT DISTINCT posts.ID
+        FROM {$wpdb->posts} AS posts
+        INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+            AND wordset_relationships.term_taxonomy_id = %d
+        INNER JOIN {$wpdb->term_relationships} AS category_relationships
+            ON category_relationships.object_id = posts.ID
+        INNER JOIN {$depth_table_sql} AS category_depths
+            ON category_depths.term_taxonomy_id = category_relationships.term_taxonomy_id
+        LEFT JOIN {$wpdb->term_relationships} AS deeper_relationships
+            ON deeper_relationships.object_id = posts.ID
+        LEFT JOIN {$depth_table_sql} AS deeper_depths
+            ON deeper_depths.term_taxonomy_id = deeper_relationships.term_taxonomy_id
+            AND deeper_depths.depth > category_depths.depth
+        WHERE category_depths.term_id IN ({$category_placeholders})
+            AND posts.post_type = %s
+            AND posts.post_status = %s
+            AND deeper_depths.term_taxonomy_id IS NULL
+        ORDER BY posts.menu_order ASC, posts.post_title ASC, posts.ID ASC
+        LIMIT %d
+        OFFSET %d
+    ";
+    $params = array_merge([$wordset_tt_id], $category_ids, [$prompt_card_post_type, 'publish', $limit, $offset]);
+
+    return array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params))), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+}
+
+/**
+ * @return array<int,array<string,mixed>>
+ */
+function ll_tools_get_vocab_lesson_prompt_card_preview_data(int $wordset_id, $category, int $limit = 2, int $offset = 0): array {
+    $query_limit = min(100, max(1, (int) $limit));
+    $prompt_card_ids = ll_tools_get_vocab_lesson_prompt_card_preview_ids($wordset_id, $category, $query_limit, $offset);
+    if (empty($prompt_card_ids) || !function_exists('ll_tools_get_prompt_card_data_for_ids')) {
+        return [];
+    }
+
+    return ll_tools_get_prompt_card_data_for_ids($prompt_card_ids, false);
+}
+
+function ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids(int $wordset_id, $category, int $limit = 2): array {
+    $limit = max(1, (int) $limit);
     $word_ids = [];
     $seen = [];
-    foreach ($posts as $post) {
-        $card = ll_tools_get_prompt_card_data((int) $post->ID);
-        if (empty($card)) {
-            continue;
-        }
+    $query_limit = min(100, max($limit * 5, $limit, 10));
+    $offset = 0;
 
-        $image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
-        if ($image_word_id <= 0) {
-            $image_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
-        }
-        if ($image_word_id <= 0 || isset($seen[$image_word_id])) {
-            continue;
-        }
-
-        $seen[$image_word_id] = true;
-        $word_ids[] = $image_word_id;
-        if (count($word_ids) >= $limit) {
+    do {
+        $cards = ll_tools_get_vocab_lesson_prompt_card_preview_data($wordset_id, $category, $query_limit, $offset);
+        if (empty($cards)) {
             break;
         }
-    }
+
+        foreach ($cards as $card) {
+            if (!is_array($card)) {
+                continue;
+            }
+
+            $image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+            if ($image_word_id <= 0) {
+                $image_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+            }
+            if ($image_word_id <= 0 || isset($seen[$image_word_id])) {
+                continue;
+            }
+
+            $seen[$image_word_id] = true;
+            $word_ids[] = $image_word_id;
+            if (count($word_ids) >= $limit) {
+                break 2;
+            }
+        }
+
+        $fetched = count($cards);
+        $offset += $query_limit;
+    } while ($fetched >= $query_limit);
 
     return $word_ids;
 }
 
 function ll_tools_get_vocab_lesson_prompt_card_preview_pairs(int $wordset_id, $category, int $limit = 2): array {
     $limit = max(1, (int) $limit);
-    $posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
-    if (empty($posts)) {
-        return [];
-    }
-
     $pairs = [];
     $seen = [];
-    foreach ($posts as $post) {
-        $card = ll_tools_get_prompt_card_data((int) $post->ID);
-        if (empty($card)) {
-            continue;
-        }
+    $query_limit = min(100, max($limit * 5, $limit, 10));
+    $offset = 0;
 
-        $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
-        $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
-        if ($prompt_image_word_id <= 0) {
-            $prompt_image_word_id = $answer_word_id;
-        }
-        if ($prompt_image_word_id <= 0 || $answer_word_id <= 0) {
-            continue;
-        }
-
-        $key = $prompt_image_word_id . ':' . $answer_word_id;
-        if (isset($seen[$key])) {
-            continue;
-        }
-
-        $seen[$key] = true;
-        $pairs[] = [
-            'prompt_card_id' => (int) ($card['id'] ?? $post->ID),
-            'prompt_image_word_id' => $prompt_image_word_id,
-            'correct_answer_word_id' => $answer_word_id,
-        ];
-        if (count($pairs) >= $limit) {
+    do {
+        $cards = ll_tools_get_vocab_lesson_prompt_card_preview_data($wordset_id, $category, $query_limit, $offset);
+        if (empty($cards)) {
             break;
         }
-    }
+
+        foreach ($cards as $card) {
+            if (!is_array($card)) {
+                continue;
+            }
+
+            $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+            $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+            if ($prompt_image_word_id <= 0) {
+                $prompt_image_word_id = $answer_word_id;
+            }
+            if ($prompt_image_word_id <= 0 || $answer_word_id <= 0) {
+                continue;
+            }
+
+            $key = $prompt_image_word_id . ':' . $answer_word_id;
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $pairs[] = [
+                'prompt_card_id' => (int) ($card['id'] ?? 0),
+                'prompt_image_word_id' => $prompt_image_word_id,
+                'correct_answer_word_id' => $answer_word_id,
+            ];
+            if (count($pairs) >= $limit) {
+                break 2;
+            }
+        }
+
+        $fetched = count($cards);
+        $offset += $query_limit;
+    } while ($fetched >= $query_limit);
 
     return $pairs;
 }
@@ -3540,7 +3649,7 @@ function ll_tools_vocab_lesson_enqueue_assets() {
     $category_id = $lesson_id > 0 ? (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true) : 0;
     if ($wordset_id > 0 && $category_id > 0) {
         $category = get_term($category_id, 'word-category');
-        if ($category instanceof WP_Term && !is_wp_error($category) && !empty(ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true))) {
+        if ($category instanceof WP_Term && !is_wp_error($category) && !empty(ll_tools_get_vocab_lesson_prompt_card_preview_ids($wordset_id, $category, 1))) {
             ll_tools_vocab_lesson_enqueue_word_grid_assets($wordset_id, $category, $lesson_id);
         }
     }

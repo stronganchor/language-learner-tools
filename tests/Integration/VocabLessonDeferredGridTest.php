@@ -881,7 +881,29 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
         $this->assertTrue(is_singular('ll_vocab_lesson'));
         wp_dequeue_script('ll-tools-word-grid');
-        ll_tools_vocab_lesson_enqueue_assets();
+
+        $captured_prompt_card_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_prompt_card_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? array_map('strval', $post_type) : [(string) $post_type];
+            if (in_array(LL_TOOLS_PROMPT_CARD_POST_TYPE, $post_types, true)) {
+                $captured_prompt_card_queries[] = $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $capture, 10, 1);
+        try {
+            ll_tools_vocab_lesson_enqueue_assets();
+        } finally {
+            remove_action('pre_get_posts', $capture, 10);
+        }
+
+        foreach ($captured_prompt_card_queries as $query_vars) {
+            $this->assertNotSame(
+                -1,
+                (int) ($query_vars['posts_per_page'] ?? 0),
+                'Prompt-card asset checks should not load every prompt card in the lesson category.'
+            );
+        }
         $this->assertTrue(wp_script_is('ll-tools-word-grid', 'enqueued'));
 
         ob_start();
