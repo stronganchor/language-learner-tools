@@ -262,6 +262,28 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         $this->assertSame(1, ll_get_words_by_category_count($category_b_name, 'text', null, $config));
     }
 
+    public function test_count_helper_cache_refreshes_when_published_word_is_unpublished(): void
+    {
+        $category_name = 'Count Helper Word Status ' . (string) wp_rand(1000, 9999);
+        $category_id = $this->createCategory($category_name, 'text_title', 'text_title');
+        $word_id = $this->createWord($category_id, 'Status Cache Word', 'Status Cache Translation');
+        $config = [
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+        ];
+
+        $this->assertSame(1, ll_get_words_by_category_count($category_name, 'text', null, $config));
+
+        $version_before_status_change = (int) ll_tools_get_category_cache_version($category_id);
+        wp_update_post([
+            'ID' => $word_id,
+            'post_status' => 'draft',
+        ]);
+
+        $this->assertGreaterThan($version_before_status_change, (int) ll_tools_get_category_cache_version($category_id));
+        $this->assertSame(0, ll_get_words_by_category_count($category_name, 'text', null, $config));
+    }
+
     public function test_count_helper_preserves_raw_title_fallback_when_translation_titles_are_empty(): void
     {
         $previous_title_role = get_option('ll_word_title_language_role', null);

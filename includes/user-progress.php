@@ -2784,16 +2784,25 @@ function ll_tools_user_progress_prompt_card_answer_word_id_map(array $prompt_car
     $answer_meta_key = defined('LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY')
         ? LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY
         : '_ll_prompt_card_correct_answer_word_id';
+    $track_meta_key = defined('LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY')
+        ? LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY
+        : '_ll_prompt_card_track_answer_word_progress';
 
     $map = [];
     foreach (array_chunk($prompt_card_ids, 500) as $chunk) {
         $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
         $sql = "
-            SELECT prompt.ID AS prompt_card_id, CAST(meta.meta_value AS UNSIGNED) AS answer_word_id
+            SELECT
+                prompt.ID AS prompt_card_id,
+                CAST(meta.meta_value AS UNSIGNED) AS answer_word_id,
+                track.meta_value AS track_answer_word_progress
             FROM {$wpdb->posts} prompt
             INNER JOIN {$wpdb->postmeta} meta
                 ON meta.post_id = prompt.ID
                AND meta.meta_key = %s
+            LEFT JOIN {$wpdb->postmeta} track
+                ON track.post_id = prompt.ID
+               AND track.meta_key = %s
             INNER JOIN {$wpdb->posts} answer
                 ON answer.ID = CAST(meta.meta_value AS UNSIGNED)
                AND answer.post_type = %s
@@ -2803,14 +2812,17 @@ function ll_tools_user_progress_prompt_card_answer_word_id_map(array $prompt_car
         $rows = $wpdb->get_results(
             $wpdb->prepare(
                 $sql,
-                array_merge([$answer_meta_key, 'words'], $chunk, [$prompt_card_post_type])
+                array_merge([$answer_meta_key, $track_meta_key, 'words'], $chunk, [$prompt_card_post_type])
             ),
             ARRAY_A
         );
         foreach ((array) $rows as $row) {
             $prompt_card_id = isset($row['prompt_card_id']) ? (int) $row['prompt_card_id'] : 0;
             $answer_word_id = isset($row['answer_word_id']) ? (int) $row['answer_word_id'] : 0;
-            if ($prompt_card_id > 0 && $answer_word_id > 0) {
+            $track_answer_word_progress = !array_key_exists('track_answer_word_progress', $row)
+                || $row['track_answer_word_progress'] === null
+                || !in_array(strtolower(trim((string) $row['track_answer_word_progress'])), ['0', 'false', 'no', 'off'], true);
+            if ($prompt_card_id > 0 && $answer_word_id > 0 && $track_answer_word_progress) {
                 $map[$prompt_card_id] = $answer_word_id;
             }
         }

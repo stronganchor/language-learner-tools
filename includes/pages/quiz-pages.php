@@ -1134,16 +1134,58 @@ add_action('admin_init', function () {
 add_action(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT, 'll_tools_sync_quiz_pages');
 
 /** Keep pages in sync when content in those categories changes */
+function ll_tools_get_content_post_word_category_ids(int $post_id): array {
+    $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($term_ids) || empty($term_ids)) {
+        return [];
+    }
+
+    return ll_tools_normalize_category_maintenance_ids($term_ids);
+}
+
+function ll_tools_bump_content_post_quiz_cache(int $post_id, array $extra_category_ids = []): array {
+    $post = get_post($post_id);
+    if (!$post || !in_array($post->post_type, ['words','word_images'], true)) {
+        return [];
+    }
+
+    $category_lookup = [];
+    foreach (ll_tools_normalize_category_maintenance_ids($extra_category_ids) as $term_id) {
+        $category_lookup[(int) $term_id] = true;
+    }
+
+    if ($post->post_type === 'words' && function_exists('ll_tools_collect_word_quiz_cache_category_ids')) {
+        foreach (ll_tools_collect_word_quiz_cache_category_ids([$post_id]) as $term_id) {
+            $category_lookup[(int) $term_id] = true;
+        }
+    } else {
+        foreach (ll_tools_get_content_post_word_category_ids($post_id) as $term_id) {
+            $category_lookup[(int) $term_id] = true;
+        }
+    }
+
+    $category_ids = array_values(array_filter(array_map('intval', array_keys($category_lookup)), static function (int $term_id): bool {
+        return $term_id > 0;
+    }));
+    sort($category_ids, SORT_NUMERIC);
+
+    if (!empty($category_ids)) {
+        ll_tools_bump_category_cache_version($category_ids);
+    }
+
+    return $category_ids;
+}
+
 function ll_tools_sync_categories_for_post($post_id, $post, $update) {
     if (wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) return;
+    if (!$post) return;
     if (!in_array($post->post_type, ['words','word_images'], true)) return;
-    if ($post->post_status !== 'publish') return;
 
-    $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-    if (is_wp_error($term_ids) || empty($term_ids)) return;
-    $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
-    foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
-    ll_tools_bump_category_cache_version($term_ids);
+    $term_ids = ll_tools_get_content_post_word_category_ids((int) $post_id);
+    if ($post->post_status === 'publish') {
+        foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
+    }
+    ll_tools_bump_content_post_quiz_cache((int) $post_id, $term_ids);
 }
 add_action('save_post_words',       'll_tools_sync_categories_for_post', 10, 3);
 add_action('save_post_word_images', 'll_tools_sync_categories_for_post', 10, 3);
@@ -1202,7 +1244,7 @@ function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxo
 
     $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
     foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
-    ll_tools_bump_category_cache_version($term_ids);
+    ll_tools_bump_content_post_quiz_cache((int) $object_id, $term_ids);
 }
 add_action('set_object_terms', 'll_tools_sync_categories_on_term_set', 10, 6);
 
@@ -1216,13 +1258,39 @@ function ll_tools_sync_categories_before_delete($post_id) {
     }
 
     if (!in_array($post->post_type, ['words','word_images'], true)) return;
-    $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-    if (is_wp_error($term_ids)) return;
-    $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
+    $term_ids = ll_tools_get_content_post_word_category_ids((int) $post_id);
     foreach ($term_ids as $tid) ll_tools_handle_category_sync((int) $tid);
-    ll_tools_bump_category_cache_version($term_ids);
+    ll_tools_bump_content_post_quiz_cache((int) $post_id, $term_ids);
 }
 add_action('before_delete_post', 'll_tools_sync_categories_before_delete');
+
+function ll_tools_sync_cache_on_content_post_status_change($new_status, $old_status, $post): void {
+    if (!$post || !in_array($post->post_type, ['words','word_images'], true) || (string) $new_status === (string) $old_status) {
+        return;
+    }
+
+    if ((string) $new_status !== 'publish' && (string) $old_status !== 'publish') {
+        return;
+    }
+
+    $term_ids = ll_tools_get_content_post_word_category_ids((int) $post->ID);
+    foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
+    ll_tools_bump_content_post_quiz_cache((int) $post->ID, $term_ids);
+}
+add_action('transition_post_status', 'll_tools_sync_cache_on_content_post_status_change', 20, 3);
+
+function ll_tools_sync_cache_on_content_post_trash_change($post_id): void {
+    $post = get_post($post_id);
+    if (!$post || !in_array($post->post_type, ['words','word_images'], true)) {
+        return;
+    }
+
+    $term_ids = ll_tools_get_content_post_word_category_ids((int) $post_id);
+    foreach ($term_ids as $tid) ll_tools_sync_category_shell_for_content_change((int) $tid);
+    ll_tools_bump_content_post_quiz_cache((int) $post_id, $term_ids);
+}
+add_action('trashed_post', 'll_tools_sync_cache_on_content_post_trash_change', 20, 1);
+add_action('untrashed_post', 'll_tools_sync_cache_on_content_post_trash_change', 20, 1);
 
 function ll_tools_get_word_audio_parent_category_ids(int $audio_post_id): array {
     $post = get_post($audio_post_id);

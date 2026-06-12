@@ -16721,7 +16721,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'name' => (string) ($cat['raw_name'] ?? $cat['name'] ?? ''),
             'translation' => (string) ($cat['translation'] ?? ($cat['name'] ?? '')),
             'count' => (int) ($cat['count'] ?? 0),
-            'search_text' => (string) ($cat['search_text'] ?? ''),
             'url' => (string) ($cat['url'] ?? ''),
             'mode' => (string) ($cat['mode'] ?? ''),
             'prompt_type' => (string) ($cat['prompt_type'] ?? ''),

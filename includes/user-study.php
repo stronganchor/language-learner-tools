@@ -783,10 +783,10 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
                 'available_word_count' => $available_word_count,
                 'candidate_word_ids' => $candidate_word_ids,
                 'candidate_count' => count($candidate_word_ids),
-                'loaded_count' => 0,
-                'fully_loaded' => $available_word_count === 0,
-                'complete' => $available_word_count === 0,
-                'has_more' => $available_word_count > 0,
+                'loaded_count' => max(0, (int) ($meta['loaded_count'] ?? count($candidate_word_ids))),
+                'fully_loaded' => !empty($meta['complete']),
+                'complete' => !empty($meta['complete']),
+                'has_more' => !empty($meta['has_more']),
             ];
         }
     } else {

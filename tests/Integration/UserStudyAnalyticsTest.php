@@ -473,6 +473,64 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_summary_only_analytics_excludes_prompt_cards_that_do_not_track_answer_word_progress(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $wordset = wp_insert_term('Analytics Nontracking Prompt Wordset ' . wp_generate_password(6, false), 'wordset');
+            $asset_category = wp_insert_term('Analytics Nontracking Prompt Assets ' . wp_generate_password(6, false), 'word-category');
+            $prompt_category = wp_insert_term('Analytics Nontracking Prompt Questions ' . wp_generate_password(6, false), 'word-category');
+            $this->assertFalse(is_wp_error($wordset));
+            $this->assertFalse(is_wp_error($asset_category));
+            $this->assertFalse(is_wp_error($prompt_category));
+            $this->assertIsArray($wordset);
+            $this->assertIsArray($asset_category);
+            $this->assertIsArray($prompt_category);
+
+            $wordset_id = (int) $wordset['term_id'];
+            $asset_category_id = (int) $asset_category['term_id'];
+            $prompt_category_id = (int) $prompt_category['term_id'];
+            update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'text_title');
+            update_term_meta($prompt_category_id, 'll_quiz_option_type', 'text_title');
+            $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+            $answer_id = $this->createWordWithoutAudio('Analytics Nontracking Answer', $asset_category_id, $wordset_id);
+            $wrong_id = $this->createWordWithoutAudio('Analytics Nontracking Wrong', $asset_category_id, $wordset_id);
+            $this->createPromptCardForAnalytics($effective_prompt_category_id, $wordset_id, [
+                'title' => 'Analytics Nontracking Prompt Card',
+                'prompt_text' => 'Choose the nontracking answer.',
+                'correct_answer_word_id' => $answer_id,
+                'wrong_answer_word_ids' => [$wrong_id],
+                'track_answer_word_progress' => false,
+            ]);
+
+            $word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category([$effective_prompt_category_id], $wordset_id);
+            $this->assertSame([], array_values((array) ($word_ids_by_category[$effective_prompt_category_id] ?? [])));
+
+            $summary = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $wordset_id,
+                [$effective_prompt_category_id],
+                14,
+                false,
+                ['summary_only' => true]
+            );
+
+            $this->assertSame(0, (int) ($summary['summary']['total_words'] ?? -1));
+            $this->assertSame(0, (int) ($summary['summary']['new_words'] ?? -1));
+            $this->assertSame(0, (int) ($summary['summary']['studied_words'] ?? -1));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
     public function test_analytics_payload_includes_vocab_lesson_urls_for_private_categories(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -771,9 +829,40 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame($quizzable_category_id, (int) ($meta['category_id'] ?? 0));
         $this->assertSame(5, (int) ($meta['available_word_count'] ?? 0));
         $this->assertSame(2, (int) ($meta['candidate_count'] ?? 0));
+        $this->assertSame(2, (int) ($meta['loaded_count'] ?? 0));
         $this->assertCount(2, (array) ($meta['candidate_word_ids'] ?? []));
         $this->assertFalse((bool) ($meta['fully_loaded'] ?? true));
+        $this->assertFalse((bool) ($meta['complete'] ?? true));
         $this->assertTrue((bool) ($meta['has_more'] ?? false));
+    }
+
+    public function test_user_study_deferred_metadata_reports_complete_candidate_slice(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createMixedQuizzableFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $quizzable_category_id = (int) $fixture['quizzable_category_id'];
+
+        $payload = ll_tools_build_user_study_payload(
+            $user_id,
+            $wordset_id,
+            [$quizzable_category_id],
+            [
+                'defer_words' => true,
+                'candidate_word_limit' => 20,
+            ]
+        );
+
+        $this->assertTrue((bool) ($payload['words_deferred'] ?? false));
+        $meta = (array) ($payload['words_by_category_meta'][$quizzable_category_id] ?? []);
+        $this->assertSame(5, (int) ($meta['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($meta['candidate_count'] ?? 0));
+        $this->assertSame(5, (int) ($meta['loaded_count'] ?? 0));
+        $this->assertTrue((bool) ($meta['fully_loaded'] ?? false));
+        $this->assertTrue((bool) ($meta['complete'] ?? false));
+        $this->assertFalse((bool) ($meta['has_more'] ?? true));
     }
 
     public function test_user_study_fetch_words_ajax_remains_complete_after_deferred_bootstrap(): void

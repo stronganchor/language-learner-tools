@@ -646,6 +646,30 @@ function ll_tools_prompt_card_handle_deleted_post(int $post_id): void {
 }
 add_action('before_delete_post', 'll_tools_prompt_card_handle_deleted_post');
 
+function ll_tools_prompt_card_handle_status_change(string $new_status, string $old_status, $post): void {
+    if (!($post instanceof WP_Post) || $post->post_type !== LL_TOOLS_PROMPT_CARD_POST_TYPE || $new_status === $old_status) {
+        return;
+    }
+
+    if ($new_status !== 'publish' && $old_status !== 'publish') {
+        return;
+    }
+
+    ll_tools_prompt_card_invalidate_category_caches((int) $post->ID);
+}
+add_action('transition_post_status', 'll_tools_prompt_card_handle_status_change', 20, 3);
+
+function ll_tools_prompt_card_handle_trash_change(int $post_id): void {
+    $post = get_post($post_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== LL_TOOLS_PROMPT_CARD_POST_TYPE) {
+        return;
+    }
+
+    ll_tools_prompt_card_invalidate_category_caches($post_id);
+}
+add_action('trashed_post', 'll_tools_prompt_card_handle_trash_change', 20, 1);
+add_action('untrashed_post', 'll_tools_prompt_card_handle_trash_change', 20, 1);
+
 function ll_tools_prompt_card_handle_terms_set(int $object_id, array $terms, array $term_taxonomy_ids, string $taxonomy, bool $append, array $old_term_taxonomy_ids): void {
     unset($terms, $append);
 

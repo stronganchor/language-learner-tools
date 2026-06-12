@@ -380,6 +380,98 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_answer_word_save_invalidates_prompt_card_category_cache(): void
+    {
+        $asset_category_id = $this->createCategory('Prompt Card Answer Save Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
+        $prompt_category_name = 'Prompt Card Answer Save Questions ' . wp_generate_password(5, false);
+        $prompt_category_id = $this->createCategory($prompt_category_name, 'text_title', 'text_title');
+        $wordset_id = $this->createWordset('Prompt Card Answer Save Wordset ' . wp_generate_password(5, false));
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $answer_id = $this->createWord($asset_category_id, 'Prompt Reference Answer Original');
+        $wrong_id = $this->createWord($asset_category_id, 'Prompt Reference Wrong');
+        foreach ([$answer_id, $wrong_id] as $word_id) {
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'Answer Reference Cache',
+            'prompt_text' => 'Choose the referenced answer.',
+            'correct_answer_word_id' => $answer_id,
+            'wrong_answer_word_ids' => [$wrong_id],
+            'track_answer_word_progress' => true,
+        ]);
+        $config = [
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+        ];
+
+        $primed_rows = ll_get_words_by_category($prompt_category_name, 'text_title', [$wordset_id], $config);
+        $primed_prompt_row = $this->findPromptCardRow((array) $primed_rows, $prompt_card_id);
+        $this->assertSame('Prompt Reference Answer Original', (string) ($primed_prompt_row['label'] ?? ''));
+
+        $version_before_save = (int) ll_tools_get_category_cache_version($effective_prompt_category_id);
+        wp_update_post([
+            'ID' => $answer_id,
+            'post_title' => 'Prompt Reference Answer Updated',
+        ]);
+
+        $this->assertGreaterThan($version_before_save, (int) ll_tools_get_category_cache_version($effective_prompt_category_id));
+        $updated_rows = ll_get_words_by_category($prompt_category_name, 'text_title', [$wordset_id], $config);
+        $updated_prompt_row = $this->findPromptCardRow((array) $updated_rows, $prompt_card_id);
+        $this->assertSame('Prompt Reference Answer Updated', (string) ($updated_prompt_row['label'] ?? ''));
+    }
+
+    public function test_prompt_card_status_and_trash_changes_invalidate_cached_count(): void
+    {
+        $asset_category_id = $this->createCategory('Prompt Card Status Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
+        $prompt_category_name = 'Prompt Card Status Questions ' . wp_generate_password(5, false);
+        $prompt_category_id = $this->createCategory($prompt_category_name, 'text_title', 'text_title');
+        $wordset_id = $this->createWordset('Prompt Card Status Wordset ' . wp_generate_password(5, false));
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $answer_id = $this->createWord($asset_category_id, 'Prompt Status Answer');
+        $wrong_id = $this->createWord($asset_category_id, 'Prompt Status Wrong');
+        foreach ([$answer_id, $wrong_id] as $word_id) {
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'Status Cached Prompt Card',
+            'prompt_text' => 'Choose the status answer.',
+            'correct_answer_word_id' => $answer_id,
+            'wrong_answer_word_ids' => [$wrong_id],
+            'track_answer_word_progress' => true,
+        ]);
+        $config = [
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+        ];
+
+        $this->assertSame(1, ll_get_words_by_category_count($prompt_category_name, 'text_title', [$wordset_id], $config));
+
+        $version_before_draft = (int) ll_tools_get_category_cache_version($effective_prompt_category_id);
+        wp_update_post([
+            'ID' => $prompt_card_id,
+            'post_status' => 'draft',
+        ]);
+
+        $this->assertGreaterThan($version_before_draft, (int) ll_tools_get_category_cache_version($effective_prompt_category_id));
+        $this->assertSame(0, ll_get_words_by_category_count($prompt_category_name, 'text_title', [$wordset_id], $config));
+
+        wp_update_post([
+            'ID' => $prompt_card_id,
+            'post_status' => 'publish',
+        ]);
+        $this->assertSame(1, ll_get_words_by_category_count($prompt_category_name, 'text_title', [$wordset_id], $config));
+
+        $version_before_trash = (int) ll_tools_get_category_cache_version($effective_prompt_category_id);
+        wp_trash_post($prompt_card_id);
+
+        $this->assertGreaterThan($version_before_trash, (int) ll_tools_get_category_cache_version($effective_prompt_category_id));
+        $this->assertSame(0, ll_get_words_by_category_count($prompt_category_name, 'text_title', [$wordset_id], $config));
+    }
+
     public function test_prompt_card_answer_audio_file_change_bumps_prompt_category_cache(): void
     {
         $asset_category_id = $this->createCategory('Prompt Card Audio Cache Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
