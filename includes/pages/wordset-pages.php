@@ -5335,6 +5335,38 @@ function ll_tools_wordset_page_prepare_category_search_query(string $query): str
 }
 
 function ll_tools_wordset_page_get_category_search_matching_ids(int $wordset_id, array $allowed_category_ids, string $query): array {
+    $matches = ll_tools_wordset_page_get_category_search_matches($wordset_id, $allowed_category_ids, $query, 0);
+    return array_values(array_map('intval', array_keys($matches)));
+}
+
+function ll_tools_wordset_page_category_search_text_match_rank(string $value, string $query): int {
+    $value = ll_tools_wordset_page_normalize_category_search_match_text($value);
+    $query = ll_tools_wordset_page_prepare_category_search_query($query);
+    if ($value === '' || $query === '') {
+        return 0;
+    }
+
+    $tokens = preg_split('/[^\p{L}\p{N}]+/u', $value);
+    if (!is_array($tokens)) {
+        $tokens = preg_split('/\s+/', $value);
+    }
+    foreach ((array) $tokens as $token) {
+        $token = trim((string) $token);
+        if ($token !== '' && $token === $query) {
+            return 300;
+        }
+    }
+    foreach ((array) $tokens as $token) {
+        $token = trim((string) $token);
+        if ($token !== '' && strpos($token, $query) === 0) {
+            return 200;
+        }
+    }
+
+    return strpos($value, $query) !== false ? 100 : 0;
+}
+
+function ll_tools_wordset_page_get_category_search_matches(int $wordset_id, array $allowed_category_ids, string $query, int $per_category_limit = 1): array {
     $query = ll_tools_wordset_page_prepare_category_search_query($query);
     $allowed_category_ids = array_values(array_filter(array_unique(array_map('intval', $allowed_category_ids)), static function (int $id): bool {
         return $id > 0;
@@ -5349,22 +5381,81 @@ function ll_tools_wordset_page_get_category_search_matching_ids(int $wordset_id,
         return [];
     }
 
-    $matching_ids = [];
+    $per_category_limit = max(0, (int) $per_category_limit);
+    $matches = [];
+    $matched_word_ids = [];
     foreach ($allowed_category_ids as $category_id) {
-        $search_text = isset($index[$category_id]) && is_array($index[$category_id])
-            ? (string) ($index[$category_id]['search_text'] ?? '')
-            : '';
-        if ($search_text === '') {
+        $entry = isset($index[$category_id]) && is_array($index[$category_id]) ? $index[$category_id] : [];
+        $words = isset($entry['words']) && is_array($entry['words']) ? $entry['words'] : [];
+        if (empty($words)) {
+            $search_text = (string) ($entry['search_text'] ?? '');
+            $normalized_search_text = ll_tools_wordset_page_normalize_category_search_match_text($search_text);
+            if ($normalized_search_text !== '' && strpos($normalized_search_text, $query) !== false) {
+                $matches[$category_id] = [];
+            }
             continue;
         }
 
-        $normalized_search_text = ll_tools_wordset_page_normalize_category_search_match_text($search_text);
-        if ($normalized_search_text !== '' && strpos($normalized_search_text, $query) !== false) {
-            $matching_ids[] = $category_id;
+        $word_matches = [];
+        foreach ($words as $word) {
+            if (!is_array($word)) {
+                continue;
+            }
+            $word_id = isset($word['id']) ? (int) $word['id'] : 0;
+            if ($word_id <= 0) {
+                continue;
+            }
+            $title = ll_tools_wordset_page_normalize_search_text((string) ($word['title'] ?? ''));
+            $translation = ll_tools_wordset_page_normalize_search_text((string) ($word['translation'] ?? ''));
+            $title_rank = ll_tools_wordset_page_category_search_text_match_rank($title, $query);
+            $translation_rank = ll_tools_wordset_page_category_search_text_match_rank($translation, $query);
+            $rank = max($title_rank, $translation_rank);
+            if ($rank <= 0) {
+                continue;
+            }
+            $word_matches[] = [
+                'id' => $word_id,
+                'title' => $title,
+                'translation' => $translation,
+                'match_rank' => $rank,
+                'match_field' => $title_rank >= $translation_rank ? 'title' : 'translation',
+                'image' => '',
+            ];
+        }
+
+        if (empty($word_matches)) {
+            continue;
+        }
+
+        usort($word_matches, static function (array $left, array $right): int {
+            $rank_compare = ((int) ($right['match_rank'] ?? 0)) <=> ((int) ($left['match_rank'] ?? 0));
+            if ($rank_compare !== 0) {
+                return $rank_compare;
+            }
+            return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
+        });
+
+        $matches[$category_id] = $per_category_limit > 0
+            ? array_slice($word_matches, 0, $per_category_limit)
+            : [];
+        foreach ($matches[$category_id] as $match) {
+            $matched_word_ids[] = (int) ($match['id'] ?? 0);
         }
     }
 
-    return $matching_ids;
+    if (!empty($matched_word_ids) && function_exists('ll_tools_user_progress_get_word_image_url_map')) {
+        $image_urls = ll_tools_user_progress_get_word_image_url_map($matched_word_ids, 'thumbnail');
+        foreach ($matches as $category_id => $word_matches) {
+            foreach ($word_matches as $index => $match) {
+                $word_id = (int) ($match['id'] ?? 0);
+                if ($word_id > 0 && !empty($image_urls[$word_id])) {
+                    $matches[$category_id][$index]['image'] = (string) $image_urls[$word_id];
+                }
+            }
+        }
+    }
+
+    return $matches;
 }
 
 function ll_tools_wordset_page_get_category_depth_cached(int $category_id): int {
@@ -5521,6 +5612,7 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
     }
 
     $category_tokens = [];
+    $category_words = [];
     foreach ($word_terms as $word_id => $term_lookup) {
         $term_ids = array_values(array_filter(array_map('intval', array_keys((array) $term_lookup)), static function ($id): bool {
             return $id > 0;
@@ -5559,6 +5651,16 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
                 }
                 $category_tokens[$term_id][$normalized_search_term] = true;
             }
+            if (!isset($category_words[$term_id])) {
+                $category_words[$term_id] = [];
+            }
+            $word_title = isset($word_strings[$word_id][0]) ? (string) $word_strings[$word_id][0] : '';
+            $translation = isset($word_strings[$word_id][1]) ? (string) $word_strings[$word_id][1] : '';
+            $category_words[$term_id][$word_id] = [
+                'id' => (int) $word_id,
+                'title' => $word_title,
+                'translation' => $translation,
+            ];
         }
     }
 
@@ -5569,6 +5671,7 @@ function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array 
             : [];
         $search_index[$category_id] = [
             'search_text' => implode("\n", array_keys($token_map)),
+            'words' => array_values((array) ($category_words[$category_id] ?? [])),
         ];
     }
 
@@ -18025,13 +18128,15 @@ function ll_tools_wordset_page_handle_category_search_ajax(): void {
         ], 429);
     }
 
-    $matching_category_ids = $query === ''
+    $matching_word_rows = $query === ''
         ? []
-        : ll_tools_wordset_page_get_category_search_matching_ids($wordset_id, $allowed_category_ids, $query);
+        : ll_tools_wordset_page_get_category_search_matches($wordset_id, $allowed_category_ids, $query, 1);
+    $matching_category_ids = array_values(array_map('intval', array_keys($matching_word_rows)));
 
     $response = [
         'query' => $query,
         'categoryIds' => $matching_category_ids,
+        'wordMatches' => $matching_word_rows,
     ];
 
     ll_tools_wordset_page_record_category_search_cache_miss($token);

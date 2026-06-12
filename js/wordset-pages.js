@@ -6763,18 +6763,114 @@
         if (!key || !Object.prototype.hasOwnProperty.call(mainCategorySearchCache, key)) {
             return null;
         }
-        const lookup = mainCategorySearchCache[key];
-        return (lookup && typeof lookup === 'object') ? lookup : null;
+        const cached = mainCategorySearchCache[key];
+        if (cached && typeof cached === 'object' && cached.lookup && typeof cached.lookup === 'object') {
+            return cached.lookup;
+        }
+        return (cached && typeof cached === 'object') ? cached : null;
+    }
+
+    function getMainCategorySearchWordMatches(query) {
+        const key = getMainCategorySearchQueryKey(query);
+        if (!key || !Object.prototype.hasOwnProperty.call(mainCategorySearchCache, key)) {
+            return {};
+        }
+        const cached = mainCategorySearchCache[key];
+        if (cached && typeof cached === 'object' && cached.wordMatches && typeof cached.wordMatches === 'object') {
+            return cached.wordMatches;
+        }
+        return {};
+    }
+
+    function normalizeMainCategorySearchWordMatches(raw) {
+        const source = (raw && typeof raw === 'object') ? raw : {};
+        const normalized = {};
+        Object.keys(source).forEach(function (categoryId) {
+            const id = parseInt(categoryId, 10) || 0;
+            const rows = Array.isArray(source[categoryId]) ? source[categoryId] : [];
+            if (!id || !rows.length) {
+                return;
+            }
+            normalized[id] = rows.map(function (row) {
+                const item = (row && typeof row === 'object') ? row : {};
+                return {
+                    id: parseInt(item.id, 10) || 0,
+                    title: String(item.title || ''),
+                    translation: String(item.translation || ''),
+                    image: String(item.image || item.image_url || ''),
+                    match_rank: Math.max(0, parseInt(item.match_rank, 10) || 0),
+                    match_field: String(item.match_field || '')
+                };
+            }).filter(function (item) {
+                return item.id > 0 && (item.title || item.translation);
+            });
+        });
+        return normalized;
+    }
+
+    function getSearchTextMatchStrength(value, normalizedQuery) {
+        const query = String(normalizedQuery || '').trim();
+        if (!query) {
+            return 0;
+        }
+        const text = normalizeSearchText(value || '');
+        if (!text) {
+            return 0;
+        }
+        const tokens = text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+        if (tokens.some(function (token) { return token === query; })) {
+            return 3;
+        }
+        if (tokens.some(function (token) { return token.indexOf(query) === 0; })) {
+            return 2;
+        }
+        return text.indexOf(query) !== -1 ? 1 : 0;
+    }
+
+    function getCategoryLabelSearchRank(category, normalizedQuery) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        return Math.max(
+            getSearchTextMatchStrength(cat.translation || '', normalizedQuery),
+            getSearchTextMatchStrength(cat.name || '', normalizedQuery)
+        );
+    }
+
+    function getCategoryWordSearchRank(categoryId, normalizedQuery) {
+        const matches = getMainCategorySearchWordMatches(normalizedQuery);
+        const rows = Array.isArray(matches[categoryId]) ? matches[categoryId] : [];
+        if (rows.length) {
+            return Math.max.apply(null, rows.map(function (row) {
+                return Math.max(0, parseInt(row && row.match_rank, 10) || 0);
+            }));
+        }
+
+        const cat = getCategoryById(categoryId);
+        const legacySearchText = normalizeSearchText(cat && cat.search_text || '');
+        if (legacySearchText && legacySearchText.indexOf(normalizedQuery) !== -1) {
+            return getSearchTextMatchStrength(legacySearchText, normalizedQuery);
+        }
+        return 0;
+    }
+
+    function getCategorySearchRank(category, query) {
+        const normalizedQuery = getMainCategorySearchQueryKey(query || '');
+        if (!normalizedQuery) {
+            return 0;
+        }
+        const categoryId = parseInt(category && category.id, 10) || 0;
+        const labelRank = getCategoryLabelSearchRank(category, normalizedQuery);
+        if (labelRank > 0) {
+            return 1000 + labelRank;
+        }
+        const wordRank = categoryId > 0 ? getCategoryWordSearchRank(categoryId, normalizedQuery) : 0;
+        if (wordRank > 0) {
+            return 100 + wordRank;
+        }
+        return 0;
     }
 
     function mainCategoryLabelMatchesSearch(category, normalizedQuery) {
-        const cat = (category && typeof category === 'object') ? category : {};
-        const label = normalizeSearchText(cat.translation || cat.name || '');
-        if (label.indexOf(normalizedQuery) !== -1) {
-            return true;
-        }
-        const rawName = normalizeSearchText(cat.name || '');
-        return rawName.indexOf(normalizedQuery) !== -1;
+        return getCategoryLabelSearchRank(category, normalizedQuery) > 0;
     }
 
     function mainCategoryWordIndexMatchesSearch(category, normalizedQuery) {
@@ -6856,9 +6952,13 @@
             categoryIds.forEach(function (categoryId) {
                 lookup[categoryId] = true;
             });
-            mainCategorySearchCache[key] = lookup;
+            const cachedSearch = {
+                lookup: lookup,
+                wordMatches: normalizeMainCategorySearchWordMatches(payload.wordMatches || payload.word_matches || {})
+            };
+            mainCategorySearchCache[key] = cachedSearch;
             if (responseKey && responseKey !== key) {
-                mainCategorySearchCache[responseKey] = lookup;
+                mainCategorySearchCache[responseKey] = cachedSearch;
             }
         }).fail(function (_xhr, status) {
             if (requestToken !== mainCategorySearchRequestToken || status === 'abort') {
@@ -7903,6 +8003,137 @@
         };
     }
 
+    function highlightSearchMatchText(value, normalizedQuery) {
+        const raw = String(value || '');
+        const query = String(normalizedQuery || '').trim();
+        if (!raw || !query) {
+            return escapeHtml(raw);
+        }
+
+        let normalized = '';
+        const normalizedToOriginal = [];
+        for (let index = 0; index < raw.length; index += 1) {
+            const normalizedChar = normalizeSearchText(raw.charAt(index));
+            for (let charIndex = 0; charIndex < normalizedChar.length; charIndex += 1) {
+                normalizedToOriginal.push(index);
+            }
+            normalized += normalizedChar;
+        }
+
+        const matchIndex = normalized.indexOf(query);
+        if (matchIndex < 0 || !normalizedToOriginal.length) {
+            return '<mark>' + escapeHtml(raw) + '</mark>';
+        }
+
+        const start = normalizedToOriginal[matchIndex];
+        const end = (normalizedToOriginal[matchIndex + query.length - 1] || start) + 1;
+        return escapeHtml(raw.slice(0, start))
+            + '<mark>' + escapeHtml(raw.slice(start, end)) + '</mark>'
+            + escapeHtml(raw.slice(end));
+    }
+
+    function buildSearchWordMatchMarkup(match, query) {
+        const source = (match && typeof match === 'object') ? match : {};
+        const normalizedQuery = getMainCategorySearchQueryKey(query || '');
+        const title = String(source.title || '').trim();
+        const translation = String(source.translation || '').trim();
+        const image = String(source.image || '').trim();
+        const titleMatches = getSearchTextMatchStrength(title, normalizedQuery) > 0;
+        const translationMatches = getSearchTextMatchStrength(translation, normalizedQuery) > 0;
+        const titleHtml = titleMatches ? highlightSearchMatchText(title, normalizedQuery) : escapeHtml(title);
+        const translationHtml = translationMatches ? highlightSearchMatchText(translation, normalizedQuery) : escapeHtml(translation);
+
+        let html = '<div class="ll-wordset-card__search-match" data-ll-wordset-search-match>';
+        if (image) {
+            html += '<span class="ll-wordset-card__search-match-thumb"><img src="' + escapeHtml(image) + '" alt="" loading="lazy" decoding="async"></span>';
+        }
+        html += '<span class="ll-wordset-card__search-match-copy">';
+        if (title) {
+            html += '<span class="ll-wordset-card__search-match-title">' + titleHtml + '</span>';
+        }
+        if (translation) {
+            html += '<span class="ll-wordset-card__search-match-translation">' + translationHtml + '</span>';
+        }
+        html += '</span></div>';
+        return html;
+    }
+
+    function syncSearchWordMatchCards(query, visibleLookup) {
+        const normalizedQuery = getMainCategorySearchQueryKey(query || '');
+        const lookup = (visibleLookup && typeof visibleLookup === 'object') ? visibleLookup : {};
+        const matches = getMainCategorySearchWordMatches(normalizedQuery);
+
+        $root.find('[data-ll-wordset-search-match]').remove();
+        if (!normalizedQuery) {
+            return;
+        }
+
+        Object.keys(matches).forEach(function (categoryId) {
+            const id = parseInt(categoryId, 10) || 0;
+            if (!id || !lookup[id]) {
+                return;
+            }
+            const rows = Array.isArray(matches[categoryId]) ? matches[categoryId] : [];
+            if (!rows.length) {
+                return;
+            }
+            const $card = getWordsetCardByCategoryId(id);
+            if (!$card.length) {
+                return;
+            }
+            const markup = buildSearchWordMatchMarkup(rows[0], normalizedQuery);
+            if (!markup) {
+                return;
+            }
+            const $progress = $card.children('.ll-wordset-card__progress').first();
+            if ($progress.length) {
+                $(markup).insertBefore($progress);
+            } else {
+                $card.append(markup);
+            }
+        });
+    }
+
+    function reorderMainCategorySearchResults(query, visibleLookup) {
+        if (!$grid.length || !$grid[0]) {
+            return;
+        }
+        const normalizedQuery = getMainCategorySearchQueryKey(query || '');
+        if (!normalizedQuery) {
+            return;
+        }
+        const lookup = (visibleLookup && typeof visibleLookup === 'object') ? visibleLookup : {};
+        const ranked = categories
+            .map(function (category) {
+                const id = parseInt(category && category.id, 10) || 0;
+                return {
+                    id: id,
+                    category: category,
+                    rank: id && lookup[id] ? getCategorySearchRank(category, normalizedQuery) : 0
+                };
+            })
+            .filter(function (entry) {
+                return entry.id > 0 && lookup[entry.id] && entry.rank > 0;
+            })
+            .sort(function (left, right) {
+                if (left.rank !== right.rank) {
+                    return right.rank - left.rank;
+                }
+                return getCategoryOrderIndex(left.id) - getCategoryOrderIndex(right.id);
+            });
+
+        const fragment = document.createDocumentFragment();
+        ranked.forEach(function (entry) {
+            const node = getMainCategoryCardSlotByCategoryId(entry.id)[0];
+            if (node) {
+                fragment.appendChild(node);
+            }
+        });
+        if (fragment.childNodes.length) {
+            $grid[0].appendChild(fragment);
+        }
+    }
+
     function getLazyCardsPlaceholderColumnCount() {
         if (!$grid.length) {
             return 1;
@@ -8710,6 +8941,10 @@
         };
         if (query) {
             searchRenderResult = ensureSearchMatchCardsRendered(visibleLookup, query) || searchRenderResult;
+            syncSearchWordMatchCards(query, visibleLookup);
+            reorderMainCategorySearchResults(query, visibleLookup);
+        } else {
+            syncSearchWordMatchCards('', {});
         }
 
         const previousSelectedIds = uniqueIntList(selectedCategoryIds || []);

@@ -97,6 +97,24 @@ function buildMarkup() {
             </span>
           </div>
         </article>
+
+        <article class="ll-wordset-card" role="listitem" data-cat-id="44" data-word-count="3">
+          <div class="ll-wordset-card__top">
+            <label class="ll-wordset-card__select">
+              <input type="checkbox" value="44" data-ll-wordset-select />
+              <span class="ll-wordset-card__select-box" aria-hidden="true"></span>
+            </label>
+            <a class="ll-wordset-card__heading" href="#" aria-label="din ve inanc">
+              <h2 class="ll-wordset-card__title">din ve inanc</h2>
+            </a>
+            <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>
+          </div>
+          <div class="ll-wordset-card__progress" aria-hidden="true">
+            <span class="ll-wordset-card__progress-track">
+              <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: 100%;"></span>
+            </span>
+          </div>
+        </article>
       </div>
 
       <div class="ll-wordset-empty ll-wordset-empty--search" data-ll-wordset-page-search-empty hidden>
@@ -197,9 +215,25 @@ function buildConfig() {
         aspect_bucket: 'ratio:1_1',
         hidden: false,
         preview: []
+      },
+      {
+        id: 44,
+        slug: 'din-ve-inanc',
+        name: 'din ve inanc',
+        translation: 'din ve inanc',
+        count: 3,
+        url: '#',
+        mode: 'image',
+        prompt_type: 'audio',
+        option_type: 'image',
+        learning_supported: true,
+        gender_supported: false,
+        aspect_bucket: 'ratio:1_1',
+        hidden: false,
+        preview: []
       }
     ],
-    visibleCategoryIds: [11, 22, 33],
+    visibleCategoryIds: [11, 22, 33, 44],
     hiddenCategoryIds: [],
     state: {
       wordset_id: 77,
@@ -310,16 +344,58 @@ async function mountWordsetPage(page) {
 
       window.setTimeout(function () {
         let categoryIds = [];
+        let wordMatches = {};
         if (query.indexOf('app') !== -1 || query.indexOf('elma') !== -1) {
           categoryIds = [11];
+          wordMatches = {
+            11: [{
+              id: 1101,
+              title: 'apple',
+              translation: 'elma',
+              image: 'https://example.test/apple.jpg',
+              match_rank: 300,
+              match_field: 'title'
+            }]
+          };
         } else if (query.indexOf('cirun') !== -1 || query.indexOf('otel') !== -1) {
           categoryIds = [33];
+          wordMatches = {
+            33: [{
+              id: 3301,
+              title: 'Travel Hotel',
+              translation: 'cirun otel',
+              image: '',
+              match_rank: 300,
+              match_field: 'translation'
+            }]
+          };
+        } else if (query.indexOf('din') !== -1) {
+          categoryIds = [11, 33];
+          wordMatches = {
+            11: [{
+              id: 1102,
+              title: 'pudding',
+              translation: 'dessert',
+              image: '',
+              match_rank: 100,
+              match_field: 'title'
+            }],
+            33: [{
+              id: 3302,
+              title: 'dinner',
+              translation: 'meal',
+              image: '',
+              match_rank: 200,
+              match_field: 'title'
+            }]
+          };
         }
         deferred.resolve({
           success: true,
           data: {
             query,
-            categoryIds
+            categoryIds,
+            wordMatches
           }
         });
       }, 35);
@@ -345,7 +421,7 @@ async function setSearchValue(page, value) {
 test('main wordset search filters category cards by matching words and clears hidden selections', async ({ page }) => {
   await mountWordsetPage(page);
 
-  await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(3);
+  await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(4);
 
   await page.locator('[data-ll-wordset-select][value="22"]').check();
   await expect(page.locator('[data-ll-wordset-selection-bar]')).toBeVisible();
@@ -422,8 +498,24 @@ test('main wordset search hides the add category card while filtering', async ({
     return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
-  }).toEqual([11, 22, 33]);
+  }).toEqual([11, 22, 33, 44]);
   await expect(addCategoryCard).toBeVisible();
+});
+
+test('main wordset search ranks category title matches above word matches and shows matched word context', async ({ page }) => {
+  await mountWordsetPage(page);
+
+  await setSearchValue(page, 'din');
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([44, 33, 11]);
+
+  await expect(page.locator('.ll-wordset-card[data-cat-id="44"] [data-ll-wordset-search-match]')).toHaveCount(0);
+  await expect(page.locator('.ll-wordset-card[data-cat-id="33"] [data-ll-wordset-search-match]')).toContainText('dinner');
+  await expect(page.locator('.ll-wordset-card[data-cat-id="33"] [data-ll-wordset-search-match] mark')).toHaveText('din');
 });
 
 test('main wordset search clear button appears only for active filters and resets visible cards', async ({ page }) => {
@@ -449,6 +541,6 @@ test('main wordset search clear button appears only for active filters and reset
     return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
-  }).toEqual([11, 22, 33]);
+  }).toEqual([11, 22, 33, 44]);
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
 });

@@ -202,6 +202,8 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $index = ll_tools_get_wordset_page_category_search_index($wordset_id, [$category_id]);
         $this->assertArrayHasKey($category_id, $index);
         $this->assertStringContainsString('otel', (string) ($index[$category_id]['search_text'] ?? ''));
+        $this->assertIsArray($index[$category_id]['words'] ?? null);
+        $this->assertNotEmpty($index[$category_id]['words']);
 
         $token = ll_tools_wordset_page_store_category_search_payload([
             'wordset_id' => $wordset_id,
@@ -222,6 +224,14 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $data = (array) $response['data'];
         $this->assertSame('cirun', (string) ($data['query'] ?? ''));
         $this->assertSame([$category_id], array_values(array_map('intval', (array) ($data['categoryIds'] ?? []))));
+        $this->assertIsArray($data['wordMatches'] ?? null);
+        $this->assertArrayHasKey((string) $category_id, $data['wordMatches']);
+        $matches = (array) $data['wordMatches'][(string) $category_id];
+        $this->assertNotEmpty($matches);
+        $first_match = (array) $matches[0];
+        $this->assertSame($word_id, (int) ($first_match['id'] ?? 0));
+        $this->assertSame('translation', (string) ($first_match['match_field'] ?? ''));
+        $this->assertGreaterThan(0, (int) ($first_match['match_rank'] ?? 0));
     }
 
     /**
