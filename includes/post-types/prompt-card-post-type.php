@@ -135,10 +135,8 @@ function ll_tools_normalize_prompt_card_audio_attachment_id($attachment_id): int
     return $attachment_id;
 }
 
-function ll_tools_get_prompt_card_prompt_audio_url(int $post_id): string {
-    $attachment_id = ll_tools_normalize_prompt_card_audio_attachment_id(
-        get_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY, true)
-    );
+function ll_tools_prompt_card_resolve_prompt_audio_url_from_meta($attachment_id, $stored_url): string {
+    $attachment_id = ll_tools_normalize_prompt_card_audio_attachment_id($attachment_id);
     if ($attachment_id > 0) {
         $attachment_url = wp_get_attachment_url($attachment_id);
         if (is_string($attachment_url) && $attachment_url !== '') {
@@ -146,8 +144,15 @@ function ll_tools_get_prompt_card_prompt_audio_url(int $post_id): string {
         }
     }
 
-    $url = trim((string) get_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY, true));
+    $url = trim((string) $stored_url);
     return $url !== '' ? esc_url_raw($url) : '';
+}
+
+function ll_tools_get_prompt_card_prompt_audio_url(int $post_id): string {
+    return ll_tools_prompt_card_resolve_prompt_audio_url_from_meta(
+        get_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY, true),
+        get_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY, true)
+    );
 }
 
 function ll_tools_prompt_card_needs_prompt_audio(int $post_id): bool {
@@ -204,7 +209,7 @@ function ll_tools_get_prompt_card_data(int $post_id): array {
     ];
 }
 
-function ll_tools_get_prompt_card_posts_for_category_context(array $category_context, array $wordset_terms = []): array {
+function ll_tools_get_prompt_card_query_args_for_category_context(array $category_context, array $wordset_terms = [], array $overrides = []): array {
     $args = [
         'post_type'              => LL_TOOLS_PROMPT_CARD_POST_TYPE,
         'post_status'            => 'publish',
@@ -234,6 +239,15 @@ function ll_tools_get_prompt_card_posts_for_category_context(array $category_con
         $args['tax_query']['relation'] = 'AND';
     }
 
+    foreach ($overrides as $key => $value) {
+        $args[$key] = $value;
+    }
+
+    return $args;
+}
+
+function ll_tools_get_prompt_card_posts_for_category_context(array $category_context, array $wordset_terms = []): array {
+    $args = ll_tools_get_prompt_card_query_args_for_category_context($category_context, $wordset_terms);
     $posts = get_posts($args);
     return array_values(array_filter($posts, static function ($post): bool {
         return $post instanceof WP_Post;
@@ -241,11 +255,267 @@ function ll_tools_get_prompt_card_posts_for_category_context(array $category_con
 }
 
 function ll_tools_get_prompt_card_ids_for_category_context(array $category_context, array $wordset_terms = []): array {
-    return array_values(array_filter(array_map(static function ($post): int {
-        return ($post instanceof WP_Post) ? (int) $post->ID : 0;
-    }, ll_tools_get_prompt_card_posts_for_category_context($category_context, $wordset_terms)), static function (int $post_id): bool {
+    $args = ll_tools_get_prompt_card_query_args_for_category_context($category_context, $wordset_terms, [
+        'fields'                 => 'ids',
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+    ]);
+
+    return array_values(array_filter(array_map('intval', (array) get_posts($args)), static function (int $post_id): bool {
         return $post_id > 0;
     }));
+}
+
+function ll_tools_extract_prompt_card_word_ids($raw_ids): array {
+    if (is_string($raw_ids)) {
+        $raw_ids = preg_split('/[\s,]+/', $raw_ids);
+    }
+
+    $ids = [];
+    $seen = [];
+    foreach ((array) $raw_ids as $value) {
+        $word_id = (int) $value;
+        if ($word_id <= 0 || isset($seen[$word_id])) {
+            continue;
+        }
+
+        $seen[$word_id] = true;
+        $ids[] = $word_id;
+    }
+
+    return $ids;
+}
+
+function ll_tools_filter_prompt_card_word_ids_with_lookup($raw_ids, array $valid_word_lookup, array $exclude_ids = []): array {
+    $exclude_lookup = [];
+    foreach ($exclude_ids as $exclude_id) {
+        $exclude_id = (int) $exclude_id;
+        if ($exclude_id > 0) {
+            $exclude_lookup[$exclude_id] = true;
+        }
+    }
+
+    $ids = [];
+    $seen = [];
+    foreach (ll_tools_extract_prompt_card_word_ids($raw_ids) as $word_id) {
+        if (isset($seen[$word_id]) || isset($exclude_lookup[$word_id]) || empty($valid_word_lookup[$word_id])) {
+            continue;
+        }
+
+        $seen[$word_id] = true;
+        $ids[] = $word_id;
+    }
+
+    return $ids;
+}
+
+function ll_tools_get_prompt_card_valid_word_lookup(array $word_ids): array {
+    global $wpdb;
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $lookup = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $rows = $wpdb->get_col($wpdb->prepare(
+            "
+            SELECT ID
+            FROM {$wpdb->posts}
+            WHERE ID IN ({$placeholders})
+              AND post_type = %s
+            ",
+            array_merge($chunk, ['words'])
+        ));
+        foreach ((array) $rows as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id > 0) {
+                $lookup[$word_id] = true;
+            }
+        }
+    }
+
+    return $lookup;
+}
+
+function ll_tools_get_prompt_card_meta_map(array $prompt_card_ids, array $meta_keys): array {
+    global $wpdb;
+
+    $prompt_card_ids = array_values(array_unique(array_filter(array_map('intval', $prompt_card_ids), static function (int $post_id): bool {
+        return $post_id > 0;
+    })));
+    $meta_keys = array_values(array_unique(array_filter(array_map('strval', $meta_keys), static function (string $meta_key): bool {
+        return $meta_key !== '';
+    })));
+    if (empty($prompt_card_ids) || empty($meta_keys)) {
+        return [];
+    }
+
+    $map = [];
+    foreach (array_chunk($prompt_card_ids, 500) as $chunk) {
+        $id_placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $key_placeholders = implode(',', array_fill(0, count($meta_keys), '%s'));
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "
+            SELECT post_id, meta_key, meta_value
+            FROM {$wpdb->postmeta}
+            WHERE post_id IN ({$id_placeholders})
+              AND meta_key IN ({$key_placeholders})
+            ",
+            array_merge($chunk, $meta_keys)
+        ), ARRAY_A);
+
+        foreach ((array) $rows as $row) {
+            $post_id = isset($row['post_id']) ? (int) $row['post_id'] : 0;
+            $meta_key = isset($row['meta_key']) ? (string) $row['meta_key'] : '';
+            if ($post_id <= 0 || $meta_key === '') {
+                continue;
+            }
+            if (!isset($map[$post_id])) {
+                $map[$post_id] = [];
+            }
+            $map[$post_id][$meta_key] = maybe_unserialize($row['meta_value'] ?? '');
+        }
+    }
+
+    return $map;
+}
+
+function ll_tools_get_prompt_card_data_for_ids(array $prompt_card_ids, bool $include_prompt_audio_url = true): array {
+    global $wpdb;
+
+    $prompt_card_ids = array_values(array_unique(array_filter(array_map('intval', $prompt_card_ids), static function (int $post_id): bool {
+        return $post_id > 0;
+    })));
+    if (empty($prompt_card_ids)) {
+        return [];
+    }
+
+    $titles_by_id = [];
+    foreach (array_chunk($prompt_card_ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "
+            SELECT ID, post_title
+            FROM {$wpdb->posts}
+            WHERE ID IN ({$placeholders})
+              AND post_type = %s
+              AND post_status = %s
+            ",
+            array_merge($chunk, [LL_TOOLS_PROMPT_CARD_POST_TYPE, 'publish'])
+        ), ARRAY_A);
+        foreach ((array) $rows as $row) {
+            $post_id = isset($row['ID']) ? (int) $row['ID'] : 0;
+            if ($post_id > 0) {
+                $titles_by_id[$post_id] = (string) ($row['post_title'] ?? '');
+            }
+        }
+    }
+
+    $prompt_card_ids = array_values(array_filter($prompt_card_ids, static function (int $post_id) use ($titles_by_id): bool {
+        return isset($titles_by_id[$post_id]);
+    }));
+    if (empty($prompt_card_ids)) {
+        return [];
+    }
+
+    $meta_keys = [
+        LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY,
+        LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY,
+        LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY,
+        LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY,
+        LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY,
+    ];
+    if ($include_prompt_audio_url) {
+        $meta_keys[] = LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY;
+        $meta_keys[] = LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY;
+    }
+    $meta_by_card = ll_tools_get_prompt_card_meta_map($prompt_card_ids, $meta_keys);
+
+    $raw_by_card = [];
+    $referenced_word_ids = [];
+    foreach ($prompt_card_ids as $prompt_card_id) {
+        $meta = isset($meta_by_card[$prompt_card_id]) && is_array($meta_by_card[$prompt_card_id])
+            ? $meta_by_card[$prompt_card_id]
+            : [];
+        $correct_answer_word_id = (int) ($meta[LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY] ?? 0);
+        $prompt_image_word_id = (int) ($meta[LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY] ?? 0);
+        $wrong_answer_word_ids = ll_tools_extract_prompt_card_word_ids($meta[LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY] ?? []);
+
+        $raw_by_card[$prompt_card_id] = [
+            'correct_answer_word_id' => $correct_answer_word_id,
+            'prompt_image_word_id' => $prompt_image_word_id,
+            'wrong_answer_word_ids' => $wrong_answer_word_ids,
+        ];
+        if ($correct_answer_word_id > 0) {
+            $referenced_word_ids[] = $correct_answer_word_id;
+        }
+        if ($prompt_image_word_id > 0) {
+            $referenced_word_ids[] = $prompt_image_word_id;
+        }
+        foreach ($wrong_answer_word_ids as $wrong_answer_word_id) {
+            $referenced_word_ids[] = (int) $wrong_answer_word_id;
+        }
+    }
+
+    $valid_word_lookup = ll_tools_get_prompt_card_valid_word_lookup($referenced_word_ids);
+
+    $cards = [];
+    foreach ($prompt_card_ids as $prompt_card_id) {
+        $raw = isset($raw_by_card[$prompt_card_id]) && is_array($raw_by_card[$prompt_card_id])
+            ? $raw_by_card[$prompt_card_id]
+            : [];
+        $meta = isset($meta_by_card[$prompt_card_id]) && is_array($meta_by_card[$prompt_card_id])
+            ? $meta_by_card[$prompt_card_id]
+            : [];
+        $correct_answer_word_id = isset($raw['correct_answer_word_id']) ? (int) $raw['correct_answer_word_id'] : 0;
+        if ($correct_answer_word_id <= 0 || empty($valid_word_lookup[$correct_answer_word_id])) {
+            $correct_answer_word_id = 0;
+        }
+
+        $prompt_image_word_id = isset($raw['prompt_image_word_id']) ? (int) $raw['prompt_image_word_id'] : 0;
+        if ($prompt_image_word_id <= 0 || empty($valid_word_lookup[$prompt_image_word_id])) {
+            $prompt_image_word_id = $correct_answer_word_id;
+        }
+
+        $cards[] = [
+            'id' => $prompt_card_id,
+            'title' => (string) ($titles_by_id[$prompt_card_id] ?? ''),
+            'prompt_text' => sanitize_textarea_field((string) ($meta[LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY] ?? '')),
+            'prompt_audio_attachment_id' => $include_prompt_audio_url
+                ? ll_tools_normalize_prompt_card_audio_attachment_id($meta[LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY] ?? 0)
+                : 0,
+            'prompt_audio_url' => $include_prompt_audio_url
+                ? ll_tools_prompt_card_resolve_prompt_audio_url_from_meta(
+                    $meta[LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY] ?? 0,
+                    $meta[LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY] ?? ''
+                )
+                : '',
+            'prompt_image_word_id' => max(0, $prompt_image_word_id),
+            'correct_answer_word_id' => max(0, $correct_answer_word_id),
+            'wrong_answer_word_ids' => ll_tools_filter_prompt_card_word_ids_with_lookup(
+                $raw['wrong_answer_word_ids'] ?? [],
+                $valid_word_lookup,
+                [$correct_answer_word_id]
+            ),
+            'track_answer_word_progress' => !array_key_exists(LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY, $meta)
+                ? true
+                : !empty($meta[LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY]),
+        ];
+    }
+
+    return $cards;
+}
+
+function ll_tools_get_prompt_card_data_for_category_context(array $category_context, array $wordset_terms = [], bool $include_prompt_audio_url = true): array {
+    return ll_tools_get_prompt_card_data_for_ids(
+        ll_tools_get_prompt_card_ids_for_category_context($category_context, $wordset_terms),
+        $include_prompt_audio_url
+    );
 }
 
 function ll_tools_prompt_card_get_category_ids_for_word_references(array $word_ids): array {

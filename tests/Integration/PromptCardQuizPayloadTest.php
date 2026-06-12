@@ -71,6 +71,45 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertSame([$fixture['is_this_horse_card_id']], $this->normalizeIds((array) ($no_support_row['specific_wrong_answer_owner_ids'] ?? [])));
     }
 
+    public function test_prompt_card_count_and_renderable_id_paths_use_id_only_queries(): void
+    {
+        $fixture = $this->createPromptCardFixture();
+        $term = get_term($fixture['effective_prompt_category_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $config = ll_tools_get_category_quiz_config($term);
+        $captured_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_queries): void {
+            if ((string) $query->get('post_type') !== LL_TOOLS_PROMPT_CARD_POST_TYPE) {
+                return;
+            }
+
+            $captured_queries[] = [
+                'fields' => $query->get('fields'),
+                'update_post_meta_cache' => $query->get('update_post_meta_cache'),
+                'update_post_term_cache' => $query->get('update_post_term_cache'),
+            ];
+        };
+
+        add_action('pre_get_posts', $capture);
+        try {
+            $count = ll_get_words_by_category_count($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+            $ids = ll_tools_get_renderable_category_item_ids($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+        } finally {
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $this->assertSame(2, $count);
+        $this->assertContains((int) $fixture['horse_or_cow_card_id'], $ids);
+        $this->assertContains((int) $fixture['is_this_horse_card_id'], $ids);
+        $this->assertNotEmpty($captured_queries, 'Cold count/renderable helpers should query prompt cards.');
+        foreach ($captured_queries as $query_args) {
+            $this->assertSame('ids', (string) ($query_args['fields'] ?? ''));
+            $this->assertFalse((bool) ($query_args['update_post_meta_cache'] ?? true));
+            $this->assertFalse((bool) ($query_args['update_post_term_cache'] ?? true));
+        }
+    }
+
     public function test_candidate_scoped_prompt_card_payload_only_expands_matching_answer_cards(): void
     {
         $fixture = $this->createPromptCardFixture();

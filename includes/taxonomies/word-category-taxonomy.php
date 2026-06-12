@@ -4424,21 +4424,18 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
     $prompt_card_support_word_ids = [];
     $prompt_card_support_lookup = [];
     $prompt_card_wrong_support_lookup = [];
-    if (
-        function_exists('ll_tools_get_prompt_card_posts_for_category_context')
-        && function_exists('ll_tools_get_prompt_card_data')
-    ) {
-        foreach (ll_tools_get_prompt_card_posts_for_category_context($category_context, $wordset_terms) as $prompt_card_post) {
-            if (!($prompt_card_post instanceof WP_Post)) {
+    if (function_exists('ll_tools_get_prompt_card_data_for_category_context')) {
+        $include_prompt_card_audio_url = ll_tools_quiz_prompt_type_has_audio($prompt_type);
+        foreach (ll_tools_get_prompt_card_data_for_category_context($category_context, $wordset_terms, $include_prompt_card_audio_url) as $card) {
+            if (!is_array($card)) {
                 continue;
             }
 
-            $prompt_card_id = (int) $prompt_card_post->ID;
+            $prompt_card_id = (int) ($card['id'] ?? 0);
             if ($prompt_card_id <= 0) {
                 continue;
             }
 
-            $card = ll_tools_get_prompt_card_data($prompt_card_id);
             if (empty($card) || empty($card['correct_answer_word_id'])) {
                 continue;
             }
@@ -4823,21 +4820,18 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     $prompt_card_support_word_ids = [];
     $prompt_card_support_lookup = [];
     $prompt_card_wrong_support_lookup = [];
-    if (
-        function_exists('ll_tools_get_prompt_card_posts_for_category_context')
-        && function_exists('ll_tools_get_prompt_card_data')
-    ) {
-        foreach (ll_tools_get_prompt_card_posts_for_category_context($category_context, $wordset_terms) as $prompt_card_post) {
-            if (!($prompt_card_post instanceof WP_Post)) {
+    if (function_exists('ll_tools_get_prompt_card_data_for_category_context')) {
+        $include_prompt_card_audio_url = ll_tools_quiz_prompt_type_has_audio($prompt_type);
+        foreach (ll_tools_get_prompt_card_data_for_category_context($category_context, $wordset_terms, $include_prompt_card_audio_url) as $card) {
+            if (!is_array($card)) {
                 continue;
             }
 
-            $prompt_card_id = (int) $prompt_card_post->ID;
+            $prompt_card_id = (int) ($card['id'] ?? 0);
             if ($prompt_card_id <= 0) {
                 continue;
             }
 
-            $card = ll_tools_get_prompt_card_data($prompt_card_id);
             if (empty($card) || empty($card['correct_answer_word_id'])) {
                 continue;
             }
@@ -5414,21 +5408,17 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
         $prompt_card_support_role_map[$word_id][$role] = true;
     };
-    if (
-        function_exists('ll_tools_get_prompt_card_posts_for_category_context')
-        && function_exists('ll_tools_get_prompt_card_data')
-    ) {
-        foreach (ll_tools_get_prompt_card_posts_for_category_context($category_context, $wordset_terms) as $prompt_card_post) {
-            if (!($prompt_card_post instanceof WP_Post)) {
+    if (function_exists('ll_tools_get_prompt_card_data_for_category_context')) {
+        foreach (ll_tools_get_prompt_card_data_for_category_context($category_context, $wordset_terms, true) as $card) {
+            if (!is_array($card)) {
                 continue;
             }
 
-            $prompt_card_id = (int) $prompt_card_post->ID;
+            $prompt_card_id = (int) ($card['id'] ?? 0);
             if ($prompt_card_id <= 0) {
                 continue;
             }
 
-            $card = ll_tools_get_prompt_card_data($prompt_card_id);
             if (empty($card) || empty($card['correct_answer_word_id'])) {
                 continue;
             }
