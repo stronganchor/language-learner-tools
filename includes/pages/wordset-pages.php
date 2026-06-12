@@ -2638,6 +2638,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
     }
     $prompt_type = isset($quiz_config['prompt_type']) ? (string) $quiz_config['prompt_type'] : 'audio';
     $option_type = isset($quiz_config['option_type']) ? (string) $quiz_config['option_type'] : 'image';
+    $use_titles = !empty($quiz_config['use_titles']);
     $requires_audio = function_exists('ll_tools_quiz_requires_audio')
         ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
         : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
@@ -2682,7 +2683,8 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
         'requires_audio' => $requires_audio ? 1 : 0,
-        'prompt_card_preview_schema' => 5,
+        'use_titles' => $use_titles ? 1 : 0,
+        'prompt_card_preview_schema' => 6,
     ]);
     $cached_preview = ll_tools_wordset_page_get_cached_payload($preview_cache_key, $request_cache);
     if (is_array($cached_preview)) {
@@ -2937,7 +2939,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 continue;
             }
 
-            $label = get_the_title($answer_word_id);
+            $label = ll_tools_wordset_preview_build_answer_option_label((int) $answer_word_id, $option_type, $use_titles);
             if ($label === '') {
                 continue;
             }
@@ -3079,7 +3081,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
             if (empty($text_public_preview_lookup[(int) $word_id])) {
                 continue;
             }
-            $label = get_the_title($word_id);
+            $label = ll_tools_wordset_preview_build_answer_option_label((int) $word_id, $option_type, $use_titles);
             if ($label === '') {
                 continue;
             }

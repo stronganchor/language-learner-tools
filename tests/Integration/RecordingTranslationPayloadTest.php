@@ -65,12 +65,20 @@ final class RecordingTranslationPayloadTest extends LL_Tools_TestCase
 
     public function test_category_rows_use_active_category_title_storage_for_translation_answers(): void
     {
+        $wordset = wp_insert_term('Number Wordset', 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
         $broad_category = wp_insert_term('Broad Number Category', 'word-category');
         $this->assertFalse(is_wp_error($broad_category));
         $this->assertIsArray($broad_category);
         $broad_category_id = (int) $broad_category['term_id'];
         update_term_meta($broad_category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($broad_category_id, 'll_quiz_option_type', 'text_translation');
+        if (function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($broad_category_id, $wordset_id, $broad_category_id);
+        }
 
         $active_category = wp_insert_term('Active Number Category', 'word-category');
         $this->assertFalse(is_wp_error($active_category));
@@ -79,22 +87,26 @@ final class RecordingTranslationPayloadTest extends LL_Tools_TestCase
         update_term_meta($active_category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($active_category_id, 'll_quiz_option_type', 'text_translation');
         update_term_meta($active_category_id, 'use_word_titles_for_audio', '1');
+        if (function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($active_category_id, $wordset_id, $active_category_id);
+        }
 
         $word_id = self::factory()->post->create([
             'post_type'   => 'words',
             'post_status' => 'publish',
-            'post_title'  => 'Pûnces',
+            'post_title'  => 'Punces',
         ]);
         update_post_meta($word_id, 'word_translation', '15');
         wp_set_post_terms($word_id, [$broad_category_id, $active_category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         $isolation_type_id = $this->ensureRecordingType('isolation', 'Isolation');
-        $this->createAudioPost($word_id, $isolation_type_id, 'Pûnces isolation', 'Pûnces', '', 'https://example.com/audio/punces.mp3');
+        $this->createAudioPost($word_id, $isolation_type_id, 'Punces isolation', 'Punces', '', 'https://example.com/audio/punces.mp3');
 
         $rows = ll_get_words_by_category(
             'Active Number Category',
             'text_translation',
-            null,
+            [$wordset_id],
             [
                 'prompt_type' => 'audio',
                 'option_type' => 'text_translation',
@@ -103,10 +115,15 @@ final class RecordingTranslationPayloadTest extends LL_Tools_TestCase
         );
 
         $this->assertCount(1, $rows);
-        $this->assertSame('Pûnces', (string) ($rows[0]['title'] ?? ''));
+        $this->assertSame('Punces', (string) ($rows[0]['title'] ?? ''));
         $this->assertSame('15', (string) ($rows[0]['translation'] ?? ''));
         $this->assertSame('15', (string) ($rows[0]['label'] ?? ''));
-        $this->assertSame('Pûnces', (string) ($rows[0]['prompt_label'] ?? ''));
+        $this->assertSame('Punces', (string) ($rows[0]['prompt_label'] ?? ''));
+
+        $preview = ll_tools_get_wordset_category_preview($wordset_id, $active_category_id, 4, false);
+        $preview_items = (array) ($preview['items'] ?? []);
+        $this->assertNotEmpty($preview_items);
+        $this->assertSame('15', (string) ($preview_items[0]['label'] ?? ''));
     }
 
     private function ensureRecordingType(string $slug, string $label): int

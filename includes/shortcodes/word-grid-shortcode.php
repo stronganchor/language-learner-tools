@@ -2321,7 +2321,7 @@ function ll_tools_word_grid_render_inline_title_editor(array $args): string {
     return (string) ob_get_clean();
 }
 
-function ll_tools_word_grid_resolve_display_text(int $word_id): array {
+function ll_tools_word_grid_resolve_display_text(int $word_id, ?bool $store_in_title_override = null): array {
     $word_post = get_post($word_id);
     if (!$word_post || $word_post->post_type !== 'words') {
         return [
@@ -2331,9 +2331,11 @@ function ll_tools_word_grid_resolve_display_text(int $word_id): array {
         ];
     }
 
-    $store_in_title = function_exists('ll_tools_should_store_word_in_title')
-        ? ll_tools_should_store_word_in_title($word_id)
-        : true;
+    $store_in_title = $store_in_title_override !== null
+        ? $store_in_title_override
+        : (function_exists('ll_tools_should_store_word_in_title')
+            ? ll_tools_should_store_word_in_title($word_id)
+            : true);
     $word_title = get_the_title($word_id);
     $word_translation = get_post_meta($word_id, 'word_translation', true);
     $legacy_translation = get_post_meta($word_id, 'word_english_meaning', true);

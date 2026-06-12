@@ -2502,7 +2502,7 @@ function ll_tools_wordset_preview_uses_text_answer_options(string $option_type):
     return strpos($option_type, 'text') === 0;
 }
 
-function ll_tools_wordset_preview_build_answer_option_label(int $word_id, string $option_type): string {
+function ll_tools_wordset_preview_build_answer_option_label(int $word_id, string $option_type, ?bool $store_in_title_override = null): string {
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
         return '';
@@ -2518,7 +2518,7 @@ function ll_tools_wordset_preview_build_answer_option_label(int $word_id, string
     $translation = '';
 
     if (function_exists('ll_tools_word_grid_resolve_display_text')) {
-        $display_values = ll_tools_word_grid_resolve_display_text($word_id);
+        $display_values = ll_tools_word_grid_resolve_display_text($word_id, $store_in_title_override);
         $word_text = trim((string) ($display_values['word_text'] ?? ''));
         $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
         if ($word_text !== '') {
