@@ -955,6 +955,135 @@ function ll_tools_wordset_page_get_category_word_status_summary(int $category_id
 }
 
 /**
+ * @param string[] $post_types
+ * @return int[]
+ */
+function ll_tools_wordset_page_get_wordset_post_category_ids(int $wordset_id, array $post_types): array {
+    $wordset_id = (int) $wordset_id;
+    $post_types = array_values(array_unique(array_filter(array_map('sanitize_key', $post_types), static function (string $post_type): bool {
+        return $post_type !== '';
+    })));
+    if ($wordset_id <= 0 || empty($post_types)) {
+        return [];
+    }
+
+    $wordset_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+    if ($wordset_tt_id <= 0) {
+        return [];
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $post_type_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($post_types), '%s');
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $sql = "
+        SELECT DISTINCT category_taxonomy.term_id
+        FROM {$wpdb->posts} AS posts
+        INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+            AND wordset_relationships.term_taxonomy_id = %d
+        INNER JOIN {$wpdb->term_relationships} AS category_relationships
+            ON category_relationships.object_id = posts.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+            AND category_taxonomy.taxonomy = 'word-category'
+        WHERE posts.post_type IN ({$post_type_placeholders})
+            AND posts.post_status IN ({$status_placeholders})
+    ";
+
+    $ids = $wpdb->get_col(ll_tools_wordset_page_prepare_sql($sql, array_merge([$wordset_tt_id], $post_types, $statuses)));
+
+    return array_values(array_unique(array_filter(array_map('intval', (array) $ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+}
+
+/**
+ * @param int[] $owned_category_ids
+ * @return int[]
+ */
+function ll_tools_wordset_page_get_word_image_category_ids_for_wordset(int $wordset_id, array $owned_category_ids): array {
+    $wordset_id = (int) $wordset_id;
+    $owned_category_ids = array_values(array_unique(array_filter(array_map('intval', $owned_category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    sort($owned_category_ids, SORT_NUMERIC);
+    if ($wordset_id <= 0 || empty($owned_category_ids)) {
+        return [];
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY') ? LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY : '';
+    $use_owner_meta = $owner_meta_key !== '' && function_exists('ll_tools_get_word_image_owner_meta_query');
+    $wordset_tt_id = $use_owner_meta ? 0 : ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+    if (!$use_owner_meta && $wordset_tt_id <= 0) {
+        return [];
+    }
+
+    $category_ids = [];
+    foreach (array_chunk($owned_category_ids, 500) as $category_chunk) {
+        $scoped_category_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($category_chunk), '%d');
+        if ($scoped_category_placeholders === '') {
+            continue;
+        }
+
+        $owner_join = '';
+        $owner_where = '';
+        $wordset_join = '';
+        if ($use_owner_meta) {
+            $owner_join = "
+                LEFT JOIN {$wpdb->postmeta} AS owner_meta
+                    ON owner_meta.post_id = posts.ID
+                    AND owner_meta.meta_key = %s
+            ";
+            $owner_where = "AND (owner_meta.meta_value = %s OR owner_meta.post_id IS NULL OR owner_meta.meta_value IN ('0', ''))";
+            $query_args = array_merge([$owner_meta_key], $category_chunk, ['word_images'], $statuses, [(string) $wordset_id]);
+        } else {
+            $wordset_join = "
+                INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+                    ON wordset_relationships.object_id = posts.ID
+                    AND wordset_relationships.term_taxonomy_id = %d
+            ";
+            $query_args = array_merge($category_chunk, [$wordset_tt_id, 'word_images'], $statuses);
+        }
+
+        $sql = "
+            SELECT DISTINCT category_taxonomy.term_id
+            FROM {$wpdb->posts} AS posts
+            {$owner_join}
+            INNER JOIN {$wpdb->term_relationships} AS scoped_category_relationships
+                ON scoped_category_relationships.object_id = posts.ID
+            INNER JOIN {$wpdb->term_taxonomy} AS scoped_category_taxonomy
+                ON scoped_category_taxonomy.term_taxonomy_id = scoped_category_relationships.term_taxonomy_id
+                AND scoped_category_taxonomy.taxonomy = 'word-category'
+                AND scoped_category_taxonomy.term_id IN ({$scoped_category_placeholders})
+            INNER JOIN {$wpdb->term_relationships} AS category_relationships
+                ON category_relationships.object_id = posts.ID
+            INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+                ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+                AND category_taxonomy.taxonomy = 'word-category'
+            {$wordset_join}
+            WHERE posts.post_type = %s
+                AND posts.post_status IN ({$status_placeholders})
+                {$owner_where}
+        ";
+
+        $ids = $wpdb->get_col(ll_tools_wordset_page_prepare_sql($sql, $query_args));
+        if (!empty($ids)) {
+            $category_ids = array_merge($category_ids, array_map('intval', (array) $ids));
+        }
+    }
+
+    return array_values(array_unique(array_filter($category_ids, static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+}
+
+/**
  * @return int[]
  */
 function ll_tools_wordset_page_get_category_word_ids(int $category_id, int $wordset_id): array {
@@ -1004,7 +1133,7 @@ function ll_tools_wordset_page_is_uncategorized_virtual_category(array $category
 /**
  * @return int[]
  */
-function ll_tools_wordset_page_get_uncategorized_word_ids(int $wordset_id): array {
+function ll_tools_wordset_page_get_uncategorized_categorizing_category_ids(int $wordset_id): array {
     static $request_cache = [];
 
     $wordset_id = (int) $wordset_id;
@@ -1016,65 +1145,196 @@ function ll_tools_wordset_page_get_uncategorized_word_ids(int $wordset_id): arra
         return $request_cache[$wordset_id];
     }
 
-    $word_ids = get_posts([
-        'post_type'              => 'words',
-        'post_status'            => ['publish', 'draft', 'pending', 'future', 'private'],
-        'posts_per_page'         => -1,
-        'fields'                 => 'ids',
-        'orderby'                => 'title',
-        'order'                  => 'ASC',
-        'no_found_rows'          => true,
-        'cache_results'          => false,
-        'update_post_meta_cache' => false,
-        'update_post_term_cache' => false,
-        'tax_query'              => [
-            [
-                'taxonomy' => 'wordset',
-                'field'    => 'term_id',
-                'terms'    => [$wordset_id],
-            ],
-        ],
-    ]);
-
-    $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids), static function (int $word_id): bool {
-        return $word_id > 0;
-    }));
-    if (empty($word_ids)) {
-        $request_cache[$wordset_id] = [];
-        return [];
-    }
-
     $available_category_ids = [];
+    $source_category_ids = [];
     if (function_exists('ll_tools_wordset_page_get_owned_category_terms')) {
         foreach (ll_tools_wordset_page_get_owned_category_terms($wordset_id) as $term) {
-            if ($term instanceof WP_Term && !is_wp_error($term)) {
-                $available_category_ids[] = (int) $term->term_id;
+            if (!($term instanceof WP_Term) || is_wp_error($term)) {
+                continue;
+            }
+            $category_id = (int) $term->term_id;
+            if ($category_id <= 0) {
+                continue;
+            }
+            $available_category_ids[] = $category_id;
+            $source_category_id = function_exists('ll_tools_get_category_isolation_source_id')
+                ? (int) ll_tools_get_category_isolation_source_id($term)
+                : $category_id;
+            if ($source_category_id > 0) {
+                $source_category_ids[] = $source_category_id;
             }
         }
     }
+
     $available_category_ids = array_values(array_unique(array_filter(array_map('intval', $available_category_ids), static function (int $category_id): bool {
         return $category_id > 0;
     })));
+    $source_category_ids = array_values(array_unique(array_filter(array_map('intval', $source_category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
 
-    $uncategorized_word_ids = [];
-    foreach ($word_ids as $word_id) {
-        $selected_category_ids = [];
-        if (function_exists('ll_tools_word_grid_get_selected_category_ids_for_editor')) {
-            $selected_category_ids = ll_tools_word_grid_get_selected_category_ids_for_editor($word_id, $wordset_id, $available_category_ids);
-        } elseif (!empty($available_category_ids)) {
-            $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-            if (!is_wp_error($term_ids)) {
-                $selected_category_ids = array_values(array_intersect($available_category_ids, array_map('intval', (array) $term_ids)));
-            }
-        }
-
-        if (empty($selected_category_ids)) {
-            $uncategorized_word_ids[] = $word_id;
+    $categorizing_ids = array_merge($available_category_ids, $source_category_ids);
+    if (!empty($source_category_ids) && defined('LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY')) {
+        $copy_ids = get_terms([
+            'taxonomy'   => 'word-category',
+            'hide_empty' => false,
+            'fields'     => 'ids',
+            'meta_query' => [
+                [
+                    'key'     => LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY,
+                    'value'   => $source_category_ids,
+                    'compare' => 'IN',
+                ],
+            ],
+        ]);
+        if (!is_wp_error($copy_ids) && !empty($copy_ids)) {
+            $categorizing_ids = array_merge($categorizing_ids, array_map('intval', (array) $copy_ids));
         }
     }
 
-    $request_cache[$wordset_id] = $uncategorized_word_ids;
-    return $uncategorized_word_ids;
+    $categorizing_ids = array_values(array_unique(array_filter(array_map('intval', $categorizing_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    sort($categorizing_ids, SORT_NUMERIC);
+
+    $request_cache[$wordset_id] = $categorizing_ids;
+    return $categorizing_ids;
+}
+
+/**
+ * @param int[] $categorizing_category_ids
+ * @return array{sql:string,args:int[]}
+ */
+function ll_tools_wordset_page_get_uncategorized_word_exclusion_sql(array $categorizing_category_ids): array {
+    $categorizing_category_ids = array_values(array_unique(array_filter(array_map('intval', $categorizing_category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    if (empty($categorizing_category_ids)) {
+        return [
+            'sql' => '',
+            'args' => [],
+        ];
+    }
+
+    global $wpdb;
+
+    $category_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($categorizing_category_ids), '%d');
+    return [
+        'sql' => "
+            AND NOT EXISTS (
+                SELECT 1
+                FROM {$wpdb->term_relationships} AS selected_category_relationships
+                INNER JOIN {$wpdb->term_taxonomy} AS selected_category_taxonomy
+                    ON selected_category_taxonomy.term_taxonomy_id = selected_category_relationships.term_taxonomy_id
+                    AND selected_category_taxonomy.taxonomy = 'word-category'
+                    AND selected_category_taxonomy.term_id IN ({$category_placeholders})
+                WHERE selected_category_relationships.object_id = posts.ID
+                LIMIT 1
+            )
+        ",
+        'args' => $categorizing_category_ids,
+    ];
+}
+
+function ll_tools_wordset_page_get_uncategorized_word_count(int $wordset_id): int {
+    static $request_cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return 0;
+    }
+    if (isset($request_cache[$wordset_id])) {
+        return (int) $request_cache[$wordset_id];
+    }
+
+    $wordset_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+    if ($wordset_tt_id <= 0) {
+        $request_cache[$wordset_id] = 0;
+        return 0;
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $exclusion = ll_tools_wordset_page_get_uncategorized_word_exclusion_sql(
+        ll_tools_wordset_page_get_uncategorized_categorizing_category_ids($wordset_id)
+    );
+
+    $sql = "
+        SELECT COUNT(DISTINCT posts.ID)
+        FROM {$wpdb->posts} AS posts
+        INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+            AND wordset_relationships.term_taxonomy_id = %d
+        WHERE posts.post_type = %s
+            AND posts.post_status IN ({$status_placeholders})
+            {$exclusion['sql']}
+    ";
+
+    $count = (int) $wpdb->get_var(ll_tools_wordset_page_prepare_sql(
+        $sql,
+        array_merge([$wordset_tt_id, 'words'], $statuses, $exclusion['args'])
+    ));
+
+    $request_cache[$wordset_id] = max(0, $count);
+    return $request_cache[$wordset_id];
+}
+
+/**
+ * @return int[]
+ */
+function ll_tools_wordset_page_get_uncategorized_word_ids(int $wordset_id, int $limit = 0): array {
+    static $request_cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    $limit = max(0, (int) $limit);
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $cache_key = $wordset_id . ':' . $limit;
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $wordset_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+    if ($wordset_tt_id <= 0) {
+        $request_cache[$cache_key] = [];
+        return [];
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $exclusion = ll_tools_wordset_page_get_uncategorized_word_exclusion_sql(
+        ll_tools_wordset_page_get_uncategorized_categorizing_category_ids($wordset_id)
+    );
+    $limit_sql = $limit > 0 ? 'LIMIT %d' : '';
+
+    $sql = "
+        SELECT DISTINCT posts.ID
+        FROM {$wpdb->posts} AS posts
+        INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+            AND wordset_relationships.term_taxonomy_id = %d
+        WHERE posts.post_type = %s
+            AND posts.post_status IN ({$status_placeholders})
+            {$exclusion['sql']}
+        ORDER BY posts.post_title ASC, posts.ID ASC
+        {$limit_sql}
+    ";
+    $query_args = array_merge([$wordset_tt_id, 'words'], $statuses, $exclusion['args']);
+    if ($limit > 0) {
+        $query_args[] = $limit;
+    }
+    $word_ids = $wpdb->get_col(ll_tools_wordset_page_prepare_sql($sql, $query_args));
+
+    $request_cache[$cache_key] = array_values(array_filter(array_map('intval', (array) $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    return $request_cache[$cache_key];
 }
 
 function ll_tools_wordset_page_get_uncategorized_editor_url(int $wordset_id): string {
@@ -1098,13 +1358,14 @@ function ll_tools_wordset_page_build_uncategorized_virtual_category(int $wordset
         return null;
     }
 
-    $word_ids = ll_tools_wordset_page_get_uncategorized_word_ids($wordset_id);
-    if (empty($word_ids)) {
+    $word_count = ll_tools_wordset_page_get_uncategorized_word_count($wordset_id);
+    if ($word_count <= 0) {
         return null;
     }
 
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
     $preview_limit = max(1, max(4, (int) $preview_limit));
+    $word_ids = ll_tools_wordset_page_get_uncategorized_word_ids($wordset_id, $preview_limit);
     $preview = [];
     $search_text_parts = [
         $uncategorized_label,
@@ -1150,7 +1411,7 @@ function ll_tools_wordset_page_build_uncategorized_virtual_category(int $wordset
         'sign_language_mode' => false,
         'gender_supported' => false,
         'aspect_bucket' => 'no-image',
-        'count' => count($word_ids),
+        'count' => $word_count,
         'wordset_id' => $wordset_id,
         'preview' => $preview,
         'search_text' => implode("\n", array_values(array_unique(array_filter($search_text_parts, static function ($value): bool {
@@ -1167,7 +1428,7 @@ function ll_tools_wordset_page_build_uncategorized_virtual_category(int $wordset
         'public_note' => __('Words without a category in this word set.', 'll-tools-text-domain'),
         'word_image_count' => 0,
         'prompt_card_count' => 0,
-        'content_count' => count($word_ids),
+        'content_count' => $word_count,
         'can_manage_inactive' => false,
         'can_hide' => false,
         'can_preview' => false,
@@ -1225,74 +1486,19 @@ function ll_tools_wordset_page_get_staff_category_terms(int $wordset_id, array $
     // Staff-only inactive cards should include draft lesson/quiz content and
     // owned category shells so managers can clean up accidental copied terms.
     $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
-    $object_ids = get_posts([
-        'post_type'      => ['words', $prompt_card_post_type],
-        'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-        'tax_query'      => [
-            [
-                'taxonomy' => 'wordset',
-                'field'    => 'term_id',
-                'terms'    => [$wordset_id],
-            ],
-        ],
-    ]);
-    $object_ids = array_values(array_filter(array_map('intval', (array) $object_ids), static function (int $object_id): bool {
-        return $object_id > 0;
-    }));
-    if (!empty($object_ids)) {
-        $object_term_ids = wp_get_object_terms($object_ids, 'word-category', ['fields' => 'ids']);
-        if (!is_wp_error($object_term_ids)) {
-            $candidate_ids = array_merge($candidate_ids, (array) $object_term_ids);
-        }
-    }
+    $candidate_ids = array_merge(
+        $candidate_ids,
+        ll_tools_wordset_page_get_wordset_post_category_ids($wordset_id, ['words', $prompt_card_post_type])
+    );
 
     $owned_category_ids = array_values(array_unique(array_filter(array_map('intval', $owned_category_ids), static function (int $term_id): bool {
         return $term_id > 0;
     })));
-    $word_image_query = [];
     if (!empty($owned_category_ids)) {
-        $word_image_query = [
-            'post_type'              => 'word_images',
-            'post_status'            => ['publish', 'draft', 'pending', 'future', 'private'],
-            'posts_per_page'         => -1,
-            'fields'                 => 'ids',
-            'no_found_rows'          => true,
-            'cache_results'          => false,
-            'update_post_meta_cache' => false,
-            'update_post_term_cache' => false,
-            'tax_query'              => [
-                [
-                    'taxonomy' => 'word-category',
-                    'field'    => 'term_id',
-                    'terms'    => $owned_category_ids,
-                ],
-            ],
-        ];
-        if (function_exists('ll_tools_get_word_image_owner_meta_query')) {
-            $owner_meta_query = ll_tools_get_word_image_owner_meta_query([$wordset_id], true);
-            if (!empty($owner_meta_query)) {
-                $word_image_query['meta_query'] = $owner_meta_query;
-            }
-        } else {
-            $word_image_query['tax_query'][] = [
-                'taxonomy' => 'wordset',
-                'field'    => 'term_id',
-                'terms'    => [$wordset_id],
-            ];
-        }
-    }
-    $word_image_ids = !empty($word_image_query) ? get_posts($word_image_query) : [];
-    $word_image_ids = array_values(array_filter(array_map('intval', (array) $word_image_ids), static function (int $image_id): bool {
-        return $image_id > 0;
-    }));
-    if (!empty($word_image_ids)) {
-        $word_image_term_ids = wp_get_object_terms($word_image_ids, 'word-category', ['fields' => 'ids']);
-        if (!is_wp_error($word_image_term_ids)) {
-            $candidate_ids = array_merge($candidate_ids, (array) $word_image_term_ids);
-        }
+        $candidate_ids = array_merge(
+            $candidate_ids,
+            ll_tools_wordset_page_get_word_image_category_ids_for_wordset($wordset_id, $owned_category_ids)
+        );
     }
 
     $candidate_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_ids), static function (int $term_id): bool {
@@ -5696,6 +5902,117 @@ function ll_tools_wordset_page_get_category_search_matches(int $wordset_id, arra
     }
 
     return $matches;
+}
+
+function ll_tools_wordset_page_get_uncategorized_word_search_matches(int $wordset_id, string $query, int $per_category_limit = 1): array {
+    $wordset_id = (int) $wordset_id;
+    $query = ll_tools_wordset_page_prepare_category_search_query($query);
+    if ($wordset_id <= 0 || $query === '' || !ll_tools_wordset_page_current_user_can_preview_inactive_categories($wordset_id)) {
+        return [];
+    }
+
+    $wordset_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+    if ($wordset_tt_id <= 0) {
+        return [];
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $exclusion = ll_tools_wordset_page_get_uncategorized_word_exclusion_sql(
+        ll_tools_wordset_page_get_uncategorized_categorizing_category_ids($wordset_id)
+    );
+    $like = '%' . $wpdb->esc_like($query) . '%';
+    $candidate_limit = max(1, $per_category_limit > 0 ? $per_category_limit * 10 : 1);
+    $candidate_limit = min(50, max(10, $candidate_limit));
+
+    $sql = "
+        SELECT DISTINCT
+            posts.ID AS word_id,
+            posts.post_title AS word_title,
+            translation_meta.meta_value AS translation_value,
+            legacy_translation_meta.meta_value AS legacy_translation_value
+        FROM {$wpdb->posts} AS posts
+        INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+            AND wordset_relationships.term_taxonomy_id = %d
+        LEFT JOIN {$wpdb->postmeta} AS translation_meta
+            ON translation_meta.post_id = posts.ID
+            AND translation_meta.meta_key = 'word_translation'
+        LEFT JOIN {$wpdb->postmeta} AS legacy_translation_meta
+            ON legacy_translation_meta.post_id = posts.ID
+            AND legacy_translation_meta.meta_key = 'word_english_meaning'
+        WHERE posts.post_type = %s
+            AND posts.post_status IN ({$status_placeholders})
+            {$exclusion['sql']}
+            AND (
+                LOWER(posts.post_title) LIKE %s
+                OR LOWER(translation_meta.meta_value) LIKE %s
+                OR LOWER(legacy_translation_meta.meta_value) LIKE %s
+            )
+        ORDER BY posts.post_title ASC, posts.ID ASC
+        LIMIT %d
+    ";
+
+    $rows = $wpdb->get_results(
+        ll_tools_wordset_page_prepare_sql(
+            $sql,
+            array_merge([$wordset_tt_id, 'words'], $statuses, $exclusion['args'], [$like, $like, $like, $candidate_limit])
+        ),
+        ARRAY_A
+    );
+    if (empty($rows)) {
+        return [];
+    }
+
+    $word_matches = [];
+    foreach ((array) $rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+        if ($word_id <= 0) {
+            continue;
+        }
+        $title = ll_tools_wordset_page_normalize_search_text((string) ($row['word_title'] ?? ''));
+        $translation = ll_tools_wordset_page_normalize_search_text((string) ($row['translation_value'] ?? ''));
+        if ($translation === '') {
+            $translation = ll_tools_wordset_page_normalize_search_text((string) ($row['legacy_translation_value'] ?? ''));
+        }
+        $title_rank = ll_tools_wordset_page_category_search_text_match_rank($title, $query);
+        $translation_rank = ll_tools_wordset_page_category_search_text_match_rank($translation, $query);
+        $rank = max($title_rank, $translation_rank);
+        if ($rank <= 0) {
+            continue;
+        }
+        $word_matches[] = [
+            'id' => $word_id,
+            'title' => $title,
+            'translation' => $translation,
+            'match_rank' => $rank,
+            'match_field' => $title_rank >= $translation_rank ? 'title' : 'translation',
+            'image' => '',
+        ];
+    }
+    if (empty($word_matches)) {
+        return [];
+    }
+
+    usort($word_matches, static function (array $left, array $right): int {
+        $rank_compare = ((int) ($right['match_rank'] ?? 0)) <=> ((int) ($left['match_rank'] ?? 0));
+        if ($rank_compare !== 0) {
+            return $rank_compare;
+        }
+        return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
+    });
+
+    $virtual_category_id = ll_tools_wordset_page_uncategorized_virtual_category_id();
+    return [
+        $virtual_category_id => $per_category_limit > 0
+            ? array_slice($word_matches, 0, $per_category_limit)
+            : [],
+    ];
 }
 
 function ll_tools_wordset_page_get_category_depth_cached(int $category_id): int {
@@ -16964,7 +17281,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
     $category_search_category_ids = [];
     foreach ($enhanced_categories as $enhanced_category) {
-        if (!is_array($enhanced_category) || !empty($enhanced_category['is_virtual_category'])) {
+        if (!is_array($enhanced_category)) {
+            continue;
+        }
+        if (!empty($enhanced_category['is_virtual_category']) && !ll_tools_wordset_page_is_uncategorized_virtual_category($enhanced_category)) {
             continue;
         }
         $category_search_id = (int) ($enhanced_category['id'] ?? 0);
@@ -18351,6 +18671,11 @@ function ll_tools_wordset_page_handle_category_search_ajax(): void {
         }))
         : [];
     sort($allowed_category_ids, SORT_NUMERIC);
+    $uncategorized_virtual_category_id = ll_tools_wordset_page_uncategorized_virtual_category_id();
+    $include_uncategorized_virtual = in_array($uncategorized_virtual_category_id, $allowed_category_ids, true);
+    $real_category_ids = array_values(array_filter($allowed_category_ids, static function (int $category_id) use ($uncategorized_virtual_category_id): bool {
+        return $category_id !== $uncategorized_virtual_category_id;
+    }));
 
     $cache_args = [
         'token' => $token,
@@ -18369,9 +18694,17 @@ function ll_tools_wordset_page_handle_category_search_ajax(): void {
         ], 429);
     }
 
-    $matching_word_rows = $query === ''
-        ? []
-        : ll_tools_wordset_page_get_category_search_matches($wordset_id, $allowed_category_ids, $query, 1);
+    $matching_word_rows = [];
+    if ($query !== '') {
+        if (!empty($real_category_ids)) {
+            $matching_word_rows = ll_tools_wordset_page_get_category_search_matches($wordset_id, $real_category_ids, $query, 1);
+        }
+        if ($include_uncategorized_virtual) {
+            foreach (ll_tools_wordset_page_get_uncategorized_word_search_matches($wordset_id, $query, 1) as $category_id => $word_rows) {
+                $matching_word_rows[(int) $category_id] = $word_rows;
+            }
+        }
+    }
     $matching_category_ids = array_values(array_map('intval', array_keys($matching_word_rows)));
 
     $response = [

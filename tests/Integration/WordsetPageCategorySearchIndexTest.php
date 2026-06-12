@@ -234,6 +234,75 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, (int) ($first_match['match_rank'] ?? 0));
     }
 
+    public function test_uncategorized_virtual_category_uses_bounded_preview_and_ajax_search(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset = wp_insert_term('Uncategorized Search Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $needle_word_id = 0;
+        for ($index = 1; $index <= 6; $index++) {
+            $title = sprintf('Bounded Orphan %02d', $index);
+            $translation = sprintf('Bounded Translation %02d', $index);
+            if ($index === 6) {
+                $title .= ' Needle';
+                $translation .= ' Hidden Needle';
+            }
+            $word_id = $this->createSearchWord($title, $translation, $wordset_id, []);
+            if ($index === 6) {
+                $needle_word_id = $word_id;
+            }
+        }
+        $this->assertGreaterThan(0, $needle_word_id);
+
+        $virtual_category_id = ll_tools_wordset_page_uncategorized_virtual_category_id();
+        $categories = ll_tools_get_wordset_page_categories($wordset_id, 2);
+        $virtual_category = null;
+        foreach ($categories as $category) {
+            if (is_array($category) && (int) ($category['id'] ?? 0) === $virtual_category_id) {
+                $virtual_category = $category;
+                break;
+            }
+        }
+
+        $this->assertIsArray($virtual_category);
+        $this->assertSame(6, (int) ($virtual_category['count'] ?? 0));
+        $this->assertSame(6, (int) ($virtual_category['content_count'] ?? 0));
+        $this->assertIsArray($virtual_category['preview'] ?? null);
+        $this->assertCount(4, (array) ($virtual_category['preview'] ?? []));
+        $search_text = (string) ($virtual_category['search_text'] ?? '');
+        $this->assertStringContainsString('Uncategorized', $search_text);
+        $this->assertStringNotContainsString('Needle', $search_text);
+
+        $token = ll_tools_wordset_page_store_category_search_payload([
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$virtual_category_id],
+            'user_id' => $admin_id,
+        ]);
+        $this->assertNotSame('', $token);
+
+        $response = $this->postCategorySearchAjax([
+            'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+            'token' => $token,
+            'wordset_id' => $wordset_id,
+            'query' => 'needle',
+        ]);
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertIsArray($response['data'] ?? null);
+        $data = (array) $response['data'];
+        $this->assertContains($virtual_category_id, array_values(array_map('intval', (array) ($data['categoryIds'] ?? []))));
+        $word_matches = (array) ($data['wordMatches'] ?? []);
+        $virtual_matches = $word_matches[$virtual_category_id] ?? $word_matches[(string) $virtual_category_id] ?? [];
+        $this->assertNotEmpty($virtual_matches);
+        $first_match = (array) $virtual_matches[0];
+        $this->assertSame($needle_word_id, (int) ($first_match['id'] ?? 0));
+    }
+
     /**
      * @param int[] $category_ids
      */

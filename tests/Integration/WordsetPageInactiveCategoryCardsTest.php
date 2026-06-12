@@ -75,6 +75,80 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('data-ll-wordset-category-mode', $uncategorized_card);
     }
 
+    public function test_staff_category_terms_use_distinct_category_queries_for_inactive_content(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $owner_meta_key = defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY') ? LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY : 'll_wordset_owner_id';
+
+        $prompt_category = wp_insert_term('Prompt Staff Category ' . wp_generate_password(4, false), 'word-category');
+        $other_wordset = wp_insert_term('Other Staff Category Wordset ' . wp_generate_password(4, false), 'wordset');
+        $other_category = wp_insert_term('Other Wordset Staff Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertFalse(is_wp_error($prompt_category));
+        $this->assertFalse(is_wp_error($other_wordset));
+        $this->assertFalse(is_wp_error($other_category));
+        $this->assertIsArray($prompt_category);
+        $this->assertIsArray($other_wordset);
+        $this->assertIsArray($other_category);
+
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        $other_wordset_id = (int) $other_wordset['term_id'];
+        $other_category_id = (int) $other_category['term_id'];
+        update_term_meta($prompt_category_id, $owner_meta_key, (string) $wordset_id);
+        update_term_meta($other_category_id, $owner_meta_key, (string) $other_wordset_id);
+
+        $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => $prompt_card_post_type,
+            'post_status' => 'draft',
+            'post_title' => 'Prompt Staff Card ' . wp_generate_password(4, false),
+        ]);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($prompt_card_id, [$prompt_category_id], 'word-category', false);
+
+        $other_word_id = $this->createWord(
+            'Other Wordset Owned Word',
+            'Other Wordset Owned Translation',
+            $other_category_id,
+            $wordset_id
+        );
+        $this->assertGreaterThan(0, $other_word_id);
+
+        $captured_queries = [];
+        $capture = static function (string $query) use (&$captured_queries, $wpdb): string {
+            if (strpos($query, $wpdb->posts) !== false && strpos($query, 'word-category') !== false) {
+                $captured_queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $terms = ll_tools_wordset_page_get_staff_category_terms($wordset_id, [
+                'all' => [],
+                'with_images' => [],
+            ]);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $term_ids = array_map(static function (WP_Term $term): int {
+            return (int) $term->term_id;
+        }, $terms);
+
+        $this->assertContains((int) $fixture['inactive_category_id'], $term_ids);
+        $this->assertContains((int) $fixture['image_only_category_id'], $term_ids);
+        $this->assertContains($prompt_category_id, $term_ids);
+        $this->assertNotContains($other_category_id, $term_ids);
+
+        $queries_sql = implode("\n", $captured_queries);
+        $this->assertStringContainsString('SELECT DISTINCT category_taxonomy.term_id', $queries_sql);
+        $this->assertStringContainsString('scoped_category_taxonomy', $queries_sql);
+        $this->assertStringNotContainsString('SELECT ' . $wpdb->posts . '.ID', $queries_sql);
+    }
+
     public function test_preview_prepares_draft_words_from_word_images(): void
     {
         $fixture = $this->createWordsetFixture();
