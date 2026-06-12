@@ -625,6 +625,110 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_import_job_checkpoints_word_image_progress_inside_chunk(): void
+    {
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $suffix = strtolower(wp_generate_password(8, false, false));
+        $jobId = 'ajax-import-word-image-checkpoint-' . $suffix;
+        $jobDir = ll_tools_import_job_get_dir($jobId);
+        $extractDir = trailingslashit($jobDir) . 'extract';
+        $chunkFile = 'word-images-00001.json';
+        $items = [
+            [
+                'slug' => 'checkpoint-word-image-one-' . $suffix,
+                'title' => 'Checkpoint Word Image One',
+                'status' => 'publish',
+            ],
+            [
+                'slug' => 'checkpoint-word-image-two-' . $suffix,
+                'title' => 'Checkpoint Word Image Two',
+                'status' => 'publish',
+            ],
+            [
+                'slug' => 'checkpoint-word-image-three-' . $suffix,
+                'title' => 'Checkpoint Word Image Three',
+                'status' => 'publish',
+            ],
+        ];
+        $job = [
+            'id' => $jobId,
+            'status' => 'running',
+            'phase' => 'word_images',
+            'created_at' => time(),
+            'updated_at' => time(),
+            'job_dir' => $jobDir,
+            'extract_dir' => $extractDir,
+            'options' => [],
+            'payload_counts' => [
+                'word_images' => count($items),
+            ],
+            'has_full_content' => false,
+            'category_map' => [],
+            'word_image_slug_to_id' => [],
+            'word_image_chunk_files' => [$chunkFile],
+            'word_image_chunk_index' => 0,
+            'word_image_chunk_item_index' => 0,
+            'word_image_index' => 0,
+            'result' => ll_tools_import_job_default_result(),
+            'error_message' => '',
+        ];
+
+        $oneItemPerRequest = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_import_job_word_image_process_item_limit', $oneItemPerRequest, 10, 2);
+
+        try {
+            $this->assertTrue(wp_mkdir_p($extractDir));
+            $writeResult = ll_tools_import_job_write_json_file(ll_tools_import_job_chunk_path($job, $chunkFile), $items);
+            $this->assertNotWPError($writeResult);
+            ll_tools_import_job_save($jobId, $job);
+            ll_tools_import_job_set_active_id($jobId);
+
+            $first = ll_tools_import_job_process_with_lock($job);
+            $this->assertNotWPError($first);
+            $this->assertSame('word_images', (string) ($first['phase'] ?? ''));
+            $this->assertSame(1, (int) ($first['word_image_index'] ?? 0));
+            $this->assertSame(0, (int) ($first['word_image_chunk_index'] ?? -1));
+            $this->assertSame(1, (int) ($first['word_image_chunk_item_index'] ?? -1));
+
+            $savedAfterFirst = ll_tools_import_job_get($jobId);
+            $this->assertIsArray($savedAfterFirst);
+            $this->assertSame(1, (int) ($savedAfterFirst['word_image_index'] ?? 0));
+            $this->assertSame(1, (int) ($savedAfterFirst['word_image_chunk_item_index'] ?? -1));
+
+            $second = ll_tools_import_job_process_with_lock($first);
+            $this->assertNotWPError($second);
+            $this->assertSame(2, (int) ($second['word_image_index'] ?? 0));
+            $this->assertSame(2, (int) ($second['word_image_chunk_item_index'] ?? -1));
+
+            $third = ll_tools_import_job_process_with_lock($second);
+            $this->assertNotWPError($third);
+            $this->assertSame(3, (int) ($third['word_image_index'] ?? 0));
+            $this->assertSame(1, (int) ($third['word_image_chunk_index'] ?? -1));
+            $this->assertSame(0, (int) ($third['word_image_chunk_item_index'] ?? -1));
+            $this->assertSame('finalize', (string) ($third['phase'] ?? ''));
+
+            foreach ($items as $item) {
+                $created = get_page_by_path((string) $item['slug'], OBJECT, 'word_images');
+                $this->assertInstanceOf(WP_Post::class, $created);
+            }
+        } finally {
+            remove_filter('ll_tools_import_job_word_image_process_item_limit', $oneItemPerRequest, 10);
+            foreach ($items as $item) {
+                $created = get_page_by_path((string) $item['slug'], OBJECT, 'word_images');
+                if ($created instanceof WP_Post) {
+                    wp_delete_post((int) $created->ID, true);
+                }
+            }
+            ll_tools_import_job_delete_path($jobDir);
+            delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
+            delete_user_meta($adminId, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+        }
+    }
+
     public function test_ajax_import_job_can_discard_paused_partial_import(): void
     {
         if (!class_exists('ZipArchive')) {

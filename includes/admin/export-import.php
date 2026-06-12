@@ -9822,6 +9822,27 @@ function ll_tools_import_job_load_array_file(string $path) {
     return array_values($data);
 }
 
+function ll_tools_import_job_word_image_process_time_budget_seconds(array $job): float {
+    return max(0.0, (float) apply_filters('ll_tools_import_job_word_image_process_time_budget_seconds', 20.0, $job));
+}
+
+function ll_tools_import_job_word_image_process_item_limit(array $job): int {
+    return max(0, (int) apply_filters('ll_tools_import_job_word_image_process_item_limit', 0, $job));
+}
+
+function ll_tools_import_job_should_checkpoint_word_image_items(array $job): bool {
+    return (bool) apply_filters('ll_tools_import_job_checkpoint_word_image_items', true, $job);
+}
+
+function ll_tools_import_job_checkpoint_word_image_item(array $job): void {
+    $job_id = sanitize_text_field((string) ($job['id'] ?? ''));
+    if ($job_id === '') {
+        return;
+    }
+
+    ll_tools_import_job_save($job_id, $job);
+}
+
 function ll_tools_import_job_prepare_payload(array $job) {
     $extract_dir = (string) ($job['extract_dir'] ?? '');
     if ($extract_dir === '') {
@@ -9891,6 +9912,7 @@ function ll_tools_import_job_prepare_payload(array $job) {
     $job['word_image_chunk_files'] = array_values(array_map('strval', (array) ($word_image_chunks['chunk_files'] ?? [])));
     $job['word_chunk_files'] = array_values(array_map('strval', (array) ($word_chunks['chunk_files'] ?? [])));
     $job['word_image_chunk_index'] = 0;
+    $job['word_image_chunk_item_index'] = 0;
     $job['word_chunk_index'] = 0;
     $job['word_state'] = isset($job['word_state']) && is_array($job['word_state'])
         ? $job['word_state']
@@ -10051,6 +10073,7 @@ function ll_tools_import_job_process(array $job) {
         $chunk_index = max(0, (int) ($job['word_image_chunk_index'] ?? 0));
         if ($chunk_index >= count($chunk_files)) {
             $job['phase'] = !empty($job['has_full_content']) ? 'prepare_wordsets' : 'finalize';
+            $job['word_image_chunk_item_index'] = 0;
             return $job;
         }
 
@@ -10062,21 +10085,66 @@ function ll_tools_import_job_process(array $job) {
         $category_map = isset($job['category_map']) && is_array($job['category_map']) ? $job['category_map'] : [];
         $word_image_slug_to_id = isset($job['word_image_slug_to_id']) && is_array($job['word_image_slug_to_id']) ? $job['word_image_slug_to_id'] : [];
         $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : ll_tools_import_job_default_result();
-        ll_tools_import_upsert_word_images_chunk(
-            $items,
-            (string) ($job['extract_dir'] ?? ''),
-            $category_map,
-            $word_image_slug_to_id,
-            $result,
-            isset($job['options']) && is_array($job['options']) ? $job['options'] : []
-        );
+        $item_offset = min(count($items), max(0, (int) ($job['word_image_chunk_item_index'] ?? 0)));
 
-        $job['word_image_slug_to_id'] = $word_image_slug_to_id;
-        $job['result'] = $result;
-        $job['word_image_chunk_index'] = $chunk_index + 1;
-        $job['word_image_index'] = max(0, (int) ($job['word_image_index'] ?? 0)) + count($items);
-        if ($job['word_image_chunk_index'] >= count($chunk_files)) {
-            $job['phase'] = !empty($job['has_full_content']) ? 'prepare_wordsets' : 'finalize';
+        if (empty($items) || $item_offset >= count($items)) {
+            $job['word_image_chunk_index'] = $chunk_index + 1;
+            $job['word_image_chunk_item_index'] = 0;
+            if ($job['word_image_chunk_index'] >= count($chunk_files)) {
+                $job['phase'] = !empty($job['has_full_content']) ? 'prepare_wordsets' : 'finalize';
+            }
+
+            return $job;
+        }
+
+        $started_at = microtime(true);
+        $time_budget_seconds = ll_tools_import_job_word_image_process_time_budget_seconds($job);
+        $item_limit = ll_tools_import_job_word_image_process_item_limit($job);
+        $checkpoint_items = ll_tools_import_job_should_checkpoint_word_image_items($job);
+        $options = isset($job['options']) && is_array($job['options']) ? $job['options'] : [];
+        $processed_this_request = 0;
+
+        for ($item_index = $item_offset; $item_index < count($items); $item_index++) {
+            ll_tools_import_upsert_word_images_chunk(
+                [$items[$item_index]],
+                (string) ($job['extract_dir'] ?? ''),
+                $category_map,
+                $word_image_slug_to_id,
+                $result,
+                $options
+            );
+
+            $processed_this_request++;
+            $job['word_image_slug_to_id'] = $word_image_slug_to_id;
+            $job['result'] = $result;
+            $job['word_image_index'] = max(0, (int) ($job['word_image_index'] ?? 0)) + 1;
+            $job['word_image_chunk_item_index'] = $item_index + 1;
+
+            if ($job['word_image_chunk_item_index'] >= count($items)) {
+                $job['word_image_chunk_index'] = $chunk_index + 1;
+                $job['word_image_chunk_item_index'] = 0;
+                if ($job['word_image_chunk_index'] >= count($chunk_files)) {
+                    $job['phase'] = !empty($job['has_full_content']) ? 'prepare_wordsets' : 'finalize';
+                }
+            }
+
+            if ($checkpoint_items) {
+                ll_tools_import_job_checkpoint_word_image_item($job);
+            }
+
+            $has_more_in_chunk = ($job['word_image_chunk_index'] === $chunk_index)
+                && ((int) ($job['word_image_chunk_item_index'] ?? 0) < count($items));
+            if (!$has_more_in_chunk) {
+                continue;
+            }
+
+            if ($item_limit > 0 && $processed_this_request >= $item_limit) {
+                return $job;
+            }
+
+            if ($time_budget_seconds > 0.0 && (microtime(true) - $started_at) >= $time_budget_seconds) {
+                return $job;
+            }
         }
 
         return $job;
@@ -10274,6 +10342,7 @@ function ll_tools_import_job_create_from_request(array $request) {
         'category_apply_index' => 0,
         'word_image_index' => 0,
         'word_image_chunk_index' => 0,
+        'word_image_chunk_item_index' => 0,
         'wordsets_processed' => 0,
         'word_index' => 0,
         'word_chunk_index' => 0,
@@ -13462,7 +13531,13 @@ function ll_tools_import_apply_featured_image(int $post_id, array $featured_imag
         return;
     }
 
-    set_post_thumbnail($post_id, $attachment_id);
+    if ($context === 'word_image' && $track_for_undo && function_exists('ll_tools_with_word_image_thumbnail_sync_suspended')) {
+        ll_tools_with_word_image_thumbnail_sync_suspended($post_id, static function () use ($post_id, $attachment_id): void {
+            set_post_thumbnail($post_id, $attachment_id);
+        });
+    } else {
+        set_post_thumbnail($post_id, $attachment_id);
+    }
     $result['stats']['attachments_imported']++;
     if ($track_for_undo) {
         ll_tools_import_track_undo_id($result, 'attachment_ids', (int) $attachment_id);

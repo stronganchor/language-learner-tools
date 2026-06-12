@@ -203,6 +203,47 @@ add_filter('admin_post_thumbnail_html', 'll_tools_fix_featured_image_box_preview
 /**
  * Keep word thumbnails in sync when a word_images featured image is replaced.
  */
+function ll_tools_is_word_image_thumbnail_sync_suspended($word_image_id): bool {
+    $word_image_id = (int) $word_image_id;
+    if ($word_image_id <= 0) {
+        return false;
+    }
+
+    $suspended = isset($GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'])
+        && is_array($GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'])
+        ? $GLOBALS['ll_tools_word_image_thumbnail_sync_suspended']
+        : [];
+
+    return !empty($suspended[$word_image_id]);
+}
+
+function ll_tools_with_word_image_thumbnail_sync_suspended($word_image_id, callable $callback) {
+    $word_image_id = (int) $word_image_id;
+    if ($word_image_id <= 0) {
+        return $callback();
+    }
+
+    if (!isset($GLOBALS['ll_tools_word_image_thumbnail_sync_suspended']) || !is_array($GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'])) {
+        $GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'] = [];
+    }
+
+    $GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'][$word_image_id] = max(
+        1,
+        (int) ($GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'][$word_image_id] ?? 0) + 1
+    );
+
+    try {
+        return $callback();
+    } finally {
+        $remaining = (int) ($GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'][$word_image_id] ?? 0) - 1;
+        if ($remaining > 0) {
+            $GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'][$word_image_id] = $remaining;
+        } else {
+            unset($GLOBALS['ll_tools_word_image_thumbnail_sync_suspended'][$word_image_id]);
+        }
+    }
+}
+
 function ll_tools_word_image_thumbnail_change_track_update($check, $object_id, $meta_key, $meta_value, $prev_value) {
     if ($meta_key !== '_thumbnail_id') {
         return $check;
@@ -210,6 +251,9 @@ function ll_tools_word_image_thumbnail_change_track_update($check, $object_id, $
 
     $post = get_post((int) $object_id);
     if (!$post || $post->post_type !== 'word_images') {
+        return $check;
+    }
+    if (ll_tools_is_word_image_thumbnail_sync_suspended((int) $object_id)) {
         return $check;
     }
 
@@ -836,6 +880,9 @@ function ll_tools_word_image_thumbnail_change_on_added($meta_id, $object_id, $me
     if (!$post || $post->post_type !== 'word_images') {
         return;
     }
+    if (ll_tools_is_word_image_thumbnail_sync_suspended((int) $object_id)) {
+        return;
+    }
 
     $new_attachment_id = (int) $meta_value;
     ll_tools_sync_words_for_word_image_thumbnail_change((int) $object_id, 0, $new_attachment_id);
@@ -849,6 +896,10 @@ function ll_tools_word_image_thumbnail_change_on_updated($meta_id, $object_id, $
 
     $post = get_post((int) $object_id);
     if (!$post || $post->post_type !== 'word_images') {
+        return;
+    }
+    if (ll_tools_is_word_image_thumbnail_sync_suspended((int) $object_id)) {
+        unset($GLOBALS['ll_tools_word_image_thumb_changes'][(int) $object_id]);
         return;
     }
 
@@ -870,6 +921,9 @@ function ll_tools_word_image_thumbnail_change_on_deleted($meta_ids, $object_id, 
 
     $post = get_post((int) $object_id);
     if (!$post || $post->post_type !== 'word_images') {
+        return;
+    }
+    if (ll_tools_is_word_image_thumbnail_sync_suspended((int) $object_id)) {
         return;
     }
 

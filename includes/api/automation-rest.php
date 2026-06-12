@@ -961,6 +961,28 @@ function ll_tools_rest_automation_rest_import_word_image_chunk_size($chunk_size,
 }
 add_filter('ll_tools_import_job_word_image_chunk_size', 'll_tools_rest_automation_rest_import_word_image_chunk_size', 10, 3);
 
+function ll_tools_rest_automation_rest_import_word_image_process_item_limit($limit, array $job): int {
+    unset($job);
+
+    if (!ll_tools_rest_automation_is_request()) {
+        return (int) $limit;
+    }
+
+    return max(1, (int) apply_filters('ll_tools_rest_import_word_image_process_item_limit', 3));
+}
+add_filter('ll_tools_import_job_word_image_process_item_limit', 'll_tools_rest_automation_rest_import_word_image_process_item_limit', 10, 2);
+
+function ll_tools_rest_automation_rest_import_word_image_time_budget($seconds, array $job): float {
+    unset($job);
+
+    if (!ll_tools_rest_automation_is_request()) {
+        return (float) $seconds;
+    }
+
+    return max(1.0, (float) apply_filters('ll_tools_rest_import_word_image_time_budget_seconds', 20.0));
+}
+add_filter('ll_tools_import_job_word_image_process_time_budget_seconds', 'll_tools_rest_automation_rest_import_word_image_time_budget', 10, 2);
+
 function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Response {
     $user = wp_get_current_user();
     $auth_mode = isset($GLOBALS['ll_tools_rest_automation_auth_mode']) && is_string($GLOBALS['ll_tools_rest_automation_auth_mode'])
@@ -1164,6 +1186,8 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 'server_side_recommended' => true,
             ],
             'rest_import_word_image_chunk_size' => (int) apply_filters('ll_tools_rest_import_word_image_chunk_size', 8),
+            'rest_import_word_image_process_item_limit' => (int) apply_filters('ll_tools_rest_import_word_image_process_item_limit', 3),
+            'rest_import_word_image_time_budget_seconds' => (float) apply_filters('ll_tools_rest_import_word_image_time_budget_seconds', 20.0),
         ],
     ]);
 }
