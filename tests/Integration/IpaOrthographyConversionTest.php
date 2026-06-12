@@ -606,6 +606,11 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
 
         $this->assertSame(
+            'Anq anq',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("aŋq aŋqʰ", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
             'Twe',
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("t̪͡ʙ̥ɨ", $engine_rules, $wordset_id)['text'] ?? '')
         );
@@ -696,6 +701,11 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $di_front_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("d̪ɪ", $engine_rules, $wordset_id);
         $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Dı', "d̪ɪ", $wordset_id, 'isolation', $di_front_prediction)['matches'] ?? false));
 
+        $was_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("bɨ haja", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($was_prediction['complete'] ?? false));
+        $this->assertSame('Bı haya', (string) ($was_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Bı haya', "bɨ haja", $wordset_id, 'isolation', $was_prediction)['matches'] ?? false));
+
         $unresolved_final_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("vɨ", $engine_rules, $wordset_id);
         $this->assertSame('Ve', (string) ($unresolved_final_prediction['text'] ?? ''));
         $this->assertFalse((bool) ($unresolved_final_prediction['requires_lexical_decision'] ?? true));
@@ -716,7 +726,30 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Targeted Mismatch Detail');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'ə' => ['any' => 'ı'],
+            'ᵊ' => ['any' => 'ı'],
+        ]);
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_settings_meta_key(), [
+            'optional_matches' => [
+                [
+                    'ipa' => 'ə',
+                    'orthography' => 'ı',
+                ],
+                [
+                    'ipa' => 'ᵊ',
+                    'orthography' => 'ı',
+                ],
+            ],
+        ]);
         $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        $this->assertArrayNotHasKey('ə', ll_tools_ipa_orthography_get_manual_rules($wordset_id));
+        $this->assertArrayNotHasKey('ᵊ', ll_tools_ipa_orthography_get_manual_rules($wordset_id));
+        $stored_optional_ipa = array_map(static function (array $entry): string {
+            return (string) ($entry['ipa'] ?? '');
+        }, (array) (ll_tools_ipa_orthography_get_settings($wordset_id)['optional_matches'] ?? []));
+        $this->assertNotContains('ə', $stored_optional_ipa);
+        $this->assertNotContains('ᵊ', $stored_optional_ipa);
 
         $bahce_ipa = "bæχt͡ʃɨ";
         $bahce_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($bahce_ipa, $engine_rules, $wordset_id);
@@ -780,6 +813,24 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $hewru_actual = "Kûm ho hûnyen 'hewrû ra?";
         $hewru_suggested = "Kûm ho hûnyen hewrû ra?";
         $hewru_ipa = "kʰum ho hunjen hewru ra";
+        $conflicting_rules = ll_tools_ipa_orthography_prepare_engine_rules(
+            [
+                'he' => [
+                    [
+                        'segment' => 'he',
+                        'context' => 'any',
+                        'output' => 'h',
+                        'count' => 100,
+                    ],
+                ],
+            ],
+            ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id),
+            $wordset_id
+        );
+        ll_tools_ipa_orthography_set_engine_rules_runtime_cache(
+            ll_tools_ipa_orthography_engine_rules_cache_key($wordset_id),
+            $conflicting_rules
+        );
         $hewru_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
             $hewru_actual,
             $hewru_ipa,

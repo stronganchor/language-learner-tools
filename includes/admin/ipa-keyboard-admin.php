@@ -1973,7 +1973,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 17;
+    return 18;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -2817,6 +2817,8 @@ function ll_tools_ipa_orthography_get_profile_locked_manual_rules(int $wordset_i
         'x' => ['any' => 'x'],
         'ŋg' => ['any' => 'ng'],
         'ŋk' => ['any' => 'nk'],
+        'ŋqʰ' => ['any' => 'nq'],
+        'ŋq' => ['any' => 'nq'],
         't̪͡ʙ̥ɨ' => ['any' => 'twe'],
         't̪͡ʙɨ' => ['any' => 'twe'],
         'sɨ' => ['any' => 'se'],
@@ -2841,6 +2843,39 @@ function ll_tools_ipa_orthography_apply_profile_locked_manual_rules(array $rules
 
     ksort($rules);
     return $rules;
+}
+
+function ll_tools_ipa_orthography_get_profile_disallowed_ipa_segments(int $wordset_id): array {
+    if (ll_tools_ipa_orthography_get_profile_key($wordset_id) !== 'zazaki_genc_palu') {
+        return [];
+    }
+
+    return ['ə', 'ᵊ'];
+}
+
+function ll_tools_ipa_orthography_profile_allows_ipa_segment(string $segment, int $wordset_id): bool {
+    if ($wordset_id <= 0) {
+        return true;
+    }
+
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
+    $segment_key = ll_tools_ipa_orthography_normalize_segment_key($segment, $mode);
+    if ($segment_key === '') {
+        return true;
+    }
+
+    return !in_array($segment_key, ll_tools_ipa_orthography_get_profile_disallowed_ipa_segments($wordset_id), true);
+}
+
+function ll_tools_ipa_orthography_filter_profile_allowed_optional_matches(array $optional_matches, int $wordset_id): array {
+    if ($wordset_id <= 0 || empty($optional_matches)) {
+        return $optional_matches;
+    }
+
+    return array_values(array_filter($optional_matches, static function ($entry) use ($wordset_id): bool {
+        return is_array($entry)
+            && ll_tools_ipa_orthography_profile_allows_ipa_segment((string) ($entry['ipa'] ?? ''), $wordset_id);
+    }));
 }
 
 function ll_tools_ipa_orthography_sanitize_setting_text($value): string {
@@ -3027,7 +3062,7 @@ function ll_tools_ipa_orthography_sanitize_settings($raw, int $wordset_id): arra
         $ipa_pattern = ll_tools_ipa_orthography_sanitize_setting_ipa($ipa, $wordset_id);
         $orthography_text = ll_tools_ipa_orthography_sanitize_setting_text($orthography);
         $orthography_key = ll_tools_ipa_orthography_profile_compare_key($orthography_text, $language);
-        if ($ipa_pattern !== '' && $orthography_key !== '') {
+        if ($ipa_pattern !== '' && $orthography_key !== '' && ll_tools_ipa_orthography_profile_allows_ipa_segment($ipa_pattern, $wordset_id)) {
             $settings['optional_matches'][] = [
                 'ipa' => $ipa_pattern,
                 'orthography' => $orthography_text,
@@ -3076,6 +3111,10 @@ function ll_tools_ipa_orthography_get_settings(int $wordset_id): array {
     }
 
     $settings = ll_tools_ipa_orthography_merge_settings($profile_settings, $clean, $raw);
+    $settings['optional_matches'] = ll_tools_ipa_orthography_filter_profile_allowed_optional_matches(
+        (array) ($settings['optional_matches'] ?? []),
+        $wordset_id
+    );
     ll_tools_ipa_orthography_set_settings_runtime_cache($wordset_id, $settings);
     return $settings;
 }
@@ -3467,7 +3506,8 @@ function ll_tools_ipa_orthography_rule_span_for_suggested_diff(
 
         $candidates[] = [
             'span' => $span,
-            'score' => (ll_tools_ipa_orthography_rule_output_has_letter($output_key) ? 100 : 0)
+            'score' => (!empty($rule['manual']) ? 1000 : 0)
+                + (ll_tools_ipa_orthography_rule_output_has_letter($output_key) ? 100 : 0)
                 + min(20, ll_tools_ipa_orthography_strlen($output_key))
                 + min(10, (int) ($span['length'] ?? 0)),
         ];
@@ -3639,6 +3679,8 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'ɭ' => ['any' => "'l"],
         'ŋg' => ['any' => 'ng'],
         'ŋk' => ['any' => 'nk'],
+        'ŋqʰ' => ['any' => 'nq'],
+        'ŋq' => ['any' => 'nq'],
         'ŋ' => ['any' => 'ng'],
         'ɲ' => ['any' => 'ny'],
         'nʲ' => ['any' => 'ny'],
@@ -3733,6 +3775,7 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
     }
 
     $settings['word_overrides'] = [
+        'be' => 'bı',
         'ce' => 'cı',
         'cinê' => 'cini',
         'ciniüê' => 'cinyê',
@@ -3890,6 +3933,7 @@ function ll_tools_ipa_orthography_apply_profile_output_replacements(string $text
     return ll_tools_ipa_orthography_profile_replacements($text, [
         'ngg' => 'ng',
         'ngk' => 'nk',
+        'ngq' => 'nq',
     ]);
 }
 
@@ -4593,6 +4637,9 @@ function ll_tools_ipa_orthography_sanitize_manual_rules($raw, int $wordset_id): 
     foreach ($raw as $segment => $contexts) {
         $segment_key = ll_tools_ipa_orthography_normalize_segment_key((string) $segment, $mode);
         if ($segment_key === '' || !is_array($contexts)) {
+            continue;
+        }
+        if (!ll_tools_ipa_orthography_profile_allows_ipa_segment($segment_key, $wordset_id)) {
             continue;
         }
 
