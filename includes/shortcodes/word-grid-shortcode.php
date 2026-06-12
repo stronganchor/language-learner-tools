@@ -2363,6 +2363,84 @@ function ll_tools_word_grid_resolve_display_text(int $word_id, ?bool $store_in_t
     ];
 }
 
+function ll_tools_word_grid_get_category_display_text_map(array $word_ids, array $context): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids) || empty($context['category_quiz_use_titles']) || !function_exists('ll_get_words_by_category')) {
+        return [];
+    }
+
+    $category_term = $context['category_term'] ?? null;
+    if (!($category_term instanceof WP_Term) || is_wp_error($category_term)) {
+        return [];
+    }
+
+    $wordset_id = (int) ($context['wordset_id'] ?? 0);
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $prompt_type = sanitize_key((string) ($context['category_quiz_prompt_type'] ?? 'audio'));
+    if ($prompt_type === '') {
+        $prompt_type = 'audio';
+    }
+
+    $option_type = sanitize_key((string) ($context['category_quiz_option_type'] ?? ''));
+    if ($option_type === '' || strpos($option_type, 'text') !== 0) {
+        return [];
+    }
+
+    $rows = ll_get_words_by_category(
+        (string) $category_term->slug,
+        $option_type,
+        [$wordset_id],
+        [
+            'prompt_type' => $prompt_type,
+            'option_type' => $option_type,
+            'use_titles' => true,
+            '__candidate_word_ids' => $word_ids,
+        ]
+    );
+    if (empty($rows) || !is_array($rows)) {
+        return [];
+    }
+
+    $map = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $word_id = (int) ($row['id'] ?? 0);
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $word_text = trim((string) ($row['prompt_label'] ?? ''));
+        if ($word_text === '') {
+            $word_text = trim((string) ($row['title'] ?? ''));
+        }
+
+        $translation_text = trim((string) ($row['translation'] ?? ''));
+        if ($translation_text === '') {
+            $translation_text = trim((string) ($row['label'] ?? ''));
+        }
+
+        if ($word_text === '' && $translation_text === '') {
+            continue;
+        }
+
+        $map[$word_id] = [
+            'word_text' => $word_text,
+            'translation_text' => $translation_text,
+            'store_in_title' => true,
+        ];
+    }
+
+    return $map;
+}
+
 function ll_tools_word_grid_collect_part_of_speech_terms(array $word_ids): array {
     $word_ids = array_values(array_filter(array_map('intval', $word_ids), function ($id) { return $id > 0; }));
     if (empty($word_ids)) {
@@ -3310,6 +3388,9 @@ function ll_tools_word_grid_resolve_context($atts): array {
     $hide_lesson_grid_text = false;
     $category_quiz_uses_images = true;
     $category_quiz_requires_audio = false;
+    $category_quiz_prompt_type = 'audio';
+    $category_quiz_option_type = '';
+    $category_quiz_use_titles = false;
     if ($sanitized_category !== '') {
         if (function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
             $category_term = ll_tools_resolve_word_category_term_for_wordsets(
@@ -3336,6 +3417,9 @@ function ll_tools_word_grid_resolve_context($atts): array {
         }
         $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
         $option_type = (string) ($quiz_config['option_type'] ?? '');
+        $category_quiz_prompt_type = $prompt_type;
+        $category_quiz_option_type = $option_type;
+        $category_quiz_use_titles = !empty($quiz_config['use_titles']);
         $requires_images = function_exists('ll_tools_quiz_requires_image')
             ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : (($prompt_type === 'image') || ($option_type === 'image'));
@@ -3415,6 +3499,9 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'has_text_only_answer_options' => $has_text_only_answer_options,
         'hide_lesson_grid_text'        => $hide_lesson_grid_text,
         'category_quiz_requires_audio' => $category_quiz_requires_audio,
+        'category_quiz_prompt_type'    => $category_quiz_prompt_type,
+        'category_quiz_option_type'    => $category_quiz_option_type,
+        'category_quiz_use_titles'     => $category_quiz_use_titles,
         'show_staff_inactive_images'   => $show_staff_inactive_images,
         'editor_context'                => $editor_context,
         'wordset_has_gender'           => $wordset_has_gender,
@@ -4746,9 +4833,11 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
 
     update_meta_cache('post', $word_ids);
 
-    $display_values_cache = [];
+    $display_values_cache = ll_tools_word_grid_get_category_display_text_map($word_ids, $context);
     foreach ($word_ids as $word_id) {
-        $display_values_cache[$word_id] = ll_tools_word_grid_resolve_display_text((int) $word_id);
+        if (!isset($display_values_cache[$word_id])) {
+            $display_values_cache[$word_id] = ll_tools_word_grid_resolve_display_text((int) $word_id);
+        }
     }
 
     $audio_by_word = ll_tools_word_grid_collect_audio_files($word_ids, false);
@@ -5202,7 +5291,7 @@ function ll_tools_word_grid_shortcode($atts) {
     if (!empty($word_ids)) {
         update_meta_cache('post', $word_ids);
     }
-    $display_values_cache = [];
+    $display_values_cache = ll_tools_word_grid_get_category_display_text_map($word_ids, $context);
     if (empty($specific_word_ids) && !$manual_order_applied) {
         $query->posts = ll_tools_word_grid_group_same_name_or_image($query->posts, $display_values_cache);
     }

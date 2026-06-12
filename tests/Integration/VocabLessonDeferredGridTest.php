@@ -67,6 +67,74 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertNull(ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id));
     }
 
+    public function test_title_backed_audio_translation_lesson_grid_uses_category_labels(): void
+    {
+        $wordset = wp_insert_term('Title Backed Grid Wordset', 'wordset', ['slug' => 'title-backed-grid-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, 'll_wordset_word_title_language_role', 'translation');
+
+        $category = wp_insert_term('Title Backed Grid Category', 'word-category', ['slug' => 'title-backed-grid-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+        update_term_meta($category_id, 'use_word_titles_for_audio', '1');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Bin yo',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', '1');
+        update_post_meta($word_id, 'word_english_meaning', '1');
+        $this->createAudioRecording($word_id, 'isolation', 'title-backed-grid-bin-yo.mp3');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Title Backed Grid Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $context = ll_tools_word_grid_resolve_context([
+            'category' => 'title-backed-grid-category',
+            'wordset' => 'title-backed-grid-wordset',
+            'deepest_only' => true,
+            'lesson_id' => $lesson_id,
+        ]);
+        $spec = ll_tools_word_grid_get_shell_spec($context);
+        $cards = (array) ($spec['cards'] ?? []);
+        $this->assertNotEmpty($cards);
+        $this->assertSame('Bin yo', (string) ($cards[0]['word_text'] ?? ''));
+        $this->assertSame('1', (string) ($cards[0]['translation_text'] ?? ''));
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Bin yo', $html);
+        $this->assertStringContainsString('data-ll-word-translation dir="auto">1</span>', $html);
+    }
+
     public function test_lesson_grid_ajax_decodes_stored_entities_for_visible_text(): void
     {
         $wordset = wp_insert_term('Encoded Entity Grid Wordset', 'wordset', ['slug' => 'encoded-entity-grid-wordset']);
