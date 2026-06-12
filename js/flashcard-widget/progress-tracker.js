@@ -1198,6 +1198,7 @@
 
         return new Promise(function (resolve) {
             const request = postBatch(batch, opts);
+            let failed = false;
             request.done(function (res) {
                 if (res && res.success && res.data) {
                     handleSyncSuccess(res.data);
@@ -1209,6 +1210,7 @@
                 }
 
                 handleSyncFailure(batch);
+                failed = true;
                 resolve({
                     queued: queue.length,
                     failed: true,
@@ -1216,6 +1218,7 @@
                 });
             }).fail(function (_jqXHR, _textStatus, errorThrown) {
                 handleSyncFailure(batch);
+                failed = true;
                 resolve({
                     queued: queue.length,
                     failed: true,
@@ -1223,7 +1226,7 @@
                 });
             }).always(function () {
                 inFlight = false;
-                if (queue.length && canSyncNow()) {
+                if (queue.length && canSyncNow() && !failed) {
                     scheduleFlush(50);
                 }
                 emitSyncStateChanged();

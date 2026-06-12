@@ -804,6 +804,8 @@ if (!function_exists('ll_tools_offline_app_require_authenticated_user')) {
             wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
         }
 
+        wp_set_current_user($user_id);
+
         return $auth;
     }
 }

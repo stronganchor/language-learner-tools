@@ -1677,6 +1677,15 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
     }
     file_put_contents(trailingslashit($staging_dir) . 'README.txt', implode("\n", $readme_lines) . "\n");
 
+    $filename = 'll-tools-offline-app-' . sanitize_title((string) $wordset->slug) . '-' . gmdate('Ymd-His') . '.zip';
+    if (!empty($options['skip_zip'])) {
+        return [
+            'zip_path'    => '',
+            'staging_dir' => $staging_dir,
+            'filename'    => $filename,
+        ];
+    }
+
     $zip_path = trailingslashit($base_dir) . $token . '.zip';
     $zip_result = ll_tools_offline_app_zip_directory($staging_dir, $zip_path);
     if (is_wp_error($zip_result)) {
@@ -1687,7 +1696,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
     return [
         'zip_path'    => $zip_path,
         'staging_dir' => $staging_dir,
-        'filename'    => 'll-tools-offline-app-' . sanitize_title((string) $wordset->slug) . '-' . gmdate('Ymd-His') . '.zip',
+        'filename'    => $filename,
     ];
 }
 
@@ -2379,6 +2388,9 @@ function ll_tools_offline_app_zip_directory(string $source_dir, string $zip_path
     $source_dir = wp_normalize_path($source_dir);
     if (!is_dir($source_dir)) {
         return new WP_Error('ll_tools_offline_app_missing_stage', __('The offline app staging directory does not exist.', 'll-tools-text-domain'));
+    }
+    if (!class_exists('ZipArchive')) {
+        return new WP_Error('ll_tools_offline_app_zip_unavailable', __('PHP ZipArchive is required to create the offline app export zip.', 'll-tools-text-domain'));
     }
 
     $zip = new ZipArchive();
