@@ -176,6 +176,7 @@ test('flashcard loader preserves explicit listening word order when provided', a
 
     const $ = window.jQuery;
     $.ajax = function (opts) {
+      window.__llLastWordsPayload = Object.assign({}, opts.data || {});
       setTimeout(() => {
         opts.success({
           success: true,
@@ -197,6 +198,9 @@ test('flashcard loader preserves explicit listening word order when provided', a
   await expect.poll(async () => {
     return await page.evaluate(() => (window.wordsByCategory.Numbers || []).map((word) => Number(word && word.id) || 0));
   }).toEqual([3, 1, 2]);
+
+  const payloadCandidateIds = await page.evaluate(() => String((window.__llLastWordsPayload || {}).candidate_word_ids || ''));
+  expect(payloadCandidateIds).toBe('3,1,2');
 
   const optionIds = await page.evaluate(() => (window.optionWordsByCategory.Numbers || []).map((word) => Number(word && word.id) || 0));
   expect(optionIds).toEqual([3, 1, 2]);

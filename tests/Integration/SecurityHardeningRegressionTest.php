@@ -181,6 +181,79 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_public_word_fetch_scopes_candidate_word_ids_without_poisoning_full_category_cache(): void
+    {
+        $first_fixture = $this->create_flashcard_word_with_audio(111);
+        $second_fixture = $this->create_flashcard_word_with_audio(222);
+        wp_set_current_user(0);
+
+        $base_post = [
+            'category' => $first_fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+        ];
+        $candidate_queries = [];
+        $query_capture = static function (WP_Query $query) use (&$candidate_queries): void {
+            if ((string) $query->get('post_type') !== 'words') {
+                return;
+            }
+            if ((string) $query->get('fields') !== 'ids') {
+                return;
+            }
+            $candidate_queries[] = $query->query_vars;
+        };
+
+        try {
+            $_POST = array_merge($base_post, [
+                'candidate_word_ids' => (string) $second_fixture['word_id'],
+            ]);
+            $_REQUEST = $_POST;
+            add_action('pre_get_posts', $query_capture);
+            $candidate_response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+            remove_action('pre_get_posts', $query_capture);
+
+            $_POST = $base_post;
+            $_REQUEST = $_POST;
+            $full_response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            remove_action('pre_get_posts', $query_capture);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $candidate_rows = is_array($candidate_response['data'] ?? null) ? $candidate_response['data'] : [];
+        $candidate_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $candidate_rows)));
+        $full_rows = is_array($full_response['data'] ?? null) ? $full_response['data'] : [];
+        $full_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $full_rows)));
+        sort($full_ids);
+        $expected_full_ids = [(int) $first_fixture['word_id'], (int) $second_fixture['word_id']];
+        sort($expected_full_ids);
+
+        $this->assertTrue((bool) ($candidate_response['success'] ?? false));
+        $this->assertSame([(int) $second_fixture['word_id']], $candidate_ids);
+        $this->assertNotEmpty($candidate_queries);
+        $captured_candidate_query_ids = [];
+        foreach ($candidate_queries as $query_vars) {
+            $query_post_in = array_values(array_map('intval', (array) ($query_vars['post__in'] ?? [])));
+            if (!empty($query_post_in)) {
+                $captured_candidate_query_ids = $query_post_in;
+                break;
+            }
+        }
+        $this->assertSame([(int) $second_fixture['word_id']], $captured_candidate_query_ids);
+        $this->assertTrue((bool) ($full_response['success'] ?? false));
+        $this->assertSame($expected_full_ids, $full_ids);
+    }
+
     public function test_public_flashcard_ajax_cache_is_anonymous_and_epoch_scoped(): void
     {
         wp_set_current_user(0);

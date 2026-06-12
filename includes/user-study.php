@@ -53,6 +53,47 @@ if (!function_exists('ll_tools_user_study_sanitize_state_id_array')) {
     }
 }
 
+if (!function_exists('ll_tools_parse_request_id_list')) {
+    function ll_tools_parse_request_id_list($value, int $limit = 0): array {
+        $raw_values = [];
+        $value = wp_unslash($value);
+
+        if (is_array($value)) {
+            $raw_values = $value;
+        } elseif (is_scalar($value)) {
+            $raw = trim((string) $value);
+            if ($raw !== '') {
+                if ($raw[0] === '[') {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $raw_values = $decoded;
+                    }
+                }
+
+                if (empty($raw_values)) {
+                    $raw_values = preg_split('/[\s,|]+/', $raw) ?: [];
+                }
+            }
+        }
+
+        $ids = [];
+        foreach ((array) $raw_values as $raw_value) {
+            $id = (int) $raw_value;
+            if ($id <= 0 || isset($ids[$id])) {
+                continue;
+            }
+            $ids[$id] = $id;
+        }
+
+        $ids = array_values($ids);
+        if ($limit > 0) {
+            $ids = array_slice($ids, 0, $limit);
+        }
+
+        return $ids;
+    }
+}
+
 /**
  * Read the saved study state for a user.
  */
@@ -587,7 +628,7 @@ function ll_tools_user_study_limited_candidate_word_ids_by_category(array $categ
 /**
  * Fetch words for a set of category IDs, scoped to a wordset if provided.
  */
-function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
+function ll_tools_user_study_words(array $category_ids, $wordset_id, array $candidate_word_ids = []): array {
     $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, (int) $wordset_id);
     if (empty($category_ids)) {
         return [];
@@ -604,6 +645,9 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
     if (is_wp_error($terms)) {
         $terms = [];
     }
+    $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
     $by_id = [];
     foreach ($terms as $t) {
         $by_id[(int) $t->term_id] = $t;
@@ -627,6 +671,9 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
             'option_type' => $option_type,
             'prompt_type' => $prompt_type,
         ]);
+        if (!empty($candidate_word_ids)) {
+            $merged_config['__candidate_word_ids'] = $candidate_word_ids;
+        }
         $words_raw = ll_get_words_by_category($term, $option_type, $wordset_ids, $merged_config);
         $word_ids = array_values(array_filter(array_map(function ($w) {
             return (int) ($w['id'] ?? 0);
@@ -892,7 +939,11 @@ function ll_tools_user_study_fetch_words_ajax() {
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
     $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, $wordset_id);
-    $words = ll_tools_user_study_words($category_ids, $wordset_id);
+    $candidate_word_limit = max(0, (int) apply_filters('ll_tools_user_study_fetch_candidate_word_id_limit', 1000, $wordset_id, $category_ids));
+    $candidate_word_ids = isset($_POST['candidate_word_ids'])
+        ? ll_tools_parse_request_id_list($_POST['candidate_word_ids'], $candidate_word_limit)
+        : [];
+    $words = ll_tools_user_study_words($category_ids, $wordset_id, $candidate_word_ids);
     wp_send_json_success(['words_by_category' => $words]);
 }
 add_action('wp_ajax_ll_user_study_fetch_words', 'll_tools_user_study_fetch_words_ajax');

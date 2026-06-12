@@ -987,6 +987,9 @@
             const wordset = window.llToolsFlashcardsData?.wordset || '';
             const wsFallback = !!(window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordsetFallback);
             const nonce = (window.llToolsFlashcardsData && (window.llToolsFlashcardsData.ajaxNonce || window.llToolsFlashcardsData._ajax_nonce || window.llToolsFlashcardsData.nonce)) || '';
+            const candidateWordIds = normalizeWordIdList(
+                (window.llToolsFlashcardsData && (window.llToolsFlashcardsData.sessionWordIds || window.llToolsFlashcardsData.session_word_ids)) || []
+            );
 
             const payload = {
                 action: 'll_get_words_by_category',
@@ -1000,6 +1003,9 @@
             };
             if (nonce) {
                 payload._ajax_nonce = nonce;
+            }
+            if (candidateWordIds.length) {
+                payload.candidate_word_ids = candidateWordIds.join(',');
             }
             const requestId = ++requestSerial;
             let callbackInvoked = false;

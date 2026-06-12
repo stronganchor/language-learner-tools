@@ -803,6 +803,46 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey((string) $non_quizzable_category_id, $words_by_category);
     }
 
+    public function test_user_study_fetch_words_ajax_honors_candidate_word_ids(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createMixedQuizzableFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $quizzable_category_id = (int) $fixture['quizzable_category_id'];
+        $candidate_ids = array_slice(array_map('intval', (array) ($fixture['quizzable_word_ids'] ?? [])), 0, 2);
+        $this->assertCount(2, $candidate_ids);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$quizzable_category_id],
+            'candidate_word_ids' => implode(',', $candidate_ids),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_fetch_words_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $words_by_category = (array) ($response['data']['words_by_category'] ?? []);
+        $this->assertArrayHasKey((string) $quizzable_category_id, $words_by_category);
+        $returned_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) $words_by_category[$quizzable_category_id])));
+        sort($candidate_ids);
+        sort($returned_ids);
+
+        $this->assertSame($candidate_ids, $returned_ids);
+    }
+
     public function test_user_study_bootstrap_payload_can_defer_words_with_metadata(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1246,9 +1286,12 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         update_term_meta($non_quizzable_category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($non_quizzable_category_id, 'll_quiz_option_type', 'text_title');
 
+        $quizzable_word_ids = [];
+        $non_quizzable_word_ids = [];
+
         // Quizzable category: meets default minimum of 5 words.
         for ($index = 1; $index <= 5; $index++) {
-            $this->createWordWithAudio(
+            $quizzable_word_ids[] = $this->createWordWithAudio(
                 'Analytics Quizzable Word ' . $index,
                 'Analytics Quizzable Translation ' . $index,
                 $quizzable_category_id,
@@ -1259,7 +1302,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
 
         // Non-quizzable category: intentionally below minimum threshold.
         for ($index = 1; $index <= 2; $index++) {
-            $this->createWordWithAudio(
+            $non_quizzable_word_ids[] = $this->createWordWithAudio(
                 'Analytics Nonquizzable Word ' . $index,
                 'Analytics Nonquizzable Translation ' . $index,
                 $non_quizzable_category_id,
@@ -1275,6 +1318,8 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'quizzable_category_id' => $quizzable_category_id,
             'non_quizzable_category_id' => $non_quizzable_category_id,
+            'quizzable_word_ids' => $quizzable_word_ids,
+            'non_quizzable_word_ids' => $non_quizzable_word_ids,
         ];
     }
 

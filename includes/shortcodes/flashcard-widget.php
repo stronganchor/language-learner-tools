@@ -1478,6 +1478,10 @@ function ll_get_words_by_category_ajax() {
     $wordset_fallback = isset($_POST['wordset_fallback']) ? (wp_unslash((string) $_POST['wordset_fallback']) !== '0') : true;
     $prompt_type = isset($_POST['prompt_type']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['prompt_type'], 60) : '';
     $option_type = isset($_POST['option_type']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['option_type'], 60) : '';
+    $candidate_word_limit = max(0, (int) apply_filters('ll_tools_flashcards_public_ajax_candidate_word_id_limit', 1000));
+    $candidate_word_ids = isset($_POST['candidate_word_ids']) && function_exists('ll_tools_parse_request_id_list')
+        ? ll_tools_parse_request_id_list($_POST['candidate_word_ids'], $candidate_word_limit)
+        : [];
 
     if (!$category && !$category_slug) { wp_send_json_error(__('Invalid category.', 'll-tools-text-domain')); }
 
@@ -1529,6 +1533,9 @@ function ll_get_words_by_category_ajax() {
     if (!empty($meta_config)) {
         $base_config = array_merge($meta_config, $base_config);
     }
+    if (!empty($candidate_word_ids)) {
+        $base_config['__candidate_word_ids'] = $candidate_word_ids;
+    }
 
     $public_cache_args = [
         'wordset_ids' => $public_wordset_ids,
@@ -1540,6 +1547,9 @@ function ll_get_words_by_category_ajax() {
         'term_slug' => ($term instanceof WP_Term) ? (string) $term->slug : '',
         'quiz_config' => $base_config,
     ];
+    if (!empty($candidate_word_ids)) {
+        $public_cache_args['candidate_word_ids'] = $candidate_word_ids;
+    }
     $cached_words = ll_tools_flashcards_public_ajax_cache_get($public_cache_args);
     if (is_array($cached_words)) {
         ll_tools_flashcards_send_public_ajax_cache_header('HIT');
