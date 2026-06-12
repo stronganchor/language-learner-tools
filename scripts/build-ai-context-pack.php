@@ -358,6 +358,7 @@ function ll_tools_context_pack_definitions(): array
                 'tests/performance/fixtures/performance-wordsets*.json',
                 'tests/performance/seed-performance-fixtures.php',
                 'tests/bin/run-performance-benchmark.sh',
+                'scripts/summarize-performance-history.js',
                 'tests/e2e/specs/performance-benchmark.spec.js',
                 'tests/e2e/helpers/performance-benchmark.js',
                 'tests/e2e/specs/page-speed-throttled-load.spec.js',

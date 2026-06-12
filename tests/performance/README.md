@@ -37,6 +37,14 @@ targets `benchmarkTargetSize: "xl"`, defaults to one run per scenario, and
 writes history to `tests/performance/history/performance-history-xl.jsonl` plus
 latest reports to `tests/performance/reports/performance-latest-xl.*`.
 
+Summarize existing history without reseeding or opening a browser:
+
+```bash
+node scripts/summarize-performance-history.js
+node scripts/summarize-performance-history.js --history tests/performance/history/performance-history-xl.jsonl --scenario wordset-xl
+node scripts/summarize-performance-history.js --limit 10 --format json
+```
+
 Change `fixtureVersion` whenever fixture shape changes. History comparisons only
 use records with the same fixture version, matching manifest checksum when both
 records have one, and the same throttle profile so older results are not mixed

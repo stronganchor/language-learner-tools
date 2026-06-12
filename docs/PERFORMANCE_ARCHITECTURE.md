@@ -78,6 +78,13 @@ It also writes latest JSON and Markdown summaries under
 Use a longer command timeout for full runs; a timeout means the runner stopped,
 not necessarily that the page under test failed.
 
+To inspect existing history without reseeding or running Playwright:
+
+```bash
+node scripts/summarize-performance-history.js
+node scripts/summarize-performance-history.js --history tests/performance/history/performance-history-xl.jsonl --scenario wordset-xl
+```
+
 ## Local context packs
 
 Context packs are generated, local-only summaries of related source files. They

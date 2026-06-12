@@ -382,6 +382,8 @@ tests/bin/run-performance-benchmark.sh
 - By default, history is appended to `tests/performance/history/performance-history.jsonl`.
 - Latest JSON and Markdown summaries are written to
   `tests/performance/reports/performance-latest.*`.
+- Summarize existing history without rerunning the benchmark:
+  `node scripts/summarize-performance-history.js`.
 - Set `LL_PERF_PROFILE=xl` to use the opt-in XL fixture (`60 x 50 = 3000`
   words), one run per scenario by default, and
   `tests/performance/history/performance-history-xl.jsonl` plus
