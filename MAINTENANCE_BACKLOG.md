@@ -1,13 +1,14 @@
 # Maintenance Backlog
 
-Updated June 10, 2026 after the weekly maintenance/performance audit, the
+Updated June 12, 2026 after the weekly maintenance/performance audit, the
 first public lazy-card resource-protection follow-up pass, the E2E
 runner-health follow-up, the Speaking Practice E2E follow-up, the shared
 flashcard shell follow-up, the content lesson route/media E2E follow-up, and
 the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
 verification follow-up, the Speaking Practice microphone-denial follow-up, and
 the Speaking Practice hosted API failure follow-up, and the offline remote
-snapshot follow-up, and the offline sync error-UX follow-up.
+snapshot follow-up, the offline sync error-UX follow-up, and the June 12
+large-wordset performance/regression follow-up pass.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -173,6 +174,18 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
   manual/staged checks because Chromium automation can reliably fake device
   errors but not every browser prompt/state combination users see in Chrome and
   OS-level privacy settings.
+- Wordset editor IPA keyboard metadata needs a larger cached-data design if
+  editors expect off-page IPA symbols and letter aids while browsing a paged
+  large wordset. The current modal path keeps `word_grid` rendering bounded by
+  visible `specific_word_ids`, so its IPA symbol inventory can omit symbols
+  that only appear on other pages. Do not fix this by restoring a synchronous
+  full-wordset `word_audio` scan in the editor modal. Prefer a materialized
+  wordset-level IPA inventory/letter-map cache, maintained by bounded
+  recording-save hooks or an explicit admin rebuild job, or lazy-load keyboard
+  metadata asynchronously when the editor opens. Existing wordset term meta
+  such as `ll_wordset_ipa_special_chars` and `ll_wordset_ipa_letter_map` can
+  be part of the read path, but only after invalidation/rebuild behavior is
+  clear enough for large wordsets.
 
 ## Deferred Larger Projects
 
