@@ -68,6 +68,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $_POST = [];
         $_FILES = [];
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
+        unset($_SERVER['HTTP_ACCEPT_LANGUAGE']);
         delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
@@ -266,6 +267,87 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         } finally {
             remove_filter('ll_tools_dictionary_static_cache_ttl', $ttl_filter);
             remove_filter('ll_tools_dictionary_static_cache_browser_max_age', $browser_filter);
+        }
+    }
+
+    public function test_dictionary_static_cache_locale_strategy_allows_only_site_default_locale(): void
+    {
+        if (function_exists('ll_tools_get_plugin_locales') && !in_array('tr_TR', ll_tools_get_plugin_locales(), true)) {
+            $this->markTestSkipped('Turkish locale is not available in this test environment.');
+        }
+
+        $old_wplang = get_option('WPLANG');
+        $old_autoswitch = get_option('ll_enable_browser_language_autoswitch');
+
+        try {
+            update_option('WPLANG', '');
+            update_option('ll_enable_browser_language_autoswitch', 1);
+            unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+            $_GET = [];
+            $_REQUEST = [];
+
+            $this->assertSame('en_US', ll_tools_dictionary_static_cache_default_locale());
+            $this->assertSame('', ll_tools_dictionary_static_cache_locale_bypass_reason());
+
+            $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
+
+            $this->assertSame('tr_TR', ll_tools_dictionary_static_cache_current_public_locale());
+            $this->assertSame('browser_locale', ll_tools_dictionary_static_cache_locale_bypass_reason());
+            $this->assertSame('private, no-store, max-age=0', ll_tools_dictionary_static_cache_bypass_cache_control_value());
+
+            unset($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+            $_COOKIE[LL_TOOLS_I18N_COOKIE] = 'tr_TR';
+
+            $this->assertSame('tr_TR', ll_tools_dictionary_static_cache_current_public_locale());
+            $this->assertSame('locale_cookie', ll_tools_dictionary_static_cache_locale_bypass_reason());
+        } finally {
+            update_option('WPLANG', $old_wplang);
+            update_option('ll_enable_browser_language_autoswitch', $old_autoswitch);
+            unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+            $_GET = [];
+            $_REQUEST = [];
+        }
+    }
+
+    public function test_cacheable_dictionary_request_rejects_browser_locale_variant(): void
+    {
+        if (function_exists('ll_tools_get_plugin_locales') && !in_array('tr_TR', ll_tools_get_plugin_locales(), true)) {
+            $this->markTestSkipped('Turkish locale is not available in this test environment.');
+        }
+
+        $old_wplang = get_option('WPLANG');
+        $old_autoswitch = get_option('ll_enable_browser_language_autoswitch');
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Cacheable Dictionary Locale',
+            'post_name' => 'sozluk',
+            'post_content' => '[ll_dictionary]',
+        ]);
+        $url = (string) get_permalink($page_id);
+
+        try {
+            update_option('WPLANG', '');
+            update_option('ll_enable_browser_language_autoswitch', 1);
+            wp_set_current_user(0);
+            $_GET = [];
+            $_REQUEST = [];
+            unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
+
+            $this->go_to($url);
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'en-US,en;q=0.9';
+            $this->assertTrue(ll_tools_is_cacheable_dictionary_request());
+
+            $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
+            $this->assertFalse(ll_tools_is_cacheable_dictionary_request());
+            $this->assertSame('browser_locale', ll_tools_dictionary_static_cache_locale_bypass_reason());
+        } finally {
+            update_option('WPLANG', $old_wplang);
+            update_option('ll_enable_browser_language_autoswitch', $old_autoswitch);
+            unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+            $_GET = [];
+            $_REQUEST = [];
         }
     }
 

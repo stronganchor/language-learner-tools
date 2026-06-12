@@ -2,6 +2,46 @@
   {
     "name": "example-wordset-page",
     "url": "https://example.com/lessons/",
+    "cloudflareCache": [
+      {
+        "name": "dictionary-default-edge-hit",
+        "url": "https://example.com/sozluk/",
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9"
+        },
+        "warmupRequests": 1,
+        "expectServerIncludes": "cloudflare",
+        "expectCacheStatus": "HIT",
+        "expectHeadersInclude": {
+          "cache-control": "public"
+        },
+        "expectHeadersExclude": {
+          "vary": [
+            "accept-language",
+            "cookie"
+          ]
+        }
+      },
+      {
+        "name": "dictionary-negotiated-locale-bypass",
+        "url": "https://example.com/sozluk/",
+        "headers": {
+          "Accept-Language": "tr-TR,tr;q=0.9"
+        },
+        "expectServerIncludes": "cloudflare",
+        "expectCacheStatus": "DYNAMIC",
+        "expectHeadersInclude": {
+          "cache-control": [
+            "no-store",
+            "private"
+          ],
+          "vary": [
+            "accept-language",
+            "cookie"
+          ]
+        }
+      }
+    ],
     "expected": {
       "titleIncludes": "Example",
       "h1Includes": "Lessons",

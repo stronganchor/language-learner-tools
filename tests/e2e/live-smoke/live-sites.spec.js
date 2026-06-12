@@ -65,6 +65,28 @@ function normalizeHeaderMap(value) {
   return headers;
 }
 
+function normalizeHeaderExpectationMap(value) {
+  const expectations = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return expectations;
+  }
+
+  for (const [rawName, rawExpected] of Object.entries(value)) {
+    const name = String(rawName || '').trim().toLowerCase();
+    if (!name) {
+      continue;
+    }
+
+    const values = Array.isArray(rawExpected) ? rawExpected : [rawExpected];
+    expectations[name] = values
+      .filter((item) => item !== undefined && item !== null)
+      .map((item) => String(item).trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return expectations;
+}
+
 function resolveSmokeUrl(rawUrl, baseUrl) {
   const value = String(rawUrl || baseUrl || '').trim();
   expect(value, 'Smoke check URL should not be empty.').not.toBe('');
@@ -400,6 +422,8 @@ async function runCloudflareCacheChecks(apiRequest, site) {
     const timeout = Math.max(1000, parseInt(check.timeoutMs || '', 10) || 30000);
     const expectedServer = String(check.expectServerIncludes || '').trim().toLowerCase();
     const expectedCacheStatuses = normalizeUpperList(check.expectCacheStatus || check.expectCacheStatuses);
+    const expectedHeadersInclude = normalizeHeaderExpectationMap(check.expectHeadersInclude);
+    const expectedHeadersExclude = normalizeHeaderExpectationMap(check.expectHeadersExclude);
 
     expect(['GET', 'HEAD'].includes(method), name + ' method must be GET or HEAD.').toBe(true);
 
@@ -420,6 +444,9 @@ async function runCloudflareCacheChecks(apiRequest, site) {
         server: String(responseHeaders.server || ''),
         cfCacheStatus: String(responseHeaders['cf-cache-status'] || ''),
         cacheControl: String(responseHeaders['cache-control'] || ''),
+        cdnCacheControl: String(responseHeaders['cdn-cache-control'] || ''),
+        cloudflareCdnCacheControl: String(responseHeaders['cloudflare-cdn-cache-control'] || ''),
+        vary: String(responseHeaders.vary || ''),
         age: String(responseHeaders.age || '')
       };
       attempts.push(attemptSummary);
@@ -440,6 +467,18 @@ async function runCloudflareCacheChecks(apiRequest, site) {
         name + ' final CF-Cache-Status was not one of the configured values.'
       ).toContain(String(finalAttempt.cfCacheStatus || '').toUpperCase());
     }
+    for (const [headerName, expectedValues] of Object.entries(expectedHeadersInclude)) {
+      const actual = String(finalAttempt[headerName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] || '').toLowerCase();
+      for (const expectedValue of expectedValues) {
+        expect(actual, name + ' final ' + headerName + ' header did not include expected text.').toContain(expectedValue);
+      }
+    }
+    for (const [headerName, blockedValues] of Object.entries(expectedHeadersExclude)) {
+      const actual = String(finalAttempt[headerName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] || '').toLowerCase();
+      for (const blockedValue of blockedValues) {
+        expect(actual, name + ' final ' + headerName + ' header included blocked text.').not.toContain(blockedValue);
+      }
+    }
 
     results.push({
       name,
@@ -449,6 +488,8 @@ async function runCloudflareCacheChecks(apiRequest, site) {
       warmupRequests,
       expectedServerIncludes: expectedServer,
       expectedCacheStatuses,
+      expectedHeadersInclude,
+      expectedHeadersExclude,
       attempts
     });
   }
