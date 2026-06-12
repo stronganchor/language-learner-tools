@@ -383,7 +383,7 @@ function ll_tools_word_grid_get_recording_launch_items_by_word(array $word_ids, 
     $include_types = is_array($user_config) ? trim((string) ($user_config['include_recording_types'] ?? '')) : '';
     $exclude_types = is_array($user_config) ? trim((string) ($user_config['exclude_recording_types'] ?? '')) : '';
 
-    $queue_items = ll_tools_get_recording_queue_items($category_slug, [$wordset_id], $include_types, $exclude_types, false, get_current_user_id());
+    $queue_items = ll_tools_get_recording_queue_items($category_slug, [$wordset_id], $include_types, $exclude_types, false, get_current_user_id(), $word_ids);
     if (empty($queue_items)) {
         return [];
     }
@@ -1178,7 +1178,7 @@ function ll_tools_word_grid_recording_ipa_is_reviewed(int $recording_id): bool {
     return !((bool) get_post_meta($recording_id, 'll_auto_transcription_needs_review', true));
 }
 
-function ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory(int $wordset_id): array {
+function ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory(int $wordset_id, array $candidate_word_ids = []): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return [
@@ -1192,7 +1192,12 @@ function ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory(int $words
         ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
         : 'ipa';
 
-    $word_ids = function_exists('ll_tools_ipa_keyboard_get_word_ids_for_wordset')
+    $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    $word_ids = !empty($candidate_word_ids)
+        ? $candidate_word_ids
+        : (function_exists('ll_tools_ipa_keyboard_get_word_ids_for_wordset')
         ? ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id)
         : get_posts([
             'post_type' => 'words',
@@ -1206,7 +1211,7 @@ function ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory(int $words
                     'terms' => $wordset_id,
                 ],
             ],
-        ]);
+        ]));
 
     if (empty($word_ids)) {
         return [
@@ -2966,14 +2971,17 @@ function ll_tools_word_grid_category_belongs_to_wordset_editor_scope(int $catego
     return $owner_id <= 0 || $owner_id === $wordset_id;
 }
 
-function ll_tools_word_grid_get_category_editor_terms_for_wordset(int $wordset_id): array {
+function ll_tools_word_grid_get_category_editor_terms_for_wordset(int $wordset_id, array $specific_word_ids = []): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return [];
     }
+    $specific_word_ids = array_values(array_unique(array_filter(array_map('intval', $specific_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
 
     $terms = [];
-    if (function_exists('ll_tools_recorder_get_category_terms_for_wordsets')) {
+    if (empty($specific_word_ids) && function_exists('ll_tools_recorder_get_category_terms_for_wordsets')) {
         $terms = ll_tools_recorder_get_category_terms_for_wordsets([$wordset_id], get_current_user_id());
     }
 
@@ -2997,7 +3005,7 @@ function ll_tools_word_grid_get_category_editor_terms_for_wordset(int $wordset_i
             }
         }
 
-        $word_ids = get_posts([
+        $word_ids = !empty($specific_word_ids) ? $specific_word_ids : get_posts([
             'post_type'      => 'words',
             'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
             'posts_per_page' => -1,
@@ -3119,9 +3127,9 @@ function ll_tools_word_grid_get_category_editor_terms_for_wordset(int $wordset_i
     return $ordered_terms;
 }
 
-function ll_tools_word_grid_get_category_editor_rows(int $wordset_id): array {
+function ll_tools_word_grid_get_category_editor_rows(int $wordset_id, array $specific_word_ids = []): array {
     $rows = [];
-    foreach (ll_tools_word_grid_get_category_editor_terms_for_wordset($wordset_id) as $term) {
+    foreach (ll_tools_word_grid_get_category_editor_terms_for_wordset($wordset_id, $specific_word_ids) as $term) {
         if (!($term instanceof WP_Term) || is_wp_error($term)) {
             continue;
         }
@@ -3569,9 +3577,13 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
     $secondary_text_keyboard_groups = [];
     $secondary_text_symbol_details = [];
     $ipa_letter_map = [];
+    $specific_word_ids = array_values(array_filter(array_map('intval', (array) ($context['specific_word_ids'] ?? [])), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+
     if ($can_edit_words && $wordset_id > 0) {
         $ipa_inventory = function_exists('ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory')
-            ? ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory($wordset_id)
+            ? ll_tools_word_grid_get_wordset_reviewed_ipa_symbol_inventory($wordset_id, $specific_word_ids)
             : [
                 'symbols' => function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')
                     ? ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id)
@@ -3595,7 +3607,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             }
         }
 
-        $letter_maps = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_maps')
+        $letter_maps = empty($specific_word_ids) && function_exists('ll_tools_word_grid_get_wordset_ipa_letter_maps')
             ? ll_tools_word_grid_get_wordset_ipa_letter_maps($wordset_id)
             : [];
         $blocklist = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_blocklist')
@@ -5422,7 +5434,7 @@ function ll_tools_word_grid_shortcode($atts) {
         && ll_tools_current_user_can_view_interlinear($lesson_id)
         && ll_tools_interlinear_has_payload($lesson_id);
     $category_editor_rows = $show_word_category_editor
-        ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+        ? ll_tools_word_grid_get_category_editor_rows($wordset_id, $specific_word_ids)
         : [];
     $category_editor_ids = ll_tools_word_grid_normalize_category_id_list(wp_list_pluck($category_editor_rows, 'id'));
 

@@ -2483,11 +2483,14 @@ function ll_tools_recorder_word_image_is_allowed_for_wordset_queue(int $image_id
     return ll_tools_recorder_word_image_is_owned_by_wordsets($image_id, $normalized_wordset_ids);
 }
 
-function ll_tools_recorder_get_word_ids_for_wordset_scope(array $wordset_ids, string $category_slug = '', int $category_term_id = 0): array {
+function ll_tools_recorder_get_word_ids_for_wordset_scope(array $wordset_ids, string $category_slug = '', int $category_term_id = 0, array $candidate_word_ids = []): array {
     $normalized_wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
     if (empty($normalized_wordset_ids)) {
         return [];
     }
+    $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
 
     $tax_query = [
         [
@@ -2507,22 +2510,28 @@ function ll_tools_recorder_get_word_ids_for_wordset_scope(array $wordset_ids, st
         $tax_query['relation'] = 'AND';
     }
 
-    $word_ids = get_posts([
+    $query_args = [
         'post_type'      => 'words',
         'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
-        'posts_per_page' => -1,
+        'posts_per_page' => !empty($candidate_word_ids) ? count($candidate_word_ids) : -1,
         'fields'         => 'ids',
         'no_found_rows'  => true,
         'tax_query'      => $tax_query,
-    ]);
+    ];
+    if (!empty($candidate_word_ids)) {
+        $query_args['post__in'] = $candidate_word_ids;
+        $query_args['orderby'] = 'post__in';
+    }
+
+    $word_ids = get_posts($query_args);
 
     return array_values(array_unique(array_filter(array_map('intval', (array) $word_ids), static function (int $word_id): bool {
         return $word_id > 0;
     })));
 }
 
-function ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope(array $wordset_ids, string $category_slug = '', int $category_term_id = 0): array {
-    $word_ids = ll_tools_recorder_get_word_ids_for_wordset_scope($wordset_ids, $category_slug, $category_term_id);
+function ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope(array $wordset_ids, string $category_slug = '', int $category_term_id = 0, array $candidate_word_ids = []): array {
+    $word_ids = ll_tools_recorder_get_word_ids_for_wordset_scope($wordset_ids, $category_slug, $category_term_id, $candidate_word_ids);
     if (empty($word_ids)) {
         return [];
     }
@@ -4381,8 +4390,8 @@ function ll_tools_get_prompt_cards_needing_audio($category_slug = '', $wordset_t
     return array_values($items);
 }
 
-function ll_tools_get_recording_queue_items($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0): array {
-    $items = ll_get_images_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id);
+function ll_tools_get_recording_queue_items($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $candidate_word_ids = []): array {
+    $items = ll_get_images_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id, $candidate_word_ids);
     $prompt_items = ll_tools_get_prompt_cards_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id);
 
     if (empty($prompt_items)) {
@@ -4426,7 +4435,7 @@ function ll_tools_get_recording_queue_items($category_slug = '', $wordset_term_i
  *   ...
  * ]
  */
-function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0) {
+function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $candidate_word_ids = []) {
     if (empty($wordset_term_ids)) {
         $default_id = ll_get_default_wordset_term_id();
         if ($default_id) {
@@ -4434,6 +4443,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
     }
     $wordset_term_ids = ll_tools_recorder_normalize_wordset_ids((array) $wordset_term_ids);
+    $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
 
     $is_uncategorized_request = ($category_slug === 'uncategorized');
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
@@ -4537,8 +4549,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         ]];
     }
 
-    $image_posts = get_posts($image_args);
-    $referenced_image_posts = ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope($wordset_term_ids, (string) $category_slug, $active_category_term_id);
+    $image_posts = empty($candidate_word_ids) ? get_posts($image_args) : [];
+    $referenced_image_posts = ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope($wordset_term_ids, (string) $category_slug, $active_category_term_id, $candidate_word_ids);
     if (!empty($referenced_image_posts)) {
         $image_posts = array_values(array_unique(array_merge(
             array_map('intval', (array) $image_posts),
@@ -4848,7 +4860,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $word_args = [
         'post_type'      => 'words',
         'post_status'    => ['publish', 'draft'],
-        'posts_per_page' => -1,
+        'posts_per_page' => !empty($candidate_word_ids) ? count($candidate_word_ids) : -1,
         'orderby'        => 'title',
         'order'          => 'ASC',
         'fields'         => 'ids',
@@ -4865,6 +4877,10 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             ],
         ],
     ];
+    if (!empty($candidate_word_ids)) {
+        $word_args['post__in'] = $candidate_word_ids;
+        $word_args['orderby'] = 'post__in';
+    }
 
     if (!empty($wordset_term_ids)) {
         $word_args['tax_query'] = [[

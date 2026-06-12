@@ -459,6 +459,88 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertSame([], $captured_post_type_queries, 'Owned wordset categories should avoid broad words/word_images scans.');
     }
 
+    public function test_wordset_editor_normal_pagination_uses_bounded_word_query(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-bounded-pagination');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->createPagedWords('Bounded Pagination', $wordset_id, (int) $fixture['category_a_id'], 80);
+
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+            : [];
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_page' => '2',
+            'll_editor_sort' => 'word',
+            'll_editor_dir' => 'asc',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg($_GET, ll_tools_get_wordset_page_view_url($wordset_term, 'settings')));
+
+        $captured_word_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_word_queries): void {
+            if ((string) $query->get('post_type') === 'words' && (string) $query->get('fields') === 'ids') {
+                $captured_word_queries[] = $query->query_vars;
+            }
+        };
+
+        add_action('pre_get_posts', $capture);
+        try {
+            $html = ll_tools_wordset_page_render_settings_editor_tool($wordset_term, $wordset_id, '', $category_rows);
+        } finally {
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $this->assertStringContainsString('All 82 filtered words', $html);
+        $this->assertStringContainsString('Bounded Pagination 074', $html);
+        $this->assertStringContainsString('Bounded Pagination 080', $html);
+        $this->assertStringNotContainsString('Alpha Word', $html);
+        $this->assertSame(7, substr_count($html, 'data-ll-wordset-editor-row '));
+        $this->assertStringContainsString('aria-current="page"', $html);
+
+        $bounded_query = null;
+        foreach ($captured_word_queries as $query_vars) {
+            if ((int) ($query_vars['posts_per_page'] ?? 0) === 75 && (int) ($query_vars['paged'] ?? 0) === 2) {
+                $bounded_query = $query_vars;
+                break;
+            }
+        }
+        $this->assertIsArray($bounded_query, 'Expected normal editor render to use a page-bounded word ID query.');
+        foreach ($captured_word_queries as $query_vars) {
+            $post_in = ll_tools_wordset_editor_normalize_word_ids((array) ($query_vars['post__in'] ?? []));
+            $is_page_scoped_unbounded_query = (int) ($query_vars['posts_per_page'] ?? 0) === -1 && !empty($post_in) && count($post_in) <= 75;
+            if ($is_page_scoped_unbounded_query) {
+                continue;
+            }
+            $this->assertNotSame(-1, (int) ($query_vars['posts_per_page'] ?? 0), 'Normal editor render should not query every word ID before slicing: ' . wp_json_encode($query_vars));
+        }
+    }
+
+    public function test_all_filtered_bulk_selection_still_includes_words_beyond_visible_page(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-all-filtered-large');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $this->createPagedWords('All Filtered Large', $wordset_id, (int) $fixture['category_a_id'], 80);
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+            : [];
+
+        $_POST = [
+            'll_wordset_editor_all_filtered' => '1',
+            'll_editor_sort' => 'word',
+            'll_editor_dir' => 'asc',
+        ];
+
+        $selected_ids = ll_tools_wordset_editor_get_selected_word_ids_from_post($wordset_id, $category_rows);
+
+        $this->assertCount(82, $selected_ids);
+        $this->assertContains((int) $fixture['alpha_word_id'], $selected_ids);
+        $this->assertContains((int) $fixture['beta_word_id'], $selected_ids);
+    }
+
     public function test_quick_update_changes_word_fields_and_is_undoable(): void
     {
         $this->loginEditor();
@@ -1070,6 +1152,28 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
             'beta_word_id' => (int) $beta_word_id,
             'alpha_recording_id' => (int) $alpha_recording_id,
         ];
+    }
+
+    /**
+     * @return int[]
+     */
+    private function createPagedWords(string $prefix, int $wordset_id, int $category_id, int $count): array
+    {
+        $word_ids = [];
+        for ($index = 1; $index <= $count; $index++) {
+            $label = sprintf('%s %03d', $prefix, $index);
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => $label,
+            ]);
+            wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+            wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+            update_post_meta($word_id, 'word_translation', $label . ' Translation');
+            $word_ids[] = (int) $word_id;
+        }
+
+        return $word_ids;
     }
 
     private function createImageAttachment(string $filename): int
