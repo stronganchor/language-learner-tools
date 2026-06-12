@@ -544,6 +544,9 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Local Phonetic Exceptions');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
+            'sʲ' => ['any' => 's'],
+        ]);
         $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
 
         $hbar = "\u{0127}";
@@ -576,6 +579,26 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Swaba', (string) ($labialized_s_prediction['text'] ?? ''));
         $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Swaba', "sʷaba", $wordset_id, 'isolation', $labialized_s_prediction)['matches'] ?? false));
         $this->assertFalse((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Saba', "sʷaba", $wordset_id, 'isolation', $labialized_s_prediction)['matches'] ?? true));
+
+        $palatalized_s_ipa = "ʔæsʲim";
+        $palatalized_s_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($palatalized_s_ipa, $engine_rules, $wordset_id);
+        $this->assertSame('Âsyim', (string) ($palatalized_s_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Âsyim', $palatalized_s_ipa, $wordset_id, 'isolation', $palatalized_s_prediction)['matches'] ?? false));
+
+        $palatalized_s_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Âsyim',
+            $palatalized_s_ipa,
+            $wordset_id,
+            'isolation',
+            [
+                'text' => 'Âsim',
+                'complete' => true,
+            ]
+        );
+        $this->assertFalse((bool) ($palatalized_s_detail['matches'] ?? true));
+        $this->assertSame(['y'], $this->collectSpanText('Âsyim', (array) ($palatalized_s_detail['actual_spans'] ?? [])));
+        $this->assertSame(['si'], $this->collectSpanText('Âsim', (array) ($palatalized_s_detail['suggested_spans'] ?? [])));
+        $this->assertSame(['sʲ'], $this->collectSpanText($palatalized_s_ipa, (array) ($palatalized_s_detail['ipa_spans'] ?? [])));
 
         $this->assertSame(
             'Ang ank',

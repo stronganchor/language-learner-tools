@@ -1973,7 +1973,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 16;
+    return 17;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -3362,6 +3362,8 @@ function ll_tools_ipa_orthography_diff_span_pair(
 
     $actual_length = max(0, count($actual_chars) - $prefix - $suffix);
     $suggested_length = max(0, count($suggested_chars) - $prefix - $suffix);
+    $actual_span_offset = $prefix;
+    $suggested_span_offset = $prefix;
 
     if ($actual_length > 0 && $suggested_length === 0) {
         $deleted_text = implode('', array_slice($actual_chars, $prefix, $actual_length));
@@ -3373,6 +3375,16 @@ function ll_tools_ipa_orthography_diff_span_pair(
             && preg_match('/^\p{P}+$/u', $deleted_text) === 1) {
             $actual_length++;
             $suggested_length = 1;
+        }
+        if ($suggested_length === 0 && !empty($suggested_chars)) {
+            $context_before = $prefix > 0 ? $prefix - 1 : null;
+            $context_after = $prefix < count($suggested_chars) ? $prefix : null;
+            if ($context_before !== null || $context_after !== null) {
+                $context_start = $context_before !== null ? $context_before : (int) $context_after;
+                $context_end = $context_after !== null ? (int) $context_after + 1 : (int) $context_before + 1;
+                $suggested_span_offset = $context_start;
+                $suggested_length = max(1, $context_end - $context_start);
+            }
         }
     } elseif ($suggested_length > 0 && $actual_length === 0) {
         $inserted_text = implode('', array_slice($suggested_chars, $prefix, $suggested_length));
@@ -3389,15 +3401,15 @@ function ll_tools_ipa_orthography_diff_span_pair(
 
     return [
         'actual' => $actual_length > 0 ? [
-            'start' => $actual_start + $prefix,
+            'start' => $actual_start + $actual_span_offset,
             'length' => $actual_length,
         ] : null,
         'suggested' => $suggested_length > 0 ? [
-            'start' => $suggested_start + $prefix,
+            'start' => $suggested_start + $suggested_span_offset,
             'length' => $suggested_length,
         ] : null,
-        'actual_diff' => $actual_length > 0 ? implode('', array_slice($actual_chars, $prefix, $actual_length)) : '',
-        'suggested_diff' => $suggested_length > 0 ? implode('', array_slice($suggested_chars, $prefix, $suggested_length)) : '',
+        'actual_diff' => $actual_length > 0 ? implode('', array_slice($actual_chars, $actual_span_offset, $actual_length)) : '',
+        'suggested_diff' => $suggested_length > 0 ? implode('', array_slice($suggested_chars, $suggested_span_offset, $suggested_length)) : '',
     ];
 }
 
@@ -3456,7 +3468,8 @@ function ll_tools_ipa_orthography_rule_span_for_suggested_diff(
         $candidates[] = [
             'span' => $span,
             'score' => (ll_tools_ipa_orthography_rule_output_has_letter($output_key) ? 100 : 0)
-                + min(20, ll_tools_ipa_orthography_strlen($output_key)),
+                + min(20, ll_tools_ipa_orthography_strlen($output_key))
+                + min(10, (int) ($span['length'] ?? 0)),
         ];
     }
 
@@ -3469,7 +3482,11 @@ function ll_tools_ipa_orthography_rule_span_for_suggested_diff(
         if ($score_compare !== 0) {
             return $score_compare;
         }
-        return (int) ($left['span']['start'] ?? 0) <=> (int) ($right['span']['start'] ?? 0);
+        $start_compare = (int) ($left['span']['start'] ?? 0) <=> (int) ($right['span']['start'] ?? 0);
+        if ($start_compare !== 0) {
+            return $start_compare;
+        }
+        return (int) ($right['span']['length'] ?? 0) <=> (int) ($left['span']['length'] ?? 0);
     });
 
     return is_array($candidates[0]['span'] ?? null) ? (array) $candidates[0]['span'] : null;
@@ -5937,31 +5954,29 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
         $step_started = microtime(true);
         $prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($conversion_tokens, $rules, $rules_by_first_token);
         ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_dp_seconds', microtime(true) - $step_started);
-        if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
-            $step_started = microtime(true);
-            foreach (ll_tools_ipa_orthography_post_modifier_token_variants($tokens, $mode) as $expanded_tokens) {
-                if (array_values($expanded_tokens) === array_values($tokens)) {
-                    continue;
-                }
+        $step_started = microtime(true);
+        foreach (ll_tools_ipa_orthography_post_modifier_token_variants($tokens, $mode) as $expanded_tokens) {
+            if (array_values($expanded_tokens) === array_values($tokens)) {
+                continue;
+            }
 
-                $expanded_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($expanded_tokens, $rules, $rules_by_first_token);
-                if (!empty($expanded_prediction['complete']) && (string) ($expanded_prediction['text'] ?? '') !== '') {
-                    if (empty($prediction['complete'])
-                        || (int) ($expanded_prediction['score'] ?? 0) > (int) ($prediction['score'] ?? 0)) {
-                        $conversion_tokens = $expanded_tokens;
-                        $prediction = $expanded_prediction;
-                    }
-                    continue;
-                }
-
+            $expanded_prediction = ll_tools_ipa_orthography_convert_ipa_tokens_to_text($expanded_tokens, $rules, $rules_by_first_token);
+            if (!empty($expanded_prediction['complete']) && (string) ($expanded_prediction['text'] ?? '') !== '') {
                 if (empty($prediction['complete'])
-                    && (int) ($expanded_prediction['matched_tokens'] ?? 0) > (int) ($prediction['matched_tokens'] ?? 0)) {
+                    || (int) ($expanded_prediction['score'] ?? 0) > (int) ($prediction['score'] ?? 0)) {
                     $conversion_tokens = $expanded_tokens;
                     $prediction = $expanded_prediction;
                 }
+                continue;
             }
-            ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_post_modifier_seconds', microtime(true) - $step_started);
+
+            if (empty($prediction['complete'])
+                && (int) ($expanded_prediction['matched_tokens'] ?? 0) > (int) ($prediction['matched_tokens'] ?? 0)) {
+                $conversion_tokens = $expanded_tokens;
+                $prediction = $expanded_prediction;
+            }
         }
+        ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_post_modifier_seconds', microtime(true) - $step_started);
         if (empty($prediction['complete']) || (string) ($prediction['text'] ?? '') === '') {
             $step_started = microtime(true);
             if ($fallback_rules === null) {
