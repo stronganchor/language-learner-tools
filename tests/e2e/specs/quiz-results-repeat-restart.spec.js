@@ -12,6 +12,15 @@ const mainSource = fs.readFileSync(
   'utf8'
 );
 
+function fixtureImage(fill, label) {
+  return `data:image/svg+xml,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
+      <rect width="320" height="240" fill="${fill}"/>
+      <text x="160" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" font-weight="700" fill="#1d4d99">${label}</text>
+    </svg>
+  `)}`;
+}
+
 async function mountRestartHarness(page) {
   await page.goto('about:blank');
   await page.setContent(`
@@ -142,6 +151,192 @@ async function mountRestartHarness(page) {
   });
 
   await page.addScriptTag({ content: mainSource });
+}
+
+async function mountRenderedImageReadinessHarness(page) {
+  const goodImage = fixtureImage('#dcfce7', 'OK');
+  const brokenImage = 'data:image/png;base64,this-is-not-a-valid-image';
+
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-popup">
+      <div id="ll-tools-flashcard-quiz-popup">
+        <button id="ll-tools-close-flashcard" type="button"></button>
+        <div id="ll-tools-flashcard-header"></div>
+        <div id="ll-tools-learning-progress"></div>
+        <div id="ll-tools-prompt"></div>
+        <div id="ll-tools-flashcard-content">
+          <div id="ll-tools-flashcard"></div>
+        </div>
+        <div id="quiz-results"></div>
+        <button id="ll-tools-repeat-flashcard" type="button"></button>
+      </div>
+    </div>
+  `);
+
+  await page.addScriptTag({ content: jquerySource });
+  await page.addScriptTag({ content: stateSource });
+
+  await page.evaluate((bootstrap) => {
+    window.__LLFlashcardsMainLoaded = false;
+    window.__shownWordIds = [];
+    window.__loadImageCalls = [];
+    window.__currentTarget = null;
+    window.__targets = [
+      { id: 501, title: 'Broken first image', image: bootstrap.brokenImage, __categoryName: 'Kitchen' },
+      { id: 502, title: 'Loaded next image', image: bootstrap.goodImage, __categoryName: 'Kitchen' }
+    ];
+
+    window.llToolsFlashcardsData = {
+      debug: false,
+      firstCategoryName: 'Kitchen',
+      imageSize: 'small',
+      categories: [
+        { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'text_title', option_type: 'image' }
+      ],
+      modeUi: {},
+      isUserLoggedIn: false
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', fastTransitions: true };
+
+    window.LLFlashcards = window.LLFlashcards || {};
+    window.LLFlashcards.Util = {
+      randomlySort(items) {
+        return Array.isArray(items) ? items.slice() : [];
+      },
+      promptTypeHasAudio(promptType) {
+        const normalized = String(promptType || '').trim().toLowerCase();
+        return normalized === 'audio' || normalized === 'audio_text_title' || normalized === 'audio_text_translation' || normalized === 'image_audio';
+      },
+      promptTypeHasImage(promptType) {
+        const normalized = String(promptType || '').trim().toLowerCase();
+        return normalized === 'image' || normalized === 'image_audio' || normalized === 'image_text_title' || normalized === 'image_text_translation';
+      },
+      promptTypeHasText(promptType) {
+        return String(promptType || '').trim().toLowerCase() === 'text_title';
+      },
+      getPromptTextType(promptType) {
+        return String(promptType || '').trim().toLowerCase() === 'text_title' ? 'text_title' : '';
+      },
+      optionTypeHasImage(optionType) {
+        const normalized = String(optionType || '').trim().toLowerCase();
+        return normalized === 'image' || normalized === 'image_text_translation';
+      }
+    };
+    window.LLFlashcards.Dom = {
+      clearRepeatButtonBinding() {},
+      restoreHeaderUI() {},
+      showLoading() {},
+      hideLoading() { return Promise.resolve(); },
+      hideLoadingImmediately() { return Promise.resolve(); },
+      setRepeatButton() {},
+      updateCategoryNameDisplay() {},
+      enableRepeatButton() {},
+      disableRepeatButton() {},
+      bindRepeatButtonAudio() {},
+      updateSimpleProgress() {},
+      hideAutoplayBlockedOverlay() {}
+    };
+    window.LLFlashcards.Effects = { startConfetti() {} };
+    window.LLFlashcards.Selection = {
+      isLearningSupportedForCategories() { return true; },
+      isGenderSupportedForCategories() { return false; },
+      getCategoryConfig() {
+        return { option_type: 'image', prompt_type: 'text_title', learning_supported: true };
+      },
+      getCurrentDisplayMode() { return 'image'; },
+      getTargetCategoryName(word) {
+        return (word && word.__categoryName) || 'Kitchen';
+      },
+      selectTargetWordAndCategory() {
+        const next = window.__targets.length ? window.__targets.shift() : null;
+        window.__currentTarget = next;
+        return next;
+      },
+      fillQuizOptions(targetWord) {
+        const $container = window.jQuery('#ll-tools-flashcard');
+        $container.empty();
+        [
+          { id: targetWord.id, title: targetWord.title, image: targetWord.image },
+          { id: 900, title: 'Distractor', image: bootstrap.goodImage }
+        ].forEach((word) => {
+          window.jQuery('<div class="flashcard-container ll-answer-option-image-card"></div>')
+            .attr('data-word-id', String(word.id))
+            .append(window.jQuery('<img class="quiz-image" alt="" aria-hidden="true">').attr('src', word.image))
+            .appendTo($container);
+        });
+        return Promise.resolve({ ready: true, failedWordIds: [] });
+      }
+    };
+    window.LLFlashcards.Cards = {};
+    window.LLFlashcards.Results = {
+      hideResults() {},
+      showResults() {}
+    };
+    window.LLFlashcards.StateMachine = {};
+    window.LLFlashcards.ModeConfig = {};
+    window.LLFlashcards.Modes = {};
+
+    window.FlashcardOptions = {
+      initializeOptionsCount() {},
+      calculateNumberOfOptions() { return 2; },
+      categoryOptionsCount: { Kitchen: 2 }
+    };
+    window.FlashcardLoader = {
+      loadAudio() {},
+      loadResourcesForCategory() {},
+      loadResourcesForWord() {
+        return Promise.resolve({ ready: true, audioReady: true, imageReady: true });
+      },
+      loadImage(url, opts) {
+        window.__loadImageCalls.push({
+          url: String(url || ''),
+          forceRetry: !!(opts && opts.forceRetry)
+        });
+        return Promise.resolve({
+          ready: !String(url || '').includes('this-is-not-a-valid-image'),
+          url: String(url || '')
+        });
+      }
+    };
+    window.FlashcardAudio = {
+      initializeAudio() {},
+      getCorrectAudioURL() { return ''; },
+      getWrongAudioURL() { return ''; },
+      playFeedback(isCorrect, audioUrl, callback) {
+        if (typeof callback === 'function') callback();
+      },
+      pauseAllAudio() {},
+      setTargetAudioHasPlayed() {},
+      setTargetWordAudio() {},
+      getCurrentTargetAudio() { return null; }
+    };
+
+    const state = window.LLFlashcards.State;
+    state.widgetActive = true;
+    state.currentFlowState = state.STATES.QUIZ_READY;
+    state.isFirstRound = false;
+    state.categoryNames = ['Kitchen'];
+    state.initialCategoryNames = ['Kitchen'];
+    state.wordsByCategory = {
+      Kitchen: window.__targets.slice()
+    };
+    state.currentCategoryName = 'Kitchen';
+    state.currentCategory = state.wordsByCategory.Kitchen;
+    window.wordsByCategory = state.wordsByCategory;
+    window.categoryNames = state.categoryNames;
+    window.categoryRoundCount = state.categoryRoundCount;
+  }, { goodImage, brokenImage });
+
+  await page.addScriptTag({ content: mainSource });
+
+  await page.evaluate(() => {
+    window.LLFlashcards.State.onStateChange((nextState) => {
+      if (nextState === window.LLFlashcards.State.STATES.SHOWING_QUESTION && window.__currentTarget) {
+        window.__shownWordIds.push(Number(window.__currentTarget.id) || 0);
+      }
+    });
+  });
 }
 
 async function mountPracticeProgressHarness(page, options = {}) {
@@ -609,4 +804,33 @@ test('practice progress falls back to configured category counts before other ca
 
   const progressCalls = await page.evaluate(() => window.__progressCalls.slice());
   expect(progressCalls.at(-1)).toEqual({ current: 0, total: 4 });
+});
+
+test('practice rounds skip an unready rendered image instead of showing a blank option', async ({ page }) => {
+  await mountRenderedImageReadinessHarness(page);
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.runQuizRound();
+  });
+
+  await page.waitForFunction(() => window.__shownWordIds.includes(502));
+
+  const result = await page.evaluate(() => {
+    const images = Array.from(document.querySelectorAll('#ll-tools-flashcard img'));
+    return {
+      shownWordIds: window.__shownWordIds.slice(),
+      loadImageCalls: window.__loadImageCalls.slice(),
+      currentTargetId: window.__currentTarget ? Number(window.__currentTarget.id) : 0,
+      imageStates: images.map((img) => ({
+        complete: img.complete,
+        naturalWidth: img.naturalWidth,
+        src: img.getAttribute('src') || ''
+      }))
+    };
+  });
+
+  expect(result.shownWordIds).toEqual([502]);
+  expect(result.currentTargetId).toBe(502);
+  expect(result.loadImageCalls.some((call) => call.forceRetry && call.url.includes('this-is-not-a-valid-image'))).toBe(true);
+  expect(result.imageStates.every((img) => img.complete && img.naturalWidth > 0)).toBe(true);
 });

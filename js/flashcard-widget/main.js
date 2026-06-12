@@ -3905,8 +3905,8 @@
                 resolve(false);
                 return;
             }
-            if (imageElement.complete && imageElement.naturalWidth > 0) {
-                resolve(true);
+            if (imageElement.complete) {
+                resolve(imageElement.naturalWidth > 0);
                 return;
             }
             let settled = false;
@@ -3932,16 +3932,134 @@
         });
     }
 
-    function waitForRenderedImagesReady(timeoutMs) {
+    function getRenderedQuizImages() {
         const doc = root.document;
-        if (!doc || !doc.querySelectorAll) return Promise.resolve(true);
-        const images = Array.from(doc.querySelectorAll('#ll-tools-flashcard img, #ll-tools-prompt img'));
+        if (!doc || !doc.querySelectorAll) return [];
+        return Array.from(doc.querySelectorAll('#ll-tools-flashcard img, #ll-tools-prompt img'));
+    }
+
+    function isImageElementReady(imageElement) {
+        return !!(imageElement && imageElement.complete && imageElement.naturalWidth > 0);
+    }
+
+    function getRenderedImageWordId(imageElement) {
+        if (!imageElement || typeof imageElement.closest !== 'function') {
+            return '';
+        }
+        const card = imageElement.closest('.flashcard-container');
+        if (!card || typeof card.getAttribute !== 'function') {
+            return '';
+        }
+        return String(card.getAttribute('data-word-id') || '').trim();
+    }
+
+    function getRenderedImageDetails(imageElement) {
+        if (!imageElement) {
+            return {
+                url: '',
+                wordId: '',
+                context: 'unknown',
+                ready: false
+            };
+        }
+        const url = String(
+            imageElement.currentSrc ||
+            imageElement.src ||
+            (imageElement.getAttribute ? imageElement.getAttribute('src') : '') ||
+            ''
+        ).trim();
+        return {
+            url: url,
+            wordId: getRenderedImageWordId(imageElement),
+            context: (imageElement.closest && imageElement.closest('#ll-tools-prompt')) ? 'prompt' : 'option',
+            ready: isImageElementReady(imageElement)
+        };
+    }
+
+    function getUnreadyRenderedImageDetails() {
+        return getRenderedQuizImages()
+            .filter(function (imageElement) {
+                return !isImageElementReady(imageElement);
+            })
+            .map(getRenderedImageDetails);
+    }
+
+    function resetRenderedImageSource(imageElement, url) {
+        if (!imageElement || !url) {
+            return;
+        }
+        try {
+            imageElement.removeAttribute('src');
+        } catch (_) { /* no-op */ }
+        try {
+            imageElement.src = url;
+        } catch (_) {
+            try { imageElement.setAttribute('src', url); } catch (__) { /* no-op */ }
+        }
+    }
+
+    function waitForRenderedImagesReady(timeoutMs) {
+        const images = getRenderedQuizImages();
         if (!images.length) return Promise.resolve(true);
         const waits = images.map(function (img) {
             return waitForImageElementReady(img, timeoutMs);
         });
         return Promise.all(waits).then(function (results) {
             return results.every(Boolean);
+        });
+    }
+
+    function retryRenderedImageElement(imageElement, timeoutMs) {
+        if (isImageElementReady(imageElement)) {
+            return Promise.resolve(true);
+        }
+
+        const detail = getRenderedImageDetails(imageElement);
+        const url = detail.url;
+        if (!url) {
+            return Promise.resolve(false);
+        }
+
+        const loader = root.FlashcardLoader;
+        if (!loader || typeof loader.loadImage !== 'function') {
+            resetRenderedImageSource(imageElement, url);
+            return waitForImageElementReady(imageElement, timeoutMs);
+        }
+
+        return Promise.resolve(
+            loader.loadImage(url, {
+                forceRetry: true,
+                maxRetries: 2,
+                timeoutMs: Math.max(1200, timeoutMs)
+            })
+        ).then(function (result) {
+            if (!result || !result.ready) {
+                return false;
+            }
+            if (isImageElementReady(imageElement)) {
+                return true;
+            }
+            resetRenderedImageSource(imageElement, url);
+            return waitForImageElementReady(imageElement, Math.max(700, Math.floor(timeoutMs / 2)));
+        }).catch(function () {
+            return false;
+        });
+    }
+
+    function retryRenderedImagesForRound(timeoutMs) {
+        const images = getRenderedQuizImages().filter(function (imageElement) {
+            return !isImageElementReady(imageElement);
+        });
+        if (!images.length) {
+            return Promise.resolve(true);
+        }
+
+        return Promise.all(images.map(function (imageElement) {
+            return retryRenderedImageElement(imageElement, timeoutMs);
+        })).then(function () {
+            return waitForRenderedImagesReady(Math.max(700, Math.floor(timeoutMs / 2)));
+        }).catch(function () {
+            return false;
         });
     }
 
@@ -4282,9 +4400,16 @@
             if (modeModule && typeof modeModule.beforeOptionsFill === 'function') {
                 modeModule.beforeOptionsFill(target);
             }
+            let markOptionsRendered = function () { };
+            const optionsRenderedPromise = new Promise(function (resolve) {
+                markOptionsRendered = resolve;
+            });
             const optionMediaPromise = Promise.resolve().then(function () {
-                return Selection.fillQuizOptions(target);
+                const fillResult = Selection.fillQuizOptions(target);
+                markOptionsRendered();
+                return fillResult;
             }).catch(function (err) {
+                markOptionsRendered();
                 if (err && err.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
                     return {
                         ready: false,
@@ -4356,9 +4481,11 @@
                 );
             Promise.all([
                 optionMediaPromise,
-                waitForRoundMediaReadiness(promptType, {
-                    audioTimeoutMs: 5600,
-                    imageTimeoutMs: 4700
+                optionsRenderedPromise.then(function () {
+                    return waitForRoundMediaReadiness(promptType, {
+                        audioTimeoutMs: 5600,
+                        imageTimeoutMs: 4700
+                    });
                 })
             ]).then(function (roundStatuses) {
                 if (isStaleRound()) { return; }
@@ -4382,27 +4509,52 @@
                     });
                     return;
                 }
-                const targetPreloadedAudioReady = !!(targetMediaStatus && targetMediaStatus.audioReady);
-                const targetElementAudioReady = !!renderedStatus.targetAudioReady;
-                const promptAudioReady = !needsPromptAudio || (targetPreloadedAudioReady && targetElementAudioReady);
+                const continueAfterImagesReady = function (latestRenderedStatus) {
+                    const readyRenderedStatus = latestRenderedStatus || renderedStatus;
+                    const targetPreloadedAudioReady = !!(targetMediaStatus && targetMediaStatus.audioReady);
+                    const targetElementAudioReady = !!readyRenderedStatus.targetAudioReady;
+                    const promptAudioReady = !needsPromptAudio || (targetPreloadedAudioReady && targetElementAudioReady);
 
-                if (needsPromptAudio && !promptAudioReady) {
-                    retryPromptAudioForRound(target).then(function (retryReady) {
+                    if (needsPromptAudio && !promptAudioReady) {
+                        retryPromptAudioForRound(target).then(function (retryReady) {
+                            if (isStaleRound()) { return; }
+                            if (!retryReady) {
+                                skipWordAfterMediaFailure(target, 'prompt-audio-not-ready', {
+                                    targetMediaStatus: targetMediaStatus,
+                                    optionStatus: optionStatus,
+                                    renderedStatus: readyRenderedStatus
+                                });
+                                return;
+                            }
+                            finalizeQuestionDisplay();
+                        });
+                        return;
+                    }
+
+                    finalizeQuestionDisplay();
+                };
+
+                if (!renderedStatus.imagesReady) {
+                    retryRenderedImagesForRound(6200).then(function (imagesReadyAfterRetry) {
                         if (isStaleRound()) { return; }
-                        if (!retryReady) {
-                            skipWordAfterMediaFailure(target, 'prompt-audio-not-ready', {
+                        const retryRenderedStatus = Object.assign({}, renderedStatus, {
+                            imagesReady: !!imagesReadyAfterRetry
+                        });
+                        if (!imagesReadyAfterRetry) {
+                            skipWordAfterMediaFailure(target, 'round-images-not-ready', {
                                 targetMediaStatus: targetMediaStatus,
                                 optionStatus: optionStatus,
-                                renderedStatus: renderedStatus
+                                renderedStatus: retryRenderedStatus,
+                                unreadyImages: getUnreadyRenderedImageDetails()
                             });
                             return;
                         }
-                        finalizeQuestionDisplay();
+                        continueAfterImagesReady(retryRenderedStatus);
                     });
                     return;
                 }
 
-                finalizeQuestionDisplay();
+                continueAfterImagesReady(renderedStatus);
             }).catch(function (waitErr) {
                 if (isStaleRound()) { return; }
                 console.warn('Round media readiness wait failed', waitErr);
