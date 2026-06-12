@@ -793,12 +793,8 @@ function ll_tools_wordset_page_get_term_taxonomy_id(int $term_id, string $taxono
     return $term_taxonomy_id;
 }
 
-function ll_tools_wordset_page_get_category_word_status_summary(int $category_id, int $wordset_id): array {
-    static $request_cache = [];
-
-    $category_id = (int) $category_id;
-    $wordset_id = (int) $wordset_id;
-    $empty = [
+function ll_tools_wordset_page_empty_category_word_status_summary(): array {
+    return [
         'total' => 0,
         'publish' => 0,
         'draft' => 0,
@@ -809,135 +805,153 @@ function ll_tools_wordset_page_get_category_word_status_summary(int $category_id
         'unpublished_audio' => 0,
         'missing_audio' => 0,
     ];
-    if ($category_id <= 0 || $wordset_id <= 0) {
-        return $empty;
+}
+
+/**
+ * @param int[] $category_ids
+ * @return array<int,array{total:int,publish:int,draft:int,pending:int,future:int,private:int,published_audio:int,unpublished_audio:int,missing_audio:int}>
+ */
+function ll_tools_wordset_page_get_category_word_status_summaries(int $wordset_id, array $category_ids, bool $include_audio_status = true): array {
+    static $request_cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    sort($category_ids, SORT_NUMERIC);
+
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return [];
     }
 
-    $cache_key = $wordset_id . ':' . $category_id;
-    if (isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
-        return $request_cache[$cache_key];
+    $empty = ll_tools_wordset_page_empty_category_word_status_summary();
+    $summaries = [];
+    $missing_ids = [];
+    foreach ($category_ids as $category_id) {
+        $cache_key = $wordset_id . ':' . $category_id . ':' . ($include_audio_status ? 'audio' : 'count');
+        if (isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
+            $summaries[$category_id] = $request_cache[$cache_key];
+        } else {
+            $summaries[$category_id] = $empty;
+            $missing_ids[] = $category_id;
+        }
     }
 
-    $category_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($category_id, 'word-category');
     $wordset_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
-    if ($category_tt_id <= 0 || $wordset_tt_id <= 0) {
-        $request_cache[$cache_key] = $empty;
-        return $empty;
+    if (empty($missing_ids) || $wordset_tt_id <= 0) {
+        foreach ($missing_ids as $category_id) {
+            $request_cache[$wordset_id . ':' . $category_id . ':' . ($include_audio_status ? 'audio' : 'count')] = $summaries[$category_id];
+        }
+        return $summaries;
     }
 
     global $wpdb;
 
     $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
     $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
-    $word_rows_sql = "
-        SELECT DISTINCT p.ID, p.post_status
-        FROM {$wpdb->posts} p
-        INNER JOIN {$wpdb->term_relationships} tr_category
-            ON tr_category.object_id = p.ID
-           AND tr_category.term_taxonomy_id = %d
-        INNER JOIN {$wpdb->term_relationships} tr_wordset
-            ON tr_wordset.object_id = p.ID
-           AND tr_wordset.term_taxonomy_id = %d
-        WHERE p.post_type = %s
-          AND p.post_status IN ({$status_placeholders})
-    ";
-    $word_rows = $wpdb->get_results(
-        ll_tools_wordset_page_prepare_sql(
-            $word_rows_sql,
-            array_merge([$category_tt_id, $wordset_tt_id, 'words'], $statuses)
-        ),
-        ARRAY_A
-    );
 
-    $word_ids = [];
-    $summary = $empty;
-    foreach ((array) $word_rows as $word_row) {
-        if (!is_array($word_row)) {
+    foreach (array_chunk($missing_ids, 500) as $category_chunk) {
+        $category_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($category_chunk), '%d');
+        if ($category_placeholders === '') {
             continue;
         }
 
-        $word_id = isset($word_row['ID']) ? (int) $word_row['ID'] : 0;
-        if ($word_id <= 0) {
-            continue;
-        }
-
-        $word_ids[] = $word_id;
-        $status = isset($word_row['post_status']) ? (string) $word_row['post_status'] : '';
-        if (array_key_exists($status, $summary)) {
-            $summary[$status]++;
-        }
-    }
-
-    if (empty($word_ids)) {
-        $request_cache[$cache_key] = $empty;
-        return $empty;
-    }
-
-    $summary['total'] = count($word_ids);
-
-    $audio_status_by_word = [];
-    $audio_status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
-    foreach (array_chunk(array_values(array_unique($word_ids)), 500) as $word_id_chunk) {
-        $word_id_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($word_id_chunk), '%d');
-        if ($word_id_placeholders === '') {
-            continue;
-        }
-
-        $audio_rows_sql = "
-            SELECT DISTINCT p.post_parent, p.post_status
-            FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->postmeta} pm
-                ON pm.post_id = p.ID
-               AND pm.meta_key = %s
-               AND pm.meta_value <> ''
-            WHERE p.post_type = %s
-              AND p.post_status IN ({$audio_status_placeholders})
-              AND p.post_parent IN ({$word_id_placeholders})
+        $audio_selects = "
+                0 AS published_audio_count,
+                0 AS unpublished_audio_count,
+                0 AS missing_audio_count
         ";
-        $audio_rows = $wpdb->get_results(
+        $audio_join = '';
+        $query_args = array_merge($category_chunk, [$wordset_tt_id, 'words'], $statuses);
+        if ($include_audio_status) {
+            $audio_status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+            $audio_selects = "
+                SUM(CASE WHEN COALESCE(audio_status.has_published_audio, 0) > 0 THEN 1 ELSE 0 END) AS published_audio_count,
+                SUM(CASE WHEN COALESCE(audio_status.has_published_audio, 0) = 0 AND COALESCE(audio_status.has_unpublished_audio, 0) > 0 THEN 1 ELSE 0 END) AS unpublished_audio_count,
+                SUM(CASE WHEN COALESCE(audio_status.has_published_audio, 0) = 0 AND COALESCE(audio_status.has_unpublished_audio, 0) = 0 THEN 1 ELSE 0 END) AS missing_audio_count
+            ";
+            $audio_join = "
+            LEFT JOIN (
+                SELECT
+                    audio_posts.post_parent AS word_id,
+                    MAX(CASE WHEN audio_posts.post_status = 'publish' THEN 1 ELSE 0 END) AS has_published_audio,
+                    MAX(CASE WHEN audio_posts.post_status <> 'publish' THEN 1 ELSE 0 END) AS has_unpublished_audio
+                FROM {$wpdb->posts} AS audio_posts
+                INNER JOIN {$wpdb->postmeta} AS audio_meta
+                    ON audio_meta.post_id = audio_posts.ID
+                    AND audio_meta.meta_key = %s
+                    AND audio_meta.meta_value <> ''
+                WHERE audio_posts.post_type = %s
+                    AND audio_posts.post_status IN ({$audio_status_placeholders})
+                    AND audio_posts.post_parent > 0
+                GROUP BY audio_posts.post_parent
+            ) AS audio_status
+                ON audio_status.word_id = posts.ID
+            ";
+            $query_args = array_merge($category_chunk, [$wordset_tt_id, 'audio_file_path', 'word_audio'], $statuses, ['words'], $statuses);
+        }
+
+        $word_rows_sql = "
+            SELECT
+                category_taxonomy.term_id AS category_id,
+                posts.post_status AS post_status,
+                COUNT(DISTINCT posts.ID) AS word_count,
+                {$audio_selects}
+            FROM {$wpdb->posts} AS posts
+            INNER JOIN {$wpdb->term_relationships} AS category_relationships
+                ON category_relationships.object_id = posts.ID
+            INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+                ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+                AND category_taxonomy.taxonomy = 'word-category'
+                AND category_taxonomy.term_id IN ({$category_placeholders})
+            INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+                ON wordset_relationships.object_id = posts.ID
+                AND wordset_relationships.term_taxonomy_id = %d
+            {$audio_join}
+            WHERE posts.post_type = %s
+                AND posts.post_status IN ({$status_placeholders})
+            GROUP BY category_taxonomy.term_id, posts.post_status
+        ";
+        $rows = $wpdb->get_results(
             ll_tools_wordset_page_prepare_sql(
-                $audio_rows_sql,
-                array_merge(['audio_file_path', 'word_audio'], $statuses, $word_id_chunk)
+                $word_rows_sql,
+                $query_args
             ),
             ARRAY_A
         );
 
-        foreach ((array) $audio_rows as $audio_row) {
-            if (!is_array($audio_row)) {
+        foreach ((array) $rows as $row) {
+            if (!is_array($row)) {
                 continue;
             }
 
-            $parent_id = isset($audio_row['post_parent']) ? (int) $audio_row['post_parent'] : 0;
-            if ($parent_id <= 0) {
+            $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+            if ($category_id <= 0 || !isset($summaries[$category_id])) {
                 continue;
             }
-            if (!isset($audio_status_by_word[$parent_id])) {
-                $audio_status_by_word[$parent_id] = [
-                    'publish' => false,
-                    'unpublished' => false,
-                ];
+            $status = isset($row['post_status']) ? (string) $row['post_status'] : '';
+            $word_count = max(0, (int) ($row['word_count'] ?? 0));
+            if ($status !== '' && array_key_exists($status, $summaries[$category_id])) {
+                $summaries[$category_id][$status] += $word_count;
             }
-            if ((string) ($audio_row['post_status'] ?? '') === 'publish') {
-                $audio_status_by_word[$parent_id]['publish'] = true;
-            } else {
-                $audio_status_by_word[$parent_id]['unpublished'] = true;
-            }
+
+            $summaries[$category_id]['total'] += $word_count;
+            $summaries[$category_id]['published_audio'] += max(0, (int) ($row['published_audio_count'] ?? 0));
+            $summaries[$category_id]['unpublished_audio'] += max(0, (int) ($row['unpublished_audio_count'] ?? 0));
+            $summaries[$category_id]['missing_audio'] += max(0, (int) ($row['missing_audio_count'] ?? 0));
         }
     }
 
-    foreach ($word_ids as $word_id) {
-        $audio_status = $audio_status_by_word[$word_id] ?? null;
-        if (is_array($audio_status) && !empty($audio_status['publish'])) {
-            $summary['published_audio']++;
-        } elseif (is_array($audio_status) && !empty($audio_status['unpublished'])) {
-            $summary['unpublished_audio']++;
-        } else {
-            $summary['missing_audio']++;
-        }
+    foreach ($missing_ids as $category_id) {
+        $request_cache[$wordset_id . ':' . $category_id . ':' . ($include_audio_status ? 'audio' : 'count')] = $summaries[$category_id];
     }
 
-    $request_cache[$cache_key] = $summary;
-    return $summary;
+    return $summaries;
+}
+
+function ll_tools_wordset_page_get_category_word_status_summary(int $category_id, int $wordset_id): array {
+    $summaries = ll_tools_wordset_page_get_category_word_status_summaries($wordset_id, [$category_id]);
+    return $summaries[(int) $category_id] ?? ll_tools_wordset_page_empty_category_word_status_summary();
 }
 
 /**
@@ -1387,51 +1401,223 @@ function ll_tools_wordset_page_get_category_prompt_card_ids(int $category_id, in
     }));
 }
 
+function ll_tools_wordset_page_empty_category_content_summary(): array {
+    return array_merge(ll_tools_wordset_page_empty_category_word_status_summary(), [
+        'word_image_count' => 0,
+        'prompt_card_count' => 0,
+        'content_count' => 0,
+    ]);
+}
+
+/**
+ * @param int[] $category_ids
+ * @return array<int,int>
+ */
+function ll_tools_wordset_page_get_category_word_image_counts(int $wordset_id, array $category_ids): array {
+    $wordset_id = (int) $wordset_id;
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    sort($category_ids, SORT_NUMERIC);
+    $counts = array_fill_keys($category_ids, 0);
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return $counts;
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY') ? LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY : '';
+    $use_owner_meta = $owner_meta_key !== '' && function_exists('ll_tools_get_word_image_owner_meta_query');
+    $wordset_tt_id = $use_owner_meta ? 0 : ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+    if (!$use_owner_meta && $wordset_tt_id <= 0) {
+        return $counts;
+    }
+
+    foreach (array_chunk($category_ids, 500) as $category_chunk) {
+        $category_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($category_chunk), '%d');
+        if ($category_placeholders === '') {
+            continue;
+        }
+
+        $owner_join = '';
+        $owner_where = '';
+        $wordset_join = '';
+        if ($use_owner_meta) {
+            $owner_join = "
+                LEFT JOIN {$wpdb->postmeta} AS owner_meta
+                    ON owner_meta.post_id = posts.ID
+                    AND owner_meta.meta_key = %s
+            ";
+            $owner_where = "AND (owner_meta.meta_value = %s OR owner_meta.post_id IS NULL OR owner_meta.meta_value IN ('0', ''))";
+            $query_args = array_merge([$owner_meta_key], $category_chunk, ['word_images'], $statuses, [(string) $wordset_id]);
+        } else {
+            $wordset_join = "
+                INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+                    ON wordset_relationships.object_id = posts.ID
+                    AND wordset_relationships.term_taxonomy_id = %d
+            ";
+            $query_args = array_merge($category_chunk, [$wordset_tt_id, 'word_images'], $statuses);
+        }
+
+        $sql = "
+            SELECT category_taxonomy.term_id AS category_id, COUNT(DISTINCT posts.ID) AS image_count
+            FROM {$wpdb->posts} AS posts
+            {$owner_join}
+            INNER JOIN {$wpdb->term_relationships} AS category_relationships
+                ON category_relationships.object_id = posts.ID
+            INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+                ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+                AND category_taxonomy.taxonomy = 'word-category'
+                AND category_taxonomy.term_id IN ({$category_placeholders})
+            {$wordset_join}
+            WHERE posts.post_type = %s
+                AND posts.post_status IN ({$status_placeholders})
+                {$owner_where}
+            GROUP BY category_taxonomy.term_id
+        ";
+
+        $rows = $wpdb->get_results(ll_tools_wordset_page_prepare_sql($sql, $query_args), ARRAY_A);
+        foreach ((array) $rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+            if ($category_id > 0 && array_key_exists($category_id, $counts)) {
+                $counts[$category_id] = max(0, (int) ($row['image_count'] ?? 0));
+            }
+        }
+    }
+
+    return $counts;
+}
+
+/**
+ * @param int[] $category_ids
+ * @return array<int,int>
+ */
+function ll_tools_wordset_page_get_category_prompt_card_counts(int $wordset_id, array $category_ids): array {
+    $wordset_id = (int) $wordset_id;
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    sort($category_ids, SORT_NUMERIC);
+    $counts = array_fill_keys($category_ids, 0);
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return $counts;
+    }
+
+    $wordset_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+    if ($wordset_tt_id <= 0) {
+        return $counts;
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
+
+    foreach (array_chunk($category_ids, 500) as $category_chunk) {
+        $category_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($category_chunk), '%d');
+        if ($category_placeholders === '') {
+            continue;
+        }
+
+        $sql = "
+            SELECT category_taxonomy.term_id AS category_id, COUNT(DISTINCT posts.ID) AS prompt_card_count
+            FROM {$wpdb->posts} AS posts
+            INNER JOIN {$wpdb->term_relationships} AS category_relationships
+                ON category_relationships.object_id = posts.ID
+            INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+                ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+                AND category_taxonomy.taxonomy = 'word-category'
+                AND category_taxonomy.term_id IN ({$category_placeholders})
+            INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+                ON wordset_relationships.object_id = posts.ID
+                AND wordset_relationships.term_taxonomy_id = %d
+            WHERE posts.post_type = %s
+                AND posts.post_status IN ({$status_placeholders})
+            GROUP BY category_taxonomy.term_id
+        ";
+
+        $rows = $wpdb->get_results(
+            ll_tools_wordset_page_prepare_sql($sql, array_merge($category_chunk, [$wordset_tt_id, $prompt_card_post_type], $statuses)),
+            ARRAY_A
+        );
+        foreach ((array) $rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+            if ($category_id > 0 && array_key_exists($category_id, $counts)) {
+                $counts[$category_id] = max(0, (int) ($row['prompt_card_count'] ?? 0));
+            }
+        }
+    }
+
+    return $counts;
+}
+
+/**
+ * @param int[] $category_ids
+ * @return array<int,array{total:int,publish:int,draft:int,pending:int,future:int,private:int,published_audio:int,unpublished_audio:int,missing_audio:int,word_image_count:int,prompt_card_count:int,content_count:int}>
+ */
+function ll_tools_wordset_page_get_category_content_summaries(int $wordset_id, array $category_ids, bool $include_audio_status = false): array {
+    static $request_cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    sort($category_ids, SORT_NUMERIC);
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return [];
+    }
+
+    $empty = ll_tools_wordset_page_empty_category_content_summary();
+    $summaries = [];
+    $missing_ids = [];
+    foreach ($category_ids as $category_id) {
+        $cache_key = $wordset_id . ':' . $category_id . ':' . ($include_audio_status ? 'audio' : 'count');
+        if (isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
+            $summaries[$category_id] = $request_cache[$cache_key];
+        } else {
+            $summaries[$category_id] = $empty;
+            $missing_ids[] = $category_id;
+        }
+    }
+
+    if (empty($missing_ids)) {
+        return $summaries;
+    }
+
+    $word_summaries = ll_tools_wordset_page_get_category_word_status_summaries($wordset_id, $missing_ids, $include_audio_status);
+    $word_image_counts = ll_tools_wordset_page_get_category_word_image_counts($wordset_id, $missing_ids);
+    $prompt_card_counts = ll_tools_wordset_page_get_category_prompt_card_counts($wordset_id, $missing_ids);
+
+    foreach ($missing_ids as $category_id) {
+        $summary = array_merge($empty, (array) ($word_summaries[$category_id] ?? []));
+        $summary['word_image_count'] = max(0, (int) ($word_image_counts[$category_id] ?? 0));
+        $summary['prompt_card_count'] = max(0, (int) ($prompt_card_counts[$category_id] ?? 0));
+        $summary['content_count'] = max(0, (int) $summary['total'])
+            + max(0, (int) $summary['word_image_count'])
+            + max(0, (int) $summary['prompt_card_count']);
+
+        $request_cache[$wordset_id . ':' . $category_id . ':' . ($include_audio_status ? 'audio' : 'count')] = $summary;
+        $summaries[$category_id] = $summary;
+    }
+
+    return $summaries;
+}
+
 /**
  * @return array{total:int,publish:int,draft:int,pending:int,future:int,private:int,word_image_count:int,prompt_card_count:int,content_count:int}
  */
 function ll_tools_wordset_page_get_category_content_summary(int $category_id, int $wordset_id): array {
-    static $request_cache = [];
-
-    $category_id = (int) $category_id;
-    $wordset_id = (int) $wordset_id;
-    $empty = [
-        'total' => 0,
-        'publish' => 0,
-        'draft' => 0,
-        'pending' => 0,
-        'future' => 0,
-        'private' => 0,
-        'word_image_count' => 0,
-        'prompt_card_count' => 0,
-        'content_count' => 0,
-    ];
-    if ($category_id <= 0 || $wordset_id <= 0) {
-        return $empty;
-    }
-
-    $cache_key = $wordset_id . ':' . $category_id;
-    if (isset($request_cache[$cache_key])) {
-        return $request_cache[$cache_key];
-    }
-
-    $word_summary = ll_tools_wordset_page_get_category_word_status_summary($category_id, $wordset_id);
-    $summary = array_merge($empty, [
-        'total' => max(0, (int) ($word_summary['total'] ?? 0)),
-        'publish' => max(0, (int) ($word_summary['publish'] ?? 0)),
-        'draft' => max(0, (int) ($word_summary['draft'] ?? 0)),
-        'pending' => max(0, (int) ($word_summary['pending'] ?? 0)),
-        'future' => max(0, (int) ($word_summary['future'] ?? 0)),
-        'private' => max(0, (int) ($word_summary['private'] ?? 0)),
-        'word_image_count' => count(ll_tools_wordset_page_get_category_word_image_ids($category_id, $wordset_id)),
-        'prompt_card_count' => count(ll_tools_wordset_page_get_category_prompt_card_ids($category_id, $wordset_id)),
-    ]);
-    $summary['content_count'] = max(0, (int) $summary['total'])
-        + max(0, (int) $summary['word_image_count'])
-        + max(0, (int) $summary['prompt_card_count']);
-
-    $request_cache[$cache_key] = $summary;
-    return $summary;
+    $summaries = ll_tools_wordset_page_get_category_content_summaries($wordset_id, [$category_id], false);
+    return $summaries[(int) $category_id] ?? ll_tools_wordset_page_empty_category_content_summary();
 }
 
 function ll_tools_wordset_page_category_preview_requires_images(array $quiz_config): bool {
@@ -1910,7 +2096,7 @@ function ll_tools_wordset_page_handle_inactive_category_action_ajax(): void {
 }
 add_action('wp_ajax_ll_tools_wordset_inactive_category_action', 'll_tools_wordset_page_handle_inactive_category_action_ajax');
 
-function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $category, int $wordset_id, int $quiz_ready_count, int $min_words, array $counts): string {
+function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $category, int $wordset_id, int $quiz_ready_count, int $min_words, array $counts, array $status_summary = []): string {
     $category_id = (int) $category->term_id;
     if ($category_id <= 0) {
         return __('Not public yet.', 'll-tools-text-domain');
@@ -1936,7 +2122,9 @@ function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $catego
     $requires_images = function_exists('ll_tools_vocab_lesson_category_requires_images')
         ? ll_tools_vocab_lesson_category_requires_images($category, $wordset_id)
         : (function_exists('ll_tools_quiz_requires_image') ? ll_tools_quiz_requires_image($quiz_config, $option_type) : false);
-    $status_summary = ll_tools_wordset_page_get_category_word_status_summary($category_id, $wordset_id);
+    if (empty($status_summary)) {
+        $status_summary = ll_tools_wordset_page_get_category_word_status_summary($category_id, $wordset_id);
+    }
     $published_words = max(0, (int) ($status_summary['publish'] ?? 0));
     $unpublished_words = max(0, (int) ($status_summary['draft'] ?? 0))
         + max(0, (int) ($status_summary['pending'] ?? 0))
@@ -2108,11 +2296,19 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
     }
 
     if ($include_inactive) {
+        $staff_terms = ll_tools_wordset_page_get_staff_category_terms($wordset_id, $counts);
+        $staff_term_ids = [];
+        foreach ($staff_terms as $staff_term) {
+            if ($staff_term instanceof WP_Term && !is_wp_error($staff_term)) {
+                $staff_term_ids[] = (int) $staff_term->term_id;
+            }
+        }
+        $content_summaries = ll_tools_wordset_page_get_category_content_summaries($wordset_id, $staff_term_ids, true);
         $eligible_lookup = array_fill_keys(array_map('intval', $eligible_ids), true);
         $row_lookup_ids = array_fill_keys(array_map(static function (array $row): int {
             return (int) ($row['term_id'] ?? 0);
         }, $rows), true);
-        foreach (ll_tools_wordset_page_get_staff_category_terms($wordset_id, $counts) as $term) {
+        foreach ($staff_terms as $term) {
             $term_id = (int) $term->term_id;
             if ($term_id <= 0 || !empty($eligible_lookup[$term_id]) || !empty($row_lookup_ids[$term_id])) {
                 continue;
@@ -2120,7 +2316,7 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
             $count = function_exists('ll_tools_get_vocab_lesson_category_word_count')
                 ? ll_tools_get_vocab_lesson_category_word_count($term_id, $wordset_id, $counts)
                 : max(0, (int) ($counts['all'][$term_id] ?? 0));
-            $content_summary = ll_tools_wordset_page_get_category_content_summary($term_id, $wordset_id);
+            $content_summary = $content_summaries[$term_id] ?? ll_tools_wordset_page_empty_category_content_summary();
             if (max(0, (int) ($content_summary['content_count'] ?? 0)) <= 0) {
                 continue;
             }
@@ -2130,7 +2326,7 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
                 'wordset_id' => $wordset_id,
                 'word_count' => max(0, (int) $count),
                 'is_public' => false,
-                'public_note' => ll_tools_wordset_page_get_inactive_category_public_note($term, $wordset_id, max(0, (int) $count), $min_words, $counts),
+                'public_note' => ll_tools_wordset_page_get_inactive_category_public_note($term, $wordset_id, max(0, (int) $count), $min_words, $counts, $content_summary),
                 'word_image_count' => max(0, (int) ($content_summary['word_image_count'] ?? 0)),
                 'prompt_card_count' => max(0, (int) ($content_summary['prompt_card_count'] ?? 0)),
                 'content_count' => max(0, (int) ($content_summary['content_count'] ?? 0)),
@@ -12592,6 +12788,7 @@ function ll_tools_wordset_page_get_managed_category_rows(int $wordset_id, array 
         return (int) $term->term_id;
     }, $owned_terms));
     $lesson_counts = ll_tools_wordset_page_get_vocab_lesson_counts_for_categories($wordset_id, $term_ids);
+    $content_summaries = ll_tools_wordset_page_get_category_content_summaries($wordset_id, $term_ids);
     $term_lookup = [];
     foreach ($owned_terms as $term) {
         $term_lookup[(int) $term->term_id] = $term;
@@ -12704,7 +12901,7 @@ function ll_tools_wordset_page_get_managed_category_rows(int $wordset_id, array 
             $delete_reason = ll_tools_wordset_page_category_delete_blocker(
                 $term_lookup[$category_id],
                 $wordset_id,
-                ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id)
+                $content_summaries[$category_id] ?? ll_tools_wordset_page_empty_category_content_summary()
             );
         }
 

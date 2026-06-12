@@ -1033,6 +1033,81 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Delete Category', $html);
     }
 
+    public function test_managed_category_rows_batch_content_summaries_for_delete_state(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+
+        $image_category = wp_insert_term('Managed Summary Image Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($image_category);
+        $image_category_id = (int) $image_category['term_id'];
+        ll_tools_set_category_wordset_owner($image_category_id, $wordset_id, $image_category_id);
+
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Managed Summary Image ' . wp_generate_password(4, false),
+        ]);
+        wp_set_post_terms($image_id, [$image_category_id], 'word-category', false);
+        ll_tools_set_word_image_wordset_owner((int) $image_id, $wordset_id, (int) $image_id);
+
+        $prompt_category = wp_insert_term('Managed Summary Prompt Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        ll_tools_set_category_wordset_owner($prompt_category_id, $wordset_id, $prompt_category_id);
+
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card',
+            'post_status' => 'publish',
+            'post_title' => 'Managed Summary Prompt ' . wp_generate_password(4, false),
+        ]);
+        wp_set_post_terms($prompt_card_id, [$prompt_category_id], 'word-category', false);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+
+        $captured_sql = [];
+        $sql_watcher = static function (string $query) use (&$captured_sql): string {
+            if (
+                strpos($query, 'SELECT DISTINCT p.ID, p.post_status') !== false
+                || strpos($query, 'SELECT DISTINCT p.post_parent, p.post_status') !== false
+                || strpos($query, 'COUNT(DISTINCT posts.ID) AS word_count') !== false
+                || strpos($query, 'COUNT(DISTINCT posts.ID) AS image_count') !== false
+                || strpos($query, 'COUNT(DISTINCT posts.ID) AS prompt_card_count') !== false
+            ) {
+                $captured_sql[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('query', $sql_watcher);
+        try {
+            $rows = ll_tools_wordset_page_get_managed_category_rows($wordset_id, []);
+        } finally {
+            remove_filter('query', $sql_watcher);
+        }
+
+        $rows_by_id = [];
+        foreach ($rows as $row) {
+            $rows_by_id[(int) ($row['id'] ?? 0)] = $row;
+        }
+
+        $this->assertArrayHasKey($image_category_id, $rows_by_id);
+        $this->assertArrayHasKey($prompt_category_id, $rows_by_id);
+        $this->assertTrue((bool) ($rows_by_id[$image_category_id]['can_delete'] ?? false));
+        $this->assertFalse((bool) ($rows_by_id[$prompt_category_id]['can_delete'] ?? true));
+        $this->assertSame('Remove prompt cards in this category first.', (string) ($rows_by_id[$prompt_category_id]['delete_reason'] ?? ''));
+
+        $sql_blob = implode("\n", $captured_sql);
+        $this->assertStringNotContainsString('SELECT DISTINCT p.ID, p.post_status', $sql_blob);
+        $this->assertStringNotContainsString('SELECT DISTINCT p.post_parent, p.post_status', $sql_blob);
+        $this->assertStringNotContainsString('audio_posts', $sql_blob);
+        $this->assertSame(1, substr_count($sql_blob, 'COUNT(DISTINCT posts.ID) AS word_count'));
+        $this->assertSame(1, substr_count($sql_blob, 'COUNT(DISTINCT posts.ID) AS image_count'));
+        $this->assertSame(1, substr_count($sql_blob, 'COUNT(DISTINCT posts.ID) AS prompt_card_count'));
+    }
+
     public function test_categories_settings_action_creates_updates_and_deletes_owned_categories_for_manager(): void
     {
         $this->ensureWordsetManagerRole();
