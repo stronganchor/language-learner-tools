@@ -380,6 +380,58 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_prompt_card_answer_audio_file_change_bumps_prompt_category_cache(): void
+    {
+        $asset_category_id = $this->createCategory('Prompt Card Audio Cache Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
+        $prompt_category_name = 'Prompt Card Audio Cache Questions ' . wp_generate_password(5, false);
+        $prompt_category_id = $this->createCategory($prompt_category_name, 'text_title', 'audio');
+        $wordset_id = $this->createWordset('Prompt Card Audio Cache Wordset ' . wp_generate_password(5, false));
+        $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+        $answer_id = $this->createWord($asset_category_id, 'Audio Cache Answer');
+        $wrong_id = $this->createWord($asset_category_id, 'Audio Cache Wrong');
+        foreach ([$answer_id, $wrong_id] as $word_id) {
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+        $this->addAudio($wrong_id, '-audio-cache-wrong');
+
+        $prompt_card_id = $this->createPromptCard($effective_prompt_category_id, $wordset_id, [
+            'title' => 'Audio-Gated Prompt Card',
+            'prompt_text' => 'Choose the answer after audio arrives.',
+            'correct_answer_word_id' => $answer_id,
+            'wrong_answer_word_ids' => [$wrong_id],
+            'track_answer_word_progress' => true,
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $answer_id,
+            'post_title' => 'Answer audio without file path',
+        ]);
+
+        $config = [
+            'prompt_type' => 'text_title',
+            'option_type' => 'audio',
+        ];
+        $primed_rows = ll_get_words_by_category($prompt_category_name, 'audio', [$wordset_id], $config);
+        $this->assertSame([], $primed_rows, 'Audio-gated prompt card should not render before the answer word has an audio file.');
+        $this->assertSame(0, ll_get_words_by_category_count($prompt_category_name, 'audio', [$wordset_id], $config));
+
+        $version_before_audio = (int) ll_tools_get_category_cache_version($effective_prompt_category_id);
+        update_post_meta($audio_id, 'audio_file_path', '/wp-content/uploads/prompt-card-answer-audio-cache.mp3');
+
+        $this->assertGreaterThan($version_before_audio, (int) ll_tools_get_category_cache_version($effective_prompt_category_id));
+        $updated_rows = ll_get_words_by_category($prompt_category_name, 'audio', [$wordset_id], $config);
+        $updated_count = ll_get_words_by_category_count($prompt_category_name, 'audio', [$wordset_id], $config);
+        $prompt_row = $this->findPromptCardRow((array) $updated_rows, $prompt_card_id);
+
+        $this->assertSame(1, $updated_count);
+        $this->assertNotEmpty($prompt_row);
+        $this->assertSame($answer_id, (int) ($prompt_row['answer_word_id'] ?? 0));
+        $this->assertSame($answer_id, (int) ($prompt_row['progress_word_id'] ?? 0));
+        $this->assertTrue((bool) ($prompt_row['has_audio'] ?? false));
+    }
+
     public function test_prompt_card_rest_route_invalidates_cached_wrong_answer_payload_and_allows_clearing(): void
     {
         $fixture = $this->createPromptCardFixture();

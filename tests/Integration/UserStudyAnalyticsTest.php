@@ -372,6 +372,107 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame(6, (int) ($after_b['summary']['total_words'] ?? 0));
     }
 
+    public function test_summary_only_analytics_prompt_card_answer_cache_refreshes_after_answer_change(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $wordset = wp_insert_term('Analytics Prompt Card Wordset ' . wp_generate_password(6, false), 'wordset');
+            $asset_category = wp_insert_term('Analytics Prompt Card Assets ' . wp_generate_password(6, false), 'word-category');
+            $prompt_category = wp_insert_term('Analytics Prompt Card Questions ' . wp_generate_password(6, false), 'word-category');
+            $this->assertFalse(is_wp_error($wordset));
+            $this->assertFalse(is_wp_error($asset_category));
+            $this->assertFalse(is_wp_error($prompt_category));
+            $this->assertIsArray($wordset);
+            $this->assertIsArray($asset_category);
+            $this->assertIsArray($prompt_category);
+
+            $wordset_id = (int) $wordset['term_id'];
+            $asset_category_id = (int) $asset_category['term_id'];
+            $prompt_category_id = (int) $prompt_category['term_id'];
+            update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'text_title');
+            update_term_meta($prompt_category_id, 'll_quiz_option_type', 'text_title');
+            $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+
+            $answer_one_id = $this->createWordWithoutAudio('Analytics Prompt Answer One', $asset_category_id, $wordset_id);
+            $answer_two_id = $this->createWordWithoutAudio('Analytics Prompt Answer Two', $asset_category_id, $wordset_id);
+            $prompt_card_id = $this->createPromptCardForAnalytics($effective_prompt_category_id, $wordset_id, [
+                'title' => 'Analytics Prompt Card',
+                'prompt_text' => 'Choose the analytics answer.',
+                'correct_answer_word_id' => $answer_one_id,
+                'wrong_answer_word_ids' => [$answer_two_id],
+                'track_answer_word_progress' => true,
+            ]);
+
+            $this->seedWordProgressRow($user_id, $answer_one_id, $effective_prompt_category_id, $wordset_id, [
+                'total_coverage' => 2,
+                'stage' => 1,
+            ]);
+
+            $before_word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category([$effective_prompt_category_id], $wordset_id);
+            $this->assertSame([$answer_one_id], array_values((array) ($before_word_ids_by_category[$effective_prompt_category_id] ?? [])));
+
+            $before = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $wordset_id,
+                [$effective_prompt_category_id],
+                14,
+                false,
+                ['summary_only' => true]
+            );
+            $this->assertSame(1, (int) ($before['summary']['total_words'] ?? 0));
+            $this->assertSame(1, (int) ($before['summary']['studied_words'] ?? 0));
+
+            $admin_id = self::factory()->user->create(['role' => 'administrator']);
+            wp_set_current_user($admin_id);
+            $category_version_before_save = (int) ll_tools_get_category_cache_version($effective_prompt_category_id);
+            $post = get_post($prompt_card_id);
+            $this->assertInstanceOf(WP_Post::class, $post);
+            $post_backup = $_POST;
+            try {
+                $_POST = [
+                    'll_tools_prompt_card_nonce' => wp_create_nonce('ll_tools_prompt_card_save'),
+                    'll_prompt_card_prompt_text' => 'Choose the updated analytics answer.',
+                    'll_prompt_card_prompt_audio_attachment_id' => '0',
+                    'll_prompt_card_prompt_audio_url' => '',
+                    'll_prompt_card_prompt_image_word_id' => '0',
+                    'll_prompt_card_correct_answer_word_id' => (string) $answer_two_id,
+                    'll_prompt_card_wrong_answer_word_ids' => (string) $answer_one_id,
+                    'll_prompt_card_track_answer_word_progress' => '1',
+                ];
+                ll_tools_prompt_card_save_post($prompt_card_id, $post);
+            } finally {
+                $_POST = $post_backup;
+                wp_set_current_user($user_id);
+            }
+
+            $this->assertGreaterThan($category_version_before_save, (int) ll_tools_get_category_cache_version($effective_prompt_category_id));
+            $after_word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category([$effective_prompt_category_id], $wordset_id);
+            $this->assertSame([$answer_two_id], array_values((array) ($after_word_ids_by_category[$effective_prompt_category_id] ?? [])));
+
+            $after = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                $wordset_id,
+                [$effective_prompt_category_id],
+                14,
+                false,
+                ['summary_only' => true]
+            );
+
+            $this->assertSame(1, (int) ($after['summary']['total_words'] ?? 0));
+            $this->assertSame(0, (int) ($after['summary']['studied_words'] ?? 0));
+            $this->assertSame(1, (int) ($after['summary']['new_words'] ?? 0));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
     public function test_analytics_payload_includes_vocab_lesson_urls_for_private_categories(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1108,6 +1209,42 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
 
         return (int) $word_id;
+    }
+
+    private function createWordWithoutAudio(string $title, int $category_id, int $wordset_id): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title . ' ' . wp_generate_password(4, false),
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        return (int) $word_id;
+    }
+
+    /**
+     * @param array<string,mixed> $args
+     */
+    private function createPromptCardForAnalytics(int $category_id, int $wordset_id, array $args): int
+    {
+        $post_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => (string) ($args['title'] ?? 'Analytics Prompt Card'),
+        ]);
+
+        wp_set_post_terms($post_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($post_id, [$wordset_id], 'wordset', false);
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, (string) ($args['prompt_text'] ?? ''));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY, (string) ($args['prompt_audio_url'] ?? ''));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY, (int) ($args['prompt_image_word_id'] ?? 0));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, (int) ($args['correct_answer_word_id'] ?? 0));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, array_values(array_map('intval', (array) ($args['wrong_answer_word_ids'] ?? []))));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY, !empty($args['track_answer_word_progress']) ? 1 : 0);
+
+        return (int) $post_id;
     }
 
     private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int

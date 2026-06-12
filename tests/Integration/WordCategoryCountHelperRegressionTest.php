@@ -202,6 +202,66 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         $this->assertSame(0, $word_audio_queries, 'Cold count-only calls should not materialize full word_audio row payloads.');
     }
 
+    public function test_count_helper_cache_refreshes_when_audio_file_path_meta_changes(): void
+    {
+        $category_name = 'Count Helper Audio Meta ' . (string) wp_rand(1000, 9999);
+        $category_id = $this->createCategory($category_name, 'audio', 'text_title');
+        $word_id = $this->createWord($category_id, 'Audio Meta Word', 'Audio Meta Translation');
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio Meta Child',
+        ]);
+        $config = [
+            'prompt_type' => 'audio',
+            'option_type' => 'text_title',
+        ];
+
+        $this->assertSame(0, ll_get_words_by_category_count($category_name, 'text', null, $config));
+
+        update_post_meta($audio_id, 'audio_file_path', '/wp-content/uploads/audio-meta-initial.mp3');
+        $this->assertSame(1, ll_get_words_by_category_count($category_name, 'text', null, $config));
+
+        $version_before_update = (int) ll_tools_get_category_cache_version($category_id);
+        update_post_meta($audio_id, 'audio_file_path', '/wp-content/uploads/audio-meta-updated.mp3');
+        $this->assertGreaterThan($version_before_update, (int) ll_tools_get_category_cache_version($category_id));
+        $this->assertSame(1, ll_get_words_by_category_count($category_name, 'text', null, $config));
+
+        delete_post_meta($audio_id, 'audio_file_path');
+        $this->assertSame(0, ll_get_words_by_category_count($category_name, 'text', null, $config));
+    }
+
+    public function test_count_helper_cache_refreshes_when_audio_parent_word_moves(): void
+    {
+        $category_a_name = 'Count Helper Audio Move A ' . (string) wp_rand(1000, 9999);
+        $category_b_name = 'Count Helper Audio Move B ' . (string) wp_rand(1000, 9999);
+        $category_a_id = $this->createCategory($category_a_name, 'audio', 'text_title');
+        $category_b_id = $this->createCategory($category_b_name, 'audio', 'text_title');
+        $word_a_id = $this->createWord($category_a_id, 'Audio Move Word A', 'Audio Move Translation A');
+        $word_b_id = $this->createWord($category_b_id, 'Audio Move Word B', 'Audio Move Translation B');
+        $audio_id = $this->addAudio($word_a_id, '-move-parent');
+        $config = [
+            'prompt_type' => 'audio',
+            'option_type' => 'text_title',
+        ];
+
+        $this->assertSame(1, ll_get_words_by_category_count($category_a_name, 'text', null, $config));
+        $this->assertSame(0, ll_get_words_by_category_count($category_b_name, 'text', null, $config));
+
+        $version_a_before_move = (int) ll_tools_get_category_cache_version($category_a_id);
+        $version_b_before_move = (int) ll_tools_get_category_cache_version($category_b_id);
+        wp_update_post([
+            'ID' => $audio_id,
+            'post_parent' => $word_b_id,
+        ]);
+
+        $this->assertGreaterThan($version_a_before_move, (int) ll_tools_get_category_cache_version($category_a_id));
+        $this->assertGreaterThan($version_b_before_move, (int) ll_tools_get_category_cache_version($category_b_id));
+        $this->assertSame(0, ll_get_words_by_category_count($category_a_name, 'text', null, $config));
+        $this->assertSame(1, ll_get_words_by_category_count($category_b_name, 'text', null, $config));
+    }
+
     public function test_count_helper_preserves_raw_title_fallback_when_translation_titles_are_empty(): void
     {
         $previous_title_role = get_option('ll_word_title_language_role', null);

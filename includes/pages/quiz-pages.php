@@ -1174,7 +1174,16 @@ function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxo
         return;
     }
     $post = get_post($object_id);
-    if (!$post || !in_array($post->post_type, ['words','word_images'], true)) return;
+    if (!$post) return;
+
+    if ($post->post_type === 'word_audio') {
+        if ($taxonomy === 'recording_type') {
+            ll_tools_bump_word_audio_parent_category_cache((int) $object_id);
+        }
+        return;
+    }
+
+    if (!in_array($post->post_type, ['words','word_images'], true)) return;
 
     $term_ids = [];
     if ($taxonomy === 'word-category') {
@@ -1202,13 +1211,7 @@ function ll_tools_sync_categories_before_delete($post_id) {
     if (!$post) return;
 
     if ($post->post_type === 'word_audio') {
-        $parent_id = (int) $post->post_parent;
-        if ($parent_id) {
-            $term_ids = wp_get_post_terms($parent_id, 'word-category', ['fields' => 'ids']);
-            if (!is_wp_error($term_ids) && !empty($term_ids)) {
-                ll_tools_bump_category_cache_version($term_ids);
-            }
-        }
+        ll_tools_bump_word_audio_parent_category_cache($post_id);
         return;
     }
 
@@ -1221,19 +1224,106 @@ function ll_tools_sync_categories_before_delete($post_id) {
 }
 add_action('before_delete_post', 'll_tools_sync_categories_before_delete');
 
+function ll_tools_get_word_audio_parent_category_ids(int $audio_post_id): array {
+    $post = get_post($audio_post_id);
+    if (!$post || $post->post_type !== 'word_audio') {
+        return [];
+    }
+
+    $parent_id = (int) $post->post_parent;
+    if ($parent_id <= 0) {
+        return [];
+    }
+
+    $term_ids = wp_get_post_terms($parent_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($term_ids) || empty($term_ids)) {
+        return [];
+    }
+
+    return ll_tools_normalize_category_maintenance_ids($term_ids);
+}
+
+function ll_tools_get_word_audio_parent_word_id(int $audio_post_id): int {
+    $post = get_post($audio_post_id);
+    if (!$post || $post->post_type !== 'word_audio') {
+        return 0;
+    }
+
+    return max(0, (int) $post->post_parent);
+}
+
+function ll_tools_bump_word_audio_parent_category_cache(int $audio_post_id): array {
+    $parent_word_id = ll_tools_get_word_audio_parent_word_id($audio_post_id);
+    if ($parent_word_id > 0 && function_exists('ll_tools_bump_word_quiz_cache_for_words')) {
+        return ll_tools_bump_word_quiz_cache_for_words([$parent_word_id]);
+    }
+
+    $term_ids = ll_tools_get_word_audio_parent_category_ids($audio_post_id);
+    if (!empty($term_ids)) {
+        ll_tools_bump_category_cache_version($term_ids);
+    }
+
+    return $term_ids;
+}
+
 function ll_tools_sync_cache_on_word_audio_save($post_id, $post, $update) {
     if (wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) return;
     if (!$post || $post->post_type !== 'word_audio') return;
 
-    $parent_id = (int) $post->post_parent;
-    if ($parent_id <= 0) return;
-
-    $term_ids = wp_get_post_terms($parent_id, 'word-category', ['fields' => 'ids']);
-    if (is_wp_error($term_ids) || empty($term_ids)) return;
-
-    ll_tools_bump_category_cache_version($term_ids);
+    ll_tools_bump_word_audio_parent_category_cache((int) $post_id);
 }
 add_action('save_post_word_audio', 'll_tools_sync_cache_on_word_audio_save', 10, 3);
+
+function ll_tools_sync_cache_before_word_audio_parent_change($post_id, $data): void {
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== 'word_audio') {
+        return;
+    }
+
+    $old_parent_id = (int) $post->post_parent;
+    $new_parent_id = isset($data['post_parent']) ? (int) $data['post_parent'] : $old_parent_id;
+    if ($old_parent_id <= 0 || $new_parent_id === $old_parent_id) {
+        return;
+    }
+
+    ll_tools_bump_word_audio_parent_category_cache((int) $post_id);
+}
+add_action('pre_post_update', 'll_tools_sync_cache_before_word_audio_parent_change', 10, 2);
+
+function ll_tools_sync_cache_on_word_audio_file_meta_change($meta_id, $object_id, $meta_key, $_meta_value = null): void {
+    if ((string) $meta_key !== 'audio_file_path') {
+        return;
+    }
+
+    ll_tools_bump_word_audio_parent_category_cache((int) $object_id);
+}
+add_action('added_post_meta', 'll_tools_sync_cache_on_word_audio_file_meta_change', 10, 4);
+add_action('updated_post_meta', 'll_tools_sync_cache_on_word_audio_file_meta_change', 10, 4);
+add_action('deleted_post_meta', 'll_tools_sync_cache_on_word_audio_file_meta_change', 10, 4);
+
+function ll_tools_sync_cache_on_word_audio_status_change($new_status, $old_status, $post): void {
+    if (!$post || $post->post_type !== 'word_audio' || (string) $new_status === (string) $old_status) {
+        return;
+    }
+
+    if ((string) $new_status !== 'publish' && (string) $old_status !== 'publish') {
+        return;
+    }
+
+    ll_tools_bump_word_audio_parent_category_cache((int) $post->ID);
+}
+add_action('transition_post_status', 'll_tools_sync_cache_on_word_audio_status_change', 20, 3);
+
+function ll_tools_sync_cache_on_word_audio_trash_change($post_id): void {
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== 'word_audio') {
+        return;
+    }
+
+    ll_tools_bump_word_audio_parent_category_cache((int) $post_id);
+}
+add_action('trashed_post', 'll_tools_sync_cache_on_word_audio_trash_change', 20, 1);
+add_action('untrashed_post', 'll_tools_sync_cache_on_word_audio_trash_change', 20, 1);
 
 /** Hide the title on these auto pages */
 add_filter('the_title', function ($title, $post_id) {
