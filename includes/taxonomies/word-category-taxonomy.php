@@ -4154,7 +4154,7 @@ function ll_tools_get_word_primary_category_option_type_map(array $word_ids): ar
     return $map;
 }
 
-function ll_tools_get_word_display_text_map(array $word_ids): array {
+function ll_tools_get_word_display_text_map(array $word_ids, ?bool $store_in_title_override = null): array {
     $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function (int $id): bool {
         return $id > 0;
     }));
@@ -4187,12 +4187,16 @@ function ll_tools_get_word_display_text_map(array $word_ids): array {
             }
         }
 
-        $store_in_title = (bool) $store_in_title_cache[$role_cache_key];
-        $category_option_type = sanitize_key((string) ($category_option_type_by_word[$word_id] ?? ''));
-        if ($category_option_type === 'text_title') {
-            $store_in_title = true;
-        } elseif (in_array($category_option_type, ['text_translation', 'text_audio'], true)) {
-            $store_in_title = false;
+        if ($store_in_title_override !== null) {
+            $store_in_title = $store_in_title_override;
+        } else {
+            $store_in_title = (bool) $store_in_title_cache[$role_cache_key];
+            $category_option_type = sanitize_key((string) ($category_option_type_by_word[$word_id] ?? ''));
+            if ($category_option_type === 'text_title') {
+                $store_in_title = true;
+            } elseif (in_array($category_option_type, ['text_translation', 'text_audio'], true)) {
+                $store_in_title = false;
+            }
         }
 
         $word_translation = trim((string) get_post_meta($word_id, 'word_translation', true));
@@ -4497,7 +4501,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
     $requires_option_label = in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true);
     $requires_prompt_label = ($prompt_text_type !== '');
     $display_text_by_word = ($requires_option_label || $requires_prompt_label)
-        ? ll_tools_get_word_display_text_map($all_word_ids)
+        ? ll_tools_get_word_display_text_map($all_word_ids, $use_titles)
         : [];
     $has_audio_by_word = $require_audio || $option_requires_audio
         ? ll_tools_get_word_audio_presence_map($all_word_ids)
@@ -4892,7 +4896,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     $requires_option_label = in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true);
     $requires_prompt_label = ($prompt_text_type !== '');
     $display_text_by_word = ($requires_option_label || $requires_prompt_label)
-        ? ll_tools_get_word_display_text_map($all_word_ids)
+        ? ll_tools_get_word_display_text_map($all_word_ids, $use_titles)
         : [];
     $has_audio_by_word = $require_audio || $option_requires_audio
         ? ll_tools_get_word_audio_presence_map($all_word_ids)
@@ -5473,7 +5477,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         update_meta_cache('post', $all_word_ids);
     }
 
-    $display_text_by_word = !empty($all_word_ids) ? ll_tools_get_word_display_text_map($all_word_ids) : [];
+    $display_text_by_word = !empty($all_word_ids) ? ll_tools_get_word_display_text_map($all_word_ids, $use_titles) : [];
     $category_names_by_word = !empty($all_word_ids) ? ll_tools_get_object_term_names_map($all_word_ids, 'word-category') : [];
     $wordset_ids_by_word = !empty($all_word_ids) ? ll_tools_get_object_term_ids_map($all_word_ids, 'wordset') : [];
     $part_of_speech_by_word = !empty($all_word_ids) ? ll_tools_get_object_term_slugs_map($all_word_ids, 'part_of_speech') : [];

@@ -63,6 +63,52 @@ final class RecordingTranslationPayloadTest extends LL_Tools_TestCase
         $this->assertSame('To walk?', (string) ($audio_translation_by_type['question'] ?? ''));
     }
 
+    public function test_category_rows_use_active_category_title_storage_for_translation_answers(): void
+    {
+        $broad_category = wp_insert_term('Broad Number Category', 'word-category');
+        $this->assertFalse(is_wp_error($broad_category));
+        $this->assertIsArray($broad_category);
+        $broad_category_id = (int) $broad_category['term_id'];
+        update_term_meta($broad_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($broad_category_id, 'll_quiz_option_type', 'text_translation');
+
+        $active_category = wp_insert_term('Active Number Category', 'word-category');
+        $this->assertFalse(is_wp_error($active_category));
+        $this->assertIsArray($active_category);
+        $active_category_id = (int) $active_category['term_id'];
+        update_term_meta($active_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($active_category_id, 'll_quiz_option_type', 'text_translation');
+        update_term_meta($active_category_id, 'use_word_titles_for_audio', '1');
+
+        $word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'publish',
+            'post_title'  => 'Pûnces',
+        ]);
+        update_post_meta($word_id, 'word_translation', '15');
+        wp_set_post_terms($word_id, [$broad_category_id, $active_category_id], 'word-category', false);
+
+        $isolation_type_id = $this->ensureRecordingType('isolation', 'Isolation');
+        $this->createAudioPost($word_id, $isolation_type_id, 'Pûnces isolation', 'Pûnces', '', 'https://example.com/audio/punces.mp3');
+
+        $rows = ll_get_words_by_category(
+            'Active Number Category',
+            'text_translation',
+            null,
+            [
+                'prompt_type' => 'audio',
+                'option_type' => 'text_translation',
+                'use_titles' => true,
+            ]
+        );
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Pûnces', (string) ($rows[0]['title'] ?? ''));
+        $this->assertSame('15', (string) ($rows[0]['translation'] ?? ''));
+        $this->assertSame('15', (string) ($rows[0]['label'] ?? ''));
+        $this->assertSame('Pûnces', (string) ($rows[0]['prompt_label'] ?? ''));
+    }
+
     private function ensureRecordingType(string $slug, string $label): int
     {
         $term = wp_insert_term($label, 'recording_type', ['slug' => $slug]);
