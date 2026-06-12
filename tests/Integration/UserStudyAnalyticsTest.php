@@ -1017,6 +1017,79 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($response['data']['analytics']['words_omitted'] ?? false));
     }
 
+    public function test_analytics_ajax_can_return_bounded_word_pages(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $nonce = wp_create_nonce('ll_user_study');
+
+        $request_page = function (int $offset) use ($fixture, $nonce): array {
+            $_POST = [
+                'nonce' => $nonce,
+                'wordset_id' => $fixture['wordset_id'],
+                'category_ids' => $fixture['category_ids'],
+                'days' => 14,
+                'include_words' => '1',
+                'word_limit' => '3',
+                'word_offset' => (string) $offset,
+            ];
+            $_REQUEST = $_POST;
+
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_user_study_analytics_ajax();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            return (array) ($response['data']['analytics'] ?? []);
+        };
+
+        $first_page = $request_page(0);
+        $second_page = $request_page(3);
+
+        $this->assertSame(10, (int) ($first_page['summary']['total_words'] ?? 0));
+        $this->assertFalse((bool) ($first_page['words_omitted'] ?? true));
+        $this->assertCount(3, (array) ($first_page['words'] ?? []));
+        $this->assertCount(3, (array) ($second_page['words'] ?? []));
+
+        $first_pagination = (array) ($first_page['words_pagination'] ?? []);
+        $second_pagination = (array) ($second_page['words_pagination'] ?? []);
+        $this->assertTrue((bool) ($first_pagination['enabled'] ?? false));
+        $this->assertSame(10, (int) ($first_pagination['total'] ?? 0));
+        $this->assertSame(0, (int) ($first_pagination['offset'] ?? -1));
+        $this->assertSame(3, (int) ($first_pagination['limit'] ?? 0));
+        $this->assertSame(3, (int) ($first_pagination['loaded'] ?? 0));
+        $this->assertSame(3, (int) ($first_pagination['next_offset'] ?? 0));
+        $this->assertTrue((bool) ($first_pagination['has_more'] ?? false));
+
+        $this->assertTrue((bool) ($second_pagination['enabled'] ?? false));
+        $this->assertSame(10, (int) ($second_pagination['total'] ?? 0));
+        $this->assertSame(3, (int) ($second_pagination['offset'] ?? -1));
+        $this->assertSame(6, (int) ($second_pagination['loaded'] ?? 0));
+        $this->assertSame(6, (int) ($second_pagination['next_offset'] ?? 0));
+        $this->assertTrue((bool) ($second_pagination['has_more'] ?? false));
+
+        $first_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($first_page['words'] ?? []))));
+        $second_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($second_page['words'] ?? []))));
+
+        $this->assertCount(3, $first_ids);
+        $this->assertCount(3, $second_ids);
+        $this->assertSame([], array_values(array_intersect($first_ids, $second_ids)));
+        foreach ((array) ($first_page['words'] ?? []) as $row) {
+            $this->assertNotSame('', trim((string) ($row['title'] ?? '')));
+        }
+    }
+
     public function test_analytics_ajax_can_return_summary_without_word_rows(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

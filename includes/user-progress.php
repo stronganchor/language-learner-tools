@@ -3700,6 +3700,15 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
         'categories' => $category_rows,
         'words' => [],
         'words_omitted' => true,
+        'words_pagination' => [
+            'enabled' => false,
+            'total' => $summary_total,
+            'offset' => 0,
+            'limit' => 0,
+            'loaded' => 0,
+            'next_offset' => null,
+            'has_more' => false,
+        ],
         'generated_at' => gmdate('c'),
     ];
 }
@@ -3728,6 +3737,18 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     if ($summary_only) {
         $include_words = false;
     }
+    $word_limit = 0;
+    if (array_key_exists('word_limit', $options)) {
+        $word_limit = max(0, (int) $options['word_limit']);
+    }
+    if ($word_limit > 0) {
+        $max_word_limit = max(1, (int) apply_filters('ll_tools_user_progress_analytics_word_page_max', 250, $scope_wordset_id));
+        $word_limit = min($word_limit, $max_word_limit);
+    }
+    $word_offset = array_key_exists('word_offset', $options)
+        ? max(0, (int) $options['word_offset'])
+        : 0;
+    $word_paging_enabled = $include_words && $word_limit > 0;
     if ($uid <= 0) {
         return [
             'scope' => [
@@ -3754,6 +3775,15 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'categories' => [],
             'words' => [],
             'words_omitted' => !$include_words,
+            'words_pagination' => [
+                'enabled' => $word_paging_enabled,
+                'total' => 0,
+                'offset' => $word_offset,
+                'limit' => $word_limit,
+                'loaded' => 0,
+                'next_offset' => null,
+                'has_more' => false,
+            ],
             'generated_at' => gmdate('c'),
         ];
     }
@@ -3818,20 +3848,58 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         );
     }
 
-    if ($include_words && !empty($all_word_ids)) {
-        update_meta_cache('post', $all_word_ids);
+    $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
+    $ordered_word_ids = $all_word_ids;
+    if ($word_paging_enabled && !empty($ordered_word_ids)) {
+        usort($ordered_word_ids, static function ($left_id, $right_id) use ($progress_rows): int {
+            $left_id = (int) $left_id;
+            $right_id = (int) $right_id;
+            $left_progress = isset($progress_rows[$left_id]) && is_array($progress_rows[$left_id]) ? $progress_rows[$left_id] : [];
+            $right_progress = isset($progress_rows[$right_id]) && is_array($progress_rows[$right_id]) ? $progress_rows[$right_id] : [];
+            $left_status = ll_tools_user_progress_word_status($left_progress);
+            $right_status = ll_tools_user_progress_word_status($right_progress);
+            $left_status_rank = ($left_status === 'new') ? 1 : 0;
+            $right_status_rank = ($right_status === 'new') ? 1 : 0;
+            if ($left_status_rank !== $right_status_rank) {
+                return $left_status_rank <=> $right_status_rank;
+            }
+
+            $left_score = ll_tools_user_progress_word_difficulty_score($left_progress);
+            $right_score = ll_tools_user_progress_word_difficulty_score($right_progress);
+            if ($left_score !== $right_score) {
+                return $right_score <=> $left_score;
+            }
+
+            $left_incorrect = max(0, (int) ($left_progress['incorrect'] ?? 0));
+            $right_incorrect = max(0, (int) ($right_progress['incorrect'] ?? 0));
+            if ($left_incorrect !== $right_incorrect) {
+                return $right_incorrect <=> $left_incorrect;
+            }
+
+            return $left_id <=> $right_id;
+        });
+    }
+    $paged_word_ids = $word_paging_enabled
+        ? array_slice($ordered_word_ids, $word_offset, $word_limit)
+        : $all_word_ids;
+    $paged_word_lookup = $word_paging_enabled ? array_fill_keys($paged_word_ids, true) : [];
+    $display_word_ids = $word_paging_enabled ? $paged_word_ids : $all_word_ids;
+
+    if ($include_words && !empty($display_word_ids)) {
+        update_meta_cache('post', $display_word_ids);
     }
 
     $needs_gender_maps = (bool) $gender_enabled;
-    $display_text_by_word = ($include_words && function_exists('ll_tools_get_word_display_text_map'))
-        ? ll_tools_get_word_display_text_map($all_word_ids)
+    $display_text_by_word = ($include_words && !empty($display_word_ids) && function_exists('ll_tools_get_word_display_text_map'))
+        ? ll_tools_get_word_display_text_map($display_word_ids)
         : [];
-    $part_of_speech_by_word = ($include_words || $needs_gender_maps) ? ll_tools_get_word_part_of_speech_map($all_word_ids) : [];
-    $audio_summary_by_word = $include_words ? ll_tools_user_progress_get_word_audio_summary_map($all_word_ids) : [];
+    $part_of_speech_ids = $needs_gender_maps ? $all_word_ids : $display_word_ids;
+    $part_of_speech_by_word = (($include_words || $needs_gender_maps) && !empty($part_of_speech_ids)) ? ll_tools_get_word_part_of_speech_map($part_of_speech_ids) : [];
+    $audio_summary_by_word = ($include_words && !empty($display_word_ids)) ? ll_tools_user_progress_get_word_audio_summary_map($display_word_ids) : [];
     $analytics_image_size = $include_words
         ? (string) apply_filters('ll_tools_user_progress_analytics_word_image_size', 'thumbnail')
         : 'thumbnail';
-    $image_url_by_word = $include_words ? ll_tools_user_progress_get_word_image_url_map($all_word_ids, $analytics_image_size) : [];
+    $image_url_by_word = ($include_words && !empty($display_word_ids)) ? ll_tools_user_progress_get_word_image_url_map($display_word_ids, $analytics_image_size) : [];
     $gender_meta_by_word = $needs_gender_maps ? ll_tools_user_progress_get_word_gender_meta_map($all_word_ids) : [];
     $category_quiz_configs = $needs_gender_maps ? ll_tools_user_progress_category_quiz_config_map($scope_category_ids, $scope_wordset_id) : [];
     $needs_audio_presence_map = false;
@@ -3878,28 +3946,29 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             if ($wid <= 0) {
                 continue;
             }
+            $hydrate_word_row = $include_words && (!$word_paging_enabled || isset($paged_word_lookup[$wid]));
 
             if (!isset($word_map[$wid])) {
-                $display = ($include_words && isset($display_text_by_word[$wid]) && is_array($display_text_by_word[$wid]))
+                $display = ($hydrate_word_row && isset($display_text_by_word[$wid]) && is_array($display_text_by_word[$wid]))
                     ? $display_text_by_word[$wid]
                     : [];
                 $title = trim((string) ($display['word_text'] ?? ''));
-                if ($include_words && $title === '') {
+                if ($hydrate_word_row && $title === '') {
                     $title = trim((string) ($display['raw_title'] ?? get_the_title($wid)));
                 }
                 $translation = trim((string) ($display['translation_text'] ?? ''));
-                $audio_summary = ($include_words && isset($audio_summary_by_word[$wid]) && is_array($audio_summary_by_word[$wid]))
+                $audio_summary = ($hydrate_word_row && isset($audio_summary_by_word[$wid]) && is_array($audio_summary_by_word[$wid]))
                     ? $audio_summary_by_word[$wid]
                     : [];
                 $part_of_speech = isset($part_of_speech_by_word[$wid]) && is_array($part_of_speech_by_word[$wid])
                     ? $part_of_speech_by_word[$wid]
                     : [];
                 $part_of_speech_slug = sanitize_key((string) ($part_of_speech['slug'] ?? ''));
-                $image_url = $include_words ? (string) ($image_url_by_word[$wid] ?? '') : '';
-                $has_audio = $include_words
+                $image_url = $hydrate_word_row ? (string) ($image_url_by_word[$wid] ?? '') : '';
+                $has_audio = $hydrate_word_row
                     ? (!empty($audio_summary['audio_url']) || !empty($audio_summary['audio_files_count']))
                     : !empty($audio_presence_by_word[$wid]);
-                $has_image = $include_words
+                $has_image = $hydrate_word_row
                     ? ($image_url !== '')
                     : !empty($image_presence_by_word[$wid]);
 
@@ -3946,7 +4015,6 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             }
         }
     }
-    $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     $category_progress = ll_tools_get_user_category_progress($uid);
     $category_url_map = ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
 
@@ -4064,7 +4132,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         $word_category_labels = [];
         $word_category_urls = [];
         foreach ($word_category_ids as $cid) {
-            if ($include_words) {
+            if ($include_words && (!$word_paging_enabled || isset($paged_word_lookup[$wid]))) {
                 $meta = $category_lookup[$cid] ?? [];
                 $label = '';
                 if (is_array($meta)) {
@@ -4140,7 +4208,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             }
         }
 
-        if ($include_words) {
+        if ($include_words && (!$word_paging_enabled || isset($paged_word_lookup[$wid]))) {
             $word_rows[] = [
                 'id' => (int) $wid,
                 'title' => (string) ($word['title'] ?? ''),
@@ -4336,6 +4404,11 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     }
 
     $daily_activity = ll_tools_user_study_daily_activity_series($uid, $scope_wordset_id, $scope_category_ids, (int) $days);
+    $words_loaded = $include_words ? count($word_rows) : 0;
+    $word_total = count($all_word_ids);
+    $next_word_offset = ($word_paging_enabled && ($word_offset + $words_loaded) < $word_total)
+        ? $word_offset + $words_loaded
+        : null;
 
     return [
         'scope' => [
@@ -4357,6 +4430,15 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         'categories' => $category_rows,
         'words' => $include_words ? $word_rows : [],
         'words_omitted' => !$include_words,
+        'words_pagination' => [
+            'enabled' => $word_paging_enabled,
+            'total' => $word_total,
+            'offset' => $word_offset,
+            'limit' => $word_limit,
+            'loaded' => $word_paging_enabled ? min($word_total, $word_offset + $words_loaded) : $words_loaded,
+            'next_offset' => $next_word_offset,
+            'has_more' => $next_word_offset !== null,
+        ],
         'generated_at' => gmdate('c'),
     ];
 }
@@ -7374,6 +7456,8 @@ function ll_tools_user_study_analytics_ajax() {
     if ($summary_only) {
         $include_words = false;
     }
+    $word_limit = isset($_POST['word_limit']) ? max(0, (int) $_POST['word_limit']) : 0;
+    $word_offset = isset($_POST['word_offset']) ? max(0, (int) $_POST['word_offset']) : 0;
     $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) {
         return $id > 0;
     }));
@@ -7381,6 +7465,8 @@ function ll_tools_user_study_analytics_ajax() {
     $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, $category_ids, $days, $include_ignored, [
         'include_words' => $include_words,
         'summary_only' => $summary_only,
+        'word_limit' => $word_limit,
+        'word_offset' => $word_offset,
     ]);
 
     wp_send_json_success([

@@ -16454,10 +16454,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $study_categories = [];
     $gender_options = [];
     $gender_enabled = false;
-    // Full analytics payloads (especially analytics.words) can be very large on big wordsets
-    // and are only required for the dedicated progress view. Avoid building them during the
-    // main wordset page render to prevent white-screen failures from memory/time exhaustion.
-    $should_bootstrap_analytics = ($view === 'progress');
+    // Full analytics payloads (especially analytics.words) can be very large on big wordsets.
+    // Keep the initial page render bounded; the progress view fetches summary/word pages by AJAX.
+    $should_bootstrap_analytics = false;
     $estimated_category_word_total = 0;
     foreach ((array) $categories as $category_row) {
         $estimated_category_word_total += max(0, (int) ($category_row['count'] ?? 0));
@@ -16478,7 +16477,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
         $study_state['wordset_id'] = $wordset_id;
         if ($should_bootstrap_analytics && function_exists('ll_tools_build_user_study_analytics_payload')) {
-            $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, false);
+            $analytics_options = ($view === 'progress') ? ['summary_only' => true] : [];
+            $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, false, $analytics_options);
         }
         if (function_exists('ll_tools_user_study_categories_for_wordset')) {
             $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);
@@ -17502,6 +17502,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'lazyCards' => $localized_lazy_cards,
         'categorySearch' => $localized_category_search,
         'learningMinChunkSize' => 8,
+        'progressWordPageSize' => (int) apply_filters('ll_tools_wordset_progress_word_page_size', 80, $wordset_id),
         'hardWordDifficultyThreshold' => function_exists('ll_tools_user_progress_hard_difficulty_threshold')
             ? ll_tools_user_progress_hard_difficulty_threshold()
             : 4,
@@ -17616,6 +17617,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsDeselectAllWithContext' => __('Deselect all: %1$s', 'll-tools-text-domain'),
             'analyticsSelectAllContextFiltered' => __('Filtered words', 'll-tools-text-domain'),
             'analyticsSelectionCount' => __('%d selected words', 'll-tools-text-domain'),
+            'analyticsWordsLoaded' => __('Showing %1$d of %2$d words', 'll-tools-text-domain'),
+            'analyticsLoadMoreWords' => __('Load more words', 'll-tools-text-domain'),
+            'analyticsLoadingWords' => __('Loading words...', 'll-tools-text-domain'),
             'analyticsLast' => __('Last', 'll-tools-text-domain'),
             'analyticsNever' => __('Never', 'll-tools-text-domain'),
             'analyticsDayEvents' => __('%1$d rounds, %2$d words', 'll-tools-text-domain'),
@@ -18087,6 +18091,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="ll-wordset-progress-words-more" data-ll-wordset-progress-words-more hidden>
+                            <span class="ll-wordset-progress-words-more__status" data-ll-wordset-progress-words-loaded></span>
+                            <button type="button" class="ll-wordset-progress-words-more__button" data-ll-wordset-progress-words-load-more>
+                                <?php echo esc_html__('Load more words', 'll-tools-text-domain'); ?>
+                            </button>
                         </div>
                         <div class="ll-wordset-selection-bar ll-wordset-progress-selection-bar" data-ll-wordset-progress-selection-bar hidden>
                             <span class="ll-wordset-selection-bar__text" data-ll-wordset-progress-selection-count><?php echo esc_html(sprintf(__('%d selected words', 'll-tools-text-domain'), 0)); ?></span>

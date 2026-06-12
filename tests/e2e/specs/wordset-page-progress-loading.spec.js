@@ -31,7 +31,9 @@ function buildAnalytics({
   hardWords = 0,
   starredWords = 0,
   categoryId = 11,
-  label = 'Cat A'
+  label = 'Cat A',
+  words = [],
+  wordsPagination = null
 } = {}) {
   return {
     scope: {
@@ -73,9 +75,58 @@ function buildAnalytics({
         last_seen_at: ''
       }
     ],
-    words: [],
+    words,
+    words_pagination: wordsPagination || {
+      enabled: false,
+      total: Array.isArray(words) ? words.length : 0,
+      offset: 0,
+      limit: 0,
+      loaded: Array.isArray(words) ? words.length : 0,
+      next_offset: null,
+      has_more: false
+    },
     generated_at: '2026-03-10T00:00:00Z'
   };
+}
+
+function buildProgressWords(startId, count) {
+  return Array.from({ length: count }, (_unused, index) => {
+    const id = startId + index;
+    return {
+      id,
+      title: `Progress Word ${id}`,
+      translation: `Translation ${id}`,
+      label: `Progress Word ${id}`,
+      image: '',
+      audio_url: '',
+      audio_recording_type: '',
+      category_id: 11,
+      category_label: 'Cat A',
+      category_url: '#',
+      category_ids: [11],
+      category_labels: ['Cat A'],
+      category_urls: ['#'],
+      part_of_speech_slug: '',
+      part_of_speech_label: '',
+      part_of_speech_abbreviation: '',
+      status: id <= 12 ? 'studied' : 'new',
+      difficulty_score: id % 5,
+      total_coverage: id <= 12 ? 2 : 0,
+      incorrect: id % 3,
+      lapse_count: 0,
+      last_seen_at: '',
+      is_starred: false,
+      prompt_blocked: false,
+      normalized_grammatical_gender: '',
+      gender_marked: false,
+      gender_progress_tracked: false,
+      gender_eligible: false,
+      gender_level: 0,
+      gender_seen_total: 0,
+      gender_last_seen_at: '',
+      gender_progress: {}
+    };
+  });
 }
 
 function buildWordsetMarkup(options = {}) {
@@ -188,6 +239,61 @@ function buildWordsetMarkup(options = {}) {
   `;
 }
 
+function buildProgressPageMarkup() {
+  return `
+    <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="progress" data-ll-wordset-id="77">
+      <section class="ll-wordset-progress-view" data-ll-wordset-progress-root>
+        <div data-ll-wordset-progress-status></div>
+        <div data-ll-wordset-progress-scope></div>
+        <div data-ll-wordset-progress-summary></div>
+        <div data-ll-wordset-progress-graph></div>
+
+        <div role="tablist">
+          <button type="button" data-ll-wordset-progress-tab="categories">Categories</button>
+          <button type="button" data-ll-wordset-progress-tab="words">Words</button>
+        </div>
+
+        <div data-ll-wordset-progress-panel="categories">
+          <input type="search" data-ll-wordset-progress-category-search />
+          <span data-ll-wordset-progress-category-search-loading hidden></span>
+          <table class="ll-wordset-progress-table">
+            <tbody data-ll-wordset-progress-categories-body></tbody>
+          </table>
+        </div>
+
+        <div data-ll-wordset-progress-panel="words" hidden>
+          <input type="search" data-ll-wordset-progress-search />
+          <span data-ll-wordset-progress-search-loading hidden></span>
+          <button type="button" data-ll-wordset-progress-clear-filters hidden>Clear</button>
+          <button type="button" data-ll-wordset-progress-select-all>Select all</button>
+          <div class="ll-wordset-progress-table-wrap" style="max-height: 40px; overflow: auto;">
+            <table class="ll-wordset-progress-table ll-wordset-progress-table--words">
+              <tbody data-ll-wordset-progress-words-body></tbody>
+            </table>
+          </div>
+          <div class="ll-wordset-progress-words-more" data-ll-wordset-progress-words-more hidden>
+            <span class="ll-wordset-progress-words-more__status" data-ll-wordset-progress-words-loaded></span>
+            <button type="button" class="ll-wordset-progress-words-more__button" data-ll-wordset-progress-words-load-more>
+              Load more words
+            </button>
+          </div>
+          <div data-ll-wordset-progress-selection-bar hidden>
+            <span data-ll-wordset-progress-selection-count></span>
+            <button type="button" data-ll-wordset-progress-selection-clear>Clear</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="ll-study-results-actions" style="display:none;"></div>
+    <div id="ll-gender-results-actions" style="display:none;"></div>
+    <button id="restart-quiz" type="button" style="display:none;">Restart</button>
+    <div id="quiz-mode-buttons" style="display:none;"></div>
+    <div id="ll-tools-flashcard-popup" style="display:none;"></div>
+    <div id="ll-tools-flashcard-quiz-popup" style="display:none;"></div>
+  `;
+}
+
 function buildPageConfig(overrides = {}) {
   const config = {
     view: 'main',
@@ -262,6 +368,7 @@ function buildPageConfig(overrides = {}) {
       hard: 0
     },
     summaryCountsDeferred: true,
+    progressWordPageSize: 80,
     hardWordDifficultyThreshold: 4,
     i18n: {
       selectionLabel: 'Select categories to study together',
@@ -272,7 +379,13 @@ function buildPageConfig(overrides = {}) {
       noWordsInSelection: 'No quiz words are available for this selection.',
       continueLabel: 'Continue',
       repeatLabel: 'Repeat',
-      categoriesLabel: 'Categories'
+      categoriesLabel: 'Categories',
+      analyticsLoading: 'Loading progress...',
+      analyticsUnavailable: 'Progress unavailable.',
+      analyticsNoRows: 'No rows',
+      analyticsWordsLoaded: 'Showing %1$d of %2$d words',
+      analyticsLoadMoreWords: 'Load more words',
+      analyticsLoadingWords: 'Loading words...'
     }
   };
 
@@ -366,6 +479,173 @@ async function mountWordsetPage(page, options = {}) {
 
   await page.addScriptTag({ content: wordsetScriptSource });
 }
+
+async function mountProgressPage(page, options = {}) {
+  const config = buildPageConfig(Object.assign({
+    view: 'progress',
+    progressWordPageSize: 30,
+    summaryCountsDeferred: false
+  }, options.config || {}));
+
+  await page.goto('about:blank');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setContent(buildProgressPageMarkup());
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate((bootstrapConfig) => {
+    const localStorageStub = {
+      getItem() { return null; },
+      setItem() {},
+      removeItem() {},
+      clear() {}
+    };
+    Object.defineProperty(window, 'localStorage', {
+      value: localStorageStub,
+      configurable: true
+    });
+    window.llWordsetPageData = bootstrapConfig;
+    window.__llAnalyticsRequests = [];
+    window.__confettiCalls = 0;
+    window.confetti = function () {
+      window.__confettiCalls += 1;
+    };
+
+    window.alert = function () {};
+
+    window.__resolveAnalyticsRequest = function (index, analytics) {
+      const entry = Array.isArray(window.__llAnalyticsRequests)
+        ? window.__llAnalyticsRequests[index]
+        : null;
+      if (!entry || !entry.deferred) {
+        return false;
+      }
+      entry.deferred.resolve({
+        success: true,
+        data: {
+          analytics
+        }
+      });
+      return true;
+    };
+
+    const $ = window.jQuery;
+    $.post = function (_url, request) {
+      const deferred = $.Deferred();
+      const action = request && request.action ? String(request.action) : '';
+
+      if (action === 'll_user_study_analytics') {
+        window.__llAnalyticsRequests.push({
+          action,
+          request: Object.assign({}, request),
+          deferred
+        });
+        return deferred.promise();
+      }
+
+      if (action === 'll_user_study_recommendation') {
+        deferred.resolve({
+          success: true,
+          data: {
+            next_activity: null,
+            recommendation_queue: []
+          }
+        });
+        return deferred.promise();
+      }
+
+      deferred.resolve({ success: true, data: {} });
+      return deferred.promise();
+    };
+  }, config);
+
+  await page.addScriptTag({ content: wordsetScriptSource });
+}
+
+test('progress words load in bounded pages', async ({ page }) => {
+  await mountProgressPage(page);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(1);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      const request = Array.isArray(window.__llAnalyticsRequests) && window.__llAnalyticsRequests[0]
+        ? window.__llAnalyticsRequests[0].request
+        : {};
+      return {
+        includeWords: String(request.include_words ?? ''),
+        wordLimit: String(request.word_limit ?? ''),
+        wordOffset: String(request.word_offset ?? '')
+      };
+    });
+  }).toEqual({ includeWords: '1', wordLimit: '30', wordOffset: '0' });
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    totalWords: 45,
+    studiedWords: 12,
+    newWords: 33,
+    words: buildProgressWords(1, 30),
+    wordsPagination: {
+      enabled: true,
+      total: 45,
+      offset: 0,
+      limit: 30,
+      loaded: 30,
+      next_offset: 30,
+      has_more: true
+    }
+  }));
+
+  await page.getByRole('button', { name: 'Words' }).click();
+
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(30);
+  await expect(page.locator('[data-ll-wordset-progress-words-loaded]')).toHaveText('Showing 30 of 45 words');
+  await expect(page.locator('[data-ll-wordset-progress-words-load-more]')).toBeVisible();
+
+  await page.locator('[data-ll-wordset-progress-words-load-more]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(2);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      const request = Array.isArray(window.__llAnalyticsRequests) && window.__llAnalyticsRequests[1]
+        ? window.__llAnalyticsRequests[1].request
+        : {};
+      return {
+        includeWords: String(request.include_words ?? ''),
+        wordLimit: String(request.word_limit ?? ''),
+        wordOffset: String(request.word_offset ?? '')
+      };
+    });
+  }).toEqual({ includeWords: '1', wordLimit: '30', wordOffset: '30' });
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(1, payload);
+  }, buildAnalytics({
+    totalWords: 45,
+    studiedWords: 12,
+    newWords: 33,
+    words: buildProgressWords(31, 15),
+    wordsPagination: {
+      enabled: true,
+      total: 45,
+      offset: 30,
+      limit: 30,
+      loaded: 45,
+      next_offset: null,
+      has_more: false
+    }
+  }));
+
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(45);
+  await expect(page.locator('[data-ll-wordset-progress-words-loaded]')).toHaveText('Showing 45 of 45 words');
+  await expect(page.locator('[data-ll-wordset-progress-words-load-more]')).toBeHidden();
+});
 
 test('offscreen loading progress bars keep the loading mask until real category progress is applied', async ({ page }) => {
   await mountWordsetPage(page);

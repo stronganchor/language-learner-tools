@@ -6907,6 +6907,58 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     animation: ll-wordset-progress-filter-swap 0.28s ease;
 }
 
+.ll-wordset-progress-words-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 12px 0 2px;
+}
+
+.ll-wordset-progress-words-more[hidden] {
+    display: none !important;
+}
+
+.ll-wordset-progress-words-more__status {
+    color: var(--ll-wp-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ll-wordset-page button.ll-wordset-progress-words-more__button {
+    appearance: none !important;
+    border: 1px solid #d8d1c4 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    color: #443d34 !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    min-height: 34px !important;
+    padding: 8px 12px !important;
+    text-decoration: none !important;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+}
+
+.ll-wordset-page button.ll-wordset-progress-words-more__button:hover,
+.ll-wordset-page button.ll-wordset-progress-words-more__button:focus {
+    background: #f8f3ea !important;
+    border-color: #cbbfad !important;
+    color: #28221c !important;
+}
+
+.ll-wordset-page button.ll-wordset-progress-words-more__button:focus-visible {
+    outline: 2px solid rgba(123, 91, 38, 0.35) !important;
+    outline-offset: 2px !important;
+}
+
+.ll-wordset-page button.ll-wordset-progress-words-more__button:disabled {
+    cursor: progress !important;
+    opacity: 0.68 !important;
+}
+
 @keyframes ll-wordset-progress-filter-swap {
     0% {
         opacity: 0.45;
