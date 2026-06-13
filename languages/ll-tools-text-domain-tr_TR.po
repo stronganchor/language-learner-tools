@@ -19696,27 +19696,27 @@ msgstr "A'dan Z'ye"
 #: includes/pages/wordset-pages.php:14116
 #: templates/offline-app-shell-template.php:796
 msgid "Z-A"
-msgstr "Z-A"
+msgstr "Z'den A'ya"
 
 #: includes/pages/wordset-pages.php:14120
 #: templates/offline-app-shell-template.php:800
 msgid "More learned"
-msgstr "Daha fazla bilgi"
+msgstr "En çok öğrenilenler"
 
 #: includes/pages/wordset-pages.php:14124
 #: templates/offline-app-shell-template.php:804
 msgid "Less learned"
-msgstr "Daha az öğrenildi"
+msgstr "En az öğrenilenler"
 
 #: includes/pages/wordset-pages.php:14128
 #: templates/offline-app-shell-template.php:808
 msgid "Recently studied"
-msgstr "Son zamanlarda çalışılan"
+msgstr "Son çalışılanlar"
 
 #: includes/pages/wordset-pages.php:14132
 #: templates/offline-app-shell-template.php:812
 msgid "Not recently studied"
-msgstr "Yakın zamanda incelenmemiş"
+msgstr "Uzun süredir çalışılmayanlar"
 
 #: includes/pages/wordset-pages.php:14154
 msgid "No categories match this search."
