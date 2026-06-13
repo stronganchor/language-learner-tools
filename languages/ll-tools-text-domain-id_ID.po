@@ -4101,3 +4101,107 @@ msgstr "Game berbicara disembunyikan karena konfigurasi berbicara saat ini tidak
 #: includes/pages/wordset-games.php:286
 msgid "Speaking games are hidden because the current speaking configuration is incomplete for this word set."
 msgstr "Game berbicara disembunyikan karena konfigurasi berbicara saat ini belum lengkap untuk set kata ini."
+
+#: includes/admin/teacher-classes-page.php:600 includes/admin/teacher-classes-page.php:639 includes/admin/teacher-classes-page.php:693 includes/pages/wordset-pages.php:10650 includes/user-roles/teacher-role.php:36
+msgid "Teacher"
+msgstr "Pengajar"
+
+#: includes/admin/teacher-classes-page.php:620 includes/pages/wordset-pages.php:10662
+msgid "Create class"
+msgstr "Buat kelas"
+
+#: includes/pages/wordset-pages.php:15489
+msgid "No audio recorder users are currently assigned to this word set."
+msgstr "Belum ada pengguna perekam audio yang ditetapkan ke kumpulan kata ini."
+
+#: includes/pages/wordset-pages.php:16104
+msgid "Quiz display"
+msgstr "Tampilan kuis"
+
+#: includes/pages/wordset-pages.php:16114
+msgid "Sign language"
+msgstr "Bahasa isyarat"
+
+#: includes/pages/wordset-pages.php:16123
+msgid "Use sign language quiz defaults and disable audio requirements for this word set."
+msgstr "Gunakan default kuis bahasa isyarat dan nonaktifkan persyaratan audio untuk kumpulan kata ini."
+
+#: includes/pages/wordset-pages.php:16126
+msgid "Categories default to image prompts with image answer options. Category quiz settings can still use image prompts with text answers."
+msgstr "Kategori secara default memakai prompt gambar dengan pilihan jawaban gambar. Pengaturan kuis kategori tetap dapat memakai prompt gambar dengan jawaban teks."
+
+#: includes/pages/wordset-pages.php:17107
+msgid "Defaults"
+msgstr "Default"
+
+#: includes/pages/wordset-pages.php:17121
+msgid "No categories yet"
+msgstr "Belum ada kategori"
+
+#: includes/pages/wordset-pages.php:17145
+msgid "No template content yet"
+msgstr "Belum ada konten templat"
+
+#: includes/pages/wordset-pages.php:17157
+msgid "%d recorder assigned"
+msgid_plural "%d recorders assigned"
+msgstr[0] "%d perekam ditetapkan"
+msgstr[1] "%d perekam ditetapkan"
+
+#: includes/pages/wordset-pages.php:17160 includes/pages/wordset-pages.php:17174
+msgid "No recorders assigned"
+msgstr "Belum ada perekam yang ditetapkan"
+
+#: includes/pages/wordset-pages.php:17171
+msgid "%d recorder ready"
+msgid_plural "%d recorders ready"
+msgstr[0] "%d perekam siap"
+msgstr[1] "%d perekam siap"
+
+#: includes/pages/wordset-pages.php:17620
+msgid "Showing %1$d of %2$d words"
+msgstr "Menampilkan %1$d dari %2$d kata"
+
+#: includes/pages/wordset-pages.php:17621 includes/pages/wordset-pages.php:18098
+msgid "Load more words"
+msgstr "Muat lebih banyak kata"
+
+#: includes/pages/wordset-pages.php:17622
+msgid "Loading words..."
+msgstr "Memuat kata..."
+
+#: includes/pages/wordset-pages.php:18155
+msgid "Sign in to manage hidden categories."
+msgstr "Masuk untuk mengelola kategori tersembunyi."
+
+#: includes/pages/wordset-pages.php:18168
+msgid "Unhide %s"
+msgstr "Tampilkan %s"
+
+#: includes/pages/wordset-pages.php:11996 includes/pages/wordset-pages.php:16348 includes/pages/wordset-pages.php:18180
+msgid "Word Set Tools"
+msgstr "Alat kumpulan kata"
+
+#: includes/pages/wordset-pages.php:18182
+msgid "Back to word set tools"
+msgstr "Kembali ke alat kumpulan kata"
+
+#: includes/pages/wordset-pages.php:18827
+msgid "Card previews are still being prepared. Please try again in a moment."
+msgstr "Pratinjau kartu masih disiapkan. Coba lagi sebentar lagi."
+
+#: includes/pages/wordset-pages.php:13640 includes/pages/wordset-pages.php:5398
+msgid "Add Category"
+msgstr "Tambah Kategori"
+
+#: includes/pages/wordset-pages.php:5399
+msgid "Create a fresh lesson category."
+msgstr "Buat kategori pelajaran baru."
+
+#: includes/shortcodes/word-grid-shortcode.php:3331
+msgid "Not public: quiz does not use pictures."
+msgstr "Tidak publik: kuis tidak menggunakan gambar."
+
+#: includes/shortcodes/editor-hub-shortcode.php:1062 includes/shortcodes/editor-hub-shortcode.php:518 includes/shortcodes/word-grid-shortcode.php:6144 includes/taxonomies/wordset-taxonomy.php:3379 templates/vocab-lesson-template.php:790 templates/vocab-lesson-template.php:807 templates/vocab-lesson-template.php:809
+msgid "Verb mood"
+msgstr "Modus verba"

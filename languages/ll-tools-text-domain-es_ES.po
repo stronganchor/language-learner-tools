@@ -4101,3 +4101,107 @@ msgstr "Los juegos de pronunciación están ocultos porque la configuración ora
 #: includes/pages/wordset-games.php:286
 msgid "Speaking games are hidden because the current speaking configuration is incomplete for this word set."
 msgstr "Los juegos de pronunciación están ocultos porque la configuración oral actual está incompleta para este conjunto de palabras."
+
+#: includes/admin/teacher-classes-page.php:600 includes/admin/teacher-classes-page.php:639 includes/admin/teacher-classes-page.php:693 includes/pages/wordset-pages.php:10650 includes/user-roles/teacher-role.php:36
+msgid "Teacher"
+msgstr "Docente"
+
+#: includes/admin/teacher-classes-page.php:620 includes/pages/wordset-pages.php:10662
+msgid "Create class"
+msgstr "Crear clase"
+
+#: includes/pages/wordset-pages.php:15489
+msgid "No audio recorder users are currently assigned to this word set."
+msgstr "No hay usuarios de grabación de audio asignados actualmente a este conjunto de palabras."
+
+#: includes/pages/wordset-pages.php:16104
+msgid "Quiz display"
+msgstr "Visualización del cuestionario"
+
+#: includes/pages/wordset-pages.php:16114
+msgid "Sign language"
+msgstr "Lengua de señas"
+
+#: includes/pages/wordset-pages.php:16123
+msgid "Use sign language quiz defaults and disable audio requirements for this word set."
+msgstr "Usar los valores predeterminados de cuestionario de lengua de señas y desactivar los requisitos de audio para este conjunto de palabras."
+
+#: includes/pages/wordset-pages.php:16126
+msgid "Categories default to image prompts with image answer options. Category quiz settings can still use image prompts with text answers."
+msgstr "Las categorías usan por defecto indicaciones con imágenes y opciones de respuesta con imágenes. La configuración del cuestionario de categoría aún puede usar indicaciones con imágenes con respuestas de texto."
+
+#: includes/pages/wordset-pages.php:17107
+msgid "Defaults"
+msgstr "Valores predeterminados"
+
+#: includes/pages/wordset-pages.php:17121
+msgid "No categories yet"
+msgstr "Aún no hay categorías"
+
+#: includes/pages/wordset-pages.php:17145
+msgid "No template content yet"
+msgstr "Aún no hay contenido de plantilla"
+
+#: includes/pages/wordset-pages.php:17157
+msgid "%d recorder assigned"
+msgid_plural "%d recorders assigned"
+msgstr[0] "%d grabador asignado"
+msgstr[1] "%d grabadores asignados"
+
+#: includes/pages/wordset-pages.php:17160 includes/pages/wordset-pages.php:17174
+msgid "No recorders assigned"
+msgstr "No hay grabadores asignados"
+
+#: includes/pages/wordset-pages.php:17171
+msgid "%d recorder ready"
+msgid_plural "%d recorders ready"
+msgstr[0] "%d grabador listo"
+msgstr[1] "%d grabadores listos"
+
+#: includes/pages/wordset-pages.php:17620
+msgid "Showing %1$d of %2$d words"
+msgstr "Mostrando %1$d de %2$d palabras"
+
+#: includes/pages/wordset-pages.php:17621 includes/pages/wordset-pages.php:18098
+msgid "Load more words"
+msgstr "Cargar más palabras"
+
+#: includes/pages/wordset-pages.php:17622
+msgid "Loading words..."
+msgstr "Cargando palabras..."
+
+#: includes/pages/wordset-pages.php:18155
+msgid "Sign in to manage hidden categories."
+msgstr "Inicia sesión para gestionar categorías ocultas."
+
+#: includes/pages/wordset-pages.php:18168
+msgid "Unhide %s"
+msgstr "Mostrar %s"
+
+#: includes/pages/wordset-pages.php:11996 includes/pages/wordset-pages.php:16348 includes/pages/wordset-pages.php:18180
+msgid "Word Set Tools"
+msgstr "Herramientas del conjunto de palabras"
+
+#: includes/pages/wordset-pages.php:18182
+msgid "Back to word set tools"
+msgstr "Volver a las herramientas del conjunto de palabras"
+
+#: includes/pages/wordset-pages.php:18827
+msgid "Card previews are still being prepared. Please try again in a moment."
+msgstr "Las vistas previas de tarjetas aún se están preparando. Inténtalo de nuevo en un momento."
+
+#: includes/pages/wordset-pages.php:13640 includes/pages/wordset-pages.php:5398
+msgid "Add Category"
+msgstr "Añadir categoría"
+
+#: includes/pages/wordset-pages.php:5399
+msgid "Create a fresh lesson category."
+msgstr "Crear una categoría de lección nueva."
+
+#: includes/shortcodes/word-grid-shortcode.php:3331
+msgid "Not public: quiz does not use pictures."
+msgstr "No público: el cuestionario no usa imágenes."
+
+#: includes/shortcodes/editor-hub-shortcode.php:1062 includes/shortcodes/editor-hub-shortcode.php:518 includes/shortcodes/word-grid-shortcode.php:6144 includes/taxonomies/wordset-taxonomy.php:3379 templates/vocab-lesson-template.php:790 templates/vocab-lesson-template.php:807 templates/vocab-lesson-template.php:809
+msgid "Verb mood"
+msgstr "Modo verbal"

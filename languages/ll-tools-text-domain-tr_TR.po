@@ -27069,3 +27069,23 @@ msgstr "Bu kategoriyi sil? İçindeki kelimeler kategorisiz kalacak ve bağlant�
 #: templates/vocab-lesson-template.php:1634 templates/vocab-lesson-template.php:1635 templates/vocab-lesson-template.php:1647
 msgid "Delete empty category"
 msgstr "Boş kategoriyi sil"
+
+#: includes/admin/offline-app-export.php:2393
+msgid "PHP ZipArchive is required to create the offline app export zip."
+msgstr "Çevrimdışı uygulama dışa aktarım zip dosyasını oluşturmak için PHP ZipArchive gerekir."
+
+#: includes/pages/wordset-pages.php:17620
+msgid "Showing %1$d of %2$d words"
+msgstr "%2$d kelimeden %1$d tanesi gösteriliyor"
+
+#: includes/pages/wordset-pages.php:17621 includes/pages/wordset-pages.php:18098
+msgid "Load more words"
+msgstr "Daha fazla kelime yükle"
+
+#: includes/pages/wordset-pages.php:17622
+msgid "Loading words..."
+msgstr "Kelimeler yükleniyor..."
+
+#: includes/pages/wordset-pages.php:18827
+msgid "Card previews are still being prepared. Please try again in a moment."
+msgstr "Kart önizlemeleri hâlâ hazırlanıyor. Lütfen birazdan tekrar dene."
