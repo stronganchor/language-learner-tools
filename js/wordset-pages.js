@@ -124,6 +124,7 @@
     let progressWordPagination = null;
     let progressWordPageLoading = false;
     let progressWordPageRequestToken = 0;
+    let progressWordRequestFilterKey = '';
     let progressWordAutoLoadTimer = 0;
     let analyticsCategoryRenderTimer = null;
     let analyticsCategoryLoadingTimer = null;
@@ -1776,6 +1777,8 @@
         return {
             enabled: normalizeBooleanFlag(source.enabled),
             total: total,
+            unfilteredTotal: Math.max(total, Math.max(0, parseInt(source.unfiltered_total || source.unfilteredTotal, 10) || 0)),
+            filtered: normalizeBooleanFlag(source.filtered || source.is_filtered || source.filter_active || source.filterActive),
             offset: offset,
             limit: limit,
             loaded: Math.min(total || loaded, loaded),
@@ -2367,6 +2370,55 @@
         const wid = parseInt(id, 10) || 0;
         if (!wid) { return false; }
         return uniqueIntList(state.starred_word_ids || []).indexOf(wid) !== -1;
+    }
+
+    function setProgressWordStarButtonState($button, starred) {
+        if (!$button || !$button.length) { return; }
+        const isStarred = !!starred;
+        const label = isStarred ? (i18n.analyticsUnstarWord || '') : (i18n.analyticsStarWord || '');
+        $button
+            .toggleClass('active', isStarred)
+            .attr('aria-pressed', isStarred ? 'true' : 'false')
+            .attr('aria-label', label)
+            .attr('title', label);
+    }
+
+    function syncProgressWordStarButtons(wordId) {
+        const wid = parseInt(wordId, 10) || 0;
+        if (!$root.length || !wid) { return; }
+        const isStarred = isWordStarred(wid);
+        $root.find('[data-ll-wordset-progress-word-star="' + String(wid) + '"]').each(function () {
+            setProgressWordStarButtonState($(this), isStarred);
+        });
+    }
+
+    function setAnalyticsWordStarred(wordId, starred) {
+        const wid = parseInt(wordId, 10) || 0;
+        if (!wid || !Array.isArray(analytics.words)) { return; }
+        analytics.words.forEach(function (row) {
+            if ((parseInt(row && row.id, 10) || 0) === wid) {
+                row.is_starred = !!starred;
+            }
+        });
+    }
+
+    function adjustAnalyticsStarredSummary(delta) {
+        const change = parseInt(delta, 10) || 0;
+        if (!change) { return; }
+        analytics.summary = (analytics.summary && typeof analytics.summary === 'object') ? analytics.summary : {};
+        const current = Math.max(0, parseInt(analytics.summary.starred_words, 10) || 0);
+        analytics.summary.starred_words = Math.max(0, current + change);
+    }
+
+    function applyProgressWordStarVisualUpdate(wordId, starred, delta) {
+        const wid = parseInt(wordId, 10) || 0;
+        if (!$progressRoot.length || !wid) { return; }
+        setAnalyticsWordStarred(wid, starred);
+        adjustAnalyticsStarredSummary(delta);
+        syncProgressWordStarButtons(wid);
+        renderProgressSummary();
+        renderProgressWordColumnFilterOptions();
+        renderProgressFilterTriggerStates();
     }
 
     function parseMysqlUtcDate(raw) {
@@ -3274,6 +3326,55 @@
             return key;
         }
         return '';
+    }
+
+    function buildProgressWordRequestFilter() {
+        if (isGenderProgressViewActive()) {
+            return null;
+        }
+
+        const summary = normalizeSummaryFilter(analyticsSummaryFilter);
+        const search = String(analyticsWordSearchQuery || '').trim();
+        const categoryIds = uniqueIntList(analyticsWordCategoryFilterIds || []);
+        const columnFilters = {};
+        ['star', 'part_of_speech', 'status', 'last', 'difficulty', 'seen', 'wrong'].forEach(function (key) {
+            const values = normalizeFilterSelectionList(analyticsWordColumnFilters[key] || []);
+            if (values.length) {
+                columnFilters[key] = values;
+            }
+        });
+
+        const hasColumnFilters = Object.keys(columnFilters).length > 0;
+        if (!summary && !search && !categoryIds.length && !hasColumnFilters) {
+            return null;
+        }
+
+        return {
+            summary: summary,
+            search: search,
+            category_ids: categoryIds,
+            column_filters: columnFilters
+        };
+    }
+
+    function getProgressWordRequestFilterKey(filterPayload) {
+        if (!filterPayload) {
+            return '';
+        }
+
+        return JSON.stringify(filterPayload);
+    }
+
+    function getCurrentProgressWordRequestFilterKey() {
+        return getProgressWordRequestFilterKey(buildProgressWordRequestFilter());
+    }
+
+    function appendProgressWordRequestFilter(requestData, filterPayload) {
+        if (!requestData || typeof requestData !== 'object' || !filterPayload) {
+            return;
+        }
+
+        requestData.word_filter = JSON.stringify(filterPayload);
     }
 
     function resetProgressTableFilters() {
@@ -4343,6 +4444,7 @@
         const token = ++analyticsWordRenderToken;
         const loadingDelay = shouldShowLoading ? 80 : 0;
         const renderDelay = shouldShowLoading ? 95 : 0;
+        const desiredFilterKey = getCurrentProgressWordRequestFilterKey();
         clearTimeout(analyticsWordRenderTimer);
         clearTimeout(analyticsWordLoadingTimer);
 
@@ -4357,6 +4459,15 @@
 
         analyticsWordRenderTimer = setTimeout(function () {
             if (token !== analyticsWordRenderToken) { return; }
+            if (desiredFilterKey !== progressWordRequestFilterKey) {
+                clearTimeout(analyticsWordLoadingTimer);
+                analyticsWordLoadingTimer = null;
+                refreshProgressAnalyticsNow({
+                    silent: true,
+                    showWordLoading: shouldShowLoading
+                });
+                return;
+            }
             renderProgressWordTable({ token: token });
             clearTimeout(analyticsWordLoadingTimer);
             analyticsWordLoadingTimer = null;
@@ -5982,6 +6093,11 @@
         setProgressWordPageLoading(false);
         pendingProgressAnalyticsRefreshAfterClose = false;
         pendingProgressAnalyticsRefreshOptions = null;
+        const wordFilterPayload = buildProgressWordRequestFilter();
+        const wordFilterKey = getProgressWordRequestFilterKey(wordFilterPayload);
+        if (opts.showWordLoading) {
+            setProgressWordLoading(true);
+        }
         if (!opts.silent) {
             setProgressStatus(i18n.analyticsLoading || '', 'loading');
         }
@@ -6000,6 +6116,7 @@
         } else {
             analyticsRequestData.category_ids = getVisibleCategoryIds();
         }
+        appendProgressWordRequestFilter(analyticsRequestData, wordFilterPayload);
 
         return $.post(ajaxUrl, analyticsRequestData).done(function (res) {
             if (token !== analyticsRequestToken) { return; }
@@ -6010,6 +6127,7 @@
             if (res && res.success && res.data && res.data.analytics) {
                 analytics = normalizeAnalytics(res.data.analytics);
                 progressWordPagination = analytics.wordsPagination || null;
+                progressWordRequestFilterKey = wordFilterKey;
                 renderProgressAnalytics();
                 setProgressStatus('', '');
                 return;
@@ -6022,6 +6140,11 @@
                 return;
             }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
+        }).always(function () {
+            if (token !== analyticsRequestToken) { return; }
+            if (opts.showWordLoading) {
+                setProgressWordLoading(false);
+            }
         });
     }
 
@@ -6056,14 +6179,20 @@
         if (!show) { return; }
 
         if ($progressWordsLoaded.length) {
-            const template = String(i18n.analyticsWordsLoaded || '');
+            const template = pagination.filtered
+                ? String(i18n.analyticsFilteredWordsLoaded || i18n.analyticsWordsLoaded || '')
+                : String(i18n.analyticsWordsLoaded || '');
             $progressWordsLoaded.text(template ? formatTemplate(template, [loaded, total]) : (String(loaded) + ' / ' + String(total)));
         }
         if ($progressWordsLoadMore.length) {
             const hasMore = progressWordsHaveMore();
             const label = progressWordPageLoading
-                ? String(i18n.analyticsLoadingWords || i18n.analyticsLoading || '')
-                : String(i18n.analyticsLoadMoreWords || '');
+                ? (pagination.filtered
+                    ? String(i18n.analyticsLoadingMoreMatchingWords || i18n.analyticsLoadingWords || i18n.analyticsLoading || '')
+                    : String(i18n.analyticsLoadingWords || i18n.analyticsLoading || ''))
+                : (pagination.filtered
+                    ? String(i18n.analyticsLoadMoreMatchingWords || i18n.analyticsLoadMoreWords || '')
+                    : String(i18n.analyticsLoadMoreWords || ''));
             $progressWordsLoadMore
                 .prop('hidden', !hasMore)
                 .prop('disabled', progressWordPageLoading || !hasMore)
@@ -6119,6 +6248,14 @@
             renderProgressWordPaginationControls();
             return $.Deferred().resolve(null).promise();
         }
+        const wordFilterPayload = buildProgressWordRequestFilter();
+        const wordFilterKey = getProgressWordRequestFilterKey(wordFilterPayload);
+        if (wordFilterKey !== progressWordRequestFilterKey) {
+            return refreshProgressAnalyticsNow({
+                silent: true,
+                showWordLoading: true
+            });
+        }
 
         const token = ++progressWordPageRequestToken;
         setProgressWordPageLoading(true);
@@ -6137,6 +6274,7 @@
         } else {
             requestData.category_ids = getVisibleCategoryIds();
         }
+        appendProgressWordRequestFilter(requestData, wordFilterPayload);
 
         return $.post(ajaxUrl, requestData).done(function (res) {
             if (token !== progressWordPageRequestToken) { return; }
@@ -9475,8 +9613,7 @@
             renderSelectionBar();
             renderNextCard();
         } else if (view === 'progress') {
-            pruneProgressSelectionWordIfHidden(wordId);
-            renderProgressAnalytics();
+            applyProgressWordStarVisualUpdate(wordId, starred, starred ? 1 : -1);
         }
 
         if (isFlashcardOpen) {
@@ -15548,16 +15685,16 @@
             if (!wordId) { return; }
             const starred = uniqueIntList(state.starred_word_ids || []);
             const idx = starred.indexOf(wordId);
+            const nextStarred = idx === -1;
             if (idx === -1) {
                 starred.push(wordId);
             } else {
                 starred.splice(idx, 1);
             }
             state.starred_word_ids = uniqueIntList(starred);
-            pruneProgressSelectionWordIfHidden(wordId);
             syncGlobalPrefs();
             saveStateDebounced({ immediate: true });
-            renderProgressAnalytics();
+            applyProgressWordStarVisualUpdate(wordId, nextStarred, nextStarred ? 1 : -1);
         });
 
         $root.on('click', '[data-ll-wordset-progress-word-audio]', function (evt) {

@@ -1090,6 +1090,85 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_analytics_ajax_pages_starred_word_filter_before_hydrating_rows(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $word_ids = array_values(array_map('intval', (array) ($fixture['word_ids'] ?? [])));
+        $this->assertGreaterThanOrEqual(8, count($word_ids));
+
+        $starred_word_ids = [$word_ids[1], $word_ids[3], $word_ids[6], $word_ids[7]];
+        ll_tools_save_user_study_state([
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'starred_word_ids' => $starred_word_ids,
+            'star_mode' => 'normal',
+            'fast_transitions' => false,
+        ], $user_id);
+
+        $nonce = wp_create_nonce('ll_user_study');
+        $request_page = function (int $offset) use ($fixture, $nonce): array {
+            $_POST = [
+                'nonce' => $nonce,
+                'wordset_id' => $fixture['wordset_id'],
+                'category_ids' => $fixture['category_ids'],
+                'days' => 14,
+                'include_words' => '1',
+                'word_limit' => '2',
+                'word_offset' => (string) $offset,
+                'word_filter' => wp_json_encode([
+                    'summary' => 'starred',
+                    'category_ids' => [],
+                    'column_filters' => [],
+                ]),
+            ];
+            $_REQUEST = $_POST;
+
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_user_study_analytics_ajax();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            return (array) ($response['data']['analytics'] ?? []);
+        };
+
+        $first_page = $request_page(0);
+        $second_page = $request_page(2);
+
+        $this->assertCount(2, (array) ($first_page['words'] ?? []));
+        $this->assertCount(2, (array) ($second_page['words'] ?? []));
+        $this->assertSame(10, (int) ($first_page['summary']['total_words'] ?? 0));
+        $this->assertSame(4, (int) ($first_page['summary']['starred_words'] ?? 0));
+
+        $first_pagination = (array) ($first_page['words_pagination'] ?? []);
+        $second_pagination = (array) ($second_page['words_pagination'] ?? []);
+        $this->assertTrue((bool) ($first_pagination['enabled'] ?? false));
+        $this->assertTrue((bool) ($first_pagination['filtered'] ?? false));
+        $this->assertSame(4, (int) ($first_pagination['total'] ?? 0));
+        $this->assertSame(10, (int) ($first_pagination['unfiltered_total'] ?? 0));
+        $this->assertSame(2, (int) ($first_pagination['next_offset'] ?? 0));
+        $this->assertTrue((bool) ($first_pagination['has_more'] ?? false));
+
+        $this->assertTrue((bool) ($second_pagination['filtered'] ?? false));
+        $this->assertSame(4, (int) ($second_pagination['total'] ?? 0));
+        $this->assertNull($second_pagination['next_offset'] ?? null);
+        $this->assertFalse((bool) ($second_pagination['has_more'] ?? true));
+
+        foreach (array_merge((array) ($first_page['words'] ?? []), (array) ($second_page['words'] ?? [])) as $row) {
+            $this->assertIsArray($row);
+            $this->assertTrue((bool) ($row['is_starred'] ?? false));
+            $this->assertContains((int) ($row['id'] ?? 0), $starred_word_ids);
+            $this->assertNotSame('', trim((string) ($row['title'] ?? '')));
+        }
+    }
+
     public function test_analytics_ajax_can_return_summary_without_word_rows(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1317,13 +1396,13 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $word_a = $this->createWordWithAudio('Analytics Word A', 'Analytics Translation A', $cat_a, $wordset_id, 'analytics-a.mp3');
         $word_b = $this->createWordWithAudio('Analytics Word B', 'Analytics Translation B', $cat_a, $wordset_id, 'analytics-b.mp3');
         $word_c = $this->createWordWithAudio('Analytics Word C', 'Analytics Translation C', $cat_b, $wordset_id, 'analytics-c.mp3');
-        $this->createWordWithAudio('Analytics Word D', 'Analytics Translation D', $cat_a, $wordset_id, 'analytics-d.mp3');
-        $this->createWordWithAudio('Analytics Word E', 'Analytics Translation E', $cat_a, $wordset_id, 'analytics-e.mp3');
-        $this->createWordWithAudio('Analytics Word F', 'Analytics Translation F', $cat_a, $wordset_id, 'analytics-f.mp3');
-        $this->createWordWithAudio('Analytics Word G', 'Analytics Translation G', $cat_b, $wordset_id, 'analytics-g.mp3');
-        $this->createWordWithAudio('Analytics Word H', 'Analytics Translation H', $cat_b, $wordset_id, 'analytics-h.mp3');
-        $this->createWordWithAudio('Analytics Word I', 'Analytics Translation I', $cat_b, $wordset_id, 'analytics-i.mp3');
-        $this->createWordWithAudio('Analytics Word J', 'Analytics Translation J', $cat_b, $wordset_id, 'analytics-j.mp3');
+        $word_d = $this->createWordWithAudio('Analytics Word D', 'Analytics Translation D', $cat_a, $wordset_id, 'analytics-d.mp3');
+        $word_e = $this->createWordWithAudio('Analytics Word E', 'Analytics Translation E', $cat_a, $wordset_id, 'analytics-e.mp3');
+        $word_f = $this->createWordWithAudio('Analytics Word F', 'Analytics Translation F', $cat_a, $wordset_id, 'analytics-f.mp3');
+        $word_g = $this->createWordWithAudio('Analytics Word G', 'Analytics Translation G', $cat_b, $wordset_id, 'analytics-g.mp3');
+        $word_h = $this->createWordWithAudio('Analytics Word H', 'Analytics Translation H', $cat_b, $wordset_id, 'analytics-h.mp3');
+        $word_i = $this->createWordWithAudio('Analytics Word I', 'Analytics Translation I', $cat_b, $wordset_id, 'analytics-i.mp3');
+        $word_j = $this->createWordWithAudio('Analytics Word J', 'Analytics Translation J', $cat_b, $wordset_id, 'analytics-j.mp3');
 
         $cat_a = $this->resolveEffectiveCategoryId($cat_a, $wordset_id);
         $cat_b = $this->resolveEffectiveCategoryId($cat_b, $wordset_id);
@@ -1331,7 +1410,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         return [
             'wordset_id' => $wordset_id,
             'category_ids' => [$cat_a, $cat_b],
-            'word_ids' => [$word_a, $word_b, $word_c],
+            'word_ids' => [$word_a, $word_b, $word_c, $word_d, $word_e, $word_f, $word_g, $word_h, $word_i, $word_j],
         ];
     }
 
