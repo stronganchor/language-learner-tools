@@ -307,6 +307,11 @@
                 return '';
             }
 
+            const label = String(word.label || '').trim();
+            if (label) {
+                return label;
+            }
+
             return String(word.translation || '').trim();
         },
         protectMaqafNoBreak(value) {

@@ -342,6 +342,54 @@ test('image + translation answer options keep image-sized tiles with adaptive ca
   expect(empty.cardHeight).toBeCloseTo(imageOnly.cardHeight, 0);
 });
 
+test('image + translation answer captions prefer the resolved answer label', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-content">
+      <div id="ll-tools-flashcard"></div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: baseCssSource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      imageSize: 'small',
+      answerOptionTextStyle: {
+        fontSizePx: 42,
+        minFontSizePx: 10
+      }
+    };
+    window.LLFlashcards = {
+      State: {},
+      Dom: {},
+      Selection: {
+        getCurrentDisplayMode: function () {
+          return 'image_text_translation';
+        }
+      }
+    };
+  });
+
+  await page.addScriptTag({ content: utilSource });
+  await page.addScriptTag({ content: cardsSource });
+
+  const caption = await page.evaluate(() => {
+    window.LLFlashcards.Cards.appendWordToContainer({
+      id: 21,
+      title: 'Helper title',
+      label: 'Helper title',
+      translation: 'Target-language text',
+      image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="300"%3E%3Crect width="300" height="300" fill="%23dbeafe"/%3E%3C/svg%3E'
+    }, 'image_text_translation', 'audio', true);
+
+    const captionEl = document.querySelector('.ll-answer-option-image-caption');
+    return captionEl ? String(captionEl.textContent || '').trim() : '';
+  });
+
+  expect(caption).toBe('Helper title');
+  expect(caption).not.toBe('Target-language text');
+});
+
 test('prompt-card image answer options render the answer image instead of the prompt image', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent(`
