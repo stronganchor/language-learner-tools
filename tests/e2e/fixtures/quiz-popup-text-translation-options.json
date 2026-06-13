@@ -1,0 +1,52 @@
+{
+  "fixtureVersion": "2026-06-13.1",
+  "description": "WordPress-backed popup fixture for audio prompts with translation text answer options.",
+  "page": {
+    "slug": "ll-e2e-quiz-popup-text-translation-options",
+    "title": "LL E2E Quiz Popup Translation Options",
+    "shortcodeMode": "practice"
+  },
+  "wordset": {
+    "slug": "ll-e2e-zazaki-popup-options",
+    "name": "LL E2E Zazaki Popup Options",
+    "titleLanguageRole": "translation"
+  },
+  "category": {
+    "slug": "ll-e2e-zazaki-popup-adjectives",
+    "name": "LL E2E Zazaki Popup Adjectives",
+    "promptType": "audio",
+    "optionType": "text_translation"
+  },
+  "words": [
+    {
+      "slug": "ll-e2e-zazaki-popup-gij",
+      "title": "Gij",
+      "translation": "Slippery"
+    },
+    {
+      "slug": "ll-e2e-zazaki-popup-gelik",
+      "title": "Gelik",
+      "translation": "Wide"
+    },
+    {
+      "slug": "ll-e2e-zazaki-popup-tirs",
+      "title": "Tirs",
+      "translation": "Sour"
+    },
+    {
+      "slug": "ll-e2e-zazaki-popup-tek",
+      "title": "Tek",
+      "translation": "Single"
+    },
+    {
+      "slug": "ll-e2e-zazaki-popup-qelda",
+      "title": "Qelda",
+      "translation": "Cup"
+    },
+    {
+      "slug": "ll-e2e-zazaki-popup-vay",
+      "title": "Vay",
+      "translation": "Surprised"
+    }
+  ]
+}
