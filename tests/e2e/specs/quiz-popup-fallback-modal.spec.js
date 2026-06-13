@@ -92,6 +92,9 @@ test('quiz trigger passes ordered listening ids to custom flashcard launcher', a
       data-url="https://example.com/embed/numbers?mode=listening"
       data-mode="listening"
       data-wordset-id="42"
+      data-display-mode="text_translation"
+      data-prompt-type="audio"
+      data-option-type="text_translation"
       data-ordered-word-ids="[3,1,2]"
       data-preserve-word-order="1"
     >
@@ -121,6 +124,12 @@ test('quiz trigger passes ordered listening ids to custom flashcard launcher', a
   expect(launch.opts.mode).toBe('listening');
   expect(launch.opts.wordsetId).toBe('42');
   expect(launch.opts.launchContext).toBe('vocab_lesson');
+  expect(launch.opts.displayMode).toBe('text_translation');
+  expect(launch.opts.display_mode).toBe('text_translation');
+  expect(launch.opts.promptType).toBe('audio');
+  expect(launch.opts.prompt_type).toBe('audio');
+  expect(launch.opts.optionType).toBe('text_translation');
+  expect(launch.opts.option_type).toBe('text_translation');
   expect(launch.opts.orderedWordIds).toEqual([3, 1, 2]);
   expect(launch.opts.sessionWordIds).toEqual([3, 1, 2]);
   expect(launch.opts.preserveWordOrder).toBe(true);

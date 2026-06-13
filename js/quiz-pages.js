@@ -312,11 +312,26 @@
             var mode = trigger.getAttribute('data-mode') || '';
             var wordsetId = trigger.getAttribute('data-wordset-id') || '';
             var wordset = trigger.getAttribute('data-wordset') || '';
+            var displayMode = trigger.getAttribute('data-display-mode') || '';
+            var promptType = trigger.getAttribute('data-prompt-type') || '';
+            var optionType = trigger.getAttribute('data-option-type') || '';
             var orderedWordIds = parseWordIdList(trigger.getAttribute('data-ordered-word-ids') || '');
             var preserveWordOrderAttr = trigger.getAttribute('data-preserve-word-order');
             if (mode) opts.mode = mode;
             if (wordsetId) opts.wordsetId = wordsetId;
             else if (wordset) opts.wordset = wordset;
+            if (displayMode) {
+                opts.displayMode = displayMode;
+                opts.display_mode = displayMode;
+            }
+            if (promptType) {
+                opts.promptType = promptType;
+                opts.prompt_type = promptType;
+            }
+            if (optionType) {
+                opts.optionType = optionType;
+                opts.option_type = optionType;
+            }
             if (orderedWordIds.length) {
                 opts.orderedWordIds = orderedWordIds.slice();
                 opts.ordered_word_ids = orderedWordIds.slice();

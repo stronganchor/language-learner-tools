@@ -1003,6 +1003,99 @@ function ll_qpg_print_flashcard_shell_once() {
             return !!fallback;
         }
 
+        function normalizeQuizTypeHint(raw) {
+            return String(raw || '').trim().toLowerCase();
+        }
+
+        function readLaunchTriggerAttr(opts, attrName) {
+            try {
+                if (opts && opts.triggerEl && opts.triggerEl.getAttribute) {
+                    return opts.triggerEl.getAttribute(attrName) || '';
+                }
+            } catch (_) {}
+            return '';
+        }
+
+        function normalizeCategoryLookupKey(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function syncLaunchCategoryPresentation(catName, opts) {
+            if (!window.llToolsFlashcardsData || !catName) {
+                return;
+            }
+
+            var displayModeHint = normalizeQuizTypeHint(
+                (opts && (opts.displayMode || opts.display_mode)) ||
+                readLaunchTriggerAttr(opts, 'data-display-mode')
+            );
+            var promptTypeHint = normalizeQuizTypeHint(
+                (opts && (opts.promptType || opts.prompt_type)) ||
+                readLaunchTriggerAttr(opts, 'data-prompt-type')
+            );
+            var optionTypeHint = normalizeQuizTypeHint(
+                (opts && (opts.optionType || opts.option_type)) ||
+                readLaunchTriggerAttr(opts, 'data-option-type')
+            );
+            var learningPromptTypeHint = normalizeQuizTypeHint(
+                (opts && (opts.learningPromptType || opts.learning_prompt_type)) ||
+                readLaunchTriggerAttr(opts, 'data-learning-prompt-type')
+            );
+            var learningOptionTypeHint = normalizeQuizTypeHint(
+                (opts && (opts.learningOptionType || opts.learning_option_type)) ||
+                readLaunchTriggerAttr(opts, 'data-learning-option-type')
+            );
+
+            if (!displayModeHint && !promptTypeHint && !optionTypeHint && !learningPromptTypeHint && !learningOptionTypeHint) {
+                return;
+            }
+
+            var categories = Array.isArray(window.llToolsFlashcardsData.categories)
+                ? window.llToolsFlashcardsData.categories
+                : (window.llToolsFlashcardsData.categories = []);
+            var targetKey = normalizeCategoryLookupKey(catName);
+            var found = null;
+            for (var i = 0; i < categories.length; i++) {
+                var c = categories[i];
+                if (!c || typeof c !== 'object') {
+                    continue;
+                }
+                if (c.name === catName || normalizeCategoryLookupKey(c.name) === targetKey || normalizeCategoryLookupKey(c.slug) === targetKey) {
+                    found = c;
+                    break;
+                }
+            }
+
+            if (!found) {
+                found = {
+                    id: 0,
+                    slug: '',
+                    name: catName,
+                    translation: catName,
+                    mode: displayModeHint || optionTypeHint || 'image',
+                    option_type: optionTypeHint || displayModeHint || 'image',
+                    prompt_type: promptTypeHint || 'audio'
+                };
+                categories.push(found);
+            }
+
+            if (displayModeHint) {
+                found.mode = displayModeHint;
+            }
+            if (optionTypeHint) {
+                found.option_type = optionTypeHint;
+            }
+            if (promptTypeHint) {
+                found.prompt_type = promptTypeHint;
+            }
+            if (learningPromptTypeHint) {
+                found.learning_prompt_type = learningPromptTypeHint;
+            }
+            if (learningOptionTypeHint) {
+                found.learning_option_type = learningOptionTypeHint;
+            }
+        }
+
         window.llOpenFlashcardForCategory = function(catName, wordset, mode){
             if (!catName) return;
 
@@ -1122,6 +1215,7 @@ function ll_qpg_print_flashcard_shell_once() {
                     delete window.llToolsFlashcardsData.gender_session_plan_armed;
                     window.llToolsFlashcardsData.genderLaunchSource = 'direct';
                 }
+                syncLaunchCategoryPresentation(catName, opts || {});
             }
 
             var genderEnabled = (opts && typeof opts.genderEnabled !== 'undefined') ? !!opts.genderEnabled : null;
