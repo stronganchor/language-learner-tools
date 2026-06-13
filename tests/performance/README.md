@@ -37,11 +37,40 @@ targets `benchmarkTargetSize: "xl"`, defaults to one run per scenario, and
 writes history to `tests/performance/history/performance-history-xl.jsonl` plus
 latest reports to `tests/performance/reports/performance-latest-xl.*`.
 
+For full local stress coverage, use the opt-in stress profile:
+
+```bash
+LL_PERF_PROFILE=stress-2x LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1 tests/bin/run-performance-benchmark.sh
+LL_PERF_PROFILE=stress-2x LL_PERF_SKIP_SEED=1 LL_E2E_PERF_RUNS=1 LL_E2E_PERF_COMPARE_HISTORY=0 LL_E2E_PERF_MAX_INTERACTION_MS=60000 tests/bin/run-performance-benchmark.sh
+```
+
+The stress profile uses
+`tests/performance/fixtures/performance-wordsets-stress-2x.json`, targets
+`benchmarkTargetSize: "stress2x"`, creates `96 x 50 = 4800` words, and gives
+each word a `word_images` post, attachment metadata, and a `word_audio` post.
+It uses existing Word Boat media when available, materialized into a small
+fixture-local pool. Override the source locations or pool size with:
+
+```bash
+LL_PERF_WORDBOAT_ROOT=/mnt/c/Users/messy/OneDrive/Websites/wordboat
+LL_PERF_SOURCE_IMAGE_DIRS=/mnt/c/path/to/images
+LL_PERF_SOURCE_AUDIO_DIRS=/mnt/c/path/to/audio
+LL_PERF_SOURCE_IMAGE_LIMIT=24
+LL_PERF_SOURCE_AUDIO_LIMIT=24
+```
+
+Stress history is written to
+`tests/performance/history/performance-history-stress-2x.jsonl`; latest stress
+reports are written to `tests/performance/reports/performance-latest-stress-2x.*`.
+See `tests/performance/STRESS_2X_FINDINGS.md` for the latest local baseline and
+known cold-search caveat.
+
 Summarize existing history without reseeding or opening a browser:
 
 ```bash
 node scripts/summarize-performance-history.js
 node scripts/summarize-performance-history.js --history tests/performance/history/performance-history-xl.jsonl --scenario wordset-xl
+node scripts/summarize-performance-history.js --history tests/performance/history/performance-history-stress-2x.jsonl --scenario stress2x
 node scripts/summarize-performance-history.js --limit 10 --format json
 ```
 
@@ -55,6 +84,7 @@ Useful overrides:
 ```bash
 LL_PERF_FORCE_SEED=1
 LL_PERF_PROFILE=xl
+LL_PERF_PROFILE=stress-2x
 LL_PERF_SEED_ONLY=1
 LL_PERF_SKIP_SEED=1
 LL_E2E_PERF_RUNS=5

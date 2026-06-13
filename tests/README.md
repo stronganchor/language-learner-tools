@@ -388,6 +388,16 @@ tests/bin/run-performance-benchmark.sh
   words), one run per scenario by default, and
   `tests/performance/history/performance-history-xl.jsonl` plus
   `tests/performance/reports/performance-latest-xl.*`.
+- Set `LL_PERF_PROFILE=stress-2x` for the full local stress fixture (`96 x 50 =
+  4800` words) with per-word image/audio posts sourced from the local Word Boat
+  media pool when available. This profile writes to
+  `tests/performance/history/performance-history-stress-2x.jsonl` and
+  `tests/performance/reports/performance-latest-stress-2x.*`.
+- For stress runs, seed separately first:
+  `LL_PERF_PROFILE=stress-2x LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1 tests/bin/run-performance-benchmark.sh`.
+  Then benchmark with `LL_PERF_SKIP_SEED=1`. On this Local stack, the first
+  cold search run may need `LL_E2E_PERF_MAX_INTERACTION_MS=60000`; inspect
+  `tests/performance/STRESS_2X_FINDINGS.md` before changing budgets.
 - Set `LL_E2E_PERF_WRITE_HISTORY=0` for a dry verification run that does not modify the history log.
 - Set `LL_E2E_PERF_COMPARE_HISTORY=0` to record metrics without failing on a historical comparison.
 - Set `LL_PERF_FORCE_SEED=1` for a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify or refresh the fixture.

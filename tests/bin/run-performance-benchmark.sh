@@ -58,6 +58,26 @@ to_runtime_path() {
     printf '%s\n' "$path_value"
 }
 
+to_runtime_path_list() {
+    local raw="$1"
+    local converted=()
+    local old_ifs="$IFS"
+    IFS='|'
+    for item in $raw; do
+        [[ -n "$item" ]] || continue
+        converted+=("$(to_runtime_path "$item")")
+    done
+    IFS="$old_ifs"
+    local joined=""
+    for item in "${converted[@]}"; do
+        if [[ -n "$joined" ]]; then
+            joined+="|"
+        fi
+        joined+="$item"
+    done
+    printf '%s\n' "$joined"
+}
+
 resolve_plugin_path() {
     local path_value="$1"
     if [[ "$path_value" == /* || "$path_value" =~ ^[A-Za-z]:[\\/].* ]]; then
@@ -66,6 +86,40 @@ resolve_plugin_path() {
     fi
 
     printf '%s\n' "$ROOT_DIR/$path_value"
+}
+
+first_existing_dir() {
+    for candidate in "$@"; do
+        if [[ -n "$candidate" && -d "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+configure_wordboat_media_sources() {
+    local wordboat_root
+    wordboat_root="$(first_existing_dir \
+        "${LL_PERF_WORDBOAT_ROOT:-}" \
+        "/mnt/c/Users/messy/OneDrive/Websites/wordboat" \
+        "/c/Users/messy/OneDrive/Websites/wordboat" \
+        "C:/Users/messy/OneDrive/Websites/wordboat" || true)"
+    if [[ -z "$wordboat_root" ]]; then
+        echo "Word Boat media root was not found; stress fixture will use generated fallback media."
+        return
+    fi
+
+    if [[ -z "${LL_PERF_SOURCE_IMAGE_DIRS:-}" ]]; then
+        if [[ -d "$wordboat_root/Images for word boat" ]]; then
+            export LL_PERF_SOURCE_IMAGE_DIRS="$wordboat_root/Images for word boat"
+        elif [[ -d "$wordboat_root/_review_artifacts" ]]; then
+            export LL_PERF_SOURCE_IMAGE_DIRS="$wordboat_root/_review_artifacts"
+        fi
+    fi
+    if [[ -z "${LL_PERF_SOURCE_AUDIO_DIRS:-}" && -d "$wordboat_root/audio_downloads" ]]; then
+        export LL_PERF_SOURCE_AUDIO_DIRS="$wordboat_root/audio_downloads"
+    fi
 }
 
 find_wp_cli() {
@@ -139,9 +193,22 @@ configure_perf_profile() {
             export LL_E2E_PERF_RUNS="${LL_E2E_PERF_RUNS:-1}"
             echo "Using LL Tools performance profile: xl"
             ;;
+        "stress-2x")
+            local stress_manifest="$TESTS_DIR/performance/fixtures/performance-wordsets-stress-2x.json"
+            local stress_manifest_rel="tests/performance/fixtures/performance-wordsets-stress-2x.json"
+            export LL_TOOLS_PERF_FIXTURE_MANIFEST="${LL_TOOLS_PERF_FIXTURE_MANIFEST:-$stress_manifest}"
+            export LL_E2E_PERF_FIXTURE_MANIFEST="${LL_E2E_PERF_FIXTURE_MANIFEST:-$stress_manifest_rel}"
+            export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-tests/performance/history/performance-history-stress-2x.jsonl}"
+            export LL_E2E_PERF_REPORT_FILE="${LL_E2E_PERF_REPORT_FILE:-tests/performance/reports/performance-latest-stress-2x.json}"
+            export LL_E2E_PERF_RUNS="${LL_E2E_PERF_RUNS:-1}"
+            export LL_PERF_SOURCE_IMAGE_LIMIT="${LL_PERF_SOURCE_IMAGE_LIMIT:-24}"
+            export LL_PERF_SOURCE_AUDIO_LIMIT="${LL_PERF_SOURCE_AUDIO_LIMIT:-24}"
+            configure_wordboat_media_sources
+            echo "Using LL Tools performance profile: stress-2x"
+            ;;
         *)
             echo "Unknown LL_PERF_PROFILE: $profile" >&2
-            echo "Supported profiles: default, xl" >&2
+            echo "Supported profiles: default, xl, stress-2x" >&2
             exit 1
             ;;
     esac
@@ -153,16 +220,49 @@ if [[ "${LL_PERF_SKIP_SEED:-0}" != "1" ]]; then
     find_wp_cli
     echo "Seeding LL Tools performance fixture in ${WP_ROOT}"
     seed_env=()
+    seed_args=()
     if [[ -n "${LL_TOOLS_PERF_FIXTURE_MANIFEST:-}" ]]; then
-        seed_env+=("LL_TOOLS_PERF_FIXTURE_MANIFEST=$(to_runtime_path "$(resolve_plugin_path "$LL_TOOLS_PERF_FIXTURE_MANIFEST")")")
+        runtime_manifest="$(to_runtime_path "$(resolve_plugin_path "$LL_TOOLS_PERF_FIXTURE_MANIFEST")")"
+        seed_env+=("LL_TOOLS_PERF_FIXTURE_MANIFEST=$runtime_manifest")
+        seed_args+=("manifest=$runtime_manifest")
     fi
     if [[ -n "${LL_E2E_PERF_FIXTURE_MANIFEST:-}" ]]; then
-        seed_env+=("LL_E2E_PERF_FIXTURE_MANIFEST=$(to_runtime_path "$(resolve_plugin_path "$LL_E2E_PERF_FIXTURE_MANIFEST")")")
+        runtime_e2e_manifest="$(to_runtime_path "$(resolve_plugin_path "$LL_E2E_PERF_FIXTURE_MANIFEST")")"
+        seed_env+=("LL_E2E_PERF_FIXTURE_MANIFEST=$runtime_e2e_manifest")
+        if [[ "${#seed_args[@]}" -eq 0 ]]; then
+            seed_args+=("manifest=$runtime_e2e_manifest")
+        fi
+    fi
+    if [[ -n "${LL_PERF_SOURCE_IMAGE_DIRS:-}" ]]; then
+        runtime_source_image_dirs="$(to_runtime_path_list "$LL_PERF_SOURCE_IMAGE_DIRS")"
+        seed_env+=("LL_PERF_SOURCE_IMAGE_DIRS=$runtime_source_image_dirs")
+        seed_args+=("source-image-dirs=$runtime_source_image_dirs")
+    fi
+    if [[ -n "${LL_PERF_SOURCE_AUDIO_DIRS:-}" ]]; then
+        runtime_source_audio_dirs="$(to_runtime_path_list "$LL_PERF_SOURCE_AUDIO_DIRS")"
+        seed_env+=("LL_PERF_SOURCE_AUDIO_DIRS=$runtime_source_audio_dirs")
+        seed_args+=("source-audio-dirs=$runtime_source_audio_dirs")
+    fi
+    if [[ -n "${LL_PERF_SOURCE_IMAGE_LIMIT:-}" ]]; then
+        seed_env+=("LL_PERF_SOURCE_IMAGE_LIMIT=$LL_PERF_SOURCE_IMAGE_LIMIT")
+        seed_args+=("source-image-limit=$LL_PERF_SOURCE_IMAGE_LIMIT")
+    fi
+    if [[ -n "${LL_PERF_SOURCE_AUDIO_LIMIT:-}" ]]; then
+        seed_env+=("LL_PERF_SOURCE_AUDIO_LIMIT=$LL_PERF_SOURCE_AUDIO_LIMIT")
+        seed_args+=("source-audio-limit=$LL_PERF_SOURCE_AUDIO_LIMIT")
+    fi
+    if [[ -n "${LL_PERF_FORCE_SEED:-}" ]]; then
+        seed_env+=("LL_PERF_FORCE_SEED=$LL_PERF_FORCE_SEED")
+        seed_args+=("force-seed=$LL_PERF_FORCE_SEED")
+    fi
+    seed_command=("${WP_CLI_ARGS[@]}" --path="$(to_runtime_path "$WP_ROOT")" eval-file "$(to_runtime_path "$SEED_SCRIPT")")
+    if [[ "${#seed_args[@]}" -gt 0 ]]; then
+        seed_command+=(-- "${seed_args[@]}")
     fi
     if [[ "${#seed_env[@]}" -gt 0 ]]; then
-        env "${seed_env[@]}" "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" --path="$(to_runtime_path "$WP_ROOT")" eval-file "$(to_runtime_path "$SEED_SCRIPT")"
+        env "${seed_env[@]}" "$WP_CLI_BIN" "${seed_command[@]}"
     else
-        "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" --path="$(to_runtime_path "$WP_ROOT")" eval-file "$(to_runtime_path "$SEED_SCRIPT")"
+        "$WP_CLI_BIN" "${seed_command[@]}"
     fi
 else
     echo "Skipping performance fixture seeding because LL_PERF_SKIP_SEED=1"

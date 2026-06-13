@@ -35,8 +35,98 @@ function ll_tools_perf_seed_log(string $message): void {
     fwrite(STDOUT, $message . PHP_EOL);
 }
 
-function ll_tools_perf_seed_env_flag(string $name): bool {
+/**
+ * @return array<string,string>
+ */
+function ll_tools_perf_seed_cli_options(): array {
+    static $options = null;
+    if (is_array($options)) {
+        return $options;
+    }
+
+    $options = [];
+    $raw_args = [];
+    if (isset($GLOBALS['args']) && is_array($GLOBALS['args'])) {
+        $raw_args = array_values($GLOBALS['args']);
+    } elseif (isset($_SERVER['argv']) && is_array($_SERVER['argv'])) {
+        $raw_args = array_slice(array_values($_SERVER['argv']), 1);
+    }
+
+    $count = count($raw_args);
+    for ($index = 0; $index < $count; $index++) {
+        $arg = (string) $raw_args[$index];
+        if ($arg === '--') {
+            continue;
+        }
+
+        if (strpos($arg, '--') === 0) {
+            $arg = substr($arg, 2);
+        } elseif (strpos($arg, '=') === false) {
+            continue;
+        }
+
+        if ($arg === '') {
+            continue;
+        }
+
+        if (strpos($arg, '=') !== false) {
+            [$key, $value] = explode('=', $arg, 2);
+        } else {
+            $key = $arg;
+            $value = '1';
+            if ($index + 1 < $count && strpos((string) $raw_args[$index + 1], '--') !== 0) {
+                $value = (string) $raw_args[$index + 1];
+                $index++;
+            }
+        }
+
+        $key = strtolower(str_replace('_', '-', trim((string) $key)));
+        if ($key === '') {
+            continue;
+        }
+        $options[$key] = (string) $value;
+    }
+
+    return $options;
+}
+
+/**
+ * @param string[] $names
+ */
+function ll_tools_perf_seed_cli_option(array $names): ?string {
+    $options = ll_tools_perf_seed_cli_options();
+    foreach ($names as $name) {
+        $key = strtolower(str_replace('_', '-', trim((string) $name)));
+        if ($key !== '' && array_key_exists($key, $options)) {
+            return (string) $options[$key];
+        }
+    }
+
+    return null;
+}
+
+function ll_tools_perf_seed_value_for_env(string $name): ?string {
+    $option_names = [
+        'LL_TOOLS_PERF_FIXTURE_MANIFEST' => ['manifest', 'll-tools-perf-fixture-manifest'],
+        'LL_E2E_PERF_FIXTURE_MANIFEST' => ['manifest', 'll-e2e-perf-fixture-manifest'],
+        'LL_PERF_FORCE_SEED' => ['force-seed', 'll-perf-force-seed'],
+        'LL_PERF_SOURCE_IMAGE_DIRS' => ['source-image-dirs', 'll-perf-source-image-dirs'],
+        'LL_PERF_SOURCE_AUDIO_DIRS' => ['source-audio-dirs', 'll-perf-source-audio-dirs'],
+        'LL_PERF_SOURCE_IMAGE_LIMIT' => ['source-image-limit', 'll-perf-source-image-limit'],
+        'LL_PERF_SOURCE_AUDIO_LIMIT' => ['source-audio-limit', 'll-perf-source-audio-limit'],
+    ];
+
+    $value = ll_tools_perf_seed_cli_option($option_names[$name] ?? [$name]);
+    if (is_string($value)) {
+        return $value;
+    }
+
     $raw = getenv($name);
+    return is_string($raw) ? $raw : null;
+}
+
+function ll_tools_perf_seed_env_flag(string $name): bool {
+    $raw = ll_tools_perf_seed_value_for_env($name);
     if (!is_string($raw)) {
         return false;
     }
@@ -44,9 +134,37 @@ function ll_tools_perf_seed_env_flag(string $name): bool {
     return preg_match('/^(1|true|yes|on)$/i', trim($raw)) === 1;
 }
 
+function ll_tools_perf_seed_env_int(string $name, int $fallback): int {
+    $raw = ll_tools_perf_seed_value_for_env($name);
+    if (!is_string($raw) || trim($raw) === '') {
+        return $fallback;
+    }
+
+    $value = (int) trim($raw);
+    return $value > 0 ? $value : $fallback;
+}
+
+function ll_tools_perf_seed_env_path_list(string $name): array {
+    $raw = ll_tools_perf_seed_value_for_env($name);
+    if (!is_string($raw) || trim($raw) === '') {
+        return [];
+    }
+
+    $separator = strpos($raw, '|') !== false ? '|' : PATH_SEPARATOR;
+    $paths = [];
+    foreach (explode($separator, $raw) as $path) {
+        $path = trim($path);
+        if ($path !== '' && is_dir($path)) {
+            $paths[] = $path;
+        }
+    }
+
+    return array_values(array_unique($paths));
+}
+
 function ll_tools_perf_seed_manifest_path(): string {
     foreach (['LL_TOOLS_PERF_FIXTURE_MANIFEST', 'LL_E2E_PERF_FIXTURE_MANIFEST'] as $env_name) {
-        $env_path = getenv($env_name);
+        $env_path = ll_tools_perf_seed_value_for_env($env_name);
         if (is_string($env_path) && trim($env_path) !== '') {
             return trim($env_path);
         }
@@ -95,12 +213,20 @@ function ll_tools_perf_seed_manifest_totals(array $manifest): array {
         $word_count += $wordset_categories * $words_per_category;
     }
 
+    $image_count = 0;
+    if (!empty($manifest['media']['imagePerCategory'])) {
+        $image_count += $category_count;
+    }
+    if (!empty($manifest['media']['imagePerWord'])) {
+        $image_count += $word_count;
+    }
+
     return [
         'wordsets' => count($wordsets),
         'categories' => $category_count,
         'words' => $word_count,
-        'word_images' => !empty($manifest['media']['imagePerCategory']) ? $category_count : 0,
-        'attachments' => !empty($manifest['media']['imagePerCategory']) ? $category_count : 0,
+        'word_images' => $image_count,
+        'attachments' => $image_count,
         'word_audio' => !empty($manifest['media']['audioPerWord']) ? $word_count : 0,
         'quiz_pages' => $category_count,
         'vocab_lessons' => $category_count,
@@ -333,6 +459,7 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
         'quiz_pages' => 0,
         'categories' => 0,
         'wordsets' => 0,
+        'media_files' => 0,
     ];
 
     $fixture_category_ids = get_terms([
@@ -425,6 +552,7 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
 
     clean_term_cache([], 'word-category');
     clean_term_cache([], 'wordset');
+    $deleted['media_files'] = ll_tools_perf_seed_reset_fixture_upload_files();
 
     return $deleted;
 }
@@ -432,6 +560,143 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
 function ll_tools_perf_seed_tag_post(int $post_id, string $fixture_version): void {
     update_post_meta($post_id, LL_TOOLS_PERF_FIXTURE_META_KEY, LL_TOOLS_PERF_FIXTURE_KEY);
     update_post_meta($post_id, LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY, $fixture_version);
+}
+
+function ll_tools_perf_seed_insert_post_row(array $postarr, string $fixture_version): int {
+    global $wpdb;
+
+    $now = current_time('mysql');
+    $now_gmt = get_gmt_from_date($now);
+    $post_type = sanitize_key((string) ($postarr['post_type'] ?? 'post'));
+    $post_status = sanitize_key((string) ($postarr['post_status'] ?? 'publish'));
+    $post_title = sanitize_text_field((string) ($postarr['post_title'] ?? ''));
+    $post_name = sanitize_title((string) ($postarr['post_name'] ?? $post_title));
+    $post_parent = max(0, (int) ($postarr['post_parent'] ?? 0));
+    $post_mime_type = sanitize_mime_type((string) ($postarr['post_mime_type'] ?? ''));
+
+    $inserted = $wpdb->insert($wpdb->posts, [
+        'post_author' => max(1, (int) get_current_user_id()),
+        'post_date' => $now,
+        'post_date_gmt' => $now_gmt,
+        'post_content' => (string) ($postarr['post_content'] ?? ''),
+        'post_title' => $post_title,
+        'post_excerpt' => '',
+        'post_status' => $post_status,
+        'comment_status' => 'closed',
+        'ping_status' => 'closed',
+        'post_password' => '',
+        'post_name' => $post_name,
+        'to_ping' => '',
+        'pinged' => '',
+        'post_modified' => $now,
+        'post_modified_gmt' => $now_gmt,
+        'post_content_filtered' => '',
+        'post_parent' => $post_parent,
+        'guid' => '',
+        'menu_order' => 0,
+        'post_type' => $post_type,
+        'post_mime_type' => $post_mime_type,
+        'comment_count' => 0,
+    ]);
+
+    if (!$inserted) {
+        ll_tools_perf_seed_fail('Unable to insert fixture post row for ' . $post_name);
+    }
+
+    $post_id = (int) $wpdb->insert_id;
+    if ($post_id <= 0) {
+        ll_tools_perf_seed_fail('Unable to resolve fixture post row id for ' . $post_name);
+    }
+
+    ll_tools_perf_seed_insert_post_meta_rows($post_id, [
+        LL_TOOLS_PERF_FIXTURE_META_KEY => LL_TOOLS_PERF_FIXTURE_KEY,
+        LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY => $fixture_version,
+    ]);
+
+    return $post_id;
+}
+
+function ll_tools_perf_seed_insert_post_meta_rows(int $post_id, array $meta): void {
+    global $wpdb;
+
+    $post_id = (int) $post_id;
+    if ($post_id <= 0 || empty($meta)) {
+        return;
+    }
+
+    foreach ($meta as $key => $value) {
+        $wpdb->insert($wpdb->postmeta, [
+            'post_id' => $post_id,
+            'meta_key' => (string) $key,
+            'meta_value' => maybe_serialize($value),
+        ]);
+    }
+}
+
+function ll_tools_perf_seed_term_taxonomy_id(int $term_id, string $taxonomy): int {
+    static $cache = [];
+
+    $term_id = (int) $term_id;
+    $taxonomy = sanitize_key($taxonomy);
+    if ($term_id <= 0 || $taxonomy === '') {
+        return 0;
+    }
+
+    $cache_key = $taxonomy . ':' . $term_id;
+    if (array_key_exists($cache_key, $cache)) {
+        return (int) $cache[$cache_key];
+    }
+
+    global $wpdb;
+    $term_taxonomy_id = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT term_taxonomy_id FROM {$wpdb->term_taxonomy} WHERE term_id = %d AND taxonomy = %s LIMIT 1",
+        $term_id,
+        $taxonomy
+    ));
+    $cache[$cache_key] = $term_taxonomy_id;
+    return $term_taxonomy_id;
+}
+
+function ll_tools_perf_seed_term_taxonomy_id_for_slug(string $taxonomy, string $slug, string $name): int {
+    $taxonomy = sanitize_key($taxonomy);
+    $slug = sanitize_title($slug);
+    $name = sanitize_text_field($name);
+    if ($taxonomy === '' || $slug === '' || $name === '') {
+        return 0;
+    }
+
+    $term = get_term_by('slug', $slug, $taxonomy);
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        $insert = wp_insert_term($name, $taxonomy, ['slug' => $slug]);
+        if (is_wp_error($insert)) {
+            return 0;
+        }
+        $term_id = (int) ($insert['term_id'] ?? 0);
+    } else {
+        $term_id = (int) $term->term_id;
+    }
+
+    return ll_tools_perf_seed_term_taxonomy_id($term_id, $taxonomy);
+}
+
+function ll_tools_perf_seed_insert_term_relationships(int $object_id, array $term_taxonomy_ids): void {
+    global $wpdb;
+
+    $object_id = (int) $object_id;
+    if ($object_id <= 0) {
+        return;
+    }
+
+    foreach (array_values(array_unique(array_filter(array_map('intval', $term_taxonomy_ids)))) as $term_taxonomy_id) {
+        if ($term_taxonomy_id <= 0) {
+            continue;
+        }
+        $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->term_relationships} (object_id, term_taxonomy_id, term_order) VALUES (%d, %d, 0)",
+            $object_id,
+            $term_taxonomy_id
+        ));
+    }
 }
 
 function ll_tools_perf_seed_tag_term(int $term_id, string $fixture_version): void {
@@ -466,10 +731,149 @@ function ll_tools_perf_seed_fixture_upload_dir(): array {
     ];
 }
 
+function ll_tools_perf_seed_reset_fixture_upload_files(): int {
+    $upload = ll_tools_perf_seed_fixture_upload_dir();
+    $dir = (string) ($upload['dir'] ?? '');
+    if ($dir === '' || basename($dir) !== 'll-tools-performance-fixtures' || !is_dir($dir)) {
+        return 0;
+    }
+
+    $deleted = 0;
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $file_info) {
+        if (!$file_info instanceof SplFileInfo) {
+            continue;
+        }
+        $path = $file_info->getPathname();
+        if ($file_info->isDir()) {
+            @rmdir($path);
+            continue;
+        }
+        if ($file_info->isFile() && @unlink($path)) {
+            $deleted++;
+        }
+    }
+
+    return $deleted;
+}
+
+function ll_tools_perf_seed_begin_bulk_mode(): array {
+    $state = [
+        'cache_invalidation' => null,
+        'term_counting' => false,
+        'comment_counting' => false,
+    ];
+
+    if (function_exists('wp_suspend_cache_invalidation')) {
+        $state['cache_invalidation'] = wp_suspend_cache_invalidation(true);
+    }
+    if (function_exists('wp_defer_term_counting')) {
+        wp_defer_term_counting(true);
+        $state['term_counting'] = true;
+    }
+    if (function_exists('wp_defer_comment_counting')) {
+        wp_defer_comment_counting(true);
+        $state['comment_counting'] = true;
+    }
+
+    return $state;
+}
+
+function ll_tools_perf_seed_end_bulk_mode(array $state): void {
+    if (!empty($state['term_counting']) && function_exists('wp_defer_term_counting')) {
+        wp_defer_term_counting(false);
+    }
+    if (!empty($state['comment_counting']) && function_exists('wp_defer_comment_counting')) {
+        wp_defer_comment_counting(false);
+    }
+    if (array_key_exists('cache_invalidation', $state) && $state['cache_invalidation'] !== null && function_exists('wp_suspend_cache_invalidation')) {
+        wp_suspend_cache_invalidation((bool) $state['cache_invalidation']);
+    }
+}
+
 function ll_tools_perf_seed_image_bytes(): string {
     return (string) base64_decode(
         'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAVklEQVR4nO3PQQ0AIBDAsAP/nkEEj4ZkVbDtmTsP0Jm9A5gNwGAABmAwAIMBGIDBAAzAYAAEYDAAAzAYgAEYDDAAMwEYDMAADAZgAAZD/YBZAROD8dN9AAAAAElFTkSuQmCC'
     );
+}
+
+function ll_tools_perf_seed_media_files(array $directories, array $extensions, int $limit): array {
+    $files = [];
+    $extension_lookup = array_fill_keys(array_map('strtolower', $extensions), true);
+
+    foreach ($directories as $directory) {
+        if (!is_dir($directory)) {
+            continue;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file_info) {
+            if (!$file_info instanceof SplFileInfo || !$file_info->isFile()) {
+                continue;
+            }
+            $path = $file_info->getPathname();
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            if (!isset($extension_lookup[$extension])) {
+                continue;
+            }
+            $files[] = $path;
+            if (count($files) >= $limit) {
+                break 2;
+            }
+        }
+    }
+
+    sort($files, SORT_NATURAL | SORT_FLAG_CASE);
+    return array_values(array_unique($files));
+}
+
+function ll_tools_perf_seed_media_context(array $manifest): array {
+    $image_dirs = ll_tools_perf_seed_env_path_list('LL_PERF_SOURCE_IMAGE_DIRS');
+    $audio_dirs = ll_tools_perf_seed_env_path_list('LL_PERF_SOURCE_AUDIO_DIRS');
+    $image_limit = ll_tools_perf_seed_env_int('LL_PERF_SOURCE_IMAGE_LIMIT', 240);
+    $audio_limit = ll_tools_perf_seed_env_int('LL_PERF_SOURCE_AUDIO_LIMIT', 240);
+    $image_files = ll_tools_perf_seed_media_files($image_dirs, ['webp', 'jpg', 'jpeg', 'png'], $image_limit);
+    $audio_files = ll_tools_perf_seed_media_files($audio_dirs, ['wav', 'mp3', 'ogg', 'm4a'], $audio_limit);
+
+    return [
+        'images' => $image_files,
+        'audio' => $audio_files,
+        'summary' => [
+            'image_dirs' => $image_dirs,
+            'audio_dirs' => $audio_dirs,
+            'image_files' => count($image_files),
+            'audio_files' => count($audio_files),
+            'image_per_category' => !empty($manifest['media']['imagePerCategory']),
+            'image_per_word' => !empty($manifest['media']['imagePerWord']),
+            'audio_per_word' => !empty($manifest['media']['audioPerWord']),
+        ],
+    ];
+}
+
+function ll_tools_perf_seed_media_source(array $files, int $index): string {
+    if (empty($files)) {
+        return '';
+    }
+
+    return (string) $files[$index % count($files)];
+}
+
+function ll_tools_perf_seed_attachment_mime_type(string $extension): string {
+    switch (strtolower($extension)) {
+        case 'webp':
+            return 'image/webp';
+        case 'jpg':
+        case 'jpeg':
+            return 'image/jpeg';
+        case 'png':
+        default:
+            return 'image/png';
+    }
 }
 
 function ll_tools_perf_seed_silent_wav_bytes(): string {
@@ -491,42 +895,77 @@ function ll_tools_perf_seed_silent_wav_bytes(): string {
         . $data;
 }
 
-function ll_tools_perf_seed_attachment(string $slug, string $title, string $fixture_version): int {
-    $upload = ll_tools_perf_seed_fixture_upload_dir();
-    $filename = sanitize_file_name($slug . '.png');
-    $file = trailingslashit($upload['dir']) . $filename;
-    file_put_contents($file, ll_tools_perf_seed_image_bytes());
+function ll_tools_perf_seed_materialized_media_file(string $source_file, string $kind): string {
+    static $cache = [];
 
-    $attachment_id = wp_insert_attachment([
+    $kind = $kind === 'audio' ? 'audio' : 'image';
+    $allowed_extensions = $kind === 'audio' ? ['wav', 'mp3', 'ogg', 'm4a'] : ['webp', 'jpg', 'jpeg', 'png'];
+    $default_extension = $kind === 'audio' ? 'wav' : 'png';
+    $fallback_bytes = $kind === 'audio' ? ll_tools_perf_seed_silent_wav_bytes() : ll_tools_perf_seed_image_bytes();
+    $source_file = is_file($source_file) ? wp_normalize_path($source_file) : '';
+    $source_extension = $source_file !== '' ? strtolower(pathinfo($source_file, PATHINFO_EXTENSION)) : '';
+    $can_use_source = $source_file !== '' && in_array($source_extension, $allowed_extensions, true);
+    $cache_key = $kind . '|' . ($can_use_source ? $source_file : '__generated__');
+
+    if (isset($cache[$cache_key]) && is_file($cache[$cache_key])) {
+        return (string) $cache[$cache_key];
+    }
+
+    $upload = ll_tools_perf_seed_fixture_upload_dir();
+    if ($can_use_source) {
+        $filename = sanitize_file_name(sprintf('source-%s-%s.%s', $kind, substr(hash('sha256', $source_file), 0, 16), $source_extension));
+        $file = trailingslashit($upload['dir']) . $filename;
+        if (!is_file($file) && !copy($source_file, $file)) {
+            $can_use_source = false;
+        }
+        if ($can_use_source && is_file($file)) {
+            $cache[$cache_key] = $file;
+            return $file;
+        }
+    }
+
+    $filename = sanitize_file_name(sprintf('generated-%s.%s', $kind, $default_extension));
+    $file = trailingslashit($upload['dir']) . $filename;
+    if (!is_file($file)) {
+        file_put_contents($file, $fallback_bytes);
+    }
+
+    $cache[$cache_key] = $file;
+    return $file;
+}
+
+function ll_tools_perf_seed_attachment(string $slug, string $title, string $fixture_version, string $source_file = ''): int {
+    $upload = ll_tools_perf_seed_fixture_upload_dir();
+    $file = ll_tools_perf_seed_materialized_media_file($source_file, 'image');
+    $source_extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    if (!in_array($source_extension, ['webp', 'jpg', 'jpeg', 'png'], true)) {
+        $source_extension = 'png';
+    }
+
+    $attachment_id = ll_tools_perf_seed_insert_post_row([
+        'post_type' => 'attachment',
         'post_title' => $title,
         'post_name' => sanitize_title($slug),
         'post_status' => 'inherit',
-        'post_mime_type' => 'image/png',
-    ], $file);
-
-    if (is_wp_error($attachment_id) || (int) $attachment_id <= 0) {
-        ll_tools_perf_seed_fail('Unable to create fixture image attachment for ' . $slug);
-    }
-
-    $attachment_id = (int) $attachment_id;
+        'post_mime_type' => ll_tools_perf_seed_attachment_mime_type($source_extension),
+    ], $fixture_version);
     $relative_file = ltrim(substr(wp_normalize_path($file), strlen($upload['base_dir'])), '/');
-    wp_update_attachment_metadata($attachment_id, [
-        'width' => 64,
-        'height' => 64,
-        'file' => $relative_file,
-        'sizes' => [],
+    ll_tools_perf_seed_insert_post_meta_rows($attachment_id, [
+        '_wp_attached_file' => $relative_file,
+        '_wp_attachment_metadata' => [
+            'width' => 64,
+            'height' => 64,
+            'file' => $relative_file,
+            'sizes' => [],
+        ],
+        '_wp_attachment_image_alt' => $title,
     ]);
-    update_post_meta($attachment_id, '_wp_attachment_image_alt', $title);
-    ll_tools_perf_seed_tag_post($attachment_id, $fixture_version);
 
     return $attachment_id;
 }
 
-function ll_tools_perf_seed_audio_path(): string {
-    $upload = ll_tools_perf_seed_fixture_upload_dir();
-    $file = trailingslashit($upload['dir']) . 'll-perf-silence.wav';
-    file_put_contents($file, ll_tools_perf_seed_silent_wav_bytes());
-
+function ll_tools_perf_seed_audio_path(string $slug = 'll-perf-silence', string $source_file = ''): string {
+    $file = ll_tools_perf_seed_materialized_media_file($source_file, 'audio');
     return ll_tools_perf_seed_relative_site_path($file);
 }
 
@@ -581,36 +1020,65 @@ function ll_tools_perf_seed_create_category(array $wordset, int $wordset_id, int
     ];
 }
 
-function ll_tools_perf_seed_create_category_image(int $wordset_id, array $category, string $fixture_version): int {
+function ll_tools_perf_seed_create_category_image(int $wordset_id, array $category, string $fixture_version, string $source_file = ''): int {
     $attachment_id = ll_tools_perf_seed_attachment(
         (string) $category['slug'] . '-image',
         (string) $category['name'] . ' Image',
-        $fixture_version
+        $fixture_version,
+        $source_file
     );
-    $image_id = wp_insert_post([
+
+    return ll_tools_perf_seed_create_word_image_post(
+        $wordset_id,
+        $category,
+        (string) $category['slug'] . '-image',
+        (string) $category['name'] . ' Image',
+        $fixture_version,
+        $attachment_id
+    );
+}
+
+function ll_tools_perf_seed_create_word_image_post(int $wordset_id, array $category, string $slug, string $title, string $fixture_version, int $attachment_id): int {
+    $image_id = ll_tools_perf_seed_insert_post_row([
         'post_type' => 'word_images',
         'post_status' => 'publish',
-        'post_title' => (string) $category['name'] . ' Image',
-        'post_name' => sanitize_title((string) $category['slug'] . '-image'),
-    ], true);
+        'post_title' => $title,
+        'post_name' => sanitize_title($slug),
+    ], $fixture_version);
 
-    if (is_wp_error($image_id) || (int) $image_id <= 0) {
-        ll_tools_perf_seed_fail('Unable to create fixture word image for ' . (string) $category['slug']);
-    }
-
-    $image_id = (int) $image_id;
-    set_post_thumbnail($image_id, $attachment_id);
-    wp_set_object_terms($image_id, [(int) $category['id']], 'word-category', false);
-    if (function_exists('ll_tools_set_word_image_wordset_owner')) {
-        ll_tools_set_word_image_wordset_owner($image_id, $wordset_id, $image_id);
-    }
-    update_post_meta($image_id, 'copyright_info', 'LL Tools performance fixture');
-    ll_tools_perf_seed_tag_post($image_id, $fixture_version);
+    ll_tools_perf_seed_insert_term_relationships($image_id, [
+        ll_tools_perf_seed_term_taxonomy_id((int) $category['id'], 'word-category'),
+    ]);
+    $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY') ? LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY : 'll_wordset_owner_id';
+    $source_meta_key = defined('LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY') ? LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY : 'll_word_image_isolation_source_id';
+    ll_tools_perf_seed_insert_post_meta_rows($image_id, [
+        '_thumbnail_id' => $attachment_id,
+        'copyright_info' => 'LL Tools performance fixture',
+        $owner_meta_key => $wordset_id,
+        $source_meta_key => $image_id,
+    ]);
 
     return $image_id;
 }
 
-function ll_tools_perf_seed_create_word(array $wordset, int $wordset_id, array $category, int $word_index, int $image_id, int $attachment_id, string $audio_path, array $manifest): int {
+function ll_tools_perf_seed_create_word_image(int $wordset_id, array $category, string $slug, string $title, string $fixture_version, string $source_file = ''): array {
+    $attachment_id = ll_tools_perf_seed_attachment($slug . '-image', $title . ' Image', $fixture_version, $source_file);
+    $image_id = ll_tools_perf_seed_create_word_image_post(
+        $wordset_id,
+        $category,
+        $slug . '-image',
+        $title . ' Image',
+        $fixture_version,
+        $attachment_id
+    );
+
+    return [
+        'image_id' => $image_id,
+        'attachment_id' => $attachment_id,
+    ];
+}
+
+function ll_tools_perf_seed_create_word(array $wordset, int $wordset_id, array $category, int $word_index, int $image_id, int $attachment_id, array $manifest, array $media_context, int $word_sequence): int {
     $fixture_version = (string) $manifest['fixtureVersion'];
     $size = sanitize_key((string) ($wordset['size'] ?? 'wordset'));
     $wordset_slug = sanitize_title((string) $wordset['slug']);
@@ -621,46 +1089,62 @@ function ll_tools_perf_seed_create_word(array $wordset, int $wordset_id, array $
     $word_slug = sprintf('%s-word-%02d-%02d', $wordset_slug, $category_number, $word_index);
     $word_title = sprintf('LLPerf %s %02d %02d', $size, $category_number, $word_index);
     $translation = sprintf('Performance fixture %s translation %02d %02d', $size, $category_number, $word_index);
+    $word_image_id = $image_id;
+    $word_attachment_id = $attachment_id;
+    if (!empty($manifest['media']['imagePerWord'])) {
+        $word_media = ll_tools_perf_seed_create_word_image(
+            $wordset_id,
+            $category,
+            $word_slug,
+            $word_title,
+            $fixture_version,
+            ll_tools_perf_seed_media_source((array) ($media_context['images'] ?? []), $word_sequence)
+        );
+        $word_image_id = (int) $word_media['image_id'];
+        $word_attachment_id = (int) $word_media['attachment_id'];
+    }
 
-    $word_id = wp_insert_post([
+    $word_id = ll_tools_perf_seed_insert_post_row([
         'post_type' => 'words',
         'post_status' => 'publish',
         'post_title' => $word_title,
         'post_name' => $word_slug,
         'post_content' => '',
-    ], true);
-
-    if (is_wp_error($word_id) || (int) $word_id <= 0) {
-        ll_tools_perf_seed_fail('Unable to create fixture word ' . $word_slug);
+    ], $fixture_version);
+    ll_tools_perf_seed_insert_term_relationships($word_id, [
+        ll_tools_perf_seed_term_taxonomy_id($wordset_id, 'wordset'),
+        ll_tools_perf_seed_term_taxonomy_id((int) $category['id'], 'word-category'),
+    ]);
+    $word_meta = [
+        'word_translation' => $translation,
+        'word_note' => 'Static LL Tools performance benchmark fixture word.',
+        '_ll_autopicked_image_id' => $word_image_id,
+    ];
+    if ($word_attachment_id > 0) {
+        $word_meta['_thumbnail_id'] = $word_attachment_id;
     }
-
-    $word_id = (int) $word_id;
-    wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
-    wp_set_object_terms($word_id, [(int) $category['id']], 'word-category', false);
-    update_post_meta($word_id, 'word_translation', $translation);
-    update_post_meta($word_id, 'word_note', 'Static LL Tools performance benchmark fixture word.');
-    update_post_meta($word_id, '_ll_autopicked_image_id', $image_id);
-    if ($attachment_id > 0) {
-        set_post_thumbnail($word_id, $attachment_id);
-    }
-    ll_tools_perf_seed_tag_post($word_id, $fixture_version);
+    ll_tools_perf_seed_insert_post_meta_rows($word_id, $word_meta);
 
     if (!empty($manifest['media']['audioPerWord'])) {
-        $audio_id = wp_insert_post([
+        $word_audio_path = ll_tools_perf_seed_audio_path(
+            $word_slug . '-audio',
+            ll_tools_perf_seed_media_source((array) ($media_context['audio'] ?? []), $word_sequence)
+        );
+        $audio_id = ll_tools_perf_seed_insert_post_row([
             'post_type' => 'word_audio',
             'post_status' => 'publish',
             'post_title' => $word_title . ' Audio',
             'post_name' => $word_slug . '-audio',
             'post_parent' => $word_id,
-        ], true);
-        if (!is_wp_error($audio_id) && (int) $audio_id > 0) {
-            $audio_id = (int) $audio_id;
-            update_post_meta($audio_id, 'audio_file_path', $audio_path);
-            update_post_meta($audio_id, 'recording_text', $word_title);
-            update_post_meta($audio_id, 'speaker_name', 'LL Performance Fixture');
-            wp_set_object_terms($audio_id, ['isolation'], 'recording_type', false);
-            ll_tools_perf_seed_tag_post($audio_id, $fixture_version);
-        }
+        ], $fixture_version);
+        ll_tools_perf_seed_insert_post_meta_rows($audio_id, [
+            'audio_file_path' => $word_audio_path,
+            'recording_text' => $word_title,
+            'speaker_name' => 'LL Performance Fixture',
+        ]);
+        ll_tools_perf_seed_insert_term_relationships($audio_id, [
+            ll_tools_perf_seed_term_taxonomy_id_for_slug('recording_type', 'isolation', 'Isolation'),
+        ]);
     }
 
     return $word_id;
@@ -704,20 +1188,15 @@ function ll_tools_perf_seed_create_pages(array $manifest, array $seeded_wordsets
     $learn_wordset = sanitize_title((string) ($manifest['learnPage']['wordsetSlug'] ?? 'll-perf-large'));
     $content = sprintf('[quiz_pages_grid wordset="%s" popup="yes" mode="practice"]', esc_attr($learn_wordset));
 
-    $learn_id = wp_insert_post([
+    $learn_id = ll_tools_perf_seed_insert_post_row([
         'post_type' => 'page',
         'post_status' => 'publish',
         'post_title' => $learn_title,
         'post_name' => $learn_slug,
         'post_content' => $content,
-    ], true);
-
-    if (is_wp_error($learn_id) || (int) $learn_id <= 0) {
-        ll_tools_perf_seed_fail('Unable to create performance learn page.');
-    }
+    ], $fixture_version);
 
     $created['learn_page_id'] = (int) $learn_id;
-    ll_tools_perf_seed_tag_post((int) $learn_id, $fixture_version);
 
     return $created;
 }
@@ -742,10 +1221,18 @@ function ll_tools_perf_seed_run(): array {
         return (array) ($current_fixture['summary'] ?? []);
     }
 
+    $bulk_state = ll_tools_perf_seed_begin_bulk_mode();
+    try {
     $deleted = ll_tools_perf_seed_reset_fixture($manifest);
-    $audio_path = ll_tools_perf_seed_audio_path();
+    $media_context = ll_tools_perf_seed_media_context($manifest);
+    ll_tools_perf_seed_log(sprintf(
+        'Performance fixture media pool: %d image files, %d audio files.',
+        (int) ($media_context['summary']['image_files'] ?? 0),
+        (int) ($media_context['summary']['audio_files'] ?? 0)
+    ));
 
     $seeded_wordsets = [];
+    $word_sequence = 0;
     foreach ((array) $manifest['wordsets'] as $wordset) {
         $wordset_slug = sanitize_title((string) ($wordset['slug'] ?? ''));
         $wordset_title = sanitize_text_field((string) ($wordset['title'] ?? ''));
@@ -775,13 +1262,19 @@ function ll_tools_perf_seed_run(): array {
             $image_id = 0;
             $attachment_id = 0;
             if (!empty($manifest['media']['imagePerCategory'])) {
-                $image_id = ll_tools_perf_seed_create_category_image($wordset_id, $category, $fixture_version);
+                $image_id = ll_tools_perf_seed_create_category_image(
+                    $wordset_id,
+                    $category,
+                    $fixture_version,
+                    ll_tools_perf_seed_media_source((array) ($media_context['images'] ?? []), $category_index - 1)
+                );
                 $attachment_id = (int) get_post_thumbnail_id($image_id);
             }
 
             for ($word_index = 1; $word_index <= $words_per_category; $word_index++) {
-                ll_tools_perf_seed_create_word($wordset, $wordset_id, $category, $word_index, $image_id, $attachment_id, $audio_path, $manifest);
+                ll_tools_perf_seed_create_word($wordset, $wordset_id, $category, $word_index, $image_id, $attachment_id, $manifest, $media_context, $word_sequence);
                 $summary['word_count']++;
+                $word_sequence++;
             }
 
             if (function_exists('ll_tools_bump_category_cache_version')) {
@@ -789,6 +1282,25 @@ function ll_tools_perf_seed_run(): array {
             }
 
             $summary['categories'][] = $category;
+            if ($category_count >= 40 && ($category_index === 1 || $category_index % 10 === 0 || $category_index === $category_count)) {
+                ll_tools_perf_seed_log(sprintf(
+                    'Seeded %s category %d/%d (%d words).',
+                    $wordset_slug,
+                    $category_index,
+                    $category_count,
+                    (int) $summary['word_count']
+                ));
+            }
+        }
+
+        if (function_exists('wp_update_term_count_now')) {
+            $category_term_ids = array_values(array_filter(array_map(static function (array $category): int {
+                return (int) ($category['id'] ?? 0);
+            }, $summary['categories'])));
+            if (!empty($category_term_ids)) {
+                wp_update_term_count_now($category_term_ids, 'word-category');
+            }
+            wp_update_term_count_now([$wordset_id], 'wordset');
         }
 
         $seeded_wordsets[] = $summary;
@@ -800,6 +1312,7 @@ function ll_tools_perf_seed_run(): array {
         'fixture_version' => $fixture_version,
         'manifest_sha256' => ll_tools_perf_seed_manifest_checksum(),
         'seeded_at_gmt' => gmdate('c'),
+        'media_sources' => $media_context['summary'],
         'wordsets' => array_map(static function (array $wordset): array {
             return [
                 'size' => (string) ($wordset['size'] ?? ''),
@@ -821,6 +1334,7 @@ function ll_tools_perf_seed_run(): array {
     return [
         'fixture_version' => $fixture_version,
         'deleted' => $deleted,
+        'media_sources' => $media_context['summary'],
         'seeded_wordsets' => array_map(static function (array $wordset): array {
             unset($wordset['categories']);
             return $wordset;
@@ -829,6 +1343,9 @@ function ll_tools_perf_seed_run(): array {
         'learn_page_path' => '/' . trim((string) ($manifest['learnPage']['slug'] ?? 'll-perf-learn'), '/') . '/',
         'seeded_at_gmt' => gmdate('c'),
     ];
+    } finally {
+        ll_tools_perf_seed_end_bulk_mode($bulk_state);
+    }
 }
 
 $summary = ll_tools_perf_seed_run();

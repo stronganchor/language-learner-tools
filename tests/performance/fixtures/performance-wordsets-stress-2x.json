@@ -1,0 +1,35 @@
+{
+  "fixtureVersion": "2026-06-13-stress-2x.1",
+  "description": "Opt-in stress fixture sized at roughly 2x the June 2026 Genc-Palu live wordset. Use LL_PERF_PROFILE=stress-2x.",
+  "benchmarkTargetSize": "stress2x",
+  "sourceScaleReference": {
+    "wordsetSlug": "genc-palu",
+    "wordsTotal": 2371,
+    "referenceArtifact": "C:/Users/messy/OneDrive/Documents/Language/Z/zazacaogren/live-syrian-arabic-approved-upload-20260612/12_report_summary_before.json"
+  },
+  "learnPage": {
+    "slug": "ll-perf-stress-2x-learn",
+    "title": "LL Performance Stress 2x Learn Grid",
+    "wordsetSlug": "ll-perf-stress-2x"
+  },
+  "quizConfig": {
+    "promptType": "text_title",
+    "optionType": "text_translation"
+  },
+  "media": {
+    "imagePerCategory": true,
+    "imagePerWord": true,
+    "audioPerWord": true,
+    "sourceImageEnv": "LL_PERF_SOURCE_IMAGE_DIRS",
+    "sourceAudioEnv": "LL_PERF_SOURCE_AUDIO_DIRS"
+  },
+  "wordsets": [
+    {
+      "size": "stress2x",
+      "slug": "ll-perf-stress-2x",
+      "title": "LL Performance Stress 2x",
+      "categoryCount": 96,
+      "wordsPerCategory": 50
+    }
+  ]
+}

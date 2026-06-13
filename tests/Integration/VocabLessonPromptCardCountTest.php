@@ -29,7 +29,7 @@ final class VocabLessonPromptCardCountTest extends LL_Tools_TestCase
         $this->assertContains($effective_prompt_category_id, ll_tools_get_vocab_lesson_category_ids_for_wordset($wordset_id, true));
     }
 
-    public function test_deepest_counts_use_grouped_relationship_queries_without_unbounded_wordset_id_queries(): void
+    public function test_deepest_counts_use_bounded_relationship_queries_without_depth_union_tables(): void
     {
         global $wpdb;
 
@@ -68,10 +68,22 @@ final class VocabLessonPromptCardCountTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($counts['all'][$effective_prompt_category_id] ?? 0));
         $this->assertSame(2, (int) ($counts['with_images'][$effective_prompt_category_id] ?? 0));
 
-        $queries_sql = implode("\n", $captured_queries);
-        $this->assertStringContainsString('COUNT(DISTINCT posts.ID) AS total', $queries_sql);
-        $this->assertStringNotContainsString('posts.ID AS object_id', $queries_sql);
-        $this->assertStringNotContainsString('SELECT ' . $wpdb->posts . '.ID', $queries_sql);
+        $relationship_queries = array_values(array_filter($captured_queries, static function (string $query): bool {
+            return strpos($query, 'posts.ID AS post_id') !== false
+                && strpos($query, 'category_taxonomy.term_id AS category_id') !== false
+                && strpos($query, 'category_relationships.term_taxonomy_id AS term_taxonomy_id') !== false;
+        }));
+
+        $this->assertGreaterThanOrEqual(4, count($relationship_queries), 'Expected deepest counts to use bounded post/category relationship queries.');
+        foreach ($relationship_queries as $query) {
+            $this->assertStringContainsString('category_taxonomy.taxonomy =', $query);
+            $this->assertStringNotContainsString('UNION ALL', $query);
+            $this->assertStringNotContainsString('category_depths', $query);
+            $this->assertStringNotContainsString('deeper_depths', $query);
+            $this->assertStringNotContainsString('COUNT(DISTINCT posts.ID) AS total', $query);
+            $this->assertStringNotContainsString('posts.ID AS object_id', $query);
+            $this->assertStringNotContainsString('SELECT ' . $wpdb->posts . '.ID', $query);
+        }
     }
 
     public function test_deepest_counts_exclude_specific_wrong_answer_only_words(): void

@@ -267,6 +267,7 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
             $this->assertStringContainsString('LIMIT', $query);
             $this->assertStringContainsString('wordset_relationships', $query);
             $this->assertStringContainsString('category_depths', $query);
+            $this->assertStringNotContainsString('UNION ALL', $query);
         }
     }
 

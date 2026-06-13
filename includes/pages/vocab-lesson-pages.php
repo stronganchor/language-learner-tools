@@ -1810,7 +1810,9 @@ function ll_tools_vocab_lesson_build_depth_table_sql(array $depth_rows): string 
 
     global $wpdb;
 
-    $selects = [];
+    $term_taxonomy_ids = [];
+    $term_id_cases = [];
+    $depth_cases = [];
     foreach ($depth_rows as $row) {
         if (!is_array($row)) {
             continue;
@@ -1821,15 +1823,50 @@ function ll_tools_vocab_lesson_build_depth_table_sql(array $depth_rows): string 
         if ($term_taxonomy_id <= 0 || $term_id <= 0) {
             continue;
         }
-        $selects[] = $wpdb->prepare(
-            'SELECT %d AS term_taxonomy_id, %d AS term_id, %d AS depth',
-            $term_taxonomy_id,
-            $term_id,
-            $depth
-        );
+        $term_taxonomy_ids[] = $term_taxonomy_id;
+        $term_id_cases[] = $wpdb->prepare('WHEN %d THEN %d', $term_taxonomy_id, $term_id);
+        $depth_cases[] = $wpdb->prepare('WHEN %d THEN %d', $term_taxonomy_id, $depth);
     }
 
-    return empty($selects) ? '' : '(' . implode(' UNION ALL ', $selects) . ')';
+    $term_taxonomy_ids = array_values(array_unique($term_taxonomy_ids));
+    if (empty($term_taxonomy_ids) || empty($term_id_cases) || empty($depth_cases)) {
+        return '';
+    }
+
+    $where = $wpdb->prepare(
+        'WHERE term_taxonomy_id IN (' . implode(',', array_fill(0, count($term_taxonomy_ids), '%d')) . ') AND taxonomy = %s',
+        array_merge($term_taxonomy_ids, ['word-category'])
+    );
+
+    return sprintf(
+        '(SELECT term_taxonomy_id, CASE term_taxonomy_id %s ELSE 0 END AS term_id, CASE term_taxonomy_id %s ELSE 0 END AS depth FROM %s %s)',
+        implode(' ', $term_id_cases),
+        implode(' ', $depth_cases),
+        $wpdb->term_taxonomy,
+        $where
+    );
+}
+
+/**
+ * @param array<int,array{term_taxonomy_id:int,term_id:int,depth:int}> $depth_rows
+ * @return array<int,int>
+ */
+function ll_tools_vocab_lesson_depth_by_term_taxonomy_id(array $depth_rows): array {
+    $depth_by_term_taxonomy_id = [];
+    foreach ($depth_rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $term_taxonomy_id = isset($row['term_taxonomy_id']) ? (int) $row['term_taxonomy_id'] : 0;
+        $term_id = isset($row['term_id']) ? (int) $row['term_id'] : 0;
+        if ($term_taxonomy_id <= 0 || $term_id <= 0) {
+            continue;
+        }
+        $depth_by_term_taxonomy_id[$term_taxonomy_id] = isset($row['depth']) ? max(0, (int) $row['depth']) : 0;
+    }
+
+    ksort($depth_by_term_taxonomy_id, SORT_NUMERIC);
+    return $depth_by_term_taxonomy_id;
 }
 
 /**
@@ -1894,11 +1931,64 @@ function ll_tools_vocab_lesson_merge_count_maps(array ...$maps): array {
 }
 
 /**
- * @param int[] $excluded_word_ids
+ * @param array<int,array<string,mixed>> $rows
+ * @param array<int,int> $depth_by_term_taxonomy_id
  * @return array<int,int>
  */
-function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_id, int $wordset_tt_id, string $depth_table_sql, bool $only_with_images, array $excluded_word_ids = []): array {
-    if ($wordset_tt_id <= 0 || $depth_table_sql === '') {
+function ll_tools_vocab_lesson_count_deepest_category_rows(array $rows, array $depth_by_term_taxonomy_id): array {
+    if (empty($rows) || empty($depth_by_term_taxonomy_id)) {
+        return [];
+    }
+
+    $deepest_by_post = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $post_id = isset($row['post_id']) ? (int) $row['post_id'] : 0;
+        $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+        $term_taxonomy_id = isset($row['term_taxonomy_id']) ? (int) $row['term_taxonomy_id'] : 0;
+        if ($post_id <= 0 || $category_id <= 0 || $term_taxonomy_id <= 0 || !array_key_exists($term_taxonomy_id, $depth_by_term_taxonomy_id)) {
+            continue;
+        }
+
+        $depth = (int) $depth_by_term_taxonomy_id[$term_taxonomy_id];
+        if (!isset($deepest_by_post[$post_id]) || $depth > (int) ($deepest_by_post[$post_id]['depth'] ?? -1)) {
+            $deepest_by_post[$post_id] = [
+                'depth' => $depth,
+                'category_ids' => [$category_id => true],
+            ];
+            continue;
+        }
+
+        if ($depth === (int) ($deepest_by_post[$post_id]['depth'] ?? -1)) {
+            $deepest_by_post[$post_id]['category_ids'][$category_id] = true;
+        }
+    }
+
+    $counts = [];
+    foreach ($deepest_by_post as $post_row) {
+        foreach (array_keys((array) ($post_row['category_ids'] ?? [])) as $category_id_raw) {
+            $category_id = (int) $category_id_raw;
+            if ($category_id <= 0) {
+                continue;
+            }
+            $counts[$category_id] = ($counts[$category_id] ?? 0) + 1;
+        }
+    }
+
+    ksort($counts, SORT_NUMERIC);
+    return $counts;
+}
+
+/**
+ * @param int[] $excluded_word_ids
+ * @param array<int,int> $depth_by_term_taxonomy_id
+ * @return array<int,int>
+ */
+function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_id, int $wordset_tt_id, array $depth_by_term_taxonomy_id, bool $only_with_images, array $excluded_word_ids = []): array {
+    if ($wordset_tt_id <= 0 || empty($depth_by_term_taxonomy_id)) {
         return [];
     }
 
@@ -1922,42 +2012,40 @@ function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_id, in
     }
 
     $sql = "
-        SELECT category_depths.term_id AS category_id, COUNT(DISTINCT posts.ID) AS total
+        SELECT DISTINCT
+            posts.ID AS post_id,
+            category_taxonomy.term_id AS category_id,
+            category_relationships.term_taxonomy_id AS term_taxonomy_id
         FROM {$wpdb->posts} AS posts
         INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
             ON wordset_relationships.object_id = posts.ID
             AND wordset_relationships.term_taxonomy_id = %d
         INNER JOIN {$wpdb->term_relationships} AS category_relationships
             ON category_relationships.object_id = posts.ID
-        INNER JOIN {$depth_table_sql} AS category_depths
-            ON category_depths.term_taxonomy_id = category_relationships.term_taxonomy_id
-        LEFT JOIN {$wpdb->term_relationships} AS deeper_relationships
-            ON deeper_relationships.object_id = posts.ID
-        LEFT JOIN {$depth_table_sql} AS deeper_depths
-            ON deeper_depths.term_taxonomy_id = deeper_relationships.term_taxonomy_id
-            AND deeper_depths.depth > category_depths.depth
+        INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+            AND category_taxonomy.taxonomy = %s
         WHERE posts.post_type = %s
             AND posts.post_status = %s
-            AND deeper_depths.term_taxonomy_id IS NULL
             {$image_where}
             {$exclusion_where}
-        GROUP BY category_depths.term_id
     ";
 
-    $params = array_merge([$wordset_tt_id, 'words', 'publish'], $image_params);
+    $params = array_merge([$wordset_tt_id, 'word-category', 'words', 'publish'], $image_params);
     if (!empty($excluded_word_ids)) {
         $params = array_merge($params, $excluded_word_ids);
     }
 
-    return ll_tools_vocab_lesson_normalize_count_rows($wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A));
+    return ll_tools_vocab_lesson_count_deepest_category_rows($wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A), $depth_by_term_taxonomy_id);
 }
 
 /**
+ * @param array<int,int> $depth_by_term_taxonomy_id
  * @return array<int,int>
  */
-function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset_id, int $wordset_tt_id, string $depth_table_sql, string $prompt_card_post_type, bool $only_with_images): array {
+function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset_id, int $wordset_tt_id, array $depth_by_term_taxonomy_id, string $prompt_card_post_type, bool $only_with_images): array {
     $prompt_card_post_type = sanitize_key($prompt_card_post_type);
-    if ($wordset_tt_id <= 0 || $depth_table_sql === '' || $prompt_card_post_type === '') {
+    if ($wordset_tt_id <= 0 || empty($depth_by_term_taxonomy_id) || $prompt_card_post_type === '') {
         return [];
     }
 
@@ -2010,36 +2098,33 @@ function ll_tools_vocab_lesson_count_prompt_card_deepest_categories(int $wordset
     }
 
     $sql = "
-        SELECT category_depths.term_id AS category_id, COUNT(DISTINCT posts.ID) AS total
+        SELECT DISTINCT
+            posts.ID AS post_id,
+            category_taxonomy.term_id AS category_id,
+            category_relationships.term_taxonomy_id AS term_taxonomy_id
         FROM {$wpdb->posts} AS posts
         INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
             ON wordset_relationships.object_id = posts.ID
             AND wordset_relationships.term_taxonomy_id = %d
         INNER JOIN {$wpdb->term_relationships} AS category_relationships
             ON category_relationships.object_id = posts.ID
-        INNER JOIN {$depth_table_sql} AS category_depths
-            ON category_depths.term_taxonomy_id = category_relationships.term_taxonomy_id
-        LEFT JOIN {$wpdb->term_relationships} AS deeper_relationships
-            ON deeper_relationships.object_id = posts.ID
-        LEFT JOIN {$depth_table_sql} AS deeper_depths
-            ON deeper_depths.term_taxonomy_id = deeper_relationships.term_taxonomy_id
-            AND deeper_depths.depth > category_depths.depth
+        INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+            AND category_taxonomy.taxonomy = %s
         {$image_joins}
         WHERE posts.post_type = %s
             AND posts.post_status = %s
-            AND deeper_depths.term_taxonomy_id IS NULL
             {$image_where}
-        GROUP BY category_depths.term_id
     ";
 
     $params = array_merge(
-        [$wordset_tt_id],
+        [$wordset_tt_id, 'word-category'],
         $image_join_params,
         [$prompt_card_post_type, 'publish'],
         $image_where_params
     );
 
-    return ll_tools_vocab_lesson_normalize_count_rows($wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A));
+    return ll_tools_vocab_lesson_count_deepest_category_rows($wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A), $depth_by_term_taxonomy_id);
 }
 
 function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, bool $force_refresh = false): array {
@@ -2084,8 +2169,8 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     }
 
     $wordset_tt_id = ll_tools_vocab_lesson_get_wordset_term_taxonomy_id($wordset_id);
-    $depth_table_sql = ll_tools_vocab_lesson_build_depth_table_sql(ll_tools_vocab_lesson_get_word_category_depth_rows());
-    if ($wordset_tt_id <= 0 || $depth_table_sql === '') {
+    $depth_by_term_taxonomy_id = ll_tools_vocab_lesson_depth_by_term_taxonomy_id(ll_tools_vocab_lesson_get_word_category_depth_rows());
+    if ($wordset_tt_id <= 0 || empty($depth_by_term_taxonomy_id)) {
         $result = ['all' => [], 'with_images' => []];
         $request_cache[$cache_key] = $result;
         wp_cache_set($cache_key, $result, 'll_tools', $cache_ttl);
@@ -2096,10 +2181,10 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
     $excluded_word_ids = ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids();
 
-    $word_all_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, false, $excluded_word_ids);
-    $word_image_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, true, $excluded_word_ids);
-    $prompt_card_all_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, $prompt_card_post_type, false);
-    $prompt_card_image_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_id, $wordset_tt_id, $depth_table_sql, $prompt_card_post_type, true);
+    $word_all_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_by_term_taxonomy_id, false, $excluded_word_ids);
+    $word_image_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_by_term_taxonomy_id, true, $excluded_word_ids);
+    $prompt_card_all_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_id, $wordset_tt_id, $depth_by_term_taxonomy_id, $prompt_card_post_type, false);
+    $prompt_card_image_counts = ll_tools_vocab_lesson_count_prompt_card_deepest_categories($wordset_id, $wordset_tt_id, $depth_by_term_taxonomy_id, $prompt_card_post_type, true);
 
     $result = [
         'all' => ll_tools_vocab_lesson_merge_count_maps($word_all_counts, $prompt_card_all_counts),

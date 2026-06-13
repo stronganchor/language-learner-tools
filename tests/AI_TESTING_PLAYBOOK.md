@@ -216,6 +216,16 @@ Full Playwright run times out under an automation cap:
 - Use `node scripts/summarize-performance-history.js` for a quick read of existing JSONL history without rerunning the benchmark.
 - Set `LL_PERF_FORCE_SEED=1` when you need a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify the fixture state.
 - Set `LL_PERF_PROFILE=xl` when the default fixture is too small for a performance claim; the XL profile uses a separate manifest and history file.
+- Set `LL_PERF_PROFILE=stress-2x` when you need full local stress coverage for
+  a 4800-word wordset with per-word image/audio posts. Seed it separately first
+  with `LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1`, then benchmark with
+  `LL_PERF_SKIP_SEED=1`. The latest local findings live in
+  `tests/performance/STRESS_2X_FINDINGS.md`.
+- If `wordset-stress2x-search-filter` times out at the default 20 second
+  interaction cap, run the stress profile with
+  `LL_E2E_PERF_MAX_INTERACTION_MS=60000` and inspect whether the measured
+  interaction is still subsecond. A cold AJAX/search warmup timeout is different
+  from a steady-state search regression.
 - Confirm `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` are set because progress-page scenarios are authenticated.
 - If the fixture manifest changed intentionally, bump `fixtureVersion`; historical comparison only makes sense for the same fixture version, manifest checksum, and throttle profile.
 - If a slower machine produced acceptable timings, tune `LL_E2E_PERF_MAX_REGRESSION_RATIO` and `LL_E2E_PERF_MAX_REGRESSION_MS` rather than weakening scenario selectors.
