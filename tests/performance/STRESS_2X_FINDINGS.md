@@ -63,3 +63,31 @@ Result: passed in 1.4 minutes against fixture `2026-06-13-stress-2x.2`.
   interaction cap, so treat cold search/AJAX warmup behavior as a harness or
   first-hit follow-up before raising production concerns from that timeout
   alone.
+
+## Follow-Up: Progress Page Latency
+
+`wordset-stress2x-progress-load` is still a known follow-up. The 6390 ms
+`firstActionableMs` result means the authenticated Progress page needed about
+6.4 seconds under the benchmark throttle before
+`[data-ll-wordset-progress-root]` was visible. That is materially better than
+the 15775 ms pre-fix run, but it is still slow enough that it should not be
+treated as resolved simply because the benchmark passes.
+
+This likely needs a focused review and a coordinated set of changes rather than
+another isolated query tweak. Review at least:
+
+- the server-side Progress route and
+  `ll_tools_build_user_study_analytics_payload()`;
+- remaining category/content/vocab summary queries, including whether they can
+  be cached, materialized, or batched more deliberately;
+- authenticated page-shell behavior, with a bias toward rendering the shell
+  first and loading slower panels asynchronously;
+- browser-side hydration and rendering cost for the Progress page;
+- network payload size and whether the initial payload still stays bounded for
+  5000-word and 15000-audio wordsets;
+- regression coverage around `wordset-stress2x-progress-load` and
+  `wordset-page-progress-loading.spec.js`.
+
+Candidate success criteria: get the stress-profile Progress page to first
+actionable in 3000 ms or less, or explicitly choose and document a different
+budget after profiling the remaining server, network, and browser costs.
