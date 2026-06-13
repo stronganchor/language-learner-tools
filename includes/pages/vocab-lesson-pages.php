@@ -1994,15 +1994,6 @@ function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_id, in
 
     global $wpdb;
 
-    $image_where = '';
-    $image_params = [];
-    if ($only_with_images) {
-        $image_presence_sql = function_exists('ll_tools_effective_word_image_presence_sql')
-            ? ll_tools_effective_word_image_presence_sql('posts.ID', $wordset_id, $image_params)
-            : '0 = 1';
-        $image_where = "AND {$image_presence_sql}";
-    }
-
     $excluded_word_ids = array_values(array_unique(array_filter(array_map('intval', $excluded_word_ids), static function (int $word_id): bool {
         return $word_id > 0;
     })));
@@ -2027,16 +2018,36 @@ function ll_tools_vocab_lesson_count_word_deepest_categories(int $wordset_id, in
             AND category_taxonomy.taxonomy = %s
         WHERE posts.post_type = %s
             AND posts.post_status = %s
-            {$image_where}
             {$exclusion_where}
     ";
 
-    $params = array_merge([$wordset_tt_id, 'word-category', 'words', 'publish'], $image_params);
+    $params = [$wordset_tt_id, 'word-category', 'words', 'publish'];
     if (!empty($excluded_word_ids)) {
         $params = array_merge($params, $excluded_word_ids);
     }
 
-    return ll_tools_vocab_lesson_count_deepest_category_rows($wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A), $depth_by_term_taxonomy_id);
+    $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+    if ($only_with_images) {
+        if (!function_exists('ll_tools_get_word_effective_image_presence_map')) {
+            return [];
+        }
+
+        $word_ids = [];
+        foreach ((array) $rows as $row) {
+            $word_id = isset($row['post_id']) ? (int) $row['post_id'] : 0;
+            if ($word_id > 0) {
+                $word_ids[$word_id] = true;
+            }
+        }
+
+        $image_presence = ll_tools_get_word_effective_image_presence_map(array_keys($word_ids));
+        $rows = array_values(array_filter((array) $rows, static function ($row) use ($image_presence): bool {
+            $word_id = is_array($row) && isset($row['post_id']) ? (int) $row['post_id'] : 0;
+            return $word_id > 0 && !empty($image_presence[$word_id]);
+        }));
+    }
+
+    return ll_tools_vocab_lesson_count_deepest_category_rows($rows, $depth_by_term_taxonomy_id);
 }
 
 /**

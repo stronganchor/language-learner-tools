@@ -388,9 +388,9 @@ tests/bin/run-performance-benchmark.sh
   words), one run per scenario by default, and
   `tests/performance/history/performance-history-xl.jsonl` plus
   `tests/performance/reports/performance-latest-xl.*`.
-- Set `LL_PERF_PROFILE=stress-2x` for the full local stress fixture (`96 x 50 =
-  4800` words) with per-word image/audio posts sourced from the local Word Boat
-  media pool when available. This profile writes to
+- Set `LL_PERF_PROFILE=stress-2x` for the full local stress fixture (`100 x 50 =
+  5000` words, 15000 `word_audio` posts) with per-word image/audio posts
+  sourced from the local Word Boat media pool when available. This profile writes to
   `tests/performance/history/performance-history-stress-2x.jsonl` and
   `tests/performance/reports/performance-latest-stress-2x.*`.
 - For stress runs, seed separately first:

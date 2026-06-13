@@ -217,8 +217,8 @@ Full Playwright run times out under an automation cap:
 - Set `LL_PERF_FORCE_SEED=1` when you need a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify the fixture state.
 - Set `LL_PERF_PROFILE=xl` when the default fixture is too small for a performance claim; the XL profile uses a separate manifest and history file.
 - Set `LL_PERF_PROFILE=stress-2x` when you need full local stress coverage for
-  a 4800-word wordset with per-word image/audio posts. Seed it separately first
-  with `LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1`, then benchmark with
+  a 5000-word wordset with per-word image posts and 15000 `word_audio` posts.
+  Seed it separately first with `LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1`, then benchmark with
   `LL_PERF_SKIP_SEED=1`. The latest local findings live in
   `tests/performance/STRESS_2X_FINDINGS.md`.
 - If `wordset-stress2x-search-filter` times out at the default 20 second

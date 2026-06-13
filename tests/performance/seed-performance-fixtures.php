@@ -202,6 +202,18 @@ function ll_tools_perf_seed_manifest_checksum(): string {
     return is_readable($path) ? (string) hash_file('sha256', $path) : '';
 }
 
+function ll_tools_perf_seed_audio_per_word_count(array $manifest): int {
+    $media = isset($manifest['media']) && is_array($manifest['media']) ? $manifest['media'] : [];
+    if (empty($media['audioPerWord'])) {
+        return 0;
+    }
+
+    $raw_count = $media['audioPerWordCount'] ?? $media['audioPerWord'];
+    $count = is_bool($raw_count) ? 1 : (int) $raw_count;
+
+    return max(1, $count);
+}
+
 function ll_tools_perf_seed_manifest_totals(array $manifest): array {
     $wordsets = (array) ($manifest['wordsets'] ?? []);
     $category_count = 0;
@@ -227,7 +239,7 @@ function ll_tools_perf_seed_manifest_totals(array $manifest): array {
         'words' => $word_count,
         'word_images' => $image_count,
         'attachments' => $image_count,
-        'word_audio' => !empty($manifest['media']['audioPerWord']) ? $word_count : 0,
+        'word_audio' => $word_count * ll_tools_perf_seed_audio_per_word_count($manifest),
         'quiz_pages' => $category_count,
         'vocab_lessons' => $category_count,
         'pages' => $category_count + 1,
@@ -248,56 +260,77 @@ function ll_tools_perf_seed_expected_category_slugs(array $manifest): array {
 }
 
 function ll_tools_perf_seed_count_fixture_posts(string $post_type, string $fixture_version): int {
-    $query = new WP_Query([
-        'post_type' => $post_type,
-        'post_status' => 'any',
-        'posts_per_page' => 1,
-        'fields' => 'ids',
-        'no_found_rows' => false,
-        'suppress_filters' => true,
-        'meta_query' => [
-            [
-                'key' => LL_TOOLS_PERF_FIXTURE_META_KEY,
-                'value' => LL_TOOLS_PERF_FIXTURE_KEY,
-            ],
-            [
-                'key' => LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY,
-                'value' => $fixture_version,
-            ],
-        ],
-    ]);
+    global $wpdb;
 
-    return (int) $query->found_posts;
+    return (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT p.ID)
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->postmeta} fixture_meta
+            ON fixture_meta.post_id = p.ID
+            AND fixture_meta.meta_key = %s
+            AND fixture_meta.meta_value = %s
+        INNER JOIN {$wpdb->postmeta} version_meta
+            ON version_meta.post_id = p.ID
+            AND version_meta.meta_key = %s
+            AND version_meta.meta_value = %s
+        WHERE p.post_type = %s",
+        LL_TOOLS_PERF_FIXTURE_META_KEY,
+        LL_TOOLS_PERF_FIXTURE_KEY,
+        LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY,
+        $fixture_version,
+        sanitize_key($post_type)
+    ));
 }
 
 function ll_tools_perf_seed_count_wordset_fixture_words(int $wordset_id, string $fixture_version): int {
-    $query = new WP_Query([
-        'post_type' => 'words',
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        'fields' => 'ids',
-        'no_found_rows' => false,
-        'suppress_filters' => true,
-        'tax_query' => [
-            [
-                'taxonomy' => 'wordset',
-                'field' => 'term_id',
-                'terms' => [$wordset_id],
-            ],
-        ],
-        'meta_query' => [
-            [
-                'key' => LL_TOOLS_PERF_FIXTURE_META_KEY,
-                'value' => LL_TOOLS_PERF_FIXTURE_KEY,
-            ],
-            [
-                'key' => LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY,
-                'value' => $fixture_version,
-            ],
-        ],
-    ]);
+    global $wpdb;
 
-    return (int) $query->found_posts;
+    return (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT p.ID)
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt
+            ON tt.term_taxonomy_id = tr.term_taxonomy_id
+            AND tt.taxonomy = 'wordset'
+            AND tt.term_id = %d
+        INNER JOIN {$wpdb->postmeta} fixture_meta
+            ON fixture_meta.post_id = p.ID
+            AND fixture_meta.meta_key = %s
+            AND fixture_meta.meta_value = %s
+        INNER JOIN {$wpdb->postmeta} version_meta
+            ON version_meta.post_id = p.ID
+            AND version_meta.meta_key = %s
+            AND version_meta.meta_value = %s
+        WHERE p.post_type = 'words'
+            AND p.post_status = 'publish'",
+        $wordset_id,
+        LL_TOOLS_PERF_FIXTURE_META_KEY,
+        LL_TOOLS_PERF_FIXTURE_KEY,
+        LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY,
+        $fixture_version
+    ));
+}
+
+function ll_tools_perf_seed_fixture_post_type_expectations(array $totals): array {
+    $expectations = [
+        'words' => (int) $totals['words'],
+        'word_audio' => (int) $totals['word_audio'],
+        'word_images' => (int) $totals['word_images'],
+        'attachment' => (int) $totals['attachments'],
+        'll_vocab_lesson' => (int) $totals['vocab_lessons'],
+    ];
+
+    $quiz_page_post_type = defined('LL_TOOLS_QUIZ_PAGE_POST_TYPE')
+        ? sanitize_key((string) LL_TOOLS_QUIZ_PAGE_POST_TYPE)
+        : 'page';
+    if ($quiz_page_post_type === '') {
+        $quiz_page_post_type = 'page';
+    }
+
+    $expectations[$quiz_page_post_type] = ($expectations[$quiz_page_post_type] ?? 0) + (int) $totals['quiz_pages'];
+    $expectations['page'] = ($expectations['page'] ?? 0) + 1;
+
+    return array_filter($expectations, static fn(int $expected_count): bool => $expected_count > 0);
 }
 
 function ll_tools_perf_seed_refresh_rewrites(): void {
@@ -384,14 +417,7 @@ function ll_tools_perf_seed_get_current_fixture_summary(array $manifest): array 
         }
     }
 
-    $post_type_expectations = [
-        'words' => $totals['words'],
-        'word_audio' => $totals['word_audio'],
-        'word_images' => $totals['word_images'],
-        'attachment' => $totals['attachments'],
-        'll_vocab_lesson' => $totals['vocab_lessons'],
-        'page' => $totals['pages'],
-    ];
+    $post_type_expectations = ll_tools_perf_seed_fixture_post_type_expectations($totals);
     foreach ($post_type_expectations as $post_type => $expected_count) {
         $actual_count = ll_tools_perf_seed_count_fixture_posts($post_type, $fixture_version);
         if ($actual_count !== (int) $expected_count) {
@@ -427,30 +453,100 @@ function ll_tools_perf_seed_get_current_fixture_summary(array $manifest): array 
 }
 
 function ll_tools_perf_seed_delete_posts(array $post_ids): int {
+    global $wpdb;
+
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', $post_ids),
+        static fn(int $post_id): bool => $post_id > 0
+    )));
+    if (empty($ids)) {
+        return 0;
+    }
+
     $deleted = 0;
-    foreach (array_values(array_unique(array_map('intval', $post_ids))) as $post_id) {
-        if ($post_id <= 0) {
-            continue;
-        }
-        if (wp_delete_post($post_id, true)) {
-            $deleted++;
-        }
+    foreach (array_chunk($ids, 500) as $chunk) {
+        $comment_ids = ll_tools_perf_seed_query_comment_ids_for_posts($chunk);
+        ll_tools_perf_seed_delete_rows_by_ids($wpdb->commentmeta, 'comment_id', $comment_ids);
+        ll_tools_perf_seed_delete_rows_by_ids($wpdb->comments, 'comment_post_ID', $chunk);
+        ll_tools_perf_seed_delete_rows_by_ids($wpdb->term_relationships, 'object_id', $chunk);
+        ll_tools_perf_seed_delete_rows_by_ids($wpdb->postmeta, 'post_id', $chunk);
+        $deleted += ll_tools_perf_seed_delete_rows_by_ids($wpdb->posts, 'ID', $chunk);
+    }
+
+    if (function_exists('wp_cache_flush')) {
+        wp_cache_flush();
     }
 
     return $deleted;
 }
 
 function ll_tools_perf_seed_query_fixture_posts(): array {
-    return get_posts([
-        'post_type' => ['words', 'word_audio', 'word_images', 'll_vocab_lesson', 'll_quiz_page', 'page', 'attachment'],
-        'post_status' => 'any',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'suppress_filters' => true,
-        'meta_key' => LL_TOOLS_PERF_FIXTURE_META_KEY,
-        'meta_value' => LL_TOOLS_PERF_FIXTURE_KEY,
-    ]);
+    global $wpdb;
+
+    $post_types = ['words', 'word_audio', 'word_images', 'll_vocab_lesson', 'll_quiz_page', 'page', 'attachment'];
+    $post_type_placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+    $sql = $wpdb->prepare(
+        "SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+        WHERE pm.meta_key = %s
+            AND pm.meta_value = %s
+            AND p.post_type IN ({$post_type_placeholders})",
+        LL_TOOLS_PERF_FIXTURE_META_KEY,
+        LL_TOOLS_PERF_FIXTURE_KEY,
+        ...$post_types
+    );
+
+    return array_map('intval', (array) $wpdb->get_col($sql));
+}
+
+function ll_tools_perf_seed_query_comment_ids_for_posts(array $post_ids): array {
+    global $wpdb;
+
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', $post_ids),
+        static fn(int $post_id): bool => $post_id > 0
+    )));
+    if (empty($ids)) {
+        return [];
+    }
+
+    $comment_ids = [];
+    foreach (array_chunk($ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $sql = $wpdb->prepare(
+            "SELECT comment_ID FROM {$wpdb->comments} WHERE comment_post_ID IN ({$placeholders})",
+            ...$chunk
+        );
+        $comment_ids = array_merge($comment_ids, array_map('intval', (array) $wpdb->get_col($sql)));
+    }
+
+    return array_values(array_unique(array_filter($comment_ids)));
+}
+
+function ll_tools_perf_seed_delete_rows_by_ids(string $table, string $column, array $ids): int {
+    global $wpdb;
+
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', $ids),
+        static fn(int $id): bool => $id > 0
+    )));
+    if (empty($ids)) {
+        return 0;
+    }
+
+    $deleted = 0;
+    foreach (array_chunk($ids, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $result = $wpdb->query(
+            $wpdb->prepare("DELETE FROM {$table} WHERE {$column} IN ({$placeholders})", ...$chunk)
+        );
+        if (is_int($result)) {
+            $deleted += $result;
+        }
+    }
+
+    return $deleted;
 }
 
 function ll_tools_perf_seed_reset_fixture(array $manifest): array {
@@ -839,6 +935,7 @@ function ll_tools_perf_seed_media_context(array $manifest): array {
     $audio_limit = ll_tools_perf_seed_env_int('LL_PERF_SOURCE_AUDIO_LIMIT', 240);
     $image_files = ll_tools_perf_seed_media_files($image_dirs, ['webp', 'jpg', 'jpeg', 'png'], $image_limit);
     $audio_files = ll_tools_perf_seed_media_files($audio_dirs, ['wav', 'mp3', 'ogg', 'm4a'], $audio_limit);
+    $audio_per_word_count = ll_tools_perf_seed_audio_per_word_count($manifest);
 
     return [
         'images' => $image_files,
@@ -850,7 +947,8 @@ function ll_tools_perf_seed_media_context(array $manifest): array {
             'audio_files' => count($audio_files),
             'image_per_category' => !empty($manifest['media']['imagePerCategory']),
             'image_per_word' => !empty($manifest['media']['imagePerWord']),
-            'audio_per_word' => !empty($manifest['media']['audioPerWord']),
+            'audio_per_word' => $audio_per_word_count > 0,
+            'audio_per_word_count' => $audio_per_word_count,
         ],
     ];
 }
@@ -1125,22 +1223,31 @@ function ll_tools_perf_seed_create_word(array $wordset, int $wordset_id, array $
     }
     ll_tools_perf_seed_insert_post_meta_rows($word_id, $word_meta);
 
-    if (!empty($manifest['media']['audioPerWord'])) {
+    $audio_per_word_count = ll_tools_perf_seed_audio_per_word_count($manifest);
+    for ($audio_index = 1; $audio_index <= $audio_per_word_count; $audio_index++) {
+        $audio_suffix = $audio_per_word_count === 1 ? 'audio' : 'audio-' . sprintf('%02d', $audio_index);
+        $audio_sequence = ($word_sequence * $audio_per_word_count) + ($audio_index - 1);
+        $audio_title = $audio_per_word_count === 1
+            ? $word_title . ' Audio'
+            : $word_title . ' Audio ' . sprintf('%02d', $audio_index);
+        $speaker_name = $audio_per_word_count === 1
+            ? 'LL Performance Fixture'
+            : 'LL Performance Fixture ' . sprintf('%02d', $audio_index);
         $word_audio_path = ll_tools_perf_seed_audio_path(
-            $word_slug . '-audio',
-            ll_tools_perf_seed_media_source((array) ($media_context['audio'] ?? []), $word_sequence)
+            $word_slug . '-' . $audio_suffix,
+            ll_tools_perf_seed_media_source((array) ($media_context['audio'] ?? []), $audio_sequence)
         );
         $audio_id = ll_tools_perf_seed_insert_post_row([
             'post_type' => 'word_audio',
             'post_status' => 'publish',
-            'post_title' => $word_title . ' Audio',
-            'post_name' => $word_slug . '-audio',
+            'post_title' => $audio_title,
+            'post_name' => $word_slug . '-' . $audio_suffix,
             'post_parent' => $word_id,
         ], $fixture_version);
         ll_tools_perf_seed_insert_post_meta_rows($audio_id, [
             'audio_file_path' => $word_audio_path,
             'recording_text' => $word_title,
-            'speaker_name' => 'LL Performance Fixture',
+            'speaker_name' => $speaker_name,
         ]);
         ll_tools_perf_seed_insert_term_relationships($audio_id, [
             ll_tools_perf_seed_term_taxonomy_id_for_slug('recording_type', 'isolation', 'Isolation'),

@@ -46,10 +46,11 @@ LL_PERF_PROFILE=stress-2x LL_PERF_SKIP_SEED=1 LL_E2E_PERF_RUNS=1 LL_E2E_PERF_COM
 
 The stress profile uses
 `tests/performance/fixtures/performance-wordsets-stress-2x.json`, targets
-`benchmarkTargetSize: "stress2x"`, creates `96 x 50 = 4800` words, and gives
-each word a `word_images` post, attachment metadata, and a `word_audio` post.
-It uses existing Word Boat media when available, materialized into a small
-fixture-local pool. Override the source locations or pool size with:
+`benchmarkTargetSize: "stress2x"`, creates `100 x 50 = 5000` words, and gives
+each word a `word_images` post, attachment metadata, and three `word_audio`
+posts for a 15000-recording stress shape. It uses existing Word Boat media when
+available, materialized into a small fixture-local pool. Override the source
+locations or pool size with:
 
 ```bash
 LL_PERF_WORDBOAT_ROOT=/mnt/c/Users/messy/OneDrive/Websites/wordboat
