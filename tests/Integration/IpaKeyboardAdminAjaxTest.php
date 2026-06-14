@@ -567,6 +567,79 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame([], (array) ($state['active'] ?? []));
     }
 
+    public function test_flagged_validation_notice_counts_ignore_orphaned_wordset_state(): void
+    {
+        $user_id = $this->create_viewer_user();
+        wp_set_current_user($user_id);
+
+        $stale_wordset_id = $this->create_wordset('Stale Notice Wordset');
+        $valid_wordset_id = $this->create_wordset('Valid Notice Wordset');
+        $issue = [
+            'rule_key' => 'builtin:orthography_mismatch',
+            'code' => 'orthography_mismatch',
+            'type' => 'builtin',
+            'label' => 'Orthography mismatch',
+            'message' => 'Saved text does not match the current orthography rules.',
+            'count' => 1,
+        ];
+
+        $orphaned_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Moved Word',
+        ]);
+        wp_set_object_terms($orphaned_word_id, [$valid_wordset_id], 'wordset', false);
+
+        $orphaned_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $orphaned_word_id,
+            'post_title' => 'Moved Word Recording',
+        ]);
+        update_post_meta($orphaned_recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $stale_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [$issue],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($orphaned_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        $valid_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Still Flagged',
+        ]);
+        wp_set_object_terms($valid_word_id, [$valid_wordset_id], 'wordset', false);
+
+        $valid_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $valid_word_id,
+            'post_title' => 'Still Flagged Recording',
+        ]);
+        update_post_meta($valid_recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $valid_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [$issue],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($valid_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        $stale_search = ll_tools_ipa_keyboard_search_recordings($stale_wordset_id, '', 'both', true);
+        $this->assertSame(0, (int) ($stale_search['total_matches'] ?? -1));
+
+        $counts_by_wordset = [];
+        foreach (ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset() as $entry) {
+            $counts_by_wordset[(int) ($entry['wordset_id'] ?? 0)] = (int) ($entry['count'] ?? 0);
+        }
+
+        $this->assertArrayNotHasKey($stale_wordset_id, $counts_by_wordset);
+        $this->assertSame(1, (int) ($counts_by_wordset[$valid_wordset_id] ?? 0));
+        $this->assertSame(1, ll_tools_ipa_keyboard_get_flagged_validation_recording_count());
+    }
+
     private function create_viewer_user(): int
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);

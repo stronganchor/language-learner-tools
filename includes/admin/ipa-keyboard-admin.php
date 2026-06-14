@@ -7625,13 +7625,43 @@ function ll_tools_ipa_keyboard_rescan_all_validations(): int {
     return $count;
 }
 
+function ll_tools_ipa_keyboard_get_active_validation_wordset_ids_for_recording(
+    int $recording_id,
+    ?WP_Post $recording = null
+): array {
+    if ($recording_id <= 0) {
+        return [];
+    }
+
+    $state = ll_tools_ipa_keyboard_get_recording_validation_state($recording_id);
+    if (empty($state)) {
+        return [];
+    }
+
+    $wordset_ids = [];
+    foreach ($state as $wordset_id => $entry) {
+        $wordset_id = (int) $wordset_id;
+        if ($wordset_id <= 0 || empty($entry['active'])) {
+            continue;
+        }
+
+        if (!ll_tools_ipa_keyboard_recording_belongs_to_wordset_id($recording_id, $wordset_id, $recording)) {
+            continue;
+        }
+
+        $wordset_ids[] = $wordset_id;
+    }
+
+    return array_values(array_unique($wordset_ids));
+}
+
 function ll_tools_ipa_keyboard_get_flagged_validation_recording_count(): int {
-    $query = new WP_Query([
+    $recording_ids = get_posts([
         'post_type' => 'word_audio',
         'post_status' => 'publish',
-        'posts_per_page' => 1,
+        'posts_per_page' => -1,
         'fields' => 'ids',
-        'no_found_rows' => false,
+        'no_found_rows' => true,
         'meta_query' => [
             [
                 'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
@@ -7642,7 +7672,19 @@ function ll_tools_ipa_keyboard_get_flagged_validation_recording_count(): int {
         ],
     ]);
 
-    return (int) $query->found_posts;
+    $count = 0;
+    foreach ((array) $recording_ids as $recording_id) {
+        $recording_id = (int) $recording_id;
+        if ($recording_id <= 0) {
+            continue;
+        }
+
+        if (!empty(ll_tools_ipa_keyboard_get_active_validation_wordset_ids_for_recording($recording_id))) {
+            $count++;
+        }
+    }
+
+    return $count;
 }
 
 function ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset(): array {
@@ -7672,10 +7714,14 @@ function ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordse
 
     $counts = [];
     foreach ((array) $recording_ids as $recording_id) {
-        $state = ll_tools_ipa_keyboard_get_recording_validation_state((int) $recording_id);
-        foreach ($state as $wordset_id => $entry) {
-            $wordset_id = (int) $wordset_id;
-            if ($wordset_id <= 0 || empty($entry['active']) || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
+        $recording_id = (int) $recording_id;
+        if ($recording_id <= 0) {
+            continue;
+        }
+
+        $recording = get_post($recording_id);
+        foreach (ll_tools_ipa_keyboard_get_active_validation_wordset_ids_for_recording($recording_id, $recording) as $wordset_id) {
+            if (!ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
                 continue;
             }
 
