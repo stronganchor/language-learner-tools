@@ -7438,6 +7438,35 @@ function ll_tools_ipa_keyboard_recording_belongs_to_wordset_id(int $recording_id
     return !is_wp_error($wordset_ids) && in_array($wordset_id, array_map('intval', (array) $wordset_ids), true);
 }
 
+function ll_tools_ipa_keyboard_recording_is_in_wordset_search_scope(int $recording_id, int $wordset_id, ?WP_Post $recording = null): bool {
+    static $word_id_sets_by_wordset = [];
+
+    if ($recording_id <= 0 || $wordset_id <= 0) {
+        return false;
+    }
+
+    if (!($recording instanceof WP_Post)) {
+        $recording = get_post($recording_id);
+    }
+    if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio') {
+        return false;
+    }
+
+    $word_id = (int) $recording->post_parent;
+    if ($word_id <= 0) {
+        return false;
+    }
+
+    if (!array_key_exists($wordset_id, $word_id_sets_by_wordset)) {
+        $word_id_sets_by_wordset[$wordset_id] = array_fill_keys(
+            ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id),
+            true
+        );
+    }
+
+    return isset($word_id_sets_by_wordset[$wordset_id][$word_id]);
+}
+
 function ll_tools_ipa_keyboard_count_active_validation_issues(array $state): int {
     $active_issue_count = 0;
     foreach ($state as $entry) {
@@ -7645,7 +7674,7 @@ function ll_tools_ipa_keyboard_get_active_validation_wordset_ids_for_recording(
             continue;
         }
 
-        if (!ll_tools_ipa_keyboard_recording_belongs_to_wordset_id($recording_id, $wordset_id, $recording)) {
+        if (!ll_tools_ipa_keyboard_recording_is_in_wordset_search_scope($recording_id, $wordset_id, $recording)) {
             continue;
         }
 

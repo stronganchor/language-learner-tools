@@ -605,6 +605,28 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         ]);
         update_post_meta($orphaned_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
 
+        $hidden_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Hidden Word',
+        ]);
+        wp_set_object_terms($hidden_word_id, [$stale_wordset_id], 'wordset', false);
+
+        $hidden_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $hidden_word_id,
+            'post_title' => 'Hidden Word Recording',
+        ]);
+        update_post_meta($hidden_recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $stale_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [$issue],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($hidden_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
         $valid_word_id = self::factory()->post->create([
             'post_type' => 'words',
             'post_status' => 'publish',
