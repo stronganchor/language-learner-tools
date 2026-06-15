@@ -3026,7 +3026,7 @@ function ll_tools_word_grid_get_category_editor_terms_for_wordset(int $wordset_i
             }
         }
 
-        if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+        if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY') && empty($specific_word_ids)) {
             $image_ids = get_posts([
                 'post_type'      => 'word_images',
                 'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
@@ -3836,6 +3836,7 @@ function ll_tools_word_edit_modal_enqueue_assets(int $wordset_id = 0): void {
             'openError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
             'renderError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
             'missingHost' => __('Word editor modal is not available on this page.', 'll-tools-text-domain'),
+            'loading' => __('Loading word editor...', 'll-tools-text-domain'),
         ],
     ]);
 }

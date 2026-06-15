@@ -7,6 +7,9 @@
     const i18n = (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
     const hostSelector = '[data-ll-word-edit-modal-host]';
     const gridSelector = '[data-ll-word-edit-modal-grid]';
+    const loadingSelector = '[data-ll-word-edit-modal-loading-shell]';
+    const gridResponseCache = {};
+    const gridRequestCache = {};
 
     function t(key, fallback) {
         const value = i18n[key];
@@ -34,6 +37,50 @@
 
     function getHostGrid() {
         return getHost().find(gridSelector).first();
+    }
+
+    function buildGridCacheKey(wordId, wordsetId, categoryId) {
+        return [
+            parseInt(wordsetId, 10) || 0,
+            parseInt(wordId, 10) || 0,
+            parseInt(categoryId, 10) || 0
+        ].join(':');
+    }
+
+    function ensureLoadingShell($host) {
+        let $shell = $host.find(loadingSelector).first();
+        if ($shell.length) {
+            return $shell;
+        }
+
+        $shell = $('<div>', {
+            class: 'll-word-edit-modal-loading',
+            'data-ll-word-edit-modal-loading-shell': '1',
+            'aria-hidden': 'true',
+            hidden: true
+        }).append(
+            $('<div>', { class: 'll-word-edit-modal-loading__backdrop' }),
+            $('<div>', {
+                class: 'll-word-edit-modal-loading__panel',
+                role: 'dialog',
+                'aria-modal': 'true'
+            }).append(
+                $('<span>', { class: 'll-word-edit-modal-loading__spinner', 'aria-hidden': 'true' }),
+                $('<span>', {
+                    class: 'll-word-edit-modal-loading__text',
+                    text: t('loading', 'Loading word editor...')
+                })
+            )
+        );
+        $host.append($shell);
+        return $shell;
+    }
+
+    function setLoadingShellVisible($host, visible) {
+        const $shell = ensureLoadingShell($host);
+        const show = !!visible;
+        $shell.prop('hidden', !show).attr('aria-hidden', show ? 'false' : 'true');
+        $('body').toggleClass('ll-word-edit-modal-loading-open', show);
     }
 
     function syncElementAttributes(source, target) {
@@ -86,6 +133,47 @@
         return $item;
     }
 
+    function requestGridData(wordId, wordsetId, categoryId) {
+        const cacheKey = buildGridCacheKey(wordId, wordsetId, categoryId);
+        if (gridResponseCache[cacheKey]) {
+            return Promise.resolve(gridResponseCache[cacheKey]);
+        }
+        if (gridRequestCache[cacheKey]) {
+            return gridRequestCache[cacheKey];
+        }
+
+        gridRequestCache[cacheKey] = new Promise(function (resolve, reject) {
+            $.post(ajaxUrl, {
+                action: 'll_tools_get_word_edit_modal_grid',
+                nonce: nonce,
+                word_id: wordId,
+                wordset_id: wordsetId,
+                category_id: categoryId
+            }).done(function (response) {
+                if (!response || response.success !== true || !response.data) {
+                    reject(new Error(readAjaxMessage(response, t('openError', 'Unable to open the word editor.'))));
+                    return;
+                }
+
+                gridResponseCache[cacheKey] = response.data || {};
+                resolve(gridResponseCache[cacheKey]);
+            }).fail(function (jqXHR) {
+                const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
+                reject(new Error(readAjaxMessage(response, t('openError', 'Unable to open the word editor.'))));
+            }).always(function () {
+                delete gridRequestCache[cacheKey];
+            });
+        });
+
+        return gridRequestCache[cacheKey];
+    }
+
+    function clearGridResponseCache() {
+        Object.keys(gridResponseCache).forEach(function (key) {
+            delete gridResponseCache[key];
+        });
+    }
+
     function focusRecording($item, recordingId) {
         const id = parseInt(recordingId, 10) || 0;
         if (!id) {
@@ -127,57 +215,40 @@
             return Promise.reject(new Error(t('missingHost', 'Word editor modal is not available on this page.')));
         }
 
+        const cacheKey = buildGridCacheKey(wordId, wordsetId, categoryId);
+        const hasCachedResponse = !!gridResponseCache[cacheKey];
         $host.attr('aria-busy', 'true').attr('data-ll-word-edit-modal-loading', '1');
+        if (!hasCachedResponse) {
+            setLoadingShellVisible($host, true);
+        }
         $(document).trigger('lltools:word-edit-modal-loading', [{
             wordId: wordId,
             wordsetId: wordsetId,
             recordingId: recordingId
         }]);
 
-        return new Promise(function (resolve, reject) {
-            $.post(ajaxUrl, {
-                action: 'll_tools_get_word_edit_modal_grid',
-                nonce: nonce,
-                word_id: wordId,
-                wordset_id: wordsetId,
-                category_id: categoryId
-            }).done(function (response) {
-                if (!response || response.success !== true || !response.data) {
-                    reject(new Error(readAjaxMessage(response, t('openError', 'Unable to open the word editor.'))));
-                    return;
-                }
-
-                try {
-                    const data = response.data || {};
-                    applyWordGridConfig(data.config || null);
-                    const $item = renderGridMarkup(data.html || '');
-                    const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
-                    if (!$toggle.length) {
-                        throw new Error(t('renderError', 'Unable to open the word editor.'));
-                    }
-                    $toggle.trigger('click');
-                    focusRecording($item, recordingId);
-                    $(document).trigger('lltools:word-edit-modal-opened', [{
-                        wordId: wordId,
-                        wordsetId: wordsetId,
-                        recordingId: recordingId,
-                        item: $item.get(0)
-                    }]);
-                    resolve({
-                        wordId: wordId,
-                        wordsetId: wordsetId,
-                        recordingId: recordingId,
-                        item: $item.get(0)
-                    });
-                } catch (error) {
-                    reject(error);
-                }
-            }).fail(function (jqXHR) {
-                const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
-                reject(new Error(readAjaxMessage(response, t('openError', 'Unable to open the word editor.'))));
-            }).always(function () {
-                $host.removeAttr('aria-busy').removeAttr('data-ll-word-edit-modal-loading');
-            });
+        return requestGridData(wordId, wordsetId, categoryId).then(function (data) {
+            applyWordGridConfig(data.config || null);
+            const $item = renderGridMarkup(data.html || '');
+            const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
+            if (!$toggle.length) {
+                throw new Error(t('renderError', 'Unable to open the word editor.'));
+            }
+            setLoadingShellVisible($host, false);
+            $toggle.trigger('click');
+            focusRecording($item, recordingId);
+            $(document).trigger('lltools:word-edit-modal-opened', [{
+                wordId: wordId,
+                wordsetId: wordsetId,
+                recordingId: recordingId,
+                item: $item.get(0)
+            }]);
+            return {
+                wordId: wordId,
+                wordsetId: wordsetId,
+                recordingId: recordingId,
+                item: $item.get(0)
+            };
         }).catch(function (error) {
             $(document).trigger('lltools:word-edit-modal-error', [{
                 wordId: wordId,
@@ -186,9 +257,16 @@
                 message: error && error.message ? error.message : t('openError', 'Unable to open the word editor.')
             }]);
             throw error;
+        }).finally(function () {
+            setLoadingShellVisible($host, false);
+            $host.removeAttr('aria-busy').removeAttr('data-ll-word-edit-modal-loading');
         });
     }
 
     window.LLToolsWordEditModal = window.LLToolsWordEditModal || {};
     window.LLToolsWordEditModal.open = openWordEditor;
+    $(document).on(
+        'lltools:word-grid-word-updated.llToolsWordEditModal lltools:word-grid-word-deleted.llToolsWordEditModal lltools:word-grid-recording-deleted.llToolsWordEditModal lltools:word-grid-recording-moved.llToolsWordEditModal',
+        clearGridResponseCache
+    );
 })(jQuery);

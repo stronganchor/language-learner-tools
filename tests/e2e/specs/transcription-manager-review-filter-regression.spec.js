@@ -7,6 +7,10 @@ const ipaKeyboardAdminSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/ipa-keyboard-admin.js'),
   'utf8'
 );
+const wordEditModalSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/word-edit-modal.js'),
+  'utf8'
+);
 const ipaKeyboardAdminCss = fs.readFileSync(
   path.resolve(__dirname, '../../../css/ipa-keyboard-admin.css'),
   'utf8'
@@ -822,6 +826,21 @@ test('recording rows open the detached word editor and refresh after modal chang
   await expect(row).toHaveAttribute('data-word-id', '77');
   const editToggle = row.locator('.ll-ipa-search-word-edit-toggle');
   await expect(editToggle).toHaveAttribute('aria-label', 'Edit word');
+  await expect(row.locator('.ll-ipa-search-meta-cell .ll-ipa-search-word-edit-toggle')).toHaveCount(1);
+  await expect(row.locator('.ll-ipa-search-action-cell .ll-ipa-search-word-edit-toggle')).toHaveCount(0);
+  const editPlacement = await row.evaluate(rowEl => {
+    const button = rowEl.querySelector('.ll-ipa-search-word-edit-toggle');
+    return {
+      inMetaCell: !!(button && button.closest('.ll-ipa-search-meta-cell')),
+      inActionCell: !!(button && button.closest('.ll-ipa-search-action-cell')),
+      firstPath: button && button.querySelector('path') ? button.querySelector('path').getAttribute('d') : ''
+    };
+  });
+  expect(editPlacement).toEqual({
+    inMetaCell: true,
+    inActionCell: false,
+    firstPath: 'M4 20.5h4l10-10-4-4-10 10v4z'
+  });
   await expect(row.locator('.ll-ipa-search-recording-delete-toggle')).toHaveCount(0);
 
   await editToggle.click();
@@ -862,6 +881,297 @@ test('recording rows open the detached word editor and refresh after modal chang
     'll_tools_search_ipa_keyboard_recordings',
     'll_tools_search_ipa_keyboard_recordings'
   ]);
+});
+
+test('dirty transcription rows save once and then open the detached word editor', async ({ page }) => {
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    try {
+      window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+      window.localStorage.removeItem('llTranscriptionManagerLastTab');
+    } catch (error) {
+      // Ignore storage cleanup failures in the test harness.
+    }
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function buildRecording() {
+      return {
+        recording_id: 404,
+        word_id: 88,
+        word_text: 'Delta',
+        word_translation: '',
+        word_edit_link: '',
+        recording_text: 'delta',
+        recording_translation: '',
+        recording_ipa: 'delta ipa',
+        categories: [],
+        issues: [],
+        ignored_issues: [],
+        issue_count: 0,
+        ignored_issue_count: 0,
+        needs_review: false,
+        review_fields: {
+          recording_text: false,
+          recording_ipa: false
+        },
+        review_note: '',
+        image: {},
+        audio_url: '',
+        audio_label: 'Play recording'
+      };
+    }
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'search',
+      initialSearch: {
+        query: '',
+        scope: 'both',
+        issues_only: false,
+        review_only: false,
+        exact_transcription: false,
+        page: 1
+      },
+      i18n: {}
+    };
+
+    window.__llQueuedEditorMock = {
+      recording: buildRecording(),
+      postCalls: [],
+      openCalls: []
+    };
+    window.LLToolsWordEditModal = {
+      open(options) {
+        window.__llQueuedEditorMock.openCalls.push(Object.assign({}, options));
+        return Promise.resolve({
+          wordId: options.wordId,
+          wordsetId: options.wordsetId,
+          recordingId: options.recordingId
+        });
+      }
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const requestData = Object.assign({}, data);
+      window.__llQueuedEditorMock.postCalls.push({
+        url: String(url || ''),
+        data: requestData
+      });
+
+      window.setTimeout(function () {
+        const mock = window.__llQueuedEditorMock;
+        if (requestData.action === 'll_tools_search_ipa_keyboard_recordings') {
+          deferred.resolve({
+            success: true,
+            data: {
+              wordset: {
+                id: 7,
+                name: 'Queued Editor Wordset'
+              },
+              transcription: {
+                mode: 'ipa',
+                symbols_column_label: 'Pronunciation'
+              },
+              results: [clone(mock.recording)],
+              total_matches: 1,
+              shown_count: 1,
+              has_more: false,
+              current_page: 1,
+              total_pages: 1,
+              per_page: 100,
+              page_start: 1,
+              page_end: 1,
+              issues_only: false,
+              review_only: false,
+              exact_transcription: false,
+              can_edit: true,
+              validation_config: {
+                supports_rules: true,
+                builtin_rules: [],
+                custom_rules: []
+              }
+            }
+          });
+          return;
+        }
+
+        if (requestData.action === 'll_tools_update_ipa_keyboard_recording') {
+          mock.recording = Object.assign({}, mock.recording, {
+            recording_text: requestData.recording_text,
+            recording_ipa: requestData.recording_ipa
+          });
+          deferred.resolve({
+            success: true,
+            data: {
+              recording: clone(mock.recording),
+              validation: null,
+              keyboard_symbols: []
+            }
+          });
+          return;
+        }
+
+        deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
+      }, requestData.action === 'll_tools_update_ipa_keyboard_recording' ? 150 : 0);
+
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  const row = page.locator('#ll-ipa-search-results tbody tr').first();
+  await expect(row).toHaveAttribute('data-word-id', '88');
+  await row.locator('.ll-ipa-search-text-input').fill('delta changed');
+  await row.locator('.ll-ipa-search-word-edit-toggle').click();
+
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Saving changes before opening the word editor...');
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Word editor opened.');
+
+  const result = await page.evaluate(() => {
+    return {
+      actions: window.__llQueuedEditorMock.postCalls.map(call => call.data.action),
+      openCalls: window.__llQueuedEditorMock.openCalls,
+      savedText: window.__llQueuedEditorMock.recording.recording_text
+    };
+  });
+
+  expect(result.actions).toEqual([
+    'll_tools_search_ipa_keyboard_recordings',
+    'll_tools_update_ipa_keyboard_recording'
+  ]);
+  expect(result.openCalls).toEqual([
+    {
+      wordId: 88,
+      wordsetId: 7,
+      recordingId: 404
+    }
+  ]);
+  expect(result.savedText).toBe('delta changed');
+});
+
+test('detached word editor shows a loading shell immediately and reuses cached one-word markup', async ({ page }) => {
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(`
+    <div class="ll-word-edit-modal-host" data-ll-word-edit-modal-host aria-live="polite">
+      <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-word-edit-modal-grid="1"></div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.llToolsWordEditModalData = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'modal-nonce',
+      i18n: {
+        loading: 'Loading word editor...'
+      }
+    };
+    window.LLToolsWordGrid = {
+      configCalls: [],
+      applyConfig(config) {
+        this.configCalls.push(config || {});
+      }
+    };
+    window.__llModalMock = {
+      postCalls: [],
+      deferreds: []
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      window.__llModalMock.postCalls.push({
+        url: String(url || ''),
+        data: Object.assign({}, data)
+      });
+      window.__llModalMock.deferreds.push(deferred);
+      return deferred.promise();
+    };
+  });
+  await page.addScriptTag({ content: wordEditModalSource });
+
+  await page.evaluate(() => {
+    window.__llModalMock.firstOpen = window.LLToolsWordEditModal.open({
+      wordId: 91,
+      wordsetId: 7,
+      recordingId: 505
+    });
+  });
+
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeVisible();
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toHaveText('Loading word editor...');
+  expect(await page.evaluate(() => document.body.classList.contains('ll-word-edit-modal-loading-open'))).toBe(true);
+
+  await page.evaluate(() => {
+    window.__llModalMock.deferreds[0].resolve({
+      success: true,
+      data: {
+        html: `
+          <div class="word-grid ll-word-grid" data-ll-word-grid>
+            <article class="word-item" data-word-id="91">
+              <button type="button" data-ll-word-edit-toggle aria-expanded="false">Edit</button>
+              <div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="true" hidden></div>
+              <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true">
+                <div class="ll-word-edit-recording" data-recording-id="505">
+                  <input data-ll-recording-input="text" value="cached" />
+                </div>
+              </div>
+            </article>
+          </div>
+        `,
+        config: {
+          canEdit: true
+        }
+      }
+    });
+  });
+  await page.evaluate(() => window.__llModalMock.firstOpen);
+
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeHidden();
+  expect(await page.evaluate(() => document.body.classList.contains('ll-word-edit-modal-loading-open'))).toBe(false);
+
+  await page.evaluate(() => window.LLToolsWordEditModal.open({
+    wordId: 91,
+    wordsetId: 7,
+    recordingId: 505
+  }));
+
+  const modalState = await page.evaluate(() => ({
+    postCallCount: window.__llModalMock.postCalls.length,
+    configCallCount: window.LLToolsWordGrid.configCalls.length,
+    renderedWordId: document.querySelector('[data-ll-word-edit-modal-grid] .word-item')?.getAttribute('data-word-id') || ''
+  }));
+
+  expect(modalState).toEqual({
+    postCallCount: 1,
+    configCallCount: 2,
+    renderedWordId: '91'
+  });
 });
 
 test('transcription autosave keeps fields editable and preserves newer edits', async ({ page }) => {

@@ -408,7 +408,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchOpeningWordEditor' => __('Opening word editor...', 'll-tools-text-domain'),
             'searchWordEditorOpened' => __('Word editor opened.', 'll-tools-text-domain'),
             'searchWordEditorError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
-            'searchEditWaitForSave' => __('Wait for the current save to finish before opening the word editor.', 'll-tools-text-domain'),
+            'searchEditSavingBeforeOpen' => __('Saving changes before opening the word editor...', 'll-tools-text-domain'),
             'searchRowsSynced' => __('Transcription rows updated.', 'll-tools-text-domain'),
             'searchExceptionIgnore' => __('Ignore for this transcription', 'll-tools-text-domain'),
             'searchExceptionRestore' => __('Undo exception', 'll-tools-text-domain'),

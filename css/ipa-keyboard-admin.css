@@ -1264,6 +1264,7 @@ body.ll-ipa-keyboard-open {
 
 .ll-ipa-search-word-link {
     color: #2271b1;
+    min-width: 0;
     font-weight: 600;
     text-decoration: none;
     overflow-wrap: anywhere;
@@ -1271,6 +1272,13 @@ body.ll-ipa-keyboard-open {
 
 .ll-ipa-search-word-link:hover {
     text-decoration: underline;
+}
+
+.ll-ipa-search-word-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
 }
 
 .ll-ipa-search-meta-recording .ll-ipa-recording-cell {
@@ -1567,10 +1575,11 @@ body.ll-ipa-keyboard-open {
 
 .ll-ipa-search-word-edit-toggle {
     box-sizing: border-box;
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    min-height: 34px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    flex: 0 0 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1589,14 +1598,14 @@ body.ll-ipa-keyboard-open {
 
 .ll-ipa-search-word-edit-toggle:hover:not(:disabled),
 .ll-ipa-search-word-edit-toggle:focus-visible:not(:disabled) {
-    border-color: #2563eb;
-    background: #eff6ff;
-    color: #1d4ed8;
+    border-color: #94a3b8;
+    background: #f1f5f9;
+    color: #0f172a;
 }
 
 .ll-ipa-search-word-edit-toggle svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     display: block;
 }
 

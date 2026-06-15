@@ -61,6 +61,7 @@
     let letterMapRefreshTimer = null;
     let letterMapRefreshRequestId = 0;
     let pendingSearchReviewState = {};
+    let pendingSearchEditorOpen = {};
     const searchReviewFields = ['recording_text', 'recording_ipa'];
     const maxInlineMismatchMarks = 4;
     const maxInlineMismatchCoverage = 0.35;
@@ -2384,7 +2385,7 @@
     }
 
     function buildEditIconSvg() {
-        return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M12 20h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        return '<span class="ll-word-edit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
     }
 
     function buildSearchWordEditControl(rec) {
@@ -2639,19 +2640,27 @@
         const $metaCell = $('<td>', { class: 'll-ipa-search-meta-cell' });
         const $metaWrap = $('<div>', { class: 'll-ipa-search-meta' });
         const $wordWrap = $('<div>', { class: 'll-ipa-search-meta-word' });
+        const $wordTitleRow = $('<div>', { class: 'll-ipa-search-word-title-row' });
         if (rec && rec.word_edit_link) {
-            $wordWrap.append($('<a>', {
+            $wordTitleRow.append($('<a>', {
                 class: 'll-ipa-search-word-link',
                 href: rec.word_edit_link,
                 target: '_blank',
                 text: rec.word_text || t('untitled', '(Untitled)')
             }));
         } else {
-            $wordWrap.append($('<span>', {
+            $wordTitleRow.append($('<span>', {
                 class: 'll-ipa-search-word-link',
                 text: rec.word_text || t('untitled', '(Untitled)')
             }));
         }
+        if (currentCanEdit) {
+            const $wordEditControl = buildSearchWordEditControl(rec);
+            if ($wordEditControl) {
+                $wordTitleRow.append($wordEditControl);
+            }
+        }
+        $wordWrap.append($wordTitleRow);
         if (rec && rec.word_translation) {
             $wordWrap.append($('<span>', { class: 'll-ipa-translation', text: rec.word_translation }));
         }
@@ -2697,12 +2706,6 @@
             .append($('<span>', { class: 'll-ipa-search-save-label' }));
         const $actionCell = $('<td>', { class: 'll-ipa-search-action-cell' });
         const $actionWrap = $('<div>', { class: 'll-ipa-search-actions' }).append($saveState);
-        if (currentCanEdit) {
-            const $wordEditControl = buildSearchWordEditControl(rec);
-            if ($wordEditControl) {
-                $actionWrap.append($wordEditControl);
-            }
-        }
         $actionCell.append($actionWrap);
 
         const $issueCell = $('<td>', {
@@ -3716,7 +3719,52 @@
         }
     }
 
-    function openSearchWordEditor($row) {
+    function queuePendingSearchEditorOpen(recordingId, wordId, wordsetId) {
+        const key = String(recordingId || '');
+        const safeWordId = parseInt(wordId, 10) || 0;
+        const safeWordsetId = parseInt(wordsetId, 10) || 0;
+        if (!key || !safeWordId || !safeWordsetId) {
+            return;
+        }
+
+        pendingSearchEditorOpen[key] = {
+            recordingId: parseInt(recordingId, 10) || 0,
+            wordId: safeWordId,
+            wordsetId: safeWordsetId
+        };
+    }
+
+    function clearPendingSearchEditorOpen(recordingId) {
+        const key = String(recordingId || '');
+        if (key && pendingSearchEditorOpen[key]) {
+            delete pendingSearchEditorOpen[key];
+        }
+    }
+
+    function flushPendingSearchEditorOpen(recordingId, $preferredRow) {
+        const key = String(recordingId || '');
+        const pending = key ? pendingSearchEditorOpen[key] : null;
+        if (!pending) {
+            return false;
+        }
+
+        let $row = ($preferredRow && $preferredRow.length && $preferredRow.closest('html').length)
+            ? $preferredRow
+            : getSearchRowByRecordingId(recordingId);
+        if (!$row.length) {
+            clearPendingSearchEditorOpen(recordingId);
+            return false;
+        }
+        if ($row.data('llSearchRowSaving') || searchReviewStateIsSaving($row) || searchRowHasUnsavedChanges($row)) {
+            return false;
+        }
+
+        clearPendingSearchEditorOpen(recordingId);
+        openSearchWordEditor($row, { fromPendingSave: true });
+        return true;
+    }
+
+    function openSearchWordEditor($row, options) {
         if (!$row || !$row.length || !currentCanEdit || !currentWordsetId) {
             return;
         }
@@ -3728,10 +3776,13 @@
         }
 
         if ($row.data('llSearchRowSaving') || searchReviewStateIsSaving($row) || searchRowHasUnsavedChanges($row)) {
-            if (searchRowHasUnsavedChanges($row)) {
-                autosaveSearchRow($row);
+            if (!(options && options.fromPendingSave)) {
+                queuePendingSearchEditorOpen(recordingId, wordId, currentWordsetId);
             }
-            setStatus(t('searchEditWaitForSave', 'Wait for the current save to finish before opening the word editor.'), true);
+            if (searchRowHasUnsavedChanges($row)) {
+                autosaveSearchRow($row, { preserveScroll: true });
+            }
+            setStatus(t('searchEditSavingBeforeOpen', 'Saving changes before opening the word editor...'), false);
             return;
         }
 
@@ -4109,6 +4160,7 @@
         }).done(function (response) {
             if (!response || response.success !== true) {
                 clearPendingSearchReviewState(recordingId);
+                clearPendingSearchEditorOpen(recordingId);
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
             }
@@ -4130,11 +4182,15 @@
             );
         }).fail(function () {
             clearPendingSearchReviewState(recordingId);
+            clearPendingSearchEditorOpen(recordingId);
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
             setSearchReviewSavingStateByRecordingId(recordingId, field, false);
             if (requestSucceeded) {
                 flushPendingSearchReviewState(recordingId);
+                if (!hasPendingSearchReviewState(recordingId)) {
+                    flushPendingSearchEditorOpen(recordingId);
+                }
             }
         });
     }
@@ -4179,6 +4235,7 @@
         }).done(function (response) {
             if (!response || response.success !== true) {
                 clearPendingSearchReviewState(values.recordingId);
+                clearPendingSearchEditorOpen(values.recordingId);
                 setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
@@ -4197,8 +4254,10 @@
                 return;
             }
 
+            let $savedRow = $row;
             if (data.recording) {
                 const $newRow = replaceSearchRow($row, data.recording);
+                $savedRow = $newRow;
                 setSearchRowSaveState($newRow, 'saved', t('saved', 'Saved.'));
                 restoreSearchRowFocusState($newRow, focusState);
             } else {
@@ -4219,9 +4278,14 @@
                 return;
             }
 
+            if (flushPendingSearchEditorOpen(values.recordingId, $savedRow)) {
+                return;
+            }
+
             setStatus(t('saved', 'Saved.'), false);
         }).fail(function () {
             clearPendingSearchReviewState(values.recordingId);
+            clearPendingSearchEditorOpen(values.recordingId);
             setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
