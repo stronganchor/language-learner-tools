@@ -4267,6 +4267,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
     $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_terms);
 
     $use_titles  = !empty($config['use_titles']);
+    $store_in_title_override = $use_titles ? true : null;
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $displayMode;
     $require_audio = ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type);
@@ -4281,7 +4282,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
-        'text_label_schema'    => 6,
+        'text_label_schema'    => 7,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -4501,7 +4502,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
     $requires_option_label = in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true);
     $requires_prompt_label = ($prompt_text_type !== '');
     $display_text_by_word = ($requires_option_label || $requires_prompt_label)
-        ? ll_tools_get_word_display_text_map($all_word_ids, $use_titles)
+        ? ll_tools_get_word_display_text_map($all_word_ids, $store_in_title_override)
         : [];
     $has_audio_by_word = $require_audio || $option_requires_audio
         ? ll_tools_get_word_audio_presence_map($all_word_ids)
@@ -4679,6 +4680,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_terms);
 
     $use_titles  = !empty($config['use_titles']);
+    $store_in_title_override = $use_titles ? true : null;
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $displayMode;
     $require_audio = ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type);
@@ -4693,7 +4695,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
-        'text_label_schema'    => 6,
+        'text_label_schema'    => 7,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -4896,7 +4898,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     $requires_option_label = in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true);
     $requires_prompt_label = ($prompt_text_type !== '');
     $display_text_by_word = ($requires_option_label || $requires_prompt_label)
-        ? ll_tools_get_word_display_text_map($all_word_ids, $use_titles)
+        ? ll_tools_get_word_display_text_map($all_word_ids, $store_in_title_override)
         : [];
     $has_audio_by_word = $require_audio || $option_requires_audio
         ? ll_tools_get_word_audio_presence_map($all_word_ids)
@@ -5285,6 +5287,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_terms);
 
     $use_titles  = !empty($config['use_titles']);
+    $store_in_title_override = $use_titles ? true : null;
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $displayMode;
     $require_audio = ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type);
@@ -5311,7 +5314,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         // test cases when term IDs are recycled after DB resets.
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
-        'text_label_schema'    => 6,
+        'text_label_schema'    => 7,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -5477,7 +5480,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         update_meta_cache('post', $all_word_ids);
     }
 
-    $display_text_by_word = !empty($all_word_ids) ? ll_tools_get_word_display_text_map($all_word_ids, $use_titles) : [];
+    $display_text_by_word = !empty($all_word_ids) ? ll_tools_get_word_display_text_map($all_word_ids, $store_in_title_override) : [];
     $category_names_by_word = !empty($all_word_ids) ? ll_tools_get_object_term_names_map($all_word_ids, 'word-category') : [];
     $wordset_ids_by_word = !empty($all_word_ids) ? ll_tools_get_object_term_ids_map($all_word_ids, 'wordset') : [];
     $part_of_speech_by_word = !empty($all_word_ids) ? ll_tools_get_object_term_slugs_map($all_word_ids, 'part_of_speech') : [];

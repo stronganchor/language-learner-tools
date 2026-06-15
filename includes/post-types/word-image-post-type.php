@@ -541,9 +541,6 @@ function ll_tools_get_canonical_word_image_post_id_for_word(int $word_id, bool $
             if ($primary_wordset_id > 0 && function_exists('ll_tools_get_effective_word_image_id_for_wordset')) {
                 $effective_id = (int) ll_tools_get_effective_word_image_id_for_wordset($linked_image_id, $primary_wordset_id);
                 if ($effective_id > 0) {
-                    if ($effective_id !== $linked_image_id) {
-                        update_post_meta($word_id, '_ll_autopicked_image_id', $effective_id);
-                    }
                     return $effective_id;
                 }
             }

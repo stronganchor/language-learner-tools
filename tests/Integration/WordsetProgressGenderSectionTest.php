@@ -96,8 +96,12 @@ final class WordsetProgressGenderSectionTest extends LL_Tools_TestCase
         $this->assertFalse(is_wp_error($category_term));
         $this->assertIsArray($category_term);
         $category_id = (int) $category_term['term_id'];
-        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
-        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
+        foreach (array_values(array_unique([$category_id, $effective_category_id])) as $term_id) {
+            update_term_meta($term_id, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($term_id, 'll_quiz_option_type', 'text_title');
+        }
+        $this->createVocabLesson($wordset_id, $effective_category_id);
 
         $noun_term_id = $this->ensurePartOfSpeechTerm('noun', 'Noun');
 
@@ -107,7 +111,7 @@ final class WordsetProgressGenderSectionTest extends LL_Tools_TestCase
                 'post_status' => 'publish',
                 'post_title' => 'Progress Gender Word ' . $index . ' ' . wp_generate_password(4, false),
             ]);
-            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$effective_category_id], 'word-category', false);
             wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
             wp_set_post_terms($word_id, [$noun_term_id], 'part_of_speech', false);
             update_post_meta($word_id, 'word_translation', 'Progress Gender Translation ' . $index);
@@ -125,6 +129,28 @@ final class WordsetProgressGenderSectionTest extends LL_Tools_TestCase
         }
 
         return $wordset_id;
+    }
+
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        $effective_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true)
+            : 0;
+
+        return ($effective_category_id > 0) ? $effective_category_id : $category_id;
+    }
+
+    private function createVocabLesson(int $wordset_id, int $category_id): int
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Progress Gender Lesson ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+
+        return (int) $lesson_id;
     }
 
     private function ensurePartOfSpeechTerm(string $slug, string $label): int

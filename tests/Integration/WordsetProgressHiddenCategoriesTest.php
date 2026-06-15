@@ -50,7 +50,8 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
         }, (array) ($analytics['categories'] ?? []));
         $this->assertSame([(int) $fixture['visible_category_id']], $category_ids);
 
-        $this->assertCount(5, (array) ($analytics['words'] ?? []));
+        $this->assertTrue((bool) ($analytics['words_omitted'] ?? false));
+        $this->assertSame([], (array) ($analytics['words'] ?? []));
         $scope_category_ids = array_map('intval', (array) ($analytics['scope']['category_ids'] ?? []));
         $this->assertContains((int) $fixture['visible_category_id'], $scope_category_ids);
         $this->assertNotContains((int) $fixture['hidden_category_id'], $scope_category_ids);
@@ -79,12 +80,18 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
         $this->assertIsArray($visible_category);
         $this->assertIsArray($hidden_category);
 
-        $visible_category_id = (int) $visible_category['term_id'];
-        $hidden_category_id = (int) $hidden_category['term_id'];
-        update_term_meta($visible_category_id, 'll_quiz_prompt_type', 'audio');
-        update_term_meta($visible_category_id, 'll_quiz_option_type', 'text_title');
-        update_term_meta($hidden_category_id, 'll_quiz_prompt_type', 'audio');
-        update_term_meta($hidden_category_id, 'll_quiz_option_type', 'text_title');
+        $raw_visible_category_id = (int) $visible_category['term_id'];
+        $raw_hidden_category_id = (int) $hidden_category['term_id'];
+        $visible_category_id = $this->resolveEffectiveCategoryId($raw_visible_category_id, $wordset_id);
+        $hidden_category_id = $this->resolveEffectiveCategoryId($raw_hidden_category_id, $wordset_id);
+        foreach (array_values(array_unique([$raw_visible_category_id, $visible_category_id])) as $term_id) {
+            update_term_meta($term_id, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($term_id, 'll_quiz_option_type', 'text_title');
+        }
+        foreach (array_values(array_unique([$raw_hidden_category_id, $hidden_category_id])) as $term_id) {
+            update_term_meta($term_id, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($term_id, 'll_quiz_option_type', 'text_title');
+        }
 
         $visible_word_id = 0;
         $hidden_word_id = 0;
@@ -112,8 +119,8 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
             }
         }
 
-        $visible_category_id = $this->resolveEffectiveCategoryId($visible_category_id, $wordset_id);
-        $hidden_category_id = $this->resolveEffectiveCategoryId($hidden_category_id, $wordset_id);
+        $this->createVocabLesson($wordset_id, $visible_category_id);
+        $this->createVocabLesson($wordset_id, $hidden_category_id);
 
         return [
             'wordset_id' => $wordset_id,
@@ -155,6 +162,19 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
         return ($effective_category_id > 0) ? $effective_category_id : $category_id;
     }
 
+    private function createVocabLesson(int $wordset_id, int $category_id): int
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Progress Category Lesson ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+
+        return (int) $lesson_id;
+    }
+
     /**
      * @return array<string,mixed>
      */
@@ -169,6 +189,10 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
         $_GET = [];
         set_query_var('ll_wordset_page', (string) $wordset_term->slug);
         set_query_var('ll_wordset_view', 'progress');
+        $bootstrap_filter = static function ($bootstrap, $view): bool {
+            return $view === 'progress' ? true : (bool) $bootstrap;
+        };
+        add_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10, 2);
 
         try {
             $html = ll_tools_render_wordset_page_content($wordset_id, [
@@ -177,6 +201,7 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
             ]);
             $this->assertNotSame('', $html);
         } finally {
+            remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
             $_GET = $original_get;
             set_query_var('ll_wordset_page', $original_wordset_page);
             set_query_var('ll_wordset_view', $original_wordset_view);

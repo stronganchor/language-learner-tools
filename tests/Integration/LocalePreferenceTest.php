@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 final class LocalePreferenceTest extends LL_Tools_TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        update_option('ll_enable_browser_language_autoswitch', 1);
+    }
+
     protected function tearDown(): void
     {
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_REQUEST['ll_locale'], $_GET['ll_locale'], $_REQUEST['ll_locale_nonce'], $_GET['ll_locale_nonce']);

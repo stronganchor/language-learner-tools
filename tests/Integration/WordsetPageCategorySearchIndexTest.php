@@ -144,7 +144,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
 
         $queries = [];
         $capture = static function (string $query) use (&$queries): string {
-            if (strpos($query, 'category_taxonomy.term_id AS category_id') !== false || strpos($query, 'allowed_category_relationships') !== false) {
+            if (strpos($query, 'allowed_category_relationships') !== false) {
                 $queries[] = $query;
             }
             return $query;
