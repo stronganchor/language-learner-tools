@@ -66,8 +66,13 @@ function buildWordsetMarkup() {
     <button id="restart-quiz" type="button" style="display:none;">Restart</button>
     <div id="quiz-mode-buttons" style="display:none;"></div>
 
-    <div id="ll-tools-flashcard-popup" style="display:none;"></div>
-    <div id="ll-tools-flashcard-quiz-popup" style="display:none;"></div>
+    <div id="ll-tools-flashcard-popup" style="display:none;">
+      <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+        <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" style="display:none;" aria-hidden="true"></div>
+        <div id="ll-tools-loading-status" role="status" aria-live="polite" hidden>Loading quiz...</div>
+        <div id="ll-tools-flashcard-content"></div>
+      </div>
+    </div>
   `;
 }
 
@@ -550,6 +555,102 @@ test('selection listening launch skips dashboard bulk word fetch and opens immed
       window.__llReleaseFetchWords();
     }
   });
+});
+
+test('practice selection opens loading popup before selected categories finish loading', async ({ page }) => {
+  const responseWords = buildCategoryWords();
+  await mountWordsetPage(page, { isLoggedIn: true, wordsByCategory: responseWords });
+
+  await page.evaluate((wordsByCategory) => {
+    const $ = window.jQuery;
+    const originalPost = $.post.bind($);
+
+    window.__llFetchWordsCalls = 0;
+    window.__llFetchWordsPending = 0;
+    window.__llFetchWordsResolvers = [];
+
+    $.post = function (url, request) {
+      const action = request && request.action ? String(request.action) : '';
+      if (action === 'll_user_study_fetch_words') {
+        window.__llFetchWordsCalls += 1;
+        window.__llFetchWordsPending += 1;
+        const deferred = $.Deferred();
+        window.__llFetchWordsResolvers.push(() => {
+          window.__llFetchWordsPending = Math.max(0, (window.__llFetchWordsPending || 0) - 1);
+          deferred.resolve({
+            success: true,
+            data: {
+              words_by_category: wordsByCategory
+            }
+          });
+        });
+        return deferred.promise();
+      }
+      return originalPost(url, request);
+    };
+
+    window.__llReleaseFetchWords = function () {
+      const resolvers = Array.isArray(window.__llFetchWordsResolvers)
+        ? window.__llFetchWordsResolvers.splice(0)
+        : [];
+      resolvers.forEach((resolve) => {
+        try { resolve(); } catch (_) {}
+      });
+    };
+  }, responseWords);
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]')).toBeEnabled();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Number(window.__llFetchWordsPending || 0));
+  }).toBe(1);
+
+  const loadingState = await page.evaluate(() => {
+    const popup = document.getElementById('ll-tools-flashcard-popup');
+    const quizPopup = document.getElementById('ll-tools-flashcard-quiz-popup');
+    const loader = document.getElementById('ll-tools-loading-animation');
+
+    return {
+      popupDisplay: popup ? window.getComputedStyle(popup).display : '',
+      quizDisplay: quizPopup ? window.getComputedStyle(quizPopup).display : '',
+      loaderDisplay: loader ? window.getComputedStyle(loader).display : '',
+      quizLoading: quizPopup ? quizPopup.classList.contains('ll-round-loading-active') : false,
+      quizBusy: quizPopup ? quizPopup.getAttribute('aria-busy') : '',
+      bodyOpen: document.body.classList.contains('ll-tools-flashcard-open'),
+      launchCount: Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0,
+      fetchCalls: Number(window.__llFetchWordsCalls || 0)
+    };
+  });
+
+  expect(loadingState.fetchCalls).toBe(1);
+  expect(loadingState.launchCount).toBe(0);
+  expect(loadingState.popupDisplay).not.toBe('none');
+  expect(loadingState.quizDisplay).not.toBe('none');
+  expect(loadingState.loaderDisplay).not.toBe('none');
+  expect(loadingState.quizLoading).toBe(true);
+  expect(loadingState.quizBusy).toBe('true');
+  expect(loadingState.bodyOpen).toBe(true);
+
+  await page.evaluate(() => {
+    if (typeof window.__llReleaseFetchWords === 'function') {
+      window.__llReleaseFetchWords();
+    }
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
 });
 
 test('logged-in practice top launch falls back to visible categories when recommendation categories are stale', async ({ page }) => {
