@@ -27129,3 +27129,79 @@ msgstr "Kaynak sözlükler"
 #: includes/shortcodes/dictionary-shortcode.php
 msgid "Dialect not marked"
 msgstr "Lehçe belirtilmemiş"
+
+#: includes/lib/dictionary-browser.php:1069
+msgid "Adjective"
+msgstr "Sıfat"
+
+#: includes/lib/dictionary-browser.php:1070
+msgid "Adverb"
+msgstr "Zarf"
+
+#: includes/lib/dictionary-browser.php:1071
+msgid "Affix"
+msgstr "Ek"
+
+#: includes/lib/dictionary-browser.php:1072
+msgid "Article"
+msgstr "Artikel"
+
+#: includes/lib/dictionary-browser.php:1073
+msgid "Classifier"
+msgstr "Sınıflandırıcı"
+
+#: includes/lib/dictionary-browser.php:1074
+msgid "Conjunction"
+msgstr "Bağlaç"
+
+#: includes/lib/dictionary-browser.php:1075
+msgid "Determiner"
+msgstr "Belirleyici"
+
+#: includes/lib/dictionary-browser.php:1076
+msgid "Idiom"
+msgstr "Deyim"
+
+#: includes/lib/dictionary-browser.php:1077
+msgid "Interjection"
+msgstr "Ünlem"
+
+#: includes/lib/dictionary-browser.php:1078
+msgid "Noun"
+msgstr "İsim"
+
+#: includes/lib/dictionary-browser.php:1079
+msgid "Numeral"
+msgstr "Sayı"
+
+#: includes/lib/dictionary-browser.php:1080
+msgid "Other"
+msgstr "Diğer"
+
+#: includes/lib/dictionary-browser.php:1081
+msgid "Particle"
+msgstr "Parçacık"
+
+#: includes/lib/dictionary-browser.php:1082
+msgid "Phrase"
+msgstr "Söz öbeği"
+
+#: includes/lib/dictionary-browser.php:1083
+msgid "Preposition"
+msgstr "Edat"
+
+#: includes/lib/dictionary-browser.php:1084
+msgid "Pronoun"
+msgstr "Zamir"
+
+#: includes/lib/dictionary-browser.php:1085
+msgid "Verb"
+msgstr "Fiil"
+
+#: includes/shortcodes/dictionary-shortcode.php:2834 includes/shortcodes/dictionary-shortcode.php:2835
+msgid "Search settings"
+msgstr "Arama ayarları"
+
+#: includes/shortcodes/dictionary-shortcode.php:2838
+msgid "Search in languages"
+msgstr "Aranacak diller"

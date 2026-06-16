@@ -4419,3 +4419,79 @@ msgstr "Введите определение."
 #: includes/shortcodes/dictionary-shortcode.php
 msgid "Dictionary definition not found."
 msgstr "Определение в словаре не найдено."
+
+#: includes/lib/dictionary-browser.php:1069
+msgid "Adjective"
+msgstr "Прилагательное"
+
+#: includes/lib/dictionary-browser.php:1070
+msgid "Adverb"
+msgstr "Наречие"
+
+#: includes/lib/dictionary-browser.php:1071
+msgid "Affix"
+msgstr "Аффикс"
+
+#: includes/lib/dictionary-browser.php:1072
+msgid "Article"
+msgstr "Артикль"
+
+#: includes/lib/dictionary-browser.php:1073
+msgid "Classifier"
+msgstr "Классификатор"
+
+#: includes/lib/dictionary-browser.php:1074
+msgid "Conjunction"
+msgstr "Союз"
+
+#: includes/lib/dictionary-browser.php:1075
+msgid "Determiner"
+msgstr "Определитель"
+
+#: includes/lib/dictionary-browser.php:1076
+msgid "Idiom"
+msgstr "Идиома"
+
+#: includes/lib/dictionary-browser.php:1077
+msgid "Interjection"
+msgstr "Междометие"
+
+#: includes/lib/dictionary-browser.php:1078
+msgid "Noun"
+msgstr "Существительное"
+
+#: includes/lib/dictionary-browser.php:1079
+msgid "Numeral"
+msgstr "Числительное"
+
+#: includes/lib/dictionary-browser.php:1080
+msgid "Other"
+msgstr "Другое"
+
+#: includes/lib/dictionary-browser.php:1081
+msgid "Particle"
+msgstr "Частица"
+
+#: includes/lib/dictionary-browser.php:1082
+msgid "Phrase"
+msgstr "Фраза"
+
+#: includes/lib/dictionary-browser.php:1083
+msgid "Preposition"
+msgstr "Предлог"
+
+#: includes/lib/dictionary-browser.php:1084
+msgid "Pronoun"
+msgstr "Местоимение"
+
+#: includes/lib/dictionary-browser.php:1085
+msgid "Verb"
+msgstr "Глагол"
+
+#: includes/shortcodes/dictionary-shortcode.php:2834 includes/shortcodes/dictionary-shortcode.php:2835
+msgid "Search settings"
+msgstr "Настройки поиска"
+
+#: includes/shortcodes/dictionary-shortcode.php:2838
+msgid "Search in languages"
+msgstr "Искать в языках"

@@ -4370,3 +4370,79 @@ msgstr "정의를 입력하세요."
 #: includes/shortcodes/dictionary-shortcode.php
 msgid "Dictionary definition not found."
 msgstr "사전 정의를 찾을 수 없습니다."
+
+#: includes/lib/dictionary-browser.php:1069
+msgid "Adjective"
+msgstr "형용사"
+
+#: includes/lib/dictionary-browser.php:1070
+msgid "Adverb"
+msgstr "부사"
+
+#: includes/lib/dictionary-browser.php:1071
+msgid "Affix"
+msgstr "접사"
+
+#: includes/lib/dictionary-browser.php:1072
+msgid "Article"
+msgstr "관사"
+
+#: includes/lib/dictionary-browser.php:1073
+msgid "Classifier"
+msgstr "분류사"
+
+#: includes/lib/dictionary-browser.php:1074
+msgid "Conjunction"
+msgstr "접속사"
+
+#: includes/lib/dictionary-browser.php:1075
+msgid "Determiner"
+msgstr "결정자"
+
+#: includes/lib/dictionary-browser.php:1076
+msgid "Idiom"
+msgstr "관용구"
+
+#: includes/lib/dictionary-browser.php:1077
+msgid "Interjection"
+msgstr "감탄사"
+
+#: includes/lib/dictionary-browser.php:1078
+msgid "Noun"
+msgstr "명사"
+
+#: includes/lib/dictionary-browser.php:1079
+msgid "Numeral"
+msgstr "수사"
+
+#: includes/lib/dictionary-browser.php:1080
+msgid "Other"
+msgstr "기타"
+
+#: includes/lib/dictionary-browser.php:1081
+msgid "Particle"
+msgstr "입자"
+
+#: includes/lib/dictionary-browser.php:1082
+msgid "Phrase"
+msgstr "문구"
+
+#: includes/lib/dictionary-browser.php:1083
+msgid "Preposition"
+msgstr "전치사"
+
+#: includes/lib/dictionary-browser.php:1084
+msgid "Pronoun"
+msgstr "대명사"
+
+#: includes/lib/dictionary-browser.php:1085
+msgid "Verb"
+msgstr "동사"
+
+#: includes/shortcodes/dictionary-shortcode.php:2834 includes/shortcodes/dictionary-shortcode.php:2835
+msgid "Search settings"
+msgstr "검색 설정"
+
+#: includes/shortcodes/dictionary-shortcode.php:2838
+msgid "Search in languages"
+msgstr "검색할 언어"

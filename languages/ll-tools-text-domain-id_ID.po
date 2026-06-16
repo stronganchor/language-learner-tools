@@ -4387,3 +4387,79 @@ msgstr "Masukkan definisi."
 #: includes/shortcodes/dictionary-shortcode.php
 msgid "Dictionary definition not found."
 msgstr "Definisi kamus tidak ditemukan."
+
+#: includes/lib/dictionary-browser.php:1069
+msgid "Adjective"
+msgstr "Kata sifat"
+
+#: includes/lib/dictionary-browser.php:1070
+msgid "Adverb"
+msgstr "Kata keterangan"
+
+#: includes/lib/dictionary-browser.php:1071
+msgid "Affix"
+msgstr "Afiks"
+
+#: includes/lib/dictionary-browser.php:1072
+msgid "Article"
+msgstr "Artikel"
+
+#: includes/lib/dictionary-browser.php:1073
+msgid "Classifier"
+msgstr "Penggolong"
+
+#: includes/lib/dictionary-browser.php:1074
+msgid "Conjunction"
+msgstr "Konjungsi"
+
+#: includes/lib/dictionary-browser.php:1075
+msgid "Determiner"
+msgstr "Penentu"
+
+#: includes/lib/dictionary-browser.php:1076
+msgid "Idiom"
+msgstr "Idiom"
+
+#: includes/lib/dictionary-browser.php:1077
+msgid "Interjection"
+msgstr "Kata seru"
+
+#: includes/lib/dictionary-browser.php:1078
+msgid "Noun"
+msgstr "Kata benda"
+
+#: includes/lib/dictionary-browser.php:1079
+msgid "Numeral"
+msgstr "Numeralia"
+
+#: includes/lib/dictionary-browser.php:1080
+msgid "Other"
+msgstr "Lainnya"
+
+#: includes/lib/dictionary-browser.php:1081
+msgid "Particle"
+msgstr "Partikel"
+
+#: includes/lib/dictionary-browser.php:1082
+msgid "Phrase"
+msgstr "Frasa"
+
+#: includes/lib/dictionary-browser.php:1083
+msgid "Preposition"
+msgstr "Preposisi"
+
+#: includes/lib/dictionary-browser.php:1084
+msgid "Pronoun"
+msgstr "Kata ganti"
+
+#: includes/lib/dictionary-browser.php:1085
+msgid "Verb"
+msgstr "Kata kerja"
+
+#: includes/shortcodes/dictionary-shortcode.php:2834 includes/shortcodes/dictionary-shortcode.php:2835
+msgid "Search settings"
+msgstr "Pengaturan pencarian"
+
+#: includes/shortcodes/dictionary-shortcode.php:2838
+msgid "Search in languages"
+msgstr "Cari dalam bahasa"

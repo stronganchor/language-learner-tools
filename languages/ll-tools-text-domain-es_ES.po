@@ -4387,3 +4387,79 @@ msgstr "Introduce una definición."
 #: includes/shortcodes/dictionary-shortcode.php
 msgid "Dictionary definition not found."
 msgstr "Definición de diccionario no encontrada."
+
+#: includes/lib/dictionary-browser.php:1069
+msgid "Adjective"
+msgstr "Adjetivo"
+
+#: includes/lib/dictionary-browser.php:1070
+msgid "Adverb"
+msgstr "Adverbio"
+
+#: includes/lib/dictionary-browser.php:1071
+msgid "Affix"
+msgstr "Afijo"
+
+#: includes/lib/dictionary-browser.php:1072
+msgid "Article"
+msgstr "Artículo"
+
+#: includes/lib/dictionary-browser.php:1073
+msgid "Classifier"
+msgstr "Clasificador"
+
+#: includes/lib/dictionary-browser.php:1074
+msgid "Conjunction"
+msgstr "Conjunción"
+
+#: includes/lib/dictionary-browser.php:1075
+msgid "Determiner"
+msgstr "Determinante"
+
+#: includes/lib/dictionary-browser.php:1076
+msgid "Idiom"
+msgstr "Modismo"
+
+#: includes/lib/dictionary-browser.php:1077
+msgid "Interjection"
+msgstr "Interjección"
+
+#: includes/lib/dictionary-browser.php:1078
+msgid "Noun"
+msgstr "Sustantivo"
+
+#: includes/lib/dictionary-browser.php:1079
+msgid "Numeral"
+msgstr "Numeral"
+
+#: includes/lib/dictionary-browser.php:1080
+msgid "Other"
+msgstr "Otro"
+
+#: includes/lib/dictionary-browser.php:1081
+msgid "Particle"
+msgstr "Partícula"
+
+#: includes/lib/dictionary-browser.php:1082
+msgid "Phrase"
+msgstr "Frase"
+
+#: includes/lib/dictionary-browser.php:1083
+msgid "Preposition"
+msgstr "Preposición"
+
+#: includes/lib/dictionary-browser.php:1084
+msgid "Pronoun"
+msgstr "Pronombre"
+
+#: includes/lib/dictionary-browser.php:1085
+msgid "Verb"
+msgstr "Verbo"
+
+#: includes/shortcodes/dictionary-shortcode.php:2834 includes/shortcodes/dictionary-shortcode.php:2835
+msgid "Search settings"
+msgstr "Configuración de búsqueda"
+
+#: includes/shortcodes/dictionary-shortcode.php:2838
+msgid "Search in languages"
+msgstr "Buscar en idiomas"

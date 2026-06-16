@@ -110,6 +110,32 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('[ll_dictionary wordset="0"]', ll_tools_get_dictionary_page_config()['post_content']);
     }
 
+    public function test_dictionary_part_of_speech_labels_are_translatable(): void
+    {
+        $filter = static function ($translation, $text, $domain) {
+            if ($domain !== 'll-tools-text-domain') {
+                return $translation;
+            }
+            if ($text === 'Adjective') {
+                return 'Sıfat';
+            }
+            if ($text === 'Noun') {
+                return 'İsim';
+            }
+
+            return $translation;
+        };
+
+        add_filter('gettext', $filter, 10, 3);
+        try {
+            $this->assertSame('Sıfat', ll_tools_dictionary_get_part_of_speech_label('adjective', 'Adjective'));
+            $this->assertSame('İsim', ll_tools_dictionary_get_part_of_speech_label('noun', 'Noun'));
+            $this->assertSame('Custom POS', ll_tools_dictionary_get_part_of_speech_label('custom-pos', 'Custom POS'));
+        } finally {
+            remove_filter('gettext', $filter, 10);
+        }
+    }
+
     public function test_dictionary_static_cache_key_normalizes_display_args_and_ignores_nonce_noise(): void
     {
         $identity = [
@@ -2782,7 +2808,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="0"', $idle_html);
         $this->assertStringNotContainsString('ll-dictionary__toolbar-panel--deferred', $idle_html);
         $this->assertStringContainsString('name="ll_dictionary_scope[]"', $idle_html);
-        $this->assertStringContainsString('name="ll_dictionary_pos[]"', $idle_html);
+        $this->assertStringContainsString('Search settings', $idle_html);
+        $this->assertStringContainsString('Search in languages', $idle_html);
+        $this->assertStringNotContainsString('name="ll_dictionary_pos[]"', $idle_html);
         $this->assertStringNotContainsString('ll_dictionary_letter=Ê', $idle_html);
         $this->assertStringNotContainsString('ll_dictionary_letter=İ', $idle_html);
         $this->assertStringNotContainsString('ll_dictionary_letter=Û', $idle_html);

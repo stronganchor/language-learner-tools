@@ -2748,9 +2748,6 @@ function ll_tools_dictionary_build_toolbar_panel_context(int $wordset_id, array 
     $letters = function_exists('ll_tools_dictionary_get_available_letters')
         ? ll_tools_dictionary_get_available_letters($wordset_id)
         : [];
-    $pos_options = function_exists('ll_tools_dictionary_get_pos_filter_options')
-        ? ll_tools_dictionary_get_pos_filter_options($wordset_id)
-        : [];
     $source_options = function_exists('ll_tools_dictionary_get_source_filter_options')
         ? ll_tools_dictionary_get_source_filter_options($wordset_id)
         : [];
@@ -2792,7 +2789,6 @@ function ll_tools_dictionary_build_toolbar_panel_context(int $wordset_id, array 
 
     return [
         'letters' => $letters,
-        'pos_options' => $pos_options,
         'source_options' => $source_options,
         'dialect_options' => $dialect_options,
     ];
@@ -2812,14 +2808,10 @@ function ll_tools_dictionary_render_toolbar_panel(
     $source_ids = ll_tools_dictionary_shortcode_resolve_source_ids_from_request(['ll_dictionary_source' => $source_ids]);
     $context = ll_tools_dictionary_build_toolbar_panel_context($wordset_id, $source_ids, $dialect);
     $letters = (isset($context['letters']) && is_array($context['letters'])) ? $context['letters'] : [];
-    $pos_options = (isset($context['pos_options']) && is_array($context['pos_options'])) ? $context['pos_options'] : [];
     $source_options = (isset($context['source_options']) && is_array($context['source_options'])) ? $context['source_options'] : [];
     $search_scope_options = ll_tools_dictionary_get_search_scope_options();
     $selected_scope_values = ll_tools_dictionary_shortcode_uses_default_search_scopes($search_scopes) ? [] : $search_scopes;
-    $pos_option_slugs = array_values(array_filter(array_map(static function ($option): string {
-        return is_array($option) ? sanitize_title((string) ($option['slug'] ?? '')) : '';
-    }, $pos_options)));
-    $pos_slugs = ll_tools_dictionary_shortcode_split_compact_filter_values($pos_slug, $pos_option_slugs);
+    $pos_slugs = ll_tools_dictionary_shortcode_split_compact_filter_values($pos_slug);
     $source_options = array_values(array_filter(array_map(static function ($option): array {
         $option_id = function_exists('ll_tools_dictionary_normalize_source_id')
             ? ll_tools_dictionary_normalize_source_id((string) ($option['id'] ?? ''))
@@ -2838,23 +2830,16 @@ function ll_tools_dictionary_render_toolbar_panel(
     ob_start();
     ?>
     <div class="ll-dictionary__toolbar-panel" data-ll-dictionary-toolbar-panel>
-        <?php if (!empty($search_scope_options) || !empty($pos_options) || !empty($source_options)) : ?>
-            <div class="ll-dictionary__filters">
+        <?php if (!empty($search_scope_options) || !empty($source_options)) : ?>
+            <div class="ll-dictionary__filter-group-label"><?php esc_html_e('Search settings', 'll-tools-text-domain'); ?></div>
+            <div class="ll-dictionary__filters" aria-label="<?php echo esc_attr__('Search settings', 'll-tools-text-domain'); ?>">
                 <?php
                 echo ll_tools_dictionary_render_filter_dropdown(
-                    __('Languages', 'll-tools-text-domain'),
+                    __('Search in languages', 'll-tools-text-domain'),
                     __('All languages', 'll-tools-text-domain'),
                     'll_dictionary_scope',
                     $search_scope_options,
                     $selected_scope_values
-                ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                echo ll_tools_dictionary_render_filter_dropdown(
-                    __('Parts of speech', 'll-tools-text-domain'),
-                    __('All parts of speech', 'll-tools-text-domain'),
-                    'll_dictionary_pos',
-                    $pos_options,
-                    $pos_slugs,
-                    'slug'
                 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 echo ll_tools_dictionary_render_filter_dropdown(
                     __('Source dictionaries', 'll-tools-text-domain'),

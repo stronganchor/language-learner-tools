@@ -27295,3 +27295,79 @@ msgstr "Quellenwörterbücher"
 #: includes/shortcodes/dictionary-shortcode.php
 msgid "Dialect not marked"
 msgstr "Dialekt nicht markiert"
+
+#: includes/lib/dictionary-browser.php:1069
+msgid "Adjective"
+msgstr "Adjektiv"
+
+#: includes/lib/dictionary-browser.php:1070
+msgid "Adverb"
+msgstr "Adverb"
+
+#: includes/lib/dictionary-browser.php:1071
+msgid "Affix"
+msgstr "Affix"
+
+#: includes/lib/dictionary-browser.php:1072
+msgid "Article"
+msgstr "Artikel"
+
+#: includes/lib/dictionary-browser.php:1073
+msgid "Classifier"
+msgstr "Klassifikator"
+
+#: includes/lib/dictionary-browser.php:1074
+msgid "Conjunction"
+msgstr "Konjunktion"
+
+#: includes/lib/dictionary-browser.php:1075
+msgid "Determiner"
+msgstr "Bestimmungswort"
+
+#: includes/lib/dictionary-browser.php:1076
+msgid "Idiom"
+msgstr "Redewendung"
+
+#: includes/lib/dictionary-browser.php:1077
+msgid "Interjection"
+msgstr "Interjektion"
+
+#: includes/lib/dictionary-browser.php:1078
+msgid "Noun"
+msgstr "Substantiv"
+
+#: includes/lib/dictionary-browser.php:1079
+msgid "Numeral"
+msgstr "Zahlwort"
+
+#: includes/lib/dictionary-browser.php:1080
+msgid "Other"
+msgstr "Sonstiges"
+
+#: includes/lib/dictionary-browser.php:1081
+msgid "Particle"
+msgstr "Partikel"
+
+#: includes/lib/dictionary-browser.php:1082
+msgid "Phrase"
+msgstr "Phrase"
+
+#: includes/lib/dictionary-browser.php:1083
+msgid "Preposition"
+msgstr "Präposition"
+
+#: includes/lib/dictionary-browser.php:1084
+msgid "Pronoun"
+msgstr "Pronomen"
+
+#: includes/lib/dictionary-browser.php:1085
+msgid "Verb"
+msgstr "Verb"
+
+#: includes/shortcodes/dictionary-shortcode.php:2834 includes/shortcodes/dictionary-shortcode.php:2835
+msgid "Search settings"
+msgstr "Sucheinstellungen"
+
+#: includes/shortcodes/dictionary-shortcode.php:2838
+msgid "Search in languages"
+msgstr "In Sprachen suchen"

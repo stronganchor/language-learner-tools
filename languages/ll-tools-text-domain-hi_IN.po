@@ -4387,3 +4387,79 @@ msgstr "एक परिभाषा दर्ज करें."
 #: includes/shortcodes/dictionary-shortcode.php
 msgid "Dictionary definition not found."
 msgstr "शब्दकोश परिभाषा नहीं मिली."
+
+#: includes/lib/dictionary-browser.php:1069
+msgid "Adjective"
+msgstr "विशेषण"
+
+#: includes/lib/dictionary-browser.php:1070
+msgid "Adverb"
+msgstr "क्रिया-विशेषण"
+
+#: includes/lib/dictionary-browser.php:1071
+msgid "Affix"
+msgstr "प्रत्यय/उपसर्ग"
+
+#: includes/lib/dictionary-browser.php:1072
+msgid "Article"
+msgstr "आर्टिकल"
+
+#: includes/lib/dictionary-browser.php:1073
+msgid "Classifier"
+msgstr "वर्गसूचक"
+
+#: includes/lib/dictionary-browser.php:1074
+msgid "Conjunction"
+msgstr "संयोजन"
+
+#: includes/lib/dictionary-browser.php:1075
+msgid "Determiner"
+msgstr "विशेषण-संबंधक"
+
+#: includes/lib/dictionary-browser.php:1076
+msgid "Idiom"
+msgstr "मुहावरा"
+
+#: includes/lib/dictionary-browser.php:1077
+msgid "Interjection"
+msgstr "विस्मयादिबोधक"
+
+#: includes/lib/dictionary-browser.php:1078
+msgid "Noun"
+msgstr "संज्ञा"
+
+#: includes/lib/dictionary-browser.php:1079
+msgid "Numeral"
+msgstr "संख्यावाचक"
+
+#: includes/lib/dictionary-browser.php:1080
+msgid "Other"
+msgstr "अन्य"
+
+#: includes/lib/dictionary-browser.php:1081
+msgid "Particle"
+msgstr "कण"
+
+#: includes/lib/dictionary-browser.php:1082
+msgid "Phrase"
+msgstr "वाक्यांश"
+
+#: includes/lib/dictionary-browser.php:1083
+msgid "Preposition"
+msgstr "पूर्वसर्ग"
+
+#: includes/lib/dictionary-browser.php:1084
+msgid "Pronoun"
+msgstr "सर्वनाम"
+
+#: includes/lib/dictionary-browser.php:1085
+msgid "Verb"
+msgstr "क्रिया"
+
+#: includes/shortcodes/dictionary-shortcode.php:2834 includes/shortcodes/dictionary-shortcode.php:2835
+msgid "Search settings"
+msgstr "खोज सेटिंग्स"
+
+#: includes/shortcodes/dictionary-shortcode.php:2838
+msgid "Search in languages"
+msgstr "भाषाओं में खोजें"

@@ -1057,6 +1057,58 @@ function ll_tools_dictionary_get_language_label(string $language): string {
 }
 
 /**
+ * Return the translated public label for a canonical part-of-speech slug.
+ */
+function ll_tools_dictionary_get_part_of_speech_label(string $slug, string $fallback = ''): string {
+    $slug = sanitize_title($slug);
+    if ($slug === '') {
+        return trim($fallback);
+    }
+
+    $labels = [
+        'adjective' => __('Adjective', 'll-tools-text-domain'),
+        'adverb' => __('Adverb', 'll-tools-text-domain'),
+        'affix' => __('Affix', 'll-tools-text-domain'),
+        'article' => __('Article', 'll-tools-text-domain'),
+        'classifier' => __('Classifier', 'll-tools-text-domain'),
+        'conjunction' => __('Conjunction', 'll-tools-text-domain'),
+        'determiner' => __('Determiner', 'll-tools-text-domain'),
+        'idiom' => __('Idiom', 'll-tools-text-domain'),
+        'interjection' => __('Interjection', 'll-tools-text-domain'),
+        'noun' => __('Noun', 'll-tools-text-domain'),
+        'numeral' => __('Numeral', 'll-tools-text-domain'),
+        'other' => __('Other', 'll-tools-text-domain'),
+        'particle' => __('Particle', 'll-tools-text-domain'),
+        'phrase' => __('Phrase', 'll-tools-text-domain'),
+        'preposition' => __('Preposition', 'll-tools-text-domain'),
+        'pronoun' => __('Pronoun', 'll-tools-text-domain'),
+        'verb' => __('Verb', 'll-tools-text-domain'),
+    ];
+
+    if (isset($labels[$slug])) {
+        return $labels[$slug];
+    }
+
+    $fallback = trim($fallback);
+    return $fallback !== '' ? $fallback : $slug;
+}
+
+/**
+ * Return the active UI locale for dictionary payloads that include translated labels.
+ */
+function ll_tools_dictionary_get_ui_locale_cache_key(): string {
+    $locale = function_exists('determine_locale') ? (string) determine_locale() : '';
+    if ($locale === '' && function_exists('get_locale')) {
+        $locale = (string) get_locale();
+    }
+    if (function_exists('ll_tools_normalize_switcher_locale_code')) {
+        $locale = (string) ll_tools_normalize_switcher_locale_code($locale);
+    }
+
+    return $locale !== '' ? $locale : 'en_US';
+}
+
+/**
  * Return sanitized structured senses for a dictionary entry.
  *
  * @return array<int,array<string,mixed>>
@@ -2764,6 +2816,7 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         'sense_limit' => max(1, $sense_limit),
         'linked_word_limit' => max(0, $linked_word_limit),
         'preferred_languages' => $normalized_preferred_languages,
+        'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('entry_data', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -2813,7 +2866,9 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
     if ($pos_slug !== '') {
         $term = get_term_by('slug', $pos_slug, 'part_of_speech');
         if ($term && !is_wp_error($term)) {
-            $pos_label = (string) $term->name;
+            $pos_label = ll_tools_dictionary_get_part_of_speech_label($pos_slug, (string) $term->name);
+        } else {
+            $pos_label = ll_tools_dictionary_get_part_of_speech_label($pos_slug, $pos_slug);
         }
     }
 
@@ -3671,7 +3726,10 @@ function ll_tools_dictionary_get_published_entry_ids_for_scope(int $wordset_id =
 function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array {
     static $request_cache = [];
 
-    $cache_args = ['wordset_id' => $wordset_id];
+    $cache_args = [
+        'wordset_id' => $wordset_id,
+        'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
+    ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('scope_filter_index', $cache_args, $request_cache);
     if (is_array($cached)) {
         return $cached;
@@ -3753,6 +3811,7 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
         $label = ($term && !is_wp_error($term))
             ? (string) $term->name
             : (string) $slug;
+        $label = ll_tools_dictionary_get_part_of_speech_label((string) $slug, $label);
         if ($label === '') {
             continue;
         }
@@ -3873,7 +3932,10 @@ function ll_tools_dictionary_get_pos_filter_options(int $wordset_id = 0): array 
     static $request_cache = [];
     global $wpdb;
 
-    $cache_args = ['wordset_id' => $wordset_id];
+    $cache_args = [
+        'wordset_id' => $wordset_id,
+        'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
+    ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('pos_filter_options_fast', $cache_args, $request_cache);
     if (is_array($cached)) {
         return array_values(array_filter($cached, 'is_array'));
@@ -3921,6 +3983,7 @@ function ll_tools_dictionary_get_pos_filter_options(int $wordset_id = 0): array 
         $label = ($term && !is_wp_error($term))
             ? (string) $term->name
             : (string) $slug;
+        $label = ll_tools_dictionary_get_part_of_speech_label($slug, $label);
         if ($label === '') {
             continue;
         }
