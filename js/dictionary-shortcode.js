@@ -485,6 +485,7 @@
         const storageKey = `llDictionaryScopePrefs:${root.dataset.wordsetId || '0'}`;
         let scopePreferencesRestored = false;
         let hasScrolledForSearchQuery = false;
+        let filtersPinnedOpen = false;
 
         const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -741,6 +742,7 @@
         };
 
         const revealScopeOptions = () => {
+            filtersPinnedOpen = true;
             toolbar.classList.add('is-scope-visible');
         };
 
@@ -805,7 +807,7 @@
         };
 
         const setActiveState = (active) => {
-            const shouldStayExpanded = active || toolbar.classList.contains('is-scope-visible');
+            const shouldStayExpanded = active || filtersPinnedOpen || toolbar.classList.contains('is-scope-visible');
             toolbar.classList.toggle('is-expanded', shouldStayExpanded);
             toolbar.classList.toggle('is-collapsed', !shouldStayExpanded);
         };
@@ -1164,6 +1166,7 @@
 
         const activateToolbar = () => {
             revealScopeOptions();
+            setActiveState(true);
             primeToolbarBootstrap();
         };
 
@@ -1207,6 +1210,7 @@
             }
 
             updateFilterMenuSummary(target.closest('[data-ll-dictionary-filter-menu]'));
+            revealScopeOptions();
             if (name === 'll_dictionary_scope[]') {
                 persistScopePreferences();
             } else {
