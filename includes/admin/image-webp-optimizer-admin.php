@@ -651,23 +651,28 @@ function ll_tools_webp_optimizer_item_matches_filters(array $item, array $args):
 
     $search = isset($args['search']) ? trim((string) $args['search']) : '';
     if ($search !== '') {
-        $needle = strtolower($search);
         $haystacks = [
-            strtolower((string) ($item['title'] ?? '')),
-            strtolower((string) ($item['categories_display'] ?? '')),
-            strtolower((string) ($item['format_label'] ?? '')),
+            (string) ($item['title'] ?? ''),
+            (string) ($item['categories_display'] ?? ''),
+            (string) ($item['format_label'] ?? ''),
             '#' . (string) ((int) ($item['word_image_id'] ?? 0)),
             '#' . (string) ((int) ($item['attachment_id'] ?? 0)),
         ];
 
-        $matched = false;
-        foreach ($haystacks as $text) {
-            if ($text !== '' && strpos($text, $needle) !== false) {
-                $matched = true;
-                break;
+        if (function_exists('ll_tools_any_text_matches_search')) {
+            $matched = ll_tools_any_text_matches_search($haystacks, $search);
+        } else {
+            $needle = strtolower($search);
+            $matched = false;
+            foreach ($haystacks as $text) {
+                $text = strtolower((string) $text);
+                if ($text !== '' && strpos($text, $needle) !== false) {
+                    $matched = true;
+                    break;
+                }
             }
         }
-        if (!$matched) {
+        if (empty($matched)) {
             return false;
         }
     }

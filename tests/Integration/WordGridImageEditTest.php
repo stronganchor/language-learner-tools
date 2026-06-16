@@ -267,7 +267,7 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         $attached_word_id = self::factory()->post->create([
             'post_type' => 'words',
             'post_status' => 'publish',
-            'post_title' => 'Attached Title Needle',
+            'post_title' => "\u{0130}nsanlar Attached Title Needle",
         ]);
         wp_set_post_terms($attached_word_id, [$category_id], 'word-category', false);
         wp_set_post_terms($attached_word_id, [$wordset_id], 'wordset', false);
@@ -288,6 +288,12 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
             return (int) ($choice['word_image_id'] ?? 0);
         }, $title_choices);
         $this->assertContains($word_image_id, $title_choice_ids);
+
+        $turkish_title_choices = ll_tools_word_grid_search_word_images_for_word('insanlar attached', 20, $wordset_id, $search_target_word_id);
+        $turkish_title_choice_ids = array_map(static function (array $choice): int {
+            return (int) ($choice['word_image_id'] ?? 0);
+        }, $turkish_title_choices);
+        $this->assertContains($word_image_id, $turkish_title_choice_ids);
 
         $translation_choices = ll_tools_word_grid_search_word_images_for_word('Translation Needle', 20, $wordset_id, $search_target_word_id);
         $translation_choice_ids = array_map(static function (array $choice): int {

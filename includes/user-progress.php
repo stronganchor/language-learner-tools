@@ -3915,6 +3915,44 @@ function ll_tools_user_progress_filter_analytics_word_ids_by_search(array $word_
         foreach ((array) $wpdb->get_col($prepared) as $matched_id) {
             $matched[(int) $matched_id] = true;
         }
+
+        if (function_exists('ll_tools_any_text_matches_search')) {
+            $unmatched_ids = array_values(array_filter($chunk, static function (int $word_id) use ($matched): bool {
+                return empty($matched[$word_id]);
+            }));
+            if (!empty($unmatched_ids)) {
+                $fallback_placeholders = implode(',', array_fill(0, count($unmatched_ids), '%d'));
+                $fallback_sql = "
+                    SELECT
+                        p.ID,
+                        p.post_title,
+                        pm_translation.meta_value AS translation_value,
+                        pm_meaning.meta_value AS meaning_value
+                    FROM {$wpdb->posts} p
+                    LEFT JOIN {$wpdb->postmeta} pm_translation
+                        ON pm_translation.post_id = p.ID
+                        AND pm_translation.meta_key = 'word_translation'
+                    LEFT JOIN {$wpdb->postmeta} pm_meaning
+                        ON pm_meaning.post_id = p.ID
+                        AND pm_meaning.meta_key = 'word_english_meaning'
+                    WHERE p.ID IN ({$fallback_placeholders})
+                ";
+                $fallback_prepared = $wpdb->prepare($fallback_sql, $unmatched_ids);
+                foreach ((array) $wpdb->get_results($fallback_prepared, ARRAY_A) as $row) {
+                    $word_id = (int) ($row['ID'] ?? 0);
+                    if ($word_id <= 0) {
+                        continue;
+                    }
+                    if (ll_tools_any_text_matches_search([
+                        (string) ($row['post_title'] ?? ''),
+                        (string) ($row['translation_value'] ?? ''),
+                        (string) ($row['meaning_value'] ?? ''),
+                    ], $search)) {
+                        $matched[$word_id] = true;
+                    }
+                }
+            }
+        }
     }
 
     return array_values(array_filter($word_ids, static function (int $word_id) use ($matched): bool {

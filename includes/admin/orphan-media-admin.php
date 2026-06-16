@@ -1334,7 +1334,9 @@ function ll_tools_orphan_media_filter_items(array $items, string $media_kind = '
         return $items;
     }
 
-    $needle = strtolower($search);
+    $needle = function_exists('ll_tools_normalize_text_for_search')
+        ? ll_tools_normalize_text_for_search($search)
+        : strtolower($search);
 
     return array_values(array_filter($items, static function (array $item) use ($media_kind, $needle): bool {
         if ($media_kind !== 'all' && (string) ($item['kind'] ?? '') !== $media_kind) {
@@ -1346,13 +1348,18 @@ function ll_tools_orphan_media_filter_items(array $items, string $media_kind = '
         }
 
         $haystacks = [
-            strtolower((string) ($item['title'] ?? '')),
-            strtolower((string) ($item['filename'] ?? '')),
-            strtolower((string) ($item['rel_path'] ?? '')),
-            strtolower((string) ($item['context_summary'] ?? '')),
+            (string) ($item['title'] ?? ''),
+            (string) ($item['filename'] ?? ''),
+            (string) ($item['rel_path'] ?? ''),
+            (string) ($item['context_summary'] ?? ''),
         ];
 
+        if (function_exists('ll_tools_any_text_matches_search')) {
+            return ll_tools_any_text_matches_search($haystacks, $needle);
+        }
+
         foreach ($haystacks as $text) {
+            $text = strtolower((string) $text);
             if ($text !== '' && strpos($text, $needle) !== false) {
                 return true;
             }

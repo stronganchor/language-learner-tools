@@ -304,6 +304,24 @@ async function exercisePrereqEditor(page) {
   });
 });
 
+test('prerequisites editor matches Turkish dotted capital categories with plain lowercase search', async ({ page }) => {
+  await mountPrereqEditor(page, { width: 1280, height: 900 }, {
+    options: [
+      { id: 16, label: '\u0130nsanlar 2', level: 1 },
+      { id: 17, label: 'Travel', level: 2 }
+    ],
+    selected: []
+  });
+
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+
+  const searchInput = page.locator('[data-ll-prereq-input]');
+  await searchInput.fill('insanlar');
+
+  await expect(page.locator('[data-ll-prereq-option]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-prereq-option]')).toContainText('\u0130nsanlar 2');
+});
+
 test('prerequisites editor reverts looped saves and only shows blocked options when searched', async ({ page }) => {
   const blockedRow = { id: 15, label: 'Loops', level: 2 };
   const savedSelection = [{ id: 13, label: 'Food', level: 2 }];

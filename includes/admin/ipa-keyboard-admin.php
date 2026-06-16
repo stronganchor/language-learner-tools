@@ -7873,9 +7873,17 @@ function ll_tools_ipa_keyboard_text_matches_pattern(string $value, string $query
     }
 
     if (strpos($query, '*') !== false || strpos($query, '?') !== false) {
+        if (function_exists('ll_tools_normalize_text_for_search')) {
+            $value = ll_tools_normalize_text_for_search($value);
+            $query = ll_tools_normalize_text_for_search($query);
+        }
         $pattern = preg_quote($query, '/');
         $pattern = str_replace(['\*', '\?'], ['.*', '.'], $pattern);
         return preg_match('/' . $pattern . '/iu', $value) === 1;
+    }
+
+    if (function_exists('ll_tools_text_matches_search')) {
+        return ll_tools_text_matches_search($value, $query);
     }
 
     if (function_exists('mb_stripos')) {

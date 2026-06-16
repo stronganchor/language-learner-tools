@@ -4466,6 +4466,12 @@ function ll_tools_word_grid_search_word_image_ids_by_attached_word_text(string $
     ];
     $candidate_word_ids = array_merge($candidate_word_ids, array_map('intval', (array) get_posts($meta_args)));
 
+    if (count(array_unique($candidate_word_ids)) < $limit) {
+        $fallback_args = $base_args;
+        $fallback_args['posts_per_page'] = min(300, max($limit * 4, $limit));
+        $candidate_word_ids = array_merge($candidate_word_ids, array_map('intval', (array) get_posts($fallback_args)));
+    }
+
     $image_ids = [];
     $seen_image_ids = [];
     $seen_word_ids = [];
@@ -4475,6 +4481,9 @@ function ll_tools_word_grid_search_word_image_ids_by_attached_word_text(string $
             continue;
         }
         $seen_word_ids[$candidate_word_id] = true;
+        if (!ll_tools_word_grid_word_matches_search($candidate_word_id, $query)) {
+            continue;
+        }
 
         $linked_image_id = (int) get_post_meta($candidate_word_id, '_ll_autopicked_image_id', true);
         if ($linked_image_id <= 0 || isset($seen_image_ids[$linked_image_id])) {
@@ -4489,6 +4498,29 @@ function ll_tools_word_grid_search_word_image_ids_by_attached_word_text(string $
     }
 
     return $image_ids;
+}
+
+function ll_tools_word_grid_word_image_matches_search(int $word_image_id, string $query): bool {
+    $query = trim($query);
+    if ($query === '') {
+        return true;
+    }
+
+    if ($word_image_id <= 0 || get_post_type($word_image_id) !== 'word_images') {
+        return false;
+    }
+
+    $attachment_id = (int) get_post_thumbnail_id($word_image_id);
+    $haystacks = [
+        get_the_title($word_image_id),
+    ];
+    if ($attachment_id > 0) {
+        $haystacks[] = (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+    }
+
+    return function_exists('ll_tools_any_text_matches_search')
+        ? ll_tools_any_text_matches_search($haystacks, $query)
+        : stripos(implode(' ', array_map('strval', $haystacks)), $query) !== false;
 }
 
 function ll_tools_word_grid_search_word_images_for_word(string $query, int $limit, int $wordset_id, int $word_id): array {
@@ -4536,6 +4568,7 @@ function ll_tools_word_grid_search_word_images_for_word(string $query, int $limi
     }
 
     $image_ids = get_posts($args);
+    $attached_word_image_lookup = [];
     if ($query !== '') {
         $attached_word_image_ids = ll_tools_word_grid_search_word_image_ids_by_attached_word_text(
             $query,
@@ -4544,7 +4577,14 @@ function ll_tools_word_grid_search_word_images_for_word(string $query, int $limi
             $word_id
         );
         if (!empty($attached_word_image_ids)) {
+            $attached_word_image_lookup = array_fill_keys(array_map('intval', $attached_word_image_ids), true);
             $image_ids = array_merge((array) $image_ids, $attached_word_image_ids);
+        }
+        if (count(array_unique(array_map('intval', (array) $image_ids))) < $limit) {
+            $fallback_args = $args;
+            unset($fallback_args['s']);
+            $fallback_args['posts_per_page'] = min(200, max($limit * 5, $limit));
+            $image_ids = array_merge((array) $image_ids, array_map('intval', (array) get_posts($fallback_args)));
         }
     }
 
@@ -4556,6 +4596,9 @@ function ll_tools_word_grid_search_word_images_for_word(string $query, int $limi
             continue;
         }
         $seen_image_ids[$image_id] = true;
+        if ($query !== '' && empty($attached_word_image_lookup[$image_id]) && !ll_tools_word_grid_word_image_matches_search($image_id, $query)) {
+            continue;
+        }
         if (!ll_tools_word_grid_word_image_is_selectable_for_word($image_id, $word_id, $wordset_id)) {
             continue;
         }
@@ -7050,6 +7093,10 @@ function ll_tools_word_grid_word_matches_search(int $word_id, string $query): bo
     $haystacks[] = (string) ($display_values['translation_text'] ?? '');
     $haystacks[] = (string) get_post_meta($word_id, 'word_translation', true);
     $haystacks[] = (string) get_post_meta($word_id, 'word_english_meaning', true);
+
+    if (function_exists('ll_tools_any_text_matches_search')) {
+        return ll_tools_any_text_matches_search($haystacks, $query);
+    }
 
     $needle = function_exists('mb_strtolower') ? mb_strtolower($query, 'UTF-8') : strtolower($query);
     foreach ($haystacks as $haystack) {

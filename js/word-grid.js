@@ -73,6 +73,28 @@
     const EDITABLE_INPUT_SELECTOR = 'input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-word-category-input], input[data-ll-recording-input], select[data-ll-recording-input]';
     const wordGridImageObservers = [];
 
+    function normalizeSearchText(value) {
+        let text = (value === null || value === undefined) ? '' : String(value);
+        text = text.trim().toLowerCase();
+        if (!text) { return ''; }
+        try {
+            text = text.normalize('NFD');
+        } catch (_) { /* Keep the lowered string if Unicode normalization is unavailable. */ }
+        text = text.replace(/[\u0300-\u036f]/g, '');
+        return text.replace(/[\u0131\u0142\u0111\u00f0\u00fe\u00e6\u0153\u00df]/g, function (match) {
+            return {
+                '\u0131': 'i',
+                '\u0142': 'l',
+                '\u0111': 'd',
+                '\u00f0': 'd',
+                '\u00fe': 'th',
+                '\u00e6': 'ae',
+                '\u0153': 'oe',
+                '\u00df': 'ss'
+            }[match] || match;
+        });
+    }
+
     function shouldRequireLessonOrderHandle() {
         const nav = (typeof window !== 'undefined' && window.navigator) ? window.navigator : null;
         if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -2501,7 +2523,7 @@
         const query = (term || '').toString();
         const normalizedWordset = parseInt(wordsetId, 10) || 0;
         const normalizedWordId = parseInt(wordId, 10) || 0;
-        const key = [normalizedWordset, normalizedWordId, query.toLowerCase()].join('|');
+        const key = [normalizedWordset, normalizedWordId, normalizeSearchText(query)].join('|');
         if (Object.prototype.hasOwnProperty.call(wordImageCache, key)) {
             done((wordImageCache[key] || []).slice());
             return;
@@ -2634,7 +2656,7 @@
         const query = (term || '').toString();
         const normalizedWordset = parseInt(wordsetId, 10) || 0;
         const normalizedExclude = parseInt(excludeWordId, 10) || 0;
-        const key = [normalizedWordset, normalizedExclude, query.toLowerCase()].join('|');
+        const key = [normalizedWordset, normalizedExclude, normalizeSearchText(query)].join('|');
         if (Object.prototype.hasOwnProperty.call(moveWordCache, key)) {
             done((moveWordCache[key] || []).slice());
             return;
@@ -2760,7 +2782,7 @@
         const query = (term || '').toString().trim();
         const normalizedWordset = parseInt(wordsetId, 10) || 0;
         const normalizedWordId = parseInt(wordId, 10) || 0;
-        const key = normalizedWordset + '|' + query.toLowerCase();
+        const key = normalizedWordset + '|' + normalizeSearchText(query);
         if (Object.prototype.hasOwnProperty.call(dictionaryEntryCache, key)) {
             done((dictionaryEntryCache[key] || []).slice());
             return;
@@ -3710,11 +3732,7 @@
     }
 
     function normalizeCategorySearchText(value) {
-        let text = (value || '').toString().trim().toLocaleLowerCase();
-        if (typeof text.normalize === 'function') {
-            text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        }
-        return text;
+        return normalizeSearchText(value);
     }
 
     function getCategoryOptionWordsetOrder(option) {
@@ -7114,7 +7132,7 @@
             $list.empty();
 
             const term = $input.length
-                ? ($input.val() || '').toString().trim().toLowerCase()
+                ? normalizeSearchText($input.val() || '')
                 : '';
             const selectedLookup = {};
             state.selectedIds.forEach(function (id) {
@@ -7137,7 +7155,7 @@
                 if (!numericId) { return; }
 
                 const label = (option && option.label) ? option.label.toString() : String(numericId);
-                const haystack = label.toLowerCase();
+                const haystack = normalizeSearchText(label);
                 const idText = String(numericId);
                 if (term && haystack.indexOf(term) === -1 && idText.indexOf(term) === -1) {
                     return;

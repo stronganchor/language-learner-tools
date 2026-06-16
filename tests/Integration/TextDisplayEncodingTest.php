@@ -27,4 +27,12 @@ final class TextDisplayEncodingTest extends LL_Tools_TestCase
             html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8')
         );
     }
+
+    public function test_search_normalization_folds_turkish_dotted_capital_i(): void
+    {
+        $this->assertSame('insanlar', ll_tools_normalize_text_for_search("\u{0130}nsanlar"));
+        $this->assertTrue(ll_tools_text_matches_search("\u{0130}nsanlar 2", 'insanlar'));
+        $this->assertTrue(ll_tools_text_matches_search("I\u{015F}\u{0131}k", "\u{0131}\u{015F}\u{0131}k"));
+        $this->assertTrue(ll_tools_text_matches_search('Image', 'image'));
+    }
 }

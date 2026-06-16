@@ -9405,8 +9405,9 @@
             };
         }
 
-        const query = String(mainCategorySearchQuery || '').trim().toLowerCase();
-        const searchRequestPending = query ? requestMainCategorySearchMatches(query) : false;
+        const rawQuery = String(mainCategorySearchQuery || '').trim();
+        const query = getMainCategorySearchQueryKey(rawQuery);
+        const searchRequestPending = query ? requestMainCategorySearchMatches(rawQuery) : false;
         syncMainCategorySearchClearButton();
         const visibleLookup = {};
         let totalMatchingCount = 0;

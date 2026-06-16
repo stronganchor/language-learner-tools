@@ -67,10 +67,31 @@
         return window.llWordsQuickEditData;
     }
 
+    function normalizeSearchText(value) {
+        var text = $.trim(String(value || '')).toLowerCase();
+        if (!text) {
+            return '';
+        }
+        try {
+            text = text.normalize('NFD');
+        } catch (_) {}
+        text = text.replace(/[\u0300-\u036f]/g, '');
+        return text.replace(/[\u0131\u0142\u0111\u00f0\u00fe\u00e6\u0153\u00df]/g, function (match) {
+            return {
+                '\u0131': 'i',
+                '\u0142': 'l',
+                '\u0111': 'd',
+                '\u00f0': 'd',
+                '\u00fe': 'th',
+                '\u00e6': 'ae',
+                '\u0153': 'oe',
+                '\u00df': 'ss'
+            }[match] || match;
+        });
+    }
+
     function normalizeLookupToken(value) {
-        return $.trim(String(value || ''))
-            .replace(/\s+/g, ' ')
-            .toLocaleLowerCase();
+        return normalizeSearchText(value).replace(/\s+/g, ' ');
     }
 
     function getQuickEditWordsetLookup() {

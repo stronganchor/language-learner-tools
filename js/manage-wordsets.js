@@ -14,6 +14,26 @@ jQuery(document).ready(function ($) {
             return a < b ? -1 : (a > b ? 1 : 0);
         }
     }
+    function normalizeSearchText(value) {
+        var text = String(value || '').trim().toLowerCase();
+        if (!text) { return ''; }
+        try {
+            text = text.normalize('NFD');
+        } catch (_) {}
+        text = text.replace(/[\u0300-\u036f]/g, '');
+        return text.replace(/[\u0131\u0142\u0111\u00f0\u00fe\u00e6\u0153\u00df]/g, function (match) {
+            return {
+                '\u0131': 'i',
+                '\u0142': 'l',
+                '\u0111': 'd',
+                '\u00f0': 'd',
+                '\u00fe': 'th',
+                '\u00e6': 'ae',
+                '\u0153': 'oe',
+                '\u00df': 'ss'
+            }[match] || match;
+        });
+    }
     var localeSort = (window.LLToolsLocaleSort && typeof window.LLToolsLocaleSort.createTextComparer === 'function')
         ? window.LLToolsLocaleSort
         : null;
@@ -51,10 +71,10 @@ jQuery(document).ready(function ($) {
              * @param {Function} response - Callback to pass the matched suggestions.
              */
             source: function (request, response) {
-                var matcher = new RegExp($.ui.autocomplete.escapeRegex(request.term), "i");
+                var term = normalizeSearchText(request.term);
                 var sortedArray = availableLanguages.slice().sort(function (a, b) {
-                    var startsWithA = a.label.toUpperCase().startsWith(request.term.toUpperCase());
-                    var startsWithB = b.label.toUpperCase().startsWith(request.term.toUpperCase());
+                    var startsWithA = term && normalizeSearchText(a.label).startsWith(term);
+                    var startsWithB = term && normalizeSearchText(b.label).startsWith(term);
                     if (startsWithA && !startsWithB) {
                         return -1;
                     } else if (!startsWithA && startsWithB) {
@@ -64,7 +84,7 @@ jQuery(document).ready(function ($) {
                     }
                 });
                 response($.grep(sortedArray, function (item) {
-                    return matcher.test(item.label);
+                    return !term || normalizeSearchText(item.label).indexOf(term) !== -1;
                 }));
             },
             minLength: 1,

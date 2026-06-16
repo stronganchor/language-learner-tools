@@ -224,12 +224,13 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
     {
         $fixture = $this->createFixture('lesson-edit-actions-search-word');
         $this->loginEditor();
+        update_post_meta((int) $fixture['target_word_id'], 'word_translation', "\u{0130}nsanlar Target Translation");
 
         $_POST = [
             'nonce' => wp_create_nonce('ll_word_grid_edit'),
             'wordset_id' => (string) $fixture['wordset_id'],
             'exclude_word_id' => (string) $fixture['source_word_id'],
-            'q' => 'Target Translation',
+            'q' => 'insanlar target',
             'limit' => '20',
         ];
         $_REQUEST = $_POST;
