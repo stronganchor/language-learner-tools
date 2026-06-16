@@ -2460,12 +2460,15 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
 
         $this->assertSame(2, (int) ($results['total'] ?? 0));
-        $queries_sql = implode("\n", $queries);
-        $this->assertStringContainsString('ll_dictionary_entry_lookup_title', $queries_sql);
-        $this->assertStringContainsString('lookup_title.meta_value LIKE', $queries_sql);
-        $this->assertStringNotContainsString("SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'", $queries_sql);
-        $this->assertStringNotContainsString('lookup_translation.meta_value', $queries_sql);
-        $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
+        $browse_queries_sql = implode("\n", array_filter($queries, static function (string $query) use ($wpdb): bool {
+            return strpos($query, "FROM {$wpdb->posts} p") !== false;
+        }));
+        $this->assertStringContainsString('BINARY LEFT(TRIM(p.post_title)', $browse_queries_sql);
+        $this->assertStringContainsString("p.post_type = 'll_dictionary_entry'", $browse_queries_sql);
+        $this->assertStringNotContainsString('ll_dictionary_entry_lookup_title', $browse_queries_sql);
+        $this->assertStringNotContainsString('lookup_title.meta_value LIKE', $browse_queries_sql);
+        $this->assertStringNotContainsString('lookup_translation.meta_value', $browse_queries_sql);
+        $this->assertStringNotContainsString('search_index.meta_value', $browse_queries_sql);
     }
 
     public function test_dictionary_entry_detail_spans_multiple_wordsets_when_words_share_one_entry(): void
@@ -2822,6 +2825,78 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Êvar', $letter_html);
         $this->assertStringNotContainsString('Ava', $letter_html);
         $this->assertStringContainsString('Showing 1-1 of 1', $letter_html);
+    }
+
+    public function test_unscoped_dictionary_infers_zazaki_letters_and_keeps_i_buckets_distinct(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Lapik',
+                'definition' => 'glove',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Işık',
+                'definition' => 'light',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'İnce',
+                'definition' => 'thin',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'ire',
+                'definition' => 'this',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame('zza', ll_tools_dictionary_get_effective_title_language_code(0));
+
+        $_GET = [];
+        $idle_html = do_shortcode('[ll_dictionary]');
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ç\s*<\/a>/u', $idle_html);
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ş\s*<\/a>/u', $idle_html);
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*İ\s*<\/a>/u', $idle_html);
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Û\s*<\/a>/u', $idle_html);
+
+        $_GET = [
+            'll_dictionary_letter' => 'I',
+        ];
+        $dotless_i_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Işık', $dotless_i_html);
+        $this->assertStringNotContainsString('Lapik', $dotless_i_html);
+        $this->assertStringNotContainsString('İnce', $dotless_i_html);
+        $this->assertStringNotContainsString('ire', $dotless_i_html);
+        $this->assertStringContainsString('Showing 1-1 of 1', $dotless_i_html);
+
+        $_GET = [
+            'll_dictionary_letter' => 'İ',
+        ];
+        $dotted_i_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('İnce', $dotted_i_html);
+        $this->assertStringContainsString('ire', $dotted_i_html);
+        $this->assertStringNotContainsString('Işık', $dotted_i_html);
+        $this->assertStringNotContainsString('Lapik', $dotted_i_html);
+        $this->assertStringContainsString('Showing 1-2 of 2', $dotted_i_html);
     }
 
     private function ensurePartOfSpeechTerm(string $slug, string $label): void

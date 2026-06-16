@@ -399,6 +399,88 @@ function ll_tools_dictionary_get_wordset_title_language_code(int $wordset_id = 0
 }
 
 /**
+ * Infer the dictionary title language from published entries when the shortcode
+ * is not scoped to a wordset with an explicit title language.
+ */
+function ll_tools_dictionary_infer_title_language_code_from_entries(int $wordset_id = 0): string {
+    static $request_cache = [];
+
+    $wordset_id = max(0, $wordset_id);
+    $cache_args = [
+        'wordset_id' => $wordset_id,
+        'viewer' => function_exists('ll_tools_dictionary_viewer_cache_key')
+            ? ll_tools_dictionary_viewer_cache_key()
+            : (is_user_logged_in() ? 'user:' . (int) get_current_user_id() : 'anon'),
+    ];
+    $cached = ll_tools_dictionary_browser_get_cached_payload('inferred_title_language', $cache_args, $request_cache);
+    if (is_string($cached)) {
+        return $cached;
+    }
+
+    $entry_ids = function_exists('ll_tools_dictionary_get_published_entry_ids_for_scope')
+        ? ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id)
+        : [];
+    if (!empty($entry_ids)) {
+        update_postmeta_cache($entry_ids);
+    }
+
+    $counts = [];
+    foreach ($entry_ids as $entry_id) {
+        $entry_id = (int) $entry_id;
+        if ($entry_id <= 0) {
+            continue;
+        }
+
+        $language = ll_tools_dictionary_normalize_language_key(
+            (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY, true)
+        );
+        if ($language === '') {
+            $language = ll_tools_dictionary_normalize_language_key(
+                ll_tools_dictionary_get_primary_sense_value(ll_tools_get_dictionary_entry_senses($entry_id), 'entry_lang')
+            );
+        }
+        if ($language === '') {
+            continue;
+        }
+
+        $counts[$language] = ($counts[$language] ?? 0) + 1;
+    }
+
+    if (empty($counts)) {
+        return ll_tools_dictionary_browser_store_cached_payload(
+            'inferred_title_language',
+            $cache_args,
+            '',
+            HOUR_IN_SECONDS,
+            $request_cache
+        );
+    }
+
+    arsort($counts);
+    $language = (string) key($counts);
+
+    return ll_tools_dictionary_browser_store_cached_payload(
+        'inferred_title_language',
+        $cache_args,
+        $language,
+        HOUR_IN_SECONDS,
+        $request_cache
+    );
+}
+
+/**
+ * Resolve the language used for browse letters in this dictionary scope.
+ */
+function ll_tools_dictionary_get_effective_title_language_code(int $wordset_id = 0): string {
+    $language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
+    if ($language !== '') {
+        return $language;
+    }
+
+    return ll_tools_dictionary_infer_title_language_code_from_entries($wordset_id);
+}
+
+/**
  * Return a preferred browse alphabet for languages with non-ASCII core letters.
  *
  * @return string[]
@@ -443,6 +525,37 @@ function ll_tools_dictionary_entry_matches_browse_letter(int $entry_id, string $
 
     $first_letter = ll_tools_dictionary_normalize_browse_letter($title, $language);
     return $first_letter !== '' && $first_letter === $letter;
+}
+
+/**
+ * Return exact raw first-character variants for one normalized browse letter.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_get_browse_letter_raw_variants(string $letter, string $language = ''): array {
+    $letter = ll_tools_dictionary_normalize_browse_letter($letter, $language);
+    if ($letter === '') {
+        return [];
+    }
+
+    $variants = [];
+    $register = static function (string $value) use (&$variants): void {
+        $value = function_exists('mb_substr') ? (string) mb_substr($value, 0, 1, 'UTF-8') : substr($value, 0, 1);
+        if ($value !== '' && !in_array($value, $variants, true)) {
+            $variants[] = $value;
+        }
+    };
+
+    $register($letter);
+    $lower = function_exists('ll_tools_lowercase_for_language')
+        ? ll_tools_lowercase_for_language($letter, $language)
+        : (function_exists('mb_strtolower') ? mb_strtolower($letter, 'UTF-8') : strtolower($letter));
+    $register($lower);
+    $register(function_exists('ll_tools_uppercase_first_char_for_language')
+        ? ll_tools_uppercase_first_char_for_language($lower, $language)
+        : (function_exists('mb_strtoupper') ? mb_strtoupper($lower, 'UTF-8') : strtoupper($lower)));
+
+    return $variants;
 }
 
 /**
@@ -2967,7 +3080,8 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
     $pos_filter = '',
     $source_filter = '',
     string $dialect = '',
-    int $limit = 0
+    int $limit = 0,
+    string $language = ''
 ): array {
     static $request_cache = [];
     global $wpdb;
@@ -2978,7 +3092,8 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
     }
 
     $wordset_id = max(0, $wordset_id);
-    $letter = ll_tools_dictionary_normalize_browse_letter($letter);
+    $language = $language !== '' ? ll_tools_dictionary_normalize_language_key($language) : ll_tools_dictionary_get_effective_title_language_code($wordset_id);
+    $letter = ll_tools_dictionary_normalize_browse_letter($letter, $language);
     $pos_slugs = ll_tools_dictionary_normalize_pos_filter_slugs($pos_filter);
     $pos_slug = implode('_', $pos_slugs);
     $source_ids = ll_tools_dictionary_normalize_source_filter_ids($source_filter);
@@ -2996,6 +3111,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         'source_ids' => $source_ids,
         'dialect' => $dialect,
         'limit' => $limit,
+        'language' => $language,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('browse_entry_ids', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -3032,17 +3148,15 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
     }
 
     if ($letter !== '') {
-        $lookup_letter = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
-            ? ll_tools_dictionary_entry_normalize_lookup_value($letter)
-            : strtolower($letter);
-        if ($lookup_letter !== '') {
-            $joins[] = "
-                INNER JOIN {$wpdb->postmeta} lookup_title
-                        ON lookup_title.post_id = p.ID
-                       AND lookup_title.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY) . "'
-            ";
-            $where[] = 'lookup_title.meta_value LIKE %s';
-            $params[] = $wpdb->esc_like($lookup_letter) . '%';
+        $letter_variants = ll_tools_dictionary_get_browse_letter_raw_variants($letter, $language);
+        if (!empty($letter_variants)) {
+            $letter_clauses = [];
+            foreach ($letter_variants as $variant) {
+                $letter_clauses[] = 'BINARY LEFT(TRIM(p.post_title), CHAR_LENGTH(%s)) = BINARY %s';
+                $params[] = $variant;
+                $params[] = $variant;
+            }
+            $where[] = '(' . implode(' OR ', $letter_clauses) . ')';
         }
     }
 
@@ -3399,7 +3513,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     }
     $candidate_fetch_limit = $candidate_scan_limit > 0 ? $candidate_scan_limit + 1 : 0;
     $wordset_id = max(0, (int) ($args['wordset_id'] ?? 0));
-    $title_language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
+    $title_language = ll_tools_dictionary_get_effective_title_language_code($wordset_id);
     $letter = ll_tools_dictionary_normalize_browse_letter((string) ($args['letter'] ?? ''), $title_language);
     $pos_slugs = array_key_exists('pos_slugs', $args)
         ? ll_tools_dictionary_normalize_pos_filter_slugs($args['pos_slugs'])
@@ -3433,6 +3547,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'page' => $page,
         'per_page' => $per_page,
         'wordset_id' => $wordset_id,
+        'title_language' => $title_language,
         'letter' => $letter,
         'pos_slug' => $pos_query_value,
         'pos_slugs' => $pos_slugs,
@@ -3465,7 +3580,8 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
                 $pos_slugs,
                 $source_ids,
                 $dialect,
-                $candidate_fetch_limit
+                $candidate_fetch_limit,
+                $title_language
             );
         } else {
             $used_published_scope_cache = true;
@@ -3726,8 +3842,10 @@ function ll_tools_dictionary_get_published_entry_ids_for_scope(int $wordset_id =
 function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array {
     static $request_cache = [];
 
+    $language = ll_tools_dictionary_get_effective_title_language_code($wordset_id);
     $cache_args = [
         'wordset_id' => $wordset_id,
+        'title_language' => $language,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('scope_filter_index', $cache_args, $request_cache);
@@ -3735,7 +3853,6 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
         return $cached;
     }
 
-    $language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
     $letters = [];
     $pos_slugs = [];
     $source_options = [];
@@ -3869,13 +3986,16 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     static $request_cache = [];
     global $wpdb;
 
-    $cache_args = ['wordset_id' => $wordset_id];
+    $language = ll_tools_dictionary_get_effective_title_language_code($wordset_id);
+    $cache_args = [
+        'wordset_id' => $wordset_id,
+        'title_language' => $language,
+    ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('available_letters_fast', $cache_args, $request_cache);
     if (is_array($cached)) {
         return array_values(array_filter(array_map('strval', $cached)));
     }
 
-    $language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
     $joins = [];
     $where = [
         "p.post_type = 'll_dictionary_entry'",
@@ -3913,6 +4033,23 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     }
 
     $ordered_letters = ll_tools_dictionary_order_browse_letters($letters, $language);
+    $alphabet = ll_tools_dictionary_get_language_browse_alphabet($language);
+    if (!empty($alphabet)) {
+        $merged_letters = [];
+        foreach ($alphabet as $alphabet_letter) {
+            if ($alphabet_letter === '' || isset($merged_letters[$alphabet_letter])) {
+                continue;
+            }
+            $merged_letters[$alphabet_letter] = true;
+        }
+        foreach ($ordered_letters as $ordered_letter) {
+            if ($ordered_letter === '' || isset($merged_letters[$ordered_letter])) {
+                continue;
+            }
+            $merged_letters[$ordered_letter] = true;
+        }
+        $ordered_letters = array_keys($merged_letters);
+    }
 
     return ll_tools_dictionary_browser_store_cached_payload(
         'available_letters_fast',
