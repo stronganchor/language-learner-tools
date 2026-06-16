@@ -316,7 +316,7 @@ function ll_tools_dictionary_sync_lookup_rows_for_entry(int $entry_id, bool $bum
             $params[] = max(0, (int) $row['value_length']);
         }
 
-        $sql = "INSERT INTO {$table} (entry_id, lookup_kind, lookup_value, value_length) VALUES "
+        $sql = "INSERT IGNORE INTO {$table} (entry_id, lookup_kind, lookup_value, value_length) VALUES "
             . implode(', ', $placeholders);
         $wpdb->query($wpdb->prepare($sql, $params));
     }

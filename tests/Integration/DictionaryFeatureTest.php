@@ -1461,6 +1461,35 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Ava', 0));
     }
 
+    public function test_dictionary_import_job_can_skip_backup_snapshot_when_requested(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $job = ll_tools_dictionary_import_create_tsv_job_from_rows([
+            [
+                'entry' => 'Veng',
+                'definition' => 'voice',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'skip_backup_snapshot' => true,
+        ], 'large-local.tsv');
+
+        $this->assertIsArray($job);
+        $this->assertSame('', (string) ($job['backup_snapshot_path'] ?? ''));
+        $this->assertStringContainsString('skipped', (string) ($job['backup_snapshot_error'] ?? ''));
+        $this->assertSame(0, (int) ($job['backup_entry_count'] ?? -1));
+
+        $processedJob = ll_tools_dictionary_import_process_job($job);
+        $this->assertIsArray($processedJob);
+        $this->assertSame('completed', $processedJob['status']);
+        $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Veng', 0));
+    }
+
     public function test_dictionary_import_save_job_trims_large_tracking_arrays(): void
     {
         $summary = ll_tools_dictionary_import_default_summary(250);
@@ -1961,12 +1990,31 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'English',
             ],
+            [
+                'entry' => 'Zel',
+                'definition' => 'grass',
+                'entry_type' => 'noun',
+                'source_id' => 'dezd-kirmancki-dictionary',
+                'source_dictionary' => 'DEZD - Kirmancki Dictionary',
+                'dialects' => 'Siverek',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Roj',
+                'definition' => 'sun',
+                'entry_type' => 'noun',
+                'source_id' => 'palu-bingol-harun-turgut',
+                'source_dictionary' => 'Palu - Bingöl Harun Turgut',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
         ]);
 
-        $this->assertSame(2, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));
 
         $entry_id = ll_tools_dictionary_find_entry_by_title('Dar', 0);
         $this->assertGreaterThan(0, $entry_id);
@@ -1991,10 +2039,21 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_dictionary_source[]"', $filtered_html);
         $this->assertStringContainsString('name="ll_dictionary_dialect"', $filtered_html);
         $this->assertStringContainsString('Dar', $filtered_html);
+        $this->assertStringContainsString('sun', $filtered_html);
         $this->assertStringNotContainsString('water', $filtered_html);
+        $this->assertStringNotContainsString('grass', $filtered_html);
         $this->assertStringContainsString('Harun Turgut', $filtered_html);
         $this->assertStringContainsString('ll-dictionary__badge--external', $filtered_html);
         $this->assertStringContainsString('aria-label="Open source page for Harun Turgut"', $filtered_html);
+
+        $_GET = [
+            'll_dictionary_source' => 'dezd',
+        ];
+
+        $dezd_filtered_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('water', $dezd_filtered_html);
+        $this->assertStringContainsString('grass', $dezd_filtered_html);
+        $this->assertStringNotContainsString('sun', $dezd_filtered_html);
 
         $_GET = [
             'll_dictionary_source' => ['harun-turgut', 'dezd'],
@@ -2003,6 +2062,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $multi_filtered_html = do_shortcode('[ll_dictionary]');
         $this->assertStringContainsString('Dar', $multi_filtered_html);
         $this->assertStringContainsString('water', $multi_filtered_html);
+        $this->assertStringContainsString('grass', $multi_filtered_html);
+        $this->assertStringContainsString('sun', $multi_filtered_html);
 
         $source_filter_url = ll_tools_dictionary_build_url('https://example.com/sozluk/', [
             'll_dictionary_source' => ['harun-turgut', 'dezd'],
@@ -2016,6 +2077,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $canonical_filtered_html = do_shortcode('[ll_dictionary]');
         $this->assertStringContainsString('Dar', $canonical_filtered_html);
         $this->assertStringContainsString('water', $canonical_filtered_html);
+        $this->assertStringContainsString('grass', $canonical_filtered_html);
+        $this->assertStringContainsString('sun', $canonical_filtered_html);
 
         $_GET = [
             'll_dictionary_entry' => (string) $entry_id,
@@ -2031,6 +2094,39 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('https://example.com/harun-license', $detail_html);
         $this->assertStringNotContainsString('Page 400', $detail_html);
         $this->assertStringNotContainsString('Page 52', $detail_html);
+    }
+
+    public function test_dictionary_search_matches_flex_apostrophe_headwords_with_ascii_input(): void
+    {
+        $headword = "\xE2\x80\x98sa";
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => $headword,
+                'definition' => 'apple',
+                'source_id' => 'hayig-werner',
+                'source_dictionary' => 'Hayıg/Werner',
+                'dialects' => 'Çermik',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $_GET = [
+            'll_dictionary_q' => "'sa",
+            'll_dictionary_source' => 'hayig-werner',
+        ];
+
+        $html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString($headword, $html);
+        $this->assertStringContainsString('apple', $html);
+        $this->assertStringContainsString('Hayıg/Werner', $html);
+        $this->assertStringContainsString('Çermik', $html);
     }
 
     public function test_dictionary_admin_pages_render_source_navigation_and_stacked_source_fields(): void

@@ -404,6 +404,8 @@ function ll_tools_dictionary_entry_normalize_lookup_value($value): string {
     if ($value === '') {
         return '';
     }
+    $value = str_replace(["\xE2\x80\x98", "\xE2\x80\x99", "\xE2\x80\x9B", "\xCA\xBC", '`'], "'", $value);
+
     return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 }
 

@@ -714,6 +714,15 @@ function ll_tools_dictionary_import_create_backup_snapshot(string $job_id) {
  * @return array<string,mixed>
  */
 function ll_tools_dictionary_import_attach_backup_snapshot(array $job): array {
+    $options = is_array($job['options'] ?? null) ? (array) $job['options'] : [];
+    if (!empty($options['skip_backup_snapshot']) || (array_key_exists('create_backup_snapshot', $options) && $options['create_backup_snapshot'] === false)) {
+        $job['backup_snapshot_path'] = '';
+        $job['backup_snapshot_error'] = __('Backup snapshot skipped for this import job.', 'll-tools-text-domain');
+        $job['backup_entry_count'] = 0;
+
+        return $job;
+    }
+
     $backup = ll_tools_dictionary_import_create_backup_snapshot((string) ($job['id'] ?? ''));
     if (is_wp_error($backup)) {
         $job['backup_snapshot_path'] = '';
@@ -970,9 +979,11 @@ function ll_tools_dictionary_import_create_tsv_job_from_rows(array $rows, array 
         ll_tools_dictionary_import_set_active_job_id($job_id);
     }
 
-    $job = ll_tools_dictionary_import_attach_backup_snapshot($job);
     ll_tools_dictionary_import_save_job($job_id, $job);
     ll_tools_dictionary_import_set_last_job_id($job_id, $user_id);
+
+    $job = ll_tools_dictionary_import_attach_backup_snapshot($job);
+    ll_tools_dictionary_import_save_job($job_id, $job);
 
     return $job;
 }
@@ -1052,6 +1063,9 @@ function ll_tools_dictionary_import_process_tsv_job(array $job) {
         $job['status'] = 'completed';
         ll_tools_dictionary_import_clear_active_job_id($job_id);
         ll_tools_dictionary_import_delete_path((string) ($job['job_dir'] ?? ''));
+        if (!empty($job['options']['defer_lookup_sync']) && function_exists('ll_tools_schedule_dictionary_lookup_rebuild')) {
+            ll_tools_schedule_dictionary_lookup_rebuild(true);
+        }
     }
 
     return $job;

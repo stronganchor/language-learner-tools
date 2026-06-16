@@ -177,6 +177,7 @@ function ll_tools_dictionary_normalize_search_text(string $value): string {
     $value = function_exists('ll_tools_lowercase_for_language')
         ? ll_tools_lowercase_for_language($value, 'tr')
         : (function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value));
+    $value = str_replace(["\xE2\x80\x98", "\xE2\x80\x99", "\xE2\x80\x9B", "\xCA\xBC", "'", '`'], '', $value);
     $value = preg_replace('/[^\p{L}\p{N}\s\'"-]+/u', ' ', $value);
     $value = preg_replace('/\s+/u', ' ', (string) $value);
 
@@ -1312,6 +1313,23 @@ function ll_tools_dictionary_normalize_source_filter_ids($source_filter): array 
 }
 
 /**
+ * Determine whether one stored source id/label satisfies one selected source filter id.
+ */
+function ll_tools_dictionary_source_identifier_matches_filter(string $source_identifier, string $source_filter_id): bool {
+    $source_identifier = ll_tools_dictionary_normalize_source_id($source_identifier);
+    $source_filter_id = ll_tools_dictionary_normalize_source_id($source_filter_id);
+    if ($source_identifier === '' || $source_filter_id === '') {
+        return false;
+    }
+
+    if ($source_identifier === $source_filter_id) {
+        return true;
+    }
+
+    return (bool) preg_match('/(?:^|-)' . preg_quote($source_filter_id, '/') . '(?:-|$)/', $source_identifier);
+}
+
+/**
  * Determine whether one dictionary entry contains a matching source filter.
  *
  * @param string|string[] $source_filter
@@ -1326,11 +1344,13 @@ function ll_tools_dictionary_entry_matches_source_filter(int $entry_id, $source_
     foreach (ll_tools_dictionary_collect_sources(ll_tools_get_dictionary_entry_senses($entry_id)) as $source) {
         $source_id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
         $source_label_id = ll_tools_dictionary_normalize_source_id((string) ($source['label'] ?? ''));
-        if (
-            ($source_id !== '' && in_array($source_id, $source_filter_ids, true))
-            || ($source_label_id !== '' && in_array($source_label_id, $source_filter_ids, true))
-        ) {
-            return true;
+        foreach ($source_filter_ids as $source_filter_id) {
+            if (
+                ll_tools_dictionary_source_identifier_matches_filter($source_id, $source_filter_id)
+                || ll_tools_dictionary_source_identifier_matches_filter($source_label_id, $source_filter_id)
+            ) {
+                return true;
+            }
         }
     }
 
@@ -1723,6 +1743,151 @@ function ll_tools_dictionary_select_entry_id_for_exact_title(array $candidate_id
     }
 
     return 0;
+}
+
+/**
+ * Resolve existing dictionary entries for a batch of imported headwords.
+ *
+ * @param string[] $titles Dictionary entry titles.
+ * @return array<string,int> Map of normalized lookup title to entry id, or 0 when none exists.
+ */
+function ll_tools_dictionary_preload_entry_ids_by_titles(array $titles, int $wordset_id = 0): array {
+    global $wpdb;
+
+    $lookup_to_titles = [];
+    foreach ($titles as $title) {
+        $title = trim((string) $title);
+        if ($title === '') {
+            continue;
+        }
+
+        $lookup = ll_tools_dictionary_entry_normalize_lookup_value($title);
+        if ($lookup === '') {
+            continue;
+        }
+
+        if (!isset($lookup_to_titles[$lookup])) {
+            $lookup_to_titles[$lookup] = [];
+        }
+        $lookup_to_titles[$lookup][] = $title;
+    }
+
+    if (empty($lookup_to_titles)) {
+        return [];
+    }
+
+    $statuses = ['publish', 'draft', 'pending', 'private', 'future'];
+    $entry_ids_by_lookup = array_fill_keys(array_keys($lookup_to_titles), 0);
+    $candidate_ids_by_lookup = [];
+    $lookups = array_keys($lookup_to_titles);
+    $lookup_placeholders = implode(', ', array_fill(0, count($lookups), '%s'));
+    $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
+    $params = array_merge([
+        LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY,
+    ], $lookups, $statuses);
+    $sql = "
+        SELECT pm.meta_value AS lookup_title, pm.post_id
+        FROM {$wpdb->postmeta} pm
+        INNER JOIN {$wpdb->posts} p
+                ON p.ID = pm.post_id
+        WHERE pm.meta_key = %s
+          AND pm.meta_value IN ({$lookup_placeholders})
+          AND p.post_type = 'll_dictionary_entry'
+          AND p.post_status IN ({$status_placeholders})
+        ORDER BY pm.post_id ASC
+    ";
+
+    foreach ((array) $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A) as $row) {
+        $lookup = trim((string) ($row['lookup_title'] ?? ''));
+        $entry_id = (int) ($row['post_id'] ?? 0);
+        if ($lookup === '' || $entry_id <= 0 || !array_key_exists($lookup, $entry_ids_by_lookup)) {
+            continue;
+        }
+
+        if (!isset($candidate_ids_by_lookup[$lookup])) {
+            $candidate_ids_by_lookup[$lookup] = [];
+        }
+        $candidate_ids_by_lookup[$lookup][] = $entry_id;
+    }
+
+    $candidate_ids = [];
+    foreach ($candidate_ids_by_lookup as $ids) {
+        $candidate_ids = array_merge($candidate_ids, (array) $ids);
+    }
+    $candidate_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_ids))));
+    if (!empty($candidate_ids)) {
+        if (function_exists('_prime_post_caches')) {
+            _prime_post_caches($candidate_ids, false, false);
+        }
+        update_postmeta_cache($candidate_ids);
+    }
+
+    foreach ($candidate_ids_by_lookup as $lookup => $ids) {
+        $entry_ids_by_lookup[$lookup] = ll_tools_dictionary_select_entry_id_for_exact_title((array) $ids, (string) $lookup, $wordset_id);
+    }
+
+    $unresolved_lookups = array_keys(array_filter($entry_ids_by_lookup, static function (int $entry_id): bool {
+        return $entry_id <= 0;
+    }));
+    if (empty($unresolved_lookups)) {
+        return $entry_ids_by_lookup;
+    }
+
+    $exact_titles = [];
+    foreach ($unresolved_lookups as $lookup) {
+        foreach ((array) ($lookup_to_titles[$lookup] ?? []) as $title) {
+            $exact_titles[$title] = true;
+        }
+    }
+
+    if (empty($exact_titles)) {
+        return $entry_ids_by_lookup;
+    }
+
+    $titles = array_keys($exact_titles);
+    $title_placeholders = implode(', ', array_fill(0, count($titles), '%s'));
+    $params = array_merge($statuses, $titles);
+    $sql = "
+        SELECT ID, post_title
+        FROM {$wpdb->posts}
+        WHERE post_type = 'll_dictionary_entry'
+          AND post_status IN ({$status_placeholders})
+          AND post_title IN ({$title_placeholders})
+        ORDER BY ID ASC
+    ";
+
+    $legacy_candidate_ids_by_lookup = [];
+    foreach ((array) $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A) as $row) {
+        $entry_id = (int) ($row['ID'] ?? 0);
+        $lookup = ll_tools_dictionary_entry_normalize_lookup_value((string) ($row['post_title'] ?? ''));
+        if ($entry_id <= 0 || $lookup === '' || !in_array($lookup, $unresolved_lookups, true)) {
+            continue;
+        }
+
+        if (!isset($legacy_candidate_ids_by_lookup[$lookup])) {
+            $legacy_candidate_ids_by_lookup[$lookup] = [];
+        }
+        $legacy_candidate_ids_by_lookup[$lookup][] = $entry_id;
+    }
+
+    $legacy_candidate_ids = [];
+    foreach ($legacy_candidate_ids_by_lookup as $ids) {
+        $legacy_candidate_ids = array_merge($legacy_candidate_ids, (array) $ids);
+    }
+    $legacy_candidate_ids = array_values(array_unique(array_filter(array_map('intval', $legacy_candidate_ids))));
+    if (!empty($legacy_candidate_ids)) {
+        ll_tools_dictionary_backfill_lookup_title_meta($legacy_candidate_ids);
+        if (function_exists('_prime_post_caches')) {
+            _prime_post_caches($legacy_candidate_ids, false, false);
+        }
+        update_postmeta_cache($legacy_candidate_ids);
+    }
+
+    foreach ($legacy_candidate_ids_by_lookup as $lookup => $ids) {
+        $entry_ids_by_lookup[$lookup] = ll_tools_dictionary_select_entry_id_for_exact_title((array) $ids, (string) $lookup, $wordset_id);
+    }
+
+    return $entry_ids_by_lookup;
 }
 
 /**
@@ -2171,7 +2336,7 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     $wordset_id = max(0, (int) ($options['wordset_id'] ?? 0));
     $replace_existing_senses = !empty($options['replace_existing_senses']);
     $entry_id = max(0, (int) ($options['entry_id'] ?? 0));
-    if ($entry_id <= 0) {
+    if ($entry_id <= 0 && empty($options['skip_entry_lookup'])) {
         $entry_id = ll_tools_dictionary_find_entry_by_title($title, $wordset_id);
     }
     if (
@@ -2314,7 +2479,7 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     if (function_exists('ll_tools_refresh_dictionary_entry_wordset_scope_meta')) {
         ll_tools_refresh_dictionary_entry_wordset_scope_meta($saved_entry_id);
     }
-    if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+    if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry') && empty($options['defer_lookup_sync'])) {
         ll_tools_dictionary_sync_lookup_rows_for_entry(
             $saved_entry_id,
             empty($options['defer_cache_invalidation'])
@@ -2414,13 +2579,38 @@ function ll_tools_dictionary_apply_grouped_import_rows(array $grouped_rows, arra
         'errors' => [],
     ];
     $touched_entries = 0;
+    $wordset_id = max(0, (int) ($options['wordset_id'] ?? 0));
+    $entry_ids_by_lookup = [];
+
+    if (empty($options['disable_batch_title_lookup'])) {
+        $titles = [];
+        foreach ($grouped_rows as $group_rows) {
+            if (!is_array($group_rows) || empty($group_rows)) {
+                continue;
+            }
+
+            $title = trim((string) (($group_rows[0]['entry'] ?? '') ?: ''));
+            if ($title !== '') {
+                $titles[] = $title;
+            }
+        }
+
+        $entry_ids_by_lookup = ll_tools_dictionary_preload_entry_ids_by_titles($titles, $wordset_id);
+    }
 
     foreach ($grouped_rows as $group_rows) {
         if (!is_array($group_rows) || empty($group_rows)) {
             continue;
         }
 
-        $result = ll_tools_dictionary_upsert_entry_from_rows($group_rows, $options);
+        $group_options = $options;
+        if (!isset($group_options['entry_id']) && empty($options['disable_batch_title_lookup'])) {
+            $lookup = ll_tools_dictionary_entry_normalize_lookup_value((string) (($group_rows[0]['entry'] ?? '') ?: ''));
+            $group_options['entry_id'] = max(0, (int) ($entry_ids_by_lookup[$lookup] ?? 0));
+            $group_options['skip_entry_lookup'] = true;
+        }
+
+        $result = ll_tools_dictionary_upsert_entry_from_rows($group_rows, $group_options);
         if (is_wp_error($result)) {
             $summary['errors'][] = $result->get_error_message();
             continue;
@@ -2929,6 +3119,7 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
     $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
     $lookup_prefix = $wpdb->esc_like($lookup) . '%';
     $lookup_contains = '%' . $wpdb->esc_like($lookup) . '%';
+    $norm_prefix = $wpdb->esc_like($search_norm) . '%';
     $norm_contains = '%' . $wpdb->esc_like($search_norm) . '%';
 
     $run_meta_query = static function (bool $contains_only) use (
@@ -2942,6 +3133,7 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         $lookup_prefix,
         $lookup_contains,
         $search_norm,
+        $norm_prefix,
         $norm_contains,
         $limit
     ): array {
@@ -2998,6 +3190,18 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                 $case_params[] = $lookup;
                 $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 2';
                 $case_params[] = $lookup_prefix;
+
+                if ($search_norm !== '' && $search_norm !== $lookup) {
+                    $joins[] = "
+                        LEFT JOIN {$wpdb->postmeta} search_index
+                               ON search_index.post_id = p.ID
+                              AND search_index.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY) . "'
+                    ";
+                    $search_clauses[] = 'search_index.meta_value LIKE %s';
+                    $params[] = $norm_prefix;
+                    $case_sql[] = 'WHEN search_index.meta_value LIKE %s THEN 4';
+                    $case_params[] = $norm_prefix;
+                }
             }
         }
 
