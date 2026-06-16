@@ -43,19 +43,6 @@ function buildMarkup() {
               <a class="ll-dictionary__button ll-dictionary__button--ghost" data-ll-dictionary-reset href="https://example.com/dictionary/" hidden>Reset</a>
             </div>
           </div>
-          <fieldset class="ll-dictionary__scope-group" aria-labelledby="ll-dictionary-scope-group">
-            <legend id="ll-dictionary-scope-group" class="screen-reader-text">Search scope</legend>
-            <div class="ll-dictionary__scope-options">
-              <label class="ll-dictionary__scope-option" for="ll-dictionary-scope-headword">
-                <input type="checkbox" id="ll-dictionary-scope-headword" class="ll-dictionary__scope-checkbox" name="ll_dictionary_scope[]" value="headword" checked>
-                <span class="ll-dictionary__scope-option-label">Zazaki</span>
-              </label>
-              <label class="ll-dictionary__scope-option" for="ll-dictionary-scope-tr">
-                <input type="checkbox" id="ll-dictionary-scope-tr" class="ll-dictionary__scope-checkbox" name="ll_dictionary_scope[]" value="tr" checked>
-                <span class="ll-dictionary__scope-option-label">Türkçe</span>
-              </label>
-            </div>
-          </fieldset>
           <div class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred" data-ll-dictionary-toolbar-panel></div>
         </form>
       </div>
@@ -153,15 +140,67 @@ async function mountDictionaryHarness(page, options = {}) {
             data: {
               html: `
                 <div class="ll-dictionary__toolbar-panel" data-ll-dictionary-toolbar-panel>
-                  <div class="ll-dictionary__filters">
-                    <div class="ll-dictionary__field ll-dictionary__field--select">
-                      <label class="screen-reader-text" for="ll-dictionary-pos">Filter by part of speech</label>
-                      <select id="ll-dictionary-pos" class="ll-dictionary__select" name="ll_dictionary_pos">
-                        <option value="">All types</option>
-                        <option value="noun">Noun</option>
-                        <option value="verb">Verb</option>
-                      </select>
-                    </div>
+                  <div class="ll-dictionary__filter-group-label">Search settings</div>
+                  <div class="ll-dictionary__filters" aria-label="Search settings">
+                    <details class="ll-dictionary__filter-menu" data-ll-dictionary-filter-menu>
+                      <summary id="ll-dictionary-filter-scope-summary" class="ll-dictionary__filter-summary">
+                        <span class="ll-dictionary__filter-heading">Search in languages</span>
+                        <span
+                          class="ll-dictionary__filter-current"
+                          data-ll-dictionary-filter-summary
+                          data-summary-all="All languages"
+                          data-summary-selected="%d selected"
+                        >All languages</span>
+                      </summary>
+                      <div class="ll-dictionary__filter-popover" role="group" aria-labelledby="ll-dictionary-filter-scope-summary">
+                        <label class="ll-dictionary__filter-option" for="ll-dictionary-scope-headword">
+                          <input type="checkbox" id="ll-dictionary-scope-headword" class="ll-dictionary__filter-checkbox" name="ll_dictionary_scope[]" value="headword" checked>
+                          <span class="ll-dictionary__filter-option-text">
+                            <span class="ll-dictionary__filter-option-label">Zazaki</span>
+                          </span>
+                        </label>
+                        <label class="ll-dictionary__filter-option" for="ll-dictionary-scope-tr">
+                          <input type="checkbox" id="ll-dictionary-scope-tr" class="ll-dictionary__filter-checkbox" name="ll_dictionary_scope[]" value="tr" checked>
+                          <span class="ll-dictionary__filter-option-text">
+                            <span class="ll-dictionary__filter-option-label">Turkish</span>
+                          </span>
+                        </label>
+                      </div>
+                    </details>
+                    <details class="ll-dictionary__filter-menu" data-ll-dictionary-filter-menu>
+                      <summary id="ll-dictionary-filter-source-summary" class="ll-dictionary__filter-summary">
+                        <span class="ll-dictionary__filter-heading">Source dictionaries</span>
+                        <span
+                          class="ll-dictionary__filter-current"
+                          data-ll-dictionary-filter-summary
+                          data-summary-all="All sources"
+                          data-summary-selected="%d selected"
+                        >All sources</span>
+                      </summary>
+                      <div class="ll-dictionary__filter-popover" role="group" aria-labelledby="ll-dictionary-filter-source-summary">
+                        <label class="ll-dictionary__filter-option" for="ll-dictionary-source-dezd">
+                          <input type="checkbox" id="ll-dictionary-source-dezd" class="ll-dictionary__filter-checkbox" name="ll_dictionary_source[]" value="dezd" checked>
+                          <span class="ll-dictionary__filter-option-text">
+                            <span class="ll-dictionary__filter-option-label">DEZD</span>
+                            <span class="ll-dictionary__filter-option-note">Dialect unspecified</span>
+                          </span>
+                        </label>
+                        <label class="ll-dictionary__filter-option" for="ll-dictionary-source-harun">
+                          <input type="checkbox" id="ll-dictionary-source-harun" class="ll-dictionary__filter-checkbox" name="ll_dictionary_source[]" value="harun-turgut" checked>
+                          <span class="ll-dictionary__filter-option-text">
+                            <span class="ll-dictionary__filter-option-label">Harun Turgut</span>
+                            <span class="ll-dictionary__filter-option-note">Palu - Bingol</span>
+                          </span>
+                        </label>
+                        <label class="ll-dictionary__filter-option" for="ll-dictionary-source-hayig">
+                          <input type="checkbox" id="ll-dictionary-source-hayig" class="ll-dictionary__filter-checkbox" name="ll_dictionary_source[]" value="hayig-werner" checked>
+                          <span class="ll-dictionary__filter-option-text">
+                            <span class="ll-dictionary__filter-option-label">Hayıg/Werner</span>
+                            <span class="ll-dictionary__filter-option-note">Çermik</span>
+                          </span>
+                        </label>
+                      </div>
+                    </details>
                   </div>
                   <p class="ll-dictionary__hint">Type to search, or open the alphabet below.</p>
                   <nav class="ll-dictionary__letters" aria-label="Browse dictionary by letter">
@@ -181,7 +220,7 @@ async function mountDictionaryHarness(page, options = {}) {
           json: async () => ({
             success: true,
             data: {
-              html: `<article class="ll-dictionary__entry">Query:${requestData.ll_dictionary_q || ''}; Scope:${requestData.ll_dictionary_scope || 'all'}; POS:${requestData.ll_dictionary_pos || 'all'}</article>`,
+              html: `<article class="ll-dictionary__entry">Query:${requestData.ll_dictionary_q || ''}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}</article>`,
               has_active_query: true,
               url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(requestData.ll_dictionary_q || '')}`
             }
@@ -219,15 +258,16 @@ async function mountDictionaryHarness(page, options = {}) {
 test('loads deferred dictionary filters on first interaction only once', async ({ page }) => {
   await mountDictionaryHarness(page);
 
-  await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(0);
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(0);
   await expect(page.locator('.ll-dictionary__toolbar')).not.toHaveClass(/is-scope-visible/);
 
   await page.locator('#ll-dictionary-search').focus();
   await expect(page.locator('.ll-dictionary__toolbar')).toHaveClass(/is-scope-visible/);
-  await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(2);
+  await expect(page.locator('input[name="ll_dictionary_pos[]"]')).toHaveCount(0);
 
   await page.locator('#ll-dictionary-search').fill('ap');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; POS:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
 
   const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
   const bootstrapCalls = fetchCalls.filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap');
@@ -239,13 +279,14 @@ test('live search still reacts to deferred filter controls after bootstrap', asy
   await mountDictionaryHarness(page);
 
   await page.locator('#ll-dictionary-search').focus();
-  await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(2);
 
   await page.locator('#ll-dictionary-search').fill('apa');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; POS:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; Source:all');
 
-  await page.locator('select[name="ll_dictionary_pos"]').selectOption('verb');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; POS:verb');
+  await page.locator('summary#ll-dictionary-filter-source-summary').click();
+  await page.locator('#ll-dictionary-source-dezd').uncheck();
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; Source:harun-turgut,hayig-werner');
 
   const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
   const lastSearchCall = [...fetchCalls].reverse().find((call) => call.action === 'll_tools_dictionary_live_search');
@@ -253,7 +294,7 @@ test('live search still reacts to deferred filter controls after bootstrap', asy
   expect(lastSearchCall).toMatchObject({
     ll_dictionary_q: 'apa',
     ll_dictionary_scope: 'all',
-    ll_dictionary_pos: 'verb'
+    ll_dictionary_source: 'harun-turgut,hayig-werner'
   });
 });
 
@@ -261,13 +302,14 @@ test('live search sends a narrowed checkbox scope when one scope is unchecked', 
   await mountDictionaryHarness(page);
 
   await page.locator('#ll-dictionary-search').focus();
-  await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(2);
 
   await page.locator('#ll-dictionary-search').fill('apa');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; POS:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; Source:all');
 
+  await page.locator('summary#ll-dictionary-filter-scope-summary').click();
   await page.locator('#ll-dictionary-scope-tr').uncheck();
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:headword; POS:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:headword; Source:all');
 
   const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
   const lastSearchCall = [...fetchCalls].reverse().find((call) => call.action === 'll_tools_dictionary_live_search');
@@ -281,26 +323,24 @@ test('live search sends a narrowed checkbox scope when one scope is unchecked', 
 test('restores saved checkbox scope preferences on load when the URL has no explicit scope', async ({ page }) => {
   await mountDictionaryHarness(page, { storedScope: 'headword' });
 
+  await page.locator('#ll-dictionary-search').focus();
+
   await expect(page.locator('#ll-dictionary-scope-headword')).toBeChecked();
   await expect(page.locator('#ll-dictionary-scope-tr')).not.toBeChecked();
 });
 
-test('unchecked scope chips lose their green fill immediately while focused', async ({ page }) => {
+test('filter menu checkbox changes keep the dropdown open', async ({ page }) => {
   await mountDictionaryHarness(page);
 
   await page.locator('#ll-dictionary-search').focus();
-  await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
-
-  await page.locator('#ll-dictionary-scope-tr').focus();
-  const scopeChip = page.locator('label[for="ll-dictionary-scope-tr"]');
+  await page.locator('summary#ll-dictionary-filter-scope-summary').click();
 
   await expect(page.locator('#ll-dictionary-scope-tr')).toBeChecked();
-  await expect(scopeChip).toHaveCSS('background-color', 'rgb(230, 246, 239)');
+  await expect(page.locator('[data-ll-dictionary-filter-menu]').first()).toHaveAttribute('open', '');
 
-  await page.keyboard.press('Space');
-
+  await page.locator('#ll-dictionary-scope-tr').uncheck();
   await expect(page.locator('#ll-dictionary-scope-tr')).not.toBeChecked();
-  await expect(scopeChip).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(page.locator('[data-ll-dictionary-filter-menu]').first()).toHaveAttribute('open', '');
 });
 
 test('scope changes keep the alphabet panel open', async ({ page }) => {
@@ -309,11 +349,39 @@ test('scope changes keep the alphabet panel open', async ({ page }) => {
   await page.locator('#ll-dictionary-search').focus();
   await expect(page.locator('.ll-dictionary__letters')).toBeVisible();
 
+  await page.locator('summary#ll-dictionary-filter-scope-summary').click();
   await page.locator('#ll-dictionary-scope-tr').uncheck();
   await page.locator('body').click({ position: { x: 4, y: 4 } });
 
   await expect(page.locator('.ll-dictionary__toolbar')).toHaveClass(/is-expanded/);
   await expect(page.locator('.ll-dictionary__letters')).toBeVisible();
+  await expect(page.locator('[data-ll-dictionary-filter-menu]').first()).not.toHaveAttribute('open', '');
+});
+
+test('filter dropdowns close on outside click and Escape', async ({ page }) => {
+  await mountDictionaryHarness(page);
+
+  await page.locator('#ll-dictionary-search').focus();
+
+  const languageMenu = page.locator('[data-ll-dictionary-filter-menu]').first();
+  const sourceMenu = page.locator('[data-ll-dictionary-filter-menu]').last();
+
+  await page.locator('summary#ll-dictionary-filter-scope-summary').click();
+  await expect(languageMenu).toHaveAttribute('open', '');
+
+  await page.locator('body').click({ position: { x: 4, y: 4 } });
+  await expect(languageMenu).not.toHaveAttribute('open', '');
+  await expect(page.locator('.ll-dictionary__toolbar')).toHaveClass(/is-expanded/);
+
+  await page.locator('summary#ll-dictionary-filter-scope-summary').click();
+  await expect(languageMenu).toHaveAttribute('open', '');
+
+  await page.locator('summary#ll-dictionary-filter-source-summary').click();
+  await expect(languageMenu).not.toHaveAttribute('open', '');
+  await expect(sourceMenu).toHaveAttribute('open', '');
+
+  await page.keyboard.press('Escape');
+  await expect(sourceMenu).not.toHaveAttribute('open', '');
 });
 
 test('scrolls down once when live search starts so the search field stays visible', async ({ page }) => {
@@ -325,7 +393,7 @@ test('scrolls down once when live search starts so the search field stays visibl
   });
 
   await page.locator('#ll-dictionary-search').fill('ap');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; POS:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
   await page.waitForFunction(() => Array.isArray(window.__scrollCalls) && window.__scrollCalls.length > 0);
 
   const scrollCalls = await page.evaluate(() => window.__scrollCalls);

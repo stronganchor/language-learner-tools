@@ -737,6 +737,16 @@
             form.querySelectorAll('[data-ll-dictionary-filter-menu]').forEach(updateFilterMenuSummary);
         };
 
+        const closeFilterMenusExcept = (activeMenu) => {
+            form.querySelectorAll('[data-ll-dictionary-filter-menu][open]').forEach((menu) => {
+                if (activeMenu && menu === activeMenu) {
+                    return;
+                }
+
+                menu.removeAttribute('open');
+            });
+        };
+
         const updateCurrentScopeState = () => {
             root.dataset.currentScope = getScopeQueryValue();
         };
@@ -1239,6 +1249,34 @@
             }
             showLoadingState();
             requestResults(1, true);
+        });
+
+        document.addEventListener('pointerdown', (event) => {
+            const target = event.target;
+            if (!target || !form.contains(target)) {
+                closeFilterMenusExcept(null);
+                return;
+            }
+
+            const activeMenu = target.closest('[data-ll-dictionary-filter-menu]');
+            closeFilterMenusExcept(activeMenu);
+        }, { passive: true });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') {
+                return;
+            }
+
+            const openMenu = form.querySelector('[data-ll-dictionary-filter-menu][open]');
+            if (!openMenu) {
+                return;
+            }
+
+            closeFilterMenusExcept(null);
+            const summary = openMenu.querySelector('summary');
+            if (summary && typeof summary.focus === 'function') {
+                summary.focus();
+            }
         });
 
         root.addEventListener('click', (event) => {
