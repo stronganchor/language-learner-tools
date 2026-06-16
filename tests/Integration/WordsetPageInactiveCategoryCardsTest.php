@@ -38,6 +38,10 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Needs more quiz-ready words.', $inactive_card);
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-card="true"', $inactive_card);
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-trigger', $inactive_card);
+        $this->assertStringContainsString('ll-wordset-card__heading--inactive-link', $inactive_card);
+        $this->assertStringContainsString('ll-wordset-card__lesson-link--inactive-link', $inactive_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action=preview', $inactive_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_id=', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $inactive_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $inactive_card);
         $this->assertStringNotContainsString('ll-wordset-card__staff-actions', $inactive_card);
@@ -49,11 +53,12 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete" disabled', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-select', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-category-mode', $inactive_card);
-        $this->assertStringNotContainsString('href="', $inactive_card);
 
         $this->assertStringContainsString('Needs word records.', $image_card);
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-card="true"', $image_card);
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-trigger', $image_card);
+        $this->assertStringContainsString('ll-wordset-card__lesson-link--inactive-link', $image_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action=preview', $image_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $image_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $image_card);
         $this->assertStringNotContainsString('ll-wordset-card__staff-actions', $image_card);

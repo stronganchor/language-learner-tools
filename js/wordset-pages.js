@@ -1611,6 +1611,7 @@
                 delete_reason: String((cat && cat.delete_reason) || ''),
                 inactive_action_nonce: String((cat && cat.inactive_action_nonce) || ''),
                 inactive_action_url: String((cat && cat.inactive_action_url) || ''),
+                inactive_preview_url: String((cat && cat.inactive_preview_url) || ''),
                 inactive_link_allowed: normalizeBooleanFlag(cat && cat.inactive_link_allowed),
                 is_virtual_category: normalizeBooleanFlag(cat && cat.is_virtual_category),
                 virtual_category_type: String((cat && cat.virtual_category_type) || ''),
@@ -1664,6 +1665,7 @@
                 delete_reason: String(source.delete_reason || ''),
                 inactive_action_nonce: String(source.inactive_action_nonce || ''),
                 inactive_action_url: String(source.inactive_action_url || ''),
+                inactive_preview_url: String(source.inactive_preview_url || ''),
                 inactive_link_allowed: normalizeBooleanFlag(source.inactive_link_allowed),
                 is_virtual_category: normalizeBooleanFlag(source.is_virtual_category),
                 virtual_category_type: String(source.virtual_category_type || ''),
@@ -7659,7 +7661,12 @@
         const virtualCategoryType = String(cat.virtual_category_type || '').trim();
         const isPublic = categoryIsPublic(cat);
         const canPreviewInactive = !isPublic && canRenderInactiveCategoryActions(cat) && !!cat.can_preview;
-        const canLinkInactive = !isPublic && rawCatUrl !== '' && !!cat.inactive_link_allowed;
+        const inactiveDirectLinkAllowed = !isPublic && rawCatUrl !== '' && !!cat.inactive_link_allowed;
+        const inactivePreviewUrl = canPreviewInactive ? String(cat.inactive_preview_url || '').trim() : '';
+        const inactiveLinkUrl = inactiveDirectLinkAllowed ? rawCatUrl : inactivePreviewUrl;
+        const inactiveLinkHref = inactiveLinkUrl || '#';
+        const inactiveLinkUsesPreview = !inactiveDirectLinkAllowed && inactivePreviewUrl !== '';
+        const canLinkInactive = !isPublic && inactiveLinkUrl !== '';
         const publicNote = String(cat.public_note || i18n.categoryNotPublicDefaultNote || '').trim();
         const publicNoteLabel = String(cat.public_note_label || i18n.notPublicLabel || '').trim();
         const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
@@ -7698,7 +7705,9 @@
         } else {
             html += '  <span class="ll-wordset-card__select ll-wordset-card__select--inactive" aria-hidden="true"><span class="ll-wordset-card__select-box"></span></span>';
             if (canLinkInactive) {
-                html += '  <a class="ll-wordset-card__heading ll-wordset-card__heading--inactive-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
+                html += '  <a class="ll-wordset-card__heading ll-wordset-card__heading--inactive-link' + (inactiveLinkUsesPreview ? ' ll-wordset-card__heading--inactive-preview' : '') + '" href="' + escapeHtml(inactiveLinkHref) + '" aria-label="' + escapeHtml(catName) + '"'
+                    + (inactiveLinkUsesPreview ? ' data-ll-wordset-inactive-preview-trigger' : '')
+                    + '>';
                 html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
                 html += '  </a>';
             } else {
@@ -7722,7 +7731,9 @@
         if (isPublic) {
             html += '<a class="ll-wordset-card__lesson-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
         } else if (canLinkInactive) {
-            html += '<a class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive ll-wordset-card__lesson-link--inactive-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
+            html += '<a class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive ll-wordset-card__lesson-link--inactive-link' + (inactiveLinkUsesPreview ? ' ll-wordset-card__lesson-link--inactive-preview' : '') + '" href="' + escapeHtml(inactiveLinkHref) + '" aria-label="' + escapeHtml(catName) + '"'
+                + (inactiveLinkUsesPreview ? ' data-ll-wordset-inactive-preview-trigger' : '')
+                + '>';
         } else {
             html += '<div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive' + (canPreviewInactive ? ' ll-wordset-card__lesson-link--inactive-preview' : '') + '" aria-label="' + escapeHtml(catName) + '"'
                 + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
@@ -10656,6 +10667,33 @@
         const segments = getWordsetCardProgressSegments($card);
         if (!segments.track.length) { return; }
         segments.track.toggleClass('is-loading', !isResolved);
+    }
+
+    function shouldAllowNativeLinkActivation(e) {
+        const $target = e && e.currentTarget ? $(e.currentTarget) : $();
+        if (!$target.length || !$target.is('a[href]')) {
+            return false;
+        }
+
+        const originalEvent = e && e.originalEvent ? e.originalEvent : e;
+        if (originalEvent && (originalEvent.metaKey || originalEvent.ctrlKey || originalEvent.shiftKey || originalEvent.altKey)) {
+            return true;
+        }
+
+        const button = originalEvent && typeof originalEvent.button === 'number'
+            ? originalEvent.button
+            : (e && typeof e.button === 'number' ? e.button : 0);
+        if (button !== 0) {
+            return true;
+        }
+
+        const which = e && typeof e.which === 'number' ? e.which : 1;
+        if (which > 1) {
+            return true;
+        }
+
+        const target = String($target.attr('target') || '').trim().toLowerCase();
+        return target !== '' && target !== '_self';
     }
 
     function clearInitialWordsetCardProgressLoading() {
@@ -14811,6 +14849,9 @@
         });
 
         $root.on('click', '[data-ll-wordset-inactive-preview-trigger]', function (e) {
+            if (shouldAllowNativeLinkActivation(e)) {
+                return;
+            }
             e.preventDefault();
             submitInactiveCategoryPreviewForm(getInactiveCategoryPreviewForm($(this)));
         });
