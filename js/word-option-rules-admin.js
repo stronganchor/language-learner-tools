@@ -301,14 +301,19 @@
         }
         var stickyHeaderTable = null;
         var stickyHeaderSyncFrame = 0;
+        var groupTableLayoutFrame = 0;
         var desktopMediaQuery = window.matchMedia ? window.matchMedia('(min-width: 783px)') : null;
 
+        function isCondensedLayout() {
+            return !!(tableWrap && tableWrap.classList.contains('is-condensed'));
+        }
+
         function syncStickyHeaderOffset() {
-            if (!stickyHeaderTable || !tableWrap) {
+            if (!stickyHeaderTable || !tableWrap || isCondensedLayout()) {
                 return;
             }
 
-            stickyHeaderTable.style.transform = 'translate(' + (-tableWrap.scrollLeft) + 'px, ' + tableWrap.scrollTop + 'px)';
+            stickyHeaderTable.style.transform = 'translateY(' + tableWrap.scrollTop + 'px)';
         }
 
         function clearStickyHeader() {
@@ -335,7 +340,7 @@
 
             stickyHeaderSyncFrame = 0;
 
-            if (!tableWrap || (desktopMediaQuery && !desktopMediaQuery.matches)) {
+            if (!tableWrap || isCondensedLayout() || (desktopMediaQuery && !desktopMediaQuery.matches)) {
                 clearStickyHeader();
                 return;
             }
@@ -383,6 +388,55 @@
             stickyHeaderSyncFrame = window.requestAnimationFrame(rebuildStickyHeader);
         }
 
+        function setCondensedLayout(shouldCondense) {
+            if (!tableWrap) {
+                return;
+            }
+
+            if (shouldCondense) {
+                tableWrap.classList.add('is-condensed');
+                tableWrap.setAttribute('data-layout', 'condensed');
+                clearStickyHeader();
+                return;
+            }
+
+            tableWrap.classList.remove('is-condensed');
+            tableWrap.removeAttribute('data-layout');
+            requestStickyHeaderSync();
+        }
+
+        function updateGroupTableLayout() {
+            var wasCondensed;
+            var shouldCondense;
+
+            groupTableLayoutFrame = 0;
+
+            if (!tableWrap) {
+                return;
+            }
+
+            wasCondensed = isCondensedLayout();
+            if (wasCondensed) {
+                tableWrap.classList.remove('is-condensed');
+            }
+
+            shouldCondense = table.scrollWidth > tableWrap.clientWidth + 2;
+
+            if (wasCondensed) {
+                tableWrap.classList.add('is-condensed');
+            }
+
+            setCondensedLayout(shouldCondense);
+        }
+
+        function requestGroupTableLayoutSync() {
+            if (groupTableLayoutFrame) {
+                return;
+            }
+
+            groupTableLayoutFrame = window.requestAnimationFrame(updateGroupTableLayout);
+        }
+
         function getWordRows() {
             return Array.prototype.slice.call(table.querySelectorAll('tbody tr[data-word-id]'));
         }
@@ -396,7 +450,7 @@
             if (header) {
                 header.textContent = label || '';
             }
-            requestStickyHeaderSync();
+            requestGroupTableLayoutSync();
         }
 
         function getGroupLabelText(label) {
@@ -468,6 +522,7 @@
                 td.appendChild(labelEl);
                 row.appendChild(td);
             });
+            requestGroupTableLayoutSync();
         }
 
         function removeGroupColumn(groupId) {
@@ -479,7 +534,7 @@
             cells.forEach(function (cell) {
                 cell.remove();
             });
-            requestStickyHeaderSync();
+            requestGroupTableLayoutSync();
         }
 
         function addGroupRow(label) {
@@ -562,16 +617,16 @@
             tableWrap.addEventListener('scroll', syncStickyHeaderOffset, { passive: true });
         }
 
-        window.addEventListener('resize', requestStickyHeaderSync);
+        window.addEventListener('resize', requestGroupTableLayoutSync);
         if (desktopMediaQuery) {
             if (typeof desktopMediaQuery.addEventListener === 'function') {
-                desktopMediaQuery.addEventListener('change', requestStickyHeaderSync);
+                desktopMediaQuery.addEventListener('change', requestGroupTableLayoutSync);
             } else if (typeof desktopMediaQuery.addListener === 'function') {
-                desktopMediaQuery.addListener(requestStickyHeaderSync);
+                desktopMediaQuery.addListener(requestGroupTableLayoutSync);
             }
         }
 
-        requestStickyHeaderSync();
+        requestGroupTableLayoutSync();
     }
 
     function initPairSelectExclusions() {

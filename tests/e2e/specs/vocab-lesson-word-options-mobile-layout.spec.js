@@ -17,7 +17,16 @@ const adminJsSource = fs.readFileSync(
 
 function buildGroupHeaderCells(labels) {
   return labels.map((label, index) => (
-    `<th scope="col" data-group-id="g${index}"><span class="ll-tools-word-options-group-header">${label}</span></th>`
+    `<th scope="col" data-group-id="g${index}"><span class="ll-tools-word-options-group-header" data-group-header="g${index}">${label}</span></th>`
+  )).join('');
+}
+
+function buildGroupEditorRows(labels) {
+  return labels.map((label, index) => (
+    `<div class="ll-tools-word-options-group-row" data-group-id="g${index}">
+      <input type="text" class="ll-tools-word-options-group-input" name="group_names[g${index}]" value="${label}" data-group-name-input>
+      <button type="button" class="button button-secondary ll-tools-button" data-group-remove>Remove</button>
+    </div>`
   )).join('');
 }
 
@@ -51,16 +60,18 @@ function buildWordRows(labels, rowCount) {
   }).join('');
 }
 
-function buildIframeDoc({ rowCount = 2, includeNotices = false } = {}) {
-  const groupLabels = [
-    '01 Core travel words',
-    '02 Airport help',
-    '03 Tickets',
-    '04 Hotel',
-    '05 Transit',
-    '06 Problems',
-    '07 Questions'
-  ];
+function buildIframeDoc({ rowCount = 2, includeNotices = false, groupLabels = null } = {}) {
+  const labels = Array.isArray(groupLabels) && groupLabels.length
+    ? groupLabels
+    : [
+      '01 Core travel words',
+      '02 Airport help',
+      '03 Tickets',
+      '04 Hotel',
+      '05 Transit',
+      '06 Problems',
+      '07 Questions'
+    ];
 
   const notices = includeNotices
     ? `
@@ -115,11 +126,8 @@ function buildIframeDoc({ rowCount = 2, includeNotices = false } = {}) {
 
                 <div class="ll-tools-word-options-group-editor">
                   <h3>Group names</h3>
-                  <div class="ll-tools-word-options-group-list" data-ll-group-list data-next-index="1">
-                    <div class="ll-tools-word-options-group-row" data-group-id="g0">
-                      <input type="text" class="ll-tools-word-options-group-input" value="01 Core travel words" data-group-name-input>
-                      <button type="button" class="button button-secondary ll-tools-button" data-group-remove>Remove</button>
-                    </div>
+                  <div class="ll-tools-word-options-group-list" data-ll-group-list data-next-index="${labels.length}">
+                    ${buildGroupEditorRows(labels)}
                   </div>
                   <button type="button" class="button button-secondary ll-tools-button ll-tools-word-options-add-group" data-group-add>Add group</button>
                 </div>
@@ -131,10 +139,10 @@ function buildIframeDoc({ rowCount = 2, includeNotices = false } = {}) {
                         <th scope="col">Image</th>
                         <th scope="col">Audio</th>
                         <th scope="col">Word</th>
-                        ${buildGroupHeaderCells(groupLabels)}
+                        ${buildGroupHeaderCells(labels)}
                       </tr>
                     </thead>
-                    <tbody>${buildWordRows(groupLabels, rowCount)}</tbody>
+                    <tbody>${buildWordRows(labels, rowCount)}</tbody>
                   </table>
                 </div>
 
@@ -478,6 +486,127 @@ test('word options popup autosaves group changes without a manual save button', 
   await expect(frame.locator('[data-ll-word-options-save-status]')).toHaveAttribute('data-state', 'saved');
 });
 
+test('word options popup condenses overflowing group tables into labeled checkbox rows', async ({ page }) => {
+  const manyGroupLabels = [
+    'kutu',
+    'sandalye',
+    'canta',
+    'yesil/mavi',
+    'sari',
+    'kirmizi',
+    'metal esya',
+    'ahsap esya',
+    'deri esya',
+    'renkli nesne',
+    'ev esyasi',
+    'okul esyasi',
+    'ofis esyasi',
+    'dis mekan',
+    'ic mekan',
+    'agir nesne',
+    'hafif nesne',
+    'gunluk kullanim'
+  ];
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setContent(`
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+          }
+
+          *, *::before, *::after {
+            box-sizing: border-box;
+          }
+
+          ${modalCssSource}
+        </style>
+      </head>
+      <body>
+        <div class="ll-vocab-lesson-word-options-modal">
+          <button type="button" class="ll-vocab-lesson-word-options-modal__backdrop" aria-label="Close"></button>
+          <div class="ll-vocab-lesson-word-options-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="ll-vocab-lesson-word-options-title">
+            <div class="ll-vocab-lesson-word-options-modal__header">
+              <div class="ll-vocab-lesson-word-options-modal__title-wrap">
+                <h2 class="ll-vocab-lesson-word-options-modal__title" id="ll-vocab-lesson-word-options-title">Word options</h2>
+                <div class="ll-vocab-lesson-word-options-modal__meta">
+                  <span class="ll-vocab-lesson-word-options-modal__meta-chip">Travel</span>
+                  <span class="ll-vocab-lesson-word-options-modal__meta-chip">Beginner Set</span>
+                </div>
+              </div>
+              <button type="button" class="ll-vocab-lesson-word-options-modal__close" aria-label="Close">x</button>
+            </div>
+            <div class="ll-vocab-lesson-word-options-modal__frame-shell">
+              <iframe id="ll-condensed-word-options-frame" class="ll-vocab-lesson-word-options-modal__frame" title="Lesson word option rules"></iframe>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+
+  const iframe = page.locator('#ll-condensed-word-options-frame');
+  await iframe.evaluate((node, srcdoc) => {
+    node.setAttribute('srcdoc', srcdoc);
+  }, buildIframeDoc({ rowCount: 4, groupLabels: manyGroupLabels }));
+
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#ll-condensed-word-options-frame');
+    return !!(frame && frame.contentDocument && frame.contentDocument.querySelector('.ll-tools-word-options-form'));
+  });
+
+  const iframeHandle = await iframe.elementHandle();
+  const frame = await iframeHandle.contentFrame();
+
+  await expect.poll(async () => (
+    frame.locator('.ll-tools-word-options-table-wrap--groups').evaluate((node) => node.classList.contains('is-condensed'))
+  )).toBe(true);
+
+  const condensedMetrics = await frame.evaluate(() => {
+    const groupsWrap = document.querySelector('.ll-tools-word-options-table-wrap--groups');
+    const firstRow = document.querySelector('tr[data-word-id="11"]');
+    const wordCell = firstRow ? firstRow.querySelector('.ll-tools-word-options-word') : null;
+    const firstGroupCell = firstRow ? firstRow.querySelector('.ll-tools-word-options-group-cell') : null;
+    const groupLabel = firstGroupCell ? firstGroupCell.querySelector('[data-group-cell-label]') : null;
+    const stickyHeader = document.querySelector('.ll-tools-word-options-table--cloned-head');
+    const groupsWrapRect = groupsWrap ? groupsWrap.getBoundingClientRect() : null;
+    const wordRect = wordCell ? wordCell.getBoundingClientRect() : null;
+    const groupRect = firstGroupCell ? firstGroupCell.getBoundingClientRect() : null;
+
+    return {
+      layout: groupsWrap ? groupsWrap.getAttribute('data-layout') : '',
+      groupsWrapClientWidth: groupsWrap ? groupsWrap.clientWidth : 0,
+      groupsWrapScrollWidth: groupsWrap ? groupsWrap.scrollWidth : 0,
+      rowDisplay: firstRow ? window.getComputedStyle(firstRow).display : '',
+      rowColumns: firstRow ? window.getComputedStyle(firstRow).gridTemplateColumns : '',
+      groupLabelDisplay: groupLabel ? window.getComputedStyle(groupLabel).display : '',
+      groupLabelText: groupLabel ? groupLabel.textContent.trim() : '',
+      hasStickyHeader: !!stickyHeader,
+      wordLeft: wordRect ? wordRect.left : 0,
+      groupLeft: groupRect ? groupRect.left : 0,
+      groupRight: groupRect ? groupRect.right : 0,
+      wrapRight: groupsWrapRect ? groupsWrapRect.right : 0
+    };
+  });
+
+  expect(condensedMetrics.layout).toBe('condensed');
+  expect(condensedMetrics.groupsWrapScrollWidth).toBeLessThanOrEqual(condensedMetrics.groupsWrapClientWidth + 1);
+  expect(condensedMetrics.rowDisplay).toBe('grid');
+  expect(condensedMetrics.rowColumns.split(' ').length).toBeGreaterThanOrEqual(2);
+  expect(condensedMetrics.groupLabelDisplay).not.toBe('none');
+  expect(condensedMetrics.groupLabelText).toBe('kutu');
+  expect(condensedMetrics.hasStickyHeader).toBe(false);
+  expect(condensedMetrics.groupLeft).toBeGreaterThan(condensedMetrics.wordLeft);
+  expect(condensedMetrics.groupRight).toBeLessThanOrEqual(condensedMetrics.wrapRight + 1);
+});
+
 test('word options popup keeps table headers sticky in wide layouts', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.setContent(`
@@ -526,7 +655,10 @@ test('word options popup keeps table headers sticky in wide layouts', async ({ p
   const iframe = page.locator('#ll-desktop-word-options-frame');
   await iframe.evaluate((node, srcdoc) => {
     node.setAttribute('srcdoc', srcdoc);
-  }, buildIframeDoc({ rowCount: 24 }));
+  }, buildIframeDoc({
+    rowCount: 24,
+    groupLabels: ['Core']
+  }));
 
   await page.waitForFunction(() => {
     const frame = document.querySelector('#ll-desktop-word-options-frame');
@@ -548,6 +680,7 @@ test('word options popup keeps table headers sticky in wide layouts', async ({ p
     const wrapTop = groupsWrap.getBoundingClientRect().top;
     const initialTop = stickyHeader.getBoundingClientRect().top;
     const hasClonedHeader = groupsWrap.getAttribute('data-has-cloned-header');
+    const layout = groupsWrap.getAttribute('data-layout') || '';
     const initialScrollTop = groupsWrap.scrollTop;
 
     groupsWrap.scrollTop = 320;
@@ -559,6 +692,7 @@ test('word options popup keeps table headers sticky in wide layouts', async ({ p
 
     return {
       hasClonedHeader,
+      layout,
       initialTop,
       wrapTop,
       initialScrollTop,
@@ -571,6 +705,7 @@ test('word options popup keeps table headers sticky in wide layouts', async ({ p
 
   expect(stickyMetrics).not.toBeNull();
   expect(stickyMetrics.hasClonedHeader).toBe('1');
+  expect(stickyMetrics.layout).toBe('');
   expect(stickyMetrics.initialTop).toBeGreaterThan(150);
   expect(stickyMetrics.initialScrollTop).toBe(0);
   expect(stickyMetrics.wrapScrollTop).toBeGreaterThanOrEqual(300);
