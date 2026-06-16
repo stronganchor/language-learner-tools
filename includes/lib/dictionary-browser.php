@@ -594,6 +594,279 @@ function ll_tools_dictionary_sanitize_translations_map($translations, array $sou
 }
 
 /**
+ * Sanitize a stored list of short imported dictionary values.
+ *
+ * @param mixed $value Raw list payload.
+ * @return string[]
+ */
+function ll_tools_dictionary_sanitize_text_list($value): array {
+    if (is_array($value)) {
+        $raw_values = $value;
+    } elseif (is_string($value)) {
+        $raw_values = preg_split('/\s*(?:\|\||\r?\n)\s*/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    } else {
+        $raw_values = [];
+    }
+
+    $clean = [];
+    $seen = [];
+    foreach ($raw_values as $raw_value) {
+        if (is_array($raw_value)) {
+            $raw_value = implode(' ', array_filter(array_map('strval', $raw_value)));
+        }
+        $text = trim(sanitize_text_field((string) $raw_value));
+        $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+            ? ll_tools_dictionary_entry_normalize_lookup_value($text)
+            : ll_tools_dictionary_normalize_search_text($text);
+        if ($text === '' || $lookup === '' || isset($seen[$lookup])) {
+            continue;
+        }
+
+        $seen[$lookup] = true;
+        $clean[] = $text;
+    }
+
+    return $clean;
+}
+
+/**
+ * Return the first non-empty import value from a set of possible column names.
+ *
+ * @param array<string|int,mixed> $row
+ * @param string[]                $keys
+ */
+function ll_tools_dictionary_get_import_row_value(array $row, array $keys): string {
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+
+        $value = trim(sanitize_text_field((string) $row[$key]));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Return a merged text-list value from a set of possible import columns.
+ *
+ * @param array<string|int,mixed> $row
+ * @param string[]                $keys
+ * @return string[]
+ */
+function ll_tools_dictionary_get_import_row_text_list(array $row, array $keys): array {
+    $values = [];
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+
+        $values = array_merge($values, ll_tools_dictionary_sanitize_text_list($row[$key]));
+    }
+
+    return ll_tools_dictionary_sanitize_text_list($values);
+}
+
+/**
+ * Append unique searchable terms to one prepared import row.
+ */
+function ll_tools_dictionary_append_import_search_terms(string $existing, string $value, array $source_aliases = []): string {
+    $value = ll_tools_dictionary_normalize_import_gloss_text($value, $source_aliases);
+    if ($value === '') {
+        return $existing;
+    }
+
+    $segments = ll_tools_dictionary_sanitize_text_list($existing);
+    $segments[] = $value;
+
+    return implode(' | ', ll_tools_dictionary_sanitize_text_list($segments));
+}
+
+/**
+ * Build a source registry update from one import row when source metadata is present.
+ *
+ * @param array<string|int,mixed> $row
+ * @param array<string,mixed>     $prepared
+ * @return array{id:string,label:string,attribution_text:string,attribution_url:string,default_dialects:string[]}|null
+ */
+function ll_tools_dictionary_collect_import_source_registry_update(array $row, array $prepared): ?array {
+    if (
+        !function_exists('ll_tools_dictionary_normalize_source_id')
+        || !function_exists('ll_tools_dictionary_sanitize_dialect_list')
+    ) {
+        return null;
+    }
+
+    $attribution_text = ll_tools_dictionary_get_import_row_value($row, [
+        'source_attribution_text',
+        'source_attribution',
+        'attribution_text',
+    ]);
+    $attribution_url = ll_tools_dictionary_get_import_row_value($row, [
+        'source_attribution_url',
+        'attribution_url',
+    ]);
+    $default_dialects = [];
+    foreach (['source_default_dialects', 'source_dialects', 'default_dialects'] as $dialect_key) {
+        if (array_key_exists($dialect_key, $row)) {
+            $default_dialects = array_merge(
+                $default_dialects,
+                ll_tools_dictionary_sanitize_dialect_list($row[$dialect_key])
+            );
+        }
+    }
+    $default_dialects = ll_tools_dictionary_sanitize_dialect_list($default_dialects);
+
+    if ($attribution_text === '' && $attribution_url === '' && empty($default_dialects)) {
+        return null;
+    }
+
+    $source_id = ll_tools_dictionary_resolve_source_id(
+        (string) ($prepared['source_id'] ?? ''),
+        (string) ($prepared['source_dictionary'] ?? '')
+    );
+    $source_label = ll_tools_dictionary_resolve_source_label(
+        $source_id,
+        (string) ($prepared['source_dictionary'] ?? '')
+    );
+    if ($source_label === '') {
+        $source_label = ll_tools_dictionary_get_import_row_value($row, [
+            'source_label',
+            'source_dictionary',
+            'dictionary_source',
+        ]);
+    }
+
+    if ($source_id === '' || $source_label === '') {
+        return null;
+    }
+
+    return [
+        'id' => $source_id,
+        'label' => $source_label,
+        'attribution_text' => $attribution_text,
+        'attribution_url' => $attribution_url,
+        'default_dialects' => $default_dialects,
+    ];
+}
+
+/**
+ * Merge one import source update into a pending registry update map.
+ *
+ * @param array<string,array{id:string,label:string,attribution_text:string,attribution_url:string,default_dialects:string[]}> $updates
+ * @param array{id:string,label:string,attribution_text:string,attribution_url:string,default_dialects:string[]}             $source
+ */
+function ll_tools_dictionary_merge_import_source_registry_update(array &$updates, array $source): void {
+    $id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
+    if ($id === '' || trim((string) ($source['label'] ?? '')) === '') {
+        return;
+    }
+
+    if (!isset($updates[$id])) {
+        $updates[$id] = [
+            'id' => $id,
+            'label' => (string) $source['label'],
+            'attribution_text' => '',
+            'attribution_url' => '',
+            'default_dialects' => [],
+        ];
+    }
+
+    foreach (['label', 'attribution_text', 'attribution_url'] as $key) {
+        $value = trim((string) ($source[$key] ?? ''));
+        if ($value !== '') {
+            $updates[$id][$key] = $value;
+        }
+    }
+
+    $updates[$id]['default_dialects'] = ll_tools_dictionary_sanitize_dialect_list(array_merge(
+        (array) ($updates[$id]['default_dialects'] ?? []),
+        (array) ($source['default_dialects'] ?? [])
+    ));
+}
+
+/**
+ * Upsert pending import source metadata into the dictionary source registry.
+ *
+ * @param array<string,array{id:string,label:string,attribution_text:string,attribution_url:string,default_dialects:string[]}> $updates
+ * @return array{sources_updated:int,sources_replaced:int}
+ */
+function ll_tools_dictionary_apply_import_source_registry_updates(array $updates): array {
+    $summary = [
+        'sources_updated' => 0,
+        'sources_replaced' => 0,
+    ];
+
+    if (
+        empty($updates)
+        || !function_exists('ll_tools_get_dictionary_source_registry')
+        || !function_exists('ll_tools_update_dictionary_source_registry')
+        || !function_exists('ll_tools_dictionary_sanitize_source_registry')
+    ) {
+        return $summary;
+    }
+
+    $registry = ll_tools_get_dictionary_source_registry();
+    $changed = false;
+
+    foreach ($updates as $source_id => $source) {
+        $source_id = ll_tools_dictionary_normalize_source_id((string) $source_id);
+        if ($source_id === '') {
+            continue;
+        }
+
+        $existing = is_array($registry[$source_id] ?? null) ? $registry[$source_id] : null;
+        $candidate_label = trim((string) ($source['label'] ?? ''));
+        if ($candidate_label === '' && $existing !== null) {
+            $candidate_label = trim((string) ($existing['label'] ?? ''));
+        }
+        $candidate_attribution_text = trim((string) ($source['attribution_text'] ?? ''));
+        if ($candidate_attribution_text === '' && $existing !== null) {
+            $candidate_attribution_text = trim((string) ($existing['attribution_text'] ?? ''));
+        }
+        $candidate_attribution_url = trim((string) ($source['attribution_url'] ?? ''));
+        if ($candidate_attribution_url === '' && $existing !== null) {
+            $candidate_attribution_url = trim((string) ($existing['attribution_url'] ?? ''));
+        }
+        $candidate = [
+            'id' => $source_id,
+            'label' => $candidate_label,
+            'attribution_text' => $candidate_attribution_text,
+            'attribution_url' => $candidate_attribution_url,
+            'default_dialects' => !empty($source['default_dialects'])
+                ? (array) $source['default_dialects']
+                : (array) ($existing['default_dialects'] ?? []),
+        ];
+
+        $sanitized = ll_tools_dictionary_sanitize_source_registry([$source_id => $candidate]);
+        if (empty($sanitized[$source_id])) {
+            continue;
+        }
+        $candidate = $sanitized[$source_id];
+
+        if ($existing === $candidate) {
+            continue;
+        }
+
+        if ($existing !== null) {
+            $summary['sources_replaced']++;
+        }
+        $summary['sources_updated']++;
+        $registry[$source_id] = $candidate;
+        $changed = true;
+    }
+
+    if ($changed) {
+        ll_tools_update_dictionary_source_registry($registry);
+    }
+
+    return $summary;
+}
+
+/**
  * Sanitize one imported dictionary sense row.
  *
  * @param array<string,mixed> $sense Raw sense payload.
@@ -615,14 +888,26 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
         'source_row_idx' => '',
         'raw_headword' => '',
         'title_keys' => '',
+        'source_entry' => '',
+        'flex_morph_type' => '',
+        'flex_entry_ref_type' => '',
+        'flex_homograph_number' => '',
+        'flex_pronunciation_note' => '',
+        'flex_geographical_note' => '',
+        'flex_notes' => '',
         'dialects' => [],
         'translations' => [],
+        'headword_forms' => [],
+        'reversal_terms' => [],
+        'examples' => [],
+        'example_translations' => [],
+        'semantic_domains' => [],
     ];
 
     $source_aliases = ll_tools_dictionary_collect_import_source_aliases($sense);
 
     foreach ($clean as $key => $unused) {
-        if ($key === 'translations' || $key === 'dialects') {
+        if (in_array($key, ['translations', 'dialects', 'headword_forms', 'reversal_terms', 'examples', 'example_translations', 'semantic_domains'], true)) {
             continue;
         }
         $clean[$key] = trim(sanitize_text_field((string) ($sense[$key] ?? '')));
@@ -636,6 +921,11 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
     $clean['source_dictionary'] = ll_tools_dictionary_resolve_source_label((string) $clean['source_id'], (string) $clean['source_dictionary']);
     $clean['dialects'] = ll_tools_dictionary_sanitize_dialect_list($sense['dialects'] ?? []);
     $clean['translations'] = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? [], $source_aliases);
+    $clean['headword_forms'] = ll_tools_dictionary_sanitize_text_list($sense['headword_forms'] ?? []);
+    $clean['reversal_terms'] = ll_tools_dictionary_sanitize_text_list($sense['reversal_terms'] ?? []);
+    $clean['examples'] = ll_tools_dictionary_sanitize_text_list($sense['examples'] ?? []);
+    $clean['example_translations'] = ll_tools_dictionary_sanitize_text_list($sense['example_translations'] ?? []);
+    $clean['semantic_domains'] = ll_tools_dictionary_sanitize_text_list($sense['semantic_domains'] ?? []);
 
     if ($clean['definition'] !== '') {
         $def_lang_key = ll_tools_dictionary_normalize_language_key((string) $clean['def_lang']);
@@ -677,11 +967,16 @@ function ll_tools_dictionary_get_sense_dialects(array $sense): array {
  */
 function ll_tools_dictionary_sense_hash(array $sense): string {
     $parts = [];
-    foreach (['definition', 'gender_number', 'entry_type', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
+    foreach (['definition', 'gender_number', 'entry_type', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys', 'source_entry', 'flex_morph_type', 'flex_entry_ref_type', 'flex_homograph_number', 'flex_pronunciation_note', 'flex_geographical_note', 'flex_notes'] as $key) {
         $parts[] = ll_tools_dictionary_normalize_search_text((string) ($sense[$key] ?? ''));
     }
     foreach (ll_tools_dictionary_get_sense_dialects($sense) as $dialect) {
         $parts[] = 'dialect:' . ll_tools_dictionary_normalize_dialect_key($dialect);
+    }
+    foreach (['headword_forms', 'reversal_terms', 'examples', 'example_translations', 'semantic_domains'] as $key) {
+        foreach (ll_tools_dictionary_sanitize_text_list($sense[$key] ?? []) as $value) {
+            $parts[] = $key . ':' . ll_tools_dictionary_normalize_search_text($value);
+        }
     }
     $translations = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? []);
     ksort($translations);
@@ -995,18 +1290,46 @@ function ll_tools_dictionary_viewer_cache_key(): string {
 /**
  * Determine whether one dictionary entry contains a matching source filter.
  */
-function ll_tools_dictionary_entry_matches_source_filter(int $entry_id, string $source_filter): bool {
+function ll_tools_dictionary_normalize_source_filter_ids($source_filter): array {
+    $raw_filters = [];
+    if (is_array($source_filter)) {
+        $raw_filters = $source_filter;
+    } elseif (is_string($source_filter)) {
+        $raw_filters = preg_split('/[\s,|]+/', $source_filter, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    } elseif (is_scalar($source_filter)) {
+        $raw_filters = [(string) $source_filter];
+    }
+
+    $source_ids = [];
+    foreach ($raw_filters as $raw_filter) {
+        $source_id = ll_tools_dictionary_normalize_source_id((string) $raw_filter);
+        if ($source_id !== '' && !in_array($source_id, $source_ids, true)) {
+            $source_ids[] = $source_id;
+        }
+    }
+
+    return $source_ids;
+}
+
+/**
+ * Determine whether one dictionary entry contains a matching source filter.
+ *
+ * @param string|string[] $source_filter
+ */
+function ll_tools_dictionary_entry_matches_source_filter(int $entry_id, $source_filter): bool {
     $entry_id = (int) $entry_id;
-    $source_filter_id = ll_tools_dictionary_normalize_source_id($source_filter);
-    $source_filter_label = ll_tools_dictionary_normalize_dialect_key($source_filter);
-    if ($entry_id <= 0 || ($source_filter_id === '' && $source_filter_label === '')) {
+    $source_filter_ids = ll_tools_dictionary_normalize_source_filter_ids($source_filter);
+    if ($entry_id <= 0 || empty($source_filter_ids)) {
         return true;
     }
 
     foreach (ll_tools_dictionary_collect_sources(ll_tools_get_dictionary_entry_senses($entry_id)) as $source) {
         $source_id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
-        $source_label_key = ll_tools_dictionary_normalize_dialect_key((string) ($source['label'] ?? ''));
-        if (($source_filter_id !== '' && $source_id === $source_filter_id) || ($source_filter_label !== '' && $source_label_key === $source_filter_label)) {
+        $source_label_id = ll_tools_dictionary_normalize_source_id((string) ($source['label'] ?? ''));
+        if (
+            ($source_id !== '' && in_array($source_id, $source_filter_ids, true))
+            || ($source_label_id !== '' && in_array($source_label_id, $source_filter_ids, true))
+        ) {
             return true;
         }
     }
@@ -1153,10 +1476,17 @@ function ll_tools_dictionary_build_search_index(string $title, string $translati
     $parts = [$title, $translation, $content];
 
     foreach ($senses as $sense) {
-        foreach (['definition', 'gender_number', 'entry_type', 'parent', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
+        foreach (['definition', 'gender_number', 'entry_type', 'parent', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys', 'source_entry', 'flex_morph_type', 'flex_entry_ref_type', 'flex_homograph_number', 'flex_pronunciation_note', 'flex_geographical_note', 'flex_notes'] as $key) {
             $value = trim((string) ($sense[$key] ?? ''));
             if ($value !== '') {
                 $parts[] = $value;
+            }
+        }
+        foreach (['headword_forms', 'reversal_terms', 'semantic_domains'] as $key) {
+            foreach (ll_tools_dictionary_sanitize_text_list($sense[$key] ?? []) as $value) {
+                if ($value !== '') {
+                    $parts[] = $value;
+                }
             }
         }
         foreach (ll_tools_dictionary_get_sense_dialects((array) $sense) as $dialect) {
@@ -1428,6 +1758,36 @@ function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type
 
     if (isset($map[$normalized])) {
         $normalized = $map[$normalized];
+    } else {
+        $tokenized = '-' . $normalized . '-';
+        if (preg_match('/(?:^|-)interj(?:-|$)/', $normalized) || strpos($tokenized, '-unl-') !== false) {
+            $normalized = 'interjection';
+        } elseif (preg_match('/(?:^|-)adv(?:-|$)/', $normalized) || strpos($tokenized, '-zf-') !== false) {
+            $normalized = 'adverb';
+        } elseif (preg_match('/(?:^|-)adj(?:-|$)/', $normalized) || preg_match('/(?:^|-)s(?:-|$)/', $normalized)) {
+            $normalized = 'adjective';
+        } elseif (preg_match('/(?:^|-)pron(?:-|$)/', $normalized)) {
+            $normalized = 'pronoun';
+        } elseif (preg_match('/(?:^|-)conj(?:-|$)/', $normalized)) {
+            $normalized = 'conjunction';
+        } elseif (preg_match('/(?:^|-)postp(?:-|$)/', $normalized)) {
+            $normalized = 'postposition';
+        } elseif (
+            preg_match('/(?:^|-)verb(?:-|$)/', $normalized)
+            || preg_match('/(?:^|-)(?:i|t)-v(?:-|$)/', $normalized)
+            || strpos($tokenized, '-gcs-f-') !== false
+            || strpos($tokenized, '-gcl-f-') !== false
+        ) {
+            $normalized = 'verb';
+        } elseif (
+            preg_match('/(?:^|-)noun(?:-|$)/', $normalized)
+            || preg_match('/(?:^|-)n(?:-|$)/', $normalized)
+            || preg_match('/(?:^|-)n-(?:m|f|pl)(?:-|$)/', $normalized)
+            || strpos($tokenized, '-is-') !== false
+            || strpos($tokenized, '-oz-') !== false
+        ) {
+            $normalized = 'noun';
+        }
     }
 
     $term = get_term_by('slug', $normalized, 'part_of_speech');
@@ -1506,6 +1866,8 @@ function ll_tools_dictionary_collect_row_translations(array $row, array $source_
             $language = substr($column, strlen('translation_'));
         } elseif (strpos($column, 'meaning_') === 0) {
             $language = substr($column, strlen('meaning_'));
+        } elseif (strpos($column, 'reversal_') === 0) {
+            $language = substr($column, strlen('reversal_'));
         }
 
         $language_key = ll_tools_dictionary_resolve_import_translation_language($language);
@@ -1564,18 +1926,39 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         'source_row_idx' => '',
         'raw_headword' => '',
         'title_keys' => '',
+        'source_entry' => '',
+        'flex_morph_type' => '',
+        'flex_entry_ref_type' => '',
+        'flex_homograph_number' => '',
+        'flex_pronunciation_note' => '',
+        'flex_geographical_note' => '',
+        'flex_notes' => '',
         'dialects' => [],
         'translations' => [],
+        'headword_forms' => [],
+        'reversal_terms' => [],
+        'examples' => [],
+        'example_translations' => [],
+        'semantic_domains' => [],
     ];
 
     $source_aliases = ll_tools_dictionary_collect_import_source_aliases($row);
-    $raw_definition = ll_tools_dictionary_normalize_import_gloss_text((string) ($row['definition'] ?? $row[1] ?? ''), $source_aliases);
+    $raw_definition = ll_tools_dictionary_normalize_import_gloss_text((string) ($row['definition'] ?? $row['gloss'] ?? $row[1] ?? ''), $source_aliases);
 
-    $prepared['entry'] = trim(sanitize_text_field((string) ($row['entry'] ?? $row[0] ?? '')));
+    $prepared['entry'] = ll_tools_dictionary_get_import_row_value($row, ['entry', 'headword_zza', 'headword', 'lexeme', 'lexeme_form', 'citation_form']);
+    if ($prepared['entry'] === '' && isset($row[0])) {
+        $prepared['entry'] = trim(sanitize_text_field((string) $row[0]));
+    }
     $prepared['definition'] = $raw_definition;
     $prepared['gender_number'] = trim(sanitize_text_field((string) ($row['gender_number'] ?? $row[2] ?? '')));
-    $prepared['entry_type'] = trim(sanitize_text_field((string) ($row['entry_type'] ?? $row[3] ?? '')));
-    $prepared['parent'] = trim(sanitize_text_field((string) ($row['parent'] ?? $row[4] ?? '')));
+    $prepared['entry_type'] = ll_tools_dictionary_get_import_row_value($row, ['entry_type', 'part_of_speech_abbr_tr', 'part_of_speech_tr', 'part_of_speech', 'pos', 'grammatical_info']);
+    if ($prepared['entry_type'] === '' && isset($row[3])) {
+        $prepared['entry_type'] = trim(sanitize_text_field((string) $row[3]));
+    }
+    $prepared['parent'] = ll_tools_dictionary_get_import_row_value($row, ['parent', 'parent_zza', 'component_headwords']);
+    if ($prepared['parent'] === '' && isset($row[4])) {
+        $prepared['parent'] = trim(sanitize_text_field((string) $row[4]));
+    }
     $prepared['needs_review'] = trim(sanitize_text_field((string) ($row['needs_review'] ?? $row[5] ?? '')));
     $prepared['page_number'] = trim(sanitize_text_field((string) ($row['page_number'] ?? $row[6] ?? '')));
     $prepared['entry_lang'] = trim(sanitize_text_field((string) ($row['entry_lang'] ?? $defaults['entry_lang'] ?? '')));
@@ -1583,10 +1966,33 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
     $prepared['search_terms'] = ll_tools_dictionary_normalize_import_gloss_text((string) ($row['search_terms'] ?? ''), $source_aliases);
     $prepared['source_id'] = trim(sanitize_text_field((string) ($row['source_id'] ?? '')));
     $prepared['source_dictionary'] = trim(sanitize_text_field((string) ($row['source_dictionary'] ?? '')));
-    $prepared['source_row_idx'] = trim(sanitize_text_field((string) ($row['source_row_idx'] ?? '')));
-    $prepared['raw_headword'] = trim(sanitize_text_field((string) ($row['raw_headword'] ?? '')));
-    $prepared['title_keys'] = trim(sanitize_text_field((string) ($row['title_keys'] ?? '')));
+    $prepared['source_row_idx'] = ll_tools_dictionary_get_import_row_value($row, ['source_row_idx', 'sense_guid']);
+    if ($prepared['source_row_idx'] === '') {
+        $entry_guid = ll_tools_dictionary_get_import_row_value($row, ['entry_guid']);
+        if ($entry_guid !== '') {
+            $prepared['source_row_idx'] = $entry_guid;
+        }
+    } elseif (!empty($row['entry_guid'])) {
+        $entry_guid = trim(sanitize_text_field((string) $row['entry_guid']));
+        if ($entry_guid !== '' && strpos($prepared['source_row_idx'], $entry_guid) === false) {
+            $prepared['source_row_idx'] = $entry_guid . ':' . $prepared['source_row_idx'];
+        }
+    }
+    $prepared['raw_headword'] = ll_tools_dictionary_get_import_row_value($row, ['raw_headword', 'all_forms_zza', 'headword_zza']);
+    $prepared['title_keys'] = ll_tools_dictionary_get_import_row_value($row, ['title_keys', 'all_forms_zza']);
+    $prepared['source_entry'] = ll_tools_dictionary_get_import_row_value($row, ['source_entry']);
+    $prepared['flex_morph_type'] = ll_tools_dictionary_get_import_row_value($row, ['flex_morph_type', 'morph_type']);
+    $prepared['flex_entry_ref_type'] = ll_tools_dictionary_get_import_row_value($row, ['flex_entry_ref_type', 'entry_ref_type']);
+    $prepared['flex_homograph_number'] = ll_tools_dictionary_get_import_row_value($row, ['flex_homograph_number', 'homograph_number']);
+    $prepared['flex_pronunciation_note'] = implode(' | ', ll_tools_dictionary_get_import_row_text_list($row, ['flex_pronunciation_note', 'pronunciation_note', 'pronunciation_note1']));
+    $prepared['flex_geographical_note'] = implode(' | ', ll_tools_dictionary_get_import_row_text_list($row, ['flex_geographical_note', 'geographical_note', 'geographical_note1']));
+    $prepared['flex_notes'] = ll_tools_dictionary_get_import_row_value($row, ['flex_notes', 'jep_notes']);
     $prepared['dialects'] = ll_tools_dictionary_collect_row_dialects($row);
+    $prepared['headword_forms'] = ll_tools_dictionary_get_import_row_text_list($row, ['headword_forms', 'all_forms_zza']);
+    $prepared['reversal_terms'] = ll_tools_dictionary_get_import_row_text_list($row, ['reversal_terms', 'reversal_tr', 'reversal_en']);
+    $prepared['examples'] = ll_tools_dictionary_get_import_row_text_list($row, ['examples', 'examples_zza', 'example_zza']);
+    $prepared['example_translations'] = ll_tools_dictionary_get_import_row_text_list($row, ['example_translations', 'example_translations_tr', 'examples_translation_tr']);
+    $prepared['semantic_domains'] = ll_tools_dictionary_get_import_row_text_list($row, ['semantic_domains', 'semantic_domain']);
 
     $prepared['source_id'] = ll_tools_dictionary_resolve_source_id($prepared['source_id'], $prepared['source_dictionary']);
     $prepared['source_dictionary'] = ll_tools_dictionary_resolve_source_label($prepared['source_id'], $prepared['source_dictionary']);
@@ -1600,6 +2006,22 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         } elseif (ll_tools_dictionary_normalize_search_text($prepared['search_terms']) !== ll_tools_dictionary_normalize_search_text($raw_definition)) {
             $prepared['search_terms'] .= ' | ' . $raw_definition;
         }
+    }
+
+    foreach ([
+        $prepared['raw_headword'],
+        $prepared['title_keys'],
+        $prepared['source_entry'],
+        $prepared['flex_morph_type'],
+        $prepared['flex_entry_ref_type'],
+        $prepared['flex_pronunciation_note'],
+        $prepared['flex_geographical_note'],
+        $prepared['flex_notes'],
+        implode(' | ', $prepared['headword_forms']),
+        implode(' | ', $prepared['reversal_terms']),
+        implode(' | ', $prepared['semantic_domains']),
+    ] as $search_candidate) {
+        $prepared['search_terms'] = ll_tools_dictionary_append_import_search_terms($prepared['search_terms'], (string) $search_candidate, $source_aliases);
     }
 
     $translations = ll_tools_dictionary_collect_row_translations($row, $source_aliases);
@@ -1793,8 +2215,20 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
             'source_row_idx' => (string) ($row['source_row_idx'] ?? ''),
             'raw_headword' => (string) ($row['raw_headword'] ?? ''),
             'title_keys' => (string) ($row['title_keys'] ?? ''),
+            'source_entry' => (string) ($row['source_entry'] ?? ''),
+            'flex_morph_type' => (string) ($row['flex_morph_type'] ?? ''),
+            'flex_entry_ref_type' => (string) ($row['flex_entry_ref_type'] ?? ''),
+            'flex_homograph_number' => (string) ($row['flex_homograph_number'] ?? ''),
+            'flex_pronunciation_note' => (string) ($row['flex_pronunciation_note'] ?? ''),
+            'flex_geographical_note' => (string) ($row['flex_geographical_note'] ?? ''),
+            'flex_notes' => (string) ($row['flex_notes'] ?? ''),
             'dialects' => $row['dialects'] ?? [],
             'translations' => $row['translations'] ?? [],
+            'headword_forms' => $row['headword_forms'] ?? [],
+            'reversal_terms' => $row['reversal_terms'] ?? [],
+            'examples' => $row['examples'] ?? [],
+            'example_translations' => $row['example_translations'] ?? [],
+            'semantic_domains' => $row['semantic_domains'] ?? [],
         ]);
         $incoming_senses[] = $sense;
     }
@@ -1926,6 +2360,7 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
     ];
 
     $grouped_rows = [];
+    $source_registry_updates = [];
     foreach ($rows as $row) {
         if (!is_array($row)) {
             $summary['rows_skipped_empty']++;
@@ -1945,9 +2380,18 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
             $grouped_rows[$group_key] = [];
         }
         $grouped_rows[$group_key][] = $prepared;
+
+        $source_registry_update = ll_tools_dictionary_collect_import_source_registry_update($row, $prepared);
+        if (is_array($source_registry_update)) {
+            ll_tools_dictionary_merge_import_source_registry_update($source_registry_updates, $source_registry_update);
+        }
     }
 
     $summary['rows_grouped'] = count($grouped_rows);
+    $summary = array_merge(
+        $summary,
+        ll_tools_dictionary_apply_import_source_registry_updates($source_registry_updates)
+    );
 
     return [
         'grouped_rows' => array_values($grouped_rows),
@@ -2250,7 +2694,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
     int $wordset_id = 0,
     string $letter = '',
     string $pos_slug = '',
-    string $source_id = '',
+    $source_filter = '',
     string $dialect = '',
     int $limit = 0
 ): array {
@@ -2265,9 +2709,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
     $wordset_id = max(0, $wordset_id);
     $letter = ll_tools_dictionary_normalize_browse_letter($letter);
     $pos_slug = sanitize_title($pos_slug);
-    $source_id = function_exists('ll_tools_dictionary_normalize_source_id')
-        ? ll_tools_dictionary_normalize_source_id($source_id)
-        : sanitize_title($source_id);
+    $source_ids = ll_tools_dictionary_normalize_source_filter_ids($source_filter);
     $dialect = function_exists('ll_tools_dictionary_normalize_dialect_key')
         ? ll_tools_dictionary_normalize_dialect_key($dialect)
         : strtolower(trim($dialect));
@@ -2278,7 +2720,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         'wordset_id' => $wordset_id,
         'letter' => $letter,
         'pos_slug' => $pos_slug,
-        'source_id' => $source_id,
+        'source_ids' => $source_ids,
         'dialect' => $dialect,
         'limit' => $limit,
     ];
@@ -2330,16 +2772,20 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         }
     }
 
-    if ($source_id !== '' || $dialect !== '') {
+    if (!empty($source_ids) || $dialect !== '') {
         $joins[] = "
             INNER JOIN {$wpdb->postmeta} search_index
                     ON search_index.post_id = p.ID
                    AND search_index.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY) . "'
         ";
 
-        if ($source_id !== '') {
-            $where[] = 'search_index.meta_value LIKE %s';
-            $params[] = '%' . $wpdb->esc_like($source_id) . '%';
+        if (!empty($source_ids)) {
+            $source_clauses = [];
+            foreach ($source_ids as $source_id) {
+                $source_clauses[] = 'search_index.meta_value LIKE %s';
+                $params[] = '%' . $wpdb->esc_like($source_id) . '%';
+            }
+            $where[] = '(' . implode(' OR ', $source_clauses) . ')';
         }
         if ($dialect !== '') {
             $where[] = 'search_index.meta_value LIKE %s';
@@ -2668,7 +3114,10 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $title_language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
     $letter = ll_tools_dictionary_normalize_browse_letter((string) ($args['letter'] ?? ''), $title_language);
     $pos_slug = sanitize_title((string) ($args['pos_slug'] ?? ''));
-    $source_id = ll_tools_dictionary_normalize_source_id((string) ($args['source_id'] ?? ''));
+    $source_ids = !empty($args['source_ids'])
+        ? ll_tools_dictionary_normalize_source_filter_ids($args['source_ids'])
+        : ll_tools_dictionary_normalize_source_filter_ids((string) ($args['source_id'] ?? ''));
+    $source_id = count($source_ids) === 1 ? (string) $source_ids[0] : '';
     $dialect = trim(sanitize_text_field((string) ($args['dialect'] ?? '')));
     $sense_limit = max(1, min(8, (int) ($args['sense_limit'] ?? 3)));
     $linked_word_limit = max(0, min(8, (int) ($args['linked_word_limit'] ?? 4)));
@@ -2694,7 +3143,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'wordset_id' => $wordset_id,
         'letter' => $letter,
         'pos_slug' => $pos_slug,
-        'source_id' => $source_id,
+        'source_ids' => $source_ids,
         'dialect' => $dialect,
         'sense_limit' => $sense_limit,
         'linked_word_limit' => $linked_word_limit,
@@ -2715,13 +3164,13 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $needs_candidate_meta_cache = $candidate_scan_limit > 0;
     $candidate_scan_limited = false;
     if ($search === '' && $statuses === ['publish']) {
-        if ($letter !== '' || $pos_slug !== '' || $source_id !== '' || $dialect !== '') {
+        if ($letter !== '' || $pos_slug !== '' || !empty($source_ids) || $dialect !== '') {
             $candidate_ids = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
                 $statuses,
                 $wordset_id,
                 $letter,
                 $pos_slug,
-                $source_id,
+                $source_ids,
                 $dialect,
                 $candidate_fetch_limit
             );
@@ -2730,7 +3179,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             $candidate_ids = ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id);
         }
 
-        if (!empty($candidate_ids) && ($pos_slug !== '' || $source_id !== '' || $dialect !== '' || ($wordset_id > 0 && !$used_published_scope_cache))) {
+        if (!empty($candidate_ids) && ($pos_slug !== '' || !empty($source_ids) || $dialect !== '' || ($wordset_id > 0 && !$used_published_scope_cache))) {
             $needs_candidate_meta_cache = true;
         }
     } elseif (
@@ -2742,7 +3191,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope, $candidate_fetch_limit);
         $search_results_pre_ranked = ll_tools_dictionary_search_scopes_use_all($search_scopes) && !empty($candidate_ids);
         if (!empty($candidate_ids)) {
-            $needs_meta_cache = (!ll_tools_dictionary_search_scopes_use_all($search_scopes) || $pos_slug !== '' || $source_id !== '' || $dialect !== '');
+            $needs_meta_cache = (!ll_tools_dictionary_search_scopes_use_all($search_scopes) || $pos_slug !== '' || !empty($source_ids) || $dialect !== '');
             if ($needs_meta_cache) {
                 $needs_candidate_meta_cache = true;
             }
@@ -2788,7 +3237,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         ) {
             continue;
         }
-        if ($source_id !== '' && !ll_tools_dictionary_entry_matches_source_filter($entry_id, $source_id)) {
+        if (!empty($source_ids) && !ll_tools_dictionary_entry_matches_source_filter($entry_id, $source_ids)) {
             continue;
         }
         if ($dialect !== '' && !ll_tools_dictionary_entry_matches_dialect_filter($entry_id, $dialect)) {
@@ -2861,6 +3310,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             'letter' => $letter,
             'wordset_id' => $wordset_id,
             'source_id' => $source_id,
+            'source_ids' => $source_ids,
             'dialect' => $dialect,
             'pos_slug' => $pos_slug,
             'preferred_languages' => $preferred_languages,
@@ -2904,6 +3354,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'letter' => $letter,
         'wordset_id' => $wordset_id,
         'source_id' => $source_id,
+        'source_ids' => $source_ids,
         'dialect' => $dialect,
         'pos_slug' => $pos_slug,
         'preferred_languages' => $preferred_languages,
@@ -3483,6 +3934,9 @@ function ll_tools_dictionary_get_entry_headword_candidates(int $entry_id, array 
                 $append($candidate);
             }
         }
+        foreach (ll_tools_dictionary_sanitize_text_list($sense['headword_forms'] ?? []) as $candidate) {
+            $append($candidate);
+        }
     }
 
     return $candidates;
@@ -3703,6 +4157,11 @@ function ll_tools_dictionary_get_sense_lookup_candidates(array $sense, string $r
                 $candidates[] = $text;
             }
         }
+        foreach (ll_tools_dictionary_sanitize_text_list($sense['reversal_terms'] ?? []) as $text) {
+            if ($text !== '') {
+                $candidates[] = $text;
+            }
+        }
     } elseif ($requested_language_key !== '' && !empty($translations[$requested_language_key])) {
         $candidates[] = (string) $translations[$requested_language_key];
     }
@@ -3910,6 +4369,8 @@ function ll_tools_dictionary_entry_render_imported_senses_metabox($post): void {
     echo '<th>' . esc_html__('Gender/Number', 'll-tools-text-domain') . '</th>';
     echo '<th>' . esc_html__('Parent', 'll-tools-text-domain') . '</th>';
     echo '<th>' . esc_html__('Page', 'll-tools-text-domain') . '</th>';
+    echo '<th>' . esc_html__('Source', 'll-tools-text-domain') . '</th>';
+    echo '<th>' . esc_html__('Examples', 'll-tools-text-domain') . '</th>';
     echo '</tr></thead><tbody>';
 
     foreach ($senses as $sense) {
@@ -3934,12 +4395,34 @@ function ll_tools_dictionary_entry_render_imported_senses_metabox($post): void {
             }
         }
 
+        $source_parts = [];
+        foreach (['source_dictionary', 'source_entry', 'source_row_idx'] as $source_field) {
+            $value = trim((string) ($sense[$source_field] ?? ''));
+            if ($value !== '') {
+                $source_parts[] = $value;
+            }
+        }
+
+        $example_lines = [];
+        $examples = ll_tools_dictionary_sanitize_text_list($sense['examples'] ?? []);
+        $translations = ll_tools_dictionary_sanitize_text_list($sense['example_translations'] ?? []);
+        foreach ($examples as $index => $example) {
+            $line = esc_html($example);
+            $translation = trim((string) ($translations[$index] ?? ''));
+            if ($translation !== '') {
+                $line .= '<br><span style="opacity:.78;">' . esc_html($translation) . '</span>';
+            }
+            $example_lines[] = $line;
+        }
+
         echo '<tr>';
         echo '<td>' . wp_kses_post(implode('<br>', $gloss_lines)) . '</td>';
         echo '<td>' . esc_html((string) ($sense['entry_type'] ?? '')) . '</td>';
         echo '<td>' . esc_html((string) ($sense['gender_number'] ?? '')) . '</td>';
         echo '<td>' . esc_html((string) ($sense['parent'] ?? '')) . '</td>';
         echo '<td>' . esc_html((string) ($sense['page_number'] ?? '')) . '</td>';
+        echo '<td>' . esc_html(implode(' | ', $source_parts)) . '</td>';
+        echo '<td>' . wp_kses_post(implode('<br><br>', $example_lines)) . '</td>';
         echo '</tr>';
     }
 

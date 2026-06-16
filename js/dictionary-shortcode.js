@@ -503,16 +503,105 @@
             }
         });
 
+        const getNamedFields = (name) => Array.from(form.elements || [])
+            .filter((field) => field && (field.name === name || field.name === `${name}[]`));
+
+        const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        const splitFieldValues = (value, fields) => {
+            const knownValues = Array.from(fields || [])
+                .map((field) => String(field && field.value ? field.value : '').trim())
+                .filter((fieldValue, index, values) => fieldValue !== '' && values.indexOf(fieldValue) === index);
+            const resolved = [];
+            const addValue = (fieldValue) => {
+                fieldValue = String(fieldValue || '').trim();
+                if (fieldValue !== '' && resolved.indexOf(fieldValue) === -1) {
+                    resolved.push(fieldValue);
+                }
+            };
+
+            String(value || '')
+                .split(/[\s,|]+/)
+                .map((part) => part.trim())
+                .filter((part) => part !== '')
+                .forEach((part) => {
+                    if (part.indexOf('_') === -1 || !knownValues.length) {
+                        addValue(part);
+                        return;
+                    }
+
+                    let remaining = part;
+                    knownValues.forEach((knownValue) => {
+                        const pattern = new RegExp(`(?:^|_)${escapeRegExp(knownValue)}(?=_|$)`);
+                        if (!pattern.test(part)) {
+                            return;
+                        }
+
+                        addValue(knownValue);
+                        remaining = remaining.replace(pattern, '_').replace(/^_+|_+$/g, '');
+                    });
+
+                    if (remaining !== '') {
+                        addValue(remaining);
+                    }
+                });
+
+            return resolved;
+        };
+
         const getFieldValue = (name) => {
-            const field = form.elements.namedItem(name);
-            return field && 'value' in field ? String(field.value || '').trim() : '';
+            const fields = getNamedFields(name);
+            if (!fields.length) {
+                return '';
+            }
+
+            const values = [];
+            fields.forEach((field) => {
+                if (!field) {
+                    return;
+                }
+                if ((field.type === 'checkbox' || field.type === 'radio') && !field.checked) {
+                    return;
+                }
+                if (field.tagName === 'SELECT' && field.multiple) {
+                    Array.from(field.selectedOptions || []).forEach((option) => {
+                        values.push(String(option.value || '').trim());
+                    });
+                    return;
+                }
+                if ('value' in field) {
+                    values.push(String(field.value || '').trim());
+                }
+            });
+
+            return values.filter((value, index) => value !== '' && values.indexOf(value) === index).join(',');
         };
 
         const setFieldValue = (name, value) => {
-            const field = form.elements.namedItem(name);
-            if (field && 'value' in field) {
-                field.value = value;
+            const fields = getNamedFields(name);
+            if (!fields.length) {
+                return;
             }
+
+            const values = splitFieldValues(value, fields);
+            fields.forEach((field) => {
+                if (!field) {
+                    return;
+                }
+                if (field.type === 'checkbox' || field.type === 'radio') {
+                    field.checked = values.indexOf(String(field.value || '').trim()) !== -1;
+                    return;
+                }
+                if (field.tagName === 'SELECT' && field.multiple) {
+                    Array.from(field.options || []).forEach((option) => {
+                        option.selected = values.indexOf(String(option.value || '').trim()) !== -1;
+                    });
+                    return;
+                }
+                if ('value' in field) {
+                    field.value = value;
+                }
+            });
         };
 
         const getAllScopeValues = () => scopeInputs
@@ -1038,7 +1127,7 @@
         form.addEventListener('change', (event) => {
             const target = event.target;
             const name = target && target.name ? String(target.name) : '';
-            if (['ll_dictionary_scope[]', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
+            if (['ll_dictionary_scope[]', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_source[]', 'll_dictionary_dialect'].indexOf(name) === -1) {
                 return;
             }
 

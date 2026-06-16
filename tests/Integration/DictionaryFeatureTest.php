@@ -739,7 +739,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'search_scopes' => $search_scopes,
             'letter' => '',
             'pos_slug' => '',
-            'source_id' => '',
+            'source_ids' => [],
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
             'has_active_query' => false,
@@ -1699,6 +1699,79 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>TR<', $detail_html);
     }
 
+    public function test_flex_style_tsv_import_preserves_examples_and_source_metadata(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $wordset = wp_insert_term('FLEx Import Wordset', 'wordset', ['slug' => 'flex-import-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $temp_file = tempnam(sys_get_temp_dir(), 'lltf_');
+        $this->assertNotFalse($temp_file);
+
+        $tsv = implode("\n", [
+            "entry_guid\tsense_guid\tsense_index\theadword_zza\tall_forms_zza\tpart_of_speech_abbr_tr\tgloss_tr\treversal_tr\texamples_zza\texample_translations_tr\tsemantic_domains\tsource_id\tsource_dictionary\tsource_entry\tsource_attribution_text\tsource_default_dialects\tmorph_type\thomograph_number",
+            "entry-guid-1\tsense-guid-1\t1\tViri\tViri || Vire\tis.d. || n.f\tlonging\tmemory\tThis is a sample sentence.\tBu ornek bir cumledir.\t3.4.2: Feelings\thayig-werner\tHayıg/Werner\trh\tProvided with permission for publication.\tÇermik\tstem\t0",
+        ]);
+        $this->assertNotFalse(file_put_contents($temp_file, $tsv));
+
+        try {
+            $rows = ll_tools_dictionary_parse_tsv_file($temp_file);
+            $this->assertIsArray($rows);
+            $this->assertSame('Viri', $rows[0]['headword_zza'] ?? '');
+
+            $summary = ll_tools_dictionary_import_rows($rows, [
+                'wordset_id' => $wordset_id,
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'Turkish',
+            ]);
+        } finally {
+            @unlink($temp_file);
+        }
+
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame(1, (int) ($summary['sources_updated'] ?? 0));
+
+        $source_registry = ll_tools_get_dictionary_source_registry();
+        $this->assertArrayHasKey('hayig-werner', $source_registry);
+        $this->assertSame('Provided with permission for publication.', $source_registry['hayig-werner']['attribution_text']);
+        $this->assertSame(['Çermik'], $source_registry['hayig-werner']['default_dialects']);
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Viri', $wordset_id);
+        $this->assertGreaterThan(0, $entry_id);
+        $this->assertSame('noun', (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, true));
+
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertCount(1, $senses);
+        $this->assertSame('longing', $senses[0]['definition']);
+        $this->assertSame(['tr' => 'longing'], $senses[0]['translations']);
+        $this->assertSame(['Viri', 'Vire'], $senses[0]['headword_forms']);
+        $this->assertSame(['memory'], $senses[0]['reversal_terms']);
+        $this->assertSame(['This is a sample sentence.'], $senses[0]['examples']);
+        $this->assertSame(['Bu ornek bir cumledir.'], $senses[0]['example_translations']);
+        $this->assertSame(['3.4.2: Feelings'], $senses[0]['semantic_domains']);
+        $this->assertSame('rh', $senses[0]['source_entry']);
+        $this->assertSame('entry-guid-1:sense-guid-1', $senses[0]['source_row_idx']);
+
+        $search_index = (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY, true);
+        $this->assertStringNotContainsString('sample sentence', $search_index);
+        $this->assertStringContainsString('feelings', $search_index);
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+
+        $detail_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        $this->assertStringContainsString('Examples', $detail_html);
+        $this->assertStringContainsString('This is a sample sentence.', $detail_html);
+        $this->assertStringContainsString('Bu ornek bir cumledir.', $detail_html);
+        $this->assertStringContainsString('Hayıg/Werner', $detail_html);
+    }
+
     public function test_import_strips_visible_provenance_prefixes_from_glosses(): void
     {
         $prepared = ll_tools_dictionary_prepare_import_row([
@@ -1878,12 +1951,22 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'English',
             ],
+            [
+                'entry' => 'Av',
+                'definition' => 'water',
+                'entry_type' => 'noun',
+                'source_dictionary' => 'DEZD',
+                'dialects' => 'Siverek',
+                'page_number' => '53',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
         ]);
 
-        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame(2, (int) ($summary['entries_created'] ?? 0));
 
         $entry_id = ll_tools_dictionary_find_entry_by_title('Dar', 0);
         $this->assertGreaterThan(0, $entry_id);
@@ -1905,12 +1988,34 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ];
 
         $filtered_html = do_shortcode('[ll_dictionary]');
-        $this->assertStringContainsString('name="ll_dictionary_source"', $filtered_html);
+        $this->assertStringContainsString('name="ll_dictionary_source[]"', $filtered_html);
         $this->assertStringContainsString('name="ll_dictionary_dialect"', $filtered_html);
         $this->assertStringContainsString('Dar', $filtered_html);
+        $this->assertStringNotContainsString('water', $filtered_html);
         $this->assertStringContainsString('Harun Turgut', $filtered_html);
         $this->assertStringContainsString('ll-dictionary__badge--external', $filtered_html);
         $this->assertStringContainsString('aria-label="Open source page for Harun Turgut"', $filtered_html);
+
+        $_GET = [
+            'll_dictionary_source' => ['harun-turgut', 'dezd'],
+        ];
+
+        $multi_filtered_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Dar', $multi_filtered_html);
+        $this->assertStringContainsString('water', $multi_filtered_html);
+
+        $source_filter_url = ll_tools_dictionary_build_url('https://example.com/sozluk/', [
+            'll_dictionary_source' => ['harun-turgut', 'dezd'],
+        ]);
+        $this->assertStringContainsString('ll_dictionary_source=harun-turgut_dezd', $source_filter_url);
+
+        $_GET = [
+            'll_dictionary_source' => 'harun-turgut_dezd',
+        ];
+
+        $canonical_filtered_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Dar', $canonical_filtered_html);
+        $this->assertStringContainsString('water', $canonical_filtered_html);
 
         $_GET = [
             'll_dictionary_entry' => (string) $entry_id,
