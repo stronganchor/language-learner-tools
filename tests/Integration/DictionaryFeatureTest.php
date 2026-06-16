@@ -2009,12 +2009,22 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'English',
             ],
+            [
+                'entry' => 'Miv',
+                'definition' => 'fruit',
+                'entry_type' => 'noun',
+                'source_id' => 'other-dictionary',
+                'source_dictionary' => 'Other Dictionary',
+                'source_attribution_text' => 'Other test source.',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
         ]);
 
-        $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame(5, (int) ($summary['entries_created'] ?? 0));
 
         $entry_id = ll_tools_dictionary_find_entry_by_title('Dar', 0);
         $this->assertGreaterThan(0, $entry_id);
@@ -2037,7 +2047,10 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $filtered_html = do_shortcode('[ll_dictionary]');
         $this->assertStringContainsString('name="ll_dictionary_source[]"', $filtered_html);
-        $this->assertStringContainsString('name="ll_dictionary_dialect"', $filtered_html);
+        $this->assertStringNotContainsString('name="ll_dictionary_dialect"', $filtered_html);
+        $this->assertStringContainsString('Source dictionaries', $filtered_html);
+        $this->assertStringContainsString('Dialect not marked', $filtered_html);
+        $this->assertStringContainsString('Palu - Bing', $filtered_html);
         $this->assertStringContainsString('Dar', $filtered_html);
         $this->assertStringContainsString('sun', $filtered_html);
         $this->assertStringNotContainsString('water', $filtered_html);
@@ -2064,6 +2077,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('water', $multi_filtered_html);
         $this->assertStringContainsString('grass', $multi_filtered_html);
         $this->assertStringContainsString('sun', $multi_filtered_html);
+        $this->assertStringNotContainsString('fruit', $multi_filtered_html);
 
         $source_filter_url = ll_tools_dictionary_build_url('https://example.com/sozluk/', [
             'll_dictionary_source' => ['harun-turgut', 'dezd'],
@@ -2079,6 +2093,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('water', $canonical_filtered_html);
         $this->assertStringContainsString('grass', $canonical_filtered_html);
         $this->assertStringContainsString('sun', $canonical_filtered_html);
+        $this->assertStringNotContainsString('fruit', $canonical_filtered_html);
 
         $_GET = [
             'll_dictionary_entry' => (string) $entry_id,

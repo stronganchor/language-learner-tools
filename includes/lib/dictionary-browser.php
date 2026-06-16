@@ -1313,6 +1313,32 @@ function ll_tools_dictionary_normalize_source_filter_ids($source_filter): array 
 }
 
 /**
+ * Normalize one or more selected part-of-speech filter slugs.
+ */
+function ll_tools_dictionary_normalize_pos_filter_slugs($pos_filter): array {
+    $raw_filters = [];
+    if (is_array($pos_filter)) {
+        $raw_filters = $pos_filter;
+    } elseif (is_string($pos_filter)) {
+        $raw_filters = preg_split('/[\s,|]+/', $pos_filter, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    } elseif (is_scalar($pos_filter)) {
+        $raw_filters = [(string) $pos_filter];
+    }
+
+    $pos_slugs = [];
+    foreach ($raw_filters as $raw_filter) {
+        foreach (explode('_', (string) $raw_filter) as $raw_slug) {
+            $pos_slug = sanitize_title((string) $raw_slug);
+            if ($pos_slug !== '' && $pos_slug !== 'all' && !in_array($pos_slug, $pos_slugs, true)) {
+                $pos_slugs[] = $pos_slug;
+            }
+        }
+    }
+
+    return $pos_slugs;
+}
+
+/**
  * Determine whether one stored source id/label satisfies one selected source filter id.
  */
 function ll_tools_dictionary_source_identifier_matches_filter(string $source_identifier, string $source_filter_id): bool {
@@ -2883,7 +2909,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
     array $statuses,
     int $wordset_id = 0,
     string $letter = '',
-    string $pos_slug = '',
+    $pos_filter = '',
     $source_filter = '',
     string $dialect = '',
     int $limit = 0
@@ -2898,7 +2924,8 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
 
     $wordset_id = max(0, $wordset_id);
     $letter = ll_tools_dictionary_normalize_browse_letter($letter);
-    $pos_slug = sanitize_title($pos_slug);
+    $pos_slugs = ll_tools_dictionary_normalize_pos_filter_slugs($pos_filter);
+    $pos_slug = implode('_', $pos_slugs);
     $source_ids = ll_tools_dictionary_normalize_source_filter_ids($source_filter);
     $dialect = function_exists('ll_tools_dictionary_normalize_dialect_key')
         ? ll_tools_dictionary_normalize_dialect_key($dialect)
@@ -2910,6 +2937,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         'wordset_id' => $wordset_id,
         'letter' => $letter,
         'pos_slug' => $pos_slug,
+        'pos_slugs' => $pos_slugs,
         'source_ids' => $source_ids,
         'dialect' => $dialect,
         'limit' => $limit,
@@ -2937,14 +2965,15 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         $params[] = '%|' . $wordset_id . '|%';
     }
 
-    if ($pos_slug !== '') {
+    if (!empty($pos_slugs)) {
         $joins[] = "
             INNER JOIN {$wpdb->postmeta} pos_meta
                     ON pos_meta.post_id = p.ID
                    AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
         ";
-        $where[] = 'pos_meta.meta_value = %s';
-        $params[] = $pos_slug;
+        $pos_placeholders = implode(', ', array_fill(0, count($pos_slugs), '%s'));
+        $where[] = "pos_meta.meta_value IN ({$pos_placeholders})";
+        $params = array_merge($params, $pos_slugs);
     }
 
     if ($letter !== '') {
@@ -3317,7 +3346,11 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $wordset_id = max(0, (int) ($args['wordset_id'] ?? 0));
     $title_language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
     $letter = ll_tools_dictionary_normalize_browse_letter((string) ($args['letter'] ?? ''), $title_language);
-    $pos_slug = sanitize_title((string) ($args['pos_slug'] ?? ''));
+    $pos_slugs = array_key_exists('pos_slugs', $args)
+        ? ll_tools_dictionary_normalize_pos_filter_slugs($args['pos_slugs'])
+        : ll_tools_dictionary_normalize_pos_filter_slugs((string) ($args['pos_slug'] ?? ''));
+    $pos_slug = count($pos_slugs) === 1 ? (string) $pos_slugs[0] : '';
+    $pos_query_value = implode('_', $pos_slugs);
     $source_ids = !empty($args['source_ids'])
         ? ll_tools_dictionary_normalize_source_filter_ids($args['source_ids'])
         : ll_tools_dictionary_normalize_source_filter_ids((string) ($args['source_id'] ?? ''));
@@ -3346,7 +3379,8 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'per_page' => $per_page,
         'wordset_id' => $wordset_id,
         'letter' => $letter,
-        'pos_slug' => $pos_slug,
+        'pos_slug' => $pos_query_value,
+        'pos_slugs' => $pos_slugs,
         'source_ids' => $source_ids,
         'dialect' => $dialect,
         'sense_limit' => $sense_limit,
@@ -3368,12 +3402,12 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $needs_candidate_meta_cache = $candidate_scan_limit > 0;
     $candidate_scan_limited = false;
     if ($search === '' && $statuses === ['publish']) {
-        if ($letter !== '' || $pos_slug !== '' || !empty($source_ids) || $dialect !== '') {
+        if ($letter !== '' || !empty($pos_slugs) || !empty($source_ids) || $dialect !== '') {
             $candidate_ids = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
                 $statuses,
                 $wordset_id,
                 $letter,
-                $pos_slug,
+                $pos_slugs,
                 $source_ids,
                 $dialect,
                 $candidate_fetch_limit
@@ -3383,7 +3417,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             $candidate_ids = ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id);
         }
 
-        if (!empty($candidate_ids) && ($pos_slug !== '' || !empty($source_ids) || $dialect !== '' || ($wordset_id > 0 && !$used_published_scope_cache))) {
+        if (!empty($candidate_ids) && (!empty($pos_slugs) || !empty($source_ids) || $dialect !== '' || ($wordset_id > 0 && !$used_published_scope_cache))) {
             $needs_candidate_meta_cache = true;
         }
     } elseif (
@@ -3395,7 +3429,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope, $candidate_fetch_limit);
         $search_results_pre_ranked = ll_tools_dictionary_search_scopes_use_all($search_scopes) && !empty($candidate_ids);
         if (!empty($candidate_ids)) {
-            $needs_meta_cache = (!ll_tools_dictionary_search_scopes_use_all($search_scopes) || $pos_slug !== '' || !empty($source_ids) || $dialect !== '');
+            $needs_meta_cache = (!ll_tools_dictionary_search_scopes_use_all($search_scopes) || !empty($pos_slugs) || !empty($source_ids) || $dialect !== '');
             if ($needs_meta_cache) {
                 $needs_candidate_meta_cache = true;
             }
@@ -3428,9 +3462,9 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         if (!ll_tools_dictionary_current_user_can_view_entry($entry_id)) {
             continue;
         }
-        if ($pos_slug !== '') {
+        if (!empty($pos_slugs)) {
             $entry_pos_slug = sanitize_title((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, true));
-            if ($entry_pos_slug !== $pos_slug) {
+            if (!in_array($entry_pos_slug, $pos_slugs, true)) {
                 continue;
             }
         }
@@ -3516,7 +3550,8 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             'source_id' => $source_id,
             'source_ids' => $source_ids,
             'dialect' => $dialect,
-            'pos_slug' => $pos_slug,
+            'pos_slug' => $pos_query_value,
+            'pos_slugs' => $pos_slugs,
             'preferred_languages' => $preferred_languages,
             'candidate_scan_limited' => $candidate_scan_limited,
             'candidate_scan_limit' => $candidate_scan_limit,
@@ -3560,7 +3595,8 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'source_id' => $source_id,
         'source_ids' => $source_ids,
         'dialect' => $dialect,
-        'pos_slug' => $pos_slug,
+        'pos_slug' => $pos_query_value,
+        'pos_slugs' => $pos_slugs,
         'preferred_languages' => $preferred_languages,
         'candidate_scan_limited' => $candidate_scan_limited,
         'candidate_scan_limit' => $candidate_scan_limit,

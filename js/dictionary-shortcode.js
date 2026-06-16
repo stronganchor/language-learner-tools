@@ -466,13 +466,13 @@
         const results = root.querySelector('[data-ll-dictionary-results]');
         const toolbar = root.querySelector('.ll-dictionary__toolbar');
         const searchInput = form ? form.querySelector('input[name="ll_dictionary_q"]') : null;
-        const scopeInputs = form ? Array.from(form.querySelectorAll('input[name="ll_dictionary_scope[]"]')) : [];
+        let scopeInputs = form ? Array.from(form.querySelectorAll('input[name="ll_dictionary_scope[]"]')) : [];
         const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
-        const toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
+        let toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
         const toolbarDeferred = root.getAttribute('data-ll-dictionary-toolbar-deferred') === '1';
         const hasExplicitScope = root.getAttribute('data-ll-dictionary-has-explicit-scope') === '1';
 
-        if (!form || !results || !toolbar || !searchInput || !scopeInputs.length || !letterInput) {
+        if (!form || !results || !toolbar || !searchInput || !letterInput) {
             return;
         }
 
@@ -505,6 +505,10 @@
 
         const getNamedFields = (name) => Array.from(form.elements || [])
             .filter((field) => field && (field.name === name || field.name === `${name}[]`));
+
+        const refreshScopeInputs = () => {
+            scopeInputs = Array.from(form.querySelectorAll('input[name="ll_dictionary_scope[]"]'));
+        };
 
         const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -583,7 +587,14 @@
                 return;
             }
 
-            const values = splitFieldValues(value, fields);
+            let values = splitFieldValues(value, fields);
+            const allCheckboxValues = fields
+                .filter((field) => field && field.type === 'checkbox')
+                .map((field) => String(field.value || '').trim())
+                .filter((fieldValue, index, fieldValues) => fieldValue !== '' && fieldValues.indexOf(fieldValue) === index);
+            if ((name === 'll_dictionary_pos' || name === 'll_dictionary_source') && !values.length && allCheckboxValues.length) {
+                values = allCheckboxValues;
+            }
             fields.forEach((field) => {
                 if (!field) {
                     return;
@@ -602,6 +613,28 @@
                     field.value = value;
                 }
             });
+        };
+
+        const getMultiSelectFilterQueryValue = (name) => {
+            const fields = getNamedFields(name);
+            const checkboxFields = fields.filter((field) => field && field.type === 'checkbox');
+            if (!checkboxFields.length) {
+                return getFieldValue(name);
+            }
+
+            const allValues = checkboxFields
+                .map((field) => String(field.value || '').trim())
+                .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+            const selectedValues = checkboxFields
+                .filter((field) => !!field.checked)
+                .map((field) => String(field.value || '').trim())
+                .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+
+            if (!allValues.length || !selectedValues.length || selectedValues.length >= allValues.length) {
+                return '';
+            }
+
+            return selectedValues.join(',');
         };
 
         const getAllScopeValues = () => scopeInputs
@@ -670,6 +703,39 @@
             return indexedValues.length ? indexedValues.join(',') : 'all';
         };
 
+        const updateFilterMenuSummary = (menu) => {
+            if (!menu) {
+                return;
+            }
+
+            const summary = menu.querySelector('[data-ll-dictionary-filter-summary]');
+            const checkboxes = Array.from(menu.querySelectorAll('input[type="checkbox"]'));
+            if (!summary || !checkboxes.length) {
+                return;
+            }
+
+            const selected = checkboxes.filter((checkbox) => !!checkbox.checked);
+            const allLabel = summary.getAttribute('data-summary-all') || '';
+            const selectedTemplate = summary.getAttribute('data-summary-selected') || '%d selected';
+            if (!selected.length || selected.length >= checkboxes.length) {
+                summary.textContent = allLabel;
+                return;
+            }
+
+            if (selected.length === 1) {
+                const option = selected[0].closest('.ll-dictionary__filter-option');
+                const label = option ? option.querySelector('.ll-dictionary__filter-option-label') : null;
+                summary.textContent = label ? String(label.textContent || '').trim() : selected[0].value;
+                return;
+            }
+
+            summary.textContent = selectedTemplate.replace('%d', String(selected.length));
+        };
+
+        const updateAllFilterMenuSummaries = () => {
+            form.querySelectorAll('[data-ll-dictionary-filter-menu]').forEach(updateFilterMenuSummary);
+        };
+
         const updateCurrentScopeState = () => {
             root.dataset.currentScope = getScopeQueryValue();
         };
@@ -723,8 +789,8 @@
             return [
                 String(searchInput.value || '').trim(),
                 String(letterInput.value || '').trim(),
-                getFieldValue('ll_dictionary_pos'),
-                getFieldValue('ll_dictionary_source'),
+                getMultiSelectFilterQueryValue('ll_dictionary_pos'),
+                getMultiSelectFilterQueryValue('ll_dictionary_source'),
                 getFieldValue('ll_dictionary_dialect'),
             ].some((value) => value !== '');
         };
@@ -732,8 +798,8 @@
         const hasNonSearchQuery = () => {
             return [
                 String(letterInput.value || '').trim(),
-                getFieldValue('ll_dictionary_pos'),
-                getFieldValue('ll_dictionary_source'),
+                getMultiSelectFilterQueryValue('ll_dictionary_pos'),
+                getMultiSelectFilterQueryValue('ll_dictionary_source'),
                 getFieldValue('ll_dictionary_dialect'),
             ].some((value) => value !== '');
         };
@@ -752,8 +818,8 @@
             payload.set('base_url', root.dataset.baseUrl || window.location.href);
             payload.set('ll_dictionary_scope', getScopeQueryValue());
             payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
-            payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
-            payload.set('ll_dictionary_source', getFieldValue('ll_dictionary_source'));
+            payload.set('ll_dictionary_pos', getMultiSelectFilterQueryValue('ll_dictionary_pos'));
+            payload.set('ll_dictionary_source', getMultiSelectFilterQueryValue('ll_dictionary_source'));
             payload.set('ll_dictionary_dialect', getFieldValue('ll_dictionary_dialect'));
             return payload;
         };
@@ -796,6 +862,10 @@
                     }
 
                     toolbarPanel.outerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
+                    toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
+                    refreshScopeInputs();
+                    restoreStoredScopePreferences();
+                    updateAllFilterMenuSummaries();
                     toolbarReady = true;
                     root.setAttribute('data-ll-dictionary-toolbar-deferred', '0');
                     toolbar.classList.remove('is-toolbar-loading');
@@ -925,8 +995,8 @@
             query: String(searchInput.value || '').trim(),
             scope: getScopeQueryValue(),
             letter: String(letterInput.value || '').trim(),
-            pos: getFieldValue('ll_dictionary_pos'),
-            source: getFieldValue('ll_dictionary_source'),
+            pos: getMultiSelectFilterQueryValue('ll_dictionary_pos'),
+            source: getMultiSelectFilterQueryValue('ll_dictionary_source'),
             dialect: getFieldValue('ll_dictionary_dialect'),
             page: String(Math.max(1, page || 1)),
         });
@@ -964,8 +1034,8 @@
             payload.set('ll_dictionary_scope', getScopeQueryValue());
             payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
             payload.set('ll_dictionary_page', String(Math.max(1, page || 1)));
-            payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
-            payload.set('ll_dictionary_source', getFieldValue('ll_dictionary_source'));
+            payload.set('ll_dictionary_pos', getMultiSelectFilterQueryValue('ll_dictionary_pos'));
+            payload.set('ll_dictionary_source', getMultiSelectFilterQueryValue('ll_dictionary_source'));
             payload.set('ll_dictionary_dialect', getFieldValue('ll_dictionary_dialect'));
 
             return payload;
@@ -1127,10 +1197,11 @@
         form.addEventListener('change', (event) => {
             const target = event.target;
             const name = target && target.name ? String(target.name) : '';
-            if (['ll_dictionary_scope[]', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_source[]', 'll_dictionary_dialect'].indexOf(name) === -1) {
+            if (['ll_dictionary_scope[]', 'll_dictionary_pos', 'll_dictionary_pos[]', 'll_dictionary_source', 'll_dictionary_source[]', 'll_dictionary_dialect'].indexOf(name) === -1) {
                 return;
             }
 
+            updateFilterMenuSummary(target.closest('[data-ll-dictionary-filter-menu]'));
             if (name === 'll_dictionary_scope[]') {
                 persistScopePreferences();
             } else {
@@ -1204,6 +1275,7 @@
             setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
             setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
             setFieldValue('ll_dictionary_dialect', url.searchParams.get('ll_dictionary_dialect') || '');
+            updateAllFilterMenuSummaries();
 
             showLoadingState();
             requestResults(Number(url.searchParams.get('ll_dictionary_page') || '1'), false);
@@ -1216,6 +1288,7 @@
             updateCurrentScopeState();
         }
 
+        updateAllFilterMenuSummaries();
         if (hasActiveQuery() || hasExplicitScope) {
             revealScopeOptions();
         }

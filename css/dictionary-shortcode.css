@@ -220,9 +220,146 @@
 }
 
 .ll-dictionary__filters {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
+    align-items: start;
+}
+
+.ll-dictionary__filter-menu {
+    position: relative;
+    min-width: 0;
+}
+
+.ll-dictionary__filter-summary {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 10px;
+    align-items: center;
+    width: 100%;
+    min-height: 58px;
+    padding: 9px 14px;
+    border: 1px solid var(--ll-dictionary-border);
+    border-radius: 14px;
+    background: #fff;
+    color: var(--ll-dictionary-ink);
+    cursor: pointer;
+    list-style: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ll-dictionary__filter-summary::-webkit-details-marker {
+    display: none;
+}
+
+.ll-dictionary__filter-summary::after {
+    content: "";
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid #5d6877;
+    border-bottom: 2px solid #5d6877;
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform 0.18s ease;
+}
+
+.ll-dictionary__filter-menu[open] .ll-dictionary__filter-summary::after {
+    transform: rotate(225deg) translateY(-2px);
+}
+
+.ll-dictionary__filter-menu[open] .ll-dictionary__filter-summary,
+.ll-dictionary__filter-summary:focus {
+    border-color: var(--ll-dictionary-accent);
+    box-shadow: 0 0 0 2px rgba(11, 110, 79, 0.14);
+    outline: 0;
+}
+
+.ll-dictionary__filter-heading,
+.ll-dictionary__filter-current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-dictionary__filter-heading {
+    color: var(--ll-dictionary-muted);
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.ll-dictionary__filter-current {
+    color: var(--ll-dictionary-ink);
+    font-size: 0.98rem;
+    font-weight: 600;
+    line-height: 1.22;
+}
+
+.ll-dictionary__filter-popover {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    left: 0;
+    box-sizing: border-box;
+    width: min(100vw - 40px, 100%);
+    max-height: 280px;
+    overflow: auto;
+    padding: 6px;
+    border: 1px solid var(--ll-dictionary-border);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 36px rgba(24, 33, 43, 0.16);
+}
+
+.ll-dictionary__filter-option {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    min-height: 40px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    color: var(--ll-dictionary-ink);
+    cursor: pointer;
+}
+
+.ll-dictionary__filter-option:hover,
+.ll-dictionary__filter-option:focus-within {
+    background: #f4f8f6;
+}
+
+.ll-dictionary__filter-checkbox {
+    flex: 0 0 auto;
+    width: 17px;
+    height: 17px;
+    margin: 2px 0 0;
+    accent-color: var(--ll-dictionary-accent);
+    cursor: pointer;
+}
+
+.ll-dictionary__filter-checkbox:focus {
+    outline: 2px solid rgba(11, 110, 79, 0.22);
+    outline-offset: 2px;
+}
+
+.ll-dictionary__filter-option-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ll-dictionary__filter-option-label {
+    font-size: 0.94rem;
+    font-weight: 600;
+    line-height: 1.22;
+}
+
+.ll-dictionary__filter-option-note {
+    color: var(--ll-dictionary-muted);
+    font-size: 0.78rem;
+    line-height: 1.25;
 }
 
 .ll-dictionary__field {

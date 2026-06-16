@@ -27275,3 +27275,23 @@ msgstr "Passende Vokabeln werden geladen..."
 #: includes/shortcodes/word-grid-shortcode.php:3839
 msgid "Loading word editor..."
 msgstr "Vokabel-Editor wird geladen..."
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "All languages"
+msgstr "Alle Sprachen"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Parts of speech"
+msgstr "Wortarten"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "All parts of speech"
+msgstr "Alle Wortarten"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Source dictionaries"
+msgstr "Quellenwörterbücher"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Dialect not marked"
+msgstr "Dialekt nicht markiert"

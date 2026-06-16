@@ -4315,3 +4315,75 @@ msgstr "Chargement des mots correspondants..."
 #: includes/pages/wordset-pages.php:5448
 msgid "Add category"
 msgstr "Ajouter une catégorie"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Languages"
+msgstr "Langues"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "All languages"
+msgstr "Toutes les langues"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Parts of speech"
+msgstr "Parties du discours"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "All parts of speech"
+msgstr "Toutes les parties du discours"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Source dictionaries"
+msgstr "Dictionnaires sources"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Dialect not marked"
+msgstr "Dialecte non indiqué"
+
+#: includes/pages/wordset-pages.php
+msgid "Add target language"
+msgstr "Ajouter une langue cible"
+
+#: includes/pages/wordset-pages.php
+msgid "Category translations"
+msgstr "Traductions de catégorie"
+
+#: includes/pages/wordset-pages.php
+msgid "%d hidden"
+msgid_plural "%d hidden"
+msgstr[0] "%d masqué"
+msgstr[1] "%d masqués"
+
+#: includes/pages/wordset-pages.php
+msgid "Manual order"
+msgstr "Ordre manuel"
+
+#: includes/pages/wordset-pages.php
+msgid "Prerequisites"
+msgstr "Prérequis"
+
+#: includes/pages/wordset-pages.php
+msgid "%d file failed."
+msgid_plural "%d files failed."
+msgstr[0] "%d fichier a échoué."
+msgstr[1] "%d fichiers ont échoué."
+
+#: includes/pages/wordset-pages.php
+msgid "Image upload completed with no processed files."
+msgstr "Le téléversement d’images s’est terminé sans fichier traité."
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Examples"
+msgstr "Exemples"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Dictionary entry updated."
+msgstr "Entrée de dictionnaire mise à jour."
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Enter a definition."
+msgstr "Saisis une définition."
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Dictionary definition not found."
+msgstr "Définition de dictionnaire introuvable."

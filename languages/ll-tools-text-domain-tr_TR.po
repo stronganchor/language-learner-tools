@@ -27109,3 +27109,23 @@ msgstr "Eşleşen kelimeler yükleniyor..."
 #: includes/shortcodes/word-grid-shortcode.php:3839
 msgid "Loading word editor..."
 msgstr "Kelime düzenleyici yükleniyor..."
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "All languages"
+msgstr "Tüm diller"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Parts of speech"
+msgstr "Konuşma parçaları"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "All parts of speech"
+msgstr "Tüm konuşma parçaları"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Source dictionaries"
+msgstr "Kaynak sözlükler"
+
+#: includes/shortcodes/dictionary-shortcode.php
+msgid "Dialect not marked"
+msgstr "Lehçe belirtilmemiş"
