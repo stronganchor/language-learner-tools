@@ -280,6 +280,7 @@ function buildProgressPageMarkup() {
           </div>
           <div data-ll-wordset-progress-selection-bar hidden>
             <span data-ll-wordset-progress-selection-count></span>
+            <button type="button" data-ll-wordset-progress-selection-mode data-mode="practice">Practice</button>
             <button type="button" data-ll-wordset-progress-selection-clear>Clear</button>
           </div>
         </div>
@@ -390,6 +391,13 @@ function buildPageConfig(overrides = {}) {
       analyticsLoadingWords: 'Loading words...',
       analyticsLoadMoreMatchingWords: 'Load more matching words',
       analyticsLoadingMoreMatchingWords: 'Loading matching words...',
+      analyticsSelectAllWithContext: 'Select all: %1$s',
+      analyticsDeselectAllWithContext: 'Deselect all: %1$s',
+      analyticsSelectAllShown: 'Select all',
+      analyticsDeselectAllShown: 'Deselect all',
+      analyticsSelectAllContextFiltered: 'Filtered words',
+      analyticsSelectionCount: '%d selected words',
+      analyticsNew: 'New',
       analyticsStarred: 'Starred',
       analyticsStarWord: 'Star word',
       analyticsUnstarWord: 'Unstar word'
@@ -512,9 +520,21 @@ async function mountProgressPage(page, options = {}) {
     });
     window.llWordsetPageData = bootstrapConfig;
     window.__llAnalyticsRequests = [];
+    window.__llFetchWordsRequests = [];
+    window.__llFlashcardLaunches = [];
     window.__confettiCalls = 0;
     window.confetti = function () {
       window.__confettiCalls += 1;
+    };
+    window.initFlashcardWidget = function (categoryNames, mode) {
+      window.__llFlashcardLaunches.push({
+        categoryNames: Array.isArray(categoryNames) ? categoryNames.slice() : [],
+        mode,
+        sessionWordIds: window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.sessionWordIds)
+          ? window.llToolsFlashcardsData.sessionWordIds.slice()
+          : []
+      });
+      return Promise.resolve();
     };
 
     window.alert = function () {};
@@ -545,6 +565,39 @@ async function mountProgressPage(page, options = {}) {
           action,
           request: Object.assign({}, request),
           deferred
+        });
+        return deferred.promise();
+      }
+
+      if (action === 'll_user_study_fetch_words') {
+        const candidateIds = String(request.candidate_word_ids || '')
+          .split(',')
+          .map((value) => Number(value) || 0)
+          .filter((value, index, values) => value > 0 && values.indexOf(value) === index);
+        const categoryIds = Array.isArray(request.category_ids)
+          ? request.category_ids.map((value) => Number(value) || 0).filter(Boolean)
+          : [11];
+        window.__llFetchWordsRequests.push({
+          action,
+          request: Object.assign({}, request)
+        });
+        const words = candidateIds.map((id) => ({
+          id,
+          title: `Launch Word ${id}`,
+          translation: `Translation ${id}`,
+          label: `Launch Word ${id}`,
+          image: '',
+          audio_url: '',
+          category_id: categoryIds[0] || 11,
+          category_ids: [categoryIds[0] || 11]
+        }));
+        deferred.resolve({
+          success: true,
+          data: {
+            words_by_category: {
+              [String(categoryIds[0] || 11)]: words
+            }
+          }
         });
         return deferred.promise();
       }
@@ -738,6 +791,217 @@ test('progress starred filter requests matching word pages directly', async ({ p
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(12);
   await expect(page.locator('[data-ll-wordset-progress-words-loaded]')).toHaveText('Showing 12 of 12 matching words');
   await expect(page.locator('[data-ll-wordset-progress-words-load-more]')).toBeHidden();
+});
+
+async function assertFilteredProgressPracticeLaunch(page, options) {
+  const filterKey = options.filterKey;
+  const filterLabel = options.filterLabel;
+  const firstPageMatchingIds = options.firstPageMatchingIds;
+  const allMatchingIds = options.allMatchingIds;
+  const starredIds = options.starredIds || [];
+  const summary = Object.assign({
+    totalWords: 80,
+    masteredWords: 0,
+    studiedWords: 42,
+    newWords: 38,
+    hardWords: 0,
+    starredWords: starredIds.length
+  }, options.summary || {});
+  await mountProgressPage(page, {
+    config: {
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: starredIds,
+        star_mode: 'normal',
+        fast_transitions: false
+      }
+    }
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(1);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    totalWords: summary.totalWords,
+    masteredWords: summary.masteredWords,
+    studiedWords: summary.studiedWords,
+    newWords: summary.newWords,
+    hardWords: summary.hardWords,
+    starredWords: summary.starredWords,
+    words: buildProgressWords(1, 30),
+    wordsPagination: {
+      enabled: true,
+      total: summary.totalWords,
+      unfiltered_total: summary.totalWords,
+      filtered: false,
+      offset: 0,
+      limit: 30,
+      loaded: 30,
+      next_offset: 30,
+      has_more: true
+    }
+  }));
+
+  await page.getByRole('button', { name: 'Words' }).click();
+  await page.locator(`[data-ll-wordset-progress-kpi-filter="${filterKey}"]`).click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(2);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(1, payload);
+  }, buildAnalytics({
+    totalWords: summary.totalWords,
+    masteredWords: summary.masteredWords,
+    studiedWords: summary.studiedWords,
+    newWords: summary.newWords,
+    hardWords: summary.hardWords,
+    starredWords: summary.starredWords,
+    words: firstPageMatchingIds.map((id) => buildProgressWords(id, 1, { starredIds })[0]),
+    wordsPagination: {
+      enabled: true,
+      total: allMatchingIds.length,
+      unfiltered_total: summary.totalWords,
+      filtered: true,
+      offset: 0,
+      limit: 30,
+      loaded: 30,
+      next_offset: 30,
+      has_more: true
+    }
+  }));
+
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(30);
+  await expect(page.locator('[data-ll-wordset-progress-select-all]')).toHaveText(`Select all: ${filterLabel}`);
+
+  await page.locator('[data-ll-wordset-progress-select-all]').click();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText(`${allMatchingIds.length} selected words`);
+  await expect(page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]')).toBeEnabled();
+
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(3);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      const request = Array.isArray(window.__llAnalyticsRequests) && window.__llAnalyticsRequests[2]
+        ? window.__llAnalyticsRequests[2].request
+        : {};
+      const parsedFilter = request.word_filter ? JSON.parse(request.word_filter) : {};
+      return {
+        includeWords: String(request.include_words ?? ''),
+        includeWordIds: String(request.include_word_ids ?? ''),
+        summary: String(parsedFilter.summary || '')
+      };
+    });
+  }).toEqual({ includeWords: '0', includeWordIds: '1', summary: filterKey });
+
+  await page.evaluate(({ ids, summaryPayload }) => {
+    const entry = window.__llAnalyticsRequests[2];
+    entry.deferred.resolve({
+      success: true,
+      data: {
+        analytics: {
+          scope: { wordset_id: 77, category_ids: [11], category_count: 1, mode: 'all' },
+          summary: summaryPayload,
+          daily_activity: { days: [], max_events: 0, window_days: 14 },
+          categories: [],
+          words: [],
+          word_ids: ids,
+          words_pagination: {
+            enabled: false,
+            total: ids.length,
+            unfiltered_total: 80,
+            filtered: true,
+            offset: 0,
+            limit: 0,
+            loaded: 0,
+            next_offset: null,
+            has_more: false
+          },
+          generated_at: '2026-03-10T00:00:00Z'
+        }
+      }
+    });
+  }, {
+    ids: allMatchingIds,
+    summaryPayload: {
+      total_words: summary.totalWords,
+      mastered_words: summary.masteredWords,
+      studied_words: summary.studiedWords,
+      new_words: summary.newWords,
+      hard_words: summary.hardWords,
+      starred_words: summary.starredWords
+    }
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llFetchWordsRequests) ? window.__llFetchWordsRequests.length : 0);
+  }).toBe(1);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      const request = window.__llFetchWordsRequests[0].request || {};
+      const ids = String(request.candidate_word_ids || '')
+        .split(',')
+        .map((value) => Number(value) || 0)
+        .filter(Boolean);
+      const launches = Array.isArray(window.__llFlashcardLaunches) ? window.__llFlashcardLaunches : [];
+      return {
+        candidateCount: ids.length,
+        firstCandidate: ids[0] || 0,
+        lastCandidate: ids[ids.length - 1] || 0,
+        launchCount: launches.length,
+        sessionCount: launches[0] ? launches[0].sessionWordIds.length : 0
+      };
+    });
+  }).toEqual({
+    candidateCount: allMatchingIds.length,
+    firstCandidate: allMatchingIds[0],
+    lastCandidate: allMatchingIds[allMatchingIds.length - 1],
+    launchCount: 1,
+    sessionCount: allMatchingIds.length
+  });
+}
+
+test('progress select all filtered launches practice with every matching word id', async ({ page }) => {
+  const allMatchingIds = Array.from({ length: 42 }, (_unused, index) => 101 + index);
+  await assertFilteredProgressPracticeLaunch(page, {
+    filterKey: 'starred',
+    filterLabel: 'Starred',
+    firstPageMatchingIds: allMatchingIds.slice(0, 30),
+    allMatchingIds,
+    starredIds: allMatchingIds,
+    summary: {
+      totalWords: 80,
+      studiedWords: 42,
+      newWords: 38,
+      starredWords: 42
+    }
+  });
+});
+
+test('progress select all new words launches practice with the remaining new word ids', async ({ page }) => {
+  const allMatchingIds = Array.from({ length: 36 }, (_unused, index) => 101 + index);
+  await assertFilteredProgressPracticeLaunch(page, {
+    filterKey: 'new',
+    filterLabel: 'New',
+    firstPageMatchingIds: allMatchingIds.slice(0, 30),
+    allMatchingIds,
+    summary: {
+      totalWords: 80,
+      studiedWords: 44,
+      newWords: 36,
+      starredWords: 0
+    }
+  });
 });
 
 test('progress unstar updates the visible row without reloading analytics', async ({ page }) => {

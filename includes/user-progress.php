@@ -4058,6 +4058,11 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     if ($summary_only) {
         $include_words = false;
     }
+    $include_word_ids = false;
+    if (array_key_exists('include_word_ids', $options)) {
+        $parsed_include_word_ids = filter_var($options['include_word_ids'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $include_word_ids = ($parsed_include_word_ids === null) ? !empty($options['include_word_ids']) : (bool) $parsed_include_word_ids;
+    }
     $word_limit = 0;
     if (array_key_exists('word_limit', $options)) {
         $word_limit = max(0, (int) $options['word_limit']);
@@ -4071,7 +4076,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         : 0;
     $word_paging_enabled = $include_words && $word_limit > 0;
     $word_filter = ll_tools_user_progress_normalize_analytics_word_filter($options);
-    $word_filter_active = $include_words && ll_tools_user_progress_analytics_word_filter_is_active($word_filter);
+    $word_filter_active = ($include_words || $include_word_ids) && ll_tools_user_progress_analytics_word_filter_is_active($word_filter);
     if ($uid <= 0) {
         return [
             'scope' => [
@@ -4097,6 +4102,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'gender_progress' => ll_tools_user_progress_empty_gender_analytics($gender_enabled),
             'categories' => [],
             'words' => [],
+            'word_ids' => [],
             'words_omitted' => !$include_words,
             'words_pagination' => [
                 'enabled' => $word_paging_enabled,
@@ -4177,7 +4183,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         }
     }
 
-    if (!$include_words && !$gender_enabled) {
+    if (!$include_words && !$include_word_ids && !$gender_enabled) {
         return ll_tools_build_user_study_analytics_summary_only_payload(
             $uid,
             $scope_wordset_id,
@@ -4812,6 +4818,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         'gender_progress' => $gender_progress,
         'categories' => $category_rows,
         'words' => $include_words ? $word_rows : [],
+        'word_ids' => $include_word_ids ? array_values(array_map('intval', $ordered_word_ids)) : [],
         'words_omitted' => !$include_words,
         'words_pagination' => [
             'enabled' => $word_paging_enabled,
@@ -7841,6 +7848,12 @@ function ll_tools_user_study_analytics_ajax() {
     if ($summary_only) {
         $include_words = false;
     }
+    $include_word_ids = false;
+    if (isset($_POST['include_word_ids'])) {
+        $include_word_ids_raw = wp_unslash($_POST['include_word_ids']);
+        $parsed_include_word_ids = filter_var(is_array($include_word_ids_raw) ? reset($include_word_ids_raw) : $include_word_ids_raw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $include_word_ids = ($parsed_include_word_ids === null) ? !empty($_POST['include_word_ids']) : (bool) $parsed_include_word_ids;
+    }
     $word_limit = isset($_POST['word_limit']) ? max(0, (int) $_POST['word_limit']) : 0;
     $word_offset = isset($_POST['word_offset']) ? max(0, (int) $_POST['word_offset']) : 0;
     $word_filter = [];
@@ -7861,6 +7874,7 @@ function ll_tools_user_study_analytics_ajax() {
 
     $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, $category_ids, $days, $include_ignored, [
         'include_words' => $include_words,
+        'include_word_ids' => $include_word_ids,
         'summary_only' => $summary_only,
         'word_limit' => $word_limit,
         'word_offset' => $word_offset,

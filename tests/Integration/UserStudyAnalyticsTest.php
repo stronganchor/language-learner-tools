@@ -1169,6 +1169,64 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_analytics_ajax_returns_filtered_word_ids_without_hydrating_rows(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $word_ids = array_values(array_map('intval', (array) ($fixture['word_ids'] ?? [])));
+        $this->assertGreaterThanOrEqual(8, count($word_ids));
+
+        $starred_word_ids = [$word_ids[1], $word_ids[3], $word_ids[6], $word_ids[7]];
+        ll_tools_save_user_study_state([
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'starred_word_ids' => $starred_word_ids,
+            'star_mode' => 'normal',
+            'fast_transitions' => false,
+        ], $user_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'days' => 14,
+            'include_words' => '0',
+            'include_word_ids' => '1',
+            'word_filter' => wp_json_encode([
+                'summary' => 'starred',
+                'category_ids' => [],
+                'column_filters' => [],
+            ]),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_analytics_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $analytics = (array) ($response['data']['analytics'] ?? []);
+
+        $returned_ids = array_values(array_map('intval', (array) ($analytics['word_ids'] ?? [])));
+        sort($returned_ids);
+        sort($starred_word_ids);
+
+        $this->assertSame($starred_word_ids, $returned_ids);
+        $this->assertSame([], (array) ($analytics['words'] ?? []));
+        $this->assertTrue((bool) ($analytics['words_omitted'] ?? false));
+        $pagination = (array) ($analytics['words_pagination'] ?? []);
+        $this->assertTrue((bool) ($pagination['filtered'] ?? false));
+        $this->assertSame(4, (int) ($pagination['total'] ?? 0));
+        $this->assertSame(10, (int) ($pagination['unfiltered_total'] ?? 0));
+    }
+
     public function test_analytics_ajax_can_return_summary_without_word_rows(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
