@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-06-16T10:42:22+00:00\n"
+"POT-Creation-Date: 2026-06-16T13:32:55+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -1084,7 +1084,7 @@ msgstr ""
 #: includes/admin/bulk-translation-admin.php:177
 #: includes/admin/dictionary-import-admin.php:1360
 #: includes/admin/split-word-admin.php:396
-#: includes/lib/dictionary-browser.php:4670
+#: includes/lib/dictionary-browser.php:4671
 #: includes/post-types/dictionary-entry-post-type.php:1781
 #: includes/post-types/word-audio-post-type.php:116
 msgid "Type"
@@ -1436,7 +1436,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:525
 #: includes/admin/ipa-keyboard-admin.php:551
 #: includes/admin/ipa-keyboard-admin.php:574
-#: includes/shortcodes/dictionary-shortcode.php:3403
+#: includes/shortcodes/dictionary-shortcode.php:3394
 #: includes/shortcodes/image-copyright-grid-shortcode.php:161
 msgid "Search"
 msgstr ""
@@ -1968,7 +1968,7 @@ msgstr ""
 #: includes/admin/dictionary-import-admin.php:1361
 #: includes/admin/export-import.php:3262
 #: includes/admin/export-import.php:3797
-#: includes/lib/dictionary-browser.php:4674
+#: includes/lib/dictionary-browser.php:4675
 #: includes/shortcodes/audio-credit-grid-shortcode.php:294
 #: includes/shortcodes/image-copyright-grid-shortcode.php:222
 msgid "Source"
@@ -5754,7 +5754,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:305
 #: includes/admin/ipa-keyboard-admin.php:432
-#: includes/lib/dictionary-browser.php:4675
+#: includes/lib/dictionary-browser.php:4676
 #: includes/shortcodes/dictionary-shortcode.php:2151
 msgid "Examples"
 msgstr ""
@@ -11827,29 +11827,29 @@ msgstr ""
 msgid "(no title)"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:4640
+#: includes/lib/dictionary-browser.php:4641
 msgid "Imported Senses"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:4662
+#: includes/lib/dictionary-browser.php:4663
 msgid "No structured senses have been imported for this entry yet."
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:4669
+#: includes/lib/dictionary-browser.php:4670
 msgid "Glosses"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:4671
+#: includes/lib/dictionary-browser.php:4672
 #: includes/post-types/dictionary-entry-post-type.php:1783
 msgid "Gender/Number"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:4672
+#: includes/lib/dictionary-browser.php:4673
 #: includes/post-types/dictionary-entry-post-type.php:1784
 msgid "Parent"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:4673
+#: includes/lib/dictionary-browser.php:4674
 #: includes/post-types/dictionary-entry-post-type.php:1782
 #: includes/shortcodes/site-tools-shortcode.php:266
 msgid "Page"
@@ -13674,7 +13674,7 @@ msgid "Failed to create page"
 msgstr ""
 
 #: includes/pages/dictionary-page.php:11
-#: includes/shortcodes/dictionary-shortcode.php:3350
+#: includes/shortcodes/dictionary-shortcode.php:3341
 #: includes/shortcodes/site-tools-shortcode.php:920
 msgid "Dictionary"
 msgstr ""
@@ -14124,7 +14124,7 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:3753
 #: includes/pages/vocab-lesson-pages.php:3884
 #: includes/pages/vocab-lesson-pages.php:4631
-#: includes/shortcodes/dictionary-shortcode.php:2914
+#: includes/shortcodes/dictionary-shortcode.php:2905
 msgid "Invalid request."
 msgstr ""
 
@@ -20706,18 +20706,18 @@ msgid "Loading dictionary filters..."
 msgstr ""
 
 #: includes/shortcodes/dictionary-shortcode.php:88
-#: includes/shortcodes/dictionary-shortcode.php:2936
+#: includes/shortcodes/dictionary-shortcode.php:2927
 msgid "Enter a dictionary entry title."
 msgstr ""
 
 #: includes/shortcodes/dictionary-shortcode.php:89
-#: includes/shortcodes/dictionary-shortcode.php:2994
+#: includes/shortcodes/dictionary-shortcode.php:2985
 msgid "Enter a definition."
 msgstr ""
 
 #: includes/shortcodes/dictionary-shortcode.php:91
-#: includes/shortcodes/dictionary-shortcode.php:2950
-#: includes/shortcodes/dictionary-shortcode.php:3049
+#: includes/shortcodes/dictionary-shortcode.php:2941
+#: includes/shortcodes/dictionary-shortcode.php:3040
 msgid "Unable to save this dictionary entry right now."
 msgstr ""
 
@@ -20738,7 +20738,7 @@ msgid "Deutsch"
 msgstr ""
 
 #: includes/shortcodes/dictionary-shortcode.php:730
-#: includes/shortcodes/dictionary-shortcode.php:2927
+#: includes/shortcodes/dictionary-shortcode.php:2918
 msgid "Dictionary entry not found."
 msgstr ""
 
@@ -20841,59 +20841,55 @@ msgstr ""
 msgid "Dialect not marked"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2842
-#: includes/shortcodes/dictionary-shortcode.php:2843
+#: includes/shortcodes/dictionary-shortcode.php:2834
+#: includes/shortcodes/dictionary-shortcode.php:2835
 msgid "Search settings"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2846
+#: includes/shortcodes/dictionary-shortcode.php:2838
 msgid "Search in languages"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2847
+#: includes/shortcodes/dictionary-shortcode.php:2839
 msgid "All languages"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2853
+#: includes/shortcodes/dictionary-shortcode.php:2845
 msgid "Source dictionaries"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2854
+#: includes/shortcodes/dictionary-shortcode.php:2846
 msgid "All sources"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2863
-msgid "Type to search, or open the alphabet below."
-msgstr ""
-
-#: includes/shortcodes/dictionary-shortcode.php:2865
+#: includes/shortcodes/dictionary-shortcode.php:2856
 msgid "Browse dictionary by letter"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2908
+#: includes/shortcodes/dictionary-shortcode.php:2899
 msgid "Missing dictionary entry."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2920
+#: includes/shortcodes/dictionary-shortcode.php:2911
 msgid "You do not have permission to edit this dictionary entry."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2959
-#: includes/shortcodes/dictionary-shortcode.php:2984
-#: includes/shortcodes/dictionary-shortcode.php:3055
+#: includes/shortcodes/dictionary-shortcode.php:2950
+#: includes/shortcodes/dictionary-shortcode.php:2975
+#: includes/shortcodes/dictionary-shortcode.php:3046
 msgid "Dictionary entry updated."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3003
+#: includes/shortcodes/dictionary-shortcode.php:2994
 msgid "Dictionary definition not found."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3065
+#: includes/shortcodes/dictionary-shortcode.php:3056
 msgid "Invalid dictionary update request."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3392
-#: includes/shortcodes/dictionary-shortcode.php:3399
+#: includes/shortcodes/dictionary-shortcode.php:3383
+#: includes/shortcodes/dictionary-shortcode.php:3390
 msgid "Search dictionary"
 msgstr ""
 

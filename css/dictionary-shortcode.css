@@ -434,12 +434,6 @@
     flex: 0 0 auto;
 }
 
-.ll-dictionary__hint {
-    margin: 0;
-    color: var(--ll-dictionary-muted);
-    font-size: 0.92rem;
-}
-
 .ll-dictionary__button,
 .ll-dictionary__page-button,
 .ll-dictionary__page-number,

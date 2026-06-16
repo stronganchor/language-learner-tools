@@ -2852,7 +2852,6 @@ function ll_tools_dictionary_render_toolbar_panel(
                 ?>
             </div>
         <?php endif; ?>
-        <p class="ll-dictionary__hint"><?php esc_html_e('Type to search, or open the alphabet below.', 'll-tools-text-domain'); ?></p>
         <?php if ($include_letters && !empty($letters)) : ?>
             <nav class="ll-dictionary__letters" aria-label="<?php echo esc_attr__('Browse dictionary by letter', 'll-tools-text-domain'); ?>">
                 <?php foreach ($letters as $browse_letter) : ?>
@@ -3396,7 +3395,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                         </div>
                     </div>
                     <?php
-                    echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect, $has_active_browse_query || $has_explicit_scope); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 </form>
             </div>

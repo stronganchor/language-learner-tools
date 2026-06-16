@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 614,
+    "entry_count": 615,
     "entries": [
         {
             "key": "5d46efea71c9f6959c2ad34eb2c5459a5097c7ab",
@@ -1980,7 +1980,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/dictionary-page.php:11",
-                "includes/shortcodes/dictionary-shortcode.php:3350",
+                "includes/shortcodes/dictionary-shortcode.php:3341",
                 "includes/shortcodes/site-tools-shortcode.php:920"
             ],
             "public_references": [
@@ -6377,7 +6377,7 @@
                 "includes/admin/dictionary-import-admin.php:1361",
                 "includes/admin/export-import.php:3262",
                 "includes/admin/export-import.php:3797",
-                "includes/lib/dictionary-browser.php:4674",
+                "includes/lib/dictionary-browser.php:4675",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:294",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222"
             ],
@@ -6584,7 +6584,7 @@
             "references": [
                 "includes/admin/ipa-keyboard-admin.php:305",
                 "includes/admin/ipa-keyboard-admin.php:432",
-                "includes/lib/dictionary-browser.php:4675",
+                "includes/lib/dictionary-browser.php:4676",
                 "includes/shortcodes/dictionary-shortcode.php:2151"
             ],
             "public_references": [
@@ -6696,12 +6696,12 @@
             "msgid": "Search settings",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2842",
-                "includes/shortcodes/dictionary-shortcode.php:2843"
+                "includes/shortcodes/dictionary-shortcode.php:2834",
+                "includes/shortcodes/dictionary-shortcode.php:2835"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2842",
-                "includes/shortcodes/dictionary-shortcode.php:2843"
+                "includes/shortcodes/dictionary-shortcode.php:2834",
+                "includes/shortcodes/dictionary-shortcode.php:2835"
             ]
         },
         {
@@ -6710,10 +6710,10 @@
             "msgid": "Search in languages",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2846"
+                "includes/shortcodes/dictionary-shortcode.php:2838"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2846"
+                "includes/shortcodes/dictionary-shortcode.php:2838"
             ]
         },
         {
@@ -6722,24 +6722,34 @@
             "msgid": "All languages",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2847"
+                "includes/shortcodes/dictionary-shortcode.php:2839"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2847"
+                "includes/shortcodes/dictionary-shortcode.php:2839"
             ]
         },
         {
-            "key": "936aa349a0442223547d192cb8bd45e80196ca10",
+            "key": "04f33723842f65162b04e015233402377685ef1e",
             "context": "",
-            "msgid": "Dictionary entry updated.",
+            "msgid": "Source dictionaries",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2959",
-                "includes/shortcodes/dictionary-shortcode.php:2984",
-                "includes/shortcodes/dictionary-shortcode.php:3055"
+                "includes/shortcodes/dictionary-shortcode.php:2845"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2984"
+                "includes/shortcodes/dictionary-shortcode.php:2845"
+            ]
+        },
+        {
+            "key": "568e1b05728547ddb9b5942b4ec2ecc50eafc517",
+            "context": "",
+            "msgid": "All sources",
+            "msgid_plural": null,
+            "references": [
+                "includes/shortcodes/dictionary-shortcode.php:2846"
+            ],
+            "public_references": [
+                "includes/shortcodes/dictionary-shortcode.php:2846"
             ]
         },
         {
@@ -6748,11 +6758,11 @@
             "msgid": "Enter a definition.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2994",
+                "includes/shortcodes/dictionary-shortcode.php:2985",
                 "includes/shortcodes/dictionary-shortcode.php:89"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2994"
+                "includes/shortcodes/dictionary-shortcode.php:2985"
             ]
         },
         {
@@ -6761,10 +6771,10 @@
             "msgid": "Dictionary definition not found.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:3003"
+                "includes/shortcodes/dictionary-shortcode.php:2994"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:3003"
+                "includes/shortcodes/dictionary-shortcode.php:2994"
             ]
         },
         {
@@ -7863,7 +7873,7 @@
                 "includes/admin/ipa-keyboard-admin.php:525",
                 "includes/admin/ipa-keyboard-admin.php:551",
                 "includes/admin/ipa-keyboard-admin.php:574",
-                "includes/shortcodes/dictionary-shortcode.php:3403",
+                "includes/shortcodes/dictionary-shortcode.php:3394",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:161"
             ],
             "public_references": [

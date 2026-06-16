@@ -202,7 +202,6 @@ async function mountDictionaryHarness(page, options = {}) {
                       </div>
                     </details>
                   </div>
-                  <p class="ll-dictionary__hint">Type to search, or open the alphabet below.</p>
                   <nav class="ll-dictionary__letters" aria-label="Browse dictionary by letter">
                     <a class="ll-dictionary__letter" href="https://example.com/dictionary/?ll_dictionary_letter=A">A</a>
                     <a class="ll-dictionary__letter" href="https://example.com/dictionary/?ll_dictionary_letter=B">B</a>

@@ -2811,9 +2811,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Search settings', $idle_html);
         $this->assertStringContainsString('Search in languages', $idle_html);
         $this->assertStringNotContainsString('name="ll_dictionary_pos[]"', $idle_html);
-        $this->assertStringNotContainsString('ll_dictionary_letter=Ê', $idle_html);
-        $this->assertStringNotContainsString('ll_dictionary_letter=İ', $idle_html);
-        $this->assertStringNotContainsString('ll_dictionary_letter=Û', $idle_html);
+        $this->assertStringNotContainsString('ll-dictionary__hint', $idle_html);
+        $this->assertStringContainsString('ll-dictionary__letters', $idle_html);
+        $this->assertStringContainsString('ll_dictionary_letter=', $idle_html);
 
         $_GET = [
             'll_dictionary_letter' => 'Ê',
