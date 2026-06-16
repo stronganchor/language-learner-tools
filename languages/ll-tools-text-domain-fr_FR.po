@@ -4205,3 +4205,113 @@ msgstr "Non public : le quiz n’utilise pas d’images."
 #: includes/shortcodes/editor-hub-shortcode.php:1062 includes/shortcodes/editor-hub-shortcode.php:518 includes/shortcodes/word-grid-shortcode.php:6144 includes/taxonomies/wordset-taxonomy.php:3379 templates/vocab-lesson-template.php:790 templates/vocab-lesson-template.php:807 templates/vocab-lesson-template.php:809
 msgid "Verb mood"
 msgstr "Mode verbal"
+
+#. ll-tools-public-key: b9d99c2dcf1f992f8cc5833f8483759d0c52c5c3
+#: includes/pages/wordset-pages.php:16187
+msgid "Text + audio pairs"
+msgstr "Paires texte + audio"
+
+#. ll-tools-public-key: 38c18b2774f29a89d525b5ac5eaa7a67751c2b75
+#: includes/pages/wordset-pages.php:16196
+msgid "Automatically play the audio for text + audio answer options during quizzes."
+msgstr "Lire automatiquement l'audio des options de réponse texte + audio pendant les quiz."
+
+#. ll-tools-public-key: 8d58bf3d39c63086b9130b59df833134ac1a6759
+#: includes/pages/wordset-pages.php:16199
+msgid "When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play."
+msgstr "Lorsque cette option est désactivée, les apprenants peuvent lire manuellement les options de réponse texte + audio. Les options audio uniquement se lisent toujours automatiquement."
+
+#. ll-tools-public-key: 1a9d9f0329f12256fbd9fedfd644cb219c20530d
+#: includes/pages/wordset-pages.php:16204
+msgid "Lesson and word-grid text"
+msgstr "Texte des leçons et des grilles de mots"
+
+#. ll-tools-public-key: 74cab7744d508b97d795d3e4af9ac27c8c42c279
+#: includes/pages/wordset-pages.php:16213
+msgid "Hide word text on lesson pages and word grids when the category quiz uses only images or audio."
+msgstr "Masquer le texte des mots sur les pages de leçon et les grilles de mots lorsque le quiz de la catégorie utilise uniquement des images ou de l'audio."
+
+#. ll-tools-public-key: bc80d553aab8d97f379adcd62bc1a130ddbe7f1a
+#: includes/pages/wordset-pages.php:16216
+msgid "Categories can override this in their quiz settings."
+msgstr "Les catégories peuvent remplacer ce réglage dans leurs paramètres de quiz."
+
+#. ll-tools-public-key: 8b1c88119d9eaa89ad4683ec01ce9b71c40f4847
+#: includes/pages/wordset-pages.php:16222
+msgid "Save Study Settings"
+msgstr "Enregistrer les réglages d'étude"
+
+#. ll-tools-public-key: 166f90af5421d93da889b29787e61bc4c816e27a
+#: includes/pages/wordset-pages.php:17112
+msgid "%d word"
+msgid_plural "%d words"
+msgstr[0] "%d mot"
+msgstr[1] "%d mots"
+
+#. ll-tools-public-key: f050a272dca2348b1c895df1c52d015608f32509
+#: includes/pages/wordset-pages.php:17117
+msgid "%d missing audio"
+msgid_plural "%d missing audio"
+msgstr[0] "%d audio manquant"
+msgstr[1] "%d audios manquants"
+
+#. ll-tools-public-key: 36a22fa6bb6c7fa7086507115ccd0164fcf1bf9f
+#: includes/pages/wordset-pages.php:17145
+msgid "%d grammar feature"
+msgid_plural "%d grammar features"
+msgstr[0] "%d fonctionnalité grammaticale"
+msgstr[1] "%d fonctionnalités grammaticales"
+
+#. ll-tools-public-key: 1a6d6f0ed8fe365a3bea9df2c04b3b03a617cbf4
+#: includes/pages/wordset-pages.php:17150
+msgid "Profile image"
+msgstr "Image de profil"
+
+#. ll-tools-public-key: d7a1de9597306c29be5b388708f5ee5b00ff156b
+#: includes/pages/wordset-pages.php:17153
+msgid "Intro blurb"
+msgstr "Texte d'introduction"
+
+#. ll-tools-public-key: 7db216606fa0b0d656719e92187cf519b411b146
+#: includes/pages/wordset-pages.php:17156
+msgid "Large images"
+msgstr "Grandes images"
+
+#. ll-tools-public-key: 5b95bfb0a3f520db53312a0cdcc209cf05f3af4a
+#: includes/pages/wordset-pages.php:17159
+msgid "Original audio kept"
+msgstr "Audio original conservé"
+
+#. ll-tools-public-key: f744e8b629f3e6303f97bbea1db0187ba5fbf131
+#: includes/pages/wordset-pages.php:17189
+msgid "%d category"
+msgid_plural "%d categories"
+msgstr[0] "%d catégorie"
+msgstr[1] "%d catégories"
+
+#. ll-tools-public-key: bd89de7a53ace7b12d12a205808bc36cfdb9798e
+#: includes/pages/wordset-pages.php:17195
+msgid "%d image"
+msgid_plural "%d images"
+msgstr[0] "%d image"
+msgstr[1] "%d images"
+
+#. ll-tools-public-key: 9885d207929069a3a76d60636adee714c9495233
+#: includes/pages/wordset-pages.php:17681
+msgid "Showing %1$d of %2$d matching words"
+msgstr "Affichage de %1$d mots correspondants sur %2$d"
+
+#. ll-tools-public-key: 2a3ecb8701b5081140979425225388c4f19071eb
+#: includes/pages/wordset-pages.php:17684
+msgid "Load more matching words"
+msgstr "Charger plus de mots correspondants"
+
+#. ll-tools-public-key: 7d0aef99c60b99ea2286cbbe71f4a397415d1a90
+#: includes/pages/wordset-pages.php:17685
+msgid "Loading matching words..."
+msgstr "Chargement des mots correspondants..."
+
+#. ll-tools-public-key: 2668afd8fcc111c97a329914463fa7ca2968c16c
+#: includes/pages/wordset-pages.php:5448
+msgid "Add category"
+msgstr "Ajouter une catégorie"

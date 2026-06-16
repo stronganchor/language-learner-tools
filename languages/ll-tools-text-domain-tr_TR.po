@@ -27089,3 +27089,23 @@ msgstr "Kelimeler yükleniyor..."
 #: includes/pages/wordset-pages.php:18827
 msgid "Card previews are still being prepared. Please try again in a moment."
 msgstr "Kart önizlemeleri hâlâ hazırlanıyor. Lütfen birazdan tekrar dene."
+
+#: includes/admin/ipa-keyboard-admin.php:411
+msgid "Saving changes before opening the word editor..."
+msgstr "Kelime düzenleyiciyi açmadan önce değişiklikler kaydediliyor..."
+
+#: includes/pages/wordset-pages.php:17681
+msgid "Showing %1$d of %2$d matching words"
+msgstr "%2$d eşleşen kelimeden %1$d tanesi gösteriliyor"
+
+#: includes/pages/wordset-pages.php:17684
+msgid "Load more matching words"
+msgstr "Daha fazla eşleşen kelime yükle"
+
+#: includes/pages/wordset-pages.php:17685
+msgid "Loading matching words..."
+msgstr "Eşleşen kelimeler yükleniyor..."
+
+#: includes/shortcodes/word-grid-shortcode.php:3839
+msgid "Loading word editor..."
+msgstr "Kelime düzenleyici yükleniyor..."

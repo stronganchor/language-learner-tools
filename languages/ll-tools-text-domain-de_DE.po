@@ -27255,3 +27255,23 @@ msgstr "Vokabeln werden geladen..."
 #: includes/pages/wordset-pages.php:18827
 msgid "Card previews are still being prepared. Please try again in a moment."
 msgstr "Kartenvorschauen werden noch vorbereitet. Bitte versuche es gleich erneut."
+
+#: includes/admin/ipa-keyboard-admin.php:411
+msgid "Saving changes before opening the word editor..."
+msgstr "Änderungen werden vor dem Öffnen des Vokabel-Editors gespeichert..."
+
+#: includes/pages/wordset-pages.php:17681
+msgid "Showing %1$d of %2$d matching words"
+msgstr "Zeige %1$d von %2$d passenden Vokabeln"
+
+#: includes/pages/wordset-pages.php:17684
+msgid "Load more matching words"
+msgstr "Weitere passende Vokabeln laden"
+
+#: includes/pages/wordset-pages.php:17685
+msgid "Loading matching words..."
+msgstr "Passende Vokabeln werden geladen..."
+
+#: includes/shortcodes/word-grid-shortcode.php:3839
+msgid "Loading word editor..."
+msgstr "Vokabel-Editor wird geladen..."
