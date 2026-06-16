@@ -88,6 +88,63 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertNotEmpty((string) (($data['config'] ?? [])['editNonce'] ?? ''));
     }
 
+    public function test_lesson_edit_popup_marks_category_counts_and_public_statuses(): void
+    {
+        $prefix = 'word-edit-category-counts';
+        $wordset_id = $this->ensureTerm('wordset', 'Word Edit Category Counts Wordset', $prefix . '-wordset');
+        $public_category_id = $this->ensureTerm('word-category', 'Count Public Category', $prefix . '-public');
+        $junk_category_id = $this->ensureTerm('word-category', 'Count Junk Category', $prefix . '-junk');
+        $private_category_id = $this->ensureTerm('word-category', 'Count Private Category', $prefix . '-private');
+        $recording_type_id = $this->ensureTerm('recording_type', 'Isolation', 'isolation');
+
+        foreach ([$public_category_id, $junk_category_id, $private_category_id] as $category_id) {
+            update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+            update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+            if (function_exists('ll_tools_set_category_wordset_owner')) {
+                ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+            }
+        }
+        update_term_meta($private_category_id, defined('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY') ? LL_TOOLS_CATEGORY_VISIBILITY_META_KEY : 'll_category_visibility', 'private');
+
+        for ($index = 1; $index <= 5; $index++) {
+            $word_id = $this->createCategoryCountWord($wordset_id, $public_category_id, 'Public Count Word ' . $index, 'Public Count Translation ' . $index);
+            $this->createCategoryCountAudio($word_id, $recording_type_id, 'public-count-' . $index . '.mp3');
+        }
+        for ($index = 1; $index <= 2; $index++) {
+            $this->createCategoryCountWord($wordset_id, $junk_category_id, 'Junk Count Word ' . $index, 'Junk Count Translation ' . $index);
+        }
+        $private_word_id = $this->createCategoryCountWord($wordset_id, $private_category_id, 'Private Count Word', 'Private Count Translation');
+        $this->createCategoryCountAudio($private_word_id, $recording_type_id, 'private-count.mp3');
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+        wp_set_current_user($admin_id);
+
+        $ajax_filter = static function (): bool {
+            return true;
+        };
+        add_filter('wp_doing_ajax', $ajax_filter);
+        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+
+        try {
+            $output = do_shortcode('[word_grid category="' . $prefix . '-public" wordset="' . $prefix . '-wordset"]');
+        } finally {
+            remove_filter('wp_doing_ajax', $ajax_filter);
+            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+        }
+
+        $this->assertMatchesRegularExpression('/data-ll-word-category-id="' . preg_quote((string) $public_category_id, '/') . '"[^>]+data-ll-word-category-quizzable-count="5"[^>]+data-ll-word-category-public="1"/', $output);
+        $this->assertMatchesRegularExpression('/class="[^"]*ll-word-edit-category-option--not-quizzable[^"]*"[^>]+data-ll-word-category-id="' . preg_quote((string) $junk_category_id, '/') . '"[^>]+data-ll-word-category-quizzable-count="0"/', $output);
+        $this->assertMatchesRegularExpression('/class="[^"]*ll-word-edit-category-option--private[^"]*"[^>]+data-ll-word-category-id="' . preg_quote((string) $private_category_id, '/') . '"[^>]+data-ll-word-category-quizzable-count="1"[^>]+data-ll-word-category-public="0"/', $output);
+        $this->assertStringContainsString('ll-word-edit-category-count', $output);
+        $this->assertStringContainsString('Not public', $output);
+        $this->assertStringContainsString('Private', $output);
+    }
+
     public function test_lesson_editor_can_move_word_to_trash(): void
     {
         $fixture = $this->createFixture('lesson-edit-actions-delete-word');
@@ -329,6 +386,35 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $editor->add_cap('view_ll_tools');
         clean_user_cache($editor_id);
         wp_set_current_user($editor_id);
+    }
+
+    private function createCategoryCountWord(int $wordset_id, int $category_id, string $title, string $translation): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+        update_post_meta($word_id, 'word_translation', $translation);
+        update_post_meta($word_id, 'word_english_meaning', $translation);
+
+        return (int) $word_id;
+    }
+
+    private function createCategoryCountAudio(int $word_id, int $recording_type_id, string $filename): int
+    {
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Category Count Audio ' . $filename,
+        ]);
+        wp_set_object_terms($recording_id, [$recording_type_id], 'recording_type', false);
+        update_post_meta($recording_id, 'audio_file_path', '/wp-content/uploads/' . $filename);
+
+        return (int) $recording_id;
     }
 
     private function ensureTerm(string $taxonomy, string $name, string $slug): int

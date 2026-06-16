@@ -3127,21 +3127,281 @@ function ll_tools_word_grid_get_category_editor_terms_for_wordset(int $wordset_i
     return $ordered_terms;
 }
 
-function ll_tools_word_grid_get_category_editor_rows(int $wordset_id, array $specific_word_ids = []): array {
+function ll_tools_word_grid_get_category_editor_min_quizzable_words(int $wordset_id): int {
+    $min_words = defined('LL_TOOLS_MIN_WORDS_PER_QUIZ') ? (int) LL_TOOLS_MIN_WORDS_PER_QUIZ : 5;
+    $min_words = (int) apply_filters('ll_tools_quiz_min_words', $min_words);
+
+    return max(1, $min_words);
+}
+
+function ll_tools_word_grid_get_category_editor_word_ids_by_category(int $wordset_id, array $category_ids): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    $category_ids = ll_tools_word_grid_normalize_category_id_list($category_ids);
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return [];
+    }
+
+    $query_id_to_category_ids = [];
+    foreach ($category_ids as $category_id) {
+        $query_id_to_category_ids[$category_id][$category_id] = true;
+        if (function_exists('ll_tools_get_category_isolation_source_id')) {
+            $source_id = (int) ll_tools_get_category_isolation_source_id($category_id);
+            if ($source_id > 0 && $source_id !== $category_id) {
+                $query_id_to_category_ids[$source_id][$category_id] = true;
+            }
+        }
+    }
+
+    $query_ids = ll_tools_word_grid_normalize_category_id_list(array_keys($query_id_to_category_ids));
+    if (empty($query_ids)) {
+        return [];
+    }
+
+    $word_ids_by_category = [];
+    foreach ($category_ids as $category_id) {
+        $word_ids_by_category[$category_id] = [];
+    }
+
+    foreach (array_chunk($query_ids, 500) as $query_id_chunk) {
+        $placeholders = implode(',', array_fill(0, count($query_id_chunk), '%d'));
+        $sql = $wpdb->prepare(
+            "
+            SELECT tt_cat.term_id AS category_id, p.ID AS word_id
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->term_relationships} tr_ws
+                    ON tr_ws.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_ws
+                    ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+            INNER JOIN {$wpdb->term_relationships} tr_cat
+                    ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat
+                    ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+            WHERE p.post_type = %s
+              AND p.post_status = %s
+              AND tt_ws.taxonomy = %s
+              AND tt_ws.term_id = %d
+              AND tt_cat.taxonomy = %s
+              AND tt_cat.term_id IN ({$placeholders})
+            GROUP BY tt_cat.term_id, p.ID
+            ",
+            array_merge(['words', 'publish', 'wordset', $wordset_id, 'word-category'], $query_id_chunk)
+        );
+
+        foreach ((array) $wpdb->get_results($sql, ARRAY_A) as $row) {
+            $query_category_id = (int) ($row['category_id'] ?? 0);
+            $word_id = (int) ($row['word_id'] ?? 0);
+            if ($query_category_id <= 0 || $word_id <= 0 || empty($query_id_to_category_ids[$query_category_id])) {
+                continue;
+            }
+
+            foreach (array_keys($query_id_to_category_ids[$query_category_id]) as $category_id) {
+                $category_id = (int) $category_id;
+                if ($category_id > 0) {
+                    $word_ids_by_category[$category_id][$word_id] = true;
+                }
+            }
+        }
+    }
+
+    foreach ($word_ids_by_category as $category_id => $word_lookup) {
+        $ids = array_values(array_map('intval', array_keys((array) $word_lookup)));
+        sort($ids, SORT_NUMERIC);
+        $word_ids_by_category[$category_id] = $ids;
+    }
+
+    return $word_ids_by_category;
+}
+
+function ll_tools_word_grid_get_category_editor_quiz_requirements(WP_Term $term, int $wordset_id): array {
+    $config = function_exists('ll_tools_get_category_quiz_config')
+        ? ll_tools_get_category_quiz_config($term)
+        : [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+            'use_titles' => false,
+        ];
+    if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+        $config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $config, [$wordset_id]);
+    }
+
+    $prompt_type = isset($config['prompt_type']) ? sanitize_key((string) $config['prompt_type']) : 'audio';
+    $option_type = isset($config['option_type']) ? sanitize_key((string) $config['option_type']) : 'image';
+    if ($option_type === '' && function_exists('ll_tools_default_option_type_for_category')) {
+        $option_type = sanitize_key((string) ll_tools_default_option_type_for_category($term));
+    }
+    if ($option_type === '') {
+        $option_type = 'image';
+    }
+
+    $use_titles = !empty($config['use_titles']);
+    $prompt_text_type = function_exists('ll_tools_get_quiz_prompt_text_type')
+        ? ll_tools_get_quiz_prompt_text_type($prompt_type, $use_titles)
+        : '';
+
+    return [
+        'prompt_type' => $prompt_type,
+        'option_type' => $option_type,
+        'use_titles' => $use_titles,
+        'requires_audio' => function_exists('ll_tools_quiz_requires_audio')
+            ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true)),
+        'requires_image' => function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'image' || $option_type === 'image'),
+        'requires_option_label' => in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true),
+        'prompt_text_type' => $prompt_text_type,
+        'requires_prompt_label' => $prompt_text_type !== '',
+    ];
+}
+
+function ll_tools_word_grid_get_category_editor_quizzable_counts(int $wordset_id, array $category_terms): array {
+    $terms_by_id = [];
+    foreach ($category_terms as $term) {
+        if ($term instanceof WP_Term && !is_wp_error($term) && $term->taxonomy === 'word-category') {
+            $terms_by_id[(int) $term->term_id] = $term;
+        }
+    }
+    if ($wordset_id <= 0 || empty($terms_by_id)) {
+        return [];
+    }
+
+    $word_ids_by_category = ll_tools_word_grid_get_category_editor_word_ids_by_category($wordset_id, array_keys($terms_by_id));
+    $all_word_ids = [];
+    foreach ($word_ids_by_category as $word_ids) {
+        $all_word_ids = array_merge($all_word_ids, (array) $word_ids);
+    }
+    $all_word_ids = array_values(array_unique(array_filter(array_map('intval', $all_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($all_word_ids)) {
+        return array_fill_keys(array_keys($terms_by_id), 0);
+    }
+
+    $requirements_by_category = [];
+    $needs_audio = false;
+    $needs_image = false;
+    $needs_default_display_text = false;
+    $needs_title_display_text = false;
+    foreach ($terms_by_id as $category_id => $term) {
+        $requirements = ll_tools_word_grid_get_category_editor_quiz_requirements($term, $wordset_id);
+        $requirements_by_category[$category_id] = $requirements;
+        $needs_audio = $needs_audio || !empty($requirements['requires_audio']);
+        $needs_image = $needs_image || !empty($requirements['requires_image']);
+        if (!empty($requirements['requires_option_label']) || !empty($requirements['requires_prompt_label'])) {
+            if (!empty($requirements['use_titles'])) {
+                $needs_title_display_text = true;
+            } else {
+                $needs_default_display_text = true;
+            }
+        }
+    }
+
+    $has_audio_by_word = $needs_audio && function_exists('ll_tools_get_word_audio_presence_map')
+        ? ll_tools_get_word_audio_presence_map($all_word_ids)
+        : [];
+    $has_image_by_word = $needs_image && function_exists('ll_tools_get_word_effective_image_presence_map')
+        ? ll_tools_get_word_effective_image_presence_map($all_word_ids)
+        : [];
+    $display_text_default = $needs_default_display_text && function_exists('ll_tools_get_word_display_text_map')
+        ? ll_tools_get_word_display_text_map($all_word_ids)
+        : [];
+    $display_text_titles = $needs_title_display_text && function_exists('ll_tools_get_word_display_text_map')
+        ? ll_tools_get_word_display_text_map($all_word_ids, true)
+        : [];
+    $wrong_only_lookup = function_exists('ll_tools_get_specific_wrong_answer_only_word_lookup')
+        ? ll_tools_get_specific_wrong_answer_only_word_lookup()
+        : [];
+
+    $counts = [];
+    foreach ($terms_by_id as $category_id => $_term) {
+        $requirements = $requirements_by_category[$category_id] ?? [];
+        $display_text_map = !empty($requirements['use_titles']) ? $display_text_titles : $display_text_default;
+        $count = 0;
+        foreach ((array) ($word_ids_by_category[$category_id] ?? []) as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || !empty($wrong_only_lookup[$word_id])) {
+                continue;
+            }
+            if (!empty($requirements['requires_audio']) && empty($has_audio_by_word[$word_id])) {
+                continue;
+            }
+            if (!empty($requirements['requires_image']) && empty($has_image_by_word[$word_id])) {
+                continue;
+            }
+
+            if (!empty($requirements['requires_option_label']) || !empty($requirements['requires_prompt_label'])) {
+                $display_values = isset($display_text_map[$word_id]) && is_array($display_text_map[$word_id])
+                    ? $display_text_map[$word_id]
+                    : [];
+                $raw_title = trim((string) ($display_values['raw_title'] ?? get_the_title($word_id)));
+                $word_text = trim((string) ($display_values['word_text'] ?? ''));
+                $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
+                $title = $word_text !== '' ? $word_text : $raw_title;
+                $option_label = $title;
+                $option_type = (string) ($requirements['option_type'] ?? '');
+                if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation_text !== '') {
+                    $option_label = $translation_text;
+                }
+                if (!empty($requirements['requires_option_label']) && trim((string) $option_label) === '') {
+                    continue;
+                }
+
+                $prompt_label = $title;
+                $prompt_text_type = (string) ($requirements['prompt_text_type'] ?? '');
+                if ($prompt_text_type === 'text_translation' && $translation_text !== '') {
+                    $prompt_label = $translation_text;
+                } elseif ($prompt_text_type === 'text_title') {
+                    $prompt_label = $title;
+                }
+                if (!empty($requirements['requires_prompt_label']) && trim((string) $prompt_label) === '') {
+                    continue;
+                }
+            }
+
+            $count++;
+        }
+        $counts[$category_id] = $count;
+    }
+
+    return $counts;
+}
+
+function ll_tools_word_grid_get_category_editor_rows(int $wordset_id, array $specific_word_ids = [], bool $include_quiz_meta = false): array {
     $rows = [];
-    foreach (ll_tools_word_grid_get_category_editor_terms_for_wordset($wordset_id, $specific_word_ids) as $term) {
+    $terms = ll_tools_word_grid_get_category_editor_terms_for_wordset($wordset_id, $specific_word_ids);
+    $quizzable_counts = $include_quiz_meta
+        ? ll_tools_word_grid_get_category_editor_quizzable_counts($wordset_id, $terms)
+        : [];
+    $min_quizzable_words = $include_quiz_meta
+        ? ll_tools_word_grid_get_category_editor_min_quizzable_words($wordset_id)
+        : 0;
+    foreach ($terms as $term) {
         if (!($term instanceof WP_Term) || is_wp_error($term)) {
             continue;
         }
 
+        $term_id = (int) $term->term_id;
         $label = function_exists('ll_tools_get_category_display_name')
             ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
             : (string) $term->name;
-        $rows[] = [
-            'id'    => (int) $term->term_id,
+        $row = [
+            'id'    => $term_id,
             'slug'  => (string) $term->slug,
             'label' => $label !== '' ? $label : (string) $term->name,
         ];
+        if ($include_quiz_meta) {
+            $quizzable_count = max(0, (int) ($quizzable_counts[$term_id] ?? 0));
+            $is_private = function_exists('ll_tools_is_category_private') && ll_tools_is_category_private($term);
+            $is_quizzable = ((string) $term->slug !== 'uncategorized') && $quizzable_count >= $min_quizzable_words;
+            $row['quizzable_count'] = $quizzable_count;
+            $row['min_quizzable_count'] = $min_quizzable_words;
+            $row['is_quizzable'] = $is_quizzable;
+            $row['is_private'] = $is_private;
+            $row['is_public'] = $is_quizzable && !$is_private;
+        }
+        $rows[] = $row;
     }
 
     return $rows;
@@ -5441,7 +5701,7 @@ function ll_tools_word_grid_shortcode($atts) {
         return $word_id > 0;
     }));
     $category_editor_rows = $show_word_category_editor
-        ? ll_tools_word_grid_get_category_editor_rows($wordset_id, $category_editor_word_ids)
+        ? ll_tools_word_grid_get_category_editor_rows($wordset_id, $category_editor_word_ids, true)
         : [];
     $category_editor_ids = ll_tools_word_grid_normalize_category_id_list(wp_list_pluck($category_editor_rows, 'id'));
 
@@ -5983,9 +6243,45 @@ function ll_tools_word_grid_shortcode($atts) {
                         }
                         $category_input_id = 'll-word-edit-category-' . $word_id . '-' . $category_option_id;
                         $is_checked = isset($selected_category_lookup[$category_option_id]);
-                        echo '<label class="ll-word-edit-category-option" for="' . esc_attr($category_input_id) . '" data-ll-word-category-option data-ll-word-category-label="' . esc_attr($category_option_label) . '" data-ll-word-category-search-text="' . esc_attr($category_option_label) . '" data-ll-wordset-order="' . esc_attr((string) $category_order_index) . '">';
+                        $category_quizzable_count = max(0, (int) ($category_row['quizzable_count'] ?? 0));
+                        $category_is_quizzable = !empty($category_row['is_quizzable']);
+                        $category_is_private = !empty($category_row['is_private']);
+                        $category_is_public = !array_key_exists('is_public', $category_row) || !empty($category_row['is_public']);
+                        $category_option_classes = 'll-word-edit-category-option';
+                        if (!$category_is_quizzable) {
+                            $category_option_classes .= ' ll-word-edit-category-option--not-quizzable';
+                        }
+                        if (!$category_is_public) {
+                            $category_option_classes .= ' ll-word-edit-category-option--not-public';
+                        }
+                        if ($category_is_private) {
+                            $category_option_classes .= ' ll-word-edit-category-option--private';
+                        }
+                        $category_count_label = sprintf(
+                            /* translators: %d is the number of quiz-ready published words in a category. */
+                            _n('%d quizzable word', '%d quizzable words', $category_quizzable_count, 'll-tools-text-domain'),
+                            $category_quizzable_count
+                        );
+                        $category_state_labels = [$category_count_label];
+                        if ($category_is_private) {
+                            $category_state_labels[] = __('Private', 'll-tools-text-domain');
+                        } elseif (!$category_is_public) {
+                            $category_state_labels[] = __('Not public', 'll-tools-text-domain');
+                        }
+                        $category_option_title = implode(' - ', $category_state_labels);
+                        echo '<label class="' . esc_attr($category_option_classes) . '" for="' . esc_attr($category_input_id) . '" data-ll-word-category-option data-ll-word-category-id="' . esc_attr((string) $category_option_id) . '" data-ll-word-category-label="' . esc_attr($category_option_label) . '" data-ll-word-category-search-text="' . esc_attr($category_option_label) . '" data-ll-word-category-quizzable-count="' . esc_attr((string) $category_quizzable_count) . '" data-ll-word-category-quizzable="' . ($category_is_quizzable ? '1' : '0') . '" data-ll-word-category-public="' . ($category_is_public ? '1' : '0') . '" data-ll-wordset-order="' . esc_attr((string) $category_order_index) . '" title="' . esc_attr($category_option_title) . '">';
                         echo '<input type="checkbox" id="' . esc_attr($category_input_id) . '" class="ll-word-edit-category-checkbox" data-ll-word-category-input value="' . esc_attr((string) $category_option_id) . '"' . checked($is_checked, true, false) . ' />';
+                        echo '<span class="ll-word-edit-category-main">';
                         echo '<span class="ll-word-edit-category-label">' . esc_html($category_option_label) . '</span>';
+                        echo '<span class="ll-word-edit-category-meta">';
+                        echo '<span class="ll-word-edit-category-count" aria-label="' . esc_attr($category_count_label) . '" title="' . esc_attr($category_count_label) . '">' . esc_html((string) $category_quizzable_count) . '</span>';
+                        if ($category_is_private) {
+                            echo '<span class="ll-word-edit-category-state ll-word-edit-category-state--private">' . esc_html__('Private', 'll-tools-text-domain') . '</span>';
+                        } elseif (!$category_is_public) {
+                            echo '<span class="ll-word-edit-category-state ll-word-edit-category-state--not-public">' . esc_html__('Not public', 'll-tools-text-domain') . '</span>';
+                        }
+                        echo '</span>';
+                        echo '</span>';
                         echo '</label>';
                         $category_order_index++;
                     }

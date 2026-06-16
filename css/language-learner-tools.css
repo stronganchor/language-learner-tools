@@ -1450,9 +1450,30 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     box-sizing: border-box;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-category-option--not-public {
+    border-color: #f3d08a;
+    background: #fffbeb;
+    color: #4b5563;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-option--private {
+    border-color: #c7d2fe;
+    background: #f8fafc;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-category-option:hover {
     border-color: #94a3b8;
     background: #f1f5f9;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-option--not-public:hover {
+    border-color: #d39a00;
+    background: #fff7d6;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-option--private:hover {
+    border-color: #818cf8;
+    background: #eef2ff;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-category-option[hidden] {
@@ -1475,6 +1496,59 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 .word-grid.ll-word-grid .ll-word-edit-category-label {
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-meta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-count,
+.word-grid.ll-word-grid .ll-word-edit-category-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20px;
+    padding: 2px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-option--not-quizzable .ll-word-edit-category-count {
+    border-color: #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-state--not-public {
+    border-color: #facc15;
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-state--private {
+    border-color: #c7d2fe;
+    background: #eef2ff;
+    color: #3730a3;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-category-empty {
