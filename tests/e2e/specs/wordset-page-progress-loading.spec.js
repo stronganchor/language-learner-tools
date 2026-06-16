@@ -246,7 +246,15 @@ function buildProgressPageMarkup() {
       <section class="ll-wordset-progress-view" data-ll-wordset-progress-root>
         <div data-ll-wordset-progress-status></div>
         <div data-ll-wordset-progress-scope></div>
-        <div data-ll-wordset-progress-summary></div>
+        <div class="ll-wordset-progress-summary is-loading" data-ll-wordset-progress-summary aria-busy="true">
+          ${['mastered', 'studied', 'new', 'starred', 'hard'].map((key) => `
+            <div class="ll-wordset-progress-kpi ll-wordset-progress-kpi--${key} is-loading">
+              <span class="ll-wordset-progress-kpi-icon-wrap"></span>
+              <span class="ll-wordset-progress-kpi-value"></span>
+              <span class="ll-wordset-progress-kpi-label">${key}</span>
+            </div>
+          `).join('')}
+        </div>
         <div data-ll-wordset-progress-graph></div>
 
         <div role="tablist">
@@ -397,8 +405,11 @@ function buildPageConfig(overrides = {}) {
       analyticsDeselectAllShown: 'Deselect all',
       analyticsSelectAllContextFiltered: 'Filtered words',
       analyticsSelectionCount: '%d selected words',
+      analyticsMastered: 'Learned',
+      analyticsStudied: 'In progress',
       analyticsNew: 'New',
       analyticsStarred: 'Starred',
+      analyticsHard: 'Hard',
       analyticsStarWord: 'Star word',
       analyticsUnstarWord: 'Unstar word'
     }
@@ -620,6 +631,51 @@ async function mountProgressPage(page, options = {}) {
 
   await page.addScriptTag({ content: wordsetScriptSource });
 }
+
+test('progress summary counts stay blank while initial analytics loads', async ({ page }) => {
+  await mountProgressPage(page, {
+    config: {
+      summaryCountsDeferred: true
+    }
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(1);
+
+  const summary = page.locator('[data-ll-wordset-progress-summary]');
+  await expect(summary).toHaveClass(/is-loading/);
+  await expect(summary).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('.ll-wordset-progress-kpi')).toHaveCount(5);
+  await expect(page.locator('.ll-wordset-progress-kpi.is-loading')).toHaveCount(5);
+  await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['', '', '', '', '']);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    totalWords: 20,
+    masteredWords: 3,
+    studiedWords: 9,
+    newWords: 11,
+    hardWords: 2,
+    starredWords: 4,
+    words: buildProgressWords(1, 20),
+    wordsPagination: {
+      enabled: false,
+      total: 20,
+      offset: 0,
+      limit: 0,
+      loaded: 20,
+      next_offset: null,
+      has_more: false
+    }
+  }));
+
+  await expect(summary).not.toHaveClass(/is-loading/);
+  await expect(summary).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('.ll-wordset-progress-kpi.is-loading')).toHaveCount(0);
+  await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['3', '6', '11', '4', '2']);
+});
 
 test('progress words load in bounded pages', async ({ page }) => {
   await mountProgressPage(page);

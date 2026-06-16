@@ -6308,6 +6308,31 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     animation: ll-wordset-progress-kpi-click 0.28s ease;
 }
 
+.ll-wordset-progress-kpi.is-loading {
+    cursor: wait;
+}
+
+.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading,
+.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading:hover,
+.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading:focus-visible,
+.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading:disabled {
+    transform: none;
+    cursor: wait;
+    opacity: 1;
+    box-shadow: none !important;
+}
+
+.ll-wordset-progress-kpi.is-loading .ll-wordset-progress-kpi-value {
+    width: clamp(34px, 4vw, 52px);
+    min-width: 34px;
+    height: 1em;
+    border-radius: 999px;
+    color: transparent !important;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0.18) 16%, rgba(255, 255, 255, 0.78) 34%, rgba(255, 255, 255, 0.18) 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+}
+
 @keyframes ll-wordset-progress-kpi-click {
     0% {
         transform: translateY(0) scale(1);

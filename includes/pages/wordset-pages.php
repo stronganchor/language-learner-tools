@@ -16806,7 +16806,40 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
     $summary_counts = ll_tools_wordset_page_summary_counts($analytics);
-    $summary_counts_deferred = ($is_study_user && $is_main_view && !$should_bootstrap_analytics);
+    $summary_counts_deferred = ($is_study_user && ($is_main_view || $view === 'progress') && !$should_bootstrap_analytics);
+    $progress_summary_loading = ($view === 'progress' && $summary_counts_deferred);
+    $progress_summary_cards = [
+        [
+            'key' => 'mastered',
+            'count_key' => 'mastered',
+            'label' => __('Learned', 'll-tools-text-domain'),
+            'icon' => ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-kpi-icon'),
+        ],
+        [
+            'key' => 'studied',
+            'count_key' => 'studied',
+            'label' => __('In progress', 'll-tools-text-domain'),
+            'icon' => ll_tools_wordset_page_render_progress_icon('studied', 'll-wordset-progress-kpi-icon'),
+        ],
+        [
+            'key' => 'new',
+            'count_key' => 'new',
+            'label' => __('New', 'll-tools-text-domain'),
+            'icon' => ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-kpi-icon'),
+        ],
+        [
+            'key' => 'starred',
+            'count_key' => 'starred',
+            'label' => __('Starred', 'll-tools-text-domain'),
+            'icon' => ll_tools_wordset_page_render_progress_icon('starred', 'll-wordset-progress-kpi-icon'),
+        ],
+        [
+            'key' => 'hard',
+            'count_key' => 'hard',
+            'label' => __('Hard', 'll-tools-text-domain'),
+            'icon' => ll_tools_wordset_page_render_progress_icon('hard', 'll-wordset-progress-kpi-icon'),
+        ],
+    ];
     $category_progress_lookup = [];
     $category_metrics_lookup = [];
     $analytics_category_rows = (isset($analytics['categories']) && is_array($analytics['categories'])) ? $analytics['categories'] : [];
@@ -17882,28 +17915,25 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         <div class="ll-wordset-progress-graph" data-ll-wordset-progress-graph></div>
                     </div>
 
-                    <div class="ll-wordset-progress-summary" data-ll-wordset-progress-summary>
-                        <div class="ll-wordset-progress-kpi ll-wordset-progress-kpi--mastered">
-                            <span class="ll-wordset-progress-kpi-icon-wrap">
-                                <?php echo ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-kpi-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                            </span>
-                            <span class="ll-wordset-progress-kpi-value"><?php echo (int) $summary_counts['mastered']; ?></span>
-                            <span class="ll-wordset-progress-kpi-label"><?php echo esc_html__('Learned', 'll-tools-text-domain'); ?></span>
-                        </div>
-                        <div class="ll-wordset-progress-kpi ll-wordset-progress-kpi--studied">
-                            <span class="ll-wordset-progress-kpi-icon-wrap">
-                                <?php echo ll_tools_wordset_page_render_progress_icon('studied', 'll-wordset-progress-kpi-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                            </span>
-                            <span class="ll-wordset-progress-kpi-value"><?php echo (int) $summary_counts['studied']; ?></span>
-                            <span class="ll-wordset-progress-kpi-label"><?php echo esc_html__('In progress', 'll-tools-text-domain'); ?></span>
-                        </div>
-                        <div class="ll-wordset-progress-kpi ll-wordset-progress-kpi--new">
-                            <span class="ll-wordset-progress-kpi-icon-wrap">
-                                <?php echo ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-kpi-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                            </span>
-                            <span class="ll-wordset-progress-kpi-value"><?php echo (int) $summary_counts['new']; ?></span>
-                            <span class="ll-wordset-progress-kpi-label"><?php echo esc_html__('New', 'll-tools-text-domain'); ?></span>
-                        </div>
+                    <div
+                        class="ll-wordset-progress-summary<?php echo $progress_summary_loading ? ' is-loading' : ''; ?>"
+                        data-ll-wordset-progress-summary
+                        <?php if ($progress_summary_loading) : ?>aria-busy="true"<?php endif; ?>>
+                        <?php foreach ($progress_summary_cards as $progress_summary_card) : ?>
+                            <?php
+                            $progress_summary_count_key = (string) ($progress_summary_card['count_key'] ?? '');
+                            $progress_summary_count = isset($summary_counts[$progress_summary_count_key])
+                                ? max(0, (int) $summary_counts[$progress_summary_count_key])
+                                : 0;
+                            ?>
+                            <div class="<?php echo esc_attr('ll-wordset-progress-kpi ll-wordset-progress-kpi--' . $progress_summary_card['key'] . ($progress_summary_loading ? ' is-loading' : '')); ?>">
+                                <span class="ll-wordset-progress-kpi-icon-wrap">
+                                    <?php echo $progress_summary_card['icon']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                </span>
+                                <span class="ll-wordset-progress-kpi-value"><?php echo $progress_summary_loading ? '' : esc_html((string) $progress_summary_count); ?></span>
+                                <span class="ll-wordset-progress-kpi-label"><?php echo esc_html((string) $progress_summary_card['label']); ?></span>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
 
                     <?php if ($render_progress_gender_section) : ?>

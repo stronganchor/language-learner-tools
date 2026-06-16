@@ -70,6 +70,7 @@
     let analytics = normalizeAnalytics(cfg.analytics || null);
     let summaryMetricsLoading = !!cfg.summaryCountsDeferred;
     let summaryMetricsLoadingToken = 0;
+    let progressAnalyticsLoaded = (view !== 'progress') || !summaryMetricsLoading;
     let cardProgressInitialLoading = (view === 'main' && summaryMetricsLoading);
     let selectedCategoryIds = [];
     let selectionPriorityOnly = false;
@@ -4771,11 +4772,29 @@
         $progressScope.text(buildProgressScopeText());
     }
 
+    function progressSummaryIsLoading() {
+        return view === 'progress' && !!summaryMetricsLoading;
+    }
+
+    function syncProgressSummaryLoadingState() {
+        if (!$progressSummary.length) { return; }
+        const loading = progressSummaryIsLoading();
+        $progressSummary
+            .toggleClass('is-loading', loading)
+            .attr('aria-busy', loading ? 'true' : 'false');
+        const $cards = $progressSummary.find('.ll-wordset-progress-kpi');
+        $cards.toggleClass('is-loading', loading);
+        $cards.filter('button')
+            .prop('disabled', loading)
+            .attr('aria-disabled', loading ? 'true' : 'false');
+    }
+
     function renderProgressSummary() {
         if (!$progressSummary.length) { return; }
         $progressSummary.empty();
 
         const counts = getProgressSummaryCounts();
+        const loading = progressSummaryIsLoading();
         summaryCounts = {
             mastered: counts.mastered,
             studied: counts.studied,
@@ -4797,17 +4816,24 @@
             const isActive = normalizeSummaryFilter(analyticsSummaryFilter) === item.key;
             const $card = $('<button>', {
                 type: 'button',
-                class: 'll-wordset-progress-kpi ll-wordset-progress-kpi--' + item.key + (isActive ? ' is-active' : ''),
+                class: 'll-wordset-progress-kpi ll-wordset-progress-kpi--' + item.key + (isActive ? ' is-active' : '') + (loading ? ' is-loading' : ''),
                 'data-ll-wordset-progress-kpi-filter': item.key,
                 'aria-pressed': isActive ? 'true' : 'false'
             });
+            if (loading) {
+                $card
+                    .prop('disabled', true)
+                    .attr('aria-disabled', 'true')
+                    .attr('aria-busy', 'true');
+            }
             if (item.icon) {
                 $('<span>', { class: 'll-wordset-progress-kpi-icon-wrap', html: item.icon }).appendTo($card);
             }
-            $('<span>', { class: 'll-wordset-progress-kpi-value', text: String(item.value) }).appendTo($card);
+            $('<span>', { class: 'll-wordset-progress-kpi-value', text: loading ? '' : String(item.value) }).appendTo($card);
             $('<span>', { class: 'll-wordset-progress-kpi-label', text: item.label }).appendTo($card);
             $progressSummary.append($card);
         });
+        syncProgressSummaryLoadingState();
     }
 
     function buildGenderProgressBar(total, counts, className) {
@@ -6246,6 +6272,11 @@
         if (opts.showWordLoading) {
             setProgressWordLoading(true);
         }
+        const showInitialProgressSummaryLoading = view === 'progress' && !progressAnalyticsLoaded && !opts.silent;
+        if (showInitialProgressSummaryLoading) {
+            setSummaryMetricsLoadingState(true);
+            renderProgressSummary();
+        }
         if (!opts.silent) {
             setProgressStatus(i18n.analyticsLoading || '', 'loading');
         }
@@ -6276,10 +6307,13 @@
                 analytics = normalizeAnalytics(res.data.analytics);
                 progressWordPagination = analytics.wordsPagination || null;
                 progressWordRequestFilterKey = wordFilterKey;
+                progressAnalyticsLoaded = true;
+                setSummaryMetricsLoadingState(false);
                 renderProgressAnalytics();
                 setProgressStatus('', '');
                 return;
             }
+            setSummaryMetricsLoadingState(false);
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).fail(function () {
             if (token !== analyticsRequestToken) { return; }
@@ -6287,6 +6321,7 @@
                 deferProgressAnalyticsRefreshUntilClose(opts);
                 return;
             }
+            setSummaryMetricsLoadingState(false);
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).always(function () {
             if (token !== analyticsRequestToken) { return; }
@@ -9565,6 +9600,7 @@
                 .attr('aria-busy', summaryMetricsLoading ? 'true' : 'false');
         }
 
+        syncProgressSummaryLoadingState();
         syncSelectAllButton();
         syncMainCategorySortUi();
     }
@@ -15668,6 +15704,7 @@
         });
 
         $root.on('click', '[data-ll-wordset-progress-kpi-filter]', function () {
+            if (progressSummaryIsLoading()) { return; }
             const $button = $(this);
             const key = normalizeSummaryFilter($(this).attr('data-ll-wordset-progress-kpi-filter'));
             if (!key) { return; }
