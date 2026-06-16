@@ -2779,8 +2779,10 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_dictionary_q"', $idle_html);
         $this->assertStringNotContainsString('ll-dictionary__results', $idle_html);
         $this->assertStringNotContainsString('Showing 1-20', $idle_html);
-        $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="1"', $idle_html);
-        $this->assertStringContainsString('ll-dictionary__toolbar-panel--deferred', $idle_html);
+        $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="0"', $idle_html);
+        $this->assertStringNotContainsString('ll-dictionary__toolbar-panel--deferred', $idle_html);
+        $this->assertStringContainsString('name="ll_dictionary_scope[]"', $idle_html);
+        $this->assertStringContainsString('name="ll_dictionary_pos[]"', $idle_html);
         $this->assertStringNotContainsString('ll_dictionary_letter=Ê', $idle_html);
         $this->assertStringNotContainsString('ll_dictionary_letter=İ', $idle_html);
         $this->assertStringNotContainsString('ll_dictionary_letter=Û', $idle_html);

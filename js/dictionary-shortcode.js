@@ -1162,13 +1162,18 @@
             ensureToolbarBootstrap().catch(() => {});
         };
 
-        searchInput.addEventListener('focus', () => {
+        const activateToolbar = () => {
             revealScopeOptions();
             primeToolbarBootstrap();
+        };
+
+        toolbar.addEventListener('focusin', activateToolbar);
+        toolbar.addEventListener('pointerdown', activateToolbar, { passive: true });
+        searchInput.addEventListener('focus', () => {
+            activateToolbar();
         }, { passive: true });
         searchInput.addEventListener('pointerdown', () => {
-            revealScopeOptions();
-            primeToolbarBootstrap();
+            activateToolbar();
         }, { passive: true });
         scopeInputs.forEach((scopeInput) => {
             scopeInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });

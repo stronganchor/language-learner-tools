@@ -2805,7 +2805,8 @@ function ll_tools_dictionary_render_toolbar_panel(
     string $letter = '',
     string $pos_slug = '',
     array $source_ids = [],
-    string $dialect = ''
+    string $dialect = '',
+    bool $include_letters = true
 ): string {
     $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
     $source_ids = ll_tools_dictionary_shortcode_resolve_source_ids_from_request(['ll_dictionary_source' => $source_ids]);
@@ -2867,7 +2868,7 @@ function ll_tools_dictionary_render_toolbar_panel(
             </div>
         <?php endif; ?>
         <p class="ll-dictionary__hint"><?php esc_html_e('Type to search, or open the alphabet below.', 'll-tools-text-domain'); ?></p>
-        <?php if (!empty($letters)) : ?>
+        <?php if ($include_letters && !empty($letters)) : ?>
             <nav class="ll-dictionary__letters" aria-label="<?php echo esc_attr__('Browse dictionary by letter', 'll-tools-text-domain'); ?>">
                 <?php foreach ($letters as $browse_letter) : ?>
                     <?php
@@ -3356,7 +3357,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         : ($wordset_name !== '' ? $wordset_name : __('Dictionary', 'll-tools-text-domain'));
 
     $base_url = ll_tools_dictionary_get_current_base_url();
-    $defer_toolbar_panel = ($requested_entry_id <= 0 && !$has_active_browse_query);
+    $defer_toolbar_panel = false;
     $has_explicit_scope = array_key_exists('ll_dictionary_scope', $_GET);
     $toolbar_classes = ['ll-dictionary__toolbar', $has_active_browse_query ? 'is-expanded' : 'is-collapsed'];
     if ($has_active_browse_query || $has_explicit_scope) {
@@ -3410,13 +3411,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                         </div>
                     </div>
                     <?php
-                    if ($defer_toolbar_panel) {
-                        echo '<div class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred" data-ll-dictionary-toolbar-panel role="status" aria-live="polite">';
-                        echo '<span class="screen-reader-text">' . esc_html__('Loading dictionary filters...', 'll-tools-text-domain') . '</span>';
-                        echo '</div>';
-                    } else {
-                        echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                    }
+                    echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect, $has_active_browse_query || $has_explicit_scope); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 </form>
             </div>
