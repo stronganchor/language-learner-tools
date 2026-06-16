@@ -1997,6 +1997,46 @@ function ll_tools_wordset_page_get_inactive_category_action_state(WP_Term $categ
     ];
 }
 
+function ll_tools_wordset_page_build_inactive_category_preview_action_url(array $cat): string {
+    $category_id = isset($cat['id']) ? (int) $cat['id'] : (int) ($cat['term_id'] ?? 0);
+    $wordset_id = isset($cat['wordset_id']) ? (int) $cat['wordset_id'] : 0;
+    $nonce = isset($cat['inactive_action_nonce']) ? trim((string) $cat['inactive_action_nonce']) : '';
+    $action_url = isset($cat['inactive_action_url']) ? trim((string) $cat['inactive_action_url']) : '';
+    if ($category_id <= 0 || $wordset_id <= 0 || $nonce === '' || $action_url === '') {
+        return '';
+    }
+
+    return add_query_arg([
+        'll_wordset_inactive_category_action' => 'preview',
+        'll_wordset_inactive_category_wordset_id' => $wordset_id,
+        'll_wordset_inactive_category_id' => $category_id,
+        'll_wordset_inactive_category_nonce' => $nonce,
+    ], remove_query_arg([
+        'll_wordset_inactive_category',
+        'll_wordset_inactive_category_result',
+        'll_wordset_inactive_category_error',
+        'll_wordset_inactive_category_message',
+    ], $action_url));
+}
+
+function ll_tools_wordset_page_ensure_inactive_category_preview_url(array $cat): array {
+    $is_public = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
+    if ($is_public || empty($cat['can_preview'])) {
+        return $cat;
+    }
+
+    if (isset($cat['inactive_preview_url']) && trim((string) $cat['inactive_preview_url']) !== '') {
+        return $cat;
+    }
+
+    $preview_url = ll_tools_wordset_page_build_inactive_category_preview_action_url($cat);
+    if ($preview_url !== '') {
+        $cat['inactive_preview_url'] = $preview_url;
+    }
+
+    return $cat;
+}
+
 function ll_tools_wordset_page_ensure_inactive_category_actions(array $cat): array {
     $is_public = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
     if ($is_public) {
@@ -2010,7 +2050,7 @@ function ll_tools_wordset_page_ensure_inactive_category_actions(array $cat): arr
     }
 
     if (!empty($cat['can_manage_inactive']) && !empty($cat['inactive_action_nonce']) && !empty($cat['inactive_action_url'])) {
-        return $cat;
+        return ll_tools_wordset_page_ensure_inactive_category_preview_url($cat);
     }
 
     $category = get_term($category_id, 'word-category');
@@ -2034,7 +2074,7 @@ function ll_tools_wordset_page_ensure_inactive_category_actions(array $cat): arr
     $cat['inactive_action_nonce'] = (string) ($action_state['nonce'] ?? '');
     $cat['inactive_action_url'] = (string) ($action_state['action_url'] ?? '');
 
-    return $cat;
+    return ll_tools_wordset_page_ensure_inactive_category_preview_url($cat);
 }
 
 /**
@@ -2199,16 +2239,21 @@ function ll_tools_wordset_page_process_inactive_category_action(string $action, 
 }
 
 function ll_tools_wordset_page_handle_inactive_category_action(): void {
-    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+    $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if (!in_array($method, ['GET', 'POST'], true)) {
         return;
     }
     if (!ll_tools_is_wordset_page_context()) {
         return;
     }
 
-    $action = isset($_POST['ll_wordset_inactive_category_action'])
-        ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_inactive_category_action']))
+    $request = ($method === 'GET') ? $_GET : $_POST;
+    $action = isset($request['ll_wordset_inactive_category_action'])
+        ? sanitize_key(wp_unslash((string) $request['ll_wordset_inactive_category_action']))
         : '';
+    if ($method === 'GET' && $action !== 'preview') {
+        return;
+    }
     if (!in_array($action, ['hide', 'delete', 'preview'], true)) {
         return;
     }
@@ -2219,14 +2264,14 @@ function ll_tools_wordset_page_handle_inactive_category_action(): void {
     }
 
     $wordset_id = (int) $wordset_term->term_id;
-    $submitted_wordset_id = isset($_POST['ll_wordset_inactive_category_wordset_id'])
-        ? (int) wp_unslash((string) $_POST['ll_wordset_inactive_category_wordset_id'])
+    $submitted_wordset_id = isset($request['ll_wordset_inactive_category_wordset_id'])
+        ? (int) wp_unslash((string) $request['ll_wordset_inactive_category_wordset_id'])
         : 0;
-    $category_id = isset($_POST['ll_wordset_inactive_category_id'])
-        ? (int) wp_unslash((string) $_POST['ll_wordset_inactive_category_id'])
+    $category_id = isset($request['ll_wordset_inactive_category_id'])
+        ? (int) wp_unslash((string) $request['ll_wordset_inactive_category_id'])
         : 0;
-    $nonce = isset($_POST['ll_wordset_inactive_category_nonce'])
-        ? wp_unslash((string) $_POST['ll_wordset_inactive_category_nonce'])
+    $nonce = isset($request['ll_wordset_inactive_category_nonce'])
+        ? wp_unslash((string) $request['ll_wordset_inactive_category_nonce'])
         : '';
     $base_redirect = ll_tools_get_wordset_page_view_url($wordset_term);
 
@@ -3888,7 +3933,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             ? max(1, (int) ll_tools_get_wordset_cache_epoch())
             : 1;
         $category_cache_args = [
-            'schema' => 5,
+            'schema' => 6,
             'wordset_id' => $wordset_id,
             'preview_limit' => max(1, (int) $preview_limit),
             'preview_mode' => $defer_previews ? 'deferred' : 'eager',
@@ -4033,6 +4078,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'delete_reason' => (string) ($row['delete_reason'] ?? ''),
             'inactive_action_nonce' => (string) ($row['inactive_action_nonce'] ?? ''),
             'inactive_action_url' => (string) ($row['inactive_action_url'] ?? ''),
+            'inactive_preview_url' => (string) ($row['inactive_preview_url'] ?? ''),
         ];
         if (!$is_public) {
             $item = ll_tools_wordset_page_ensure_inactive_category_actions($item);
@@ -4933,6 +4979,9 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         $enhanced['is_public'] = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
         $enhanced['public_note'] = isset($cat['public_note']) ? (string) $cat['public_note'] : '';
         $enhanced['hidden'] = !empty($ignored_lookup[$cid]);
+        if (!$enhanced['is_public']) {
+            $enhanced = ll_tools_wordset_page_ensure_inactive_category_actions($enhanced);
+        }
 
         $enhanced_categories[] = $enhanced;
         if ($enhanced['is_public'] && empty($enhanced['hidden'])) {
@@ -5266,7 +5315,13 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
         && !empty($cat['inactive_action_nonce'])
         && !empty($cat['inactive_action_url']);
     $can_preview_inactive = $can_manage_inactive_actions && !empty($cat['can_preview']);
-    $can_link_inactive = !$is_public && $cat_url !== '' && !empty($cat['inactive_link_allowed']);
+    $inactive_direct_link_allowed = !$is_public && $cat_url !== '' && !empty($cat['inactive_link_allowed']);
+    $inactive_preview_url = ($can_preview_inactive && isset($cat['inactive_preview_url']))
+        ? trim((string) $cat['inactive_preview_url'])
+        : '';
+    $inactive_link_url = $inactive_direct_link_allowed ? $cat_url : $inactive_preview_url;
+    $inactive_link_uses_preview = !$inactive_direct_link_allowed && $inactive_preview_url !== '';
+    $can_link_inactive = !$is_public && $inactive_link_url !== '';
     $current_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
     if ($current_preview_limit < 1) {
         $current_preview_limit = 1;
@@ -5294,7 +5349,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                     <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
                 </a>
             <?php elseif ($can_link_inactive) : ?>
-                <a class="ll-wordset-card__heading ll-wordset-card__heading--inactive-link" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
+                <a class="ll-wordset-card__heading ll-wordset-card__heading--inactive-link<?php echo $inactive_link_uses_preview ? ' ll-wordset-card__heading--inactive-preview' : ''; ?>" href="<?php echo esc_url($inactive_link_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>"<?php echo $inactive_link_uses_preview ? ' data-ll-wordset-inactive-preview-trigger' : ''; ?>>
                     <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
                 </a>
             <?php elseif ($can_preview_inactive) : ?>
@@ -5340,7 +5395,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
         <?php if ($is_public && $cat_url !== '') : ?>
             <a class="ll-wordset-card__lesson-link" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
         <?php elseif ($can_link_inactive) : ?>
-            <a class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive ll-wordset-card__lesson-link--inactive-link" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
+            <a class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive ll-wordset-card__lesson-link--inactive-link<?php echo $inactive_link_uses_preview ? ' ll-wordset-card__lesson-link--inactive-preview' : ''; ?>" href="<?php echo esc_url($inactive_link_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>"<?php echo $inactive_link_uses_preview ? ' data-ll-wordset-inactive-preview-trigger' : ''; ?>>
         <?php elseif ($can_preview_inactive) : ?>
             <div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive ll-wordset-card__lesson-link--inactive-preview" aria-label="<?php echo esc_attr($cat_name); ?>" role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger>
         <?php else : ?>
@@ -5524,6 +5579,7 @@ function ll_tools_wordset_page_build_lazy_card_shell(array $card): array {
         'delete_reason' => (string) ($data['delete_reason'] ?? ''),
         'inactive_action_nonce' => (string) ($data['inactive_action_nonce'] ?? ''),
         'inactive_action_url' => (string) ($data['inactive_action_url'] ?? ''),
+        'inactive_preview_url' => (string) ($data['inactive_preview_url'] ?? ''),
         'inactive_link_allowed' => !empty($data['inactive_link_allowed']),
         'is_virtual_category' => !empty($data['is_virtual_category']),
         'virtual_category_type' => (string) ($data['virtual_category_type'] ?? ''),
@@ -16636,6 +16692,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         $enhanced['is_public'] = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
         $enhanced['public_note'] = isset($cat['public_note']) ? (string) $cat['public_note'] : '';
         $enhanced['hidden'] = !empty($ignored_lookup[$cid]);
+        if (!$enhanced['is_public']) {
+            $enhanced = ll_tools_wordset_page_ensure_inactive_category_actions($enhanced);
+        }
 
         $enhanced_categories[] = $enhanced;
         if ($enhanced['hidden']) {
@@ -17470,6 +17529,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'delete_reason' => (string) ($cat['delete_reason'] ?? ''),
             'inactive_action_nonce' => (string) ($cat['inactive_action_nonce'] ?? ''),
             'inactive_action_url' => (string) ($cat['inactive_action_url'] ?? ''),
+            'inactive_preview_url' => (string) ($cat['inactive_preview_url'] ?? ''),
             'inactive_link_allowed' => !empty($cat['inactive_link_allowed']),
             'is_virtual_category' => !empty($cat['is_virtual_category']),
             'virtual_category_type' => (string) ($cat['virtual_category_type'] ?? ''),

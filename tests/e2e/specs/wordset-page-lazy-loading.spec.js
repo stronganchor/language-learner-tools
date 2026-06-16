@@ -134,6 +134,7 @@ const inactiveCategory = {
   delete_reason: '',
   inactive_action_nonce: 'inactive-action-nonce',
   inactive_action_url: '/wordsets/lazy-wordset/',
+  inactive_preview_url: '/wordsets/lazy-wordset/?ll_wordset_inactive_category_action=preview&ll_wordset_inactive_category_wordset_id=77&ll_wordset_inactive_category_id=44&ll_wordset_inactive_category_nonce=inactive-action-nonce',
   public_note: 'Needs word records.',
   search_text: 'sayılar matematik bin yo nim',
   preview: [
@@ -357,6 +358,7 @@ function buildLazyShells(categories) {
     delete_reason: category.delete_reason || '',
     inactive_action_nonce: category.inactive_action_nonce || '',
     inactive_action_url: category.inactive_action_url || '',
+    inactive_preview_url: category.inactive_preview_url || '',
     inactive_link_allowed: !!category.inactive_link_allowed,
     is_virtual_category: !!category.is_virtual_category,
     virtual_category_type: category.virtual_category_type || '',
@@ -1013,6 +1015,8 @@ test('client-rendered inactive categories include hide and trash controls', asyn
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeEnabled();
   await expect(inactiveCard.locator('.ll-wordset-card__hide-spacer')).toHaveCount(0);
   await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-trigger]')).toHaveCount(2);
+  await expect(inactiveCard.locator('.ll-wordset-card__heading--inactive-link')).toHaveAttribute('href', /ll_wordset_inactive_category_action=preview/);
+  await expect(inactiveCard.locator('.ll-wordset-card__lesson-link--inactive-link')).toHaveAttribute('href', /ll_wordset_inactive_category_action=preview/);
   await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-form]')).toHaveCount(1);
   await expect(inactiveCard.locator('.ll-wordset-card__staff-action--preview')).toHaveCount(0);
 });
@@ -1066,6 +1070,58 @@ test('inactive category card body submits preview form without a visible preview
     return page.evaluate(() => window.__llInactivePreviewSubmits);
   }).toEqual([{ action: 'preview', categoryId: 44 }]);
   await expect(page.locator('.ll-wordset-card__staff-action--preview')).toHaveCount(0);
+});
+
+test('inactive category preview links keep native new-tab gestures', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categories: [allCategories[0], inactiveCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 2,
+      remaining: 0
+    }
+  });
+
+  await page.fill('[data-ll-wordset-page-search]', 'matematik');
+  const previewLink = page.locator('.ll-wordset-card--inactive[data-cat-id="44"] .ll-wordset-card__lesson-link--inactive-preview');
+  await expect(previewLink).toHaveAttribute('href', /ll_wordset_inactive_category_action=preview/);
+
+  const ctrlClick = await previewLink.evaluate((link) => {
+    const event = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      ctrlKey: true
+    });
+    const dispatchResult = link.dispatchEvent(event);
+    return {
+      defaultPrevented: event.defaultPrevented,
+      dispatchResult
+    };
+  });
+  expect(ctrlClick).toEqual({ defaultPrevented: false, dispatchResult: true });
+
+  const middleClick = await previewLink.evaluate((link) => {
+    const event = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      button: 1,
+      buttons: 4
+    });
+    const dispatchResult = link.dispatchEvent(event);
+    return {
+      defaultPrevented: event.defaultPrevented,
+      dispatchResult
+    };
+  });
+  expect(middleClick).toEqual({ defaultPrevented: false, dispatchResult: true });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llInactivePreviewSubmits);
+  }).toEqual([]);
 });
 
 test('legacy inactive cards missing action controls are repaired on init', async ({ page }) => {
