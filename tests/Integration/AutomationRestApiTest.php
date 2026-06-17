@@ -55,6 +55,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertTrue(!empty($data['capabilities']['update_plugins']));
         $this->assertTrue(!empty($data['capabilities']['manage_plugin_updates']));
         $this->assertSame('/ll-tools/v1/automation/plugin-update', (string) ($data['routes']['plugin_update'] ?? ''));
+        $this->assertSame('/ll-tools/v1/automation/dictionary-entry-headwords', (string) ($data['routes']['dictionary_entry_headwords'] ?? ''));
         $this->assertSame('/ll-tools/v1/cache/static/purge', (string) ($data['routes']['static_cache_purge'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/asset', (string) ($data['routes']['corpus_text_asset'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/import', (string) ($data['routes']['corpus_text_import'] ?? ''));
@@ -193,6 +194,76 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $wp_filesystem = $previous_filesystem;
             $remove_tree($root);
         }
+    }
+
+    public function test_dictionary_entry_headword_route_repairs_imported_sense_candidates(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        if (function_exists('ll_tools_register_dictionary_entry_post_type')) {
+            ll_tools_register_dictionary_entry_post_type();
+        }
+
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => "'her",
+        ]);
+        $senses = [
+            [
+                'definition' => 'toprak',
+                'entry_type' => 'noun',
+                'gender_number' => 'common-gender',
+                'source_id' => 'kaikki',
+                'source_dictionary' => 'Kaikki/Wiktionary',
+                'raw_headword' => "\u{0127}er",
+                'title_keys' => "\u{0127}er | her",
+                'headword_forms' => ["\u{0127}er", 'her'],
+            ],
+        ];
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, $senses);
+        if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+            ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id);
+        }
+
+        $payload = [
+            'entry_id' => $entry_id,
+            'expected_title' => "'her",
+            'from' => "\u{0127}er",
+            'to' => "'her",
+            'fields' => ['raw_headword', 'title_keys', 'headword_forms'],
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/automation/dictionary-entry-headwords',
+            $payload + ['dry_run' => true]
+        );
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['dry_run'] ?? false));
+        $this->assertTrue((bool) ($dry_data['changed'] ?? false));
+        $this->assertSame([0], array_map('intval', (array) ($dry_data['changed_sense_indexes'] ?? [])));
+        $this->assertSame("\u{0127}er", (string) (ll_tools_get_dictionary_entry_senses($entry_id)[0]['raw_headword'] ?? ''));
+
+        $update = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/automation/dictionary-entry-headwords',
+            $payload + ['dry_run' => false]
+        );
+        $this->assertSame(200, $update->get_status());
+        $data = $update->get_data();
+        $this->assertIsArray($data);
+        $this->assertFalse((bool) ($data['dry_run'] ?? true));
+        $this->assertTrue((bool) ($data['changed'] ?? false));
+
+        $updated_sense = ll_tools_get_dictionary_entry_senses($entry_id)[0] ?? [];
+        $this->assertSame("'her", (string) ($updated_sense['raw_headword'] ?? ''));
+        $this->assertSame("'her | her", (string) ($updated_sense['title_keys'] ?? ''));
+        $this->assertSame(["'her", 'her'], array_values((array) ($updated_sense['headword_forms'] ?? [])));
+        $this->assertNotContains("\u{0127}er", array_map('strval', (array) (($data['headword_candidates']['after'] ?? []))));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void

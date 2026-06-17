@@ -718,6 +718,9 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
         $resource = 'll_tools_plugin_update';
         $delay_seconds = 10.0;
         $lock_ttl_seconds = 300.0;
+    } elseif ($route === '/ll-tools/v1/automation/dictionary-entry-headwords') {
+        $resource = 'll_tools_dictionary_entry_headwords';
+        $delay_seconds = 5.0;
     } elseif ($is_read && preg_match('#^/ll-tools/v1/imports/[^/]+(/result)?$#', $route, $matches)) {
         $resource = empty($matches[1]) ? 'll_tools_import_status' : 'll_tools_import_result';
         $delay_seconds = 3.0;
@@ -1012,6 +1015,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
         'routes' => [
             'status' => '/ll-tools/v1/automation/status',
             'plugin_update' => '/ll-tools/v1/automation/plugin-update',
+            'dictionary_entry_headwords' => '/ll-tools/v1/automation/dictionary-entry-headwords',
             'static_cache_purge' => '/ll-tools/v1/cache/static/purge',
             'create_wordset' => '/ll-tools/v1/wordsets',
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
@@ -1093,6 +1097,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             ],
             'automation_write_routes' => [
                 '/ll-tools/v1/automation/plugin-update',
+                '/ll-tools/v1/automation/dictionary-entry-headwords',
                 '/ll-tools/v1/cache/static/purge',
                 '/ll-tools/v1/wordsets',
                 '/ll-tools/v1/wordsets/{wordset}/bulk-update',
@@ -1188,6 +1193,201 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'rest_import_word_image_chunk_size' => (int) apply_filters('ll_tools_rest_import_word_image_chunk_size', 8),
             'rest_import_word_image_process_item_limit' => (int) apply_filters('ll_tools_rest_import_word_image_process_item_limit', 3),
             'rest_import_word_image_time_budget_seconds' => (float) apply_filters('ll_tools_rest_import_word_image_time_budget_seconds', 20.0),
+        ],
+    ]);
+}
+
+function ll_tools_rest_automation_sanitize_dictionary_headword_text($value): string {
+    if (!is_scalar($value)) {
+        return '';
+    }
+
+    return trim(sanitize_text_field((string) $value));
+}
+
+/**
+ * Replace imported headword candidates on one dictionary entry and refresh search indexes.
+ */
+function ll_tools_rest_automation_dictionary_entry_headwords(WP_REST_Request $request) {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    $entry_id = max(0, (int) $request->get_param('entry_id'));
+    if ($entry_id <= 0 || get_post_type($entry_id) !== 'll_dictionary_entry') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_invalid_dictionary_entry',
+            __('Dictionary entry not found.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    if (!current_user_can('edit_post', $entry_id)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_entry_forbidden',
+            __('You are not allowed to edit this dictionary entry.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    if (!function_exists('ll_tools_get_dictionary_entry_senses')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_helpers_missing',
+            __('Dictionary entry helpers are not available.', 'll-tools-text-domain'),
+            500
+        );
+    }
+
+    $from = ll_tools_rest_automation_sanitize_dictionary_headword_text($request->get_param('from'));
+    $to = ll_tools_rest_automation_sanitize_dictionary_headword_text($request->get_param('to'));
+    if ($from === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_headword_from_required',
+            __('Provide the imported headword text to replace.', 'll-tools-text-domain'),
+            400
+        );
+    }
+    if ($to === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_headword_to_required',
+            __('Provide the replacement headword text.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $current_title = trim((string) get_post_field('post_title', $entry_id));
+    $expected_title = ll_tools_rest_automation_sanitize_dictionary_headword_text($request->get_param('expected_title'));
+    if ($expected_title !== '' && $current_title !== $expected_title) {
+        return new WP_Error(
+            'll_tools_rest_dictionary_entry_title_mismatch',
+            __('Expected dictionary entry title does not match live state.', 'll-tools-text-domain'),
+            [
+                'status' => 409,
+                'entry_id' => $entry_id,
+                'current_title' => $current_title,
+                'expected_title' => $expected_title,
+            ]
+        );
+    }
+
+    $allowed_fields = ['raw_headword', 'title_keys', 'source_entry', 'headword_forms'];
+    $fields = ll_tools_rest_automation_request_string_list($request, 'fields', $allowed_fields);
+    if (empty($fields)) {
+        $fields = ['raw_headword', 'title_keys', 'headword_forms'];
+    }
+
+    $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+    $before_headwords = function_exists('ll_tools_dictionary_get_entry_headword_candidates')
+        ? ll_tools_dictionary_get_entry_headword_candidates($entry_id, $senses)
+        : [];
+
+    $changed_sense_indexes = [];
+    $field_changes = [];
+    foreach ($senses as $sense_index => $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        foreach ($fields as $field) {
+            if ($field === 'headword_forms') {
+                $forms = isset($sense['headword_forms']) && is_array($sense['headword_forms']) ? array_values($sense['headword_forms']) : [];
+                $updated_forms = [];
+                $forms_changed = false;
+                foreach ($forms as $form) {
+                    $form = (string) $form;
+                    $updated_form = str_replace($from, $to, $form);
+                    if ($updated_form !== $form) {
+                        $forms_changed = true;
+                    }
+                    $updated_forms[] = $updated_form;
+                }
+                if ($forms_changed) {
+                    $senses[$sense_index]['headword_forms'] = $updated_forms;
+                    $changed_sense_indexes[$sense_index] = true;
+                    $field_changes[] = [
+                        'sense_index' => (int) $sense_index,
+                        'field' => $field,
+                    ];
+                }
+                continue;
+            }
+
+            $current_value = (string) ($sense[$field] ?? '');
+            if ($current_value === '') {
+                continue;
+            }
+
+            $updated_value = str_replace($from, $to, $current_value);
+            if ($updated_value === $current_value) {
+                continue;
+            }
+
+            $senses[$sense_index][$field] = $updated_value;
+            $changed_sense_indexes[$sense_index] = true;
+            $field_changes[] = [
+                'sense_index' => (int) $sense_index,
+                'field' => $field,
+            ];
+        }
+    }
+
+    $title = ll_tools_rest_automation_sanitize_dictionary_headword_text($request->get_param('title'));
+    $title_changed = ($title !== '' && $title !== $current_title);
+    $dry_run = $request->has_param('dry_run') ? rest_sanitize_boolean($request->get_param('dry_run')) : true;
+    $changed = $title_changed || !empty($field_changes);
+
+    if (!$dry_run && $changed) {
+        if ($title_changed) {
+            $updated_post = wp_update_post([
+                'ID' => $entry_id,
+                'post_title' => $title,
+                'post_name' => (string) get_post_field('post_name', $entry_id),
+            ], true);
+            if (is_wp_error($updated_post)) {
+                return ll_tools_rest_automation_with_status($updated_post, 500);
+            }
+        }
+
+        if (!empty($field_changes)) {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, $senses);
+            if (function_exists('ll_tools_dictionary_refresh_entry_search_meta')) {
+                ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+            }
+            if (function_exists('ll_tools_refresh_dictionary_entry_wordset_scope_meta')) {
+                ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id);
+            }
+            if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+                ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id);
+            } elseif (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+                ll_tools_bump_dictionary_browser_cache_version();
+            }
+            clean_post_cache($entry_id);
+        }
+    }
+
+    $after_senses = $dry_run ? $senses : ll_tools_get_dictionary_entry_senses($entry_id);
+    $after_headwords = function_exists('ll_tools_dictionary_get_entry_headword_candidates')
+        ? ll_tools_dictionary_get_entry_headword_candidates($entry_id, $after_senses)
+        : [];
+
+    return rest_ensure_response([
+        'entry_id' => $entry_id,
+        'dry_run' => $dry_run,
+        'changed' => $changed,
+        'title' => [
+            'before' => $current_title,
+            'after' => $title_changed ? $title : $current_title,
+            'changed' => $title_changed,
+        ],
+        'from' => $from,
+        'to' => $to,
+        'fields' => $fields,
+        'changed_sense_indexes' => array_values(array_map('intval', array_keys($changed_sense_indexes))),
+        'field_changes' => $field_changes,
+        'headword_candidates' => [
+            'before' => $before_headwords,
+            'after' => $after_headwords,
         ],
     ]);
 }
@@ -8668,6 +8868,42 @@ function ll_tools_rest_register_automation_routes(): void {
             'expected_version' => [
                 'required' => false,
                 'type' => 'string',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/automation/dictionary-entry-headwords', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_dictionary_entry_headwords',
+        'permission_callback' => 'll_tools_rest_automation_require_view_access',
+        'args' => [
+            'entry_id' => [
+                'required' => true,
+                'type' => 'integer',
+            ],
+            'from' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+            'to' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+            'expected_title' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'title' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'fields' => [
+                'required' => false,
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
             ],
         ],
     ]);
