@@ -6,6 +6,35 @@
 if (!defined('WPINC')) { die; }
 
 /**
+ * Find published pages containing a shortcode fragment.
+ *
+ * @param string $shortcode_fragment Example: '[audio_recording_interface'
+ * @param string $fields             WP_Query fields ('ids' or 'all')
+ * @param int    $limit              Maximum page count to return.
+ * @return array<int, int|WP_Post>
+ */
+function ll_tools_find_shortcode_pages_by_fragment($shortcode_fragment, $fields = 'ids', int $limit = 10): array {
+    $shortcode_fragment = trim((string) $shortcode_fragment);
+    if ($shortcode_fragment === '') {
+        return [];
+    }
+
+    $pages = get_posts([
+        'post_type'      => 'page',
+        'post_status'    => 'publish',
+        'posts_per_page' => max(1, $limit),
+        's'              => $shortcode_fragment,
+        'fields'         => $fields === 'all' ? 'all' : 'ids',
+    ]);
+
+    if (empty($pages)) {
+        return [];
+    }
+
+    return is_array($pages) ? array_values($pages) : [];
+}
+
+/**
  * Find a published page containing a shortcode fragment.
  *
  * @param string $shortcode_fragment Example: '[audio_recording_interface'
@@ -13,19 +42,7 @@ if (!defined('WPINC')) { die; }
  * @return int|null Page ID when found, otherwise null.
  */
 function ll_tools_find_shortcode_page_by_fragment($shortcode_fragment, $fields = 'ids') {
-    $shortcode_fragment = trim((string) $shortcode_fragment);
-    if ($shortcode_fragment === '') {
-        return null;
-    }
-
-    $pages = get_posts([
-        'post_type'      => 'page',
-        'post_status'    => 'publish',
-        'posts_per_page' => 1,
-        's'              => $shortcode_fragment,
-        'fields'         => $fields === 'all' ? 'all' : 'ids',
-    ]);
-
+    $pages = ll_tools_find_shortcode_pages_by_fragment($shortcode_fragment, $fields, 1);
     if (empty($pages)) {
         return null;
     }

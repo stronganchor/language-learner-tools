@@ -1192,16 +1192,28 @@ function ll_tools_cloudflare_static_cache_purge_enabled(): bool {
  */
 function ll_tools_cloudflare_static_cache_dictionary_urls(): array {
     $urls = [];
+    $page_ids = [];
     $page_id = (int) get_option('ll_default_dictionary_page_id');
 
-    if (
-        $page_id <= 0
-        && function_exists('ll_tools_find_dictionary_page_id')
-    ) {
-        $page_id = (int) ll_tools_find_dictionary_page_id();
+    if ($page_id > 0) {
+        $page_ids[] = $page_id;
     }
 
-    if ($page_id > 0) {
+    if (function_exists('ll_tools_find_shortcode_pages_by_fragment')) {
+        foreach (['[ll_dictionary', '[dictionary_search', '[dictionary_browser'] as $fragment) {
+            $matched_ids = ll_tools_find_shortcode_pages_by_fragment($fragment, 'ids', 20);
+            foreach ($matched_ids as $matched_id) {
+                $matched_id = (int) $matched_id;
+                if ($matched_id > 0) {
+                    $page_ids[] = $matched_id;
+                }
+            }
+        }
+    } elseif ($page_id <= 0 && function_exists('ll_tools_find_dictionary_page_id')) {
+        $page_ids[] = (int) ll_tools_find_dictionary_page_id();
+    }
+
+    foreach (array_values(array_unique(array_filter(array_map('intval', $page_ids)))) as $page_id) {
         $permalink = function_exists('ll_tools_get_published_page_permalink')
             ? ll_tools_get_published_page_permalink($page_id)
             : (string) get_permalink($page_id);

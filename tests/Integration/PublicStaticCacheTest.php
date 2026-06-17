@@ -480,9 +480,17 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             'post_title' => 'Cloudflare Dictionary',
             'post_content' => '[ll_dictionary]',
         ]);
+        $secondary_dictionary_page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Cloudflare Secondary Dictionary',
+            'post_content' => '<!-- wp:shortcode -->[ll_dictionary wordset="0"]<!-- /wp:shortcode -->',
+        ]);
         update_option('ll_default_dictionary_page_id', $dictionary_page_id);
         $dictionary_url = (string) get_permalink($dictionary_page_id);
+        $secondary_dictionary_url = (string) get_permalink($secondary_dictionary_page_id);
         $this->assertNotSame('', $dictionary_url);
+        $this->assertNotSame('', $secondary_dictionary_url);
 
         $zone_filter = static function (): string {
             return 'test-zone-id';
@@ -526,14 +534,14 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($edge['configured'] ?? false));
         $this->assertTrue((bool) ($edge['attempted'] ?? false));
         $this->assertTrue((bool) ($edge['purged'] ?? false));
-        $this->assertSame([$dictionary_url], $edge['urls'] ?? []);
+        $this->assertSame([$dictionary_url, $secondary_dictionary_url], $edge['urls'] ?? []);
         $this->assertCount(1, $http_requests);
         $this->assertSame('https://api.cloudflare.com/client/v4/zones/test-zone-id/purge_cache', (string) ($http_requests[0]['url'] ?? ''));
 
         $args = $http_requests[0]['args'] ?? [];
         $this->assertSame('Bearer test-api-token', (string) ($args['headers']['Authorization'] ?? ''));
         $body = json_decode((string) ($args['body'] ?? ''), true);
-        $this->assertSame(['files' => [$dictionary_url]], $body);
+        $this->assertSame(['files' => [$dictionary_url, $secondary_dictionary_url]], $body);
     }
 
     public function test_static_cache_purge_capability_defaults_to_manage_options(): void
