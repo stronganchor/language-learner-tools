@@ -1517,7 +1517,93 @@ function ll_tools_dictionary_source_identifier_matches_filter(string $source_ide
         return true;
     }
 
-    return (bool) preg_match('/(?:^|-)' . preg_quote($source_filter_id, '/') . '(?:-|$)/', $source_identifier);
+    $filter_pattern = '/(?:^|-)' . preg_quote($source_filter_id, '/') . '(?:-|$)/';
+    if (preg_match($filter_pattern, $source_identifier) === 1) {
+        return true;
+    }
+
+    if (strlen($source_identifier) < 4 || in_array($source_identifier, ['dictionary', 'sozluk', 'soezluk', 'kirmancki', 'zazaca', 'turkce'], true)) {
+        return false;
+    }
+
+    $identifier_pattern = '/(?:^|-)' . preg_quote($source_identifier, '/') . '(?:-|$)/';
+    return preg_match($identifier_pattern, $source_filter_id) === 1;
+}
+
+/**
+ * Build source search-index terms broad enough for aliases, then let the PHP
+ * source matcher remove false positives after the bounded candidate query.
+ *
+ * @param string[] $source_filter_ids Normalized selected source IDs.
+ * @return string[]
+ */
+function ll_tools_dictionary_get_source_filter_search_terms(array $source_filter_ids): array {
+    $terms = [];
+    $seen = [];
+    $ignored_tokens = ['dictionary', 'sozluk', 'soezluk', 'kirmancki', 'zazaca', 'turkce'];
+
+    $register = static function (string $value) use (&$terms, &$seen, $ignored_tokens): void {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return;
+        }
+
+        $candidates = [$value];
+        $source_id = ll_tools_dictionary_normalize_source_id($value);
+        if ($source_id !== '') {
+            $candidates[] = $source_id;
+            $candidates[] = str_replace('-', ' ', $source_id);
+            foreach (preg_split('/-+/', $source_id, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+                $token = trim((string) $token);
+                if (strlen($token) < 4 || in_array($token, $ignored_tokens, true)) {
+                    continue;
+                }
+                $candidates[] = $token;
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            $term = ll_tools_dictionary_normalize_search_text((string) $candidate);
+            if ($term === '' || isset($seen[$term])) {
+                continue;
+            }
+
+            $seen[$term] = true;
+            $terms[] = $term;
+        }
+    };
+
+    $registry = function_exists('ll_tools_get_dictionary_source_registry')
+        ? ll_tools_get_dictionary_source_registry()
+        : [];
+
+    foreach ($source_filter_ids as $source_filter_id) {
+        $source_filter_id = ll_tools_dictionary_normalize_source_id((string) $source_filter_id);
+        if ($source_filter_id === '') {
+            continue;
+        }
+
+        $register($source_filter_id);
+
+        foreach ((array) $registry as $source) {
+            if (!is_array($source)) {
+                continue;
+            }
+
+            $registry_id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
+            $registry_label = trim((string) ($source['label'] ?? ''));
+            $registry_label_id = ll_tools_dictionary_normalize_source_id($registry_label);
+            if (
+                ($registry_id !== '' && ll_tools_dictionary_source_identifier_matches_filter($registry_id, $source_filter_id))
+                || ($registry_label_id !== '' && ll_tools_dictionary_source_identifier_matches_filter($registry_label_id, $source_filter_id))
+            ) {
+                $register($registry_id);
+                $register($registry_label);
+            }
+        }
+    }
+
+    return $terms;
 }
 
 /**
@@ -3168,10 +3254,14 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         ";
 
         if (!empty($source_ids)) {
+            $source_search_terms = ll_tools_dictionary_get_source_filter_search_terms($source_ids);
             $source_clauses = [];
-            foreach ($source_ids as $source_id) {
+            foreach ($source_search_terms as $source_term) {
                 $source_clauses[] = 'search_index.meta_value LIKE %s';
-                $params[] = '%' . $wpdb->esc_like($source_id) . '%';
+                $params[] = '%' . $wpdb->esc_like($source_term) . '%';
+            }
+            if (empty($source_clauses)) {
+                $source_clauses[] = '1 = 0';
             }
             $where[] = '(' . implode(' OR ', $source_clauses) . ')';
         }

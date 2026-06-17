@@ -2210,6 +2210,82 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Harun Turgut', $sources_html);
     }
 
+    public function test_dictionary_source_filter_matches_registered_label_against_short_import_source_id(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        ll_tools_update_dictionary_source_registry([
+            [
+                'id' => 'harun-turgut',
+                'label' => 'Harun Turgut',
+                'attribution_text' => 'Used with permission from Harun Turgut.',
+                'attribution_url' => 'https://example.com/harun-license',
+                'default_dialects' => ['Palu - Bingol'],
+            ],
+            [
+                'id' => 'dezd',
+                'label' => 'DEZD',
+                'attribution_text' => 'Used with permission from DEZD.',
+                'attribution_url' => 'https://example.com/dezd-license',
+                'default_dialects' => [],
+            ],
+        ]);
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Ava Alias Harun',
+                'definition' => 'harun alias water',
+                'entry_type' => 'noun',
+                'source_id' => 'harun',
+                'source_dictionary' => 'Palu - Bingol Harun Turgut',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Ava Alias Dezd',
+                'definition' => 'dezd alias water',
+                'entry_type' => 'noun',
+                'source_id' => 'dezd',
+                'source_dictionary' => 'DEZD',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertSame(2, (int) ($summary['entries_created'] ?? 0));
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Ava Alias Harun', 0);
+        $this->assertGreaterThan(0, $entry_id);
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertSame('harun', (string) ($senses[0]['source_id'] ?? ''));
+
+        $results = ll_tools_dictionary_query_entries([
+            'source_ids' => ['harun-turgut'],
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 3,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+
+        $this->assertSame(1, (int) ($results['total'] ?? 0));
+        $this->assertSame('Ava Alias Harun', (string) ($results['items'][0]['title'] ?? ''));
+
+        $_GET = [
+            'll_dictionary_source' => 'harun-turgut',
+        ];
+
+        $html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Ava Alias Harun', $html);
+        $this->assertStringContainsString('harun alias water', $html);
+        $this->assertStringNotContainsString('Ava Alias Dezd', $html);
+        $this->assertStringNotContainsString('No entries matched this filter yet.', $html);
+    }
+
     public function test_dictionary_scope_filter_index_refreshes_after_source_and_entry_updates(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
