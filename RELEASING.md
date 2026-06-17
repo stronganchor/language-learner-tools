@@ -20,8 +20,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release-plugin.ps1
 
 The script is branch-aware in `auto` mode:
 
-- On `dev`, it can either bump the plugin `Version:` header or keep the current version, then stages current repo changes, commits with `x.y.z - Release`, and pushes `dev`.
+- On `dev`, it can either bump the plugin `Version:` header or keep the current version, then stages current repo changes, commits with `x.y.z - Release`, validates the release archive, and pushes `dev`.
 - On `main`, it does not bump again. It publishes the current version already in `main`: pushes `main`, tags `vX.Y.Z`, builds `dist/language-learner-tools-x.y.z.zip`, creates or updates the GitHub release, and uploads the zip asset.
+- On any other branch, `auto` mode stops before making a release. Check out `dev` for a dev-channel release or `main` for a stable release.
 
 The script prompts before it does any destructive step. On `dev`, it asks whether to bump `patch`, `minor`, `major`, use a custom version, or release with `none` to keep the current version.
 

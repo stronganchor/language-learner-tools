@@ -280,7 +280,22 @@ function Get-EffectiveMode {
         return 'publish'
     }
 
-    return 'bump'
+    if ($BranchName -eq 'dev') {
+        return 'bump'
+    }
+
+    throw "Auto release mode only supports the dev and main branches. Current branch: $BranchName. Check out dev to push a dev-channel release, or main to publish a stable release."
+}
+
+function Assert-BumpBranch {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BranchName
+    )
+
+    if ($BranchName -ne 'dev') {
+        throw "Bump mode is intended for the dev branch. Current branch: $BranchName. Check out dev before running the release batch."
+    }
 }
 
 function Get-GitStatusLines {
@@ -591,6 +606,8 @@ function Invoke-BumpWorkflow {
         [Parameter(Mandatory = $true)]
         [string]$BranchName
     )
+
+    Assert-BumpBranch -BranchName $BranchName
 
     $versionData = Get-CurrentVersionData
     $currentVersion = $versionData.Version
