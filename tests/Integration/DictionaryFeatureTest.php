@@ -144,6 +144,14 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('tr', ll_tools_dictionary_normalize_language_key('Türkçe'));
         $this->assertSame('en', ll_tools_dictionary_normalize_language_key('English'));
 
+        $this->assertSame('Â', ll_tools_dictionary_normalize_browse_letter('âlaverdiye', 'Zazaki'));
+        $this->assertSame('Ç', ll_tools_dictionary_normalize_browse_letter('çermıqnayış', 'Zazaki'));
+        $this->assertSame('Ê', ll_tools_dictionary_normalize_browse_letter('êk', 'Zazaki'));
+        $this->assertSame('Ö', ll_tools_dictionary_normalize_browse_letter('öğretmen', 'Zazaki'));
+        $this->assertSame('Ü', ll_tools_dictionary_normalize_browse_letter('üstad', 'Zazaki'));
+        $this->assertSame('Û', ll_tools_dictionary_normalize_browse_letter('ûs', 'Zazaki'));
+        $this->assertSame('', ll_tools_dictionary_normalize_browse_letter("'her", 'Zazaki'));
+
         $zazaki_alphabet = ll_tools_dictionary_get_language_browse_alphabet('Zazaki');
         $positions = array_flip($zazaki_alphabet);
         $this->assertContains('Ç', $zazaki_alphabet);

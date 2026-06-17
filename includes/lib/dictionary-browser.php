@@ -398,24 +398,140 @@ function ll_tools_dictionary_search_scope_translation_language(string $scope): s
  * Normalize one browse-letter value for the current dictionary title language.
  */
 function ll_tools_dictionary_normalize_browse_letter(string $value, string $language = ''): string {
+    $value = ll_tools_dictionary_get_first_browse_character($value);
+    if ($value === '') {
+        return '';
+    }
+
+    return ll_tools_dictionary_uppercase_browse_character($value, $language);
+}
+
+/**
+ * Return the first Unicode letter or number when it is the leading character.
+ */
+function ll_tools_dictionary_get_first_browse_character(string $value): string {
     $value = trim((string) $value);
     if ($value === '') {
         return '';
     }
 
-    if (function_exists('mb_substr')) {
-        $value = mb_substr($value, 0, 1, 'UTF-8');
-    } else {
-        $value = substr($value, 0, 1);
+    if (preg_match('/^([\p{L}\p{N}])/u', $value, $matches) !== 1) {
+        return '';
     }
 
-    if ($value === '' || preg_match('/[\p{L}\p{N}]/u', $value) !== 1) {
+    return (string) $matches[1];
+}
+
+/**
+ * Uppercase one browse character without requiring the PHP mbstring extension.
+ */
+function ll_tools_dictionary_uppercase_browse_character(string $value, string $language = ''): string {
+    $value = ll_tools_dictionary_get_first_browse_character($value);
+    if ($value === '') {
         return '';
+    }
+
+    if (ll_tools_dictionary_language_uses_turkish_casing($language) && $value === 'i') {
+        return 'İ';
+    }
+
+    $mapped = [
+        'â' => 'Â',
+        'Â' => 'Â',
+        'ç' => 'Ç',
+        'Ç' => 'Ç',
+        'ê' => 'Ê',
+        'Ê' => 'Ê',
+        'ğ' => 'Ğ',
+        'Ğ' => 'Ğ',
+        'ı' => 'I',
+        'I' => 'I',
+        'İ' => 'İ',
+        'î' => 'Î',
+        'Î' => 'Î',
+        'ô' => 'Ô',
+        'Ô' => 'Ô',
+        'ö' => 'Ö',
+        'Ö' => 'Ö',
+        'ş' => 'Ş',
+        'Ş' => 'Ş',
+        'û' => 'Û',
+        'Û' => 'Û',
+        'ü' => 'Ü',
+        'Ü' => 'Ü',
+        'ħ' => 'Ħ',
+        'Ħ' => 'Ħ',
+    ];
+    if (isset($mapped[$value])) {
+        return $mapped[$value];
     }
 
     return function_exists('ll_tools_uppercase_first_char_for_language')
         ? ll_tools_uppercase_first_char_for_language($value, $language)
         : (function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value));
+}
+
+/**
+ * Lowercase one browse character without requiring the PHP mbstring extension.
+ */
+function ll_tools_dictionary_lowercase_browse_character(string $value, string $language = ''): string {
+    $value = ll_tools_dictionary_get_first_browse_character($value);
+    if ($value === '') {
+        return '';
+    }
+
+    $uses_turkish_casing = ll_tools_dictionary_language_uses_turkish_casing($language);
+    if ($uses_turkish_casing && $value === 'I') {
+        return 'ı';
+    }
+    if ($uses_turkish_casing && $value === 'İ') {
+        return 'i';
+    }
+
+    $mapped = [
+        'Â' => 'â',
+        'â' => 'â',
+        'Ç' => 'ç',
+        'ç' => 'ç',
+        'Ê' => 'ê',
+        'ê' => 'ê',
+        'Ğ' => 'ğ',
+        'ğ' => 'ğ',
+        'Î' => 'î',
+        'î' => 'î',
+        'Ô' => 'ô',
+        'ô' => 'ô',
+        'Ö' => 'ö',
+        'ö' => 'ö',
+        'Ş' => 'ş',
+        'ş' => 'ş',
+        'Û' => 'û',
+        'û' => 'û',
+        'Ü' => 'ü',
+        'ü' => 'ü',
+        'Ħ' => 'ħ',
+        'ħ' => 'ħ',
+    ];
+    if (isset($mapped[$value])) {
+        return $mapped[$value];
+    }
+
+    return function_exists('ll_tools_lowercase_for_language')
+        ? ll_tools_lowercase_for_language($value, $language)
+        : (function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value));
+}
+
+/**
+ * Whether one dictionary title language should use Turkish dotted-I casing.
+ */
+function ll_tools_dictionary_language_uses_turkish_casing(string $language = ''): bool {
+    $language = ll_tools_dictionary_normalize_language_key($language);
+    if (in_array($language, ['tr', 'tur', 'zza', 'diq', 'kiu'], true)) {
+        return true;
+    }
+
+    return function_exists('ll_tools_language_uses_turkish_casing')
+        && ll_tools_language_uses_turkish_casing($language);
 }
 
 /**
@@ -572,20 +688,16 @@ function ll_tools_dictionary_get_browse_letter_raw_variants(string $letter, stri
 
     $variants = [];
     $register = static function (string $value) use (&$variants): void {
-        $value = function_exists('mb_substr') ? (string) mb_substr($value, 0, 1, 'UTF-8') : substr($value, 0, 1);
+        $value = ll_tools_dictionary_get_first_browse_character($value);
         if ($value !== '' && !in_array($value, $variants, true)) {
             $variants[] = $value;
         }
     };
 
     $register($letter);
-    $lower = function_exists('ll_tools_lowercase_for_language')
-        ? ll_tools_lowercase_for_language($letter, $language)
-        : (function_exists('mb_strtolower') ? mb_strtolower($letter, 'UTF-8') : strtolower($letter));
+    $lower = ll_tools_dictionary_lowercase_browse_character($letter, $language);
     $register($lower);
-    $register(function_exists('ll_tools_uppercase_first_char_for_language')
-        ? ll_tools_uppercase_first_char_for_language($lower, $language)
-        : (function_exists('mb_strtoupper') ? mb_strtoupper($lower, 'UTF-8') : strtoupper($lower)));
+    $register(ll_tools_dictionary_uppercase_browse_character($lower, $language));
 
     return $variants;
 }
@@ -3972,7 +4084,7 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 4,
+        'letter_presence_schema' => 5,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('scope_filter_index', $cache_args, $request_cache);
@@ -4092,7 +4204,7 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 4,
+        'letter_presence_schema' => 5,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('available_letters_fast', $cache_args, $request_cache);
     if (is_array($cached)) {
