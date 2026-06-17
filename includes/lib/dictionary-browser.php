@@ -526,9 +526,9 @@ function ll_tools_dictionary_get_language_browse_alphabet(string $language = '')
     $alphabets = [
         'tr' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'V', 'Y', 'Z'],
         'tur' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'V', 'Y', 'Z'],
-        'zza' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
-        'diq' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
-        'kiu' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'zza' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'diq' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'kiu' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
     ];
 
     return array_values(array_map(static function (string $letter) use ($language): string {
@@ -3968,6 +3968,7 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
+        'letter_presence_schema' => 3,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('scope_filter_index', $cache_args, $request_cache);
@@ -4017,32 +4018,7 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
         }
     }
 
-    $alphabet = ll_tools_dictionary_get_language_browse_alphabet($language);
-    $ordered = [];
-
-    foreach ($alphabet as $letter) {
-        if ($letter === '' || isset($ordered[$letter])) {
-            continue;
-        }
-        $ordered[$letter] = true;
-    }
-
-    $extras = array_values(array_diff(array_keys($letters), array_keys($ordered)));
-    usort($extras, static function (string $left, string $right) use ($language): int {
-        return function_exists('ll_tools_locale_compare_strings')
-            ? ll_tools_locale_compare_strings($left, $right, $language)
-            : strnatcasecmp($left, $right);
-    });
-
-    foreach ($extras as $letter) {
-        $ordered[$letter] = true;
-    }
-
-    if (empty($ordered)) {
-        $ordered_letters = [];
-    } else {
-        $ordered_letters = array_keys($ordered);
-    }
+    $ordered_letters = ll_tools_dictionary_order_browse_letters($letters, $language);
 
     $options = [];
     foreach (array_keys($pos_slugs) as $slug) {
@@ -4112,6 +4088,7 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
+        'letter_presence_schema' => 3,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('available_letters_fast', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -4136,11 +4113,13 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
         $params[] = '%|' . (int) $wordset_id . '|%';
     }
 
+    $first_letter_sql = 'LEFT(TRIM(p.post_title), 1)';
     $sql = "
-        SELECT DISTINCT LEFT(TRIM(p.post_title), 1)
+        SELECT {$first_letter_sql}
         FROM {$wpdb->posts} p
         " . implode("\n", $joins) . "
         WHERE " . implode(' AND ', $where) . "
+        GROUP BY BINARY {$first_letter_sql}
     ";
     $raw_letters = empty($params)
         ? (array) $wpdb->get_col($sql)
@@ -4155,23 +4134,6 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     }
 
     $ordered_letters = ll_tools_dictionary_order_browse_letters($letters, $language);
-    $alphabet = ll_tools_dictionary_get_language_browse_alphabet($language);
-    if (!empty($alphabet)) {
-        $merged_letters = [];
-        foreach ($alphabet as $alphabet_letter) {
-            if ($alphabet_letter === '' || isset($merged_letters[$alphabet_letter])) {
-                continue;
-            }
-            $merged_letters[$alphabet_letter] = true;
-        }
-        foreach ($ordered_letters as $ordered_letter) {
-            if ($ordered_letter === '' || isset($merged_letters[$ordered_letter])) {
-                continue;
-            }
-            $merged_letters[$ordered_letter] = true;
-        }
-        $ordered_letters = array_keys($merged_letters);
-    }
 
     return ll_tools_dictionary_browser_store_cached_payload(
         'available_letters_fast',

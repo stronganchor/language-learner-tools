@@ -3087,7 +3087,7 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
         'source_ids' => $source_ids,
         'dialect' => $dialect,
         'title_language' => $title_language,
-        'browse_letter_schema' => 2,
+        'browse_letter_schema' => 4,
     ];
     $cached = ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args);
     if (is_array($cached)) {
@@ -3190,7 +3190,7 @@ function ll_tools_dictionary_handle_live_search(): void {
         'dialect' => $dialect,
         'preferred_languages' => $preferred_languages,
         'title_language' => $title_language,
-        'browse_letter_schema' => 2,
+        'browse_letter_schema' => 4,
         'has_active_query' => $has_active_browse_query,
         'query_limits' => $query_limits,
     ];
