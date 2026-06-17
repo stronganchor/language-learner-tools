@@ -6,6 +6,10 @@ if (!defined('ABSPATH')) exit;
 define('LL_TOOLS_I18N_COOKIE', 'll_locale');
 define('LL_TOOLS_TEXTDOMAIN', 'll-tools-text-domain');
 define('LL_TOOLS_PUBLIC_LOCALE_META', 'll_tools_public_locale');
+define('LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION', 'll_language_switcher_primary_count');
+define('LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION', 'll_language_switcher_locale_order');
+define('LL_TOOLS_LANGUAGE_SWITCHER_DEFAULT_PRIMARY_COUNT', 3);
+define('LL_TOOLS_LANGUAGE_SWITCHER_MAX_PRIMARY_COUNT', 20);
 
 /**
  * Return locale tier configuration for the public UI translation system.
@@ -341,6 +345,89 @@ function ll_tools_parse_switcher_primary_locale_list($raw_locales, array $availa
     return $primary_locales;
 }
 
+function ll_tools_normalize_language_switcher_primary_count($value): int {
+    return min(LL_TOOLS_LANGUAGE_SWITCHER_MAX_PRIMARY_COUNT, absint($value));
+}
+
+function ll_tools_sanitize_language_switcher_primary_count($value): int {
+    return ll_tools_normalize_language_switcher_primary_count($value);
+}
+
+function ll_tools_get_language_switcher_primary_count_setting(): int {
+    return ll_tools_normalize_language_switcher_primary_count(
+        get_option(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION, LL_TOOLS_LANGUAGE_SWITCHER_DEFAULT_PRIMARY_COUNT)
+    );
+}
+
+function ll_tools_sanitize_language_switcher_locale_order($value): string {
+    if (is_array($value)) {
+        $value = implode(',', array_map('strval', $value));
+    }
+
+    $raw_locales = trim((string) wp_unslash((string) $value));
+    if ($raw_locales === '') {
+        return '';
+    }
+
+    $available_locales = function_exists('ll_tools_get_plugin_locales') ? ll_tools_get_plugin_locales() : [];
+    $resolved = [];
+
+    foreach (preg_split('/[\s,|]+/', $raw_locales) ?: [] as $token) {
+        $locale = '';
+        if (!empty($available_locales)) {
+            $locale = ll_tools_resolve_switcher_locale_token($token, $available_locales);
+        }
+        if ($locale === '') {
+            $locale = function_exists('ll_tools_normalize_switcher_locale_code')
+                ? ll_tools_normalize_switcher_locale_code($token)
+                : trim(str_replace('-', '_', (string) $token));
+        }
+        if (ll_tools_is_valid_switcher_locale($locale) && !in_array($locale, $resolved, true)) {
+            $resolved[] = $locale;
+        }
+    }
+
+    return implode(',', $resolved);
+}
+
+/**
+ * Apply the sitewide locale ordering preference to switcher display choices.
+ *
+ * @return string[]
+ */
+function ll_tools_get_language_switcher_ordered_available_locales(array $available_locales): array {
+    $available_locales = array_values(array_filter(array_map('strval', $available_locales), 'strlen'));
+    if (empty($available_locales)) {
+        return [];
+    }
+
+    $configured_order = ll_tools_parse_switcher_primary_locale_list(
+        get_option(LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION, ''),
+        $available_locales
+    );
+    if (empty($configured_order)) {
+        return $available_locales;
+    }
+
+    $ordered = $configured_order;
+    foreach ($available_locales as $locale) {
+        if (!in_array($locale, $ordered, true)) {
+            $ordered[] = $locale;
+        }
+    }
+
+    return (array) apply_filters('ll_tools_language_switcher_ordered_available_locales', $ordered, $available_locales, $configured_order);
+}
+
+function ll_tools_resolve_language_switcher_primary_count(array $atts): int {
+    $raw_count = $atts['primary_count'] ?? '';
+    if (is_string($raw_count) && trim($raw_count) === '') {
+        return ll_tools_get_language_switcher_primary_count_setting();
+    }
+
+    return ll_tools_normalize_language_switcher_primary_count($raw_count);
+}
+
 /**
  * Return the primary language bucket for a switcher instance.
  *
@@ -350,7 +437,7 @@ function ll_tools_get_language_switcher_primary_locales(array $available_locales
     $primary_locales = ll_tools_parse_switcher_primary_locale_list($atts['primary_locales'] ?? '', $available_locales);
 
     if (empty($primary_locales)) {
-        $primary_count = max(0, absint($atts['primary_count'] ?? 0));
+        $primary_count = ll_tools_resolve_language_switcher_primary_count($atts);
         if ($primary_count > 0) {
             $primary_locales = array_slice($available_locales, 0, $primary_count);
         }
@@ -829,7 +916,7 @@ add_filter('pre_determine_locale', 'll_tools_pre_determine_locale_for_staff_publ
  *  - style: 'native' | 'english' | 'code' (default 'native')
  *  - display: 'list' | 'dropdown' | 'button' | 'modal' (default 'list')
  *  - primary_locales: comma/space/pipe-separated locale list for top-level choices
- *  - primary_count: number of top-level choices to show before secondary bucket
+ *  - primary_count: number of top-level choices to show before secondary bucket (default: site setting; 0 shows all)
  *  - secondary_label: label for the secondary language bucket
  *  - class: extra CSS class to add to wrapper
  */
@@ -843,13 +930,14 @@ function ll_language_switcher_shortcode($atts) {
         'button_label' => '',
         'show_current' => '1',
         'primary_locales' => '',
-        'primary_count' => '0',
+        'primary_count' => '',
         'secondary_label' => '',
         'class'      => '',
     ], $atts, 'll_language_switcher');
 
     $available = ll_tools_get_plugin_locales();
     if (empty($available)) return '';
+    $available = ll_tools_get_language_switcher_ordered_available_locales($available);
 
     static $instance = 0;
     $instance++;
@@ -1007,7 +1095,16 @@ function ll_tools_maybe_enqueue_header_language_switcher_assets(): void {
 add_action('wp_enqueue_scripts', 'll_tools_maybe_enqueue_header_language_switcher_assets', 20);
 
 function ll_tools_get_header_language_switcher_primary_locales(): array {
-    $locales = (array) apply_filters('ll_tools_header_language_switcher_primary_locales', ['tr_TR', 'en_US', 'de_DE']);
+    $available = function_exists('ll_tools_get_plugin_locales') ? ll_tools_get_plugin_locales() : [];
+    $available = ll_tools_get_language_switcher_ordered_available_locales($available);
+    $primary_count = ll_tools_get_language_switcher_primary_count_setting();
+    $default_locales = $primary_count > 0 ? array_slice($available, 0, $primary_count) : [];
+    $locales = (array) apply_filters(
+        'll_tools_header_language_switcher_primary_locales',
+        $default_locales,
+        $available,
+        $primary_count
+    );
 
     return array_values(array_filter(array_map('strval', $locales)));
 }
