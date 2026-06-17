@@ -666,7 +666,26 @@ function ll_tools_dictionary_entry_matches_browse_letter(int $entry_id, string $
         return false;
     }
 
-    $title = trim((string) get_the_title($entry_id));
+    return ll_tools_dictionary_title_matches_browse_letter((string) get_the_title($entry_id), $letter, $language);
+}
+
+/**
+ * Whether a normalized browse letter can rely on simple database prefix matching.
+ */
+function ll_tools_dictionary_can_query_browse_letter_by_sql_prefix(string $letter): bool {
+    return preg_match('/^[A-Z0-9]$/', $letter) === 1;
+}
+
+/**
+ * Determine whether one raw entry title belongs to a browse-letter bucket.
+ */
+function ll_tools_dictionary_title_matches_browse_letter(string $title, string $letter, string $language = ''): bool {
+    $letter = ll_tools_dictionary_normalize_browse_letter($letter, $language);
+    if ($letter === '') {
+        return false;
+    }
+
+    $title = trim((string) $title);
     if ($title === '') {
         return false;
     }
@@ -3346,7 +3365,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         'dialect' => $dialect,
         'limit' => $limit,
         'language' => $language,
-        'letter_query_schema' => 2,
+        'letter_query_schema' => 3,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('browse_entry_ids', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -3382,7 +3401,8 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         $params = array_merge($params, $pos_slugs);
     }
 
-    if ($letter !== '') {
+    $filter_letter_in_php = $letter !== '' && !ll_tools_dictionary_can_query_browse_letter_by_sql_prefix($letter);
+    if ($letter !== '' && !$filter_letter_in_php) {
         $letter_variants = ll_tools_dictionary_get_browse_letter_raw_variants($letter, $language);
         if (!empty($letter_variants)) {
             $letter_clauses = [];
@@ -3417,6 +3437,51 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
             $where[] = 'search_index.meta_value LIKE %s';
             $params[] = '%' . $wpdb->esc_like($dialect) . '%';
         }
+    }
+
+    if ($filter_letter_in_php) {
+        $ids = [];
+        $last_id = 0;
+        $chunk_size = 500;
+        do {
+            $chunk_where = $where;
+            $chunk_params = $params;
+            $chunk_where[] = 'p.ID > %d';
+            $chunk_params[] = $last_id;
+            $chunk_params[] = $chunk_size;
+            $chunk_sql = "
+                SELECT " . (!empty($joins) ? 'DISTINCT ' : '') . "p.ID, p.post_title
+                FROM {$wpdb->posts} p
+                " . implode("\n", $joins) . "
+                WHERE " . implode(' AND ', $chunk_where) . "
+                ORDER BY p.ID ASC
+                LIMIT %d
+            ";
+            $rows = array_values(array_filter((array) $wpdb->get_results($wpdb->prepare($chunk_sql, $chunk_params), ARRAY_A)));
+            foreach ($rows as $row) {
+                $entry_id = (int) ($row['ID'] ?? 0);
+                if ($entry_id <= 0) {
+                    continue;
+                }
+                $last_id = max($last_id, $entry_id);
+                if (!ll_tools_dictionary_title_matches_browse_letter((string) ($row['post_title'] ?? ''), $letter, $language)) {
+                    continue;
+                }
+
+                $ids[] = $entry_id;
+                if ($limit > 0 && count($ids) >= $limit) {
+                    break 2;
+                }
+            }
+        } while (count($rows) === $chunk_size);
+
+        return ll_tools_dictionary_browser_store_cached_payload(
+            'browse_entry_ids',
+            $cache_args,
+            $ids,
+            10 * MINUTE_IN_SECONDS,
+            $request_cache
+        );
     }
 
     $sql = "
@@ -3798,6 +3863,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'preferred_languages' => $preferred_languages,
         'statuses' => $statuses,
         'viewer' => ll_tools_dictionary_viewer_cache_key(),
+        'query_schema' => 2,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('query_entries', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -4084,7 +4150,7 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 6,
+        'letter_presence_schema' => 7,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('scope_filter_index', $cache_args, $request_cache);
@@ -4204,7 +4270,7 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 6,
+        'letter_presence_schema' => 7,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('available_letters_fast', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -4276,52 +4342,21 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
  * Check whether at least one published entry title has the requested browse-letter prefix.
  */
 function ll_tools_dictionary_title_prefix_exists_for_browse_letter(string $letter, int $wordset_id = 0, string $language = ''): bool {
-    global $wpdb;
-
     $letter = ll_tools_dictionary_normalize_browse_letter($letter, $language);
     if ($letter === '') {
         return false;
     }
 
-    $variants = ll_tools_dictionary_get_browse_letter_raw_variants($letter, $language);
-    if (empty($variants)) {
-        return false;
-    }
-
-    $joins = [];
-    $where = [
-        "p.post_type = 'll_dictionary_entry'",
-        "p.post_status = 'publish'",
-        "TRIM(p.post_title) <> ''",
-    ];
-    $params = [];
-
-    if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
-        $joins[] = "
-            LEFT JOIN {$wpdb->postmeta} scope_meta
-                   ON scope_meta.post_id = p.ID
-                  AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
-        ";
-        $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
-        $params[] = '%|' . (int) $wordset_id . '|%';
-    }
-
-    $prefix_clauses = [];
-    foreach ($variants as $variant) {
-        $prefix_clauses[] = 'BINARY TRIM(p.post_title) LIKE BINARY %s';
-        $params[] = $wpdb->esc_like($variant) . '%';
-    }
-    $where[] = '(' . implode(' OR ', $prefix_clauses) . ')';
-
-    $sql = "
-        SELECT p.ID
-        FROM {$wpdb->posts} p
-        " . implode("\n", $joins) . "
-        WHERE " . implode(' AND ', $where) . "
-        LIMIT 1
-    ";
-
-    return (int) $wpdb->get_var($wpdb->prepare($sql, $params)) > 0;
+    return !empty(ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+        ['publish'],
+        $wordset_id,
+        $letter,
+        '',
+        '',
+        '',
+        1,
+        $language
+    ));
 }
 
 /**
