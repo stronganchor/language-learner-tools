@@ -219,7 +219,7 @@ async function mountDictionaryHarness(page, options = {}) {
           json: async () => ({
             success: true,
             data: {
-              html: `<article class="ll-dictionary__entry">Query:${requestData.ll_dictionary_q || ''}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}</article>`,
+              html: `<article class="ll-dictionary__entry">Query:${requestData.ll_dictionary_q || ''}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}; Letter:${requestData.ll_dictionary_letter || ''}</article>`,
               has_active_query: true,
               url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(requestData.ll_dictionary_q || '')}`
             }
@@ -292,6 +292,33 @@ test('live search still reacts to deferred filter controls after bootstrap', asy
 
   expect(lastSearchCall).toMatchObject({
     ll_dictionary_q: 'apa',
+    ll_dictionary_scope: 'all',
+    ll_dictionary_source: 'harun-turgut,hayig-werner'
+  });
+});
+
+test('letter browse preserves selected source filters', async ({ page }) => {
+  await mountDictionaryHarness(page);
+
+  await page.locator('#ll-dictionary-search').focus();
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(2);
+
+  await page.locator('#ll-dictionary-search').fill('apa');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; Source:all');
+
+  await page.locator('summary#ll-dictionary-filter-source-summary').click();
+  await page.locator('#ll-dictionary-source-dezd').uncheck();
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Source:harun-turgut,hayig-werner');
+
+  await page.locator('.ll-dictionary__letters a', { hasText: 'B' }).click();
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:; Scope:all; Source:harun-turgut,hayig-werner; Letter:B');
+
+  const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
+  const lastSearchCall = [...fetchCalls].reverse().find((call) => call.action === 'll_tools_dictionary_live_search');
+
+  expect(lastSearchCall).toMatchObject({
+    ll_dictionary_q: '',
+    ll_dictionary_letter: 'B',
     ll_dictionary_scope: 'all',
     ll_dictionary_source: 'harun-turgut,hayig-werner'
   });

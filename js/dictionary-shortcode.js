@@ -1301,6 +1301,7 @@
             if (!link || !link.href || link.getAttribute('href') === '#') {
                 return;
             }
+            const isLetterBrowseLink = !!link.closest('.ll-dictionary__letters');
 
             let url;
             try {
@@ -1316,12 +1317,14 @@
             event.preventDefault();
 
             searchInput.value = url.searchParams.get('ll_dictionary_q') || '';
-            setScopeValuesFromQueryValue(getScopeQueryValueFromUrl(url));
-            persistScopePreferences();
             letterInput.value = url.searchParams.get('ll_dictionary_letter') || '';
-            setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
-            setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
-            setFieldValue('ll_dictionary_dialect', url.searchParams.get('ll_dictionary_dialect') || '');
+            if (!isLetterBrowseLink) {
+                setScopeValuesFromQueryValue(getScopeQueryValueFromUrl(url));
+                persistScopePreferences();
+                setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
+                setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
+                setFieldValue('ll_dictionary_dialect', url.searchParams.get('ll_dictionary_dialect') || '');
+            }
             updateAllFilterMenuSummaries();
 
             showLoadingState();
