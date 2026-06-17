@@ -3087,7 +3087,7 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
         'source_ids' => $source_ids,
         'dialect' => $dialect,
         'title_language' => $title_language,
-        'browse_letter_schema' => 5,
+        'browse_letter_schema' => 6,
     ];
     $cached = ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args);
     if (is_array($cached)) {
@@ -3190,7 +3190,7 @@ function ll_tools_dictionary_handle_live_search(): void {
         'dialect' => $dialect,
         'preferred_languages' => $preferred_languages,
         'title_language' => $title_language,
-        'browse_letter_schema' => 5,
+        'browse_letter_schema' => 6,
         'has_active_query' => $has_active_browse_query,
         'query_limits' => $query_limits,
     ];
@@ -3385,7 +3385,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
             <?php echo ll_tools_dictionary_render_detail_view($requested_entry_id, $base_url, $preferred_languages); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php else : ?>
             <div class="<?php echo esc_attr(implode(' ', $toolbar_classes)); ?>">
-                <form class="ll-dictionary__form" method="get" action="<?php echo esc_url($base_url); ?>" data-ll-dictionary-form>
+                <form class="ll-dictionary__form" method="get" action="<?php echo esc_url($base_url); ?>" autocomplete="off" data-ll-dictionary-form>
                     <?php echo ll_tools_dictionary_preserve_non_dictionary_query_inputs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <input type="hidden" name="ll_dictionary_letter" value="<?php echo esc_attr($letter); ?>">
                     <div class="ll-dictionary__search-row">
@@ -3398,6 +3398,10 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                                 name="ll_dictionary_q"
                                 value="<?php echo esc_attr($search); ?>"
                                 placeholder="<?php echo esc_attr__('Search dictionary', 'll-tools-text-domain'); ?>"
+                                autocomplete="off"
+                                autocapitalize="none"
+                                autocorrect="off"
+                                spellcheck="false"
                             >
                         </div>
                         <div class="ll-dictionary__actions ll-dictionary__actions--primary">

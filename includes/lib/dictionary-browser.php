@@ -3346,6 +3346,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         'dialect' => $dialect,
         'limit' => $limit,
         'language' => $language,
+        'letter_query_schema' => 2,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('browse_entry_ids', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -3386,9 +3387,8 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         if (!empty($letter_variants)) {
             $letter_clauses = [];
             foreach ($letter_variants as $variant) {
-                $letter_clauses[] = 'BINARY LEFT(TRIM(p.post_title), CHAR_LENGTH(%s)) = BINARY %s';
-                $params[] = $variant;
-                $params[] = $variant;
+                $letter_clauses[] = 'BINARY TRIM(p.post_title) LIKE BINARY %s';
+                $params[] = $wpdb->esc_like($variant) . '%';
             }
             $where[] = '(' . implode(' OR ', $letter_clauses) . ')';
         }
@@ -4084,7 +4084,7 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 5,
+        'letter_presence_schema' => 6,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('scope_filter_index', $cache_args, $request_cache);
@@ -4204,7 +4204,7 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 5,
+        'letter_presence_schema' => 6,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('available_letters_fast', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -4249,6 +4249,18 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
         }
     }
 
+    foreach (ll_tools_dictionary_get_language_browse_alphabet($language) as $alphabet_letter) {
+        if ($alphabet_letter === '' || isset($letters[$alphabet_letter])) {
+            continue;
+        }
+        if (preg_match('/^[A-Z0-9]$/', $alphabet_letter) === 1) {
+            continue;
+        }
+        if (ll_tools_dictionary_title_prefix_exists_for_browse_letter($alphabet_letter, $wordset_id, $language)) {
+            $letters[$alphabet_letter] = true;
+        }
+    }
+
     $ordered_letters = ll_tools_dictionary_order_browse_letters($letters, $language);
 
     return ll_tools_dictionary_browser_store_cached_payload(
@@ -4258,6 +4270,58 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
         HOUR_IN_SECONDS,
         $request_cache
     );
+}
+
+/**
+ * Check whether at least one published entry title has the requested browse-letter prefix.
+ */
+function ll_tools_dictionary_title_prefix_exists_for_browse_letter(string $letter, int $wordset_id = 0, string $language = ''): bool {
+    global $wpdb;
+
+    $letter = ll_tools_dictionary_normalize_browse_letter($letter, $language);
+    if ($letter === '') {
+        return false;
+    }
+
+    $variants = ll_tools_dictionary_get_browse_letter_raw_variants($letter, $language);
+    if (empty($variants)) {
+        return false;
+    }
+
+    $joins = [];
+    $where = [
+        "p.post_type = 'll_dictionary_entry'",
+        "p.post_status = 'publish'",
+        "TRIM(p.post_title) <> ''",
+    ];
+    $params = [];
+
+    if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
+        $joins[] = "
+            LEFT JOIN {$wpdb->postmeta} scope_meta
+                   ON scope_meta.post_id = p.ID
+                  AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
+        ";
+        $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
+        $params[] = '%|' . (int) $wordset_id . '|%';
+    }
+
+    $prefix_clauses = [];
+    foreach ($variants as $variant) {
+        $prefix_clauses[] = 'BINARY TRIM(p.post_title) LIKE BINARY %s';
+        $params[] = $wpdb->esc_like($variant) . '%';
+    }
+    $where[] = '(' . implode(' OR ', $prefix_clauses) . ')';
+
+    $sql = "
+        SELECT p.ID
+        FROM {$wpdb->posts} p
+        " . implode("\n", $joins) . "
+        WHERE " . implode(' AND ', $where) . "
+        LIMIT 1
+    ";
+
+    return (int) $wpdb->get_var($wpdb->prepare($sql, $params)) > 0;
 }
 
 /**

@@ -808,7 +808,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
             'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
-            'browse_letter_schema' => 5,
+            'browse_letter_schema' => 6,
             'has_active_query' => false,
             'query_limits' => [
                 'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
@@ -2581,7 +2581,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $browse_queries_sql = implode("\n", array_filter($queries, static function (string $query) use ($wpdb): bool {
             return strpos($query, "FROM {$wpdb->posts} p") !== false;
         }));
-        $this->assertStringContainsString('BINARY LEFT(TRIM(p.post_title)', $browse_queries_sql);
+        $this->assertStringContainsString('BINARY TRIM(p.post_title) LIKE BINARY', $browse_queries_sql);
         $this->assertStringContainsString("p.post_type = 'll_dictionary_entry'", $browse_queries_sql);
         $this->assertStringNotContainsString('ll_dictionary_entry_lookup_title', $browse_queries_sql);
         $this->assertStringNotContainsString('lookup_title.meta_value LIKE', $browse_queries_sql);
@@ -2935,6 +2935,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll-dictionary__hint', $idle_html);
         $this->assertStringContainsString('ll-dictionary__letters', $idle_html);
         $this->assertStringContainsString('ll_dictionary_letter=', $idle_html);
+        $this->assertStringContainsString('autocomplete="off" data-ll-dictionary-form', $idle_html);
+        $this->assertStringContainsString('name="ll_dictionary_q"', $idle_html);
+        $this->assertStringContainsString('autocomplete="off"', $idle_html);
+        $this->assertStringContainsString('autocapitalize="none"', $idle_html);
+        $this->assertStringContainsString('autocorrect="off"', $idle_html);
+        $this->assertStringContainsString('spellcheck="false"', $idle_html);
 
         $_GET = [
             'll_dictionary_letter' => 'Ê',
@@ -3099,6 +3105,30 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Işık', $dotted_i_html);
         $this->assertStringNotContainsString('Lapik', $dotted_i_html);
         $this->assertStringContainsString('Showing 1-2 of 2', $dotted_i_html);
+
+        $_GET = [
+            'll_dictionary_letter' => 'Ç',
+        ];
+        $ccedilla_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Çare', $ccedilla_html);
+        $this->assertStringNotContainsString('Lapik', $ccedilla_html);
+        $this->assertStringContainsString('Showing 1-1 of 1', $ccedilla_html);
+
+        $_GET = [
+            'll_dictionary_letter' => 'Ö',
+        ];
+        $oumlaut_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('öf', $oumlaut_html);
+        $this->assertStringNotContainsString('Lapik', $oumlaut_html);
+        $this->assertStringContainsString('Showing 1-1 of 1', $oumlaut_html);
+
+        $_GET = [
+            'll_dictionary_letter' => 'Ü',
+        ];
+        $uumlaut_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('üniversite', $uumlaut_html);
+        $this->assertStringNotContainsString('Lapik', $uumlaut_html);
+        $this->assertStringContainsString('Showing 1-1 of 1', $uumlaut_html);
     }
 
     private function ensurePartOfSpeechTerm(string $slug, string $label): void
