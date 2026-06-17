@@ -243,6 +243,46 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertContains("c\u{0361}\u{02B0}\u{025B}", array_values((array) ($tie_bar_issue['samples'] ?? [])));
     }
 
+    public function test_validation_flags_unexpected_tie_bar_pair(): void
+    {
+        $wordset_id = $this->createWordset('Unexpected Tie Bar Validation');
+        $word_id = $this->createWord($wordset_id, 'Unexpected Tie Bar', '');
+        $recording_id = $this->createRecording($word_id, 'Ina cini renşpera.', "ɨna d\u{032A}\u{0361}ʒini rɛn\u{0361}ʃpɛɾa");
+
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $issues = (array) ($validation['active'] ?? []);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, $issues);
+
+        $this->assertContains('unexpected_tie_bar_pair', $codes);
+        $unexpected_pair_issue = null;
+        foreach ($issues as $issue) {
+            if ((string) ($issue['code'] ?? '') === 'unexpected_tie_bar_pair') {
+                $unexpected_pair_issue = $issue;
+                break;
+            }
+        }
+        $this->assertIsArray($unexpected_pair_issue);
+        $this->assertContains("n\u{0361}ʃ", array_values((array) ($unexpected_pair_issue['samples'] ?? [])));
+    }
+
+    public function test_validation_allows_known_a_k_tie_bar_pairs(): void
+    {
+        $wordset_id = $this->createWordset('Allowed Tie Bar Validation');
+        $word_id = $this->createWord($wordset_id, 'Allowed Tie Bar', '');
+        $recording_id = $this->createRecording($word_id, 'Ciniya rençber veştwüriya', "d\u{032A}\u{0361}ʒinija rɛnt\u{032A}\u{0361}ʃbɛɾ vɛʃt\u{032A}\u{0361}pyɾija c\u{0361}ç");
+
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $codes = array_map(static function (array $issue): string {
+            return (string) ($issue['code'] ?? '');
+        }, (array) ($validation['active'] ?? []));
+
+        $this->assertNotContains('unexpected_tie_bar_pair', $codes);
+    }
+
     public function test_word_overrides_and_optional_matches_are_wordset_settings(): void
     {
         $wordset_id = $this->createWordset('Configurable Orthography Settings');
@@ -672,9 +712,29 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Bwiya', (string) ($bwiya_prediction['text'] ?? ''));
         $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Bwiya', "bʷija", $wordset_id, 'isolation', $bwiya_prediction)['matches'] ?? false));
 
+        $pharyngeal_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("ow jo ħæʃ viraʃtʰo", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($pharyngeal_prediction['complete'] ?? false));
+        $this->assertSame("Ow yo 'hâş viraşto", (string) ($pharyngeal_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail("Ow yo 'hâş viraşto", "ow jo ħæʃ viraʃtʰo", $wordset_id, 'isolation', $pharyngeal_prediction)['matches'] ?? false));
+
+        $dotless_initial_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("ɨna jo d̪owa", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($dotless_initial_prediction['complete'] ?? false));
+        $this->assertSame('Ina yo dowa', (string) ($dotless_initial_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Ina yo dowa', "ɨna jo d̪owa", $wordset_id, 'isolation', $dotless_initial_prediction)['matches'] ?? false));
+
+        $final_front_i_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("hiri", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($final_front_i_prediction['complete'] ?? false));
+        $this->assertSame('Hiri', (string) ($final_front_i_prediction['text'] ?? ''));
+        $this->assertFalse((bool) ($final_front_i_prediction['requires_lexical_decision'] ?? true));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Hiri', "hiri", $wordset_id, 'isolation', $final_front_i_prediction)['matches'] ?? false));
+
+        $front_in_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("in", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($front_in_prediction['complete'] ?? false));
+        $this->assertSame('İn', (string) ($front_in_prediction['text'] ?? ''));
+
         $proximal_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("ina", $engine_rules, $wordset_id);
         $this->assertTrue((bool) ($proximal_prediction['complete'] ?? false));
-        $this->assertSame('Ina', (string) ($proximal_prediction['text'] ?? ''));
+        $this->assertSame('İna', (string) ($proximal_prediction['text'] ?? ''));
         $this->assertFalse((bool) ($proximal_prediction['requires_lexical_decision'] ?? true));
 
         $release_ipa = "bɨd̪ɨ\u{032F}";

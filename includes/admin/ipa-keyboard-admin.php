@@ -1973,7 +1973,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 18;
+    return 19;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -1985,6 +1985,10 @@ function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
         'tie_bar_without_pair' => [
             'label' => __('Tie bar without a pair', 'll-tools-text-domain'),
             'description' => __('Flags tie bars that do not join two sounds into a single affricate-style token.', 'll-tools-text-domain'),
+        ],
+        'unexpected_tie_bar_pair' => [
+            'label' => __('Unexpected tie-bar pair', 'll-tools-text-domain'),
+            'description' => __('Flags tie bars joining sounds outside the approved affricate and cluster inventory.', 'll-tools-text-domain'),
         ],
         'duplicate_modifier' => [
             'label' => __('Repeated IPA modifier', 'll-tools-text-domain'),
@@ -3795,8 +3799,6 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
         'hındistên' => "'hındistên",
         'hındistûn' => "'hındistûn",
         'hındistûna' => "'hındistûna",
-        'in' => 'ın',
-        'ina' => 'ına',
         'kwele' => 'kwelı',
         'kye' => 'kiye',
         'maze' => 'mazı',
@@ -6739,6 +6741,51 @@ function ll_tools_ipa_keyboard_token_has_malformed_tie_bar(string $token, string
     return $mode === 'ipa' && preg_match('/[\x{035C}\x{0361}][\x{02B0}-\x{02B8}\x{02D0}\x{02D1}\x{02E0}-\x{02E4}\x{1D2C}-\x{1D6A}\x{1D9B}-\x{1DBF}\x{2070}-\x{209F}\x{10784}\x{0300}-\x{036F}]/u', $token) === 1;
 }
 
+function ll_tools_ipa_keyboard_token_unexpected_tie_bar_pair(string $token, string $mode = 'ipa'): string {
+    if ($mode !== 'ipa') {
+        return '';
+    }
+
+    $base = ll_tools_ipa_keyboard_extract_token_base($token, $mode);
+    if ($base === '' || !preg_match('/[\x{035C}\x{0361}]/u', $base)) {
+        return '';
+    }
+
+    $allowed_pairs = [
+        "d\u{0361}z",
+        "d\u{0361}ʒ",
+        "d\u{0361}ʙ",
+        "d\u{0361}b",
+        "t\u{0361}s",
+        "t\u{0361}ʃ",
+        "t\u{0361}p",
+        "t\u{0361}ʙ",
+        "c\u{0361}ç",
+        "p\u{0361}f",
+    ];
+    $allowed_pairs = array_fill_keys($allowed_pairs, true);
+
+    $chars = ll_tools_ipa_keyboard_split_token_characters($base);
+    foreach ($chars as $index => $char) {
+        if (!in_array($char, ["\u{035C}", "\u{0361}"], true)) {
+            continue;
+        }
+
+        $left = $chars[$index - 1] ?? '';
+        $right = $chars[$index + 1] ?? '';
+        if ($left === '' || $right === '') {
+            continue;
+        }
+
+        $pair = $left . "\u{0361}" . $right;
+        if (!isset($allowed_pairs[$pair])) {
+            return $pair;
+        }
+    }
+
+    return '';
+}
+
 function ll_tools_ipa_keyboard_count_modifier_occurrences(string $token, string $modifier): int {
     if ($token === '' || $modifier === '') {
         return 0;
@@ -7091,6 +7138,26 @@ function ll_tools_ipa_keyboard_validate_recording_for_wordset(
                     'builtin',
                     (string) ($builtin_rules['tie_bar_without_pair']['label'] ?? ''),
                     __('A tie bar appears without two joined sounds.', 'll-tools-text-domain'),
+                    (string) $token
+                );
+            }
+        }
+    }
+
+    if (!in_array('unexpected_tie_bar_pair', $disabled_builtin_rules, true)) {
+        foreach ($segment_tokens as $token) {
+            if (!preg_match('/[\x{035C}\x{0361}]/u', (string) $token)) {
+                continue;
+            }
+            $unexpected_pair = ll_tools_ipa_keyboard_token_unexpected_tie_bar_pair((string) $token, $mode);
+            if ($unexpected_pair !== '') {
+                $add_issue(
+                    $issue_map,
+                    'builtin:unexpected_tie_bar_pair',
+                    'unexpected_tie_bar_pair',
+                    'builtin',
+                    (string) ($builtin_rules['unexpected_tie_bar_pair']['label'] ?? ''),
+                    __('A tie bar joins a sound pair outside the approved inventory.', 'll-tools-text-domain'),
                     (string) $token
                 );
             }
