@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 615,
+    "entry_count": 614,
     "entries": [
         {
             "key": "5d46efea71c9f6959c2ad34eb2c5459a5097c7ab",
@@ -12,10 +12,10 @@
             "msgid": "Adjective",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1069"
+                "includes/lib/dictionary-browser.php:1182"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1069"
+                "includes/lib/dictionary-browser.php:1182"
             ]
         },
         {
@@ -24,10 +24,10 @@
             "msgid": "Adverb",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1070"
+                "includes/lib/dictionary-browser.php:1183"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1070"
+                "includes/lib/dictionary-browser.php:1183"
             ]
         },
         {
@@ -36,10 +36,10 @@
             "msgid": "Affix",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1071"
+                "includes/lib/dictionary-browser.php:1184"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1071"
+                "includes/lib/dictionary-browser.php:1184"
             ]
         },
         {
@@ -48,10 +48,10 @@
             "msgid": "Article",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1072"
+                "includes/lib/dictionary-browser.php:1185"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1072"
+                "includes/lib/dictionary-browser.php:1185"
             ]
         },
         {
@@ -60,10 +60,10 @@
             "msgid": "Classifier",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1073"
+                "includes/lib/dictionary-browser.php:1186"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1073"
+                "includes/lib/dictionary-browser.php:1186"
             ]
         },
         {
@@ -72,10 +72,10 @@
             "msgid": "Conjunction",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1074"
+                "includes/lib/dictionary-browser.php:1187"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1074"
+                "includes/lib/dictionary-browser.php:1187"
             ]
         },
         {
@@ -84,10 +84,10 @@
             "msgid": "Determiner",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1075"
+                "includes/lib/dictionary-browser.php:1188"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1075"
+                "includes/lib/dictionary-browser.php:1188"
             ]
         },
         {
@@ -96,10 +96,10 @@
             "msgid": "Idiom",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1076"
+                "includes/lib/dictionary-browser.php:1189"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1076"
+                "includes/lib/dictionary-browser.php:1189"
             ]
         },
         {
@@ -108,10 +108,10 @@
             "msgid": "Interjection",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1077"
+                "includes/lib/dictionary-browser.php:1190"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1077"
+                "includes/lib/dictionary-browser.php:1190"
             ]
         },
         {
@@ -120,10 +120,10 @@
             "msgid": "Noun",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1078"
+                "includes/lib/dictionary-browser.php:1191"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1078"
+                "includes/lib/dictionary-browser.php:1191"
             ]
         },
         {
@@ -132,10 +132,10 @@
             "msgid": "Numeral",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1079"
+                "includes/lib/dictionary-browser.php:1192"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1079"
+                "includes/lib/dictionary-browser.php:1192"
             ]
         },
         {
@@ -144,10 +144,10 @@
             "msgid": "Other",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1080"
+                "includes/lib/dictionary-browser.php:1193"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1080"
+                "includes/lib/dictionary-browser.php:1193"
             ]
         },
         {
@@ -156,10 +156,10 @@
             "msgid": "Particle",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1081"
+                "includes/lib/dictionary-browser.php:1194"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1081"
+                "includes/lib/dictionary-browser.php:1194"
             ]
         },
         {
@@ -168,10 +168,10 @@
             "msgid": "Phrase",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1082"
+                "includes/lib/dictionary-browser.php:1195"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1082"
+                "includes/lib/dictionary-browser.php:1195"
             ]
         },
         {
@@ -180,10 +180,10 @@
             "msgid": "Preposition",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1083"
+                "includes/lib/dictionary-browser.php:1196"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1083"
+                "includes/lib/dictionary-browser.php:1196"
             ]
         },
         {
@@ -192,10 +192,10 @@
             "msgid": "Pronoun",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1084"
+                "includes/lib/dictionary-browser.php:1197"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1084"
+                "includes/lib/dictionary-browser.php:1197"
             ]
         },
         {
@@ -204,10 +204,58 @@
             "msgid": "Verb",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1085"
+                "includes/lib/dictionary-browser.php:1198"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1085"
+                "includes/lib/dictionary-browser.php:1198"
+            ]
+        },
+        {
+            "key": "47f041331488f3e0f319f632b9eceed49917b9f3",
+            "context": "",
+            "msgid": "Parent: %s",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/dictionary-browser.php:1744",
+                "includes/shortcodes/dictionary-shortcode.php:1679",
+                "includes/shortcodes/dictionary-shortcode.php:1901",
+                "includes/shortcodes/dictionary-shortcode.php:2105"
+            ],
+            "public_references": [
+                "includes/lib/dictionary-browser.php:1744",
+                "includes/shortcodes/dictionary-shortcode.php:1679",
+                "includes/shortcodes/dictionary-shortcode.php:1901",
+                "includes/shortcodes/dictionary-shortcode.php:2105"
+            ]
+        },
+        {
+            "key": "d0241b8f0e8a0f5870586a91aea4d46f4088f669",
+            "context": "",
+            "msgid": "Page %s",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/dictionary-browser.php:1748"
+            ],
+            "public_references": [
+                "includes/lib/dictionary-browser.php:1748"
+            ]
+        },
+        {
+            "key": "0ab3df516729521d5cc5895fb3c6e0c9992c7cc6",
+            "context": "",
+            "msgid": "(no title)",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/dictionary-browser.php:3027",
+                "includes/post-types/content-lesson-post-type.php:739",
+                "includes/post-types/content-lesson-post-type.php:979",
+                "includes/post-types/dictionary-entry-post-type.php:1498",
+                "includes/post-types/dictionary-entry-post-type.php:1559",
+                "includes/post-types/dictionary-entry-post-type.php:546",
+                "includes/post-types/dictionary-entry-post-type.php:863"
+            ],
+            "public_references": [
+                "includes/lib/dictionary-browser.php:3027"
             ]
         },
         {
@@ -375,8 +423,8 @@
                 "includes/lib/interlinear.php:1683",
                 "includes/pages/wordset-pages.php:11283",
                 "includes/pages/wordset-pages.php:11317",
-                "includes/pages/wordset-pages.php:19508",
-                "includes/pages/wordset-pages.php:19637",
+                "includes/pages/wordset-pages.php:19538",
+                "includes/pages/wordset-pages.php:19667",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:321",
                 "includes/shortcodes/dictionary-shortcode.php:2294",
                 "includes/shortcodes/flashcard-widget.php:537",
@@ -385,7 +433,7 @@
             "public_references": [
                 "includes/lib/interlinear.php:1679",
                 "includes/lib/interlinear.php:1683",
-                "includes/pages/wordset-pages.php:19508",
+                "includes/pages/wordset-pages.php:19538",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:321",
                 "includes/shortcodes/dictionary-shortcode.php:2294",
                 "includes/shortcodes/flashcard-widget.php:537",
@@ -1315,8 +1363,8 @@
                 "includes/pages/wordset-editor.php:994",
                 "includes/pages/wordset-games.php:5087",
                 "includes/pages/wordset-pages.php:11314",
-                "includes/pages/wordset-pages.php:17081",
-                "includes/pages/wordset-pages.php:19618",
+                "includes/pages/wordset-pages.php:17114",
+                "includes/pages/wordset-pages.php:19648",
                 "includes/shortcodes/editor-hub-shortcode.php:1039",
                 "includes/shortcodes/editor-hub-shortcode.php:1040",
                 "includes/shortcodes/editor-hub-shortcode.php:644",
@@ -1330,7 +1378,8 @@
                 "includes/lib/wordset-language-settings.php:1149",
                 "includes/lib/wordset-language-settings.php:1168",
                 "includes/lib/wordset-language-settings.php:734",
-                "includes/pages/wordset-games.php:5087"
+                "includes/pages/wordset-games.php:5087",
+                "includes/pages/wordset-pages.php:17114"
             ]
         },
         {
@@ -1719,15 +1768,15 @@
                 "includes/login-window.php:2244",
                 "includes/login-window.php:2362",
                 "includes/login-window.php:2552",
-                "includes/pages/wordset-pages.php:17837",
-                "includes/pages/wordset-pages.php:17863",
-                "includes/pages/wordset-pages.php:19409"
+                "includes/pages/wordset-pages.php:17870",
+                "includes/pages/wordset-pages.php:17896",
+                "includes/pages/wordset-pages.php:19439"
             ],
             "public_references": [
                 "includes/login-window.php:2362",
-                "includes/pages/wordset-pages.php:17837",
-                "includes/pages/wordset-pages.php:17863",
-                "includes/pages/wordset-pages.php:19409"
+                "includes/pages/wordset-pages.php:17870",
+                "includes/pages/wordset-pages.php:17896",
+                "includes/pages/wordset-pages.php:19439"
             ]
         },
         {
@@ -1832,12 +1881,13 @@
                 "includes/login-window.php:2482",
                 "includes/login-window.php:2492",
                 "includes/pages/wordset-pages.php:14918",
-                "includes/pages/wordset-pages.php:17637"
+                "includes/pages/wordset-pages.php:17670"
             ],
             "public_references": [
                 "includes/login-window.php:2480",
                 "includes/login-window.php:2482",
-                "includes/login-window.php:2492"
+                "includes/login-window.php:2492",
+                "includes/pages/wordset-pages.php:17670"
             ]
         },
         {
@@ -1927,11 +1977,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/content-lesson-pages.php:326",
-                "includes/pages/wordset-pages.php:18571"
+                "includes/pages/wordset-pages.php:18601"
             ],
             "public_references": [
                 "includes/pages/content-lesson-pages.php:326",
-                "includes/pages/wordset-pages.php:18571"
+                "includes/pages/wordset-pages.php:18601"
             ]
         },
         {
@@ -1941,11 +1991,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/content-lesson-pages.php:329",
-                "includes/pages/wordset-pages.php:17771",
+                "includes/pages/wordset-pages.php:17804",
                 "includes/pages/wordset-pages.php:4150"
             ],
             "public_references": [
-                "includes/pages/content-lesson-pages.php:329"
+                "includes/pages/content-lesson-pages.php:329",
+                "includes/pages/wordset-pages.php:17804"
             ]
         },
         {
@@ -2208,12 +2259,12 @@
             "references": [
                 "includes/pages/wordset-games.php:263",
                 "includes/pages/wordset-pages.php:11247",
-                "includes/pages/wordset-pages.php:19279"
+                "includes/pages/wordset-pages.php:19309"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:263",
                 "includes/pages/wordset-pages.php:11247",
-                "includes/pages/wordset-pages.php:19279"
+                "includes/pages/wordset-pages.php:19309"
             ]
         },
         {
@@ -2316,13 +2367,13 @@
                 "includes/pages/wordset-games.php:4105",
                 "includes/pages/wordset-games.php:6194",
                 "includes/pages/wordset-pages.php:11277",
-                "includes/pages/wordset-pages.php:19492"
+                "includes/pages/wordset-pages.php:19522"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:4105",
                 "includes/pages/wordset-games.php:6194",
                 "includes/pages/wordset-pages.php:11277",
-                "includes/pages/wordset-pages.php:19492"
+                "includes/pages/wordset-pages.php:19522"
             ]
         },
         {
@@ -2850,11 +2901,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11232",
-                "includes/pages/wordset-pages.php:19359"
+                "includes/pages/wordset-pages.php:19389"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11232",
-                "includes/pages/wordset-pages.php:19359"
+                "includes/pages/wordset-pages.php:19389"
             ]
         },
         {
@@ -2864,7 +2915,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11233",
-                "includes/pages/wordset-pages.php:19679"
+                "includes/pages/wordset-pages.php:19709"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11233"
@@ -2877,11 +2928,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11234",
-                "includes/pages/wordset-pages.php:19360"
+                "includes/pages/wordset-pages.php:19390"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11234",
-                "includes/pages/wordset-pages.php:19360"
+                "includes/pages/wordset-pages.php:19390"
             ]
         },
         {
@@ -2975,11 +3026,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11242",
-                "includes/pages/wordset-pages.php:19373"
+                "includes/pages/wordset-pages.php:19403"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11242",
-                "includes/pages/wordset-pages.php:19373"
+                "includes/pages/wordset-pages.php:19403"
             ]
         },
         {
@@ -3002,11 +3053,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11244",
-                "includes/pages/wordset-pages.php:19366"
+                "includes/pages/wordset-pages.php:19396"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11244",
-                "includes/pages/wordset-pages.php:19366"
+                "includes/pages/wordset-pages.php:19396"
             ]
         },
         {
@@ -3040,15 +3091,15 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11248",
-                "includes/pages/wordset-pages.php:18452",
-                "includes/pages/wordset-pages.php:19301",
+                "includes/pages/wordset-pages.php:18482",
+                "includes/pages/wordset-pages.php:19331",
                 "templates/offline-app-shell-template.php:710",
                 "templates/vocab-lesson-template.php:1074"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11248",
-                "includes/pages/wordset-pages.php:18452",
-                "includes/pages/wordset-pages.php:19301",
+                "includes/pages/wordset-pages.php:18482",
+                "includes/pages/wordset-pages.php:19331",
                 "templates/offline-app-shell-template.php:710"
             ]
         },
@@ -3059,11 +3110,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11249",
-                "includes/pages/wordset-pages.php:19436"
+                "includes/pages/wordset-pages.php:19466"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11249",
-                "includes/pages/wordset-pages.php:19436"
+                "includes/pages/wordset-pages.php:19466"
             ]
         },
         {
@@ -3073,11 +3124,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11250",
-                "includes/pages/wordset-pages.php:19459"
+                "includes/pages/wordset-pages.php:19489"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11250",
-                "includes/pages/wordset-pages.php:19459"
+                "includes/pages/wordset-pages.php:19489"
             ]
         },
         {
@@ -3124,11 +3175,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11254",
-                "includes/pages/wordset-pages.php:19421"
+                "includes/pages/wordset-pages.php:19451"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11254",
-                "includes/pages/wordset-pages.php:19421"
+                "includes/pages/wordset-pages.php:19451"
             ]
         },
         {
@@ -3138,11 +3189,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11255",
-                "includes/pages/wordset-pages.php:19426"
+                "includes/pages/wordset-pages.php:19456"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11255",
-                "includes/pages/wordset-pages.php:19426"
+                "includes/pages/wordset-pages.php:19456"
             ]
         },
         {
@@ -3152,7 +3203,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11256",
-                "includes/pages/wordset-pages.php:19648"
+                "includes/pages/wordset-pages.php:19678"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11256"
@@ -3165,7 +3216,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11257",
-                "includes/pages/wordset-pages.php:19666"
+                "includes/pages/wordset-pages.php:19696"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11257"
@@ -3178,7 +3229,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11258",
-                "includes/pages/wordset-pages.php:19656"
+                "includes/pages/wordset-pages.php:19686"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11258"
@@ -3191,15 +3242,15 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11259",
-                "includes/pages/wordset-pages.php:19308",
-                "includes/pages/wordset-pages.php:19309",
-                "includes/pages/wordset-pages.php:19310"
+                "includes/pages/wordset-pages.php:19338",
+                "includes/pages/wordset-pages.php:19339",
+                "includes/pages/wordset-pages.php:19340"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11259",
-                "includes/pages/wordset-pages.php:19308",
-                "includes/pages/wordset-pages.php:19309",
-                "includes/pages/wordset-pages.php:19310"
+                "includes/pages/wordset-pages.php:19338",
+                "includes/pages/wordset-pages.php:19339",
+                "includes/pages/wordset-pages.php:19340"
             ]
         },
         {
@@ -3217,13 +3268,13 @@
                 "includes/pages/wordset-editor.php:3242",
                 "includes/pages/wordset-editor.php:3250",
                 "includes/pages/wordset-pages.php:11260",
-                "includes/pages/wordset-pages.php:17704",
-                "includes/pages/wordset-pages.php:19317"
+                "includes/pages/wordset-pages.php:17737",
+                "includes/pages/wordset-pages.php:19347"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11260",
-                "includes/pages/wordset-pages.php:17704",
-                "includes/pages/wordset-pages.php:19317"
+                "includes/pages/wordset-pages.php:17737",
+                "includes/pages/wordset-pages.php:19347"
             ]
         },
         {
@@ -3233,11 +3284,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11261",
-                "includes/pages/wordset-pages.php:19320"
+                "includes/pages/wordset-pages.php:19350"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11261",
-                "includes/pages/wordset-pages.php:19320"
+                "includes/pages/wordset-pages.php:19350"
             ]
         },
         {
@@ -3296,7 +3347,7 @@
             "references": [
                 "includes/flashcard-shell.php:209",
                 "includes/pages/wordset-pages.php:11266",
-                "includes/pages/wordset-pages.php:19684"
+                "includes/pages/wordset-pages.php:19714"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11266"
@@ -3321,7 +3372,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11268",
-                "includes/pages/wordset-pages.php:19685"
+                "includes/pages/wordset-pages.php:19715"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11268"
@@ -3346,11 +3397,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11270",
-                "includes/pages/wordset-pages.php:19471"
+                "includes/pages/wordset-pages.php:19501"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11270",
-                "includes/pages/wordset-pages.php:19471"
+                "includes/pages/wordset-pages.php:19501"
             ]
         },
         {
@@ -3432,11 +3483,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11278",
-                "includes/pages/wordset-pages.php:19489"
+                "includes/pages/wordset-pages.php:19519"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11278",
-                "includes/pages/wordset-pages.php:19489"
+                "includes/pages/wordset-pages.php:19519"
             ]
         },
         {
@@ -3472,11 +3523,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11281",
-                "includes/pages/wordset-pages.php:19505"
+                "includes/pages/wordset-pages.php:19535"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:11281",
-                "includes/pages/wordset-pages.php:19505"
+                "includes/pages/wordset-pages.php:19535"
             ]
         },
         {
@@ -3508,10 +3559,10 @@
                 "includes/pages/wordset-pages.php:13682",
                 "includes/pages/wordset-pages.php:15832",
                 "includes/pages/wordset-pages.php:16081",
-                "includes/pages/wordset-pages.php:17634",
-                "includes/pages/wordset-pages.php:17644",
-                "includes/pages/wordset-pages.php:17701",
-                "includes/pages/wordset-pages.php:17930",
+                "includes/pages/wordset-pages.php:17667",
+                "includes/pages/wordset-pages.php:17677",
+                "includes/pages/wordset-pages.php:17734",
+                "includes/pages/wordset-pages.php:17960",
                 "includes/post-types/word-audio-post-type.php:114",
                 "includes/post-types/word-image-post-type.php:1209",
                 "includes/post-types/words-post-type.php:987",
@@ -3520,8 +3571,10 @@
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16081",
-                "includes/pages/wordset-pages.php:17701",
-                "includes/pages/wordset-pages.php:17930",
+                "includes/pages/wordset-pages.php:17667",
+                "includes/pages/wordset-pages.php:17677",
+                "includes/pages/wordset-pages.php:17734",
+                "includes/pages/wordset-pages.php:17960",
                 "includes/shortcodes/flashcard-widget.php:495"
             ]
         },
@@ -3532,11 +3585,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:16118",
-                "includes/pages/wordset-pages.php:17681"
+                "includes/pages/wordset-pages.php:17714"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16118",
-                "includes/pages/wordset-pages.php:17681"
+                "includes/pages/wordset-pages.php:17714"
             ]
         },
         {
@@ -3546,11 +3599,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:16125",
-                "includes/pages/wordset-pages.php:17680"
+                "includes/pages/wordset-pages.php:17713"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:16125",
-                "includes/pages/wordset-pages.php:17680"
+                "includes/pages/wordset-pages.php:16125"
             ]
         },
         {
@@ -3597,11 +3649,11 @@
             "references": [
                 "includes/pages/wordset-pages.php:15998",
                 "includes/pages/wordset-pages.php:16161",
-                "includes/pages/wordset-pages.php:17663"
+                "includes/pages/wordset-pages.php:17696"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16161",
-                "includes/pages/wordset-pages.php:17663"
+                "includes/pages/wordset-pages.php:17696"
             ]
         },
         {
@@ -3612,11 +3664,11 @@
             "references": [
                 "includes/pages/wordset-pages.php:15999",
                 "includes/pages/wordset-pages.php:16165",
-                "includes/pages/wordset-pages.php:17664"
+                "includes/pages/wordset-pages.php:17697"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16165",
-                "includes/pages/wordset-pages.php:17664"
+                "includes/pages/wordset-pages.php:17697"
             ]
         },
         {
@@ -3627,11 +3679,11 @@
             "references": [
                 "includes/pages/wordset-pages.php:16000",
                 "includes/pages/wordset-pages.php:16169",
-                "includes/pages/wordset-pages.php:17665"
+                "includes/pages/wordset-pages.php:17698"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16169",
-                "includes/pages/wordset-pages.php:17665"
+                "includes/pages/wordset-pages.php:17698"
             ]
         },
         {
@@ -3642,12 +3694,13 @@
             "references": [
                 "includes/pages/wordset-pages.php:16001",
                 "includes/pages/wordset-pages.php:16173",
-                "includes/pages/wordset-pages.php:17641",
-                "includes/pages/wordset-pages.php:17666"
+                "includes/pages/wordset-pages.php:17674",
+                "includes/pages/wordset-pages.php:17699"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16173",
-                "includes/pages/wordset-pages.php:17666"
+                "includes/pages/wordset-pages.php:17674",
+                "includes/pages/wordset-pages.php:17699"
             ]
         },
         {
@@ -3659,13 +3712,12 @@
                 "includes/admin/teacher-classes-page.php:711",
                 "includes/pages/wordset-pages.php:16002",
                 "includes/pages/wordset-pages.php:16177",
-                "includes/pages/wordset-pages.php:17667",
-                "includes/pages/wordset-pages.php:17725"
+                "includes/pages/wordset-pages.php:17700",
+                "includes/pages/wordset-pages.php:17758"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:16177",
-                "includes/pages/wordset-pages.php:17667",
-                "includes/pages/wordset-pages.php:17725"
+                "includes/pages/wordset-pages.php:17700"
             ]
         },
         {
@@ -3744,15 +3796,166 @@
             ]
         },
         {
+            "key": "678ebb62b38f5480d3f097b5b3d3072b32661a48",
+            "context": "",
+            "msgid": "Learned",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:11390",
+                "includes/pages/wordset-pages.php:16815",
+                "includes/pages/wordset-pages.php:17727",
+                "includes/pages/wordset-pages.php:17741"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:16815",
+                "includes/pages/wordset-pages.php:17727",
+                "includes/pages/wordset-pages.php:17741"
+            ]
+        },
+        {
+            "key": "21dbed87b76ca7fbde1b07882d94a4dd3804ebb1",
+            "context": "",
+            "msgid": "In progress",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:11395",
+                "includes/pages/wordset-pages.php:16821",
+                "includes/pages/wordset-pages.php:17728",
+                "includes/pages/wordset-pages.php:17742"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:16821",
+                "includes/pages/wordset-pages.php:17728",
+                "includes/pages/wordset-pages.php:17742"
+            ]
+        },
+        {
+            "key": "aa5a22b536ea954586b4e55cd729918186eb60cb",
+            "context": "",
+            "msgid": "New",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/export-import.php:4272",
+                "includes/admin/user-progress-report.php:932",
+                "includes/pages/wordset-pages.php:11400",
+                "includes/pages/wordset-pages.php:16827",
+                "includes/pages/wordset-pages.php:17729",
+                "includes/pages/wordset-pages.php:17739",
+                "includes/pages/wordset-pages.php:17740",
+                "includes/pages/wordset-pages.php:17743"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:16827",
+                "includes/pages/wordset-pages.php:17729",
+                "includes/pages/wordset-pages.php:17739",
+                "includes/pages/wordset-pages.php:17740",
+                "includes/pages/wordset-pages.php:17743"
+            ]
+        },
+        {
+            "key": "f788c2629379922c69a5e09d6290ab96b84151eb",
+            "context": "",
+            "msgid": "Starred",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:16833",
+                "includes/pages/wordset-pages.php:17730",
+                "includes/pages/wordset-pages.php:17749",
+                "includes/pages/wordset-pages.php:18071"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:16833",
+                "includes/pages/wordset-pages.php:17730",
+                "includes/pages/wordset-pages.php:17749",
+                "includes/pages/wordset-pages.php:18071"
+            ]
+        },
+        {
+            "key": "ab37fa92453245c0978180e4bb50295b9037c991",
+            "context": "",
+            "msgid": "Hard",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/teacher-classes-page.php:815",
+                "includes/admin/user-progress-report.php:767",
+                "includes/admin/user-progress-report.php:934",
+                "includes/pages/wordset-pages.php:10876",
+                "includes/pages/wordset-pages.php:11011",
+                "includes/pages/wordset-pages.php:11405",
+                "includes/pages/wordset-pages.php:16839",
+                "includes/pages/wordset-pages.php:17731"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:16839",
+                "includes/pages/wordset-pages.php:17731"
+            ]
+        },
+        {
+            "key": "d5ea6475a0bb86180e5ab3a775b3e2e404164de1",
+            "context": "",
+            "msgid": "This will permanently delete your progress for all categories in this word set. This cannot be undone. Continue?",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17020"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17020"
+            ]
+        },
+        {
+            "key": "9f2d7d1cede89aa621287a6231e906a4cf4d0f29",
+            "context": "",
+            "msgid": "Disabled",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/wordset-language-settings.php:1076",
+                "includes/pages/wordset-pages.php:13953",
+                "includes/pages/wordset-pages.php:14071",
+                "includes/pages/wordset-pages.php:17104"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17104"
+            ]
+        },
+        {
+            "key": "73df9b4032a80156f0990cf45a7396096fbd6859",
+            "context": "",
+            "msgid": "Recording text",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/export-import.php:11995",
+                "includes/admin/export-import.php:12027",
+                "includes/admin/export-import.php:2864",
+                "includes/lib/wordset-language-settings.php:1099",
+                "includes/pages/wordset-pages.php:13968",
+                "includes/pages/wordset-pages.php:17107"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17107"
+            ]
+        },
+        {
+            "key": "1e24f5b2dbfc9710d657be9ff4ec76d8bad62d1a",
+            "context": "",
+            "msgid": "%d mode enabled",
+            "msgid_plural": "%d modes enabled",
+            "references": [
+                "includes/pages/wordset-pages.php:17124"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17124"
+            ]
+        },
+        {
             "key": "5a9b8a529c88e930a0e37b6a8080546a0db51d63",
             "context": "",
             "msgid": "Add target language",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17115"
+                "includes/pages/wordset-pages.php:17148"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17115"
+                "includes/pages/wordset-pages.php:17148"
             ]
         },
         {
@@ -3761,10 +3964,63 @@
             "msgid": "Category translations",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17120"
+                "includes/pages/wordset-pages.php:17153"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17120"
+                "includes/pages/wordset-pages.php:17153"
+            ]
+        },
+        {
+            "key": "d3367c646e56edaa6704f7bc64bad2acdc2f0d0f",
+            "context": "",
+            "msgid": "Private",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-editor.php:2740",
+                "includes/pages/wordset-editor.php:3236",
+                "includes/pages/wordset-pages.php:12520",
+                "includes/pages/wordset-pages.php:17168",
+                "includes/shortcodes/word-grid-shortcode.php:6310",
+                "includes/shortcodes/word-grid-shortcode.php:6322",
+                "includes/taxonomies/word-category-taxonomy.php:826",
+                "includes/taxonomies/word-category-taxonomy.php:853",
+                "includes/taxonomies/wordset-taxonomy.php:3155"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17168"
+            ]
+        },
+        {
+            "key": "2d4748184f86c6be58e19132ed4d500fc9295cb4",
+            "context": "",
+            "msgid": "Public",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:12519",
+                "includes/pages/wordset-pages.php:17168",
+                "includes/taxonomies/word-category-taxonomy.php:825",
+                "includes/taxonomies/word-category-taxonomy.php:852",
+                "includes/taxonomies/wordset-taxonomy.php:3154"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17168"
+            ]
+        },
+        {
+            "key": "f744e8b629f3e6303f97bbea1db0187ba5fbf131",
+            "context": "",
+            "msgid": "%d category",
+            "msgid_plural": "%d categories",
+            "references": [
+                "includes/pages/wordset-editor.php:2880",
+                "includes/pages/wordset-pages.php:12799",
+                "includes/pages/wordset-pages.php:13687",
+                "includes/pages/wordset-pages.php:17175",
+                "includes/pages/wordset-pages.php:17281"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17175",
+                "includes/pages/wordset-pages.php:17281"
             ]
         },
         {
@@ -3773,10 +4029,10 @@
             "msgid": "%d hidden",
             "msgid_plural": "%d hidden",
             "references": [
-                "includes/pages/wordset-pages.php:17151"
+                "includes/pages/wordset-pages.php:17184"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17151"
+                "includes/pages/wordset-pages.php:17184"
             ]
         },
         {
@@ -3787,10 +4043,10 @@
             "references": [
                 "includes/pages/wordset-pages.php:15116",
                 "includes/pages/wordset-pages.php:15153",
-                "includes/pages/wordset-pages.php:17171"
+                "includes/pages/wordset-pages.php:17204"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17171"
+                "includes/pages/wordset-pages.php:17204"
             ]
         },
         {
@@ -3799,10 +4055,10 @@
             "msgid": "%d missing audio",
             "msgid_plural": "%d missing audio",
             "references": [
-                "includes/pages/wordset-pages.php:17176"
+                "includes/pages/wordset-pages.php:17209"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17176"
+                "includes/pages/wordset-pages.php:17209"
             ]
         },
         {
@@ -3812,11 +4068,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:12782",
-                "includes/pages/wordset-pages.php:17192",
+                "includes/pages/wordset-pages.php:17225",
                 "includes/taxonomies/wordset-taxonomy.php:2351"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17192"
+                "includes/pages/wordset-pages.php:17225"
             ]
         },
         {
@@ -3826,50 +4082,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:12783",
-                "includes/pages/wordset-pages.php:17194",
+                "includes/pages/wordset-pages.php:17227",
                 "includes/taxonomies/wordset-taxonomy.php:2418",
                 "templates/vocab-lesson-template.php:989"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17194"
-            ]
-        },
-        {
-            "key": "36a22fa6bb6c7fa7086507115ccd0164fcf1bf9f",
-            "context": "",
-            "msgid": "%d grammar feature",
-            "msgid_plural": "%d grammar features",
-            "references": [
-                "includes/pages/wordset-pages.php:12807",
-                "includes/pages/wordset-pages.php:17204"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17204"
-            ]
-        },
-        {
-            "key": "1a6d6f0ed8fe365a3bea9df2c04b3b03a617cbf4",
-            "context": "",
-            "msgid": "Profile image",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17209"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17209"
-            ]
-        },
-        {
-            "key": "d7a1de9597306c29be5b388708f5ee5b00ff156b",
-            "context": "",
-            "msgid": "Intro blurb",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:12876",
-                "includes/pages/wordset-pages.php:17212"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17212"
+                "includes/pages/wordset-pages.php:17227"
             ]
         },
         {
@@ -3879,10 +4097,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:12814",
-                "includes/pages/wordset-pages.php:17218"
+                "includes/pages/wordset-pages.php:17251"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17218"
+                "includes/pages/wordset-pages.php:17251"
             ]
         },
         {
@@ -3891,10 +4109,35 @@
             "msgid": "Defaults",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17226"
+                "includes/pages/wordset-pages.php:17259"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17226"
+                "includes/pages/wordset-pages.php:17259"
+            ]
+        },
+        {
+            "key": "b2e305e4ef33e9390b5063f40826ebb01de7c257",
+            "context": "",
+            "msgid": "%d category ready",
+            "msgid_plural": "%d categories ready",
+            "references": [
+                "includes/pages/wordset-pages.php:17270",
+                "includes/pages/wordset-pages.php:17360"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17270"
+            ]
+        },
+        {
+            "key": "3bb6fe6c02e793b51651025701427b68f60e8597",
+            "context": "",
+            "msgid": "No categories yet",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17273"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17273"
             ]
         },
         {
@@ -3903,10 +4146,10 @@
             "msgid": "%d image",
             "msgid_plural": "%d images",
             "references": [
-                "includes/pages/wordset-pages.php:17254"
+                "includes/pages/wordset-pages.php:17287"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17254"
+                "includes/pages/wordset-pages.php:17287"
             ]
         },
         {
@@ -3915,10 +4158,10 @@
             "msgid": "No template content yet",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17264"
+                "includes/pages/wordset-pages.php:17297"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17264"
+                "includes/pages/wordset-pages.php:17297"
             ]
         },
         {
@@ -3927,10 +4170,10 @@
             "msgid": "%d recorder assigned",
             "msgid_plural": "%d recorders assigned",
             "references": [
-                "includes/pages/wordset-pages.php:17276"
+                "includes/pages/wordset-pages.php:17309"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17276"
+                "includes/pages/wordset-pages.php:17309"
             ]
         },
         {
@@ -3939,38 +4182,11 @@
             "msgid": "No recorders assigned",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17279",
-                "includes/pages/wordset-pages.php:17293"
+                "includes/pages/wordset-pages.php:17312",
+                "includes/pages/wordset-pages.php:17326"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17279",
-                "includes/pages/wordset-pages.php:17293"
-            ]
-        },
-        {
-            "key": "81ac68a7bdd06cefc116f59006bb312867c6ee3c",
-            "context": "",
-            "msgid": "%d recorder ready",
-            "msgid_plural": "%d recorders ready",
-            "references": [
-                "includes/pages/wordset-pages.php:17290"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17290"
-            ]
-        },
-        {
-            "key": "ef75e7914d7453df3efb6c89399aaac1a4ef1ea8",
-            "context": "",
-            "msgid": "Not ready",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17307",
-                "includes/pages/wordset-pages.php:17308"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17307",
-                "includes/pages/wordset-pages.php:17308"
+                "includes/pages/wordset-pages.php:17312"
             ]
         },
         {
@@ -3979,17 +4195,277 @@
             "msgid": "Loading next recommendation...",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17630",
-                "includes/pages/wordset-pages.php:17631",
-                "includes/pages/wordset-pages.php:18555",
+                "includes/pages/wordset-pages.php:17663",
+                "includes/pages/wordset-pages.php:17664",
+                "includes/pages/wordset-pages.php:18585",
                 "includes/shortcodes/flashcard-widget.php:589",
                 "templates/offline-app-shell-template.php:729"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17630",
-                "includes/pages/wordset-pages.php:18555",
+                "includes/pages/wordset-pages.php:17663",
+                "includes/pages/wordset-pages.php:17664",
+                "includes/pages/wordset-pages.php:18585",
                 "includes/shortcodes/flashcard-widget.php:589",
                 "templates/offline-app-shell-template.php:729"
+            ]
+        },
+        {
+            "key": "9380ac42cf692e7ae4290c6b50fc22a5948c4f74",
+            "context": "",
+            "msgid": "Recommended: %1$s in %2$s (%3$d words).",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17665",
+                "includes/shortcodes/flashcard-widget.php:591"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17665",
+                "includes/shortcodes/flashcard-widget.php:591"
+            ]
+        },
+        {
+            "key": "2f1c494c01ddd9540960dc3b168117892f54e201",
+            "context": "",
+            "msgid": "Recommended: %1$s in %2$s.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17666",
+                "includes/shortcodes/flashcard-widget.php:592"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17666",
+                "includes/shortcodes/flashcard-widget.php:592"
+            ]
+        },
+        {
+            "key": "ba8f54097a986552c9d2b09b0179dc9a29e0fbf1",
+            "context": "",
+            "msgid": "Not public",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17668",
+                "includes/pages/wordset-pages.php:5312",
+                "includes/shortcodes/word-grid-shortcode.php:6312",
+                "includes/shortcodes/word-grid-shortcode.php:6324"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17668",
+                "includes/pages/wordset-pages.php:5312"
+            ]
+        },
+        {
+            "key": "ae8e964fbcf8f603a8ba6e5e1828ec0ddc98eb3e",
+            "context": "",
+            "msgid": "Not public yet.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17669",
+                "includes/pages/wordset-pages.php:2353",
+                "includes/pages/wordset-pages.php:2432",
+                "includes/pages/wordset-pages.php:4070",
+                "includes/pages/wordset-pages.php:5308"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17669"
+            ]
+        },
+        {
+            "key": "bba20261a8e43bdf1d3f643de19108ea13ae8896",
+            "context": "",
+            "msgid": "Delete",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/audio-processor-admin.php:195",
+                "includes/admin/missing-audio-admin-page.php:364",
+                "includes/admin/orphan-media-admin.php:1875",
+                "includes/admin/recording-types-admin.php:163",
+                "includes/admin/teacher-classes-page.php:643",
+                "includes/admin/teacher-classes-page.php:674",
+                "includes/pages/wordset-pages.php:10825",
+                "includes/pages/wordset-pages.php:17671",
+                "includes/shortcodes/site-tools-shortcode.php:1257"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17671"
+            ]
+        },
+        {
+            "key": "6c9ec82137a08ae8ca15498a2b28ab66716252d9",
+            "context": "",
+            "msgid": "Delete this category and any linked vocab lesson? This cannot be undone.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17672",
+                "includes/pages/wordset-pages.php:5387"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17672"
+            ]
+        },
+        {
+            "key": "5beaac066641d171f36b221f48ffe879e6af96b8",
+            "context": "",
+            "msgid": "Category management for %s",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17673",
+                "includes/pages/wordset-pages.php:5369"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17673"
+            ]
+        },
+        {
+            "key": "8ed544d5ec804757ce7b43d1e5ef39155570a6eb",
+            "context": "",
+            "msgid": "Repeat",
+            "msgid_plural": null,
+            "references": [
+                "includes/flashcard-shell.php:200",
+                "includes/pages/wordset-pages.php:17675",
+                "includes/shortcodes/flashcard-widget.php:545"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17675",
+                "includes/shortcodes/flashcard-widget.php:545"
+            ]
+        },
+        {
+            "key": "7da5d741f780ffec42b9c6594c02b236dbb05d2d",
+            "context": "",
+            "msgid": "Continue",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/word-option-rules-admin.php:1955",
+                "includes/pages/wordset-pages.php:17676",
+                "includes/pages/wordset-pages.php:17859",
+                "includes/pages/wordset-pages.php:19435",
+                "includes/shortcodes/audio-recording-shortcode.php:1137",
+                "includes/shortcodes/editor-hub-shortcode.php:1007",
+                "includes/shortcodes/site-tools-shortcode.php:945"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17676",
+                "includes/pages/wordset-pages.php:17859",
+                "includes/pages/wordset-pages.php:19435"
+            ]
+        },
+        {
+            "key": "31c3fa0d37aacc7389d982e68d0d32d3e3cfd33c",
+            "context": "",
+            "msgid": "Recommended",
+            "msgid_plural": null,
+            "references": [
+                "includes/flashcard-shell.php:206",
+                "includes/lib/wordset-language-settings.php:114",
+                "includes/pages/wordset-pages.php:17678",
+                "includes/pages/wordset-pages.php:18579",
+                "includes/shortcodes/flashcard-widget.php:588",
+                "templates/offline-app-shell-template.php:723"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17678",
+                "includes/pages/wordset-pages.php:18579",
+                "includes/shortcodes/flashcard-widget.php:588",
+                "templates/offline-app-shell-template.php:723"
+            ]
+        },
+        {
+            "key": "fa09d79fe1454965561631a96e32d3d67d2f4b81",
+            "context": "",
+            "msgid": "Select categories to study together",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17679",
+                "includes/pages/wordset-pages.php:18748",
+                "includes/shortcodes/flashcard-widget.php:574",
+                "templates/offline-app-shell-template.php:810"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17679",
+                "includes/pages/wordset-pages.php:18748",
+                "includes/shortcodes/flashcard-widget.php:574",
+                "templates/offline-app-shell-template.php:810"
+            ]
+        },
+        {
+            "key": "9cc293d85c2328e1a025aa1bdbf63d8ca9c889e0",
+            "context": "",
+            "msgid": "%d selected",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-editor.php:3177",
+                "includes/pages/wordset-pages.php:17680",
+                "includes/shortcodes/dictionary-shortcode.php:2699",
+                "includes/shortcodes/dictionary-shortcode.php:2713"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17680"
+            ]
+        },
+        {
+            "key": "9bf885c1d68e04e1fa300c8290b84ee147bc8618",
+            "context": "",
+            "msgid": "%1$d selected \u00b7 %2$d words",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17681"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17681"
+            ]
+        },
+        {
+            "key": "c6bcb0361536150220fdc0d48def6b00f31ca679",
+            "context": "",
+            "msgid": "%d words",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17682",
+                "includes/pages/wordset-pages.php:17715",
+                "includes/shortcodes/flashcard-widget.php:541",
+                "includes/shortcodes/flashcard-widget.php:579",
+                "includes/shortcodes/flashcard-widget.php:593"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17682",
+                "includes/pages/wordset-pages.php:17715",
+                "includes/shortcodes/flashcard-widget.php:541",
+                "includes/shortcodes/flashcard-widget.php:579",
+                "includes/shortcodes/flashcard-widget.php:593"
+            ]
+        },
+        {
+            "key": "812936a12d79ad746029cde583b7aa06b0e2f3e5",
+            "context": "",
+            "msgid": "Starred only",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17683",
+                "includes/pages/wordset-pages.php:17756",
+                "includes/pages/wordset-pages.php:18754",
+                "includes/pages/wordset-pages.php:18757"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17683",
+                "includes/pages/wordset-pages.php:18754",
+                "includes/pages/wordset-pages.php:18757"
+            ]
+        },
+        {
+            "key": "c6ef301e269d208eb6e8764a30f2e91f1c58802b",
+            "context": "",
+            "msgid": "Hard words only",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17684",
+                "includes/pages/wordset-pages.php:18759",
+                "includes/pages/wordset-pages.php:18762"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17684",
+                "includes/pages/wordset-pages.php:18759",
+                "includes/pages/wordset-pages.php:18762"
             ]
         },
         {
@@ -3999,10 +4475,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11475",
-                "includes/pages/wordset-pages.php:17652"
+                "includes/pages/wordset-pages.php:17685"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17652"
+                "includes/pages/wordset-pages.php:17685"
             ]
         },
         {
@@ -4012,10 +4488,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11478",
-                "includes/pages/wordset-pages.php:17653"
+                "includes/pages/wordset-pages.php:17686"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17653"
+                "includes/pages/wordset-pages.php:17686"
             ]
         },
         {
@@ -4025,10 +4501,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11481",
-                "includes/pages/wordset-pages.php:17654"
+                "includes/pages/wordset-pages.php:17687"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17654"
+                "includes/pages/wordset-pages.php:17687"
             ]
         },
         {
@@ -4039,18 +4515,17 @@
             "references": [
                 "includes/admin/ipa-keyboard-admin.php:470",
                 "includes/flashcard-shell.php:102",
-                "includes/pages/wordset-pages.php:17655",
-                "includes/pages/wordset-pages.php:17734",
-                "includes/pages/wordset-pages.php:18023",
-                "includes/pages/wordset-pages.php:18691",
+                "includes/pages/wordset-pages.php:17688",
+                "includes/pages/wordset-pages.php:17767",
+                "includes/pages/wordset-pages.php:18053",
+                "includes/pages/wordset-pages.php:18721",
                 "includes/shortcodes/flashcard-widget.php:577",
                 "templates/offline-app-shell-template.php:805"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17655",
-                "includes/pages/wordset-pages.php:17734",
-                "includes/pages/wordset-pages.php:18023",
-                "includes/pages/wordset-pages.php:18691",
+                "includes/pages/wordset-pages.php:17688",
+                "includes/pages/wordset-pages.php:18053",
+                "includes/pages/wordset-pages.php:18721",
                 "includes/shortcodes/flashcard-widget.php:577",
                 "templates/offline-app-shell-template.php:805"
             ]
@@ -4062,13 +4537,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/flashcard-shell.php:101",
-                "includes/pages/wordset-pages.php:17656",
-                "includes/pages/wordset-pages.php:17735",
+                "includes/pages/wordset-pages.php:17689",
+                "includes/pages/wordset-pages.php:17768",
                 "includes/shortcodes/flashcard-widget.php:578"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17656",
-                "includes/pages/wordset-pages.php:17735",
+                "includes/pages/wordset-pages.php:17689",
                 "includes/shortcodes/flashcard-widget.php:578"
             ]
         },
@@ -4079,11 +4553,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-editor.php:3418",
-                "includes/pages/wordset-pages.php:17657",
+                "includes/pages/wordset-pages.php:17690",
                 "includes/pages/wordset-pages.php:5338"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17657"
+                "includes/pages/wordset-pages.php:17690"
             ]
         },
         {
@@ -4093,12 +4567,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/ipa-keyboard-admin.php:422",
-                "includes/pages/wordset-pages.php:17658",
+                "includes/pages/wordset-pages.php:17691",
                 "includes/pages/wordset-pages.php:5365",
                 "includes/pages/wordset-pages.php:5374"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17658"
+                "includes/pages/wordset-pages.php:17691"
             ]
         },
         {
@@ -4107,11 +4581,11 @@
             "msgid": "Delete %s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17659",
+                "includes/pages/wordset-pages.php:17692",
                 "includes/pages/wordset-pages.php:5382"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17659"
+                "includes/pages/wordset-pages.php:17692"
             ]
         },
         {
@@ -4120,10 +4594,10 @@
             "msgid": "Starred words in %s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17660"
+                "includes/pages/wordset-pages.php:17693"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17660"
+                "includes/pages/wordset-pages.php:17693"
             ]
         },
         {
@@ -4132,11 +4606,11 @@
             "msgid": "Quiz modes for %s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17661",
+                "includes/pages/wordset-pages.php:17694",
                 "includes/pages/wordset-pages.php:5477"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17661"
+                "includes/pages/wordset-pages.php:17694"
             ]
         },
         {
@@ -4145,12 +4619,12 @@
             "msgid": "%1$s: %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17662",
+                "includes/pages/wordset-pages.php:17695",
                 "includes/pages/wordset-pages.php:5482",
                 "includes/shortcodes/flashcard-widget.php:597"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17662",
+                "includes/pages/wordset-pages.php:17695",
                 "includes/shortcodes/flashcard-widget.php:597"
             ]
         },
@@ -4163,13 +4637,13 @@
                 "includes/admin/bulk-translation-admin.php:216",
                 "includes/admin/ipa-keyboard-admin.php:304",
                 "includes/admin/ipa-keyboard-admin.php:442",
-                "includes/pages/wordset-pages.php:17668",
+                "includes/pages/wordset-pages.php:17701",
                 "includes/post-types/prompt-card-post-type.php:945",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:204",
                 "templates/vocab-lesson-template.php:536"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17668",
+                "includes/pages/wordset-pages.php:17701",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:204"
             ]
         },
@@ -4179,11 +4653,12 @@
             "msgid": "Unable to save right now.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17669",
-                "includes/pages/wordset-pages.php:17777"
+                "includes/pages/wordset-pages.php:17702",
+                "includes/pages/wordset-pages.php:17810"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17669"
+                "includes/pages/wordset-pages.php:17702",
+                "includes/pages/wordset-pages.php:17810"
             ]
         },
         {
@@ -4192,10 +4667,10 @@
             "msgid": "Select at least one category.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17670"
+                "includes/pages/wordset-pages.php:17703"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17670"
+                "includes/pages/wordset-pages.php:17703"
             ]
         },
         {
@@ -4204,10 +4679,10 @@
             "msgid": "No quiz words are available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17671"
+                "includes/pages/wordset-pages.php:17704"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17671"
+                "includes/pages/wordset-pages.php:17704"
             ]
         },
         {
@@ -4216,10 +4691,10 @@
             "msgid": "No starred words are available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17672"
+                "includes/pages/wordset-pages.php:17705"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17672"
+                "includes/pages/wordset-pages.php:17705"
             ]
         },
         {
@@ -4228,22 +4703,10 @@
             "msgid": "No hard words are available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17673"
+                "includes/pages/wordset-pages.php:17706"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17673"
-            ]
-        },
-        {
-            "key": "866d407a04f1f366873aae1bffd180f8528ac0b3",
-            "context": "",
-            "msgid": "No new words are available for this selection.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17674"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17674"
+                "includes/pages/wordset-pages.php:17706"
             ]
         },
         {
@@ -4252,83 +4715,10 @@
             "msgid": "No in progress words are available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17675"
+                "includes/pages/wordset-pages.php:17708"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17675"
-            ]
-        },
-        {
-            "key": "aaca4fca762f6e0e854405faa529a717454559d4",
-            "context": "",
-            "msgid": "No learned words are available for this selection.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17676"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17676"
-            ]
-        },
-        {
-            "key": "15fc8914eea1c8a9f8f35020cfc5973e1edc3c38",
-            "context": "",
-            "msgid": "No starred hard words are available for this selection.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17677"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17677"
-            ]
-        },
-        {
-            "key": "03c047e60914f1607945e52ca190f9a9f30c63a5",
-            "context": "",
-            "msgid": "No hidden categories in this word set.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17678",
-                "includes/pages/wordset-pages.php:18285"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17678",
-                "includes/pages/wordset-pages.php:18285"
-            ]
-        },
-        {
-            "key": "286fba678f7369f12dc971ccca51d8f1cb94e754",
-            "context": "",
-            "msgid": "Hidden Categories",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17679",
-                "includes/pages/wordset-pages.php:18275",
-                "includes/pages/wordset-pages.php:18437"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17679",
-                "includes/pages/wordset-pages.php:18275",
-                "includes/pages/wordset-pages.php:18437"
-            ]
-        },
-        {
-            "key": "c6bcb0361536150220fdc0d48def6b00f31ca679",
-            "context": "",
-            "msgid": "%d words",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17649",
-                "includes/pages/wordset-pages.php:17682",
-                "includes/shortcodes/flashcard-widget.php:541",
-                "includes/shortcodes/flashcard-widget.php:579",
-                "includes/shortcodes/flashcard-widget.php:593"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17682",
-                "includes/shortcodes/flashcard-widget.php:541",
-                "includes/shortcodes/flashcard-widget.php:579",
-                "includes/shortcodes/flashcard-widget.php:593"
+                "includes/pages/wordset-pages.php:17708"
             ]
         },
         {
@@ -4337,17 +4727,17 @@
             "msgid": "Progress",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17683",
-                "includes/pages/wordset-pages.php:17851",
-                "includes/pages/wordset-pages.php:17929",
-                "includes/pages/wordset-pages.php:17981",
+                "includes/pages/wordset-pages.php:17716",
+                "includes/pages/wordset-pages.php:17884",
+                "includes/pages/wordset-pages.php:17959",
+                "includes/pages/wordset-pages.php:18011",
                 "includes/shortcodes/editor-hub-shortcode.php:1102"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17683",
-                "includes/pages/wordset-pages.php:17851",
-                "includes/pages/wordset-pages.php:17929",
-                "includes/pages/wordset-pages.php:17981"
+                "includes/pages/wordset-pages.php:17716",
+                "includes/pages/wordset-pages.php:17884",
+                "includes/pages/wordset-pages.php:17959",
+                "includes/pages/wordset-pages.php:18011"
             ]
         },
         {
@@ -4356,12 +4746,12 @@
             "msgid": "Loading progress...",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17684",
-                "includes/pages/wordset-pages.php:17877"
+                "includes/pages/wordset-pages.php:17717",
+                "includes/pages/wordset-pages.php:17910"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17684",
-                "includes/pages/wordset-pages.php:17877"
+                "includes/pages/wordset-pages.php:17717",
+                "includes/pages/wordset-pages.php:17910"
             ]
         },
         {
@@ -4370,10 +4760,10 @@
             "msgid": "Progress is unavailable right now.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17685"
+                "includes/pages/wordset-pages.php:17718"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17685"
+                "includes/pages/wordset-pages.php:17718"
             ]
         },
         {
@@ -4382,10 +4772,10 @@
             "msgid": "Selected categories (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17686"
+                "includes/pages/wordset-pages.php:17719"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17686"
+                "includes/pages/wordset-pages.php:17719"
             ]
         },
         {
@@ -4394,10 +4784,10 @@
             "msgid": "All categories (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17687"
+                "includes/pages/wordset-pages.php:17720"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17687"
+                "includes/pages/wordset-pages.php:17720"
             ]
         },
         {
@@ -4420,10 +4810,10 @@
                 "includes/pages/wordset-editor.php:3381",
                 "includes/pages/wordset-editor.php:3420",
                 "includes/pages/wordset-pages.php:11313",
-                "includes/pages/wordset-pages.php:17688",
-                "includes/pages/wordset-pages.php:18050",
-                "includes/pages/wordset-pages.php:18052",
-                "includes/pages/wordset-pages.php:19614",
+                "includes/pages/wordset-pages.php:17721",
+                "includes/pages/wordset-pages.php:18080",
+                "includes/pages/wordset-pages.php:18082",
+                "includes/pages/wordset-pages.php:19644",
                 "includes/post-types/word-audio-post-type.php:113",
                 "includes/post-types/words-post-type.php:22",
                 "includes/privacy.php:387",
@@ -4433,9 +4823,9 @@
                 "includes/shortcodes/word-grid-shortcode.php:5675"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17688",
-                "includes/pages/wordset-pages.php:18050",
-                "includes/pages/wordset-pages.php:18052"
+                "includes/pages/wordset-pages.php:17721",
+                "includes/pages/wordset-pages.php:18080",
+                "includes/pages/wordset-pages.php:18082"
             ]
         },
         {
@@ -4450,10 +4840,10 @@
                 "includes/admin/word-option-rules-admin.php:1370",
                 "includes/pages/wordset-editor.php:3226",
                 "includes/pages/wordset-pages.php:14179",
-                "includes/pages/wordset-pages.php:17689",
-                "includes/pages/wordset-pages.php:17975",
-                "includes/pages/wordset-pages.php:18056",
-                "includes/pages/wordset-pages.php:18064",
+                "includes/pages/wordset-pages.php:17722",
+                "includes/pages/wordset-pages.php:18005",
+                "includes/pages/wordset-pages.php:18086",
+                "includes/pages/wordset-pages.php:18094",
                 "includes/post-types/prompt-card-post-type.php:1113",
                 "includes/privacy.php:389",
                 "includes/privacy.php:478",
@@ -4466,10 +4856,10 @@
                 "templates/vocab-lesson-template.php:904"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17689",
-                "includes/pages/wordset-pages.php:17975",
-                "includes/pages/wordset-pages.php:18056",
-                "includes/pages/wordset-pages.php:18064",
+                "includes/pages/wordset-pages.php:17722",
+                "includes/pages/wordset-pages.php:18005",
+                "includes/pages/wordset-pages.php:18086",
+                "includes/pages/wordset-pages.php:18094",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:187"
             ]
         },
@@ -4479,8 +4869,8 @@
             "msgid": "Part of speech",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17690",
-                "includes/pages/wordset-pages.php:18083",
+                "includes/pages/wordset-pages.php:17723",
+                "includes/pages/wordset-pages.php:18113",
                 "includes/post-types/dictionary-entry-post-type.php:1321",
                 "includes/shortcodes/editor-hub-shortcode.php:1058",
                 "includes/shortcodes/editor-hub-shortcode.php:514",
@@ -4488,8 +4878,8 @@
                 "templates/vocab-lesson-template.php:632"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17690",
-                "includes/pages/wordset-pages.php:18083"
+                "includes/pages/wordset-pages.php:17723",
+                "includes/pages/wordset-pages.php:18113"
             ]
         },
         {
@@ -4500,12 +4890,12 @@
             "references": [
                 "includes/pages/wordset-editor.php:728",
                 "includes/pages/wordset-pages.php:11437",
-                "includes/pages/wordset-pages.php:17691",
-                "includes/pages/wordset-pages.php:18075"
+                "includes/pages/wordset-pages.php:17724",
+                "includes/pages/wordset-pages.php:18105"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17691",
-                "includes/pages/wordset-pages.php:18075"
+                "includes/pages/wordset-pages.php:17724",
+                "includes/pages/wordset-pages.php:18105"
             ]
         },
         {
@@ -4514,12 +4904,12 @@
             "msgid": "Activity",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17692",
-                "includes/pages/wordset-pages.php:17987"
+                "includes/pages/wordset-pages.php:17725",
+                "includes/pages/wordset-pages.php:18017"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17692",
-                "includes/pages/wordset-pages.php:17987"
+                "includes/pages/wordset-pages.php:17725",
+                "includes/pages/wordset-pages.php:18017"
             ]
         },
         {
@@ -4528,100 +4918,12 @@
             "msgid": "Word Progress",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17693",
-                "includes/pages/wordset-pages.php:17981"
+                "includes/pages/wordset-pages.php:17726",
+                "includes/pages/wordset-pages.php:18011"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17693",
-                "includes/pages/wordset-pages.php:17981"
-            ]
-        },
-        {
-            "key": "678ebb62b38f5480d3f097b5b3d3072b32661a48",
-            "context": "",
-            "msgid": "Learned",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:11390",
-                "includes/pages/wordset-pages.php:17694",
-                "includes/pages/wordset-pages.php:17708",
-                "includes/pages/wordset-pages.php:17891"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17694",
-                "includes/pages/wordset-pages.php:17708",
-                "includes/pages/wordset-pages.php:17891"
-            ]
-        },
-        {
-            "key": "21dbed87b76ca7fbde1b07882d94a4dd3804ebb1",
-            "context": "",
-            "msgid": "In progress",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:11395",
-                "includes/pages/wordset-pages.php:17695",
-                "includes/pages/wordset-pages.php:17709",
-                "includes/pages/wordset-pages.php:17898"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17695",
-                "includes/pages/wordset-pages.php:17898"
-            ]
-        },
-        {
-            "key": "aa5a22b536ea954586b4e55cd729918186eb60cb",
-            "context": "",
-            "msgid": "New",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/export-import.php:4272",
-                "includes/admin/user-progress-report.php:932",
-                "includes/pages/wordset-pages.php:11400",
-                "includes/pages/wordset-pages.php:17696",
-                "includes/pages/wordset-pages.php:17706",
-                "includes/pages/wordset-pages.php:17707",
-                "includes/pages/wordset-pages.php:17710",
-                "includes/pages/wordset-pages.php:17905"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17696",
-                "includes/pages/wordset-pages.php:17706",
-                "includes/pages/wordset-pages.php:17905"
-            ]
-        },
-        {
-            "key": "f788c2629379922c69a5e09d6290ab96b84151eb",
-            "context": "",
-            "msgid": "Starred",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17697",
-                "includes/pages/wordset-pages.php:17716",
-                "includes/pages/wordset-pages.php:18041"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17697",
-                "includes/pages/wordset-pages.php:17716",
-                "includes/pages/wordset-pages.php:18041"
-            ]
-        },
-        {
-            "key": "ab37fa92453245c0978180e4bb50295b9037c991",
-            "context": "",
-            "msgid": "Hard",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/teacher-classes-page.php:815",
-                "includes/admin/user-progress-report.php:767",
-                "includes/admin/user-progress-report.php:934",
-                "includes/pages/wordset-pages.php:10876",
-                "includes/pages/wordset-pages.php:11011",
-                "includes/pages/wordset-pages.php:11405",
-                "includes/pages/wordset-pages.php:17698"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17698"
+                "includes/pages/wordset-pages.php:17726",
+                "includes/pages/wordset-pages.php:18011"
             ]
         },
         {
@@ -4630,12 +4932,12 @@
             "msgid": "Last 14 days",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17699",
-                "includes/pages/wordset-pages.php:17881"
+                "includes/pages/wordset-pages.php:17732",
+                "includes/pages/wordset-pages.php:17914"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17699",
-                "includes/pages/wordset-pages.php:17881"
+                "includes/pages/wordset-pages.php:17732",
+                "includes/pages/wordset-pages.php:17914"
             ]
         },
         {
@@ -4644,10 +4946,10 @@
             "msgid": "No activity yet.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17700"
+                "includes/pages/wordset-pages.php:17733"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17700"
+                "includes/pages/wordset-pages.php:17733"
             ]
         },
         {
@@ -4664,14 +4966,14 @@
                 "includes/admin/image-aspect-normalizer-admin.php:102",
                 "includes/admin/user-progress-report.php:956",
                 "includes/pages/wordset-editor.php:3182",
-                "includes/pages/wordset-pages.php:17702",
-                "includes/pages/wordset-pages.php:17931",
+                "includes/pages/wordset-pages.php:17735",
+                "includes/pages/wordset-pages.php:17961",
                 "includes/post-types/words-post-type.php:21",
                 "includes/post-types/words-post-type.php:26"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17702",
-                "includes/pages/wordset-pages.php:17931"
+                "includes/pages/wordset-pages.php:17735",
+                "includes/pages/wordset-pages.php:17961"
             ]
         },
         {
@@ -4680,14 +4982,14 @@
             "msgid": "No data yet.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17703",
-                "includes/pages/wordset-pages.php:18001",
-                "includes/pages/wordset-pages.php:18214"
+                "includes/pages/wordset-pages.php:17736",
+                "includes/pages/wordset-pages.php:18031",
+                "includes/pages/wordset-pages.php:18244"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17703",
-                "includes/pages/wordset-pages.php:18001",
-                "includes/pages/wordset-pages.php:18214"
+                "includes/pages/wordset-pages.php:17736",
+                "includes/pages/wordset-pages.php:18031",
+                "includes/pages/wordset-pages.php:18244"
             ]
         },
         {
@@ -4696,10 +4998,60 @@
             "msgid": "Hardest",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17705"
+                "includes/pages/wordset-pages.php:17738"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17705"
+                "includes/pages/wordset-pages.php:17738"
+            ]
+        },
+        {
+            "key": "eaff5e978449800bd5611ec5df78e685f791e987",
+            "context": "",
+            "msgid": "Play audio for %s",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17744"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17744"
+            ]
+        },
+        {
+            "key": "aeb6743c42e56deec715bceece77a85f9cc93915",
+            "context": "",
+            "msgid": "Play audio",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/vocab-lesson-pages.php:1648",
+                "includes/pages/vocab-lesson-pages.php:1669",
+                "includes/pages/wordset-pages.php:17745",
+                "includes/shortcodes/flashcard-widget.php:505",
+                "includes/shortcodes/flashcard-widget.php:510",
+                "includes/shortcodes/word-audio-shortcode.php:188",
+                "includes/taxonomies/word-category-taxonomy.php:1161"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17745",
+                "includes/shortcodes/flashcard-widget.php:505",
+                "includes/shortcodes/flashcard-widget.php:510",
+                "includes/shortcodes/word-audio-shortcode.php:188"
+            ]
+        },
+        {
+            "key": "832189150fd2b0a735cde3e80c49389c04067c22",
+            "context": "",
+            "msgid": "Star word",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17746",
+                "includes/shortcodes/flashcard-widget.php:514",
+                "includes/shortcodes/word-grid-shortcode.php:3949",
+                "includes/shortcodes/word-grid-shortcode.php:6143"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17746",
+                "includes/shortcodes/flashcard-widget.php:514",
+                "includes/shortcodes/word-grid-shortcode.php:6143"
             ]
         },
         {
@@ -4708,12 +5060,12 @@
             "msgid": "Unstar word",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17714",
+                "includes/pages/wordset-pages.php:17747",
                 "includes/shortcodes/word-grid-shortcode.php:3950",
                 "includes/shortcodes/word-grid-shortcode.php:6142"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17714",
+                "includes/pages/wordset-pages.php:17747",
                 "includes/shortcodes/word-grid-shortcode.php:6142"
             ]
         },
@@ -4723,10 +5075,10 @@
             "msgid": "Any",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17715"
+                "includes/pages/wordset-pages.php:17748"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17715"
+                "includes/pages/wordset-pages.php:17748"
             ]
         },
         {
@@ -4740,16 +5092,16 @@
                 "includes/admin/split-word-admin.php:397",
                 "includes/admin/user-progress-report.php:992",
                 "includes/pages/wordset-editor.php:3230",
-                "includes/pages/wordset-pages.php:17717",
-                "includes/pages/wordset-pages.php:18094",
-                "includes/pages/wordset-pages.php:18102",
+                "includes/pages/wordset-pages.php:17750",
+                "includes/pages/wordset-pages.php:18124",
+                "includes/pages/wordset-pages.php:18132",
                 "includes/privacy.php:395",
                 "includes/privacy.php:484"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17717",
-                "includes/pages/wordset-pages.php:18094",
-                "includes/pages/wordset-pages.php:18102"
+                "includes/pages/wordset-pages.php:17750",
+                "includes/pages/wordset-pages.php:18124",
+                "includes/pages/wordset-pages.php:18132"
             ]
         },
         {
@@ -4758,14 +5110,14 @@
             "msgid": "Filter by part of speech",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17718",
-                "includes/pages/wordset-pages.php:18077",
-                "includes/pages/wordset-pages.php:18089"
+                "includes/pages/wordset-pages.php:17751",
+                "includes/pages/wordset-pages.php:18107",
+                "includes/pages/wordset-pages.php:18119"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17718",
-                "includes/pages/wordset-pages.php:18077",
-                "includes/pages/wordset-pages.php:18089"
+                "includes/pages/wordset-pages.php:17751",
+                "includes/pages/wordset-pages.php:18107",
+                "includes/pages/wordset-pages.php:18119"
             ]
         },
         {
@@ -4775,18 +5127,17 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11017",
-                "includes/pages/wordset-pages.php:17719",
-                "includes/pages/wordset-pages.php:17746",
-                "includes/pages/wordset-pages.php:17993",
-                "includes/pages/wordset-pages.php:18191",
-                "includes/pages/wordset-pages.php:18199"
+                "includes/pages/wordset-pages.php:17752",
+                "includes/pages/wordset-pages.php:17779",
+                "includes/pages/wordset-pages.php:18023",
+                "includes/pages/wordset-pages.php:18221",
+                "includes/pages/wordset-pages.php:18229"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17719",
-                "includes/pages/wordset-pages.php:17746",
-                "includes/pages/wordset-pages.php:17993",
-                "includes/pages/wordset-pages.php:18191",
-                "includes/pages/wordset-pages.php:18199"
+                "includes/pages/wordset-pages.php:17752",
+                "includes/pages/wordset-pages.php:18023",
+                "includes/pages/wordset-pages.php:18221",
+                "includes/pages/wordset-pages.php:18229"
             ]
         },
         {
@@ -4795,12 +5146,12 @@
             "msgid": "Difficulty Score",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17720",
-                "includes/pages/wordset-pages.php:18124"
+                "includes/pages/wordset-pages.php:17753",
+                "includes/pages/wordset-pages.php:18154"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17720",
-                "includes/pages/wordset-pages.php:18124"
+                "includes/pages/wordset-pages.php:17753",
+                "includes/pages/wordset-pages.php:18154"
             ]
         },
         {
@@ -4810,16 +5161,16 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11410",
-                "includes/pages/wordset-pages.php:17721",
-                "includes/pages/wordset-pages.php:18139",
-                "includes/pages/wordset-pages.php:18150",
-                "includes/pages/wordset-pages.php:18151"
+                "includes/pages/wordset-pages.php:17754",
+                "includes/pages/wordset-pages.php:18169",
+                "includes/pages/wordset-pages.php:18180",
+                "includes/pages/wordset-pages.php:18181"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17721",
-                "includes/pages/wordset-pages.php:18139",
-                "includes/pages/wordset-pages.php:18150",
-                "includes/pages/wordset-pages.php:18151"
+                "includes/pages/wordset-pages.php:17754",
+                "includes/pages/wordset-pages.php:18169",
+                "includes/pages/wordset-pages.php:18180",
+                "includes/pages/wordset-pages.php:18181"
             ]
         },
         {
@@ -4831,269 +5182,16 @@
                 "includes/pages/vocab-lesson-pages.php:1605",
                 "includes/pages/vocab-lesson-pages.php:1678",
                 "includes/pages/wordset-pages.php:11415",
-                "includes/pages/wordset-pages.php:17722",
-                "includes/pages/wordset-pages.php:18165",
-                "includes/pages/wordset-pages.php:18176",
-                "includes/pages/wordset-pages.php:18177"
+                "includes/pages/wordset-pages.php:17755",
+                "includes/pages/wordset-pages.php:18195",
+                "includes/pages/wordset-pages.php:18206",
+                "includes/pages/wordset-pages.php:18207"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17722",
-                "includes/pages/wordset-pages.php:18165",
-                "includes/pages/wordset-pages.php:18176",
-                "includes/pages/wordset-pages.php:18177"
-            ]
-        },
-        {
-            "key": "812936a12d79ad746029cde583b7aa06b0e2f3e5",
-            "context": "",
-            "msgid": "Starred only",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17650",
-                "includes/pages/wordset-pages.php:17723",
-                "includes/pages/wordset-pages.php:18724",
-                "includes/pages/wordset-pages.php:18727"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17723",
-                "includes/pages/wordset-pages.php:18724",
-                "includes/pages/wordset-pages.php:18727"
-            ]
-        },
-        {
-            "key": "7cfb363fe188f04c5391a94f92936c2c5fa5ed35",
-            "context": "",
-            "msgid": "Unstarred only",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17724"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17724"
-            ]
-        },
-        {
-            "key": "4a3fb05e6af1b0a72cff68fb85af4a26ca7bb835",
-            "context": "",
-            "msgid": "Clear filters",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17726",
-                "includes/pages/wordset-pages.php:18026"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17726",
-                "includes/pages/wordset-pages.php:18026"
-            ]
-        },
-        {
-            "key": "589e9a622906aff1412caf88f1474f75aa08e27c",
-            "context": "",
-            "msgid": "Last 24h",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17727"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17727"
-            ]
-        },
-        {
-            "key": "6b6fa5d4c074ace32a6b92a9d946d24ce49855d3",
-            "context": "",
-            "msgid": "Last 7d",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17728"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17728"
-            ]
-        },
-        {
-            "key": "700d24fcef9b390c6c15e5c4484a24842dd3a724",
-            "context": "",
-            "msgid": "Last 30d",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17729"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17729"
-            ]
-        },
-        {
-            "key": "3048c2067f45e3bd4607d3e326e2685eb3f03116",
-            "context": "",
-            "msgid": "Older",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17730"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17730"
-            ]
-        },
-        {
-            "key": "7e13ef899567eb22eb7780235a0f013cd075874a",
-            "context": "",
-            "msgid": "Never",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17731",
-                "includes/pages/wordset-pages.php:17747"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17731",
-                "includes/pages/wordset-pages.php:17747"
-            ]
-        },
-        {
-            "key": "afa4dcee87ab6f317f7d7b4a08422d8b2b901a62",
-            "context": "",
-            "msgid": "Sort ascending",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17732"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17732"
-            ]
-        },
-        {
-            "key": "00933294dd9d3017a3ec6476ce95e22b777908a3",
-            "context": "",
-            "msgid": "Sort descending",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17733"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17733"
-            ]
-        },
-        {
-            "key": "a4a7a8179b7883002dac0b5b7d762591eed147af",
-            "context": "",
-            "msgid": "Select all: %1$s",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17736"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17736"
-            ]
-        },
-        {
-            "key": "c7f1f9b77d64192193b6765c1d51d74e4fb2efc1",
-            "context": "",
-            "msgid": "Deselect all: %1$s",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17737"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17737"
-            ]
-        },
-        {
-            "key": "ac93762e1f7ab50d8471886bf4fc149772e7223f",
-            "context": "",
-            "msgid": "Filtered words",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17738"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17738"
-            ]
-        },
-        {
-            "key": "7ebbefc9319d7483cb8dd47d8e2f11d41ca8908e",
-            "context": "",
-            "msgid": "%d selected words",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17739",
-                "includes/pages/wordset-pages.php:18226"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17739",
-                "includes/pages/wordset-pages.php:18226"
-            ]
-        },
-        {
-            "key": "91f5b1b1a3e0a9f2d98a1798c4acca4857841562",
-            "context": "",
-            "msgid": "Showing %1$d of %2$d words",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17740"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17740"
-            ]
-        },
-        {
-            "key": "9885d207929069a3a76d60636adee714c9495233",
-            "context": "",
-            "msgid": "Showing %1$d of %2$d matching words",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17741"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17741"
-            ]
-        },
-        {
-            "key": "c849c93fd06e54340cc7870cf9404eb378322271",
-            "context": "",
-            "msgid": "Load more words",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17742",
-                "includes/pages/wordset-pages.php:18222"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17742",
-                "includes/pages/wordset-pages.php:18222"
-            ]
-        },
-        {
-            "key": "b40ebf2ae4166e3158f34249814246ae28031c46",
-            "context": "",
-            "msgid": "Loading words...",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17743"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17743"
-            ]
-        },
-        {
-            "key": "2a3ecb8701b5081140979425225388c4f19071eb",
-            "context": "",
-            "msgid": "Load more matching words",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17744"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17744"
-            ]
-        },
-        {
-            "key": "7d0aef99c60b99ea2286cbbe71f4a397415d1a90",
-            "context": "",
-            "msgid": "Loading matching words...",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17745"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17745"
+                "includes/pages/wordset-pages.php:17755",
+                "includes/pages/wordset-pages.php:18195",
+                "includes/pages/wordset-pages.php:18206",
+                "includes/pages/wordset-pages.php:18207"
             ]
         },
         {
@@ -5102,10 +5200,10 @@
             "msgid": "%1$d rounds, %2$d words",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17748"
+                "includes/pages/wordset-pages.php:17781"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17748"
+                "includes/pages/wordset-pages.php:17781"
             ]
         },
         {
@@ -5118,10 +5216,10 @@
                 "includes/flashcard-shell.php:94",
                 "includes/pages/wordset-editor.php:757",
                 "includes/pages/wordset-pages.php:16530",
-                "includes/pages/wordset-pages.php:17749",
-                "includes/pages/wordset-pages.php:17759",
-                "includes/pages/wordset-pages.php:17768",
-                "includes/pages/wordset-pages.php:17920",
+                "includes/pages/wordset-pages.php:17782",
+                "includes/pages/wordset-pages.php:17792",
+                "includes/pages/wordset-pages.php:17801",
+                "includes/pages/wordset-pages.php:17950",
                 "includes/pages/wordset-pages.php:4832",
                 "includes/shortcodes/editor-hub-shortcode.php:1059",
                 "includes/shortcodes/editor-hub-shortcode.php:515",
@@ -5138,8 +5236,10 @@
                 "templates/vocab-lesson-template.php:672"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17749",
-                "includes/pages/wordset-pages.php:17920",
+                "includes/pages/wordset-pages.php:17782",
+                "includes/pages/wordset-pages.php:17792",
+                "includes/pages/wordset-pages.php:17801",
+                "includes/pages/wordset-pages.php:17950",
                 "includes/shortcodes/flashcard-widget.php:519",
                 "includes/shortcodes/flashcard-widget.php:524",
                 "includes/shortcodes/flashcard-widget.php:529",
@@ -5155,12 +5255,12 @@
             "msgid": "Only words with marked gender are counted.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17750",
-                "includes/pages/wordset-pages.php:17921"
+                "includes/pages/wordset-pages.php:17783",
+                "includes/pages/wordset-pages.php:17951"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17750",
-                "includes/pages/wordset-pages.php:17921"
+                "includes/pages/wordset-pages.php:17783",
+                "includes/pages/wordset-pages.php:17951"
             ]
         },
         {
@@ -5169,10 +5269,10 @@
             "msgid": "%d tracked words",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17751"
+                "includes/pages/wordset-pages.php:17784"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17751"
+                "includes/pages/wordset-pages.php:17784"
             ]
         },
         {
@@ -5181,10 +5281,10 @@
             "msgid": "Tracked",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17752"
+                "includes/pages/wordset-pages.php:17785"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17752"
+                "includes/pages/wordset-pages.php:17785"
             ]
         },
         {
@@ -5193,10 +5293,10 @@
             "msgid": "Not started",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17753"
+                "includes/pages/wordset-pages.php:17786"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17753"
+                "includes/pages/wordset-pages.php:17786"
             ]
         },
         {
@@ -5205,12 +5305,12 @@
             "msgid": "Level 1",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17754",
+                "includes/pages/wordset-pages.php:17787",
                 "includes/shortcodes/flashcard-widget.php:542",
                 "includes/shortcodes/flashcard-widget.php:548"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17754",
+                "includes/pages/wordset-pages.php:17787",
                 "includes/shortcodes/flashcard-widget.php:542",
                 "includes/shortcodes/flashcard-widget.php:548"
             ]
@@ -5221,16 +5321,332 @@
             "msgid": "Level 2",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17755",
+                "includes/pages/wordset-pages.php:17788",
                 "includes/shortcodes/flashcard-widget.php:543",
                 "includes/shortcodes/flashcard-widget.php:546",
                 "includes/shortcodes/flashcard-widget.php:549"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17755",
+                "includes/pages/wordset-pages.php:17788",
                 "includes/shortcodes/flashcard-widget.php:543",
                 "includes/shortcodes/flashcard-widget.php:546",
                 "includes/shortcodes/flashcard-widget.php:549"
+            ]
+        },
+        {
+            "key": "7547f303a159235414801168392697b6504d32db",
+            "context": "",
+            "msgid": "Level 3",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17789",
+                "includes/shortcodes/flashcard-widget.php:544",
+                "includes/shortcodes/flashcard-widget.php:547"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17789",
+                "includes/shortcodes/flashcard-widget.php:544",
+                "includes/shortcodes/flashcard-widget.php:547"
+            ]
+        },
+        {
+            "key": "a83e932803addad46d1ef41c5671bc0a52567216",
+            "context": "",
+            "msgid": "Last practiced",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17790"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17790"
+            ]
+        },
+        {
+            "key": "a5f343d505817fc22b15931c78950339ce594d9d",
+            "context": "",
+            "msgid": "Gender progress",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17791",
+                "includes/privacy.php:411",
+                "includes/shortcodes/flashcard-widget.php:539"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17791",
+                "includes/shortcodes/flashcard-widget.php:539"
+            ]
+        },
+        {
+            "key": "b93dd89c9ca1b022ab71a1fc0404006fc3247b41",
+            "context": "",
+            "msgid": "Level",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17793",
+                "includes/taxonomies/wordset-taxonomy.php:2417",
+                "templates/vocab-lesson-template.php:999"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17793"
+            ]
+        },
+        {
+            "key": "6bd985e6a5489d3ca298eca5475d584d1f300bae",
+            "context": "",
+            "msgid": "Show gender progress in the tables",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17794"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17794"
+            ]
+        },
+        {
+            "key": "e86d2a40a18a8912053dddc36aa0f0a52a6a5f6c",
+            "context": "",
+            "msgid": "Show general progress in the tables",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17795"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17795"
+            ]
+        },
+        {
+            "key": "b8b62aa9fbb0db360c75d549314d4ff22bc0f1b0",
+            "context": "",
+            "msgid": "Filter gender",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17796"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17796"
+            ]
+        },
+        {
+            "key": "5689de32060ba9199abd0e3b01e4b538cd64a967",
+            "context": "",
+            "msgid": "Filter level",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17797"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17797"
+            ]
+        },
+        {
+            "key": "d30f2cc61b6b398722fae6459a9c69d04d007d1f",
+            "context": "",
+            "msgid": "Practice",
+            "msgid_plural": null,
+            "references": [
+                "includes/flashcard-shell.php:65",
+                "includes/flashcard-shell.php:90",
+                "includes/pages/wordset-pages.php:16526",
+                "includes/pages/wordset-pages.php:17798",
+                "includes/pages/wordset-pages.php:4828",
+                "includes/shortcodes/flashcard-widget.php:515",
+                "includes/shortcodes/flashcard-widget.php:520",
+                "includes/shortcodes/flashcard-widget.php:525",
+                "includes/shortcodes/flashcard-widget.php:580",
+                "includes/shortcodes/flashcard-widget.php:585",
+                "includes/shortcodes/flashcard-widget.php:645",
+                "includes/shortcodes/flashcard-widget.php:646",
+                "templates/content-lesson-template.php:230",
+                "templates/offline-app-shell-template.php:816",
+                "templates/vocab-lesson-template.php:168"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17798",
+                "includes/shortcodes/flashcard-widget.php:515",
+                "includes/shortcodes/flashcard-widget.php:520",
+                "includes/shortcodes/flashcard-widget.php:525",
+                "includes/shortcodes/flashcard-widget.php:580",
+                "includes/shortcodes/flashcard-widget.php:585",
+                "includes/shortcodes/flashcard-widget.php:645",
+                "includes/shortcodes/flashcard-widget.php:646",
+                "templates/offline-app-shell-template.php:816",
+                "templates/vocab-lesson-template.php:168"
+            ]
+        },
+        {
+            "key": "ccd0f6b0d11dbf7e250aa729280429c30d6ad3ec",
+            "context": "",
+            "msgid": "Learn",
+            "msgid_plural": null,
+            "references": [
+                "includes/flashcard-shell.php:59",
+                "includes/flashcard-shell.php:91",
+                "includes/pages/wordset-pages.php:16527",
+                "includes/pages/wordset-pages.php:17799",
+                "includes/pages/wordset-pages.php:4829",
+                "includes/shortcodes/flashcard-widget.php:516",
+                "includes/shortcodes/flashcard-widget.php:521",
+                "includes/shortcodes/flashcard-widget.php:581",
+                "includes/shortcodes/flashcard-widget.php:586",
+                "includes/shortcodes/flashcard-widget.php:651",
+                "includes/shortcodes/flashcard-widget.php:652",
+                "templates/offline-app-shell-template.php:813",
+                "templates/vocab-lesson-template.php:169"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17799",
+                "includes/shortcodes/flashcard-widget.php:516",
+                "includes/shortcodes/flashcard-widget.php:521",
+                "includes/shortcodes/flashcard-widget.php:581",
+                "includes/shortcodes/flashcard-widget.php:586",
+                "includes/shortcodes/flashcard-widget.php:651",
+                "includes/shortcodes/flashcard-widget.php:652",
+                "templates/offline-app-shell-template.php:813",
+                "templates/vocab-lesson-template.php:169"
+            ]
+        },
+        {
+            "key": "7dfb9f0ac72d32cff7c06c9626b2ac2296f5b81b",
+            "context": "",
+            "msgid": "Listen",
+            "msgid_plural": null,
+            "references": [
+                "includes/flashcard-shell.php:54",
+                "includes/pages/wordset-pages.php:16528",
+                "includes/pages/wordset-pages.php:17800",
+                "includes/pages/wordset-pages.php:4830",
+                "includes/shortcodes/flashcard-widget.php:523",
+                "includes/shortcodes/flashcard-widget.php:582",
+                "includes/shortcodes/flashcard-widget.php:665",
+                "includes/shortcodes/quiz-pages-shortcodes.php:944",
+                "templates/offline-app-shell-template.php:819",
+                "templates/offline-app-shell-template.php:850",
+                "templates/vocab-lesson-template.php:172"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17800",
+                "includes/shortcodes/flashcard-widget.php:523",
+                "includes/shortcodes/flashcard-widget.php:582",
+                "includes/shortcodes/flashcard-widget.php:665",
+                "includes/shortcodes/quiz-pages-shortcodes.php:944",
+                "templates/offline-app-shell-template.php:819",
+                "templates/offline-app-shell-template.php:850"
+            ]
+        },
+        {
+            "key": "35523a99c466ba995426d4c6b5797458dcbcec75",
+            "context": "",
+            "msgid": "Self check",
+            "msgid_plural": null,
+            "references": [
+                "includes/flashcard-shell.php:71",
+                "includes/flashcard-shell.php:92",
+                "includes/pages/wordset-pages.php:16529",
+                "includes/pages/wordset-pages.php:17802",
+                "includes/pages/wordset-pages.php:4831",
+                "includes/shortcodes/flashcard-widget.php:496",
+                "includes/shortcodes/flashcard-widget.php:517",
+                "includes/shortcodes/flashcard-widget.php:522",
+                "includes/shortcodes/flashcard-widget.php:527",
+                "includes/shortcodes/flashcard-widget.php:584",
+                "includes/shortcodes/flashcard-widget.php:658",
+                "includes/shortcodes/flashcard-widget.php:659",
+                "templates/offline-app-shell-template.php:825",
+                "templates/vocab-lesson-template.php:170"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17802",
+                "includes/shortcodes/flashcard-widget.php:496",
+                "includes/shortcodes/flashcard-widget.php:517",
+                "includes/shortcodes/flashcard-widget.php:522",
+                "includes/shortcodes/flashcard-widget.php:527",
+                "includes/shortcodes/flashcard-widget.php:584",
+                "includes/shortcodes/flashcard-widget.php:658",
+                "includes/shortcodes/flashcard-widget.php:659",
+                "templates/offline-app-shell-template.php:825",
+                "templates/vocab-lesson-template.php:170"
+            ]
+        },
+        {
+            "key": "a964cbce7363886c227c518391d4dd37cd4a41a5",
+            "context": "",
+            "msgid": "Main lesson",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17803",
+                "includes/pages/wordset-pages.php:4167"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17803"
+            ]
+        },
+        {
+            "key": "dae78723568029968ec4b6c3404afa1aed50bca3",
+            "context": "",
+            "msgid": "Load more",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/ipa-keyboard-admin.php:350",
+                "includes/pages/wordset-pages.php:17805"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17805"
+            ]
+        },
+        {
+            "key": "7f85c47dc549719b87d18d96935a3659a8416d8f",
+            "context": "",
+            "msgid": "Loading more cards...",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17806"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17806"
+            ]
+        },
+        {
+            "key": "520743d791588be910a4d405712d40f72c6f0a92",
+            "context": "",
+            "msgid": "Could not load more cards right now.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17807",
+                "includes/pages/wordset-pages.php:18915",
+                "includes/pages/wordset-pages.php:18922"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17807"
+            ]
+        },
+        {
+            "key": "c5e95a6a323633b27083c69d123e3be87cefae0d",
+            "context": "",
+            "msgid": "Saving...",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/audio-processor-admin.php:143",
+                "includes/admin/audio-processor-admin.php:164",
+                "includes/admin/ipa-keyboard-admin.php:289",
+                "includes/pages/wordset-pages.php:17808",
+                "includes/shortcodes/dictionary-shortcode.php:90",
+                "includes/shortcodes/word-grid-shortcode.php:3955",
+                "templates/vocab-lesson-template.php:386"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17808"
+            ]
+        },
+        {
+            "key": "f5a83117446c0c03f9a93ba8f9784cd0e1cda477",
+            "context": "",
+            "msgid": "Saved!",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17809"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:17809"
             ]
         },
         {
@@ -5239,22 +5655,10 @@
             "msgid": "Sign in or create an account",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17822"
+                "includes/pages/wordset-pages.php:17855"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17822"
-            ]
-        },
-        {
-            "key": "6718dc34c21554ebfb8550d8d8429b3f9831f800",
-            "context": "",
-            "msgid": "Use the invited email address to manage this word set.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17824"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17824"
+                "includes/pages/wordset-pages.php:17855"
             ]
         },
         {
@@ -5263,43 +5667,10 @@
             "msgid": "Use an account to save your progress and keep learning from this page.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17825"
+                "includes/pages/wordset-pages.php:17858"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17825"
-            ]
-        },
-        {
-            "key": "7da5d741f780ffec42b9c6594c02b236dbb05d2d",
-            "context": "",
-            "msgid": "Continue",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/word-option-rules-admin.php:1955",
-                "includes/pages/wordset-pages.php:17643",
-                "includes/pages/wordset-pages.php:17826",
-                "includes/pages/wordset-pages.php:19405",
-                "includes/shortcodes/audio-recording-shortcode.php:1137",
-                "includes/shortcodes/editor-hub-shortcode.php:1007",
-                "includes/shortcodes/site-tools-shortcode.php:945"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17826",
-                "includes/pages/wordset-pages.php:19405"
-            ]
-        },
-        {
-            "key": "6bdcc5d9893ec6896ad266e167606f9dc7796a90",
-            "context": "",
-            "msgid": "Create manager account",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17830",
-                "includes/pages/wordset-pages.php:17836"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17830",
-                "includes/pages/wordset-pages.php:17836"
+                "includes/pages/wordset-pages.php:17858"
             ]
         },
         {
@@ -5308,26 +5679,14 @@
             "msgid": "Create learner account",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17831",
-                "includes/pages/wordset-pages.php:17862",
-                "includes/pages/wordset-pages.php:19408"
+                "includes/pages/wordset-pages.php:17864",
+                "includes/pages/wordset-pages.php:17895",
+                "includes/pages/wordset-pages.php:19438"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17831",
-                "includes/pages/wordset-pages.php:17862",
-                "includes/pages/wordset-pages.php:19408"
-            ]
-        },
-        {
-            "key": "378e446652d17f8e0fc15f7e9de895ccc81fd5fa",
-            "context": "",
-            "msgid": "This invite can create or connect a Word Set Manager account for this word set.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17833"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:17833"
+                "includes/pages/wordset-pages.php:17864",
+                "includes/pages/wordset-pages.php:17895",
+                "includes/pages/wordset-pages.php:19438"
             ]
         },
         {
@@ -5337,19 +5696,19 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:10698",
-                "includes/pages/wordset-pages.php:17843",
-                "includes/pages/wordset-pages.php:18267",
-                "includes/pages/wordset-pages.php:18307",
-                "includes/pages/wordset-pages.php:19293",
+                "includes/pages/wordset-pages.php:17876",
+                "includes/pages/wordset-pages.php:18297",
+                "includes/pages/wordset-pages.php:18337",
+                "includes/pages/wordset-pages.php:19323",
                 "templates/content-lesson-template.php:114",
                 "templates/content-lesson-template.php:123",
                 "templates/vocab-lesson-template.php:458"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17843",
-                "includes/pages/wordset-pages.php:18267",
-                "includes/pages/wordset-pages.php:18307",
-                "includes/pages/wordset-pages.php:19293",
+                "includes/pages/wordset-pages.php:17876",
+                "includes/pages/wordset-pages.php:18297",
+                "includes/pages/wordset-pages.php:18337",
+                "includes/pages/wordset-pages.php:19323",
                 "templates/content-lesson-template.php:114",
                 "templates/content-lesson-template.php:123"
             ]
@@ -5360,10 +5719,10 @@
             "msgid": "Sign in to view progress",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17857"
+                "includes/pages/wordset-pages.php:17890"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17857"
+                "includes/pages/wordset-pages.php:17890"
             ]
         },
         {
@@ -5372,10 +5731,10 @@
             "msgid": "Use your account to view wordset progress and keep your learning history.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17858"
+                "includes/pages/wordset-pages.php:17891"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17858"
+                "includes/pages/wordset-pages.php:17891"
             ]
         },
         {
@@ -5384,12 +5743,12 @@
             "msgid": "Open progress",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17859",
-                "includes/pages/wordset-pages.php:18492"
+                "includes/pages/wordset-pages.php:17892",
+                "includes/pages/wordset-pages.php:18522"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17859",
-                "includes/pages/wordset-pages.php:18492"
+                "includes/pages/wordset-pages.php:17892",
+                "includes/pages/wordset-pages.php:18522"
             ]
         },
         {
@@ -5398,10 +5757,10 @@
             "msgid": "Reset all categories",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17951"
+                "includes/pages/wordset-pages.php:17981"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17951"
+                "includes/pages/wordset-pages.php:17981"
             ]
         },
         {
@@ -5410,13 +5769,13 @@
             "msgid": "Search categories",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:17957",
-                "includes/pages/wordset-pages.php:17963",
+                "includes/pages/wordset-pages.php:17987",
+                "includes/pages/wordset-pages.php:17993",
                 "includes/shortcodes/word-grid-shortcode.php:5681"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:17957",
-                "includes/pages/wordset-pages.php:17963"
+                "includes/pages/wordset-pages.php:17987",
+                "includes/pages/wordset-pages.php:17993"
             ]
         },
         {
@@ -5425,11 +5784,11 @@
             "msgid": "Search words",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18011",
+                "includes/pages/wordset-pages.php:18041",
                 "includes/shortcodes/word-grid-shortcode.php:5721"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18011"
+                "includes/pages/wordset-pages.php:18041"
             ]
         },
         {
@@ -5438,18 +5797,31 @@
             "msgid": "Search words or translations",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18017",
-                "includes/pages/wordset-pages.php:18615",
-                "includes/pages/wordset-pages.php:18621",
+                "includes/pages/wordset-pages.php:18047",
+                "includes/pages/wordset-pages.php:18645",
+                "includes/pages/wordset-pages.php:18651",
                 "templates/offline-app-shell-template.php:740",
                 "templates/offline-app-shell-template.php:746"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18017",
-                "includes/pages/wordset-pages.php:18615",
-                "includes/pages/wordset-pages.php:18621",
+                "includes/pages/wordset-pages.php:18047",
+                "includes/pages/wordset-pages.php:18645",
+                "includes/pages/wordset-pages.php:18651",
                 "templates/offline-app-shell-template.php:740",
                 "templates/offline-app-shell-template.php:746"
+            ]
+        },
+        {
+            "key": "4a3fb05e6af1b0a72cff68fb85af4a26ca7bb835",
+            "context": "",
+            "msgid": "Clear filters",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17759",
+                "includes/pages/wordset-pages.php:18056"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:18056"
             ]
         },
         {
@@ -5458,12 +5830,12 @@
             "msgid": "Filter star status",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18036",
-                "includes/pages/wordset-pages.php:18045"
+                "includes/pages/wordset-pages.php:18066",
+                "includes/pages/wordset-pages.php:18075"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18036",
-                "includes/pages/wordset-pages.php:18045"
+                "includes/pages/wordset-pages.php:18066",
+                "includes/pages/wordset-pages.php:18075"
             ]
         },
         {
@@ -5472,12 +5844,12 @@
             "msgid": "Filter category",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18058",
-                "includes/pages/wordset-pages.php:18070"
+                "includes/pages/wordset-pages.php:18088",
+                "includes/pages/wordset-pages.php:18100"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18058",
-                "includes/pages/wordset-pages.php:18070"
+                "includes/pages/wordset-pages.php:18088",
+                "includes/pages/wordset-pages.php:18100"
             ]
         },
         {
@@ -5486,12 +5858,12 @@
             "msgid": "Filter status",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18096",
-                "includes/pages/wordset-pages.php:18108"
+                "includes/pages/wordset-pages.php:18126",
+                "includes/pages/wordset-pages.php:18138"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18096",
-                "includes/pages/wordset-pages.php:18108"
+                "includes/pages/wordset-pages.php:18126",
+                "includes/pages/wordset-pages.php:18138"
             ]
         },
         {
@@ -5501,12 +5873,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/user-progress-report.php:993",
-                "includes/pages/wordset-pages.php:18113",
-                "includes/pages/wordset-pages.php:18125"
+                "includes/pages/wordset-pages.php:18143",
+                "includes/pages/wordset-pages.php:18155"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18113",
-                "includes/pages/wordset-pages.php:18125"
+                "includes/pages/wordset-pages.php:18143",
+                "includes/pages/wordset-pages.php:18155"
             ]
         },
         {
@@ -5515,12 +5887,12 @@
             "msgid": "Filter difficulty score",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18118",
-                "includes/pages/wordset-pages.php:18134"
+                "includes/pages/wordset-pages.php:18148",
+                "includes/pages/wordset-pages.php:18164"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18118",
-                "includes/pages/wordset-pages.php:18134"
+                "includes/pages/wordset-pages.php:18148",
+                "includes/pages/wordset-pages.php:18164"
             ]
         },
         {
@@ -5529,12 +5901,12 @@
             "msgid": "Filter seen count",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18144",
-                "includes/pages/wordset-pages.php:18160"
+                "includes/pages/wordset-pages.php:18174",
+                "includes/pages/wordset-pages.php:18190"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18144",
-                "includes/pages/wordset-pages.php:18160"
+                "includes/pages/wordset-pages.php:18174",
+                "includes/pages/wordset-pages.php:18190"
             ]
         },
         {
@@ -5543,12 +5915,12 @@
             "msgid": "Filter wrong count",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18170",
-                "includes/pages/wordset-pages.php:18186"
+                "includes/pages/wordset-pages.php:18200",
+                "includes/pages/wordset-pages.php:18216"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18170",
-                "includes/pages/wordset-pages.php:18186"
+                "includes/pages/wordset-pages.php:18200",
+                "includes/pages/wordset-pages.php:18216"
             ]
         },
         {
@@ -5557,12 +5929,38 @@
             "msgid": "Filter last seen",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18193",
-                "includes/pages/wordset-pages.php:18205"
+                "includes/pages/wordset-pages.php:18223",
+                "includes/pages/wordset-pages.php:18235"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18193",
-                "includes/pages/wordset-pages.php:18205"
+                "includes/pages/wordset-pages.php:18223",
+                "includes/pages/wordset-pages.php:18235"
+            ]
+        },
+        {
+            "key": "c849c93fd06e54340cc7870cf9404eb378322271",
+            "context": "",
+            "msgid": "Load more words",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17775",
+                "includes/pages/wordset-pages.php:18252"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:18252"
+            ]
+        },
+        {
+            "key": "7ebbefc9319d7483cb8dd47d8e2f11d41ca8908e",
+            "context": "",
+            "msgid": "%d selected words",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17772",
+                "includes/pages/wordset-pages.php:18256"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:18256"
             ]
         },
         {
@@ -5572,16 +5970,31 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/ipa-keyboard-admin.php:471",
-                "includes/pages/wordset-pages.php:18238",
-                "includes/pages/wordset-pages.php:18745",
+                "includes/pages/wordset-pages.php:18268",
+                "includes/pages/wordset-pages.php:18775",
                 "includes/shortcodes/flashcard-widget.php:576",
                 "templates/offline-app-shell-template.php:828"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18238",
-                "includes/pages/wordset-pages.php:18745",
+                "includes/pages/wordset-pages.php:18268",
+                "includes/pages/wordset-pages.php:18775",
                 "includes/shortcodes/flashcard-widget.php:576",
                 "templates/offline-app-shell-template.php:828"
+            ]
+        },
+        {
+            "key": "286fba678f7369f12dc971ccca51d8f1cb94e754",
+            "context": "",
+            "msgid": "Hidden Categories",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17712",
+                "includes/pages/wordset-pages.php:18305",
+                "includes/pages/wordset-pages.php:18467"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:18305",
+                "includes/pages/wordset-pages.php:18467"
             ]
         },
         {
@@ -5590,10 +6003,23 @@
             "msgid": "Sign in to manage hidden categories.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18279"
+                "includes/pages/wordset-pages.php:18309"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18279"
+                "includes/pages/wordset-pages.php:18309"
+            ]
+        },
+        {
+            "key": "03c047e60914f1607945e52ca190f9a9f30c63a5",
+            "context": "",
+            "msgid": "No hidden categories in this word set.",
+            "msgid_plural": null,
+            "references": [
+                "includes/pages/wordset-pages.php:17711",
+                "includes/pages/wordset-pages.php:18315"
+            ],
+            "public_references": [
+                "includes/pages/wordset-pages.php:18315"
             ]
         },
         {
@@ -5602,10 +6028,10 @@
             "msgid": "Unhide %s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18292"
+                "includes/pages/wordset-pages.php:18322"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18292"
+                "includes/pages/wordset-pages.php:18322"
             ]
         },
         {
@@ -5616,10 +6042,10 @@
             "references": [
                 "includes/pages/wordset-pages.php:12108",
                 "includes/pages/wordset-pages.php:16460",
-                "includes/pages/wordset-pages.php:18304"
+                "includes/pages/wordset-pages.php:18334"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18304"
+                "includes/pages/wordset-pages.php:18334"
             ]
         },
         {
@@ -5628,10 +6054,10 @@
             "msgid": "Back to word set tools",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18306"
+                "includes/pages/wordset-pages.php:18336"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18306"
+                "includes/pages/wordset-pages.php:18336"
             ]
         },
         {
@@ -5640,10 +6066,10 @@
             "msgid": "Sign in to open word set tools.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18357"
+                "includes/pages/wordset-pages.php:18387"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18357"
+                "includes/pages/wordset-pages.php:18387"
             ]
         },
         {
@@ -5653,10 +6079,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:12102",
-                "includes/pages/wordset-pages.php:18409"
+                "includes/pages/wordset-pages.php:18439"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18409"
+                "includes/pages/wordset-pages.php:18439"
             ]
         },
         {
@@ -5665,10 +6091,10 @@
             "msgid": "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18409"
+                "includes/pages/wordset-pages.php:18439"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18409"
+                "includes/pages/wordset-pages.php:18439"
             ]
         },
         {
@@ -5678,10 +6104,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:12105",
-                "includes/pages/wordset-pages.php:18411"
+                "includes/pages/wordset-pages.php:18441"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18411"
+                "includes/pages/wordset-pages.php:18441"
             ]
         },
         {
@@ -5690,10 +6116,10 @@
             "msgid": "Bulk upload audio files and create or match draft words in this word set.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18411"
+                "includes/pages/wordset-pages.php:18441"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18411"
+                "includes/pages/wordset-pages.php:18441"
             ]
         },
         {
@@ -5702,10 +6128,10 @@
             "msgid": "No settings tools are available for this word set right now.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18416"
+                "includes/pages/wordset-pages.php:18446"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18416"
+                "includes/pages/wordset-pages.php:18446"
             ]
         },
         {
@@ -5714,10 +6140,10 @@
             "msgid": "Open games",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18448"
+                "includes/pages/wordset-pages.php:18478"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18448"
+                "includes/pages/wordset-pages.php:18478"
             ]
         },
         {
@@ -5727,10 +6153,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:10715",
-                "includes/pages/wordset-pages.php:18459"
+                "includes/pages/wordset-pages.php:18489"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18459"
+                "includes/pages/wordset-pages.php:18489"
             ]
         },
         {
@@ -5747,11 +6173,11 @@
                 "includes/pages/wordset-pages.php:10706",
                 "includes/pages/wordset-pages.php:10782",
                 "includes/pages/wordset-pages.php:11826",
-                "includes/pages/wordset-pages.php:18463",
+                "includes/pages/wordset-pages.php:18493",
                 "includes/teacher-classes.php:26"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18463"
+                "includes/pages/wordset-pages.php:18493"
             ]
         },
         {
@@ -5760,10 +6186,10 @@
             "msgid": "Update Language Learner Tools to version %s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18470"
+                "includes/pages/wordset-pages.php:18500"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18470"
+                "includes/pages/wordset-pages.php:18500"
             ]
         },
         {
@@ -5772,11 +6198,11 @@
             "msgid": "Update to %s",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18473",
+                "includes/pages/wordset-pages.php:18503",
                 "language-learner-tools.php:653"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18473"
+                "includes/pages/wordset-pages.php:18503"
             ]
         },
         {
@@ -5785,10 +6211,10 @@
             "msgid": "Word set tools",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18478"
+                "includes/pages/wordset-pages.php:18508"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18478"
+                "includes/pages/wordset-pages.php:18508"
             ]
         },
         {
@@ -5797,30 +6223,11 @@
             "msgid": "Quiz modes",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18537",
+                "includes/pages/wordset-pages.php:18567",
                 "templates/vocab-lesson-template.php:1291"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18537"
-            ]
-        },
-        {
-            "key": "31c3fa0d37aacc7389d982e68d0d32d3e3cfd33c",
-            "context": "",
-            "msgid": "Recommended",
-            "msgid_plural": null,
-            "references": [
-                "includes/flashcard-shell.php:206",
-                "includes/lib/wordset-language-settings.php:114",
-                "includes/pages/wordset-pages.php:17645",
-                "includes/pages/wordset-pages.php:18549",
-                "includes/shortcodes/flashcard-widget.php:588",
-                "templates/offline-app-shell-template.php:723"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:18549",
-                "includes/shortcodes/flashcard-widget.php:588",
-                "templates/offline-app-shell-template.php:723"
+                "includes/pages/wordset-pages.php:18567"
             ]
         },
         {
@@ -5829,10 +6236,10 @@
             "msgid": "Remove recommendation",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18560"
+                "includes/pages/wordset-pages.php:18590"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18560"
+                "includes/pages/wordset-pages.php:18590"
             ]
         },
         {
@@ -5841,10 +6248,10 @@
             "msgid": "Lesson pages are not enabled for this word set yet.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18585"
+                "includes/pages/wordset-pages.php:18615"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18585"
+                "includes/pages/wordset-pages.php:18615"
             ]
         },
         {
@@ -5853,10 +6260,10 @@
             "msgid": "No lesson categories yet.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18606"
+                "includes/pages/wordset-pages.php:18636"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18606"
+                "includes/pages/wordset-pages.php:18636"
             ]
         },
         {
@@ -5865,11 +6272,11 @@
             "msgid": "Clear search",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18628",
+                "includes/pages/wordset-pages.php:18658",
                 "templates/vocab-lesson-template.php:1026"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18628"
+                "includes/pages/wordset-pages.php:18658"
             ]
         },
         {
@@ -5878,15 +6285,15 @@
             "msgid": "Sort categories",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18644",
-                "includes/pages/wordset-pages.php:18645",
+                "includes/pages/wordset-pages.php:18674",
+                "includes/pages/wordset-pages.php:18675",
                 "includes/shortcodes/word-grid-shortcode.php:5682",
                 "templates/offline-app-shell-template.php:758",
                 "templates/offline-app-shell-template.php:759"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18644",
-                "includes/pages/wordset-pages.php:18645",
+                "includes/pages/wordset-pages.php:18674",
+                "includes/pages/wordset-pages.php:18675",
                 "templates/offline-app-shell-template.php:758",
                 "templates/offline-app-shell-template.php:759"
             ]
@@ -5897,11 +6304,11 @@
             "msgid": "Default",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18655",
+                "includes/pages/wordset-pages.php:18685",
                 "templates/offline-app-shell-template.php:774"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18655",
+                "includes/pages/wordset-pages.php:18685",
                 "templates/offline-app-shell-template.php:774"
             ]
         },
@@ -5911,12 +6318,12 @@
             "msgid": "A-Z",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18659",
+                "includes/pages/wordset-pages.php:18689",
                 "includes/shortcodes/word-grid-shortcode.php:5684",
                 "templates/offline-app-shell-template.php:778"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18659",
+                "includes/pages/wordset-pages.php:18689",
                 "templates/offline-app-shell-template.php:778"
             ]
         },
@@ -5926,11 +6333,11 @@
             "msgid": "Z-A",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18663",
+                "includes/pages/wordset-pages.php:18693",
                 "templates/offline-app-shell-template.php:782"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18663",
+                "includes/pages/wordset-pages.php:18693",
                 "templates/offline-app-shell-template.php:782"
             ]
         },
@@ -5940,11 +6347,11 @@
             "msgid": "More learned",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18667",
+                "includes/pages/wordset-pages.php:18697",
                 "templates/offline-app-shell-template.php:786"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18667",
+                "includes/pages/wordset-pages.php:18697",
                 "templates/offline-app-shell-template.php:786"
             ]
         },
@@ -5954,11 +6361,11 @@
             "msgid": "Less learned",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18671",
+                "includes/pages/wordset-pages.php:18701",
                 "templates/offline-app-shell-template.php:790"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18671",
+                "includes/pages/wordset-pages.php:18701",
                 "templates/offline-app-shell-template.php:790"
             ]
         },
@@ -5968,11 +6375,11 @@
             "msgid": "Recently studied",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18675",
+                "includes/pages/wordset-pages.php:18705",
                 "templates/offline-app-shell-template.php:794"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18675",
+                "includes/pages/wordset-pages.php:18705",
                 "templates/offline-app-shell-template.php:794"
             ]
         },
@@ -5982,11 +6389,11 @@
             "msgid": "Not recently studied",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18679",
+                "includes/pages/wordset-pages.php:18709",
                 "templates/offline-app-shell-template.php:798"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18679",
+                "includes/pages/wordset-pages.php:18709",
                 "templates/offline-app-shell-template.php:798"
             ]
         },
@@ -5996,11 +6403,11 @@
             "msgid": "No categories match this search.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18704",
+                "includes/pages/wordset-pages.php:18734",
                 "includes/shortcodes/flashcard-widget.php:594"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18704",
+                "includes/pages/wordset-pages.php:18734",
                 "includes/shortcodes/flashcard-widget.php:594"
             ]
         },
@@ -6011,42 +6418,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11483",
-                "includes/pages/wordset-pages.php:18715"
+                "includes/pages/wordset-pages.php:18745"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18715"
-            ]
-        },
-        {
-            "key": "fa09d79fe1454965561631a96e32d3d67d2f4b81",
-            "context": "",
-            "msgid": "Select categories to study together",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17646",
-                "includes/pages/wordset-pages.php:18718",
-                "includes/shortcodes/flashcard-widget.php:574",
-                "templates/offline-app-shell-template.php:810"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:18718",
-                "includes/shortcodes/flashcard-widget.php:574",
-                "templates/offline-app-shell-template.php:810"
-            ]
-        },
-        {
-            "key": "c6ef301e269d208eb6e8764a30f2e91f1c58802b",
-            "context": "",
-            "msgid": "Hard words only",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17651",
-                "includes/pages/wordset-pages.php:18729",
-                "includes/pages/wordset-pages.php:18732"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:18729",
-                "includes/pages/wordset-pages.php:18732"
+                "includes/pages/wordset-pages.php:18745"
             ]
         },
         {
@@ -6055,14 +6430,14 @@
             "msgid": "Could not search this word set right now.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18784",
-                "includes/pages/wordset-pages.php:18791",
-                "includes/pages/wordset-pages.php:18798"
+                "includes/pages/wordset-pages.php:18814",
+                "includes/pages/wordset-pages.php:18821",
+                "includes/pages/wordset-pages.php:18828"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18784",
-                "includes/pages/wordset-pages.php:18791",
-                "includes/pages/wordset-pages.php:18798"
+                "includes/pages/wordset-pages.php:18814",
+                "includes/pages/wordset-pages.php:18821",
+                "includes/pages/wordset-pages.php:18828"
             ]
         },
         {
@@ -6071,24 +6446,10 @@
             "msgid": "Too many search requests. Please wait a few minutes and try again.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:18827"
+                "includes/pages/wordset-pages.php:18857"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:18827"
-            ]
-        },
-        {
-            "key": "520743d791588be910a4d405712d40f72c6f0a92",
-            "context": "",
-            "msgid": "Could not load more cards right now.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17774",
-                "includes/pages/wordset-pages.php:18885",
-                "includes/pages/wordset-pages.php:18892"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:18885"
+                "includes/pages/wordset-pages.php:18857"
             ]
         },
         {
@@ -6097,10 +6458,10 @@
             "msgid": "%s words per game",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:19323"
+                "includes/pages/wordset-pages.php:19353"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19323"
+                "includes/pages/wordset-pages.php:19353"
             ]
         },
         {
@@ -6113,11 +6474,11 @@
                 "includes/login-window.php:2161",
                 "includes/login-window.php:2163",
                 "includes/login-window.php:2559",
-                "includes/pages/wordset-pages.php:19380",
+                "includes/pages/wordset-pages.php:19410",
                 "templates/offline-app-shell-template.php:688"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19380",
+                "includes/pages/wordset-pages.php:19410",
                 "templates/offline-app-shell-template.php:688"
             ]
         },
@@ -6127,10 +6488,10 @@
             "msgid": "Sign in to play games",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:19403"
+                "includes/pages/wordset-pages.php:19433"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19403"
+                "includes/pages/wordset-pages.php:19433"
             ]
         },
         {
@@ -6139,10 +6500,10 @@
             "msgid": "Games use your in-progress words and save results to your practice history.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:19404"
+                "includes/pages/wordset-pages.php:19434"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19404"
+                "includes/pages/wordset-pages.php:19434"
             ]
         },
         {
@@ -6151,10 +6512,10 @@
             "msgid": "Wordset game",
             "msgid_plural": null,
             "references": [
-                "includes/pages/wordset-pages.php:19416"
+                "includes/pages/wordset-pages.php:19446"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19416"
+                "includes/pages/wordset-pages.php:19446"
             ]
         },
         {
@@ -6164,10 +6525,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11324",
-                "includes/pages/wordset-pages.php:19474"
+                "includes/pages/wordset-pages.php:19504"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19474"
+                "includes/pages/wordset-pages.php:19504"
             ]
         },
         {
@@ -6177,10 +6538,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11325",
-                "includes/pages/wordset-pages.php:19475"
+                "includes/pages/wordset-pages.php:19505"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19475"
+                "includes/pages/wordset-pages.php:19505"
             ]
         },
         {
@@ -6190,10 +6551,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11332",
-                "includes/pages/wordset-pages.php:19478"
+                "includes/pages/wordset-pages.php:19508"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19478"
+                "includes/pages/wordset-pages.php:19508"
             ]
         },
         {
@@ -6203,10 +6564,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11291",
-                "includes/pages/wordset-pages.php:19498"
+                "includes/pages/wordset-pages.php:19528"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19498"
+                "includes/pages/wordset-pages.php:19528"
             ]
         },
         {
@@ -6216,14 +6577,14 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11294",
-                "includes/pages/wordset-pages.php:19506",
+                "includes/pages/wordset-pages.php:19536",
                 "includes/shortcodes/audio-recording-shortcode.php:1774",
                 "includes/shortcodes/editor-hub-shortcode.php:1073",
                 "includes/shortcodes/editor-hub-shortcode.php:1146",
                 "templates/audio-image-matcher-template.php:52"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19506"
+                "includes/pages/wordset-pages.php:19536"
             ]
         },
         {
@@ -6233,51 +6594,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:11282",
-                "includes/pages/wordset-pages.php:19507"
+                "includes/pages/wordset-pages.php:19537"
             ],
             "public_references": [
-                "includes/pages/wordset-pages.php:19507"
-            ]
-        },
-        {
-            "key": "68fb7a3d61b53658cac993af7408647e407302b1",
-            "context": "",
-            "msgid": "Get ready...",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:11303",
-                "includes/pages/wordset-pages.php:19516"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:19516"
-            ]
-        },
-        {
-            "key": "365a374ca7b56d0fb47801754cb5c94aeaffeb4b",
-            "context": "",
-            "msgid": "Start recording",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:19542",
-                "includes/pages/wordset-pages.php:19546"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:19542"
-            ]
-        },
-        {
-            "key": "ba8f54097a986552c9d2b09b0179dc9a29e0fbf1",
-            "context": "",
-            "msgid": "Not public",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17635",
-                "includes/pages/wordset-pages.php:5312",
-                "includes/shortcodes/word-grid-shortcode.php:6312",
-                "includes/shortcodes/word-grid-shortcode.php:6324"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:5312"
+                "includes/pages/wordset-pages.php:19537"
             ]
         },
         {
@@ -6377,7 +6697,7 @@
                 "includes/admin/dictionary-import-admin.php:1361",
                 "includes/admin/export-import.php:3262",
                 "includes/admin/export-import.php:3797",
-                "includes/lib/dictionary-browser.php:4675",
+                "includes/lib/dictionary-browser.php:4902",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:294",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222"
             ],
@@ -6475,23 +6795,6 @@
             ]
         },
         {
-            "key": "47f041331488f3e0f319f632b9eceed49917b9f3",
-            "context": "",
-            "msgid": "Parent: %s",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/dictionary-browser.php:1545",
-                "includes/shortcodes/dictionary-shortcode.php:1679",
-                "includes/shortcodes/dictionary-shortcode.php:1901",
-                "includes/shortcodes/dictionary-shortcode.php:2105"
-            ],
-            "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:1679",
-                "includes/shortcodes/dictionary-shortcode.php:1901",
-                "includes/shortcodes/dictionary-shortcode.php:2105"
-            ]
-        },
-        {
             "key": "7e2443ef6e0195f4f6d5373b42ae1af8f6d363f2",
             "context": "",
             "msgid": "%d linked word",
@@ -6584,7 +6887,7 @@
             "references": [
                 "includes/admin/ipa-keyboard-admin.php:305",
                 "includes/admin/ipa-keyboard-admin.php:432",
-                "includes/lib/dictionary-browser.php:4676",
+                "includes/lib/dictionary-browser.php:4903",
                 "includes/shortcodes/dictionary-shortcode.php:2151"
             ],
             "public_references": [
@@ -6753,28 +7056,37 @@
             ]
         },
         {
-            "key": "b72364247f5733501d13c04e7bbf6962587387a1",
+            "key": "ddd0a2fe1055dcade84f7314648ae2c56ec2c8d0",
             "context": "",
-            "msgid": "Enter a definition.",
+            "msgid": "Search dictionary",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2985",
-                "includes/shortcodes/dictionary-shortcode.php:89"
+                "includes/shortcodes/dictionary-shortcode.php:3383",
+                "includes/shortcodes/dictionary-shortcode.php:3390"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2985"
+                "includes/shortcodes/dictionary-shortcode.php:3383",
+                "includes/shortcodes/dictionary-shortcode.php:3390"
             ]
         },
         {
-            "key": "5c56b1eacad63dbb4f2145bfe79ecdaa3048a229",
+            "key": "6384d4bac540d5cd45a8b9d7a33d458cd5e48612",
             "context": "",
-            "msgid": "Dictionary definition not found.",
+            "msgid": "Search",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2994"
+                "includes/admin/bulk-translation-admin.php:146",
+                "includes/admin/image-webp-optimizer-admin.php:1572",
+                "includes/admin/ipa-keyboard-admin.php:329",
+                "includes/admin/ipa-keyboard-admin.php:525",
+                "includes/admin/ipa-keyboard-admin.php:551",
+                "includes/admin/ipa-keyboard-admin.php:574",
+                "includes/shortcodes/dictionary-shortcode.php:3394",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2994"
+                "includes/shortcodes/dictionary-shortcode.php:3394",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
             ]
         },
         {
@@ -6982,39 +7294,6 @@
             ]
         },
         {
-            "key": "35523a99c466ba995426d4c6b5797458dcbcec75",
-            "context": "",
-            "msgid": "Self check",
-            "msgid_plural": null,
-            "references": [
-                "includes/flashcard-shell.php:71",
-                "includes/flashcard-shell.php:92",
-                "includes/pages/wordset-pages.php:16529",
-                "includes/pages/wordset-pages.php:17769",
-                "includes/pages/wordset-pages.php:4831",
-                "includes/shortcodes/flashcard-widget.php:496",
-                "includes/shortcodes/flashcard-widget.php:517",
-                "includes/shortcodes/flashcard-widget.php:522",
-                "includes/shortcodes/flashcard-widget.php:527",
-                "includes/shortcodes/flashcard-widget.php:584",
-                "includes/shortcodes/flashcard-widget.php:658",
-                "includes/shortcodes/flashcard-widget.php:659",
-                "templates/offline-app-shell-template.php:825",
-                "templates/vocab-lesson-template.php:170"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:496",
-                "includes/shortcodes/flashcard-widget.php:517",
-                "includes/shortcodes/flashcard-widget.php:522",
-                "includes/shortcodes/flashcard-widget.php:527",
-                "includes/shortcodes/flashcard-widget.php:584",
-                "includes/shortcodes/flashcard-widget.php:658",
-                "includes/shortcodes/flashcard-widget.php:659",
-                "templates/offline-app-shell-template.php:825",
-                "templates/vocab-lesson-template.php:170"
-            ]
-        },
-        {
             "key": "c5bd5852dcf79ad2956b3b5250230fb1dca4b90f",
             "context": "",
             "msgid": "Show answer",
@@ -7111,26 +7390,6 @@
             ]
         },
         {
-            "key": "aeb6743c42e56deec715bceece77a85f9cc93915",
-            "context": "",
-            "msgid": "Play audio",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/vocab-lesson-pages.php:1648",
-                "includes/pages/vocab-lesson-pages.php:1669",
-                "includes/pages/wordset-pages.php:17712",
-                "includes/shortcodes/flashcard-widget.php:505",
-                "includes/shortcodes/flashcard-widget.php:510",
-                "includes/shortcodes/word-audio-shortcode.php:188",
-                "includes/taxonomies/word-category-taxonomy.php:1161"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:505",
-                "includes/shortcodes/flashcard-widget.php:510",
-                "includes/shortcodes/word-audio-shortcode.php:188"
-            ]
-        },
-        {
             "key": "cb65c93253399dc6a789a054fce16b720400668b",
             "context": "",
             "msgid": "%d answers",
@@ -7222,87 +7481,6 @@
             ]
         },
         {
-            "key": "832189150fd2b0a735cde3e80c49389c04067c22",
-            "context": "",
-            "msgid": "Star word",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17713",
-                "includes/shortcodes/flashcard-widget.php:514",
-                "includes/shortcodes/word-grid-shortcode.php:3949",
-                "includes/shortcodes/word-grid-shortcode.php:6143"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:514",
-                "includes/shortcodes/word-grid-shortcode.php:6143"
-            ]
-        },
-        {
-            "key": "d30f2cc61b6b398722fae6459a9c69d04d007d1f",
-            "context": "",
-            "msgid": "Practice",
-            "msgid_plural": null,
-            "references": [
-                "includes/flashcard-shell.php:65",
-                "includes/flashcard-shell.php:90",
-                "includes/pages/wordset-pages.php:16526",
-                "includes/pages/wordset-pages.php:17765",
-                "includes/pages/wordset-pages.php:4828",
-                "includes/shortcodes/flashcard-widget.php:515",
-                "includes/shortcodes/flashcard-widget.php:520",
-                "includes/shortcodes/flashcard-widget.php:525",
-                "includes/shortcodes/flashcard-widget.php:580",
-                "includes/shortcodes/flashcard-widget.php:585",
-                "includes/shortcodes/flashcard-widget.php:645",
-                "includes/shortcodes/flashcard-widget.php:646",
-                "templates/content-lesson-template.php:230",
-                "templates/offline-app-shell-template.php:816",
-                "templates/vocab-lesson-template.php:168"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:515",
-                "includes/shortcodes/flashcard-widget.php:520",
-                "includes/shortcodes/flashcard-widget.php:525",
-                "includes/shortcodes/flashcard-widget.php:580",
-                "includes/shortcodes/flashcard-widget.php:585",
-                "includes/shortcodes/flashcard-widget.php:645",
-                "includes/shortcodes/flashcard-widget.php:646",
-                "templates/offline-app-shell-template.php:816",
-                "templates/vocab-lesson-template.php:168"
-            ]
-        },
-        {
-            "key": "ccd0f6b0d11dbf7e250aa729280429c30d6ad3ec",
-            "context": "",
-            "msgid": "Learn",
-            "msgid_plural": null,
-            "references": [
-                "includes/flashcard-shell.php:59",
-                "includes/flashcard-shell.php:91",
-                "includes/pages/wordset-pages.php:16527",
-                "includes/pages/wordset-pages.php:17766",
-                "includes/pages/wordset-pages.php:4829",
-                "includes/shortcodes/flashcard-widget.php:516",
-                "includes/shortcodes/flashcard-widget.php:521",
-                "includes/shortcodes/flashcard-widget.php:581",
-                "includes/shortcodes/flashcard-widget.php:586",
-                "includes/shortcodes/flashcard-widget.php:651",
-                "includes/shortcodes/flashcard-widget.php:652",
-                "templates/offline-app-shell-template.php:813",
-                "templates/vocab-lesson-template.php:169"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:516",
-                "includes/shortcodes/flashcard-widget.php:521",
-                "includes/shortcodes/flashcard-widget.php:581",
-                "includes/shortcodes/flashcard-widget.php:586",
-                "includes/shortcodes/flashcard-widget.php:651",
-                "includes/shortcodes/flashcard-widget.php:652",
-                "templates/offline-app-shell-template.php:813",
-                "templates/vocab-lesson-template.php:169"
-            ]
-        },
-        {
             "key": "4e5a51011bfba3e7051af9d15884bc762f8d2f9c",
             "context": "",
             "msgid": "Listening",
@@ -7317,33 +7495,6 @@
                 "includes/shortcodes/flashcard-widget.php:518",
                 "includes/shortcodes/flashcard-widget.php:528",
                 "includes/shortcodes/flashcard-widget.php:664"
-            ]
-        },
-        {
-            "key": "7dfb9f0ac72d32cff7c06c9626b2ac2296f5b81b",
-            "context": "",
-            "msgid": "Listen",
-            "msgid_plural": null,
-            "references": [
-                "includes/flashcard-shell.php:54",
-                "includes/pages/wordset-pages.php:16528",
-                "includes/pages/wordset-pages.php:17767",
-                "includes/pages/wordset-pages.php:4830",
-                "includes/shortcodes/flashcard-widget.php:523",
-                "includes/shortcodes/flashcard-widget.php:582",
-                "includes/shortcodes/flashcard-widget.php:665",
-                "includes/shortcodes/quiz-pages-shortcodes.php:944",
-                "templates/offline-app-shell-template.php:819",
-                "templates/offline-app-shell-template.php:850",
-                "templates/vocab-lesson-template.php:172"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:523",
-                "includes/shortcodes/flashcard-widget.php:582",
-                "includes/shortcodes/flashcard-widget.php:665",
-                "includes/shortcodes/quiz-pages-shortcodes.php:944",
-                "templates/offline-app-shell-template.php:819",
-                "templates/offline-app-shell-template.php:850"
             ]
         },
         {
@@ -7484,20 +7635,6 @@
             ]
         },
         {
-            "key": "a5f343d505817fc22b15931c78950339ce594d9d",
-            "context": "",
-            "msgid": "Gender progress",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17758",
-                "includes/privacy.php:411",
-                "includes/shortcodes/flashcard-widget.php:539"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:539"
-            ]
-        },
-        {
             "key": "15921aab15be2390ef0d318b0bc6f8cb64c5f92d",
             "context": "",
             "msgid": "Current set",
@@ -7507,35 +7644,6 @@
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:540"
-            ]
-        },
-        {
-            "key": "7547f303a159235414801168392697b6504d32db",
-            "context": "",
-            "msgid": "Level 3",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17756",
-                "includes/shortcodes/flashcard-widget.php:544",
-                "includes/shortcodes/flashcard-widget.php:547"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:544",
-                "includes/shortcodes/flashcard-widget.php:547"
-            ]
-        },
-        {
-            "key": "8ed544d5ec804757ce7b43d1e5ef39155570a6eb",
-            "context": "",
-            "msgid": "Repeat",
-            "msgid_plural": null,
-            "references": [
-                "includes/flashcard-shell.php:200",
-                "includes/pages/wordset-pages.php:17642",
-                "includes/shortcodes/flashcard-widget.php:545"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:545"
             ]
         },
         {
@@ -7800,32 +7908,6 @@
             ]
         },
         {
-            "key": "9380ac42cf692e7ae4290c6b50fc22a5948c4f74",
-            "context": "",
-            "msgid": "Recommended: %1$s in %2$s (%3$d words).",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17632",
-                "includes/shortcodes/flashcard-widget.php:591"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:591"
-            ]
-        },
-        {
-            "key": "2f1c494c01ddd9540960dc3b168117892f54e201",
-            "context": "",
-            "msgid": "Recommended: %1$s in %2$s.",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:17633",
-                "includes/shortcodes/flashcard-widget.php:592"
-            ],
-            "public_references": [
-                "includes/shortcodes/flashcard-widget.php:592"
-            ]
-        },
-        {
             "key": "9f1fd40919383db1afa6011c90503743d3e0564e",
             "context": "",
             "msgid": "Learning mode is not available for this selection.",
@@ -7859,25 +7941,6 @@
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:626"
-            ]
-        },
-        {
-            "key": "6384d4bac540d5cd45a8b9d7a33d458cd5e48612",
-            "context": "",
-            "msgid": "Search",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/bulk-translation-admin.php:146",
-                "includes/admin/image-webp-optimizer-admin.php:1572",
-                "includes/admin/ipa-keyboard-admin.php:329",
-                "includes/admin/ipa-keyboard-admin.php:525",
-                "includes/admin/ipa-keyboard-admin.php:551",
-                "includes/admin/ipa-keyboard-admin.php:574",
-                "includes/shortcodes/dictionary-shortcode.php:3394",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
-            ],
-            "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
             ]
         },
         {

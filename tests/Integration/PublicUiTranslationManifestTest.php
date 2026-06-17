@@ -108,7 +108,7 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertContains('Sign in', $msgids);
         $this->assertContains('Search dictionary', $msgids);
         $this->assertContains('Star word', $msgids);
-        $this->assertContains('Start recording', $msgids);
+        $this->assertContains('Recording text', $msgids);
 
         $this->assertNotContains('Create manager account', $msgids);
         $this->assertNotContains('Internal review note', $msgids);

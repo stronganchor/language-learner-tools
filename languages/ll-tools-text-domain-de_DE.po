@@ -27371,3 +27371,20 @@ msgstr "Sucheinstellungen"
 #: includes/shortcodes/dictionary-shortcode.php:2838
 msgid "Search in languages"
 msgstr "In Sprachen suchen"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/dictionary-import-admin.php:720
+msgid "Backup snapshot skipped for this import job."
+msgstr "Backup-Schnappschuss für diesen Importauftrag übersprungen."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/dictionary-import-admin.php:1884
+msgid "Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx columns like headword_zza, all_forms_zza, sense_guid, examples_zza, example_translations_tr, semantic_domains, source_entry, and multilingual gloss columns like definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en, and definition_full_de."
+msgstr "Erwartete Spalten: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-basierte TSVs können außerdem source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx-Spalten wie headword_zza, all_forms_zza, sense_guid, examples_zza, example_translations_tr, semantic_domains, source_entry und mehrsprachige Gloss-Spalten wie definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en und definition_full_de enthalten."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/word-grid-shortcode.php:6305
+msgid "%d quizzable word"
+msgid_plural "%d quizzable words"
+msgstr[0] "%d quizfähige Vokabel"
+msgstr[1] "%d quizfähige Vokabeln"

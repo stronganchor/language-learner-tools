@@ -4463,3 +4463,30 @@ msgstr "Impostazioni di ricerca"
 #: includes/shortcodes/dictionary-shortcode.php:2838
 msgid "Search in languages"
 msgstr "Cerca nelle lingue"
+
+#. ll-tools-public-key: 9f2d7d1cede89aa621287a6231e906a4cf4d0f29
+#: includes/lib/wordset-language-settings.php:1076 includes/pages/wordset-pages.php:13953 includes/pages/wordset-pages.php:14071 includes/pages/wordset-pages.php:17104
+msgid "Disabled"
+msgstr "Disattivato"
+
+#. ll-tools-public-key: 73df9b4032a80156f0990cf45a7396096fbd6859
+#: includes/admin/export-import.php:11995 includes/admin/export-import.php:12027 includes/admin/export-import.php:2864 includes/lib/wordset-language-settings.php:1099 includes/pages/wordset-pages.php:13968 includes/pages/wordset-pages.php:17107
+msgid "Recording text"
+msgstr "Testo di registrazione"
+
+#. ll-tools-public-key: 1e24f5b2dbfc9710d657be9ff4ec76d8bad62d1a
+#: includes/pages/wordset-pages.php:17124
+msgid "%d mode enabled"
+msgid_plural "%d modes enabled"
+msgstr[0] "%d modalità attivata"
+msgstr[1] "%d modalità attivate"
+
+#. ll-tools-public-key: d3367c646e56edaa6704f7bc64bad2acdc2f0d0f
+#: includes/pages/wordset-editor.php:2740 includes/pages/wordset-editor.php:3236 includes/pages/wordset-pages.php:12520 includes/pages/wordset-pages.php:17168 includes/shortcodes/word-grid-shortcode.php:6310 includes/shortcodes/word-grid-shortcode.php:6322 includes/taxonomies/word-category-taxonomy.php:826 includes/taxonomies/word-category-taxonomy.php:853 includes/taxonomies/wordset-taxonomy.php:3155
+msgid "Private"
+msgstr "Privato"
+
+#. ll-tools-public-key: 2d4748184f86c6be58e19132ed4d500fc9295cb4
+#: includes/pages/wordset-pages.php:12519 includes/pages/wordset-pages.php:17168 includes/taxonomies/word-category-taxonomy.php:825 includes/taxonomies/word-category-taxonomy.php:852 includes/taxonomies/wordset-taxonomy.php:3154
+msgid "Public"
+msgstr "Pubblico"
