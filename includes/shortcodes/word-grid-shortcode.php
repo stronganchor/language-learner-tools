@@ -6288,41 +6288,22 @@ function ll_tools_word_grid_shortcode($atts) {
                         $is_checked = isset($selected_category_lookup[$category_option_id]);
                         $category_quizzable_count = max(0, (int) ($category_row['quizzable_count'] ?? 0));
                         $category_is_quizzable = !empty($category_row['is_quizzable']);
-                        $category_is_private = !empty($category_row['is_private']);
                         $category_is_public = !array_key_exists('is_public', $category_row) || !empty($category_row['is_public']);
                         $category_option_classes = 'll-word-edit-category-option';
                         if (!$category_is_quizzable) {
                             $category_option_classes .= ' ll-word-edit-category-option--not-quizzable';
-                        }
-                        if (!$category_is_public) {
-                            $category_option_classes .= ' ll-word-edit-category-option--not-public';
-                        }
-                        if ($category_is_private) {
-                            $category_option_classes .= ' ll-word-edit-category-option--private';
                         }
                         $category_count_label = sprintf(
                             /* translators: %d is the number of quiz-ready published words in a category. */
                             _n('%d quizzable word', '%d quizzable words', $category_quizzable_count, 'll-tools-text-domain'),
                             $category_quizzable_count
                         );
-                        $category_state_labels = [$category_count_label];
-                        if ($category_is_private) {
-                            $category_state_labels[] = __('Private', 'll-tools-text-domain');
-                        } elseif (!$category_is_public) {
-                            $category_state_labels[] = __('Not public', 'll-tools-text-domain');
-                        }
-                        $category_option_title = implode(' - ', $category_state_labels);
-                        echo '<label class="' . esc_attr($category_option_classes) . '" for="' . esc_attr($category_input_id) . '" data-ll-word-category-option data-ll-word-category-id="' . esc_attr((string) $category_option_id) . '" data-ll-word-category-label="' . esc_attr($category_option_label) . '" data-ll-word-category-search-text="' . esc_attr($category_option_label) . '" data-ll-word-category-quizzable-count="' . esc_attr((string) $category_quizzable_count) . '" data-ll-word-category-quizzable="' . ($category_is_quizzable ? '1' : '0') . '" data-ll-word-category-public="' . ($category_is_public ? '1' : '0') . '" data-ll-wordset-order="' . esc_attr((string) $category_order_index) . '" title="' . esc_attr($category_option_title) . '">';
+                        echo '<label class="' . esc_attr($category_option_classes) . '" for="' . esc_attr($category_input_id) . '" data-ll-word-category-option data-ll-word-category-id="' . esc_attr((string) $category_option_id) . '" data-ll-word-category-label="' . esc_attr($category_option_label) . '" data-ll-word-category-search-text="' . esc_attr($category_option_label) . '" data-ll-word-category-quizzable-count="' . esc_attr((string) $category_quizzable_count) . '" data-ll-word-category-quizzable="' . ($category_is_quizzable ? '1' : '0') . '" data-ll-word-category-public="' . ($category_is_public ? '1' : '0') . '" data-ll-wordset-order="' . esc_attr((string) $category_order_index) . '" title="' . esc_attr($category_count_label) . '">';
                         echo '<input type="checkbox" id="' . esc_attr($category_input_id) . '" class="ll-word-edit-category-checkbox" data-ll-word-category-input value="' . esc_attr((string) $category_option_id) . '"' . checked($is_checked, true, false) . ' />';
                         echo '<span class="ll-word-edit-category-main">';
                         echo '<span class="ll-word-edit-category-label">' . esc_html($category_option_label) . '</span>';
                         echo '<span class="ll-word-edit-category-meta">';
                         echo '<span class="ll-word-edit-category-count" aria-label="' . esc_attr($category_count_label) . '" title="' . esc_attr($category_count_label) . '">' . esc_html((string) $category_quizzable_count) . '</span>';
-                        if ($category_is_private) {
-                            echo '<span class="ll-word-edit-category-state ll-word-edit-category-state--private">' . esc_html__('Private', 'll-tools-text-domain') . '</span>';
-                        } elseif (!$category_is_public) {
-                            echo '<span class="ll-word-edit-category-state ll-word-edit-category-state--not-public">' . esc_html__('Not public', 'll-tools-text-domain') . '</span>';
-                        }
                         echo '</span>';
                         echo '</span>';
                         echo '</label>';

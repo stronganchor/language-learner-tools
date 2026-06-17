@@ -73,6 +73,45 @@ function buildWordEditorMarkup(options = {}) {
   `;
 }
 
+function buildCategoryEditorMarkup() {
+  const categories = [
+    { id: 1, name: 'Aile - Benim, Bizim', count: 10, quizzable: true },
+    { id: 2, name: 'Al etli Dil nerede?', count: 0, quizzable: false },
+    { id: 3, name: 'Doğa: gökyüzü', count: 7, quizzable: true },
+    { id: 4, name: 'Diğer Ev Eşyası', count: 36, quizzable: true }
+  ];
+
+  const categoryOptions = categories.map((category) => `
+    <label
+      class="ll-word-edit-category-option${category.quizzable ? '' : ' ll-word-edit-category-option--not-quizzable'}"
+      for="category-${category.id}"
+      data-ll-word-category-option
+      data-ll-word-category-id="${category.id}"
+      data-ll-word-category-quizzable-count="${category.count}"
+      data-ll-word-category-quizzable="${category.quizzable ? '1' : '0'}"
+    >
+      <input type="checkbox" id="category-${category.id}" class="ll-word-edit-category-checkbox" />
+      <span class="ll-word-edit-category-main">
+        <span class="ll-word-edit-category-label">${category.name}</span>
+        <span class="ll-word-edit-category-meta">
+          <span class="ll-word-edit-category-count">${category.count}</span>
+        </span>
+      </span>
+    </label>
+  `).join('');
+
+  return `
+    <div class="word-grid ll-word-grid">
+      <fieldset class="ll-word-edit-categories is-expanded">
+        <legend class="ll-word-edit-label">Categories</legend>
+        <div class="ll-word-edit-category-list">
+          ${categoryOptions}
+        </div>
+      </fieldset>
+    </div>
+  `;
+}
+
 test('closed vocab lesson word editor panels stay hidden', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('about:blank');
@@ -141,4 +180,33 @@ test('mobile vocab lesson word editor keeps save and cancel visible while the fo
   expect(scrolledFooterBox).not.toBeNull();
   expect(Math.abs(scrolledFooterBox.y - initialFooterBox.y)).toBeLessThanOrEqual(2);
   expect(scrolledFooterBox.y + scrolledFooterBox.height).toBeLessThanOrEqual(viewportHeight);
+});
+
+test('category editor counts do not crowd category labels', async ({ page }) => {
+  await page.setViewportSize({ width: 1800, height: 480 });
+  await page.goto('about:blank');
+  await page.setContent(buildCategoryEditorMarkup());
+  await page.addStyleTag({ content: languageLearnerToolsCssSource });
+  await page.addStyleTag({ content: hostileThemeCss });
+
+  const option = page.locator('.ll-word-edit-category-option[data-ll-word-category-id="2"]');
+  const label = option.locator('.ll-word-edit-category-label');
+  const count = option.locator('.ll-word-edit-category-count');
+
+  await expect(option).toBeVisible();
+  await expect(page.locator('.ll-word-edit-category-state')).toHaveCount(0);
+  await expect(page.locator('.ll-word-edit-category-option--not-public')).toHaveCount(0);
+
+  const optionBox = await option.boundingBox();
+  const labelBox = await label.boundingBox();
+  const countBox = await count.boundingBox();
+
+  expect(optionBox).not.toBeNull();
+  expect(labelBox).not.toBeNull();
+  expect(countBox).not.toBeNull();
+  expect(optionBox.width).toBeGreaterThanOrEqual(220);
+  expect(labelBox.width).toBeGreaterThanOrEqual(150);
+  expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(countBox.x - 4);
+
+  await expect(count).toHaveCSS('color', 'rgb(220, 38, 38)');
 });

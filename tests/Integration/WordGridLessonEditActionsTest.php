@@ -88,7 +88,7 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertNotEmpty((string) (($data['config'] ?? [])['editNonce'] ?? ''));
     }
 
-    public function test_lesson_edit_popup_marks_category_counts_and_public_statuses(): void
+    public function test_lesson_edit_popup_marks_category_counts_and_non_quizzable_numbers(): void
     {
         $prefix = 'word-edit-category-counts';
         $wordset_id = $this->ensureTerm('wordset', 'Word Edit Category Counts Wordset', $prefix . '-wordset');
@@ -139,10 +139,10 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
 
         $this->assertMatchesRegularExpression('/data-ll-word-category-id="' . preg_quote((string) $public_category_id, '/') . '"[^>]+data-ll-word-category-quizzable-count="5"[^>]+data-ll-word-category-public="1"/', $output);
         $this->assertMatchesRegularExpression('/class="[^"]*ll-word-edit-category-option--not-quizzable[^"]*"[^>]+data-ll-word-category-id="' . preg_quote((string) $junk_category_id, '/') . '"[^>]+data-ll-word-category-quizzable-count="0"/', $output);
-        $this->assertMatchesRegularExpression('/class="[^"]*ll-word-edit-category-option--private[^"]*"[^>]+data-ll-word-category-id="' . preg_quote((string) $private_category_id, '/') . '"[^>]+data-ll-word-category-quizzable-count="1"[^>]+data-ll-word-category-public="0"/', $output);
+        $this->assertMatchesRegularExpression('/class="[^"]*ll-word-edit-category-option--not-quizzable[^"]*"[^>]+data-ll-word-category-id="' . preg_quote((string) $private_category_id, '/') . '"[^>]+data-ll-word-category-quizzable-count="1"[^>]+data-ll-word-category-public="0"/', $output);
         $this->assertStringContainsString('ll-word-edit-category-count', $output);
-        $this->assertStringContainsString('Not public', $output);
-        $this->assertStringContainsString('Private', $output);
+        $this->assertStringNotContainsString('ll-word-edit-category-state', $output);
+        $this->assertStringNotContainsString('ll-word-edit-category-option--not-public', $output);
     }
 
     public function test_lesson_editor_can_move_word_to_trash(): void
