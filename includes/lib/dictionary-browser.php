@@ -3951,7 +3951,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'preferred_languages' => $preferred_languages,
         'statuses' => $statuses,
         'viewer' => ll_tools_dictionary_viewer_cache_key(),
-        'query_schema' => 2,
+        'query_schema' => 3,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('query_entries', $cache_args, $request_cache);
     if (is_array($cached)) {

@@ -325,8 +325,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
     public function test_dictionary_static_cache_storage_ttl_is_longer_than_browser_max_age(): void
     {
         $this->assertSame(7 * DAY_IN_SECONDS, ll_tools_dictionary_static_cache_ttl());
-        $this->assertSame(DAY_IN_SECONDS, ll_tools_dictionary_static_cache_browser_max_age());
-        $this->assertSame('public, max-age=' . DAY_IN_SECONDS, ll_tools_dictionary_static_cache_cache_control_value(true));
+        $this->assertSame(5 * MINUTE_IN_SECONDS, ll_tools_dictionary_static_cache_browser_max_age());
+        $this->assertSame('public, max-age=' . (5 * MINUTE_IN_SECONDS), ll_tools_dictionary_static_cache_cache_control_value(true));
         $this->assertSame('no-cache, must-revalidate', ll_tools_dictionary_static_cache_cache_control_value(false));
     }
 
