@@ -1910,7 +1910,9 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
 
             $meta_parts = [];
             if ($sense_type !== '') {
-                $meta_parts[] = $sense_type;
+                $meta_parts[] = function_exists('ll_tools_dictionary_format_entry_type_label')
+                    ? ll_tools_dictionary_format_entry_type_label($sense_type)
+                    : $sense_type;
             }
             if ($gender !== '') {
                 $meta_parts[] = $gender;
@@ -1935,12 +1937,17 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
         }
         $hidden_sense_count = max(0, $sense_count - $rendered_sense_count - $summary_replaced_sense);
         if ($hidden_sense_count > 0) {
-            $html .= '<p class="ll-dictionary__more">';
-            $html .= esc_html(sprintf(
+            $more_label = sprintf(
                 /* translators: %d: number of hidden senses */
                 _n('+ %d more sense', '+ %d more senses', $hidden_sense_count, 'll-tools-text-domain'),
                 $hidden_sense_count
-            ));
+            );
+            $html .= '<p class="ll-dictionary__more">';
+            if ($detail_url !== '') {
+                $html .= '<a class="ll-dictionary__more-link" href="' . esc_url($detail_url) . '">' . esc_html($more_label) . '</a>';
+            } else {
+                $html .= esc_html($more_label);
+            }
             $html .= '</p>';
         }
     }
@@ -2130,6 +2137,9 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
             foreach (['entry_type', 'gender_number'] as $field) {
                 $value = trim((string) ($sense[$field] ?? ''));
                 if ($value !== '') {
+                    if ($field === 'entry_type' && function_exists('ll_tools_dictionary_format_entry_type_label')) {
+                        $value = ll_tools_dictionary_format_entry_type_label($value);
+                    }
                     $meta_parts[] = $value;
                 }
             }

@@ -1356,6 +1356,7 @@ function ll_tools_dictionary_get_part_of_speech_label(string $slug, string $fall
         'other' => __('Other', 'll-tools-text-domain'),
         'particle' => __('Particle', 'll-tools-text-domain'),
         'phrase' => __('Phrase', 'll-tools-text-domain'),
+        'postposition' => __('Postposition', 'll-tools-text-domain'),
         'preposition' => __('Preposition', 'll-tools-text-domain'),
         'pronoun' => __('Pronoun', 'll-tools-text-domain'),
         'verb' => __('Verb', 'll-tools-text-domain'),
@@ -1367,6 +1368,23 @@ function ll_tools_dictionary_get_part_of_speech_label(string $slug, string $fall
 
     $fallback = trim($fallback);
     return $fallback !== '' ? $fallback : $slug;
+}
+
+/**
+ * Resolve a display label for imported dictionary part-of-speech shorthand.
+ */
+function ll_tools_dictionary_format_entry_type_label(string $entry_type, string $fallback = ''): string {
+    $entry_type = trim((string) $entry_type);
+    if ($entry_type === '') {
+        return trim($fallback);
+    }
+
+    $pos_slug = ll_tools_dictionary_resolve_pos_slug_from_entry_type($entry_type);
+    if ($pos_slug !== '') {
+        return ll_tools_dictionary_get_part_of_speech_label($pos_slug, $fallback !== '' ? $fallback : $entry_type);
+    }
+
+    return $entry_type;
 }
 
 /**
@@ -2402,7 +2420,6 @@ function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type
         return '';
     }
 
-    $normalized = sanitize_title($entry_type);
     $map = [
         'n' => 'noun',
         'noun' => 'noun',
@@ -2414,53 +2431,74 @@ function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type
         'adverb' => 'adverb',
         'pron' => 'pronoun',
         'pronoun' => 'pronoun',
+        'pn' => 'pronoun',
+        'zm' => 'pronoun',
         'interj' => 'interjection',
         'interjection' => 'interjection',
         'prep' => 'preposition',
         'preposition' => 'preposition',
         'postp' => 'postposition',
         'postposition' => 'postposition',
+        'arka-ed' => 'postposition',
+        'arka-edat' => 'postposition',
         'conj' => 'conjunction',
         'conjunction' => 'conjunction',
+        'particle' => 'particle',
+        'ptcl' => 'particle',
+        'prt' => 'particle',
+        'v-prt' => 'particle',
+        'f-ilgeci' => 'particle',
     ];
 
-    if (isset($map[$normalized])) {
-        $normalized = $map[$normalized];
-    } else {
-        $tokenized = '-' . $normalized . '-';
-        if (preg_match('/(?:^|-)interj(?:-|$)/', $normalized) || strpos($tokenized, '-unl-') !== false) {
-            $normalized = 'interjection';
-        } elseif (preg_match('/(?:^|-)adv(?:-|$)/', $normalized) || strpos($tokenized, '-zf-') !== false) {
-            $normalized = 'adverb';
-        } elseif (preg_match('/(?:^|-)adj(?:-|$)/', $normalized) || preg_match('/(?:^|-)s(?:-|$)/', $normalized)) {
-            $normalized = 'adjective';
-        } elseif (preg_match('/(?:^|-)pron(?:-|$)/', $normalized)) {
-            $normalized = 'pronoun';
-        } elseif (preg_match('/(?:^|-)conj(?:-|$)/', $normalized)) {
-            $normalized = 'conjunction';
-        } elseif (preg_match('/(?:^|-)postp(?:-|$)/', $normalized)) {
-            $normalized = 'postposition';
-        } elseif (
-            preg_match('/(?:^|-)verb(?:-|$)/', $normalized)
-            || preg_match('/(?:^|-)(?:i|t)-v(?:-|$)/', $normalized)
-            || strpos($tokenized, '-gcs-f-') !== false
-            || strpos($tokenized, '-gcl-f-') !== false
-        ) {
-            $normalized = 'verb';
-        } elseif (
-            preg_match('/(?:^|-)noun(?:-|$)/', $normalized)
-            || preg_match('/(?:^|-)n(?:-|$)/', $normalized)
-            || preg_match('/(?:^|-)n-(?:m|f|pl)(?:-|$)/', $normalized)
-            || strpos($tokenized, '-is-') !== false
-            || strpos($tokenized, '-oz-') !== false
-        ) {
-            $normalized = 'noun';
+    $candidates = [sanitize_title($entry_type)];
+    foreach (preg_split('/\s*(?:\|\||[;,\/])\s*/', $entry_type) ?: [] as $token) {
+        $token = sanitize_title((string) $token);
+        if ($token !== '') {
+            $candidates[] = $token;
         }
     }
+    $candidates = array_values(array_unique(array_filter($candidates)));
 
-    $term = get_term_by('slug', $normalized, 'part_of_speech');
-    if ($term && !is_wp_error($term)) {
-        return (string) $term->slug;
+    foreach ($candidates as $candidate) {
+        $normalized = $candidate;
+        if (isset($map[$normalized])) {
+            $normalized = $map[$normalized];
+        } else {
+            $tokenized = '-' . $normalized . '-';
+            if (preg_match('/(?:^|-)interj(?:-|$)/', $normalized) || strpos($tokenized, '-unl-') !== false) {
+                $normalized = 'interjection';
+            } elseif (preg_match('/(?:^|-)adv(?:-|$)/', $normalized) || strpos($tokenized, '-zf-') !== false) {
+                $normalized = 'adverb';
+            } elseif (preg_match('/(?:^|-)adj(?:-|$)/', $normalized) || preg_match('/(?:^|-)s(?:-|$)/', $normalized)) {
+                $normalized = 'adjective';
+            } elseif (preg_match('/(?:^|-)pron(?:-|$)/', $normalized)) {
+                $normalized = 'pronoun';
+            } elseif (preg_match('/(?:^|-)conj(?:-|$)/', $normalized)) {
+                $normalized = 'conjunction';
+            } elseif (preg_match('/(?:^|-)postp(?:-|$)/', $normalized)) {
+                $normalized = 'postposition';
+            } elseif (
+                preg_match('/(?:^|-)verb(?:-|$)/', $normalized)
+                || preg_match('/(?:^|-)(?:i|t)-v(?:-|$)/', $normalized)
+                || strpos($tokenized, '-gcs-f-') !== false
+                || strpos($tokenized, '-gcl-f-') !== false
+            ) {
+                $normalized = 'verb';
+            } elseif (
+                preg_match('/(?:^|-)noun(?:-|$)/', $normalized)
+                || preg_match('/(?:^|-)n(?:-|$)/', $normalized)
+                || preg_match('/(?:^|-)n-(?:m|f|pl)(?:-|$)/', $normalized)
+                || strpos($tokenized, '-is-') !== false
+                || strpos($tokenized, '-oz-') !== false
+            ) {
+                $normalized = 'noun';
+            }
+        }
+
+        $term = get_term_by('slug', $normalized, 'part_of_speech');
+        if ($term && !is_wp_error($term)) {
+            return (string) $term->slug;
+        }
     }
 
     $term = get_term_by('name', $entry_type, 'part_of_speech');

@@ -136,6 +136,39 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_dictionary_interprets_combined_source_part_of_speech_abbreviations(): void
+    {
+        $this->ensurePartOfSpeechTerm('pronoun', 'Pronoun');
+        $this->ensurePartOfSpeechTerm('postposition', 'Postposition');
+        $this->ensurePartOfSpeechTerm('particle', 'Particle');
+
+        $this->assertSame('pronoun', ll_tools_dictionary_resolve_pos_slug_from_entry_type('zm. || pn'));
+        $this->assertSame('postposition', ll_tools_dictionary_resolve_pos_slug_from_entry_type('arka ed. || postp'));
+        $this->assertSame('particle', ll_tools_dictionary_resolve_pos_slug_from_entry_type('f.ilgeci || v.prt'));
+
+        $this->assertSame('Pronoun', ll_tools_dictionary_format_entry_type_label('zm. || pn'));
+        $this->assertSame('Postposition', ll_tools_dictionary_format_entry_type_label('arka ed. || postp'));
+        $this->assertSame('Particle', ll_tools_dictionary_format_entry_type_label('f.ilgeci || v.prt'));
+    }
+
+    public function test_dictionary_result_card_links_hidden_sense_count_to_entry_detail(): void
+    {
+        $html = ll_tools_dictionary_render_result_card([
+            'title' => 'a ci finayis',
+            'sense_count' => 2,
+            'senses' => [
+                [
+                    'definition' => 'one visible sense',
+                    'entry_type' => 'zm. || pn',
+                ],
+            ],
+        ], 'https://example.test/sozluk/?ll_dictionary_entry=123');
+
+        $this->assertStringContainsString('class="ll-dictionary__more-link"', $html);
+        $this->assertStringContainsString('href="https://example.test/sozluk/?ll_dictionary_entry=123"', $html);
+        $this->assertStringContainsString('+ 1 more sense', $html);
+    }
+
     public function test_dictionary_language_key_normalizes_common_labels_for_browse_alphabets(): void
     {
         $this->assertSame('zza', ll_tools_dictionary_normalize_language_key('Zazaki'));
