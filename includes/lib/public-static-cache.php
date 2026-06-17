@@ -1296,7 +1296,7 @@ function ll_tools_cloudflare_static_cache_purge_urls(string $target): array {
     return ll_tools_cloudflare_static_cache_normalize_urls($urls);
 }
 
-function ll_tools_cloudflare_static_cache_purge(string $target = 'all'): array {
+function ll_tools_cloudflare_static_cache_purge(string $target = 'all', bool $purge_everything = false): array {
     $target = ll_tools_normalize_static_cache_purge_target($target);
     if ($target === '') {
         $target = 'all';
@@ -1314,6 +1314,7 @@ function ll_tools_cloudflare_static_cache_purge(string $target = 'all'): array {
         'enabled' => $enabled,
         'attempted' => false,
         'purged' => false,
+        'purge_everything' => $purge_everything,
         'urls' => $urls,
         'batches' => [],
         'error' => '',
@@ -1329,29 +1330,31 @@ function ll_tools_cloudflare_static_cache_purge(string $target = 'all'): array {
         return $result;
     }
 
-    if (empty($urls)) {
+    if (!$purge_everything && empty($urls)) {
         $result['error'] = 'no_urls';
         return $result;
     }
 
     $endpoint = 'https://api.cloudflare.com/client/v4/zones/' . rawurlencode($zone_id) . '/purge_cache';
     $all_success = true;
+    $batches = $purge_everything ? [[]] : array_chunk($urls, 30);
 
-    foreach (array_chunk($urls, 30) as $batch) {
+    foreach ($batches as $batch) {
         $result['attempted'] = true;
+        $body = $purge_everything
+            ? ['purge_everything' => true]
+            : ['files' => array_values($batch)];
         $response = wp_remote_post($endpoint, [
             'timeout' => 10,
             'headers' => [
                 'Authorization' => 'Bearer ' . $token,
                 'Content-Type' => 'application/json',
             ],
-            'body' => wp_json_encode([
-                'files' => array_values($batch),
-            ]),
+            'body' => wp_json_encode($body),
         ]);
 
         $batch_result = [
-            'count' => count($batch),
+            'count' => $purge_everything ? 0 : count($batch),
             'success' => false,
             'status' => 0,
             'error' => '',
@@ -1381,22 +1384,23 @@ function ll_tools_cloudflare_static_cache_purge(string $target = 'all'): array {
     return $result;
 }
 
-function ll_tools_cloudflare_static_cache_purge_once(string $target = 'all'): array {
+function ll_tools_cloudflare_static_cache_purge_once(string $target = 'all', bool $purge_everything = false): array {
     $target = ll_tools_normalize_static_cache_purge_target($target);
     if ($target === '') {
         $target = 'all';
     }
+    $cache_key = $target . ':' . ($purge_everything ? 'everything' : 'urls');
 
     if (!isset($GLOBALS['ll_tools_cloudflare_static_cache_purge_results']) || !is_array($GLOBALS['ll_tools_cloudflare_static_cache_purge_results'])) {
         $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'] = [];
     }
 
-    if (isset($GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$target])) {
-        return $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$target];
+    if (isset($GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$cache_key])) {
+        return $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$cache_key];
     }
 
-    $result = ll_tools_cloudflare_static_cache_purge($target);
-    $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$target] = $result;
+    $result = ll_tools_cloudflare_static_cache_purge($target, $purge_everything);
+    $GLOBALS['ll_tools_cloudflare_static_cache_purge_results'][$cache_key] = $result;
 
     return $result;
 }
@@ -1414,11 +1418,12 @@ function ll_tools_normalize_static_cache_purge_target($target): string {
     return in_array($target, ll_tools_static_cache_purge_targets(), true) ? $target : '';
 }
 
-function ll_tools_purge_static_caches($target = 'all'): array {
+function ll_tools_purge_static_caches($target = 'all', array $options = []): array {
     $target = ll_tools_normalize_static_cache_purge_target($target);
     if ($target === '') {
         $target = 'all';
     }
+    $cloudflare_purge_everything = !empty($options['cloudflare_purge_everything']);
 
     $result = [
         'target' => $target,
@@ -1456,7 +1461,7 @@ function ll_tools_purge_static_caches($target = 'all'): array {
     $result['deleted'] = (int) $result['caches']['dictionary']['deleted'] + (int) $result['caches']['public']['deleted'];
     $result['edge'] = [
         'cloudflare' => function_exists('ll_tools_cloudflare_static_cache_purge_once')
-            ? ll_tools_cloudflare_static_cache_purge_once($target)
+            ? ll_tools_cloudflare_static_cache_purge_once($target, $cloudflare_purge_everything)
             : [
                 'provider' => 'cloudflare',
                 'target' => $target,
@@ -1464,6 +1469,7 @@ function ll_tools_purge_static_caches($target = 'all'): array {
                 'enabled' => false,
                 'attempted' => false,
                 'purged' => false,
+                'purge_everything' => $cloudflare_purge_everything,
                 'urls' => [],
                 'batches' => [],
                 'error' => 'unavailable',

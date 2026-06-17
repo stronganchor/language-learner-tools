@@ -544,6 +544,59 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertSame(['files' => [$dictionary_url, $secondary_dictionary_url]], $body);
     }
 
+    public function test_static_cache_purge_can_request_cloudflare_purge_everything(): void
+    {
+        $zone_filter = static function (): string {
+            return 'test-zone-id';
+        };
+        $token_filter = static function (): string {
+            return 'test-api-token';
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => $url,
+                'args' => $args,
+            ];
+
+            return [
+                'headers' => [],
+                'body' => wp_json_encode(['success' => true]),
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+
+        ll_tools_cloudflare_static_cache_reset_purge_once_state();
+        add_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        add_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        try {
+            $result = ll_tools_purge_static_caches('all', [
+                'cloudflare_purge_everything' => true,
+            ]);
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            remove_filter('ll_tools_cloudflare_static_cache_api_token', $token_filter);
+            remove_filter('ll_tools_cloudflare_static_cache_zone_id', $zone_filter);
+        }
+
+        $edge = $result['edge']['cloudflare'] ?? [];
+        $this->assertIsArray($edge);
+        $this->assertTrue((bool) ($edge['purge_everything'] ?? false));
+        $this->assertTrue((bool) ($edge['attempted'] ?? false));
+        $this->assertTrue((bool) ($edge['purged'] ?? false));
+        $this->assertCount(1, $http_requests);
+
+        $args = $http_requests[0]['args'] ?? [];
+        $body = json_decode((string) ($args['body'] ?? ''), true);
+        $this->assertSame(['purge_everything' => true], $body);
+    }
+
     public function test_static_cache_purge_capability_defaults_to_manage_options(): void
     {
         $viewer_id = self::factory()->user->create(['role' => 'subscriber']);

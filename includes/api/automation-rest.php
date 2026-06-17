@@ -1503,6 +1503,9 @@ function ll_tools_rest_automation_purge_static_cache(WP_REST_Request $request) {
     $target = function_exists('ll_tools_normalize_static_cache_purge_target')
         ? ll_tools_normalize_static_cache_purge_target($request->get_param('cache'))
         : sanitize_key((string) $request->get_param('cache'));
+    $cloudflare_purge_everything = $request->has_param('cloudflare_purge_everything')
+        ? rest_sanitize_boolean($request->get_param('cloudflare_purge_everything'))
+        : false;
 
     if ($target === '') {
         return ll_tools_rest_automation_error(
@@ -1513,7 +1516,9 @@ function ll_tools_rest_automation_purge_static_cache(WP_REST_Request $request) {
     }
 
     $result = function_exists('ll_tools_purge_static_caches')
-        ? ll_tools_purge_static_caches($target)
+        ? ll_tools_purge_static_caches($target, [
+            'cloudflare_purge_everything' => $cloudflare_purge_everything,
+        ])
         : [
             'target' => $target,
             'deleted' => 0,
@@ -8676,6 +8681,11 @@ function ll_tools_rest_register_automation_routes(): void {
                 'required' => false,
                 'type' => 'string',
                 'default' => 'all',
+            ],
+            'cloudflare_purge_everything' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
             ],
         ],
     ]);

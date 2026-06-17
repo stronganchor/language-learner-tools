@@ -414,10 +414,14 @@ Optional Cloudflare edge purge support:
   dictionary/all purges. Add site-specific public URLs through
   `ll_tools_cloudflare_static_cache_purge_urls` only when those pages are
   intentionally cached at the edge.
+- For rare edge-cache drift where exact URL purges are accepted but a stale
+  object remains, administrators can pass
+  `{ "cache": "all", "cloudflare_purge_everything": true }` to request a full
+  Cloudflare zone purge through the same guarded route.
 - The REST response includes an `edge.cloudflare` object with `configured`,
-  `enabled`, `attempted`, `purged`, `urls`, `batches`, and `error` fields. A
-  missing Cloudflare configuration is reported as `error: "not_configured"` and
-  does not make the local cache purge fail.
+  `enabled`, `attempted`, `purged`, `purge_everything`, `urls`, `batches`, and
+  `error` fields. A missing Cloudflare configuration is reported as
+  `error: "not_configured"` and does not make the local cache purge fail.
 
 Dump a live report:
 
