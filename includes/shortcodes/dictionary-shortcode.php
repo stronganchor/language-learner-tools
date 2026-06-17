@@ -2029,6 +2029,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
         : [];
     $parent_notes = ll_tools_dictionary_collect_parent_notes($senses);
     $sense_examples = ll_tools_dictionary_collect_sense_examples($senses, 12);
+    $should_render_sense_breakdown = !empty($senses) && (empty($translation_groups) || count($senses) > 1);
     $sources = function_exists('ll_tools_dictionary_collect_sources') ? ll_tools_dictionary_collect_sources($senses) : [];
     $dialects = ll_tools_dictionary_collect_entry_dialects($senses);
     $needs_review = function_exists('ll_tools_dictionary_entry_has_review_flag')
@@ -2126,7 +2127,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
         $html .= '</section>';
     }
 
-    if (empty($translation_groups) && !empty($senses)) {
+    if ($should_render_sense_breakdown) {
         $html .= '<section class="ll-dictionary__detail-section">';
         $html .= '<h4 class="ll-dictionary__section-title">' . esc_html__('Senses', 'll-tools-text-domain') . '</h4>';
         $html .= '<ol class="ll-dictionary__sense-list ll-dictionary__sense-list--detail">';

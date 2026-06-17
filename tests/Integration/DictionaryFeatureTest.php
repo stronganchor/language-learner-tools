@@ -188,6 +188,58 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('+ 1 more sense', $html);
     }
 
+    public function test_dictionary_detail_renders_sense_breakdown_with_combined_definitions(): void
+    {
+        $this->ensurePartOfSpeechTerm('pronoun', 'Pronoun');
+        $this->ensurePartOfSpeechTerm('postposition', 'Postposition');
+        $this->ensurePartOfSpeechTerm('particle', 'Particle');
+
+        $entry_id = wp_insert_post([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'a',
+            'post_content' => 'o (d.), su (d.); ile, -le/-la; -a dogru',
+        ], true);
+        $this->assertIsInt($entry_id);
+        $this->assertGreaterThan(0, $entry_id);
+
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [
+            [
+                'definition' => 'o (d.), su (d.)',
+                'translations' => ['tr' => 'o (d.), su (d.)'],
+                'entry_type' => 'zm. || pn',
+                'def_lang' => 'tr',
+            ],
+            [
+                'definition' => 'ile, -le/-la',
+                'translations' => ['tr' => 'ile, -le/-la'],
+                'entry_type' => 'arka ed. || postp',
+                'def_lang' => 'tr',
+            ],
+            [
+                'definition' => '-a dogru',
+                'translations' => ['tr' => '-a dogru'],
+                'entry_type' => 'f.ilgeci || v.prt',
+                'def_lang' => 'tr',
+            ],
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, 'pronoun');
+
+        $html = ll_tools_dictionary_render_detail_view((int) $entry_id, 'https://example.test/sozluk/', ['tr']);
+
+        $this->assertStringContainsString('Definitions', $html);
+        $this->assertStringContainsString('Senses', $html);
+        $this->assertStringContainsString('o (d.), su (d.)', $html);
+        $this->assertStringContainsString('ile, -le/-la', $html);
+        $this->assertStringContainsString('-a dogru', $html);
+        $this->assertStringContainsString('Pronoun', $html);
+        $this->assertStringContainsString('Postposition', $html);
+        $this->assertStringContainsString('Particle', $html);
+        $this->assertStringNotContainsString('zm. || pn', $html);
+        $this->assertStringNotContainsString('arka ed. || postp', $html);
+        $this->assertStringNotContainsString('f.ilgeci || v.prt', $html);
+    }
+
     public function test_dictionary_pos_metadata_backfill_updates_existing_senses(): void
     {
         delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION);
