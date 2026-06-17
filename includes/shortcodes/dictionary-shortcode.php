@@ -3074,6 +3074,9 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
     );
     $source_ids = ll_tools_dictionary_shortcode_resolve_source_ids_from_request($_POST);
     $dialect = isset($_POST['ll_dictionary_dialect']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_dialect']))) : '';
+    $title_language = function_exists('ll_tools_dictionary_get_effective_title_language_code')
+        ? ll_tools_dictionary_get_effective_title_language_code($wordset_id)
+        : '';
 
     $cache_args = [
         'wordset_id' => $wordset_id,
@@ -3083,6 +3086,8 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
         'pos_slug' => $pos_slug,
         'source_ids' => $source_ids,
         'dialect' => $dialect,
+        'title_language' => $title_language,
+        'browse_letter_schema' => 2,
     ];
     $cached = ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args);
     if (is_array($cached)) {
@@ -3144,6 +3149,9 @@ function ll_tools_dictionary_handle_live_search(): void {
     $dialect = isset($_POST['ll_dictionary_dialect']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_dialect']))) : '';
     $base_url = ll_tools_dictionary_resolve_live_base_url(isset($_POST['base_url']) ? (string) wp_unslash((string) $_POST['base_url']) : '');
     $preferred_languages = ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, $wordset_id, $gloss_lang);
+    $title_language = function_exists('ll_tools_dictionary_get_effective_title_language_code')
+        ? ll_tools_dictionary_get_effective_title_language_code($wordset_id)
+        : '';
 
     if ($search !== '') {
         $letter = '';
@@ -3181,6 +3189,8 @@ function ll_tools_dictionary_handle_live_search(): void {
         'source_ids' => $source_ids,
         'dialect' => $dialect,
         'preferred_languages' => $preferred_languages,
+        'title_language' => $title_language,
+        'browse_letter_schema' => 2,
         'has_active_query' => $has_active_browse_query,
         'query_limits' => $query_limits,
     ];

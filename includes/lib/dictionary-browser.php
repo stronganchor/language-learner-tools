@@ -200,8 +200,39 @@ function ll_tools_dictionary_normalize_language_key(string $value): string {
         }
     }
 
-    $value = strtolower(preg_replace('/[^a-z0-9_-]+/i', '', $value) ?? '');
-    return trim($value);
+    $normalized = strtolower(preg_replace('/[^a-z0-9_-]+/i', '', $value) ?? '');
+    $alias_source = strtr($value, [
+        'ı' => 'i',
+        'İ' => 'i',
+    ]);
+    if (function_exists('remove_accents')) {
+        $alias_source = remove_accents($alias_source);
+    }
+    $alias_key = strtolower(preg_replace('/[^a-z0-9_-]+/i', '', $alias_source) ?? '');
+    $aliases = [
+        'zazaki' => 'zza',
+        'zaza' => 'zza',
+        'dimilki' => 'zza',
+        'kirmancki' => 'zza',
+        'kirmanjki' => 'zza',
+        'kirdki' => 'zza',
+        'turkish' => 'tr',
+        'turkce' => 'tr',
+        'tur' => 'tr',
+        'english' => 'en',
+        'ingilizce' => 'en',
+        'deutsch' => 'de',
+        'german' => 'de',
+    ];
+
+    if (isset($aliases[$normalized])) {
+        return $aliases[$normalized];
+    }
+    if (isset($aliases[$alias_key])) {
+        return $aliases[$alias_key];
+    }
+
+    return trim($normalized);
 }
 
 /**
@@ -408,6 +439,7 @@ function ll_tools_dictionary_infer_title_language_code_from_entries(int $wordset
     $wordset_id = max(0, $wordset_id);
     $cache_args = [
         'wordset_id' => $wordset_id,
+        'normalizer' => 2,
         'viewer' => function_exists('ll_tools_dictionary_viewer_cache_key')
             ? ll_tools_dictionary_viewer_cache_key()
             : (is_user_logged_in() ? 'user:' . (int) get_current_user_id() : 'anon'),

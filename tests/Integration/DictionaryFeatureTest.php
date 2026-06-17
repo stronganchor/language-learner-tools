@@ -136,6 +136,21 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_dictionary_language_key_normalizes_common_labels_for_browse_alphabets(): void
+    {
+        $this->assertSame('zza', ll_tools_dictionary_normalize_language_key('Zazaki'));
+        $this->assertSame('zza', ll_tools_dictionary_normalize_language_key('Kirmanckî'));
+        $this->assertSame('zza', ll_tools_dictionary_normalize_language_key('Dımılki'));
+        $this->assertSame('tr', ll_tools_dictionary_normalize_language_key('Türkçe'));
+        $this->assertSame('en', ll_tools_dictionary_normalize_language_key('English'));
+
+        $zazaki_alphabet = ll_tools_dictionary_get_language_browse_alphabet('Zazaki');
+        $this->assertContains('Ç', $zazaki_alphabet);
+        $this->assertContains('Ş', $zazaki_alphabet);
+        $this->assertContains('Ê', $zazaki_alphabet);
+        $this->assertContains('Û', $zazaki_alphabet);
+    }
+
     public function test_dictionary_static_cache_key_normalizes_display_args_and_ignores_nonce_noise(): void
     {
         $identity = [
@@ -768,6 +783,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'source_ids' => [],
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
+            'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
+            'browse_letter_schema' => 2,
             'has_active_query' => false,
             'query_limits' => [
                 'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
@@ -2953,6 +2970,31 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ş\s*<\/a>/u', $idle_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*İ\s*<\/a>/u', $idle_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Û\s*<\/a>/u', $idle_html);
+
+        wp_set_current_user(0);
+        $_POST = [
+            'action' => 'll_tools_dictionary_toolbar_bootstrap',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'wordset_id' => 0,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $toolbar = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_toolbar_bootstrap();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($toolbar['success'] ?? false));
+        $toolbar_html = (string) ($toolbar['data']['html'] ?? '');
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ç\s*<\/a>/u', $toolbar_html);
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ş\s*<\/a>/u', $toolbar_html);
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*İ\s*<\/a>/u', $toolbar_html);
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Û\s*<\/a>/u', $toolbar_html);
 
         $_GET = [
             'll_dictionary_letter' => 'I',
