@@ -40,6 +40,15 @@ if (!defined('LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION')) {
 if (!defined('LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP')) {
     define('LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP', 'll_tools');
 }
+if (!defined('LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION', 'll_tools_dictionary_sense_pos_meta_version');
+}
+if (!defined('LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION', 'll_tools_dictionary_sense_pos_meta_cursor');
+}
+if (!defined('LL_TOOLS_DICTIONARY_SENSE_POS_META_TARGET_VERSION')) {
+    define('LL_TOOLS_DICTIONARY_SENSE_POS_META_TARGET_VERSION', 1);
+}
 
 /**
  * Resolve the current version token for dictionary browser caches.
@@ -1154,6 +1163,7 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
         'definition' => '',
         'gender_number' => '',
         'entry_type' => '',
+        'part_of_speech_slug' => '',
         'parent' => '',
         'needs_review' => '',
         'page_number' => '',
@@ -1194,6 +1204,11 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
         $clean[$text_key] = ll_tools_dictionary_normalize_import_gloss_text((string) $clean[$text_key], $source_aliases);
     }
 
+    $explicit_pos_slug = sanitize_title((string) ($sense['part_of_speech_slug'] ?? $sense['pos_slug'] ?? ''));
+    $clean['part_of_speech_slug'] = ll_tools_dictionary_normalize_part_of_speech_slug(
+        $explicit_pos_slug,
+        (string) $clean['entry_type']
+    );
     $clean['source_id'] = ll_tools_dictionary_resolve_source_id((string) $clean['source_id'], (string) $clean['source_dictionary']);
     $clean['source_dictionary'] = ll_tools_dictionary_resolve_source_label((string) $clean['source_id'], (string) $clean['source_dictionary']);
     $clean['dialects'] = ll_tools_dictionary_sanitize_dialect_list($sense['dialects'] ?? []);
@@ -1244,7 +1259,7 @@ function ll_tools_dictionary_get_sense_dialects(array $sense): array {
  */
 function ll_tools_dictionary_sense_hash(array $sense): string {
     $parts = [];
-    foreach (['definition', 'gender_number', 'entry_type', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys', 'source_entry', 'flex_morph_type', 'flex_entry_ref_type', 'flex_homograph_number', 'flex_pronunciation_note', 'flex_geographical_note', 'flex_notes'] as $key) {
+    foreach (['definition', 'gender_number', 'entry_type', 'part_of_speech_slug', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys', 'source_entry', 'flex_morph_type', 'flex_entry_ref_type', 'flex_homograph_number', 'flex_pronunciation_note', 'flex_geographical_note', 'flex_notes'] as $key) {
         $parts[] = ll_tools_dictionary_normalize_search_text((string) ($sense[$key] ?? ''));
     }
     foreach (ll_tools_dictionary_get_sense_dialects($sense) as $dialect) {
@@ -1341,7 +1356,23 @@ function ll_tools_dictionary_get_part_of_speech_label(string $slug, string $fall
         return trim($fallback);
     }
 
-    $labels = [
+    $labels = ll_tools_dictionary_get_canonical_part_of_speech_labels();
+
+    if (isset($labels[$slug])) {
+        return $labels[$slug];
+    }
+
+    $fallback = trim($fallback);
+    return $fallback !== '' ? $fallback : $slug;
+}
+
+/**
+ * Return canonical dictionary part-of-speech labels by slug.
+ *
+ * @return array<string,string>
+ */
+function ll_tools_dictionary_get_canonical_part_of_speech_labels(): array {
+    return [
         'adjective' => __('Adjective', 'll-tools-text-domain'),
         'adverb' => __('Adverb', 'll-tools-text-domain'),
         'affix' => __('Affix', 'll-tools-text-domain'),
@@ -1361,13 +1392,6 @@ function ll_tools_dictionary_get_part_of_speech_label(string $slug, string $fall
         'pronoun' => __('Pronoun', 'll-tools-text-domain'),
         'verb' => __('Verb', 'll-tools-text-domain'),
     ];
-
-    if (isset($labels[$slug])) {
-        return $labels[$slug];
-    }
-
-    $fallback = trim($fallback);
-    return $fallback !== '' ? $fallback : $slug;
 }
 
 /**
@@ -1375,6 +1399,7 @@ function ll_tools_dictionary_get_part_of_speech_label(string $slug, string $fall
  */
 function ll_tools_dictionary_format_entry_type_label(string $entry_type, string $fallback = ''): string {
     $entry_type = trim((string) $entry_type);
+    $fallback = trim((string) $fallback);
     if ($entry_type === '') {
         return trim($fallback);
     }
@@ -1385,6 +1410,34 @@ function ll_tools_dictionary_format_entry_type_label(string $entry_type, string 
     }
 
     return $entry_type;
+}
+
+/**
+ * Resolve the canonical part-of-speech slug stored for a sense.
+ *
+ * @param array<string,mixed> $sense Sense payload.
+ */
+function ll_tools_dictionary_get_sense_part_of_speech_slug(array $sense): string {
+    $stored = ll_tools_dictionary_normalize_part_of_speech_slug((string) ($sense['part_of_speech_slug'] ?? ''), '');
+    if ($stored !== '') {
+        return $stored;
+    }
+
+    return ll_tools_dictionary_resolve_pos_slug_from_entry_type((string) ($sense['entry_type'] ?? ''));
+}
+
+/**
+ * Resolve the public part-of-speech label for a sense.
+ *
+ * @param array<string,mixed> $sense Sense payload.
+ */
+function ll_tools_dictionary_get_sense_part_of_speech_label(array $sense): string {
+    $slug = ll_tools_dictionary_get_sense_part_of_speech_slug($sense);
+    if ($slug === '') {
+        return '';
+    }
+
+    return ll_tools_dictionary_get_part_of_speech_label($slug, (string) ($sense['entry_type'] ?? ''));
 }
 
 /**
@@ -1973,11 +2026,14 @@ function ll_tools_dictionary_build_post_content_from_senses(array $senses, array
 
         $extras = [];
         $entry_type = trim((string) ($sense['entry_type'] ?? ''));
+        $pos_label = ll_tools_dictionary_get_sense_part_of_speech_label((array) $sense);
         $gender = trim((string) ($sense['gender_number'] ?? ''));
         $parent = trim((string) ($sense['parent'] ?? ''));
         $page_number = trim((string) ($sense['page_number'] ?? ''));
 
-        if ($entry_type !== '') {
+        if ($pos_label !== '') {
+            $extras[] = $pos_label;
+        } elseif ($entry_type !== '') {
             $extras[] = $entry_type;
         }
         if ($gender !== '') {
@@ -2017,7 +2073,7 @@ function ll_tools_dictionary_build_search_index(string $title, string $translati
     $parts = [$title, $translation, $content];
 
     foreach ($senses as $sense) {
-        foreach (['definition', 'gender_number', 'entry_type', 'parent', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys', 'source_entry', 'flex_morph_type', 'flex_entry_ref_type', 'flex_homograph_number', 'flex_pronunciation_note', 'flex_geographical_note', 'flex_notes'] as $key) {
+        foreach (['definition', 'gender_number', 'entry_type', 'part_of_speech_slug', 'parent', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys', 'source_entry', 'flex_morph_type', 'flex_entry_ref_type', 'flex_homograph_number', 'flex_pronunciation_note', 'flex_geographical_note', 'flex_notes'] as $key) {
             $value = trim((string) ($sense[$key] ?? ''));
             if ($value !== '') {
                 $parts[] = $value;
@@ -2412,14 +2468,9 @@ function ll_tools_dictionary_preload_entry_ids_by_titles(array $titles, int $wor
 }
 
 /**
- * Resolve a part-of-speech slug from imported entry-type text.
+ * Return the canonical part-of-speech slug for imported shorthand text.
  */
-function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type): string {
-    $entry_type = trim((string) $entry_type);
-    if ($entry_type === '') {
-        return '';
-    }
-
+function ll_tools_dictionary_normalize_part_of_speech_slug(string $raw_slug = '', string $entry_type = ''): string {
     $map = [
         'n' => 'noun',
         'noun' => 'noun',
@@ -2450,7 +2501,16 @@ function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type
         'f-ilgeci' => 'particle',
     ];
 
-    $candidates = [sanitize_title($entry_type)];
+    $candidates = [];
+    $raw_slug = sanitize_title($raw_slug);
+    if ($raw_slug !== '') {
+        $candidates[] = $raw_slug;
+    }
+
+    $entry_type = trim((string) $entry_type);
+    if ($entry_type !== '') {
+        $candidates[] = sanitize_title($entry_type);
+    }
     foreach (preg_split('/\s*(?:\|\||[;,\/])\s*/', $entry_type) ?: [] as $token) {
         $token = sanitize_title((string) $token);
         if ($token !== '') {
@@ -2495,18 +2555,33 @@ function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type
             }
         }
 
-        $term = get_term_by('slug', $normalized, 'part_of_speech');
+        if (array_key_exists($normalized, ll_tools_dictionary_get_canonical_part_of_speech_labels())) {
+            return $normalized;
+        }
+
+        if (taxonomy_exists('part_of_speech')) {
+            $term = get_term_by('slug', $normalized, 'part_of_speech');
+            if ($term && !is_wp_error($term)) {
+                return (string) $term->slug;
+            }
+        }
+    }
+
+    if ($entry_type !== '' && taxonomy_exists('part_of_speech')) {
+        $term = get_term_by('name', $entry_type, 'part_of_speech');
         if ($term && !is_wp_error($term)) {
             return (string) $term->slug;
         }
     }
 
-    $term = get_term_by('name', $entry_type, 'part_of_speech');
-    if ($term && !is_wp_error($term)) {
-        return (string) $term->slug;
-    }
-
     return '';
+}
+
+/**
+ * Resolve a part-of-speech slug from imported entry-type text.
+ */
+function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type): string {
+    return ll_tools_dictionary_normalize_part_of_speech_slug('', $entry_type);
 }
 
 /**
@@ -2621,6 +2696,7 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         'definition' => '',
         'gender_number' => '',
         'entry_type' => '',
+        'part_of_speech_slug' => '',
         'parent' => '',
         'needs_review' => '',
         'page_number' => '',
@@ -2661,6 +2737,10 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
     if ($prepared['entry_type'] === '' && isset($row[3])) {
         $prepared['entry_type'] = trim(sanitize_text_field((string) $row[3]));
     }
+    $prepared['part_of_speech_slug'] = ll_tools_dictionary_normalize_part_of_speech_slug(
+        ll_tools_dictionary_get_import_row_value($row, ['part_of_speech_slug', 'pos_slug']),
+        (string) $prepared['entry_type']
+    );
     $prepared['parent'] = ll_tools_dictionary_get_import_row_value($row, ['parent', 'parent_zza', 'component_headwords']);
     if ($prepared['parent'] === '' && isset($row[4])) {
         $prepared['parent'] = trim(sanitize_text_field((string) $row[4]));
@@ -2816,6 +2896,139 @@ function ll_tools_dictionary_get_primary_sense_value(array $senses, string $fiel
 }
 
 /**
+ * Return the first canonical part-of-speech slug from a senses list.
+ *
+ * @param array<int,array<string,mixed>> $senses Senses list.
+ */
+function ll_tools_dictionary_get_primary_sense_part_of_speech_slug(array $senses): string {
+    foreach ($senses as $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        $slug = ll_tools_dictionary_get_sense_part_of_speech_slug($sense);
+        if ($slug !== '') {
+            return $slug;
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Backfill canonical POS metadata into existing structured dictionary senses.
+ *
+ * @return array{processed:int,updated:int,last_id:int,complete:bool,version:int}
+ */
+function ll_tools_dictionary_backfill_sense_part_of_speech_metadata(int $limit = 200): array {
+    global $wpdb;
+
+    $result = [
+        'processed' => 0,
+        'updated' => 0,
+        'last_id' => max(0, (int) get_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION, 0)),
+        'complete' => false,
+        'version' => LL_TOOLS_DICTIONARY_SENSE_POS_META_TARGET_VERSION,
+    ];
+
+    if (!($wpdb instanceof wpdb)) {
+        return $result;
+    }
+
+    $limit = max(1, min(1000, (int) $limit));
+    $cursor = max(0, (int) get_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION, 0));
+    $entry_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+        "SELECT ID
+         FROM {$wpdb->posts}
+         WHERE post_type = %s
+           AND ID > %d
+         ORDER BY ID ASC
+         LIMIT %d",
+        'll_dictionary_entry',
+        $cursor,
+        $limit
+    )))));
+
+    if (empty($entry_ids)) {
+        update_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION, LL_TOOLS_DICTIONARY_SENSE_POS_META_TARGET_VERSION, false);
+        delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION);
+        $result['complete'] = true;
+        return $result;
+    }
+
+    $changed_any = false;
+    foreach ($entry_ids as $entry_id) {
+        $entry_id = (int) $entry_id;
+        $result['processed']++;
+        $result['last_id'] = $entry_id;
+
+        $raw_senses = get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, true);
+        $senses = [];
+        if (is_array($raw_senses)) {
+            foreach ($raw_senses as $sense) {
+                if (is_array($sense)) {
+                    $senses[] = ll_tools_dictionary_sanitize_sense($sense);
+                }
+            }
+        }
+        if (empty($senses)) {
+            $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        }
+        if (empty($senses)) {
+            continue;
+        }
+
+        $entry_changed = false;
+        if (maybe_serialize($raw_senses) !== maybe_serialize($senses)) {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, $senses);
+            $entry_changed = true;
+        }
+
+        $primary_pos_slug = ll_tools_dictionary_get_primary_sense_part_of_speech_slug($senses);
+        $stored_pos_slug = sanitize_title((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, true));
+        if ($primary_pos_slug !== '' && $primary_pos_slug !== $stored_pos_slug) {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, $primary_pos_slug);
+            $entry_changed = true;
+        }
+
+        if ($entry_changed) {
+            ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+            $result['updated']++;
+            $changed_any = true;
+        }
+    }
+
+    update_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION, $result['last_id'], false);
+    if (count($entry_ids) < $limit) {
+        update_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION, LL_TOOLS_DICTIONARY_SENSE_POS_META_TARGET_VERSION, false);
+        delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION);
+        $result['complete'] = true;
+    }
+
+    if ($changed_any && function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
+
+    return $result;
+}
+
+/**
+ * Run one bounded dictionary POS metadata backfill batch from admin requests.
+ */
+function ll_tools_dictionary_maybe_backfill_sense_part_of_speech_metadata(): void {
+    if ((int) get_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION, 0) >= LL_TOOLS_DICTIONARY_SENSE_POS_META_TARGET_VERSION) {
+        return;
+    }
+
+    if (!function_exists('current_user_can') || !current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    ll_tools_dictionary_backfill_sense_part_of_speech_metadata();
+}
+add_action('admin_init', 'll_tools_dictionary_maybe_backfill_sense_part_of_speech_metadata', 30);
+
+/**
  * Temporarily suspend expensive dictionary-entry save hooks during imports.
  *
  * @return array<int,array{tag:string,callback:string,priority:int,args:int}>
@@ -2910,6 +3123,7 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
             'definition' => (string) ($row['definition'] ?? ''),
             'gender_number' => (string) ($row['gender_number'] ?? ''),
             'entry_type' => (string) ($row['entry_type'] ?? ''),
+            'part_of_speech_slug' => (string) ($row['part_of_speech_slug'] ?? ''),
             'parent' => (string) ($row['parent'] ?? ''),
             'needs_review' => (string) ($row['needs_review'] ?? ''),
             'page_number' => (string) ($row['page_number'] ?? ''),
@@ -2995,7 +3209,7 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     $primary_entry_lang = ll_tools_dictionary_get_primary_sense_value($merged_senses, 'entry_lang');
     $primary_def_lang = ll_tools_dictionary_get_primary_sense_value($merged_senses, 'def_lang');
     $primary_review = ll_tools_dictionary_get_primary_sense_value($merged_senses, 'needs_review');
-    $pos_slug = ll_tools_dictionary_resolve_pos_slug_from_entry_type($primary_entry_type);
+    $pos_slug = ll_tools_dictionary_get_primary_sense_part_of_speech_slug($merged_senses);
 
     $meta_updates = [
         LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY => $primary_entry_type,
@@ -3342,8 +3556,8 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         ? ll_tools_get_dictionary_entry_primary_pos_slug($entry_id)
         : '';
     if (!empty($display_source_filter_ids)) {
-        $filtered_pos_slug = function_exists('ll_tools_dictionary_resolve_pos_slug_from_entry_type')
-            ? ll_tools_dictionary_resolve_pos_slug_from_entry_type(ll_tools_dictionary_get_primary_sense_value($senses, 'entry_type'))
+        $filtered_pos_slug = function_exists('ll_tools_dictionary_get_primary_sense_part_of_speech_slug')
+            ? ll_tools_dictionary_get_primary_sense_part_of_speech_slug($senses)
             : '';
         if ($filtered_pos_slug !== '') {
             $pos_slug = $filtered_pos_slug;

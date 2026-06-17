@@ -73,6 +73,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION);
         delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY);
         wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
         foreach (get_posts([
@@ -149,6 +151,23 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('Pronoun', ll_tools_dictionary_format_entry_type_label('zm. || pn'));
         $this->assertSame('Postposition', ll_tools_dictionary_format_entry_type_label('arka ed. || postp'));
         $this->assertSame('Particle', ll_tools_dictionary_format_entry_type_label('f.ilgeci || v.prt'));
+
+        $sense = ll_tools_dictionary_sanitize_sense([
+            'definition' => 'o (d.), su (d.)',
+            'entry_type' => 'zm. || pn',
+        ]);
+        $this->assertSame('zm. || pn', (string) ($sense['entry_type'] ?? ''));
+        $this->assertSame('pronoun', (string) ($sense['part_of_speech_slug'] ?? ''));
+
+        $prepared = ll_tools_dictionary_prepare_import_row([
+            'entry' => 'a',
+            'definition_tr' => 'ile, -le/-la',
+            'part_of_speech_abbr_tr' => 'arka ed. || postp',
+        ], [
+            'def_lang' => 'tr',
+        ]);
+        $this->assertSame('arka ed. || postp', (string) ($prepared['entry_type'] ?? ''));
+        $this->assertSame('postposition', (string) ($prepared['part_of_speech_slug'] ?? ''));
     }
 
     public function test_dictionary_result_card_links_hidden_sense_count_to_entry_detail(): void
@@ -167,6 +186,41 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('class="ll-dictionary__more-link"', $html);
         $this->assertStringContainsString('href="https://example.test/sozluk/?ll_dictionary_entry=123"', $html);
         $this->assertStringContainsString('+ 1 more sense', $html);
+    }
+
+    public function test_dictionary_pos_metadata_backfill_updates_existing_senses(): void
+    {
+        delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION);
+
+        $entry_id = wp_insert_post([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'a',
+            'post_content' => 'o (d.), su (d.)',
+        ], true);
+        $this->assertIsInt($entry_id);
+        $this->assertGreaterThan(0, $entry_id);
+
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [
+            [
+                'definition' => 'o (d.), su (d.)',
+                'entry_type' => 'zm. || pn',
+                'def_lang' => 'tr',
+            ],
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY, 'zm. || pn');
+
+        $result = ll_tools_dictionary_backfill_sense_part_of_speech_metadata(25);
+
+        $this->assertSame(1, (int) ($result['processed'] ?? 0));
+        $this->assertSame(1, (int) ($result['updated'] ?? 0));
+        $this->assertTrue((bool) ($result['complete'] ?? false));
+        $this->assertSame(LL_TOOLS_DICTIONARY_SENSE_POS_META_TARGET_VERSION, (int) get_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION, 0));
+
+        $senses = ll_tools_get_dictionary_entry_senses((int) $entry_id);
+        $this->assertSame('pronoun', (string) ($senses[0]['part_of_speech_slug'] ?? ''));
+        $this->assertSame('pronoun', (string) get_post_meta((int) $entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, true));
     }
 
     public function test_dictionary_language_key_normalizes_common_labels_for_browse_alphabets(): void

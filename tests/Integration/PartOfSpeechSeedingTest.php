@@ -6,6 +6,7 @@ final class PartOfSpeechSeedingTest extends LL_Tools_TestCase
     public function test_part_of_speech_defaults_seed_once_without_duplicates(): void
     {
         delete_option('ll_parts_of_speech_seeded');
+        delete_option('ll_parts_of_speech_seed_version');
 
         $existing_terms = get_terms([
             'taxonomy'   => 'part_of_speech',
@@ -48,6 +49,7 @@ final class PartOfSpeechSeedingTest extends LL_Tools_TestCase
             'other',
             'particle',
             'phrase',
+            'postposition',
             'preposition',
             'pronoun',
             'verb',

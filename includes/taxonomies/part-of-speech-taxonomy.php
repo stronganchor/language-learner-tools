@@ -22,11 +22,6 @@ function ll_register_part_of_speech_taxonomy() {
 
     register_taxonomy('part_of_speech', array('words'), $args);
 
-    // Only seed defaults once to avoid repeated duplicate insert attempts on every init.
-    if (get_option('ll_parts_of_speech_seeded')) {
-        return;
-    }
-
     // Insert pre-defined part of speech terms
     $parts_of_speech = array(
         'noun' => 'Noun',
@@ -35,6 +30,7 @@ function ll_register_part_of_speech_taxonomy() {
         'adverb' => 'Adverb',
         'pronoun' => 'Pronoun',
         'preposition' => 'Preposition',
+        'postposition' => 'Postposition',
         'conjunction' => 'Conjunction',
         'interjection' => 'Interjection',
         'article' => 'Article',
@@ -48,6 +44,11 @@ function ll_register_part_of_speech_taxonomy() {
         'other' => 'Other',
     );
 
+    // Seed version 2 adds postposition for dictionary-derived POS metadata.
+    if (get_option('ll_parts_of_speech_seeded') && (int) get_option('ll_parts_of_speech_seed_version', 1) >= 2) {
+        return;
+    }
+
     foreach ($parts_of_speech as $part_of_speech_slug => $part_of_speech_name) {
         if (!term_exists($part_of_speech_slug, 'part_of_speech')) {
             wp_insert_term($part_of_speech_name, 'part_of_speech', array('slug' => $part_of_speech_slug));
@@ -55,5 +56,6 @@ function ll_register_part_of_speech_taxonomy() {
     }
 
     update_option('ll_parts_of_speech_seeded', true);
+    update_option('ll_parts_of_speech_seed_version', 2);
 }
 add_action('init', 'll_register_part_of_speech_taxonomy');

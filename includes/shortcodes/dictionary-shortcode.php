@@ -797,8 +797,8 @@ function ll_tools_dictionary_persist_entry_senses(int $entry_id, array $senses, 
     $primary_review = function_exists('ll_tools_dictionary_get_primary_sense_value')
         ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'needs_review')
         : '';
-    $pos_slug = function_exists('ll_tools_dictionary_resolve_pos_slug_from_entry_type')
-        ? ll_tools_dictionary_resolve_pos_slug_from_entry_type($primary_entry_type)
+    $pos_slug = function_exists('ll_tools_dictionary_get_primary_sense_part_of_speech_slug')
+        ? ll_tools_dictionary_get_primary_sense_part_of_speech_slug($normalized_senses)
         : '';
 
     $meta_updates = [
@@ -1909,7 +1909,12 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
             }
 
             $meta_parts = [];
-            if ($sense_type !== '') {
+            $sense_label = function_exists('ll_tools_dictionary_get_sense_part_of_speech_label')
+                ? ll_tools_dictionary_get_sense_part_of_speech_label((array) $sense)
+                : '';
+            if ($sense_label !== '') {
+                $meta_parts[] = $sense_label;
+            } elseif ($sense_type !== '') {
                 $meta_parts[] = function_exists('ll_tools_dictionary_format_entry_type_label')
                     ? ll_tools_dictionary_format_entry_type_label($sense_type)
                     : $sense_type;
@@ -2136,10 +2141,19 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
             $meta_parts = [];
             foreach (['entry_type', 'gender_number'] as $field) {
                 $value = trim((string) ($sense[$field] ?? ''));
-                if ($value !== '') {
-                    if ($field === 'entry_type' && function_exists('ll_tools_dictionary_format_entry_type_label')) {
+                if ($field === 'entry_type') {
+                    $sense_label = function_exists('ll_tools_dictionary_get_sense_part_of_speech_label')
+                        ? ll_tools_dictionary_get_sense_part_of_speech_label((array) $sense)
+                        : '';
+                    if ($sense_label !== '') {
+                        $meta_parts[] = $sense_label;
+                        continue;
+                    }
+                    if ($value !== '' && function_exists('ll_tools_dictionary_format_entry_type_label')) {
                         $value = ll_tools_dictionary_format_entry_type_label($value);
                     }
+                }
+                if ($value !== '') {
                     $meta_parts[] = $value;
                 }
             }
