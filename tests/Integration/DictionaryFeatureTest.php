@@ -207,6 +207,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'll_dictionary_entry' => '70457',
             ], 'tr_TR')
         );
+        $source_detail_key = ll_tools_dictionary_static_cache_key($identity, [
+            'll_dictionary_entry' => '70456',
+            'll_dictionary_source' => 'harun-turgut',
+            'll_dictionary_letter' => 'I',
+        ], 'tr_TR');
+        $this->assertNotSame($first_key, $source_detail_key);
 
         $normalized = ll_tools_dictionary_static_cache_normalize_query_args([
             'letter' => 'H',
@@ -220,6 +226,15 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame([
             'll_dictionary_entry' => '70456',
         ], $normalized);
+        $source_normalized = ll_tools_dictionary_static_cache_normalize_query_args([
+            'll_dictionary_entry' => '70456',
+            'll_dictionary_source' => 'harun-turgut',
+            'll_dictionary_letter' => 'I',
+        ]);
+        $this->assertSame([
+            'll_dictionary_entry' => '70456',
+            'll_dictionary_source' => 'harun-turgut',
+        ], $source_normalized);
 
         $legacy_normalized = ll_tools_dictionary_static_cache_normalize_query_args(['letter' => 'H']);
         $this->assertSame(['ll_dictionary_letter' => 'H'], $legacy_normalized);
@@ -248,6 +263,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_dictionary_entry' => (string) $entry_id,
             'll_dictionary_letter' => 'Ü',
             'll_dictionary_page' => '9',
+            'll_dictionary_source' => 'harun-turgut',
             'll_locale' => 'tr_TR',
             'll_locale_nonce' => 'nonce',
             'foo' => 'bar',
@@ -258,6 +274,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('/sozluk/', $canonical);
         $this->assertSame([
             'll_dictionary_entry' => (string) $entry_id,
+            'll_dictionary_source' => 'harun-turgut',
         ], $query);
 
         $invalid = ll_tools_dictionary_static_cache_canonical_url($identity, [
@@ -549,7 +566,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertCount(1, $http_requests);
         $this->assertSame('https://api.cloudflare.com/client/v4/zones/test-zone-id/purge_cache', (string) ($http_requests[0]['url'] ?? ''));
         $body = json_decode((string) ($http_requests[0]['args']['body'] ?? ''), true);
-        $this->assertSame(['files' => [$dictionary_url]], $body);
+        $purged_files = array_values(array_filter(array_map('strval', (array) ($body['files'] ?? []))));
+        $this->assertContains($dictionary_url, $purged_files);
+        $this->assertSame($purged_files, array_values(array_unique($purged_files)));
     }
 
     public function test_dictionary_browser_cache_bump_purges_static_html_once_per_request(): void
@@ -2108,6 +2127,62 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertContains('Palu - Bingöl', $dialects);
         $this->assertContains('Siverek', $dialects);
 
+        $find_item = static function (array $query, string $title): array {
+            foreach ((array) ($query['items'] ?? []) as $item) {
+                if (is_array($item) && (string) ($item['title'] ?? '') === $title) {
+                    return $item;
+                }
+            }
+
+            return [];
+        };
+        $source_labels = static function (array $item): array {
+            return array_values(array_map(static function (array $source): string {
+                return (string) ($source['label'] ?? '');
+            }, array_values(array_filter((array) ($item['sources'] ?? []), 'is_array'))));
+        };
+
+        $harun_query = ll_tools_dictionary_query_entries([
+            'source_ids' => ['harun-turgut'],
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 3,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $harun_dar = $find_item($harun_query, 'Dar');
+        $this->assertNotEmpty($harun_dar);
+        $this->assertSame('tree', (string) ($harun_dar['translation'] ?? ''));
+        $this->assertSame(['Harun Turgut'], $source_labels($harun_dar));
+        $this->assertStringNotContainsString('tree trunk', (string) wp_json_encode($harun_dar));
+
+        $dezd_query = ll_tools_dictionary_query_entries([
+            'source_ids' => ['dezd'],
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 3,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $dezd_dar = $find_item($dezd_query, 'Dar');
+        $this->assertNotEmpty($dezd_dar);
+        $this->assertSame('tree trunk', (string) ($dezd_dar['translation'] ?? ''));
+        $this->assertSame(['DEZD'], $source_labels($dezd_dar));
+        $this->assertStringNotContainsString('"tree"', (string) wp_json_encode($dezd_dar));
+
+        $multi_query = ll_tools_dictionary_query_entries([
+            'source_ids' => ['harun-turgut', 'dezd'],
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 3,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $multi_dar = $find_item($multi_query, 'Dar');
+        $this->assertNotEmpty($multi_dar);
+        $this->assertStringContainsString('tree', (string) wp_json_encode($multi_dar));
+        $this->assertStringContainsString('tree trunk', (string) wp_json_encode($multi_dar));
+
         $_GET = [
             'll_dictionary_source' => 'harun-turgut',
         ];
@@ -2120,9 +2195,11 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Palu - Bing', $filtered_html);
         $this->assertStringContainsString('Dar', $filtered_html);
         $this->assertStringContainsString('sun', $filtered_html);
+        $this->assertStringNotContainsString('tree trunk', $filtered_html);
         $this->assertStringNotContainsString('water', $filtered_html);
         $this->assertStringNotContainsString('grass', $filtered_html);
         $this->assertStringContainsString('Harun Turgut', $filtered_html);
+        $this->assertStringContainsString('ll_dictionary_source=harun-turgut', $filtered_html);
         $this->assertStringContainsString('ll-dictionary__badge--external', $filtered_html);
         $this->assertStringContainsString('aria-label="Open source page for Harun Turgut"', $filtered_html);
 
@@ -2131,6 +2208,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ];
 
         $dezd_filtered_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('tree trunk', $dezd_filtered_html);
         $this->assertStringContainsString('water', $dezd_filtered_html);
         $this->assertStringContainsString('grass', $dezd_filtered_html);
         $this->assertStringNotContainsString('sun', $dezd_filtered_html);
@@ -2161,6 +2239,33 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('grass', $canonical_filtered_html);
         $this->assertStringContainsString('sun', $canonical_filtered_html);
         $this->assertStringNotContainsString('fruit', $canonical_filtered_html);
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+            'll_dictionary_source' => 'harun-turgut',
+        ];
+
+        $harun_detail_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('tree', $harun_detail_html);
+        $this->assertStringContainsString('Harun Turgut', $harun_detail_html);
+        $this->assertStringContainsString('https://example.com/harun-license', $harun_detail_html);
+        $this->assertStringNotContainsString('tree trunk', $harun_detail_html);
+        $this->assertStringNotContainsString('DEZD', $harun_detail_html);
+        $this->assertStringNotContainsString('https://example.com/dezd-license', $harun_detail_html);
+        $this->assertStringNotContainsString('Siverek', $harun_detail_html);
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+            'll_dictionary_source' => 'dezd',
+        ];
+
+        $dezd_detail_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('tree trunk', $dezd_detail_html);
+        $this->assertStringContainsString('DEZD', $dezd_detail_html);
+        $this->assertStringContainsString('https://example.com/dezd-license', $dezd_detail_html);
+        $this->assertStringContainsString('Siverek', $dezd_detail_html);
+        $this->assertStringNotContainsString('Harun Turgut', $dezd_detail_html);
+        $this->assertStringNotContainsString('https://example.com/harun-license', $dezd_detail_html);
 
         $_GET = [
             'll_dictionary_entry' => (string) $entry_id,

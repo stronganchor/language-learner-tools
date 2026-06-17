@@ -1798,6 +1798,69 @@ function ll_tools_dictionary_entry_matches_source_filter(int $entry_id, $source_
 }
 
 /**
+ * Return the source filter that should affect displayed entry data.
+ *
+ * Multi-source filtering is still an entry-discovery filter. Only a single
+ * selected source can safely de-merge a shared entry's visible sense payload.
+ *
+ * @param string|string[] $source_filter
+ * @return string[]
+ */
+function ll_tools_dictionary_get_single_source_display_filter($source_filter): array {
+    $source_filter_ids = function_exists('ll_tools_dictionary_shortcode_resolve_source_ids_from_request')
+        ? ll_tools_dictionary_shortcode_resolve_source_ids_from_request(['ll_dictionary_source' => $source_filter])
+        : ll_tools_dictionary_normalize_source_filter_ids($source_filter);
+
+    return count($source_filter_ids) === 1 ? $source_filter_ids : [];
+}
+
+/**
+ * Determine whether one stored sense belongs to a selected source filter.
+ *
+ * @param array<string,mixed> $sense
+ * @param string|string[]     $source_filter
+ */
+function ll_tools_dictionary_sense_matches_source_filter(array $sense, $source_filter): bool {
+    $source_filter_ids = ll_tools_dictionary_normalize_source_filter_ids($source_filter);
+    if (empty($source_filter_ids)) {
+        return true;
+    }
+
+    $source = ll_tools_dictionary_get_sense_source($sense);
+    $source_id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
+    $source_label_id = ll_tools_dictionary_normalize_source_id((string) ($source['label'] ?? ''));
+
+    foreach ($source_filter_ids as $source_filter_id) {
+        if (
+            ll_tools_dictionary_source_identifier_matches_filter($source_id, $source_filter_id)
+            || ll_tools_dictionary_source_identifier_matches_filter($source_label_id, $source_filter_id)
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Keep only senses that belong to the selected source filter.
+ *
+ * @param array<int,array<string,mixed>> $senses
+ * @param string|string[]                $source_filter
+ * @return array<int,array<string,mixed>>
+ */
+function ll_tools_dictionary_filter_senses_by_source_filter(array $senses, $source_filter): array {
+    $source_filter_ids = ll_tools_dictionary_normalize_source_filter_ids($source_filter);
+    if (empty($source_filter_ids)) {
+        return array_values(array_filter($senses, 'is_array'));
+    }
+
+    return array_values(array_filter($senses, static function ($sense) use ($source_filter_ids): bool {
+        return is_array($sense) && ll_tools_dictionary_sense_matches_source_filter($sense, $source_filter_ids);
+    }));
+}
+
+/**
  * Determine whether one dictionary entry contains a matching dialect filter.
  */
 function ll_tools_dictionary_entry_matches_dialect_filter(int $entry_id, string $dialect_filter): bool {
@@ -3156,7 +3219,7 @@ function ll_tools_dictionary_get_linked_word_previews(int $entry_id, int $limit 
  *
  * @return array<string,mixed>
  */
-function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = []): array {
+function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = [], $source_filter = []): array {
     static $request_cache = [];
 
     $entry_id = (int) $entry_id;
@@ -3172,12 +3235,16 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         }
         $normalized_preferred_languages[] = $language_key;
     }
+    $display_source_filter_ids = function_exists('ll_tools_dictionary_get_single_source_display_filter')
+        ? ll_tools_dictionary_get_single_source_display_filter($source_filter)
+        : [];
 
     $cache_args = [
         'entry_id' => $entry_id,
         'sense_limit' => max(1, $sense_limit),
         'linked_word_limit' => max(0, $linked_word_limit),
         'preferred_languages' => $normalized_preferred_languages,
+        'display_source_filter_ids' => $display_source_filter_ids,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('entry_data', $cache_args, $request_cache);
@@ -3191,9 +3258,21 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
     }
 
     $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+    if (!empty($display_source_filter_ids)) {
+        $senses = ll_tools_dictionary_filter_senses_by_source_filter($senses, $display_source_filter_ids);
+        if (empty($senses)) {
+            return ll_tools_dictionary_browser_store_cached_payload(
+                'entry_data',
+                $cache_args,
+                [],
+                10 * MINUTE_IN_SECONDS,
+                $request_cache
+            );
+        }
+    }
 
     $translation = '';
-    if (empty($normalized_preferred_languages) && function_exists('ll_tools_get_dictionary_entry_translation')) {
+    if (empty($display_source_filter_ids) && empty($normalized_preferred_languages) && function_exists('ll_tools_get_dictionary_entry_translation')) {
         $translation = ll_tools_get_dictionary_entry_translation($entry_id);
     }
     if ($translation === '') {
@@ -3224,6 +3303,14 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
     $pos_slug = function_exists('ll_tools_get_dictionary_entry_primary_pos_slug')
         ? ll_tools_get_dictionary_entry_primary_pos_slug($entry_id)
         : '';
+    if (!empty($display_source_filter_ids)) {
+        $filtered_pos_slug = function_exists('ll_tools_dictionary_resolve_pos_slug_from_entry_type')
+            ? ll_tools_dictionary_resolve_pos_slug_from_entry_type(ll_tools_dictionary_get_primary_sense_value($senses, 'entry_type'))
+            : '';
+        if ($filtered_pos_slug !== '') {
+            $pos_slug = $filtered_pos_slug;
+        }
+    }
     $pos_label = '';
     if ($pos_slug !== '') {
         $term = get_term_by('slug', $pos_slug, 'part_of_speech');
@@ -3235,12 +3322,12 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
     }
 
     $entry_type = trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY, true));
-    if ($entry_type === '') {
+    if (!empty($display_source_filter_ids) || $entry_type === '') {
         $entry_type = ll_tools_dictionary_get_primary_sense_value($senses, 'entry_type');
     }
 
     $page_number = trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_PAGE_META_KEY, true));
-    if ($page_number === '') {
+    if (!empty($display_source_filter_ids) || $page_number === '') {
         $page_number = ll_tools_dictionary_get_primary_sense_value($senses, 'page_number');
     }
 
@@ -3268,6 +3355,7 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         'linked_word_count' => $linked_word_count,
         'linked_words' => ll_tools_dictionary_get_linked_word_previews($entry_id, $linked_word_limit),
         'preferred_languages' => $normalized_preferred_languages,
+        'display_source_filter_ids' => $display_source_filter_ids,
         'translation_groups' => function_exists('ll_tools_dictionary_collect_translation_groups')
             ? ll_tools_dictionary_collect_translation_groups($senses, $normalized_preferred_languages)
             : [],
@@ -4049,7 +4137,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
     $items = [];
     foreach ($ids as $entry_id) {
-        $item = ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, $linked_word_limit, $preferred_languages);
+        $item = ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, $linked_word_limit, $preferred_languages, $source_ids);
         if (!empty($item)) {
             $items[] = $item;
         }

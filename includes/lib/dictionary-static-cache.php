@@ -279,9 +279,28 @@ function ll_tools_dictionary_static_cache_normalize_query_args(?array $raw_args 
 
     $entry_id = ll_tools_dictionary_static_cache_positive_int_value($normalized['ll_dictionary_entry'] ?? '');
     if ($entry_id > 0) {
-        return [
+        $entry_args = [
             'll_dictionary_entry' => (string) $entry_id,
         ];
+
+        $source_ids = [];
+        if (array_key_exists('ll_dictionary_source', $normalized)) {
+            if (function_exists('ll_tools_dictionary_shortcode_resolve_source_ids_from_request')) {
+                $source_ids = ll_tools_dictionary_shortcode_resolve_source_ids_from_request([
+                    'll_dictionary_source' => $normalized['ll_dictionary_source'],
+                ]);
+            } elseif (function_exists('ll_tools_dictionary_normalize_source_filter_ids')) {
+                $source_ids = ll_tools_dictionary_normalize_source_filter_ids($normalized['ll_dictionary_source']);
+            } else {
+                $source_id = sanitize_title(ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_source']));
+                $source_ids = $source_id !== '' ? [$source_id] : [];
+            }
+        }
+        if (count($source_ids) === 1) {
+            $entry_args['ll_dictionary_source'] = (string) $source_ids[0];
+        }
+
+        return $entry_args;
     }
 
     $search = ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_q'] ?? '');
