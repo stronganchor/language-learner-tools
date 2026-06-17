@@ -55,6 +55,26 @@ function ll_tools_site_tools_normalize_flashcard_image_size($value): string {
     return in_array($value, ['small', 'medium', 'large'], true) ? $value : 'small';
 }
 
+function ll_tools_site_tools_normalize_language_switcher_primary_count($value): int {
+    if (function_exists('ll_tools_normalize_language_switcher_primary_count')) {
+        return ll_tools_normalize_language_switcher_primary_count($value);
+    }
+
+    return min(20, absint($value));
+}
+
+function ll_tools_site_tools_sanitize_language_switcher_locale_order($value): string {
+    if (function_exists('ll_tools_sanitize_language_switcher_locale_order')) {
+        return ll_tools_sanitize_language_switcher_locale_order($value);
+    }
+
+    if (is_array($value)) {
+        $value = implode(',', array_map('strval', $value));
+    }
+
+    return sanitize_text_field(wp_unslash((string) $value));
+}
+
 function ll_tools_site_tools_secret_is_configured(string $option_name): bool {
     return trim((string) get_option($option_name, '')) !== '';
 }
@@ -547,6 +567,14 @@ function ll_tools_handle_save_site_tools_action(): void {
             'll_flashcard_image_size',
             ll_tools_site_tools_normalize_flashcard_image_size($_POST['ll_flashcard_image_size'] ?? 'small')
         );
+        update_option(
+            defined('LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION') ? LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION : 'll_language_switcher_primary_count',
+            ll_tools_site_tools_normalize_language_switcher_primary_count($_POST['ll_language_switcher_primary_count'] ?? 3)
+        );
+        update_option(
+            defined('LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION') ? LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION : 'll_language_switcher_locale_order',
+            ll_tools_site_tools_sanitize_language_switcher_locale_order($_POST['ll_language_switcher_locale_order'] ?? '')
+        );
     } elseif ($section === 'learner-accounts') {
         $learner_registration = ll_tools_site_tools_normalize_toggle(isset($_POST['ll_allow_learner_self_registration']) ? 1 : 0);
         $show_generated_password = ll_tools_site_tools_normalize_toggle(isset($_POST['ll_show_generated_registration_password']) ? 1 : 0);
@@ -970,6 +998,12 @@ function ll_site_tools_shortcode($atts): string {
         : ll_tools_site_tools_normalize_toggle(get_option('ll_enable_browser_language_autoswitch', 1));
     $max_options_override = ll_tools_site_tools_normalize_max_options_override(get_option('ll_max_options_override', 9));
     $flashcard_image_size = ll_tools_site_tools_normalize_flashcard_image_size(get_option('ll_flashcard_image_size', 'small'));
+    $language_switcher_primary_count_option = defined('LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION') ? LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION : 'll_language_switcher_primary_count';
+    $language_switcher_locale_order_option = defined('LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION') ? LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION : 'll_language_switcher_locale_order';
+    $language_switcher_primary_count = function_exists('ll_tools_get_language_switcher_primary_count_setting')
+        ? ll_tools_get_language_switcher_primary_count_setting()
+        : ll_tools_site_tools_normalize_language_switcher_primary_count(get_option($language_switcher_primary_count_option, 3));
+    $language_switcher_locale_order = (string) get_option($language_switcher_locale_order_option, '');
     $allow_learner_registration = ll_tools_site_tools_normalize_toggle(get_option('ll_allow_learner_self_registration', 1));
     $show_generated_password = ll_tools_site_tools_normalize_toggle(get_option('ll_show_generated_registration_password', 1));
     $send_registration_admin_email = ll_tools_site_tools_normalize_toggle(get_option('ll_tools_send_registration_admin_email', 1));
@@ -1062,6 +1096,7 @@ function ll_site_tools_shortcode($atts): string {
                 <div class="ll-site-tools-card__meta">
                     <span class="ll-site-tools-pill"><?php echo $browser_autoswitch === 1 ? esc_html__('Browser language auto-detect on', 'll-tools-text-domain') : esc_html__('Browser language auto-detect off', 'll-tools-text-domain'); ?></span>
                     <span class="ll-site-tools-pill"><?php echo esc_html(sprintf(__('Max %d options', 'll-tools-text-domain'), $max_options_override)); ?></span>
+                    <span class="ll-site-tools-pill"><?php echo $language_switcher_primary_count > 0 ? esc_html(sprintf(__('Switcher shows %d first', 'll-tools-text-domain'), $language_switcher_primary_count)) : esc_html__('Switcher shows all', 'll-tools-text-domain'); ?></span>
                     <span class="ll-site-tools-pill"><?php echo esc_html(ucfirst($flashcard_image_size)); ?></span>
                 </div>
 
@@ -1090,6 +1125,26 @@ function ll_site_tools_shortcode($atts): string {
                                     <option value="medium" <?php selected($flashcard_image_size, 'medium'); ?>><?php echo esc_html__('Medium (200×200)', 'll-tools-text-domain'); ?></option>
                                     <option value="large" <?php selected($flashcard_image_size, 'large'); ?>><?php echo esc_html__('Large (250×250)', 'll-tools-text-domain'); ?></option>
                                 </select>
+                            </label>
+
+                            <label class="ll-site-tools-field">
+                                <span><?php echo esc_html__('Language switcher buttons', 'll-tools-text-domain'); ?></span>
+                                <input
+                                    type="number"
+                                    name="ll_language_switcher_primary_count"
+                                    min="0"
+                                    max="<?php echo esc_attr((string) (defined('LL_TOOLS_LANGUAGE_SWITCHER_MAX_PRIMARY_COUNT') ? LL_TOOLS_LANGUAGE_SWITCHER_MAX_PRIMARY_COUNT : 20)); ?>"
+                                    value="<?php echo esc_attr((string) $language_switcher_primary_count); ?>" />
+                            </label>
+
+                            <label class="ll-site-tools-field">
+                                <span><?php echo esc_html__('Language switcher order', 'll-tools-text-domain'); ?></span>
+                                <input
+                                    type="text"
+                                    name="ll_language_switcher_locale_order"
+                                    class="code"
+                                    value="<?php echo esc_attr($language_switcher_locale_order); ?>"
+                                    placeholder="tr_TR,en_US,de_DE" />
                             </label>
                         </div>
 

@@ -14,6 +14,8 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_REQUEST['ll_locale'], $_GET['ll_locale'], $_REQUEST['ll_locale_nonce'], $_GET['ll_locale_nonce']);
         unset($_SERVER['HTTP_ACCEPT_LANGUAGE']);
         delete_option('ll_enable_browser_language_autoswitch');
+        delete_option(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION);
+        delete_option(LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION);
         remove_all_filters('ll_tools_tier2_public_locales');
         if (function_exists('ll_tools_get_plugin_locales')) {
             ll_tools_get_plugin_locales(true);
@@ -268,6 +270,72 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll-lang-switcher__summary-label', $html);
         $this->assertStringNotContainsString('A/あ', $html);
         $this->assertStringContainsString('ll_locale_nonce', $html);
+    }
+
+    public function test_language_switcher_list_defaults_to_first_three_languages_then_more_button(): void
+    {
+        $html = ll_language_switcher_shortcode([]);
+
+        $more_position = strpos($html, 'data-ll-language-switcher-more');
+        $secondary_start = strpos($html, 'll-lang-switcher__secondary-locale');
+        $turkish_position = strpos($html, 'll_locale=tr_TR');
+        $english_position = strpos($html, 'English');
+        $german_position = strpos($html, 'll_locale=de_DE');
+        $russian_position = strpos($html, 'll_locale=ru_RU');
+
+        $this->assertStringContainsString('ll-lang-switcher--list', $html);
+        $this->assertStringContainsString('ll-lang-switcher--has-secondary', $html);
+        $this->assertIsInt($more_position);
+        $this->assertIsInt($secondary_start);
+        $this->assertIsInt($turkish_position);
+        $this->assertIsInt($english_position);
+        $this->assertIsInt($german_position);
+        $this->assertIsInt($russian_position);
+        $this->assertLessThan($more_position, $turkish_position);
+        $this->assertLessThan($more_position, $english_position);
+        $this->assertLessThan($more_position, $german_position);
+        $this->assertGreaterThan($more_position, $secondary_start);
+        $this->assertGreaterThan($secondary_start, $russian_position);
+    }
+
+    public function test_language_switcher_uses_sitewide_count_and_locale_order(): void
+    {
+        update_option(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION, 4);
+        update_option(LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION, 'fr_FR,en_US,tr_TR,de_DE');
+
+        $html = ll_language_switcher_shortcode([]);
+
+        $more_position = strpos($html, 'data-ll-language-switcher-more');
+        $french_position = strpos($html, 'll_locale=fr_FR');
+        $english_position = strpos($html, 'English');
+        $turkish_position = strpos($html, 'll_locale=tr_TR');
+        $german_position = strpos($html, 'll_locale=de_DE');
+        $russian_position = strpos($html, 'll_locale=ru_RU');
+
+        $this->assertIsInt($more_position);
+        $this->assertIsInt($french_position);
+        $this->assertIsInt($english_position);
+        $this->assertIsInt($turkish_position);
+        $this->assertIsInt($german_position);
+        $this->assertIsInt($russian_position);
+        $this->assertLessThan($more_position, $french_position);
+        $this->assertLessThan($more_position, $english_position);
+        $this->assertLessThan($more_position, $turkish_position);
+        $this->assertLessThan($more_position, $german_position);
+        $this->assertLessThan($turkish_position, $french_position);
+        $this->assertLessThan($german_position, $turkish_position);
+        $this->assertGreaterThan($more_position, $russian_position);
+    }
+
+    public function test_language_switcher_primary_count_zero_shows_all_languages(): void
+    {
+        $html = ll_language_switcher_shortcode([
+            'primary_count' => '0',
+        ]);
+
+        $this->assertStringNotContainsString('ll-lang-switcher--has-secondary', $html);
+        $this->assertStringNotContainsString('data-ll-language-switcher-more', $html);
+        $this->assertStringContainsString('ll_locale=ru_RU', $html);
     }
 
     public function test_language_switcher_can_bucket_secondary_languages_after_primary_locales(): void

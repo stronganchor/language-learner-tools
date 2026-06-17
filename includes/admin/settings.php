@@ -51,6 +51,16 @@ function ll_register_settings() {
         'sanitize_callback' => 'll_sanitize_browser_language_autoswitch_setting',
         'default' => 1,
     ));
+    register_setting('language-learning-tools-options', LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION, array(
+        'type' => 'integer',
+        'sanitize_callback' => 'll_tools_sanitize_language_switcher_primary_count',
+        'default' => LL_TOOLS_LANGUAGE_SWITCHER_DEFAULT_PRIMARY_COUNT,
+    ));
+    register_setting('language-learning-tools-options', LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION, array(
+        'type' => 'string',
+        'sanitize_callback' => 'll_tools_sanitize_language_switcher_locale_order',
+        'default' => '',
+    ));
     register_setting('language-learning-tools-options', 'll_category_translation_source', $args);
     register_setting('language-learning-tools-options', 'll_max_options_override', [
         'type' => 'integer',
@@ -347,6 +357,10 @@ function ll_render_settings_page() {
     $update_branch = get_option('ll_update_branch', 'main');
     $quiz_font_url = get_option('ll_quiz_font_url');
     $enable_browser_language_autoswitch = (int) get_option('ll_enable_browser_language_autoswitch', 1);
+    $language_switcher_primary_count = function_exists('ll_tools_get_language_switcher_primary_count_setting')
+        ? ll_tools_get_language_switcher_primary_count_setting()
+        : (int) get_option('ll_language_switcher_primary_count', 3);
+    $language_switcher_locale_order = (string) get_option('ll_language_switcher_locale_order', '');
     $allow_learner_self_registration = (int) get_option('ll_allow_learner_self_registration', 1);
     $show_generated_registration_password = (int) get_option('ll_show_generated_registration_password', 1);
     $learner_registration_enabled = function_exists('ll_tools_is_learner_self_registration_available')
@@ -393,6 +407,32 @@ function ll_render_settings_page() {
                             value="1"
                             <?php checked(1, $enable_browser_language_autoswitch, true); ?> />
                         <p class="description"><?php esc_html_e('Use a visitor\'s browser language on the front end until they explicitly choose a different language. Logged-in user locale preferences and the language switcher still take priority.', 'll-tools-text-domain'); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php esc_html_e('Language Switcher Visible Buttons:', 'll-tools-text-domain'); ?></th>
+                    <td>
+                        <input
+                            type="number"
+                            name="<?php echo esc_attr(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION); ?>"
+                            id="<?php echo esc_attr(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION); ?>"
+                            value="<?php echo esc_attr((string) $language_switcher_primary_count); ?>"
+                            min="0"
+                            max="<?php echo esc_attr((string) LL_TOOLS_LANGUAGE_SWITCHER_MAX_PRIMARY_COUNT); ?>" />
+                        <p class="description"><?php esc_html_e('Number of languages to show before the more button. Use 0 to show all available languages.', 'll-tools-text-domain'); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php esc_html_e('Language Switcher Order:', 'll-tools-text-domain'); ?></th>
+                    <td>
+                        <input
+                            type="text"
+                            class="regular-text code"
+                            name="<?php echo esc_attr(LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION); ?>"
+                            id="<?php echo esc_attr(LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION); ?>"
+                            value="<?php echo esc_attr($language_switcher_locale_order); ?>"
+                            placeholder="tr_TR,en_US,de_DE" />
+                        <p class="description"><?php esc_html_e('Optional comma-separated locale order for the language switcher. Listed locales appear first; unlisted available languages follow in the default order.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">

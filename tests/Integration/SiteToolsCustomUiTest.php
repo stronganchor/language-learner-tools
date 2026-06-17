@@ -94,6 +94,8 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Maintenance', $html);
         $this->assertStringContainsString('Refresh language list', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_save_site_tools"', $html);
+        $this->assertStringContainsString('name="ll_language_switcher_primary_count"', $html);
+        $this->assertStringContainsString('name="ll_language_switcher_locale_order"', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_site_tools_recording_type"', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_manage_site_tools_page"', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_run_site_tools_maintenance"', $html);
@@ -114,6 +116,8 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
             'll_enable_browser_language_autoswitch' => '1',
             'll_max_options_override' => '7',
             'll_flashcard_image_size' => 'large',
+            'll_language_switcher_primary_count' => '5',
+            'll_language_switcher_locale_order' => 'fr,en,tr',
         ];
         $_REQUEST = $_POST;
 
@@ -128,6 +132,8 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) get_option('ll_enable_browser_language_autoswitch', 0));
         $this->assertSame(7, (int) get_option('ll_max_options_override', 0));
         $this->assertSame('large', (string) get_option('ll_flashcard_image_size', ''));
+        $this->assertSame(5, (int) get_option(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION, 0));
+        $this->assertSame('fr_FR,en_US,tr_TR', (string) get_option(LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION, ''));
     }
 
     public function test_save_handler_updates_learner_account_defaults_and_syncs_wordpress_registration(): void
@@ -398,6 +404,8 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
             'll_enable_browser_language_autoswitch',
             'll_max_options_override',
             'll_flashcard_image_size',
+            LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION,
+            LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION,
             'll_allow_learner_self_registration',
             'll_show_generated_registration_password',
             'll_tools_send_registration_admin_email',
