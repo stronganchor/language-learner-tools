@@ -145,12 +145,26 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('en', ll_tools_dictionary_normalize_language_key('English'));
 
         $zazaki_alphabet = ll_tools_dictionary_get_language_browse_alphabet('Zazaki');
+        $positions = array_flip($zazaki_alphabet);
         $this->assertContains('Ç', $zazaki_alphabet);
         $this->assertContains('Ş', $zazaki_alphabet);
+        $this->assertContains('Â', $zazaki_alphabet);
         $this->assertContains('Ê', $zazaki_alphabet);
+        $this->assertNotContains('Ħ', $zazaki_alphabet);
         $this->assertContains('Ö', $zazaki_alphabet);
+        $this->assertContains('Ô', $zazaki_alphabet);
         $this->assertContains('Ü', $zazaki_alphabet);
         $this->assertContains('Û', $zazaki_alphabet);
+        $this->assertLessThan($positions['Â'], $positions['A']);
+        $this->assertLessThan($positions['B'], $positions['Â']);
+        $this->assertLessThan($positions['Ö'], $positions['O']);
+        $this->assertLessThan($positions['P'], $positions['Ô']);
+        $this->assertLessThan($positions['Ü'], $positions['U']);
+        $this->assertLessThan($positions['V'], $positions['Û']);
+        $this->assertSame(
+            ['A', 'Â', 'H', 'O', 'Ö', 'U', 'Ü', 'Û', 'Z'],
+            ll_tools_dictionary_order_browse_letters(array_fill_keys(['Z', 'Â', 'A', 'Ħ', 'H', 'Ö', 'O', 'Û', 'Ü', 'U'], true), 'Zazaki')
+        );
     }
 
     public function test_dictionary_static_cache_key_normalizes_display_args_and_ignores_nonce_noise(): void
@@ -786,7 +800,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
             'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
-            'browse_letter_schema' => 4,
+            'browse_letter_schema' => 5,
             'has_active_query' => false,
             'query_limits' => [
                 'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
@@ -2960,6 +2974,20 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'def_lang' => 'English',
             ],
             [
+                'entry' => 'ârd',
+                'definition' => 'flour',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'ħer',
+                'definition' => 'soil',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
                 'entry' => 'Çare',
                 'definition' => 'remedy',
                 'entry_type' => 'noun',
@@ -2999,11 +3027,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'def_lang' => 'English',
         ]);
 
-        $this->assertSame(9, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame(11, (int) ($summary['entries_created'] ?? 0));
         $this->assertSame('zza', ll_tools_dictionary_get_effective_title_language_code(0));
 
         $_GET = [];
         $idle_html = do_shortcode('[ll_dictionary]');
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Â\s*<\/a>/u', $idle_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ç\s*<\/a>/u', $idle_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ş\s*<\/a>/u', $idle_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*İ\s*<\/a>/u', $idle_html);
@@ -3011,6 +3040,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ö\s*<\/a>/u', $idle_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ü\s*<\/a>/u', $idle_html);
         $this->assertDoesNotMatchRegularExpression('/ll-dictionary__letter[^>]*>\s*Î\s*<\/a>/u', $idle_html);
+        $this->assertDoesNotMatchRegularExpression('/ll-dictionary__letter[^>]*>\s*Ħ\s*<\/a>/u', $idle_html);
 
         wp_set_current_user(0);
         $_POST = [
@@ -3032,6 +3062,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($toolbar['success'] ?? false));
         $toolbar_html = (string) ($toolbar['data']['html'] ?? '');
+        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Â\s*<\/a>/u', $toolbar_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ç\s*<\/a>/u', $toolbar_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ş\s*<\/a>/u', $toolbar_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*İ\s*<\/a>/u', $toolbar_html);
@@ -3039,6 +3070,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ö\s*<\/a>/u', $toolbar_html);
         $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ü\s*<\/a>/u', $toolbar_html);
         $this->assertDoesNotMatchRegularExpression('/ll-dictionary__letter[^>]*>\s*Î\s*<\/a>/u', $toolbar_html);
+        $this->assertDoesNotMatchRegularExpression('/ll-dictionary__letter[^>]*>\s*Ħ\s*<\/a>/u', $toolbar_html);
 
         $_GET = [
             'll_dictionary_letter' => 'I',

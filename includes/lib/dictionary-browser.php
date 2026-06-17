@@ -526,9 +526,9 @@ function ll_tools_dictionary_get_language_browse_alphabet(string $language = '')
     $alphabets = [
         'tr' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'V', 'Y', 'Z'],
         'tur' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'V', 'Y', 'Z'],
-        'zza' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
-        'diq' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
-        'kiu' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'zza' => ['A', 'Â', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'Ô', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'diq' => ['A', 'Â', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'Ô', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'kiu' => ['A', 'Â', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'Ô', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
     ];
 
     return array_values(array_map(static function (string $letter) use ($language): string {
@@ -3171,6 +3171,10 @@ function ll_tools_dictionary_order_browse_letters(array $letters, string $langua
         $ordered[$letter] = true;
     }
 
+    if (!empty($alphabet)) {
+        return array_keys($ordered);
+    }
+
     $extras = array_values(array_diff(array_keys($letters), array_keys($ordered)));
     usort($extras, static function (string $left, string $right) use ($language): int {
         return function_exists('ll_tools_locale_compare_strings')
@@ -3968,7 +3972,7 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 3,
+        'letter_presence_schema' => 4,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('scope_filter_index', $cache_args, $request_cache);
@@ -4088,7 +4092,7 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
     $cache_args = [
         'wordset_id' => $wordset_id,
         'title_language' => $language,
-        'letter_presence_schema' => 3,
+        'letter_presence_schema' => 4,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('available_letters_fast', $cache_args, $request_cache);
     if (is_array($cached)) {
