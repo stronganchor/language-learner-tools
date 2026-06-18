@@ -3673,7 +3673,7 @@ msgstr[1] "Görsel yükleme: %d dosya başarıyla işlendi."
 #: includes/taxonomies/word-category-taxonomy.php:1856
 #: includes/taxonomies/word-category-taxonomy.php:1962
 msgid "Images"
-msgstr "Görüntüler"
+msgstr "Resimler"
 
 #: includes/admin/export-import.php:918
 msgid "Images bundle"
@@ -7818,7 +7818,7 @@ msgstr "Resmi göster"
 #: includes/taxonomies/word-category-taxonomy.php:1849
 #: includes/taxonomies/word-category-taxonomy.php:1951
 msgid "Show text (title)"
-msgstr "Metni göster (başlık)"
+msgstr "Metni göster (hedef dildeki kelime)"
 
 #: includes/admin/uploads/audio-upload-form.php:511
 #: includes/admin/uploads/image-upload-form.php:689
@@ -8410,7 +8410,7 @@ msgstr "Metin (diğer metin alanı)"
 #: includes/taxonomies/word-category-taxonomy.php:1860
 #: includes/taxonomies/word-category-taxonomy.php:1966
 msgid "Text (title)"
-msgstr "Metin (başlık)"
+msgstr "Metin (hedef dildeki kelime)"
 
 #: includes/admin/uploads/audio-upload-form.php:521
 #: includes/admin/uploads/image-upload-form.php:699
@@ -15478,7 +15478,7 @@ msgstr "Sesi çal + metni göster (çeviri)"
 #: includes/taxonomies/word-category-taxonomy.php:1843
 #: includes/taxonomies/word-category-taxonomy.php:1945
 msgid "Play audio + show text (title)"
-msgstr "Sesi çal + metni göster (başlık)"
+msgstr "Sesi çal + metni göster (hedef dildeki kelime)"
 
 #: includes/admin/uploads/audio-upload-form.php:508
 #: includes/admin/uploads/image-upload-form.php:686
@@ -15486,7 +15486,7 @@ msgstr "Sesi çal + metni göster (başlık)"
 #: includes/taxonomies/word-category-taxonomy.php:1845
 #: includes/taxonomies/word-category-taxonomy.php:1947
 msgid "Show image + play audio"
-msgstr "Görüntüyü göster + sesi çal"
+msgstr "Resmi göster + sesi çal"
 
 #: includes/admin/uploads/audio-upload-form.php:509
 #: includes/admin/uploads/image-upload-form.php:687
@@ -15502,7 +15502,7 @@ msgstr "Resim + metni göster (çeviri)"
 #: includes/taxonomies/word-category-taxonomy.php:1847
 #: includes/taxonomies/word-category-taxonomy.php:1949
 msgid "Show image + text (title)"
-msgstr "Resmi + metni göster (başlık)"
+msgstr "Resmi + metni göster (hedef dildeki kelime)"
 
 #: includes/admin/uploads/audio-upload-form.php:550
 #: includes/admin/uploads/image-upload-form.php:728
