@@ -2162,15 +2162,11 @@
         });
     }
 
-    function getSearchReviewNoteField(reviewFields) {
+    function searchReviewNoteAppliesToField(reviewFields, field) {
         const fields = normalizeReviewFields(reviewFields);
-        if (fields.recording_text) {
-            return 'recording_text';
-        }
-        if (fields.recording_ipa) {
-            return 'recording_ipa';
-        }
-        return '';
+        return field === 'recording_text'
+            ? !!fields.recording_text
+            : !!fields.recording_ipa;
     }
 
     function buildSearchReviewStatus(needsReview) {
@@ -2506,7 +2502,7 @@
         const $wrap = buildSearchFieldInputWrap($input, mismatchDetail, field);
         $editor.append($wrap);
         const $review = $('<div>', { class: 'll-ipa-search-field-review-panel' });
-        if (reviewNote && getSearchReviewNoteField(reviewFields) === field) {
+        if (reviewNote && searchReviewNoteAppliesToField(reviewFields, field)) {
             $review.append(buildSearchFieldReviewNote(reviewNote));
         }
         const $reviewAction = buildSearchFieldReviewAction(field, reviewFields);
