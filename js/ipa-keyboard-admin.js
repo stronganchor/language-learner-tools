@@ -3887,6 +3887,13 @@
         return values.recordingText !== values.savedText || values.recordingIpa !== values.savedIpa;
     }
 
+    function getWindowScrollState() {
+        return {
+            x: window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
+            y: window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+        };
+    }
+
     function setSearchRowDirtyState($row, dirty) {
         $row.toggleClass('is-search-row-dirty', !!dirty);
     }
@@ -3937,7 +3944,9 @@
         });
 
         if (Object.keys(appliedLocks).length) {
-            $row.data('llSearchRowLayoutLocks', appliedLocks);
+            $row
+                .data('llSearchRowLayoutLocks', appliedLocks)
+                .addClass('is-search-row-layout-locked');
         }
     }
 
@@ -4148,6 +4157,7 @@
         const field = normalizeSearchReviewField(reviewField);
         let requestSucceeded = false;
 
+        lockSearchRowLayout(getSearchRowByRecordingId(recordingId));
         setSearchReviewSavingStateByRecordingId(recordingId, field, true);
         setStatus(t('saving', 'Saving...'), false);
         return $.post(ajaxUrl, {
@@ -4216,10 +4226,6 @@
         }
 
         const preserveScroll = !!(options && options.preserveScroll);
-        const scrollState = preserveScroll ? {
-            x: window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
-            y: window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
-        } : null;
         const focusState = captureSearchRowFocusState($row, options && options.restoreFocusField);
         $row.data('llSearchRowSaving', true);
         $row.data('llSearchRowPending', false);
@@ -4255,6 +4261,7 @@
             }
 
             let $savedRow = $row;
+            const scrollState = preserveScroll ? getWindowScrollState() : null;
             if (data.recording) {
                 const $newRow = replaceSearchRow($row, data.recording);
                 $savedRow = $newRow;

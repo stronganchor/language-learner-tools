@@ -1456,6 +1456,10 @@ body.ll-ipa-keyboard-open {
     pointer-events: none;
 }
 
+.ll-ipa-search-table tr.is-search-row-layout-locked {
+    overflow-anchor: none;
+}
+
 .ll-ipa-search-field-block.is-search-layout-locked,
 .ll-ipa-search-issues-wrap.is-search-layout-locked {
     box-sizing: border-box;

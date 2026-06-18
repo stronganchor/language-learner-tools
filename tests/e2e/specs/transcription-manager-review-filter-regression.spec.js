@@ -414,9 +414,11 @@ test('reviewed rows stay visible until the transcription search is manually refr
   const reviewIpaToggle = rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-review-toggle');
   const reviewIpaStatus = rows.nth(0).locator('.ll-ipa-search-ipa-cell .ll-ipa-search-review-status');
   const initialReviewTextLayout = await getReviewActionLayout(reviewTextAction);
+  const initialReviewRowLayout = await getOrthographySuggestionLayout(page);
   expect(initialReviewTextLayout.actionHeight).toBeGreaterThan(0);
   expect(initialReviewTextLayout.linkHeight).toBeGreaterThan(0);
   expect(initialReviewTextLayout.linkDisplay).not.toBe('none');
+  expect(initialReviewRowLayout.textBlockHeight).toBeGreaterThan(0);
   await reviewTextToggle.click();
 
   await expect(reviewTextToggle).toBeDisabled();
@@ -463,6 +465,9 @@ test('reviewed rows stay visible until the transcription search is manually refr
   expect(reviewedReviewTextLayout.toggleVisibility).toBe('visible');
   expect(Math.abs(reviewedReviewTextLayout.actionHeight - savingReviewTextLayout.actionHeight)).toBeLessThanOrEqual(1);
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(0);
+  const reviewedReviewRowLayout = await getOrthographySuggestionLayout(page);
+  expect(reviewedReviewRowLayout.textBlockHeight).toBeGreaterThanOrEqual(initialReviewRowLayout.textBlockHeight);
+  expect(reviewedReviewRowLayout.rowHeight).toBeGreaterThanOrEqual(initialReviewRowLayout.rowHeight);
   await expect(rows.nth(1)).toHaveAttribute('data-recording-id', '202');
   await expect(rows.nth(1)).toHaveAttribute('data-needs-review', '1');
   await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Marked for review.');
@@ -1443,6 +1448,10 @@ test('orthography suggestion chips update the field and autosave inline', async 
     spacer.style.height = '1400px';
     spacer.setAttribute('data-test-spacer', 'orthography-suggestion-scroll');
     document.body.insertBefore(spacer, document.querySelector('.ll-ipa-admin'));
+    const trailingSpacer = document.createElement('div');
+    trailingSpacer.style.height = '1400px';
+    trailingSpacer.setAttribute('data-test-spacer', 'orthography-suggestion-scroll-after');
+    document.body.appendChild(trailingSpacer);
   });
   await page.evaluate(() => {
     try {
@@ -1626,7 +1635,6 @@ test('orthography suggestion chips update the field and autosave inline', async 
   expect(beforeSuggestionLayout.suggestionCount).toBe(1);
 
   await row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip').click();
-  const scrollBeforeSaveFinish = await page.evaluate(() => Math.round(window.scrollY));
   await expect(textInput).toHaveValue('alpha');
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-search-suggestion-chip')).toHaveCount(0);
   await expect(row.locator('.ll-ipa-search-text-cell .ll-ipa-mismatch-mark')).toHaveCount(0);
@@ -1640,6 +1648,12 @@ test('orthography suggestion chips update the field and autosave inline', async 
   await expect.poll(async () => page.evaluate(() => {
     return window.__llOrthographySuggestionMock.pendingUpdateRequests.length;
   })).toBe(1);
+  const scrollAtSuggestionClick = await page.evaluate(() => Math.round(window.scrollY));
+  const scrollAfterUserMove = await page.evaluate(() => {
+    window.scrollTo(0, window.scrollY + 360);
+    return Math.round(window.scrollY);
+  });
+  expect(scrollAfterUserMove).toBeGreaterThan(scrollAtSuggestionClick + 100);
 
   await page.evaluate(() => {
     const pending = window.__llOrthographySuggestionMock.pendingUpdateRequests.shift();
@@ -1657,7 +1671,7 @@ test('orthography suggestion chips update the field and autosave inline', async 
   expect(Math.abs(savedSuggestionLayout.ipaBlockTop - beforeSuggestionLayout.ipaBlockTop)).toBeLessThanOrEqual(1);
   await page.evaluate(() => new Promise(resolve => window.requestAnimationFrame(resolve)));
   const scrollAfterSaveFinish = await page.evaluate(() => Math.round(window.scrollY));
-  expect(Math.abs(scrollAfterSaveFinish - scrollBeforeSaveFinish)).toBeLessThanOrEqual(1);
+  expect(Math.abs(scrollAfterSaveFinish - scrollAfterUserMove)).toBeLessThanOrEqual(1);
 
   const updatePayloads = await page.evaluate(() => {
     return window.__llOrthographySuggestionMock.postCalls
