@@ -4448,6 +4448,10 @@ msgstr "Frasa"
 msgid "Preposition"
 msgstr "Preposisi"
 
+#: includes/lib/dictionary-browser.php:1390
+msgid "Postposition"
+msgstr "Postposisi"
+
 #: includes/lib/dictionary-browser.php:1084
 msgid "Pronoun"
 msgstr "Kata ganti"

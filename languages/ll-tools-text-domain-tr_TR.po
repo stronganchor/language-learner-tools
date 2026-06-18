@@ -27213,8 +27213,8 @@ msgstr "Bu içe aktarma işi için yedek anlık görüntü atlandı."
 
 #. ll-tools-upkeep: full-source-gap
 #: includes/admin/dictionary-import-admin.php:1884
-msgid "Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx columns like headword_zza, all_forms_zza, sense_guid, examples_zza, example_translations_tr, semantic_domains, source_entry, and multilingual gloss columns like definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en, and definition_full_de."
-msgstr "Beklenen sütunlar: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Başlık tabanlı TSV'ler ayrıca source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, headword_zza, all_forms_zza, sense_guid, examples_zza, example_translations_tr, semantic_domains, source_entry gibi FLEx sütunlarını ve definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en ve definition_full_de gibi çok dilli gloss sütunlarını içerebilir."
+msgid "Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include part_of_speech_slug, pos_slug, source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx columns like headword_zza, all_forms_zza, sense_guid, part_of_speech_abbr_tr, part_of_speech_tr, examples_zza, example_translations_tr, semantic_domains, source_entry, and multilingual gloss columns like definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en, and definition_full_de."
+msgstr "Beklenen sütunlar: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Başlık tabanlı TSV'ler ayrıca part_of_speech_slug, pos_slug, source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, headword_zza, all_forms_zza, sense_guid, part_of_speech_abbr_tr, part_of_speech_tr, examples_zza, example_translations_tr, semantic_domains, source_entry gibi FLEx sütunlarını ve definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en ve definition_full_de gibi çok dilli gloss sütunlarını içerebilir."
 
 #. ll-tools-upkeep: full-source-gap
 #: includes/shortcodes/word-grid-shortcode.php:6305
@@ -27222,3 +27222,83 @@ msgid "%d quizzable word"
 msgid_plural "%d quizzable words"
 msgstr[0] "%d quiz'e uygun kelime"
 msgstr[1] "%d quiz'e uygun kelime"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/ipa-keyboard-admin.php:1990
+msgid "Unexpected tie-bar pair"
+msgstr "Beklenmeyen bağ çizgisi çifti"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/ipa-keyboard-admin.php:1991
+msgid "Flags tie bars joining sounds outside the approved affricate and cluster inventory."
+msgstr "Onaylanmış afrikat ve küme envanterinin dışındaki sesleri birleştiren bağ çizgilerini işaretler."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/ipa-keyboard-admin.php:7160
+msgid "A tie bar joins a sound pair outside the approved inventory."
+msgstr "Bir bağ çizgisi onaylanmış envanterin dışındaki bir ses çiftini birleştiriyor."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:413
+msgid "Language Switcher Visible Buttons:"
+msgstr "Dil Değiştiricide Görünen Düğmeler:"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:422
+msgid "Number of languages to show before the more button. Use 0 to show all available languages."
+msgstr "Daha fazla düğmesinden önce gösterilecek dil sayısı. Tüm kullanılabilir dilleri göstermek için 0 kullan."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:426
+msgid "Language Switcher Order:"
+msgstr "Dil Değiştirici Sırası:"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:435
+msgid "Optional comma-separated locale order for the language switcher. Listed locales appear first; unlisted available languages follow in the default order."
+msgstr "Dil değiştirici için isteğe bağlı, virgülle ayrılmış locale sırası. Listelenen locale'ler önce görünür; listelenmeyen kullanılabilir diller varsayılan sırayla devam eder."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1229
+msgid "You are not allowed to edit this dictionary entry."
+msgstr "Bu sözlük girişini düzenleme iznin yok."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1247
+msgid "Provide the imported headword text to replace."
+msgstr "Değiştirilecek içe aktarılmış madde başı metnini sağla."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1254
+msgid "Provide the replacement headword text."
+msgstr "Yerine kullanılacak madde başı metnini sağla."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1264
+msgid "Expected dictionary entry title does not match live state."
+msgstr "Beklenen sözlük girişi başlığı canlı durumla eşleşmiyor."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/dictionary-browser.php:1390
+msgid "Postposition"
+msgstr "Son çekim edatı"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1099
+msgid "Switcher shows %d first"
+msgstr "Değiştirici önce %d gösteriyor"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1099
+msgid "Switcher shows all"
+msgstr "Değiştirici tümünü gösteriyor"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1131
+msgid "Language switcher buttons"
+msgstr "Dil değiştirici düğmeleri"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1141
+msgid "Language switcher order"
+msgstr "Dil değiştirici sırası"

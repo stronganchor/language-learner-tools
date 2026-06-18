@@ -4448,6 +4448,10 @@ msgstr "Frase"
 msgid "Preposition"
 msgstr "Preposizione"
 
+#: includes/lib/dictionary-browser.php:1390
+msgid "Postposition"
+msgstr "Posposizione"
+
 #: includes/lib/dictionary-browser.php:1084
 msgid "Pronoun"
 msgstr "Pronome"

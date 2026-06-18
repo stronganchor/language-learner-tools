@@ -12,10 +12,10 @@
             "msgid": "Adjective",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1182"
+                "includes/lib/dictionary-browser.php:1376"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1182"
+                "includes/lib/dictionary-browser.php:1376"
             ]
         },
         {
@@ -24,10 +24,10 @@
             "msgid": "Adverb",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1183"
+                "includes/lib/dictionary-browser.php:1377"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1183"
+                "includes/lib/dictionary-browser.php:1377"
             ]
         },
         {
@@ -36,10 +36,10 @@
             "msgid": "Affix",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1184"
+                "includes/lib/dictionary-browser.php:1378"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1184"
+                "includes/lib/dictionary-browser.php:1378"
             ]
         },
         {
@@ -48,10 +48,10 @@
             "msgid": "Article",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1185"
+                "includes/lib/dictionary-browser.php:1379"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1185"
+                "includes/lib/dictionary-browser.php:1379"
             ]
         },
         {
@@ -60,10 +60,10 @@
             "msgid": "Classifier",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1186"
+                "includes/lib/dictionary-browser.php:1380"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1186"
+                "includes/lib/dictionary-browser.php:1380"
             ]
         },
         {
@@ -72,10 +72,10 @@
             "msgid": "Conjunction",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1187"
+                "includes/lib/dictionary-browser.php:1381"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1187"
+                "includes/lib/dictionary-browser.php:1381"
             ]
         },
         {
@@ -84,10 +84,10 @@
             "msgid": "Determiner",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1188"
+                "includes/lib/dictionary-browser.php:1382"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1188"
+                "includes/lib/dictionary-browser.php:1382"
             ]
         },
         {
@@ -96,10 +96,10 @@
             "msgid": "Idiom",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1189"
+                "includes/lib/dictionary-browser.php:1383"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1189"
+                "includes/lib/dictionary-browser.php:1383"
             ]
         },
         {
@@ -108,10 +108,10 @@
             "msgid": "Interjection",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1190"
+                "includes/lib/dictionary-browser.php:1384"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1190"
+                "includes/lib/dictionary-browser.php:1384"
             ]
         },
         {
@@ -120,10 +120,10 @@
             "msgid": "Noun",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1191"
+                "includes/lib/dictionary-browser.php:1385"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1191"
+                "includes/lib/dictionary-browser.php:1385"
             ]
         },
         {
@@ -132,10 +132,10 @@
             "msgid": "Numeral",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1192"
+                "includes/lib/dictionary-browser.php:1386"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1192"
+                "includes/lib/dictionary-browser.php:1386"
             ]
         },
         {
@@ -144,10 +144,10 @@
             "msgid": "Other",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1193"
+                "includes/lib/dictionary-browser.php:1387"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1193"
+                "includes/lib/dictionary-browser.php:1387"
             ]
         },
         {
@@ -156,10 +156,10 @@
             "msgid": "Particle",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1194"
+                "includes/lib/dictionary-browser.php:1388"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1194"
+                "includes/lib/dictionary-browser.php:1388"
             ]
         },
         {
@@ -168,10 +168,22 @@
             "msgid": "Phrase",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1195"
+                "includes/lib/dictionary-browser.php:1389"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1195"
+                "includes/lib/dictionary-browser.php:1389"
+            ]
+        },
+        {
+            "key": "299947bf1cadee5bc10913cc3e7eec3b93482d9e",
+            "context": "",
+            "msgid": "Postposition",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/dictionary-browser.php:1390"
+            ],
+            "public_references": [
+                "includes/lib/dictionary-browser.php:1390"
             ]
         },
         {
@@ -180,10 +192,10 @@
             "msgid": "Preposition",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1196"
+                "includes/lib/dictionary-browser.php:1391"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1196"
+                "includes/lib/dictionary-browser.php:1391"
             ]
         },
         {
@@ -192,22 +204,10 @@
             "msgid": "Pronoun",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1197"
+                "includes/lib/dictionary-browser.php:1392"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1197"
-            ]
-        },
-        {
-            "key": "8ad2a5bb0e6afdcd66da6a4b3d628fde433a3ede",
-            "context": "",
-            "msgid": "Verb",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/dictionary-browser.php:1198"
-            ],
-            "public_references": [
-                "includes/lib/dictionary-browser.php:1198"
+                "includes/lib/dictionary-browser.php:1392"
             ]
         },
         {
@@ -216,16 +216,16 @@
             "msgid": "Parent: %s",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1744",
-                "includes/shortcodes/dictionary-shortcode.php:1679",
-                "includes/shortcodes/dictionary-shortcode.php:1901",
-                "includes/shortcodes/dictionary-shortcode.php:2105"
+                "includes/lib/dictionary-browser.php:2044",
+                "includes/shortcodes/dictionary-shortcode.php:1699",
+                "includes/shortcodes/dictionary-shortcode.php:1928",
+                "includes/shortcodes/dictionary-shortcode.php:2162"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1744",
-                "includes/shortcodes/dictionary-shortcode.php:1679",
-                "includes/shortcodes/dictionary-shortcode.php:1901",
-                "includes/shortcodes/dictionary-shortcode.php:2105"
+                "includes/lib/dictionary-browser.php:2044",
+                "includes/shortcodes/dictionary-shortcode.php:1699",
+                "includes/shortcodes/dictionary-shortcode.php:1928",
+                "includes/shortcodes/dictionary-shortcode.php:2162"
             ]
         },
         {
@@ -234,10 +234,10 @@
             "msgid": "Page %s",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:1748"
+                "includes/lib/dictionary-browser.php:2048"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:1748"
+                "includes/lib/dictionary-browser.php:2048"
             ]
         },
         {
@@ -246,7 +246,7 @@
             "msgid": "(no title)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-browser.php:3027",
+                "includes/lib/dictionary-browser.php:3509",
                 "includes/post-types/content-lesson-post-type.php:739",
                 "includes/post-types/content-lesson-post-type.php:979",
                 "includes/post-types/dictionary-entry-post-type.php:1498",
@@ -255,7 +255,7 @@
                 "includes/post-types/dictionary-entry-post-type.php:863"
             ],
             "public_references": [
-                "includes/lib/dictionary-browser.php:3027"
+                "includes/lib/dictionary-browser.php:3509"
             ]
         },
         {
@@ -384,14 +384,14 @@
                 "includes/lib/interlinear.php:1663",
                 "includes/lib/interlinear.php:1667",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:320",
-                "includes/shortcodes/dictionary-shortcode.php:2271",
+                "includes/shortcodes/dictionary-shortcode.php:2328",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:424"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1663",
                 "includes/lib/interlinear.php:1667",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:320",
-                "includes/shortcodes/dictionary-shortcode.php:2271",
+                "includes/shortcodes/dictionary-shortcode.php:2328",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:424"
             ]
         },
@@ -426,7 +426,7 @@
                 "includes/pages/wordset-pages.php:19538",
                 "includes/pages/wordset-pages.php:19667",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:321",
-                "includes/shortcodes/dictionary-shortcode.php:2294",
+                "includes/shortcodes/dictionary-shortcode.php:2351",
                 "includes/shortcodes/flashcard-widget.php:537",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:425"
             ],
@@ -435,7 +435,7 @@
                 "includes/lib/interlinear.php:1683",
                 "includes/pages/wordset-pages.php:19538",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:321",
-                "includes/shortcodes/dictionary-shortcode.php:2294",
+                "includes/shortcodes/dictionary-shortcode.php:2351",
                 "includes/shortcodes/flashcard-widget.php:537",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:425"
             ]
@@ -488,11 +488,11 @@
                 "includes/lib/interlinear.php:2309",
                 "includes/lib/interlinear.php:2310",
                 "includes/post-types/dictionary-entry-post-type.php:1777",
-                "includes/shortcodes/dictionary-shortcode.php:2172"
+                "includes/shortcodes/dictionary-shortcode.php:2229"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1701",
-                "includes/shortcodes/dictionary-shortcode.php:2172"
+                "includes/shortcodes/dictionary-shortcode.php:2229"
             ]
         },
         {
@@ -1303,10 +1303,10 @@
             "msgid": "Clear LL cache",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1501"
+                "includes/lib/public-static-cache.php:1519"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1501"
+                "includes/lib/public-static-cache.php:1519"
             ]
         },
         {
@@ -1315,10 +1315,10 @@
             "msgid": "LL cache cleared (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1506"
+                "includes/lib/public-static-cache.php:1524"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1506"
+                "includes/lib/public-static-cache.php:1524"
             ]
         },
         {
@@ -1327,10 +1327,10 @@
             "msgid": "You are not allowed to clear LL Tools caches.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1525"
+                "includes/lib/public-static-cache.php:1543"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1525"
+                "includes/lib/public-static-cache.php:1543"
             ]
         },
         {
@@ -1339,10 +1339,10 @@
             "msgid": "Cleared LL Tools static caches. %d cache file was removed.",
             "msgid_plural": "Cleared LL Tools static caches. %d cache files were removed.",
             "references": [
-                "includes/lib/public-static-cache.php:1561"
+                "includes/lib/public-static-cache.php:1579"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1561"
+                "includes/lib/public-static-cache.php:1579"
             ]
         },
         {
@@ -2031,8 +2031,8 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/dictionary-page.php:11",
-                "includes/shortcodes/dictionary-shortcode.php:3341",
-                "includes/shortcodes/site-tools-shortcode.php:920"
+                "includes/shortcodes/dictionary-shortcode.php:3408",
+                "includes/shortcodes/site-tools-shortcode.php:948"
             ],
             "public_references": [
                 "includes/pages/dictionary-page.php:11"
@@ -2840,7 +2840,7 @@
                 "includes/shortcodes/audio-recording-shortcode.php:3821",
                 "includes/shortcodes/audio-recording-shortcode.php:462",
                 "includes/shortcodes/audio-recording-shortcode.php:6700",
-                "includes/shortcodes/word-grid-shortcode.php:7605"
+                "includes/shortcodes/word-grid-shortcode.php:7586"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:5949"
@@ -3980,8 +3980,6 @@
                 "includes/pages/wordset-editor.php:3236",
                 "includes/pages/wordset-pages.php:12520",
                 "includes/pages/wordset-pages.php:17168",
-                "includes/shortcodes/word-grid-shortcode.php:6310",
-                "includes/shortcodes/word-grid-shortcode.php:6322",
                 "includes/taxonomies/word-category-taxonomy.php:826",
                 "includes/taxonomies/word-category-taxonomy.php:853",
                 "includes/taxonomies/wordset-taxonomy.php:3155"
@@ -4244,9 +4242,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:17668",
-                "includes/pages/wordset-pages.php:5312",
-                "includes/shortcodes/word-grid-shortcode.php:6312",
-                "includes/shortcodes/word-grid-shortcode.php:6324"
+                "includes/pages/wordset-pages.php:5312"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:17668",
@@ -4283,7 +4279,7 @@
                 "includes/admin/teacher-classes-page.php:674",
                 "includes/pages/wordset-pages.php:10825",
                 "includes/pages/wordset-pages.php:17671",
-                "includes/shortcodes/site-tools-shortcode.php:1257"
+                "includes/shortcodes/site-tools-shortcode.php:1312"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:17671"
@@ -4342,7 +4338,7 @@
                 "includes/pages/wordset-pages.php:19435",
                 "includes/shortcodes/audio-recording-shortcode.php:1137",
                 "includes/shortcodes/editor-hub-shortcode.php:1007",
-                "includes/shortcodes/site-tools-shortcode.php:945"
+                "includes/shortcodes/site-tools-shortcode.php:973"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:17676",
@@ -4396,8 +4392,8 @@
             "references": [
                 "includes/pages/wordset-editor.php:3177",
                 "includes/pages/wordset-pages.php:17680",
-                "includes/shortcodes/dictionary-shortcode.php:2699",
-                "includes/shortcodes/dictionary-shortcode.php:2713"
+                "includes/shortcodes/dictionary-shortcode.php:2756",
+                "includes/shortcodes/dictionary-shortcode.php:2770"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:17680"
@@ -4874,7 +4870,7 @@
                 "includes/post-types/dictionary-entry-post-type.php:1321",
                 "includes/shortcodes/editor-hub-shortcode.php:1058",
                 "includes/shortcodes/editor-hub-shortcode.php:514",
-                "includes/shortcodes/word-grid-shortcode.php:6377",
+                "includes/shortcodes/word-grid-shortcode.php:6358",
                 "templates/vocab-lesson-template.php:632"
             ],
             "public_references": [
@@ -5229,7 +5225,7 @@
                 "includes/shortcodes/flashcard-widget.php:583",
                 "includes/shortcodes/flashcard-widget.php:671",
                 "includes/shortcodes/flashcard-widget.php:672",
-                "includes/shortcodes/word-grid-shortcode.php:6397",
+                "includes/shortcodes/word-grid-shortcode.php:6378",
                 "templates/offline-app-shell-template.php:822",
                 "templates/vocab-lesson-template.php:171",
                 "templates/vocab-lesson-template.php:653",
@@ -6697,7 +6693,7 @@
                 "includes/admin/dictionary-import-admin.php:1361",
                 "includes/admin/export-import.php:3262",
                 "includes/admin/export-import.php:3797",
-                "includes/lib/dictionary-browser.php:4902",
+                "includes/lib/dictionary-browser.php:5451",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:294",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222"
             ],
@@ -6762,10 +6758,10 @@
             "msgid": "Open source page for %s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:1546"
+                "includes/shortcodes/dictionary-shortcode.php:1566"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:1546"
+                "includes/shortcodes/dictionary-shortcode.php:1566"
             ]
         },
         {
@@ -6774,12 +6770,12 @@
             "msgid": "Show more",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:1585",
-                "includes/shortcodes/dictionary-shortcode.php:1588"
+                "includes/shortcodes/dictionary-shortcode.php:1605",
+                "includes/shortcodes/dictionary-shortcode.php:1608"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:1585",
-                "includes/shortcodes/dictionary-shortcode.php:1588"
+                "includes/shortcodes/dictionary-shortcode.php:1605",
+                "includes/shortcodes/dictionary-shortcode.php:1608"
             ]
         },
         {
@@ -6788,10 +6784,10 @@
             "msgid": "Show less",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:1586"
+                "includes/shortcodes/dictionary-shortcode.php:1606"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:1586"
+                "includes/shortcodes/dictionary-shortcode.php:1606"
             ]
         },
         {
@@ -6801,10 +6797,10 @@
             "msgid_plural": "%d linked words",
             "references": [
                 "includes/post-types/dictionary-entry-post-type.php:1956",
-                "includes/shortcodes/dictionary-shortcode.php:1837"
+                "includes/shortcodes/dictionary-shortcode.php:1857"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:1837"
+                "includes/shortcodes/dictionary-shortcode.php:1857"
             ]
         },
         {
@@ -6813,10 +6809,10 @@
             "msgid": "+ %d more sense",
             "msgid_plural": "+ %d more senses",
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:1921"
+                "includes/shortcodes/dictionary-shortcode.php:1947"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:1921"
+                "includes/shortcodes/dictionary-shortcode.php:1947"
             ]
         },
         {
@@ -6825,10 +6821,12 @@
             "msgid": "That dictionary entry could not be found.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:1966"
+                "includes/shortcodes/dictionary-shortcode.php:2001",
+                "includes/shortcodes/dictionary-shortcode.php:2012"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:1966"
+                "includes/shortcodes/dictionary-shortcode.php:2001",
+                "includes/shortcodes/dictionary-shortcode.php:2012"
             ]
         },
         {
@@ -6837,10 +6835,10 @@
             "msgid": "Back to dictionary",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2016"
+                "includes/shortcodes/dictionary-shortcode.php:2061"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2016"
+                "includes/shortcodes/dictionary-shortcode.php:2061"
             ]
         },
         {
@@ -6849,10 +6847,10 @@
             "msgid": "Definitions",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2071"
+                "includes/shortcodes/dictionary-shortcode.php:2116"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2071"
+                "includes/shortcodes/dictionary-shortcode.php:2116"
             ]
         },
         {
@@ -6861,10 +6859,10 @@
             "msgid": "Senses",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2087"
+                "includes/shortcodes/dictionary-shortcode.php:2132"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2087"
+                "includes/shortcodes/dictionary-shortcode.php:2132"
             ]
         },
         {
@@ -6873,10 +6871,10 @@
             "msgid": "Definition",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2133"
+                "includes/shortcodes/dictionary-shortcode.php:2190"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2133"
+                "includes/shortcodes/dictionary-shortcode.php:2190"
             ]
         },
         {
@@ -6887,11 +6885,11 @@
             "references": [
                 "includes/admin/ipa-keyboard-admin.php:305",
                 "includes/admin/ipa-keyboard-admin.php:432",
-                "includes/lib/dictionary-browser.php:4903",
-                "includes/shortcodes/dictionary-shortcode.php:2151"
+                "includes/lib/dictionary-browser.php:5452",
+                "includes/shortcodes/dictionary-shortcode.php:2208"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2151"
+                "includes/shortcodes/dictionary-shortcode.php:2208"
             ]
         },
         {
@@ -6900,10 +6898,10 @@
             "msgid": "View source page",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2189"
+                "includes/shortcodes/dictionary-shortcode.php:2246"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2189"
+                "includes/shortcodes/dictionary-shortcode.php:2246"
             ]
         },
         {
@@ -6914,10 +6912,10 @@
             "references": [
                 "includes/post-types/dictionary-entry-post-type.php:1787",
                 "includes/post-types/dictionary-entry-post-type.php:2191",
-                "includes/shortcodes/dictionary-shortcode.php:2198"
+                "includes/shortcodes/dictionary-shortcode.php:2255"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2198"
+                "includes/shortcodes/dictionary-shortcode.php:2255"
             ]
         },
         {
@@ -6926,10 +6924,10 @@
             "msgid": "Related Entries",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2206"
+                "includes/shortcodes/dictionary-shortcode.php:2263"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2206"
+                "includes/shortcodes/dictionary-shortcode.php:2263"
             ]
         },
         {
@@ -6938,10 +6936,10 @@
             "msgid": "Dictionary pagination",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2250"
+                "includes/shortcodes/dictionary-shortcode.php:2307"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2250"
+                "includes/shortcodes/dictionary-shortcode.php:2307"
             ]
         },
         {
@@ -6951,10 +6949,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/site-sync-admin.php:1113",
-                "includes/shortcodes/dictionary-shortcode.php:2392"
+                "includes/shortcodes/dictionary-shortcode.php:2449"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2392"
+                "includes/shortcodes/dictionary-shortcode.php:2449"
             ]
         },
         {
@@ -6963,10 +6961,10 @@
             "msgid": "No entries found.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2402"
+                "includes/shortcodes/dictionary-shortcode.php:2459"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2402"
+                "includes/shortcodes/dictionary-shortcode.php:2459"
             ]
         },
         {
@@ -6975,10 +6973,10 @@
             "msgid": "Try a shorter query, another spelling, or switch to letter browsing.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2422"
+                "includes/shortcodes/dictionary-shortcode.php:2479"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2422"
+                "includes/shortcodes/dictionary-shortcode.php:2479"
             ]
         },
         {
@@ -6987,10 +6985,10 @@
             "msgid": "No entries matched this filter yet.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2424"
+                "includes/shortcodes/dictionary-shortcode.php:2481"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2424"
+                "includes/shortcodes/dictionary-shortcode.php:2481"
             ]
         },
         {
@@ -6999,12 +6997,12 @@
             "msgid": "Search settings",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2834",
-                "includes/shortcodes/dictionary-shortcode.php:2835"
+                "includes/shortcodes/dictionary-shortcode.php:2891",
+                "includes/shortcodes/dictionary-shortcode.php:2892"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2834",
-                "includes/shortcodes/dictionary-shortcode.php:2835"
+                "includes/shortcodes/dictionary-shortcode.php:2891",
+                "includes/shortcodes/dictionary-shortcode.php:2892"
             ]
         },
         {
@@ -7013,10 +7011,10 @@
             "msgid": "Search in languages",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2838"
+                "includes/shortcodes/dictionary-shortcode.php:2895"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2838"
+                "includes/shortcodes/dictionary-shortcode.php:2895"
             ]
         },
         {
@@ -7025,10 +7023,10 @@
             "msgid": "All languages",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2839"
+                "includes/shortcodes/dictionary-shortcode.php:2896"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2839"
+                "includes/shortcodes/dictionary-shortcode.php:2896"
             ]
         },
         {
@@ -7037,10 +7035,10 @@
             "msgid": "Source dictionaries",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2845"
+                "includes/shortcodes/dictionary-shortcode.php:2902"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2845"
+                "includes/shortcodes/dictionary-shortcode.php:2902"
             ]
         },
         {
@@ -7049,10 +7047,10 @@
             "msgid": "All sources",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:2846"
+                "includes/shortcodes/dictionary-shortcode.php:2903"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:2846"
+                "includes/shortcodes/dictionary-shortcode.php:2903"
             ]
         },
         {
@@ -7061,32 +7059,12 @@
             "msgid": "Search dictionary",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/dictionary-shortcode.php:3383",
-                "includes/shortcodes/dictionary-shortcode.php:3390"
+                "includes/shortcodes/dictionary-shortcode.php:3450",
+                "includes/shortcodes/dictionary-shortcode.php:3457"
             ],
             "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:3383",
-                "includes/shortcodes/dictionary-shortcode.php:3390"
-            ]
-        },
-        {
-            "key": "6384d4bac540d5cd45a8b9d7a33d458cd5e48612",
-            "context": "",
-            "msgid": "Search",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/bulk-translation-admin.php:146",
-                "includes/admin/image-webp-optimizer-admin.php:1572",
-                "includes/admin/ipa-keyboard-admin.php:329",
-                "includes/admin/ipa-keyboard-admin.php:525",
-                "includes/admin/ipa-keyboard-admin.php:551",
-                "includes/admin/ipa-keyboard-admin.php:574",
-                "includes/shortcodes/dictionary-shortcode.php:3394",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
-            ],
-            "public_references": [
-                "includes/shortcodes/dictionary-shortcode.php:3394",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
+                "includes/shortcodes/dictionary-shortcode.php:3450",
+                "includes/shortcodes/dictionary-shortcode.php:3457"
             ]
         },
         {
@@ -7541,7 +7519,7 @@
                 "includes/shortcodes/flashcard-widget.php:531",
                 "includes/shortcodes/word-grid-shortcode.php:5169",
                 "includes/shortcodes/word-grid-shortcode.php:5635",
-                "includes/shortcodes/word-grid-shortcode.php:7321",
+                "includes/shortcodes/word-grid-shortcode.php:7302",
                 "includes/taxonomies/recording-type-taxonomy.php:41"
             ],
             "public_references": [
@@ -7560,7 +7538,7 @@
                 "includes/shortcodes/flashcard-widget.php:532",
                 "includes/shortcodes/word-grid-shortcode.php:5170",
                 "includes/shortcodes/word-grid-shortcode.php:5636",
-                "includes/shortcodes/word-grid-shortcode.php:7322",
+                "includes/shortcodes/word-grid-shortcode.php:7303",
                 "includes/taxonomies/recording-type-taxonomy.php:43"
             ],
             "public_references": [
@@ -7578,8 +7556,8 @@
                 "includes/shortcodes/flashcard-widget.php:533",
                 "includes/shortcodes/word-grid-shortcode.php:3973",
                 "includes/shortcodes/word-grid-shortcode.php:5695",
-                "includes/shortcodes/word-grid-shortcode.php:6712",
-                "includes/shortcodes/word-grid-shortcode.php:6777"
+                "includes/shortcodes/word-grid-shortcode.php:6693",
+                "includes/shortcodes/word-grid-shortcode.php:6758"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:533"
@@ -7944,6 +7922,25 @@
             ]
         },
         {
+            "key": "6384d4bac540d5cd45a8b9d7a33d458cd5e48612",
+            "context": "",
+            "msgid": "Search",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/bulk-translation-admin.php:146",
+                "includes/admin/image-webp-optimizer-admin.php:1572",
+                "includes/admin/ipa-keyboard-admin.php:329",
+                "includes/admin/ipa-keyboard-admin.php:525",
+                "includes/admin/ipa-keyboard-admin.php:551",
+                "includes/admin/ipa-keyboard-admin.php:574",
+                "includes/shortcodes/dictionary-shortcode.php:3465",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
+            ],
+            "public_references": [
+                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
+            ]
+        },
+        {
             "key": "ddd226fd1bef46efb59bec77fb12d8f86eab786a",
             "context": "",
             "msgid": "Image, credit, source",
@@ -8069,20 +8066,20 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:12021",
-                "includes/shortcodes/language-switcher-shortcode.php:1025",
-                "includes/shortcodes/language-switcher-shortcode.php:1035",
-                "includes/shortcodes/language-switcher-shortcode.php:864",
-                "includes/shortcodes/language-switcher-shortcode.php:888",
-                "includes/shortcodes/language-switcher-shortcode.php:894",
+                "includes/shortcodes/language-switcher-shortcode.php:1122",
+                "includes/shortcodes/language-switcher-shortcode.php:1132",
+                "includes/shortcodes/language-switcher-shortcode.php:952",
+                "includes/shortcodes/language-switcher-shortcode.php:976",
+                "includes/shortcodes/language-switcher-shortcode.php:982",
                 "includes/taxonomies/language-taxonomy.php:12",
                 "includes/taxonomies/wordset-taxonomy.php:1393"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1025",
-                "includes/shortcodes/language-switcher-shortcode.php:1035",
-                "includes/shortcodes/language-switcher-shortcode.php:864",
-                "includes/shortcodes/language-switcher-shortcode.php:888",
-                "includes/shortcodes/language-switcher-shortcode.php:894"
+                "includes/shortcodes/language-switcher-shortcode.php:1122",
+                "includes/shortcodes/language-switcher-shortcode.php:1132",
+                "includes/shortcodes/language-switcher-shortcode.php:952",
+                "includes/shortcodes/language-switcher-shortcode.php:976",
+                "includes/shortcodes/language-switcher-shortcode.php:982"
             ]
         },
         {
@@ -8091,12 +8088,12 @@
             "msgid": "Other languages",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1027",
-                "includes/shortcodes/language-switcher-shortcode.php:868"
+                "includes/shortcodes/language-switcher-shortcode.php:1124",
+                "includes/shortcodes/language-switcher-shortcode.php:956"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1027",
-                "includes/shortcodes/language-switcher-shortcode.php:868"
+                "includes/shortcodes/language-switcher-shortcode.php:1124",
+                "includes/shortcodes/language-switcher-shortcode.php:956"
             ]
         },
         {
@@ -8105,10 +8102,10 @@
             "msgid": "Language: %s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/language-switcher-shortcode.php:880"
+                "includes/shortcodes/language-switcher-shortcode.php:968"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:880"
+                "includes/shortcodes/language-switcher-shortcode.php:968"
             ]
         },
         {
@@ -8122,13 +8119,13 @@
                 "includes/admin/audio-processor-admin.php:997",
                 "includes/admin/offline-app-export.php:1596",
                 "includes/admin/split-word-admin.php:177",
-                "includes/shortcodes/language-switcher-shortcode.php:899",
+                "includes/shortcodes/language-switcher-shortcode.php:987",
                 "includes/shortcodes/word-grid-shortcode.php:5729",
                 "templates/offline-app-shell-template.php:687",
                 "templates/vocab-lesson-template.php:546"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:899",
+                "includes/shortcodes/language-switcher-shortcode.php:987",
                 "templates/offline-app-shell-template.php:687"
             ]
         },

@@ -4480,6 +4480,10 @@ msgstr "Фраза"
 msgid "Preposition"
 msgstr "Предлог"
 
+#: includes/lib/dictionary-browser.php:1390
+msgid "Postposition"
+msgstr "Послелог"
+
 #: includes/lib/dictionary-browser.php:1084
 msgid "Pronoun"
 msgstr "Местоимение"

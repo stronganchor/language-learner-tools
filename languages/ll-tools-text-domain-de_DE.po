@@ -27379,8 +27379,8 @@ msgstr "Backup-Schnappschuss für diesen Importauftrag übersprungen."
 
 #. ll-tools-upkeep: full-source-gap
 #: includes/admin/dictionary-import-admin.php:1884
-msgid "Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx columns like headword_zza, all_forms_zza, sense_guid, examples_zza, example_translations_tr, semantic_domains, source_entry, and multilingual gloss columns like definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en, and definition_full_de."
-msgstr "Erwartete Spalten: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-basierte TSVs können außerdem source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx-Spalten wie headword_zza, all_forms_zza, sense_guid, examples_zza, example_translations_tr, semantic_domains, source_entry und mehrsprachige Gloss-Spalten wie definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en und definition_full_de enthalten."
+msgid "Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include part_of_speech_slug, pos_slug, source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx columns like headword_zza, all_forms_zza, sense_guid, part_of_speech_abbr_tr, part_of_speech_tr, examples_zza, example_translations_tr, semantic_domains, source_entry, and multilingual gloss columns like definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en, and definition_full_de."
+msgstr "Erwartete Spalten: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Kopfzeilenbasierte TSV-Dateien können außerdem part_of_speech_slug, pos_slug, source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx-Spalten wie headword_zza, all_forms_zza, sense_guid, part_of_speech_abbr_tr, part_of_speech_tr, examples_zza, example_translations_tr, semantic_domains, source_entry sowie mehrsprachige Gloss-Spalten wie definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en und definition_full_de enthalten."
 
 #. ll-tools-upkeep: full-source-gap
 #: includes/shortcodes/word-grid-shortcode.php:6305
@@ -27388,3 +27388,83 @@ msgid "%d quizzable word"
 msgid_plural "%d quizzable words"
 msgstr[0] "%d quizfähige Vokabel"
 msgstr[1] "%d quizfähige Vokabeln"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/ipa-keyboard-admin.php:1990
+msgid "Unexpected tie-bar pair"
+msgstr "Unerwartetes Tie-Bar-Paar"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/ipa-keyboard-admin.php:1991
+msgid "Flags tie bars joining sounds outside the approved affricate and cluster inventory."
+msgstr "Markiert Tie-Bars, die Laute außerhalb des freigegebenen Affrikaten- und Clusterbestands verbinden."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/ipa-keyboard-admin.php:7160
+msgid "A tie bar joins a sound pair outside the approved inventory."
+msgstr "Ein Tie-Bar verbindet ein Lautpaar außerhalb des freigegebenen Bestands."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:413
+msgid "Language Switcher Visible Buttons:"
+msgstr "Sichtbare Schaltflächen im Sprachumschalter:"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:422
+msgid "Number of languages to show before the more button. Use 0 to show all available languages."
+msgstr "Anzahl der Sprachen, die vor der Mehr-Schaltfläche angezeigt werden. Mit 0 werden alle verfügbaren Sprachen angezeigt."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:426
+msgid "Language Switcher Order:"
+msgstr "Reihenfolge des Sprachumschalters:"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/settings.php:435
+msgid "Optional comma-separated locale order for the language switcher. Listed locales appear first; unlisted available languages follow in the default order."
+msgstr "Optionale, durch Kommas getrennte Locale-Reihenfolge für den Sprachumschalter. Aufgelistete Locales erscheinen zuerst; nicht aufgelistete verfügbare Sprachen folgen in der Standardreihenfolge."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1229
+msgid "You are not allowed to edit this dictionary entry."
+msgstr "Du darfst diesen Wörterbucheintrag nicht bearbeiten."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1247
+msgid "Provide the imported headword text to replace."
+msgstr "Gib den importierten Stichworttext an, der ersetzt werden soll."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1254
+msgid "Provide the replacement headword text."
+msgstr "Gib den Ersatz-Stichworttext an."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1264
+msgid "Expected dictionary entry title does not match live state."
+msgstr "Der erwartete Wörterbucheintragstitel stimmt nicht mit dem Live-Status überein."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/dictionary-browser.php:1390
+msgid "Postposition"
+msgstr "Postposition"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1099
+msgid "Switcher shows %d first"
+msgstr "Umschalter zeigt zuerst %d"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1099
+msgid "Switcher shows all"
+msgstr "Umschalter zeigt alle"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1131
+msgid "Language switcher buttons"
+msgstr "Schaltflächen des Sprachumschalters"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/shortcodes/site-tools-shortcode.php:1141
+msgid "Language switcher order"
+msgstr "Reihenfolge des Sprachumschalters"

@@ -4448,6 +4448,10 @@ msgstr "वाक्यांश"
 msgid "Preposition"
 msgstr "पूर्वसर्ग"
 
+#: includes/lib/dictionary-browser.php:1390
+msgid "Postposition"
+msgstr "परसर्ग"
+
 #: includes/lib/dictionary-browser.php:1084
 msgid "Pronoun"
 msgstr "सर्वनाम"

@@ -4431,6 +4431,10 @@ msgstr "문구"
 msgid "Preposition"
 msgstr "전치사"
 
+#: includes/lib/dictionary-browser.php:1390
+msgid "Postposition"
+msgstr "후치사"
+
 #: includes/lib/dictionary-browser.php:1084
 msgid "Pronoun"
 msgstr "대명사"

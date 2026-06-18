@@ -266,6 +266,7 @@ Routes:
 
 - `GET /automation/status`
 - `POST /automation/plugin-update`
+- `POST /automation/dictionary-entry-headwords`
 - `POST /cache/static/purge`
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
@@ -716,6 +717,30 @@ versions plus upgrader messages.
 This route cannot bootstrap itself onto an older live site. Use wp-admin upload,
 WordPress' normal updater, or a one-time server-side replacement to install the
 first LL Tools version that contains it.
+
+### `POST /automation/dictionary-entry-headwords`
+
+Replaces imported headword text on one `ll_dictionary_entry` and refreshes the
+dictionary search metadata when the change is applied.
+
+Body fields:
+
+- `entry_id` required dictionary entry post ID
+- `from` required imported headword text to replace
+- `to` required replacement headword text
+- `expected_title` optional live-title guard; returns `409` if the current
+  entry title differs
+- `title` optional replacement post title
+- `fields` optional list limited to `raw_headword`, `title_keys`,
+  `source_entry`, and `headword_forms`; defaults to `raw_headword`,
+  `title_keys`, and `headword_forms`
+- `dry_run` optional boolean, default `true`
+
+Use this for small, reviewed dictionary headword repairs where Codex has already
+identified the exact entry and replacement text. Dry-runs return before/after
+title state, changed sense indexes, changed fields, and before/after headword
+candidates without writing. Applied writes require edit access to the dictionary
+entry and refresh the entry search/scope metadata before returning readback.
 
 ### `POST /wordsets`
 
