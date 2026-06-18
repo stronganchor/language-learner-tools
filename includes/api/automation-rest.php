@@ -721,6 +721,9 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/automation/dictionary-entry-headwords') {
         $resource = 'll_tools_dictionary_entry_headwords';
         $delay_seconds = 5.0;
+    } elseif ($route === '/ll-tools/v1/automation/dictionary-entry-supersede') {
+        $resource = 'll_tools_dictionary_entry_supersede';
+        $delay_seconds = 5.0;
     } elseif ($is_read && preg_match('#^/ll-tools/v1/imports/[^/]+(/result)?$#', $route, $matches)) {
         $resource = empty($matches[1]) ? 'll_tools_import_status' : 'll_tools_import_result';
         $delay_seconds = 3.0;
@@ -1016,6 +1019,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'status' => '/ll-tools/v1/automation/status',
             'plugin_update' => '/ll-tools/v1/automation/plugin-update',
             'dictionary_entry_headwords' => '/ll-tools/v1/automation/dictionary-entry-headwords',
+            'dictionary_entry_supersede' => '/ll-tools/v1/automation/dictionary-entry-supersede',
             'static_cache_purge' => '/ll-tools/v1/cache/static/purge',
             'create_wordset' => '/ll-tools/v1/wordsets',
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
@@ -1098,6 +1102,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'automation_write_routes' => [
                 '/ll-tools/v1/automation/plugin-update',
                 '/ll-tools/v1/automation/dictionary-entry-headwords',
+                '/ll-tools/v1/automation/dictionary-entry-supersede',
                 '/ll-tools/v1/cache/static/purge',
                 '/ll-tools/v1/wordsets',
                 '/ll-tools/v1/wordsets/{wordset}/bulk-update',
@@ -1388,6 +1393,121 @@ function ll_tools_rest_automation_dictionary_entry_headwords(WP_REST_Request $re
         'headword_candidates' => [
             'before' => $before_headwords,
             'after' => $after_headwords,
+        ],
+    ]);
+}
+
+/**
+ * Mark an old duplicate dictionary entry as superseded by a corrected entry.
+ */
+function ll_tools_rest_automation_dictionary_entry_supersede(WP_REST_Request $request) {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    $old_entry_id = max(0, (int) $request->get_param('old_entry_id'));
+    $target_entry_id = max(0, (int) $request->get_param('target_entry_id'));
+    if ($old_entry_id <= 0 || get_post_type($old_entry_id) !== 'll_dictionary_entry') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_invalid_old_dictionary_entry',
+            __('Old dictionary entry not found.', 'll-tools-text-domain'),
+            404
+        );
+    }
+    if ($target_entry_id <= 0 || get_post_type($target_entry_id) !== 'll_dictionary_entry') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_invalid_target_dictionary_entry',
+            __('Target dictionary entry not found.', 'll-tools-text-domain'),
+            404
+        );
+    }
+    if ($old_entry_id === $target_entry_id) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_supersede_same_entry',
+            __('Old and target dictionary entries must be different.', 'll-tools-text-domain'),
+            400
+        );
+    }
+    if (!current_user_can('edit_post', $old_entry_id)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_entry_forbidden',
+            __('You are not allowed to edit this dictionary entry.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    $old_title = trim((string) get_post_field('post_title', $old_entry_id));
+    $target_title = trim((string) get_post_field('post_title', $target_entry_id));
+    $expected_old_title = ll_tools_rest_automation_sanitize_dictionary_headword_text($request->get_param('expected_old_title'));
+    $expected_target_title = ll_tools_rest_automation_sanitize_dictionary_headword_text($request->get_param('expected_target_title'));
+    if ($expected_old_title !== '' && $old_title !== $expected_old_title) {
+        return new WP_Error(
+            'll_tools_rest_dictionary_old_title_mismatch',
+            __('Expected old dictionary entry title does not match live state.', 'll-tools-text-domain'),
+            [
+                'status' => 409,
+                'entry_id' => $old_entry_id,
+                'current_title' => $old_title,
+                'expected_title' => $expected_old_title,
+            ]
+        );
+    }
+    if ($expected_target_title !== '' && $target_title !== $expected_target_title) {
+        return new WP_Error(
+            'll_tools_rest_dictionary_target_title_mismatch',
+            __('Expected target dictionary entry title does not match live state.', 'll-tools-text-domain'),
+            [
+                'status' => 409,
+                'entry_id' => $target_entry_id,
+                'current_title' => $target_title,
+                'expected_title' => $expected_target_title,
+            ]
+        );
+    }
+
+    $reason = sanitize_text_field((string) $request->get_param('reason'));
+    $dry_run = $request->has_param('dry_run') ? rest_sanitize_boolean($request->get_param('dry_run')) : true;
+    $old_status = (string) get_post_status($old_entry_id);
+    $target_status = (string) get_post_status($target_entry_id);
+    $changed = ($old_status !== 'inactive');
+
+    if (!$dry_run && $changed) {
+        $updated_post = wp_update_post([
+            'ID' => $old_entry_id,
+            'post_status' => 'inactive',
+        ], true);
+        if (is_wp_error($updated_post)) {
+            return ll_tools_rest_automation_with_status($updated_post, 500);
+        }
+
+        update_post_meta($old_entry_id, '_ll_tools_superseded_by_dictionary_entry', $target_entry_id);
+        update_post_meta($old_entry_id, '_ll_tools_superseded_at', gmdate('c'));
+        if ($reason !== '') {
+            update_post_meta($old_entry_id, '_ll_tools_superseded_reason', $reason);
+        }
+        if (function_exists('ll_tools_dictionary_delete_lookup_rows_for_entry')) {
+            ll_tools_dictionary_delete_lookup_rows_for_entry($old_entry_id);
+        }
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
+        clean_post_cache($old_entry_id);
+    }
+
+    return rest_ensure_response([
+        'old_entry_id' => $old_entry_id,
+        'target_entry_id' => $target_entry_id,
+        'dry_run' => $dry_run,
+        'changed' => $changed,
+        'old' => [
+            'title' => $old_title,
+            'status_before' => $old_status,
+            'status_after' => $dry_run ? $old_status : (string) get_post_status($old_entry_id),
+        ],
+        'target' => [
+            'title' => $target_title,
+            'status' => $target_status,
         ],
     ]);
 }
@@ -8899,6 +9019,39 @@ function ll_tools_rest_register_automation_routes(): void {
             ],
             'fields' => [
                 'required' => false,
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/automation/dictionary-entry-supersede', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_dictionary_entry_supersede',
+        'permission_callback' => 'll_tools_rest_automation_require_view_access',
+        'args' => [
+            'old_entry_id' => [
+                'required' => true,
+                'type' => 'integer',
+            ],
+            'target_entry_id' => [
+                'required' => true,
+                'type' => 'integer',
+            ],
+            'expected_old_title' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'expected_target_title' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'reason' => [
+                'required' => false,
+                'type' => 'string',
             ],
             'dry_run' => [
                 'required' => false,
