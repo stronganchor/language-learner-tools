@@ -388,6 +388,58 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, (int) ($limited['data']['retry_after'] ?? 0));
     }
 
+    public function test_public_flashcard_ajax_retries_duplicate_anonymous_cache_miss_while_building(): void
+    {
+        $fixture = $this->create_flashcard_word_with_audio(4343);
+        $term = get_term_by('name', $fixture['category_name'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+        wp_set_current_user(0);
+
+        if (function_exists('ll_tools_bump_category_cache_epoch')) {
+            ll_tools_bump_category_cache_epoch();
+        }
+
+        $meta_config = ll_tools_get_category_quiz_config($term);
+        if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
+            $meta_config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $meta_config, []);
+        }
+        $base_config = array_merge((array) $meta_config, [
+            'prompt_type' => 'audio',
+            'option_type' => 'text_translation',
+        ]);
+        $cache_args = ll_tools_flashcards_public_ajax_cache_args($term, [], true, $base_config);
+        $lock_ttl_filter = static function (): int {
+            return 3;
+        };
+
+        add_filter('ll_tools_flashcards_public_ajax_build_lock_ttl', $lock_ttl_filter);
+        $this->assertTrue(ll_tools_flashcards_public_ajax_acquire_build_lock($cache_args));
+
+        $_POST = [
+            'category' => $fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            ll_tools_flashcards_public_ajax_release_build_lock($cache_args);
+            remove_filter('ll_tools_flashcards_public_ajax_build_lock_ttl', $lock_ttl_filter);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('cache_warming', (string) ($response['data']['code'] ?? ''));
+        $this->assertGreaterThan(0, (int) ($response['data']['retry_after'] ?? 0));
+        $this->assertNull(ll_tools_flashcards_public_ajax_cache_get($cache_args));
+    }
+
     public function test_public_flashcard_ajax_does_not_persist_invalid_category_misses(): void
     {
         wp_set_current_user(0);

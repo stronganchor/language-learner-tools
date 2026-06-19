@@ -1370,6 +1370,59 @@ function ll_tools_flashcards_public_ajax_cache_set(array $args, array $rows): vo
     set_transient($key, $rows, $ttl);
 }
 
+function ll_tools_flashcards_public_ajax_build_lock_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_flashcards_public_ajax_build_lock_ttl', 20);
+    return max(2, min(120, $ttl));
+}
+
+function ll_tools_flashcards_public_ajax_build_lock_key(array $args): string {
+    return 'll_fc_ajax_build_' . md5(ll_tools_flashcards_public_ajax_cache_key($args));
+}
+
+function ll_tools_flashcards_public_ajax_acquire_build_lock(array $args): bool {
+    if (!ll_tools_flashcards_public_ajax_cache_enabled()) {
+        return true;
+    }
+
+    $key = ll_tools_flashcards_public_ajax_build_lock_key($args);
+    $ttl = ll_tools_flashcards_public_ajax_build_lock_ttl();
+    if (get_transient($key) !== false) {
+        return false;
+    }
+
+    $token = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : md5((string) microtime(true));
+    if (!wp_cache_add($key, $token, 'll_tools_flashcards', $ttl)) {
+        return false;
+    }
+
+    if (get_transient($key) !== false) {
+        wp_cache_delete($key, 'll_tools_flashcards');
+        return false;
+    }
+
+    set_transient($key, $token, $ttl);
+    return true;
+}
+
+function ll_tools_flashcards_public_ajax_release_build_lock(array $args): void {
+    $key = ll_tools_flashcards_public_ajax_build_lock_key($args);
+    wp_cache_delete($key, 'll_tools_flashcards');
+    delete_transient($key);
+}
+
+function ll_tools_flashcards_public_ajax_send_build_lock_response(): void {
+    $retry_after = max(1, min(10, ll_tools_flashcards_public_ajax_build_lock_ttl()));
+    if (!headers_sent()) {
+        header('Retry-After: ' . $retry_after);
+    }
+
+    wp_send_json_error([
+        'code' => 'cache_warming',
+        'message' => __('Too many flashcard category requests. Please try again shortly.', 'll-tools-text-domain'),
+        'retry_after' => $retry_after,
+    ], 429);
+}
+
 function ll_tools_flashcards_public_ajax_throttle_config(): array {
     $defaults = [
         'window' => MINUTE_IN_SECONDS,
@@ -1557,6 +1610,35 @@ function ll_tools_flashcards_public_ajax_option_pool_word_ids(WP_Term $term, arr
     })));
 }
 
+function ll_tools_flashcards_public_ajax_cache_args(WP_Term $term, array $wordset_ids, bool $wordset_fallback, array $base_config, array $candidate_word_ids = [], bool $include_option_pool = false, int $option_pool_limit = 0, array $effective_candidate_word_ids = []): array {
+    $public_wordset_ids = array_values(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    }));
+    sort($public_wordset_ids, SORT_NUMERIC);
+
+    $args = [
+        'wordset_ids' => $public_wordset_ids,
+        'wordset_fallback' => $wordset_fallback,
+        'prompt_type' => (string) ($base_config['prompt_type'] ?? ''),
+        'option_type' => (string) ($base_config['option_type'] ?? ''),
+        'use_titles' => !empty($base_config['use_titles']),
+        'term_id' => (int) $term->term_id,
+        'term_slug' => (string) $term->slug,
+        'quiz_config' => $base_config,
+    ];
+
+    if (!empty($candidate_word_ids)) {
+        $args['candidate_word_ids'] = array_values(array_map('intval', $candidate_word_ids));
+    }
+    if ($include_option_pool) {
+        $args['include_option_pool'] = true;
+        $args['option_pool_limit'] = max(0, min(50, $option_pool_limit));
+        $args['effective_candidate_word_ids'] = array_values(array_map('intval', $effective_candidate_word_ids));
+    }
+
+    return $args;
+}
+
 function ll_get_words_by_category_ajax() {
     $category = isset($_POST['category']) ? ll_tools_flashcards_public_ajax_request_value($_POST['category']) : '';
     $category_slug = isset($_POST['category_slug']) ? ll_tools_flashcards_public_ajax_slug_value($_POST['category_slug']) : '';
@@ -1599,11 +1681,6 @@ function ll_get_words_by_category_ajax() {
             wp_send_json_success([]);
         }
     }
-
-    $public_wordset_ids = array_values(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
-        return $wordset_id > 0;
-    }));
-    sort($public_wordset_ids, SORT_NUMERIC);
 
     if (!($term instanceof WP_Term)) {
         ll_tools_flashcards_send_public_ajax_cache_header('BYPASS');
@@ -1648,24 +1725,16 @@ function ll_get_words_by_category_ajax() {
         $base_config['__candidate_word_ids'] = $effective_candidate_word_ids;
     }
 
-    $public_cache_args = [
-        'wordset_ids' => $public_wordset_ids,
-        'wordset_fallback' => $wordset_fallback,
-        'prompt_type' => (string) ($base_config['prompt_type'] ?? ''),
-        'option_type' => (string) ($base_config['option_type'] ?? ''),
-        'use_titles' => !empty($base_config['use_titles']),
-        'term_id' => ($term instanceof WP_Term) ? (int) $term->term_id : 0,
-        'term_slug' => ($term instanceof WP_Term) ? (string) $term->slug : '',
-        'quiz_config' => $base_config,
-    ];
-    if (!empty($candidate_word_ids)) {
-        $public_cache_args['candidate_word_ids'] = $candidate_word_ids;
-    }
-    if ($include_option_pool) {
-        $public_cache_args['include_option_pool'] = true;
-        $public_cache_args['option_pool_limit'] = $option_pool_limit;
-        $public_cache_args['effective_candidate_word_ids'] = $effective_candidate_word_ids;
-    }
+    $public_cache_args = ll_tools_flashcards_public_ajax_cache_args(
+        $term,
+        $wordset_ids,
+        $wordset_fallback,
+        $base_config,
+        $candidate_word_ids,
+        $include_option_pool,
+        $option_pool_limit,
+        $effective_candidate_word_ids
+    );
     $cached_words = ll_tools_flashcards_public_ajax_cache_get($public_cache_args);
     if (is_array($cached_words)) {
         ll_tools_flashcards_send_public_ajax_cache_header('HIT');
@@ -1679,25 +1748,40 @@ function ll_get_words_by_category_ajax() {
         }
     }
 
-    $category_ref = $term instanceof WP_Term
-        ? $term
-        : ($category_slug !== '' ? $category_slug : $category);
-    $category_label = ($term instanceof WP_Term) ? (string) $term->name : $category;
-    $words = ll_get_words_by_category($category_ref, $base_config['option_type'], $wordset_ids, $base_config);
-
-    if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
-        $words = ll_tools_attach_user_practice_progress_to_words((array) $words, get_current_user_id(), [
-            'wordset_id' => (count($wordset_ids) === 1) ? (int) $wordset_ids[0] : 0,
-            'category_id' => ($term instanceof WP_Term) ? (int) $term->term_id : 0,
-            'category_name' => $category_label,
-            'quiz_config' => $base_config,
-        ]);
+    $public_cache_build_lock_acquired = false;
+    if (!is_user_logged_in()) {
+        $public_cache_build_lock_acquired = ll_tools_flashcards_public_ajax_acquire_build_lock($public_cache_args);
+        if (!$public_cache_build_lock_acquired) {
+            ll_tools_flashcards_send_public_ajax_cache_header('WARMING');
+            ll_tools_flashcards_public_ajax_send_build_lock_response();
+        }
     }
 
-    // Frontend flashcard payloads should not expose internal speaker user IDs.
-    $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
+    try {
+        $category_ref = $term instanceof WP_Term
+            ? $term
+            : ($category_slug !== '' ? $category_slug : $category);
+        $category_label = ($term instanceof WP_Term) ? (string) $term->name : $category;
+        $words = ll_get_words_by_category($category_ref, $base_config['option_type'], $wordset_ids, $base_config);
 
-    ll_tools_flashcards_public_ajax_cache_set($public_cache_args, $words);
+        if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
+            $words = ll_tools_attach_user_practice_progress_to_words((array) $words, get_current_user_id(), [
+                'wordset_id' => (count($wordset_ids) === 1) ? (int) $wordset_ids[0] : 0,
+                'category_id' => ($term instanceof WP_Term) ? (int) $term->term_id : 0,
+                'category_name' => $category_label,
+                'quiz_config' => $base_config,
+            ]);
+        }
+
+        // Frontend flashcard payloads should not expose internal speaker user IDs.
+        $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
+
+        ll_tools_flashcards_public_ajax_cache_set($public_cache_args, $words);
+    } finally {
+        if ($public_cache_build_lock_acquired) {
+            ll_tools_flashcards_public_ajax_release_build_lock($public_cache_args);
+        }
+    }
     ll_tools_flashcards_send_public_ajax_cache_header('MISS');
     wp_send_json_success($words);
 }

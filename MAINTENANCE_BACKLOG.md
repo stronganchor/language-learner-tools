@@ -8,7 +8,8 @@ the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
 verification follow-up, the Speaking Practice microphone-denial follow-up, and
 the Speaking Practice hosted API failure follow-up, and the offline remote
 snapshot follow-up, the offline sync error-UX follow-up, and the June 12
-large-wordset performance/regression follow-up pass.
+large-wordset performance/regression follow-up pass, plus the June 19 public
+flashcard AJAX cache-stampede follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -20,6 +21,13 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 19 public flashcard AJAX cache-stampede follow-up:
+  anonymous cold misses for `ll_get_words_by_category` now acquire a short
+  build lock keyed to the normalized public cache arguments. Duplicate misses
+  get a retryable `cache_warming`/429 response using existing localized retry
+  copy while the first request warms the cache. `SecurityHardeningRegressionTest`
+  covers the server guard, and `flashcard-loader-wordset-isolation.spec.js`
+  covers the client retry branch.
 - June 10 offline sync error-UX follow-up:
   `tests/e2e/specs/offline-app-shell-launcher.spec.js` now covers offline sync
   login failure and server sync failure responses in the real offline shell

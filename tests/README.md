@@ -170,7 +170,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
-- Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
+- Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, public flashcard AJAX cache/throttle/build-lock guards, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
 
 ## 6) Browser E2E tests (Playwright)
 
@@ -221,7 +221,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/flashcard-gender-support-normalization.spec.js`
   - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
-  - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader.
+  - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader, category preloads are serialized, and retryable `429` category responses are retried.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
   - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`

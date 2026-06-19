@@ -148,6 +148,86 @@ test('flashcard loader serializes category AJAX preloads by default to avoid req
   }).toBe(2);
 });
 
+test('flashcard loader retries retryable category AJAX 429 responses', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Category One'];
+    window.getCategoryDisplayMode = function () { return 'text_title'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'set-a',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      preloadTuning: {
+        categoryAjaxConcurrency: 1,
+        categoryAjaxSpacingMs: 0,
+        categoryAjaxMaxRetriesOn429: 1,
+        categoryAjaxRetryBaseMs: 1,
+        categoryAjaxRetryMaxMs: 10
+      },
+      categories: [
+        { id: 11, name: 'Category One', prompt_type: 'text_title', option_type: 'text_title' }
+      ]
+    };
+
+    window.__llAjaxAttempts = 0;
+    const $ = window.jQuery;
+    $.ajax = function (opts) {
+      window.__llAjaxAttempts += 1;
+      if (window.__llAjaxAttempts === 1) {
+        setTimeout(() => {
+          opts.error({
+            status: 429,
+            getResponseHeader(name) {
+              return String(name || '').toLowerCase() === 'retry-after' ? '0' : '';
+            },
+            responseText: '{"success":false,"data":{"code":"cache_warming","retry_after":1}}'
+          }, 'error', 'rate_limited');
+        }, 0);
+      } else {
+        setTimeout(() => {
+          opts.success({
+            success: true,
+            data: [
+              {
+                id: 1001,
+                title: 'Word One',
+                label: 'Word One',
+                audio: '',
+                image: '',
+                audio_files: [],
+                wordset_ids: [101]
+              }
+            ]
+          });
+        }, 0);
+      }
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+
+  const result = await page.evaluate(() => {
+    return window.FlashcardLoader.loadResourcesForCategory('Category One', null, { skipCategoryPreload: true });
+  });
+  expect(result.success).toBe(true);
+
+  const attempts = await page.evaluate(() => window.__llAjaxAttempts);
+  expect(attempts).toBe(2);
+
+  const activeWordIds = await page.evaluate(() => {
+    const rows = window.wordsByCategory['Category One'] || [];
+    return rows.map((row) => parseInt(row && row.id, 10) || 0).filter(Boolean);
+  });
+  expect(activeWordIds).toEqual([1001]);
+});
+
 test('flashcard loader preserves explicit listening word order when provided', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });
