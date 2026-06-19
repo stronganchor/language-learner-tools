@@ -1975,7 +1975,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 19;
+    return 20;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -2821,10 +2821,6 @@ function ll_tools_ipa_orthography_get_profile_locked_manual_rules(int $wordset_i
         'ɭ' => ['any' => "'l"],
         'χ' => ['any' => 'x'],
         'x' => ['any' => 'x'],
-        'ŋg' => ['any' => 'ng'],
-        'ŋk' => ['any' => 'nk'],
-        'ŋqʰ' => ['any' => 'nq'],
-        'ŋq' => ['any' => 'nq'],
         't̪͡ʙ̥ɨ' => ['any' => 'twe'],
         't̪͡ʙɨ' => ['any' => 'twe'],
         'sɨ' => ['any' => 'se'],
@@ -3683,11 +3679,7 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'ħ' => ['any' => "'h"],
         'ʜ' => ['any' => "'h"],
         'ɭ' => ['any' => "'l"],
-        'ŋg' => ['any' => 'ng'],
-        'ŋk' => ['any' => 'nk'],
-        'ŋqʰ' => ['any' => 'nq'],
-        'ŋq' => ['any' => 'nq'],
-        'ŋ' => ['any' => 'ng'],
+        'ŋ' => ['any' => 'n'],
         'ɲ' => ['any' => 'ny'],
         'nʲ' => ['any' => 'ny'],
         'nj' => ['any' => 'ny'],
@@ -3715,6 +3707,7 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         't̪͡ʙɨ' => ['any' => 'twe'],
         't̪͡ʙ̥' => ['any' => 'tw'],
         't̪͡ʙ' => ['any' => 'tw'],
+        't̪ʷʰ' => ['any' => 'tw'],
         't̪͡p' => ['any' => 'tw'],
         'd̪͡b' => ['any' => 'dw'],
         'sʷ' => ['any' => 'sw'],
@@ -3722,13 +3715,13 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'jɨ' => ['any' => 'yı'],
         'jɪ' => ['any' => 'yı'],
         "ɨ\u{032F}" => ['any' => 'ı'],
-        "ɨ\u{0306}" => ['any' => 'ı'],
-        "ɨ\u{0306}\u{032F}" => ['any' => 'ı'],
-        "ɨ\u{032F}\u{0306}" => ['any' => 'ı'],
+        "ɨ\u{0306}" => ['final' => 'e', 'nonfinal' => 'ı'],
+        "ɨ\u{0306}\u{032F}" => ['final' => 'e', 'nonfinal' => 'ı'],
+        "ɨ\u{032F}\u{0306}" => ['final' => 'e', 'nonfinal' => 'ı'],
         "ɪ\u{032F}" => ['any' => 'ı'],
-        "ɪ\u{0306}" => ['any' => 'ı'],
-        "ɪ\u{0306}\u{032F}" => ['any' => 'ı'],
-        "ɪ\u{032F}\u{0306}" => ['any' => 'ı'],
+        "ɪ\u{0306}" => ['final' => 'e', 'nonfinal' => 'ı'],
+        "ɪ\u{0306}\u{032F}" => ['final' => 'e', 'nonfinal' => 'ı'],
+        "ɪ\u{032F}\u{0306}" => ['final' => 'e', 'nonfinal' => 'ı'],
         'q' => ['any' => 'q'],
         'qʰ' => ['any' => 'q'],
         'c' => ['any' => 'k'],
@@ -3821,6 +3814,7 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
         'miçıkû' => 'mirçıkû',
         'miçkû' => 'mirçıkû',
         'çân' => 'çând',
+        'çate' => 'çatı',
         'kera' => 'kerra',
         'kerawa' => 'kerrawa',
         'kerawo' => 'kerrawo',
@@ -3930,15 +3924,7 @@ function ll_tools_ipa_orthography_profile_replacements(string $text, array $repl
 }
 
 function ll_tools_ipa_orthography_apply_profile_output_replacements(string $text, int $wordset_id): string {
-    if ($text === '' || ll_tools_ipa_orthography_get_profile_key($wordset_id) !== 'zazaki_genc_palu') {
-        return $text;
-    }
-
-    return ll_tools_ipa_orthography_profile_replacements($text, [
-        'ngg' => 'ng',
-        'ngk' => 'nk',
-        'ngq' => 'nq',
-    ]);
+    return $text;
 }
 
 function ll_tools_ipa_orthography_profile_strip_terminal_punctuation(string $text): string {

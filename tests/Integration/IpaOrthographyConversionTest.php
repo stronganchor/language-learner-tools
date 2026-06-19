@@ -588,6 +588,13 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             'sʲ' => ['any' => 's'],
         ]);
         $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        $effective_manual_rules = ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id);
+
+        $this->assertSame(['any' => 'n'], (array) ($effective_manual_rules['ŋ'] ?? []));
+        $this->assertArrayNotHasKey('ŋg', $effective_manual_rules);
+        $this->assertArrayNotHasKey('ŋk', $effective_manual_rules);
+        $this->assertArrayNotHasKey('ŋq', $effective_manual_rules);
+        $this->assertArrayNotHasKey('ŋqʰ', $effective_manual_rules);
 
         $hbar = "\u{0127}";
         $this->assertSame(
@@ -651,8 +658,18 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
 
         $this->assertSame(
+            'Ana',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("aŋa", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
             'Twe',
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("t̪͡ʙ̥ɨ", $engine_rules, $wordset_id)['text'] ?? '')
+        );
+
+        $this->assertSame(
+            'Tw',
+            (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("t̪ʷʰ", $engine_rules, $wordset_id)['text'] ?? '')
         );
 
         $this->assertSame(
@@ -693,6 +710,17 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             $nonfinal_high_vowel_prediction
         );
         $this->assertTrue((bool) ($nonfinal_high_vowel_detail['matches'] ?? false));
+
+        $merre_ipa = "mɛrɪ\u{0306}";
+        $merre_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($merre_ipa, $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($merre_prediction['complete'] ?? false));
+        $this->assertSame('Merre', (string) ($merre_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Merre', $merre_ipa, $wordset_id, 'isolation', $merre_prediction)['matches'] ?? false));
+
+        $cati_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("t͡ʃatɪ", $engine_rules, $wordset_id);
+        $this->assertTrue((bool) ($cati_prediction['complete'] ?? false));
+        $this->assertSame('Çatı', (string) ($cati_prediction['text'] ?? ''));
+        $this->assertTrue((bool) (ll_tools_ipa_orthography_profile_mismatch_detail('Çatı', "t͡ʃatɪ", $wordset_id, 'isolation', $cati_prediction)['matches'] ?? false));
 
         $plural_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text("mʷɛɾik", $engine_rules, $wordset_id);
         $this->assertTrue((bool) ($plural_prediction['complete'] ?? false));
