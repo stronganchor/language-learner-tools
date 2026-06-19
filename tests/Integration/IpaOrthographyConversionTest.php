@@ -296,12 +296,22 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
                 'sı' => 'se',
                 'twı' => 'twe',
             ],
+            'phrase_overrides' => [
+                [
+                    'from' => ['de', 'aşm'],
+                    'to' => ['dı', 'aşm'],
+                ],
+            ],
             'optional_matches' => [
                 [
                     'ipa' => "ɨ\u{0306}",
                     'orthography' => 'ı',
                 ],
             ],
+            'recording_type_punctuation' => [
+                'introduction' => '.',
+            ],
+            'sentence_case' => true,
         ]);
 
         $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
@@ -310,7 +320,20 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             $wordset_id
         );
         $this->assertTrue((bool) ($prediction['complete'] ?? false));
-        $this->assertSame('se twe', (string) ($prediction['text'] ?? ''));
+        $this->assertSame('Se twe', (string) ($prediction['text'] ?? ''));
+
+        $this->assertSame(
+            'Se',
+            ll_tools_ipa_orthography_apply_settings_to_text("sı\u{0306}", $wordset_id)
+        );
+        $this->assertSame(
+            'Ow taxvim da dı aşm vêr ho hêsen.',
+            ll_tools_ipa_orthography_apply_settings_to_text(
+                "ow taxvim da de\u{0306} aşm vêr ho hêsen",
+                $wordset_id,
+                'introduction'
+            )
+        );
 
         $brief_ipa = "b\u{02B7}\u{0268}\u{0306}\u{027E}e";
         $manual_prediction = [
@@ -586,6 +609,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         update_term_meta($wordset_id, 'll_language', 'zza');
         update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
             'sʲ' => ['any' => 's'],
+            'ŋ' => ['any' => 'ng'],
         ]);
         $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
         $effective_manual_rules = ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id);
