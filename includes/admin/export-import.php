@@ -1759,7 +1759,7 @@ function ll_tools_import_job_get_snapshot(array $job): array {
         'statusText' => ll_tools_import_job_get_status_text($job),
         'errorMessage' => trim((string) ($job['error_message'] ?? '')),
         'canResume' => ($status === 'running' || $status === 'paused'),
-        'canDiscard' => ($status === 'paused' && ll_tools_import_has_undo_targets($undo)),
+        'canDiscard' => ($status === 'paused'),
         'hasMore' => ($status === 'running' || $status === 'paused'),
         'redirectUrl' => ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug()),
         'updatedAt' => max(0, (int) ($job['updated_at'] ?? 0)),

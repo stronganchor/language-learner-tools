@@ -80,7 +80,11 @@
             processingProgressLabel: config.processingProgressLabel,
             processingDone: config.processingDone,
             processingFailed: config.processingFailed,
-            processingReload: config.processingReload
+            processingReload: config.processingReload,
+            processingResume: config.processingResume,
+            processingResuming: config.processingResuming,
+            processingDiscard: config.processingDiscard,
+            processingDiscarding: config.processingDiscarding
         };
     }
 

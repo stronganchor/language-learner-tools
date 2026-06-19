@@ -480,6 +480,8 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'orthographySummaryRules' => __('Rules', 'll-tools-text-domain'),
             'orthographySummaryIssues' => __('Contradictions', 'll-tools-text-domain'),
             'orthographySummaryQueue' => __('Missing text', 'll-tools-text-domain'),
+            'orthographySummaryProfile' => __('Profile', 'll-tools-text-domain'),
+            'orthographySummaryProfileNone' => __('Generic', 'll-tools-text-domain'),
         ],
     ]);
 }

@@ -854,6 +854,60 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_ajax_import_job_can_discard_paused_job_before_content_writes(): void
+    {
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        delete_transient('ll_tools_import_result');
+        delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
+        delete_user_meta($adminId, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+
+        $jobId = 'll-test-paused-empty-' . wp_generate_uuid4();
+        $job = [
+            'id' => $jobId,
+            'user_id' => $adminId,
+            'status' => 'paused',
+            'phase' => 'extract',
+            'extract_index' => 0,
+            'extract_total' => 1,
+            'error_message' => 'The selected import zip is missing.',
+            'result' => ll_tools_import_job_default_result(),
+            'updated_at' => time(),
+        ];
+
+        ll_tools_import_job_save($jobId, $job);
+        ll_tools_import_job_set_active_id($jobId);
+        ll_tools_import_job_set_last_id($jobId, $adminId);
+
+        try {
+            $snapshot = ll_tools_import_job_get_snapshot($job);
+            $this->assertTrue((bool) ($snapshot['canDiscard'] ?? false));
+
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_job_ajax'),
+                'action' => 'll_tools_import_discard_job',
+                'job_id' => $jobId,
+            ];
+            $_REQUEST = $_POST;
+            $discardResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_discard_job();
+            });
+
+            $this->assertTrue($discardResponse['success']);
+            $cleanupResult = is_array($discardResponse['data']['cleanupResult'] ?? null)
+                ? $discardResponse['data']['cleanupResult']
+                : [];
+            $this->assertSame(__('Import job discarded. No imported content needed cleanup.', 'll-tools-text-domain'), (string) ($cleanupResult['message'] ?? ''));
+            $this->assertNull(ll_tools_import_job_get($jobId));
+            $this->assertSame('', ll_tools_import_job_get_active_id());
+            $this->assertSame('', ll_tools_import_job_get_last_id($adminId));
+        } finally {
+            ll_tools_import_job_delete($jobId, $adminId);
+            delete_transient('ll_tools_import_result');
+        }
+    }
+
     /**
      * @return array{zip_path:string,zip_filename:string,category_slug:string}
      */

@@ -26333,9 +26333,14 @@ msgstr "Dil kodu"
 msgid "Category ordering, profile image and intro, answer text styling, grammar options, and game image sizing."
 msgstr "Kategori sıralaması, profil görseli ve giriş, yanıt metni stili, gramer seçenekleri ve oyun görseli boyutlandırması."
 
+#: includes/admin/ipa-keyboard-admin.php:483
 #: includes/pages/wordset-pages.php:11059
 msgid "Profile"
 msgstr "Profil"
+
+#: includes/admin/ipa-keyboard-admin.php:484
+msgid "Generic"
+msgstr "Genel"
 
 #: includes/pages/wordset-pages.php:11062
 msgid "Word set profile image"

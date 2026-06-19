@@ -192,7 +192,8 @@ tests/bin/run-e2e.sh --shard=4/4
 
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
-expanded the local inventory to 326 tests. Treat a short unsharded timeout as
+expanded the local inventory to 326 tests, and the June 19, 2026 maintenance
+run listed 353 tests in 81 files. Treat a short unsharded timeout as
 an automation budget problem unless a shard isolates a hung spec; if the
 unsharded command still stalls beyond 35 minutes after shards pass, investigate
 suite-level state leakage or Local-site slowness.

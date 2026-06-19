@@ -196,7 +196,7 @@ Playwright cannot find `.ll-quiz-page-trigger`:
 Full Playwright run times out under an automation cap:
 - Run `tests/bin/run-e2e.sh --list` first to confirm the inventory and catch discovery errors.
 - Then run `tests/bin/run-e2e.sh --shard=1/4` through `--shard=4/4` to isolate whether a spec actually hangs.
-- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the local inventory to 326 tests. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
+- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the local inventory to 326 tests, and the June 19, 2026 maintenance run listed 353 tests in 81 files. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
 - If all shards pass but the unsharded command still stalls beyond 35 minutes, investigate suite-level state leakage, leftover browser/process state, or Local-site slowness before weakening assertions.
 
 `page-speed-throttled-load.spec.js` fails:

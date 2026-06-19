@@ -822,12 +822,13 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
     $display_name = function_exists('ll_tools_get_category_display_name')
         ? ll_tools_get_category_display_name($term)
         : $term->name;
-
     ob_start();
     ll_tools_render_template('quiz-page-template.php', [
         'vh'           => $vh,
         'src'          => $src,
         'display_name' => $display_name,
+        'iframe_title' => __('Quiz Content', 'll-tools-text-domain'),
+        'loading_status' => __('Loading quiz...', 'll-tools-text-domain'),
         'slug'         => $term->slug,
     ]);
     return (string) ob_get_clean();

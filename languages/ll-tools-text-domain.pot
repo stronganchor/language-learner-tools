@@ -16938,8 +16938,13 @@ msgstr ""
 msgid "These controls affect lesson order, recommended study flow, and prerequisite gating for this word set only."
 msgstr ""
 
+#: includes/admin/ipa-keyboard-admin.php:483
 #: includes/pages/wordset-pages.php:12836
 msgid "Profile"
+msgstr ""
+
+#: includes/admin/ipa-keyboard-admin.php:484
+msgid "Generic"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:12839

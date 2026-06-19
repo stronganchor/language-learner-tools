@@ -91,6 +91,21 @@ final class QuizPagePostTypeTest extends LL_Tools_TestCase
         $this->assertSame('/quiz/' . $fixture['category_slug'] . '/', (string) wp_parse_url((string) get_permalink($quiz_page_id), PHP_URL_PATH));
     }
 
+    public function test_generated_quiz_page_content_labels_iframe_and_loading_status(): void
+    {
+        $fixture = $this->createQuizzableCategoryFixture('iframe-accessibility');
+        $term = get_term($fixture['category_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $html = ll_tools_build_quiz_page_content($term);
+
+        $this->assertStringContainsString('class="ll-tools-iframe-loading-status screen-reader-text"', $html);
+        $this->assertStringContainsString('role="status"', $html);
+        $this->assertStringContainsString('Loading quiz...', $html);
+        $this->assertStringContainsString('class="ll-tools-quiz-iframe"', $html);
+        $this->assertStringContainsString('title="Quiz Content"', $html);
+    }
+
     public function test_legacy_quiz_page_migration_moves_pages_to_dedicated_post_type(): void
     {
         $fixture = $this->createQuizzableCategoryFixture('migration');

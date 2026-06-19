@@ -102,7 +102,33 @@ function createMinimalImportBundleZip() {
 async function ensureLoggedIntoImportPage(page) {
   await ensureLoggedIntoAdmin(page, '/wp-admin/tools.php?page=ll-import');
   await expect(page).toHaveURL(/\/wp-admin\/tools\.php\?page=ll-import/);
+  await discardPausedImportJobIfPresent(page);
   await expect(previewImportForm(page).locator('#ll_import_existing')).toBeVisible({ timeout: 60000 });
+}
+
+async function discardPausedImportJobIfPresent(page) {
+  const processingScreen = page.locator('#ll-tools-import-processing-screen');
+  const isProcessingVisible = await processingScreen.isVisible({ timeout: 1000 }).catch(() => false);
+  if (!isProcessingVisible) {
+    return;
+  }
+
+  const discardButton = page.locator('.ll-tools-import-processing-discard').first();
+  await discardButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  const canDiscard = await discardButton.isVisible().catch(() => false);
+  if (!canDiscard) {
+    return;
+  }
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 120000 }).catch(() => {}),
+    discardButton.click({ timeout: 10000, noWaitAfter: true })
+  ]);
+  await page.waitForLoadState('domcontentloaded', { timeout: 60000 }).catch(() => {});
+  await page.waitForFunction(() => (
+    !document.documentElement.classList.contains('ll-tools-import-processing')
+  ), null, { timeout: 60000 }).catch(() => {});
 }
 
 function previewImportForm(page) {

@@ -384,11 +384,15 @@
 
         var iframe = wrapper.querySelector('.ll-tools-quiz-iframe');
         var spinner = wrapper.querySelector('.ll-tools-iframe-loading');
+        var loadingStatus = wrapper.querySelector('.ll-tools-iframe-loading-status');
         if (!iframe || !spinner) return;
 
         var hide = function () {
             if (spinner && spinner.style.display !== 'none') {
                 spinner.style.display = 'none';
+            }
+            if (loadingStatus) {
+                loadingStatus.hidden = true;
             }
         };
 
