@@ -4476,3 +4476,43 @@ msgstr "비공개"
 #: includes/pages/wordset-pages.php:12519 includes/pages/wordset-pages.php:17168 includes/taxonomies/word-category-taxonomy.php:825 includes/taxonomies/word-category-taxonomy.php:852 includes/taxonomies/wordset-taxonomy.php:3154
 msgid "Public"
 msgstr "공개"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1419
+msgid "Old dictionary entry not found."
+msgstr "이전 사전 항목을 찾을 수 없습니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1426
+msgid "Target dictionary entry not found."
+msgstr "대상 사전 항목을 찾을 수 없습니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1433
+msgid "Old and target dictionary entries must be different."
+msgstr "이전 사전 항목과 대상 사전 항목은 서로 달라야 합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1452
+msgid "Expected old dictionary entry title does not match live state."
+msgstr "예상한 이전 사전 항목 제목이 현재 사이트 상태와 일치하지 않습니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1464
+msgid "Expected target dictionary entry title does not match live state."
+msgstr "예상한 대상 사전 항목 제목이 현재 사이트 상태와 일치하지 않습니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1547
+msgid "Dictionary import helpers are not available."
+msgstr "사전 가져오기 도우미를 사용할 수 없습니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1571
+msgid "Provide a dictionary import row."
+msgstr "사전 가져오기 행을 입력하세요."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1594
+msgid "Dictionary row entry is required."
+msgstr "사전 행 항목은 필수입니다."

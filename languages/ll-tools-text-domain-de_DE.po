@@ -27468,3 +27468,43 @@ msgstr "Schaltflächen des Sprachumschalters"
 #: includes/shortcodes/site-tools-shortcode.php:1141
 msgid "Language switcher order"
 msgstr "Reihenfolge des Sprachumschalters"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1419
+msgid "Old dictionary entry not found."
+msgstr "Alter Wörterbucheintrag nicht gefunden."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1426
+msgid "Target dictionary entry not found."
+msgstr "Ziel-Wörterbucheintrag nicht gefunden."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1433
+msgid "Old and target dictionary entries must be different."
+msgstr "Alter und Ziel-Wörterbucheintrag müssen verschieden sein."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1452
+msgid "Expected old dictionary entry title does not match live state."
+msgstr "Der erwartete Titel des alten Wörterbucheintrags stimmt nicht mit dem Live-Status überein."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1464
+msgid "Expected target dictionary entry title does not match live state."
+msgstr "Der erwartete Titel des Ziel-Wörterbucheintrags stimmt nicht mit dem Live-Status überein."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1547
+msgid "Dictionary import helpers are not available."
+msgstr "Hilfsfunktionen für den Wörterbuchimport sind nicht verfügbar."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1571
+msgid "Provide a dictionary import row."
+msgstr "Gib eine Wörterbuch-Importzeile an."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1594
+msgid "Dictionary row entry is required."
+msgstr "Der Eintrag in der Wörterbuchzeile ist erforderlich."

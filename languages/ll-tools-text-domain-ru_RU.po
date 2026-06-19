@@ -4527,3 +4527,43 @@ msgstr "Приватный"
 #: includes/pages/wordset-pages.php:12519 includes/pages/wordset-pages.php:17168 includes/taxonomies/word-category-taxonomy.php:825 includes/taxonomies/word-category-taxonomy.php:852 includes/taxonomies/wordset-taxonomy.php:3154
 msgid "Public"
 msgstr "Публичный"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1419
+msgid "Old dictionary entry not found."
+msgstr "Старая словарная статья не найдена."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1426
+msgid "Target dictionary entry not found."
+msgstr "Целевая словарная статья не найдена."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1433
+msgid "Old and target dictionary entries must be different."
+msgstr "Старая и целевая словарные статьи должны различаться."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1452
+msgid "Expected old dictionary entry title does not match live state."
+msgstr "Ожидаемый заголовок старой словарной статьи не совпадает с текущим состоянием."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1464
+msgid "Expected target dictionary entry title does not match live state."
+msgstr "Ожидаемый заголовок целевой словарной статьи не совпадает с текущим состоянием."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1547
+msgid "Dictionary import helpers are not available."
+msgstr "Вспомогательные функции импорта словаря недоступны."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1571
+msgid "Provide a dictionary import row."
+msgstr "Укажите строку импорта словаря."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1594
+msgid "Dictionary row entry is required."
+msgstr "Запись в строке словаря обязательна."

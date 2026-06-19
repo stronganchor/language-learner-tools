@@ -4494,3 +4494,43 @@ msgstr "Privado"
 #: includes/pages/wordset-pages.php:12519 includes/pages/wordset-pages.php:17168 includes/taxonomies/word-category-taxonomy.php:825 includes/taxonomies/word-category-taxonomy.php:852 includes/taxonomies/wordset-taxonomy.php:3154
 msgid "Public"
 msgstr "Público"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1419
+msgid "Old dictionary entry not found."
+msgstr "No se encontró la entrada de diccionario anterior."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1426
+msgid "Target dictionary entry not found."
+msgstr "No se encontró la entrada de diccionario de destino."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1433
+msgid "Old and target dictionary entries must be different."
+msgstr "La entrada de diccionario anterior y la de destino deben ser diferentes."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1452
+msgid "Expected old dictionary entry title does not match live state."
+msgstr "El título esperado de la entrada de diccionario anterior no coincide con el estado en vivo."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1464
+msgid "Expected target dictionary entry title does not match live state."
+msgstr "El título esperado de la entrada de diccionario de destino no coincide con el estado en vivo."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1547
+msgid "Dictionary import helpers are not available."
+msgstr "Las funciones auxiliares de importación de diccionarios no están disponibles."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1571
+msgid "Provide a dictionary import row."
+msgstr "Proporciona una fila de importación de diccionario."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1594
+msgid "Dictionary row entry is required."
+msgstr "La entrada de la fila del diccionario es obligatoria."

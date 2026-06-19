@@ -267,6 +267,8 @@ Routes:
 - `GET /automation/status`
 - `POST /automation/plugin-update`
 - `POST /automation/dictionary-entry-headwords`
+- `POST /automation/dictionary-entry-supersede`
+- `POST /automation/dictionary-entry-upsert-row`
 - `POST /cache/static/purge`
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
@@ -741,6 +743,48 @@ identified the exact entry and replacement text. Dry-runs return before/after
 title state, changed sense indexes, changed fields, and before/after headword
 candidates without writing. Applied writes require edit access to the dictionary
 entry and refresh the entry search/scope metadata before returning readback.
+
+### `POST /automation/dictionary-entry-supersede`
+
+Marks one duplicate `ll_dictionary_entry` as superseded by another corrected
+entry. Applied writes set the old entry status to `inactive`, store the target
+entry ID in metadata, clear lookup rows for the old entry, and bump the
+dictionary browser cache version when available.
+
+Body fields:
+
+- `old_entry_id` required dictionary entry post ID to retire
+- `target_entry_id` required dictionary entry post ID that should remain active
+- `expected_old_title` optional live-title guard for the old entry; returns
+  `409` if the current old-entry title differs
+- `expected_target_title` optional live-title guard for the target entry;
+  returns `409` if the current target-entry title differs
+- `reason` optional note stored on the old entry when the write applies
+- `dry_run` optional boolean, default `true`
+
+Use this only after a reviewed duplicate decision. Dry-runs return old/target
+titles, statuses, and whether the old entry would change without mutating data.
+Applied writes require edit access to the old dictionary entry.
+
+### `POST /automation/dictionary-entry-upsert-row`
+
+Replaces one dictionary entry's imported senses from a single raw dictionary
+import row. The server routes the row through the same dictionary import helper
+used by batch imports, with existing senses replaced for that entry.
+
+Body fields:
+
+- `entry_id` required dictionary entry post ID
+- `expected_title` optional live-title guard; returns `409` if the current entry
+  title differs
+- `row` required object containing a normalized dictionary import row; its
+  `entry` value is required
+- `dry_run` optional boolean, default `true`
+
+Use this for one-entry dictionary row repairs when Codex has already reviewed
+the exact imported row. Dry-runs echo the sanitized row and current title
+without writing. Applied writes require edit access to the dictionary entry and
+return the import summary plus before/after title readback.
 
 ### `POST /wordsets`
 

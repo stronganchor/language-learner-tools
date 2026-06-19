@@ -4494,3 +4494,43 @@ msgstr "निजी"
 #: includes/pages/wordset-pages.php:12519 includes/pages/wordset-pages.php:17168 includes/taxonomies/word-category-taxonomy.php:825 includes/taxonomies/word-category-taxonomy.php:852 includes/taxonomies/wordset-taxonomy.php:3154
 msgid "Public"
 msgstr "सार्वजनिक"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1419
+msgid "Old dictionary entry not found."
+msgstr "पुरानी शब्दकोश प्रविष्टि नहीं मिली।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1426
+msgid "Target dictionary entry not found."
+msgstr "लक्षित शब्दकोश प्रविष्टि नहीं मिली।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1433
+msgid "Old and target dictionary entries must be different."
+msgstr "पुरानी और लक्षित शब्दकोश प्रविष्टियाँ अलग होनी चाहिए।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1452
+msgid "Expected old dictionary entry title does not match live state."
+msgstr "अपेक्षित पुरानी शब्दकोश प्रविष्टि शीर्षक लाइव स्थिति से मेल नहीं खाता।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1464
+msgid "Expected target dictionary entry title does not match live state."
+msgstr "अपेक्षित लक्षित शब्दकोश प्रविष्टि शीर्षक लाइव स्थिति से मेल नहीं खाता।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1547
+msgid "Dictionary import helpers are not available."
+msgstr "शब्दकोश आयात सहायक उपलब्ध नहीं हैं।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1571
+msgid "Provide a dictionary import row."
+msgstr "शब्दकोश आयात पंक्ति दें।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1594
+msgid "Dictionary row entry is required."
+msgstr "शब्दकोश पंक्ति प्रविष्टि आवश्यक है।"

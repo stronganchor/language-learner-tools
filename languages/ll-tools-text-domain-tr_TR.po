@@ -27302,3 +27302,43 @@ msgstr "Dil değiştirici düğmeleri"
 #: includes/shortcodes/site-tools-shortcode.php:1141
 msgid "Language switcher order"
 msgstr "Dil değiştirici sırası"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1419
+msgid "Old dictionary entry not found."
+msgstr "Eski sözlük girişi bulunamadı."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1426
+msgid "Target dictionary entry not found."
+msgstr "Hedef sözlük girişi bulunamadı."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1433
+msgid "Old and target dictionary entries must be different."
+msgstr "Eski ve hedef sözlük girişleri farklı olmalıdır."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1452
+msgid "Expected old dictionary entry title does not match live state."
+msgstr "Beklenen eski sözlük girişi başlığı canlı durumla eşleşmiyor."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1464
+msgid "Expected target dictionary entry title does not match live state."
+msgstr "Beklenen hedef sözlük girişi başlığı canlı durumla eşleşmiyor."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1547
+msgid "Dictionary import helpers are not available."
+msgstr "Sözlük içe aktarma yardımcıları kullanılamıyor."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1571
+msgid "Provide a dictionary import row."
+msgstr "Bir sözlük içe aktarma satırı sağla."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:1594
+msgid "Dictionary row entry is required."
+msgstr "Sözlük satırı girişi gerekli."
