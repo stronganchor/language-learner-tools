@@ -68,6 +68,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-terms', (string) ($data['routes']['word_category_terms'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership', (string) ($data['routes']['word_image_category_ownership'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', (string) ($data['routes']['word_metadata_plan_jobs'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-audio-speakers', (string) ($data['routes']['word_audio_speakers'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs', (string) ($data['routes']['transcription_validation_jobs'] ?? ''));
         $this->assertSame(5, (int) (($data['resource_guard']['word_category_updates_batch']['default_write_limit'] ?? 0)));
         $this->assertSame(10, (int) (($data['resource_guard']['word_category_updates_batch']['max_write_limit'] ?? 0)));
@@ -1728,6 +1729,75 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(200, $clear->get_status());
         $this->assertFalse(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
         $this->assertSame('', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
+    }
+
+    public function test_word_audio_speakers_route_updates_speaker_meta_and_post_author_with_guards(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $old_speaker_id = self::factory()->user->create(['role' => 'author']);
+        $target_speaker_id = self::factory()->user->create(['role' => 'author']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Audio Speaker Wordset', 'rest-audio-speaker-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Audio Speaker Category', 'rest-audio-speaker-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Audio Speaker Word', 'Translation');
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'REST Audio Speaker Recording',
+            'post_author' => $old_speaker_id,
+        ]);
+        update_post_meta($recording_id, 'speaker_user_id', $old_speaker_id);
+
+        wp_set_current_user($admin_id);
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-audio-speaker-wordset/word-audio-speakers', [
+            'updates' => [
+                [
+                    'recording_id' => $recording_id,
+                    'speaker_user_id' => $target_speaker_id,
+                    'expected_speaker_user_id' => $old_speaker_id,
+                    'expected_post_author' => $old_speaker_id,
+                ],
+            ],
+        ]);
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_run_data = $dry_run->get_data();
+        $this->assertIsArray($dry_run_data);
+        $this->assertTrue((bool) ($dry_run_data['dry_run'] ?? false));
+        $this->assertSame(1, (int) ($dry_run_data['updated_count'] ?? 0));
+        $this->assertSame($old_speaker_id, (int) get_post_meta($recording_id, 'speaker_user_id', true));
+        $this->assertSame($old_speaker_id, (int) get_post_field('post_author', $recording_id));
+
+        $apply = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-audio-speaker-wordset/word-audio-speakers', [
+            'dry_run' => false,
+            'updates' => [
+                [
+                    'recording_id' => $recording_id,
+                    'speaker_user_id' => $target_speaker_id,
+                    'expected_speaker_user_id' => $old_speaker_id,
+                    'expected_post_author' => $old_speaker_id,
+                ],
+            ],
+        ]);
+        $this->assertSame(200, $apply->get_status());
+        $apply_data = $apply->get_data();
+        $this->assertIsArray($apply_data);
+        $this->assertSame(1, (int) ($apply_data['updated_count'] ?? 0));
+        $this->assertSame($target_speaker_id, (int) get_post_meta($recording_id, 'speaker_user_id', true));
+        $this->assertSame($target_speaker_id, (int) get_post_field('post_author', $recording_id));
+
+        $guarded = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-audio-speaker-wordset/word-audio-speakers', [
+            'dry_run' => false,
+            'recording_id' => $recording_id,
+            'speaker_user_id' => $old_speaker_id,
+            'expected_speaker_user_id' => $old_speaker_id,
+        ]);
+        $guarded_data = $guarded->get_data();
+        $this->assertSame(200, $guarded->get_status());
+        $this->assertIsArray($guarded_data);
+        $this->assertSame(0, (int) ($guarded_data['updated_count'] ?? 0));
+        $this->assertNotEmpty((array) ($guarded_data['errors'] ?? []));
+        $this->assertSame($target_speaker_id, (int) get_post_meta($recording_id, 'speaker_user_id', true));
     }
 
     public function test_transcription_validation_job_refreshes_stale_rows_in_chunks(): void

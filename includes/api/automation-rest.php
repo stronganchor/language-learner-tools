@@ -748,7 +748,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 5.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|word-category-updates|word-image-category-ownership|legacy-translation-cleanup|transcriptions|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile|translations)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|word-category-updates|word-image-category-ownership|legacy-translation-cleanup|transcriptions|word-audio-speakers|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile|translations)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         if ((string) $matches[1] === 'transcription-validations') {
             $delay_seconds = 30.0;
@@ -1040,6 +1040,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_metadata_plan_job_discard' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard',
             'word_metadata_plan_job_result' => '/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result',
             'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
+            'word_audio_speakers' => '/ll-tools/v1/wordsets/{wordset}/word-audio-speakers',
             'transcription_validations' => '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
             'transcription_validation_jobs' => '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs',
             'transcription_validation_job_status' => '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}',
@@ -4929,6 +4930,145 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
                 $clear_all_review
             )
             : ll_tools_rest_automation_transcription_payload($recording_id, $wordset_id);
+        $changed = $after !== $before;
+        if ($changed) {
+            $summary['updated_count']++;
+        }
+        $summary['updated'][] = [
+            'recording_id' => $recording_id,
+            'changed' => $changed,
+            'before' => $before,
+            'after' => $after,
+        ];
+    }
+
+    return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_automation_word_audio_speaker_payload(int $recording_id): array {
+    $post = get_post($recording_id);
+    return [
+        'recording_id' => $recording_id,
+        'word_id' => $post instanceof WP_Post ? (int) $post->post_parent : 0,
+        'speaker_user_id' => (int) get_post_meta($recording_id, 'speaker_user_id', true),
+        'post_author' => $post instanceof WP_Post ? (int) $post->post_author : 0,
+    ];
+}
+
+function ll_tools_rest_automation_project_word_audio_speaker_after(array $before, int $speaker_user_id): array {
+    $after = $before;
+    $after['speaker_user_id'] = $speaker_user_id;
+    if ($speaker_user_id > 0) {
+        $after['post_author'] = $speaker_user_id;
+    }
+    return $after;
+}
+
+function ll_tools_rest_automation_update_word_audio_speakers(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $dry_run = $request->has_param('dry_run')
+        ? rest_sanitize_boolean($request->get_param('dry_run'))
+        : true;
+    $raw_updates = $request->get_param('updates');
+    if (!is_array($raw_updates)) {
+        $raw_updates = [$request->get_json_params()];
+    }
+    if (count($raw_updates) === 1 && empty($raw_updates[0])) {
+        $raw_updates = [$request->get_params()];
+    }
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => [
+            'id' => $wordset_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'matched_count' => 0,
+        'updated_count' => 0,
+        'updated' => [],
+        'errors' => [],
+    ];
+
+    foreach ((array) $raw_updates as $index => $update) {
+        if (!is_array($update)) {
+            continue;
+        }
+
+        $recording_id = (int) ($update['recording_id'] ?? ($update['word_audio_id'] ?? 0));
+        if ($recording_id <= 0 || !ll_tools_rest_automation_recording_belongs_to_wordset($recording_id, $wordset_id)) {
+            $summary['errors'][] = [
+                'index' => (int) $index,
+                'recording_id' => $recording_id,
+                'message' => __('Recording not found in this word set.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $speaker_user_id = (int) ($update['speaker_user_id'] ?? ($update['user_id'] ?? 0));
+        if ($speaker_user_id <= 0 || !get_userdata($speaker_user_id)) {
+            $summary['errors'][] = [
+                'index' => (int) $index,
+                'recording_id' => $recording_id,
+                'message' => __('Speaker user not found.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $summary['matched_count']++;
+        $before = ll_tools_rest_automation_word_audio_speaker_payload($recording_id);
+        if (array_key_exists('expected_speaker_user_id', $update)
+            && (int) $update['expected_speaker_user_id'] !== (int) ($before['speaker_user_id'] ?? 0)) {
+            $summary['errors'][] = [
+                'index' => (int) $index,
+                'recording_id' => $recording_id,
+                'message' => __('Speaker user precondition failed.', 'll-tools-text-domain'),
+                'expected_speaker_user_id' => (int) $update['expected_speaker_user_id'],
+                'actual_speaker_user_id' => (int) ($before['speaker_user_id'] ?? 0),
+            ];
+            continue;
+        }
+        if (array_key_exists('expected_post_author', $update)
+            && (int) $update['expected_post_author'] !== (int) ($before['post_author'] ?? 0)) {
+            $summary['errors'][] = [
+                'index' => (int) $index,
+                'recording_id' => $recording_id,
+                'message' => __('Post author precondition failed.', 'll-tools-text-domain'),
+                'expected_post_author' => (int) $update['expected_post_author'],
+                'actual_post_author' => (int) ($before['post_author'] ?? 0),
+            ];
+            continue;
+        }
+
+        if (!$dry_run) {
+            update_post_meta($recording_id, 'speaker_user_id', $speaker_user_id);
+            $updated = wp_update_post([
+                'ID' => $recording_id,
+                'post_author' => $speaker_user_id,
+            ], true);
+            if (is_wp_error($updated)) {
+                $summary['errors'][] = [
+                    'index' => (int) $index,
+                    'recording_id' => $recording_id,
+                    'message' => $updated->get_error_message(),
+                ];
+                continue;
+            }
+            clean_post_cache($recording_id);
+            if (!empty($before['word_id'])) {
+                clean_post_cache((int) $before['word_id']);
+            }
+        }
+
+        $after = $dry_run
+            ? ll_tools_rest_automation_project_word_audio_speaker_after($before, $speaker_user_id)
+            : ll_tools_rest_automation_word_audio_speaker_payload($recording_id);
         $changed = $after !== $before;
         if ($changed) {
             $summary['updated_count']++;
@@ -9489,6 +9629,19 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_update_transcriptions',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-audio-speakers', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_update_word_audio_speakers',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+        ],
     ]);
 
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/transcription-validations', [

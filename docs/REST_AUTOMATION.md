@@ -284,6 +284,7 @@ Routes:
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard`
 - `GET /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result`
 - `POST /wordsets/{wordset}/transcriptions`
+- `POST /wordsets/{wordset}/word-audio-speakers`
 - `POST /wordsets/{wordset}/transcription-validations`
 - `POST /wordsets/{wordset}/transcription-validation-jobs`
 - `GET /wordsets/{wordset}/transcription-validation-jobs/{job_id}`
@@ -1100,6 +1101,26 @@ Body fields:
 The response includes `matched_count`, `updated_count`, per-record `before` and
 `after` payloads, and structured `errors` for recordings outside the requested
 wordset.
+
+### `POST /wordsets/{wordset}/word-audio-speakers`
+
+Updates the assigned speaker for existing `word_audio` recordings in one
+wordset. Use this when an audio batch was imported under the wrong speaker and
+needs its `speaker_user_id` metadata and post author corrected together.
+
+Body fields:
+
+- `updates` optional array; omitted arrays treat the request body as one update
+- `recording_id` or `word_audio_id` required per update
+- `speaker_user_id` or `user_id` required per update; the user must exist
+- `expected_speaker_user_id` optional stale-value guard
+- `expected_post_author` optional stale-value guard
+- `dry_run` optional boolean, default true
+
+The response includes `matched_count`, `updated_count`, per-record `before` and
+`after` payloads, and structured `errors` for recordings outside the requested
+wordset or rows that fail the expected-value guards. Dry-run first, then submit
+the same payload with `dry_run=false`.
 
 ### `POST /wordsets/{wordset}/transcription-validations`
 
