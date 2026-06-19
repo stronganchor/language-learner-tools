@@ -7,9 +7,10 @@ flashcard shell follow-up, the content lesson route/media E2E follow-up, and
 the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
 verification follow-up, the Speaking Practice microphone-denial follow-up, and
 the Speaking Practice hosted API failure follow-up, and the offline remote
-snapshot follow-up, the offline sync error-UX follow-up, and the June 12
-large-wordset performance/regression follow-up pass, plus the June 19 public
-flashcard AJAX cache-stampede follow-up.
+snapshot follow-up, the offline sync error-UX follow-up, the June 12
+large-wordset performance/regression follow-up pass, the June 19 public
+flashcard AJAX cache-stampede follow-up, and the June 19 WebP optimizer queue
+resource-guard follow-up.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -21,6 +22,13 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
 
 ## Recently Closed
 
+- June 19 WebP optimizer queue resource-guard follow-up:
+  the admin WebP optimizer queue no longer requests all `word_images` IDs in a
+  single unbounded query on every page load. Queue indexing now scans in bounded
+  chunks, stores only compact sortable rows, reuses a short-lived invalidated
+  index for follow-up pages and bulk ID fetches, and hydrates only the visible
+  page rows for card rendering. `ImageWebpOptimizerAdminTest` covers the
+  bounded query shape and compact-index reuse.
 - June 19 public flashcard AJAX cache-stampede follow-up:
   anonymous cold misses for `ll_get_words_by_category` now acquire a short
   build lock keyed to the normalized public cache arguments. Duplicate misses

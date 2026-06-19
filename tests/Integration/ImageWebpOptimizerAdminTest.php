@@ -14,6 +14,7 @@ final class ImageWebpOptimizerAdminTest extends LL_Tools_TestCase
         parent::setUp();
         $this->postBackup = $_POST;
         $this->requestBackup = $_REQUEST;
+        ll_tools_webp_optimizer_bump_queue_index_cache_version();
     }
 
     protected function tearDown(): void
@@ -21,6 +22,7 @@ final class ImageWebpOptimizerAdminTest extends LL_Tools_TestCase
         $_POST = $this->postBackup;
         $_REQUEST = $this->requestBackup;
         wp_set_current_user(0);
+        ll_tools_webp_optimizer_bump_queue_index_cache_version();
         parent::tearDown();
     }
 
@@ -80,6 +82,96 @@ final class ImageWebpOptimizerAdminTest extends LL_Tools_TestCase
         $this->assertSame('No word images were selected for optimization.', (string) ($response['data']['message'] ?? ''));
     }
 
+    public function test_webp_optimizer_queue_scans_word_images_in_bounded_batches(): void
+    {
+        $this->createWordImagePosts(5, 'webp-bounded-scan');
+
+        $capturedQueries = [];
+        $captureQuery = static function (WP_Query $query) use (&$capturedQueries): void {
+            if ($query->get('post_type') === 'word_images' && $query->get('fields') === 'ids') {
+                $capturedQueries[] = $query->query_vars;
+            }
+        };
+        $batchFilter = static function (int $size, int $per_page): int {
+            return 2;
+        };
+        $disableCache = static function (int $ttl): int {
+            return 0;
+        };
+
+        add_action('pre_get_posts', $captureQuery);
+        add_filter('ll_tools_webp_optimizer_queue_scan_batch_size', $batchFilter, 10, 2);
+        add_filter('ll_tools_webp_optimizer_queue_index_cache_ttl', $disableCache, 10, 1);
+        try {
+            $queue = ll_tools_webp_optimizer_get_queue([
+                'page' => 1,
+                'per_page' => 2,
+                'include_non_flagged' => true,
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $captureQuery);
+            remove_filter('ll_tools_webp_optimizer_queue_scan_batch_size', $batchFilter, 10);
+            remove_filter('ll_tools_webp_optimizer_queue_index_cache_ttl', $disableCache, 10);
+        }
+
+        $this->assertNotEmpty($capturedQueries);
+        foreach ($capturedQueries as $queryVars) {
+            $this->assertSame(2, (int) ($queryVars['posts_per_page'] ?? 0));
+            $this->assertNotSame(-1, (int) ($queryVars['posts_per_page'] ?? 0));
+            $this->assertTrue((bool) ($queryVars['no_found_rows'] ?? false));
+        }
+        $this->assertSame(5, (int) ($queue['total_items'] ?? 0));
+        $this->assertSame(3, (int) ($queue['total_pages'] ?? 0));
+        $this->assertCount(2, (array) ($queue['items'] ?? []));
+    }
+
+    public function test_webp_optimizer_queue_reuses_compact_index_for_followup_pages(): void
+    {
+        $this->createWordImagePosts(5, 'webp-index-cache');
+
+        $capturedQueries = [];
+        $captureQuery = static function (WP_Query $query) use (&$capturedQueries): void {
+            if ($query->get('post_type') === 'word_images' && $query->get('fields') === 'ids') {
+                $capturedQueries[] = $query->query_vars;
+            }
+        };
+        $batchFilter = static function (int $size, int $per_page): int {
+            return 2;
+        };
+        $cacheTtl = static function (int $ttl): int {
+            return 60;
+        };
+
+        add_action('pre_get_posts', $captureQuery);
+        add_filter('ll_tools_webp_optimizer_queue_scan_batch_size', $batchFilter, 10, 2);
+        add_filter('ll_tools_webp_optimizer_queue_index_cache_ttl', $cacheTtl, 10, 1);
+        try {
+            $firstPage = ll_tools_webp_optimizer_get_queue([
+                'page' => 1,
+                'per_page' => 2,
+                'include_non_flagged' => true,
+            ]);
+            $firstPageQueries = $capturedQueries;
+            $capturedQueries = [];
+
+            $secondPage = ll_tools_webp_optimizer_get_queue([
+                'page' => 2,
+                'per_page' => 2,
+                'include_non_flagged' => true,
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $captureQuery);
+            remove_filter('ll_tools_webp_optimizer_queue_scan_batch_size', $batchFilter, 10);
+            remove_filter('ll_tools_webp_optimizer_queue_index_cache_ttl', $cacheTtl, 10);
+        }
+
+        $this->assertNotEmpty($firstPageQueries);
+        $this->assertSame([], $capturedQueries, 'Follow-up pages should hydrate page rows from the compact queue index without rescanning word_images.');
+        $this->assertCount(2, (array) ($firstPage['items'] ?? []));
+        $this->assertSame(2, (int) ($secondPage['page'] ?? 0));
+        $this->assertCount(2, (array) ($secondPage['items'] ?? []));
+    }
+
     /**
      * @return array<string,mixed>
      */
@@ -118,5 +210,25 @@ final class ImageWebpOptimizerAdminTest extends LL_Tools_TestCase
         $this->assertIsArray($decoded, 'Expected JSON response payload.');
 
         return $decoded;
+    }
+
+    /**
+     * @return array<int,int>
+     */
+    private function createWordImagePosts(int $count, string $prefix): array
+    {
+        $postIds = [];
+        for ($index = 1; $index <= $count; $index++) {
+            $postId = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => sprintf('%s %02d', $prefix, $index),
+            ]);
+            $this->assertIsInt($postId);
+            $this->assertGreaterThan(0, $postId);
+            $postIds[] = (int) $postId;
+        }
+
+        return $postIds;
     }
 }

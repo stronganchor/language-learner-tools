@@ -25,6 +25,10 @@ if (!defined('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_QUALITY')) {
     define('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_QUALITY', 82);
 }
 
+if (!defined('LL_TOOLS_WEBP_OPTIMIZER_QUEUE_INDEX_CACHE_VERSION_OPTION')) {
+    define('LL_TOOLS_WEBP_OPTIMIZER_QUEUE_INDEX_CACHE_VERSION_OPTION', 'll_tools_webp_optimizer_queue_index_cache_version');
+}
+
 function ll_tools_get_webp_optimizer_page_slug(): string {
     return (string) LL_TOOLS_WEBP_OPTIMIZER_PAGE_SLUG;
 }
@@ -87,6 +91,18 @@ function ll_tools_webp_optimizer_retry_quality_step(): int {
 function ll_tools_webp_optimizer_batch_size(): int {
     $size = (int) apply_filters('ll_tools_webp_optimizer_batch_size', (int) LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_BATCH_SIZE);
     return max(1, min(25, $size));
+}
+
+function ll_tools_webp_optimizer_queue_scan_batch_size(int $per_page = 18): int {
+    $per_page = max(1, min(100, $per_page));
+    $default = max(50, min(250, $per_page * 6));
+    $size = (int) apply_filters('ll_tools_webp_optimizer_queue_scan_batch_size', $default, $per_page);
+    return max($per_page, min(500, $size));
+}
+
+function ll_tools_webp_optimizer_queue_index_cache_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_webp_optimizer_queue_index_cache_ttl', 2 * MINUTE_IN_SECONDS);
+    return max(0, min(15 * MINUTE_IN_SECONDS, $ttl));
 }
 
 function ll_tools_webp_optimizer_supported_source_mimes(): array {
@@ -680,48 +696,68 @@ function ll_tools_webp_optimizer_item_matches_filters(array $item, array $args):
     return true;
 }
 
-function ll_tools_webp_optimizer_get_queue(array $args = []): array {
-    $defaults = [
-        'category_id' => 0,
-        'search' => '',
-        'page' => 1,
-        'per_page' => 18,
-        'ids_only' => false,
-        'include_non_flagged' => false,
-    ];
-    $args = wp_parse_args($args, $defaults);
-
-    $page = max(1, (int) $args['page']);
-    $per_page = max(1, min(100, (int) $args['per_page']));
-    $ids_only = !empty($args['ids_only']);
-    $include_non_flagged = !empty($args['include_non_flagged']);
-
-    $query_args = [
-        'post_type' => 'word_images',
-        'post_status' => ll_tools_webp_optimizer_post_statuses(),
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'suppress_filters' => true,
-    ];
-
-    $category_id = (int) $args['category_id'];
-    if ($category_id > 0) {
-        $query_args['tax_query'] = [[
-            'taxonomy' => 'word-category',
-            'field' => 'term_id',
-            'terms' => [$category_id],
-        ]];
+function ll_tools_webp_optimizer_get_queue_index_cache_version(): int {
+    if (isset($GLOBALS['ll_tools_webp_optimizer_queue_index_cache_version'])) {
+        return max(1, (int) $GLOBALS['ll_tools_webp_optimizer_queue_index_cache_version']);
     }
 
-    $search = trim((string) $args['search']);
-    if ($search !== '') {
-        $query_args['s'] = $search;
+    $version = (int) get_option((string) LL_TOOLS_WEBP_OPTIMIZER_QUEUE_INDEX_CACHE_VERSION_OPTION, 1);
+    $version = max(1, $version);
+    $GLOBALS['ll_tools_webp_optimizer_queue_index_cache_version'] = $version;
+
+    return $version;
+}
+
+function ll_tools_webp_optimizer_bump_queue_index_cache_version(): void {
+    $current = ll_tools_webp_optimizer_get_queue_index_cache_version();
+    $next = max($current + 1, time());
+    update_option((string) LL_TOOLS_WEBP_OPTIMIZER_QUEUE_INDEX_CACHE_VERSION_OPTION, $next, false);
+    $GLOBALS['ll_tools_webp_optimizer_queue_index_cache_version'] = $next;
+}
+
+function ll_tools_webp_optimizer_maybe_bump_queue_index_for_post(int $post_id): void {
+    $post_type = get_post_type($post_id);
+    if ($post_type === 'word_images' || $post_type === 'attachment') {
+        ll_tools_webp_optimizer_bump_queue_index_cache_version();
+    }
+}
+add_action('save_post_word_images', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_post', 30, 1);
+add_action('save_post_attachment', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_post', 30, 1);
+add_action('before_delete_post', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_post', 30, 1);
+add_action('delete_post', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_post', 30, 1);
+
+function ll_tools_webp_optimizer_maybe_bump_queue_index_for_terms($object_id, $terms, $tt_ids, $taxonomy): void {
+    if ((string) $taxonomy !== 'word-category') {
+        return;
     }
 
-    $post_ids = get_posts($query_args);
-    $rows = [];
-    $summary = [
+    if (get_post_type((int) $object_id) !== 'word_images') {
+        return;
+    }
+
+    ll_tools_webp_optimizer_bump_queue_index_cache_version();
+}
+add_action('set_object_terms', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_terms', 30, 4);
+
+function ll_tools_webp_optimizer_maybe_bump_queue_index_for_meta($meta_id, $object_id, $meta_key): void {
+    $watched_meta_keys = [
+        '_thumbnail_id',
+        '_wp_attached_file',
+        '_wp_attachment_metadata',
+        '_ll_tools_external_source_url',
+    ];
+    if (!in_array((string) $meta_key, $watched_meta_keys, true)) {
+        return;
+    }
+
+    ll_tools_webp_optimizer_maybe_bump_queue_index_for_post((int) $object_id);
+}
+add_action('added_post_meta', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_meta', 30, 3);
+add_action('updated_post_meta', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_meta', 30, 3);
+add_action('deleted_post_meta', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_meta', 30, 3);
+
+function ll_tools_webp_optimizer_queue_summary_template(): array {
+    return [
         'queued_count' => 0,
         'queued_bytes' => 0,
         'non_webp_count' => 0,
@@ -733,39 +769,57 @@ function ll_tools_webp_optimizer_get_queue(array $args = []): array {
         'animated_webp_threshold_bytes' => ll_tools_webp_optimizer_animated_webp_threshold_bytes(),
         'animated_webp_threshold_label' => ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_animated_webp_threshold_bytes()),
     ];
+}
 
-    foreach ((array) $post_ids as $raw_post_id) {
-        $post_id = (int) $raw_post_id;
-        if ($post_id <= 0) {
-            continue;
-        }
+function ll_tools_webp_optimizer_queue_index_cache_key(array $args, int $scan_batch_size): string {
+    $parts = [
+        'version' => ll_tools_webp_optimizer_get_queue_index_cache_version(),
+        'category_id' => max(0, (int) ($args['category_id'] ?? 0)),
+        'search' => trim((string) ($args['search'] ?? '')),
+        'include_non_flagged' => !empty($args['include_non_flagged']) ? 1 : 0,
+        'scan_batch_size' => max(1, $scan_batch_size),
+        'threshold_bytes' => ll_tools_webp_optimizer_threshold_bytes(),
+        'animated_webp_threshold_bytes' => ll_tools_webp_optimizer_animated_webp_threshold_bytes(),
+        'encoding_supported' => ll_tools_webp_optimizer_can_encode_webp() ? 1 : 0,
+        'animated_webp_optimizer_supported' => ll_tools_webp_optimizer_can_optimize_animated_webp() ? 1 : 0,
+        'supported_mimes' => ll_tools_webp_optimizer_supported_source_mimes(),
+    ];
 
-        $item = ll_tools_webp_optimizer_build_item($post_id);
-        if (empty($item) || !ll_tools_webp_optimizer_item_matches_filters($item, $args)) {
-            continue;
-        }
+    $encoded = function_exists('wp_json_encode') ? wp_json_encode($parts) : json_encode($parts);
+    return 'll_webp_queue_index_' . md5(is_string($encoded) ? $encoded : serialize($parts));
+}
 
-        if (!empty($item['is_supported_source'])) {
-            $summary['supported_count']++;
-        }
+function ll_tools_webp_optimizer_queue_base_query_args(array $args, int $scan_batch_size, int $scan_page): array {
+    $query_args = [
+        'post_type' => 'word_images',
+        'post_status' => ll_tools_webp_optimizer_post_statuses(),
+        'posts_per_page' => max(1, $scan_batch_size),
+        'paged' => max(1, $scan_page),
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'suppress_filters' => true,
+    ];
 
-        $needs = !empty($item['needs_conversion']);
-        if ($needs) {
-            $summary['queued_count']++;
-            $summary['queued_bytes'] += (int) ($item['file_size_bytes'] ?? 0);
-            if (in_array('non_webp', (array) ($item['reason_codes'] ?? []), true)) {
-                $summary['non_webp_count']++;
-            }
-            if (in_array('oversize', (array) ($item['reason_codes'] ?? []), true)) {
-                $summary['oversize_count']++;
-            }
-        }
-
-        if ($needs || $include_non_flagged) {
-            $rows[] = $item;
-        }
+    $category_id = (int) ($args['category_id'] ?? 0);
+    if ($category_id > 0) {
+        $query_args['tax_query'] = [[
+            'taxonomy' => 'word-category',
+            'field' => 'term_id',
+            'terms' => [$category_id],
+        ]];
     }
 
+    $search = trim((string) ($args['search'] ?? ''));
+    if ($search !== '') {
+        $query_args['s'] = $search;
+    }
+
+    return $query_args;
+}
+
+function ll_tools_webp_optimizer_sort_queue_rows(array &$rows): void {
     usort($rows, static function (array $left, array $right): int {
         $leftNeeds = !empty($left['needs_conversion']) ? 1 : 0;
         $rightNeeds = !empty($right['needs_conversion']) ? 1 : 0;
@@ -781,14 +835,120 @@ function ll_tools_webp_optimizer_get_queue(array $args = []): array {
 
         return strcasecmp((string) ($left['title'] ?? ''), (string) ($right['title'] ?? ''));
     });
+}
 
+function ll_tools_webp_optimizer_build_queue_index(array $args, int $scan_batch_size): array {
+    $cache_ttl = ll_tools_webp_optimizer_queue_index_cache_ttl();
+    $cache_key = ll_tools_webp_optimizer_queue_index_cache_key($args, $scan_batch_size);
+    if ($cache_ttl > 0) {
+        $cached = get_transient($cache_key);
+        if (is_array($cached) && isset($cached['rows'], $cached['summary']) && is_array($cached['rows']) && is_array($cached['summary'])) {
+            return $cached;
+        }
+    }
+
+    $include_non_flagged = !empty($args['include_non_flagged']);
+    $rows = [];
+    $summary = ll_tools_webp_optimizer_queue_summary_template();
+    $scan_page = 1;
+
+    do {
+        $query_args = ll_tools_webp_optimizer_queue_base_query_args($args, $scan_batch_size, $scan_page);
+        $post_ids = get_posts($query_args);
+        $post_ids = array_values(array_filter(array_map('intval', (array) $post_ids), static function (int $post_id): bool {
+            return $post_id > 0;
+        }));
+
+        if (!empty($post_ids) && function_exists('_prime_post_caches')) {
+            _prime_post_caches($post_ids, false, true);
+        }
+
+        foreach ($post_ids as $post_id) {
+            $item = ll_tools_webp_optimizer_build_item($post_id);
+            if (empty($item) || !ll_tools_webp_optimizer_item_matches_filters($item, $args)) {
+                continue;
+            }
+
+            if (!empty($item['is_supported_source'])) {
+                $summary['supported_count']++;
+            }
+
+            $needs = !empty($item['needs_conversion']);
+            if ($needs) {
+                $summary['queued_count']++;
+                $summary['queued_bytes'] += (int) ($item['file_size_bytes'] ?? 0);
+                if (in_array('non_webp', (array) ($item['reason_codes'] ?? []), true)) {
+                    $summary['non_webp_count']++;
+                }
+                if (in_array('oversize', (array) ($item['reason_codes'] ?? []), true)) {
+                    $summary['oversize_count']++;
+                }
+            }
+
+            if ($needs || $include_non_flagged) {
+                $rows[] = [
+                    'word_image_id' => (int) ($item['word_image_id'] ?? $post_id),
+                    'needs_conversion' => $needs,
+                    'file_size_bytes' => (int) ($item['file_size_bytes'] ?? 0),
+                    'title' => (string) ($item['title'] ?? ''),
+                ];
+            }
+        }
+
+        $has_more = count($post_ids) >= $scan_batch_size;
+        $scan_page++;
+    } while ($has_more);
+
+    ll_tools_webp_optimizer_sort_queue_rows($rows);
     $summary['queued_bytes_label'] = ll_tools_webp_optimizer_bytes_label((int) $summary['queued_bytes']);
+
+    $index = [
+        'rows' => array_values($rows),
+        'ids' => array_values(array_map(static function (array $row): int {
+            return (int) ($row['word_image_id'] ?? 0);
+        }, $rows)),
+        'summary' => $summary,
+        'total_items' => count($rows),
+        'scan_batch_size' => $scan_batch_size,
+    ];
+
+    if ($cache_ttl > 0) {
+        set_transient($cache_key, $index, $cache_ttl);
+    }
+
+    return $index;
+}
+
+function ll_tools_webp_optimizer_get_queue(array $args = []): array {
+    $defaults = [
+        'category_id' => 0,
+        'search' => '',
+        'page' => 1,
+        'per_page' => 18,
+        'ids_only' => false,
+        'include_non_flagged' => false,
+    ];
+    $args = wp_parse_args($args, $defaults);
+
+    $page = max(1, (int) $args['page']);
+    $per_page = max(1, min(100, (int) $args['per_page']));
+    $ids_only = !empty($args['ids_only']);
+    $include_non_flagged = !empty($args['include_non_flagged']);
+    $args['page'] = $page;
+    $args['per_page'] = $per_page;
+    $args['include_non_flagged'] = $include_non_flagged;
+
+    $scan_batch_size = ll_tools_webp_optimizer_queue_scan_batch_size($per_page);
+    $index = ll_tools_webp_optimizer_build_queue_index($args, $scan_batch_size);
+    $rows = isset($index['rows']) && is_array($index['rows']) ? array_values($index['rows']) : [];
+    $summary = isset($index['summary']) && is_array($index['summary']) ? (array) $index['summary'] : ll_tools_webp_optimizer_queue_summary_template();
+    if (!isset($summary['queued_bytes_label'])) {
+        $summary['queued_bytes_label'] = ll_tools_webp_optimizer_bytes_label((int) ($summary['queued_bytes'] ?? 0));
+    }
 
     if ($ids_only) {
         return [
-            'ids' => array_values(array_map(static function (array $item): int {
-                return (int) $item['word_image_id'];
-            }, $rows)),
+            'ids' => isset($index['ids']) && is_array($index['ids']) ? array_values(array_map('intval', $index['ids'])) : [],
             'summary' => $summary,
             'total_items' => count($rows),
             'page' => 1,
@@ -802,7 +962,24 @@ function ll_tools_webp_optimizer_get_queue(array $args = []): array {
     $total_pages = max(1, (int) ceil($total_items / $per_page));
     $page = min($page, $total_pages);
     $offset = ($page - 1) * $per_page;
-    $paged_rows = array_slice($rows, $offset, $per_page);
+    $paged_rows = [];
+    foreach (array_slice($rows, $offset, $per_page) as $row) {
+        $word_image_id = (int) ($row['word_image_id'] ?? 0);
+        if ($word_image_id <= 0) {
+            continue;
+        }
+
+        $item = ll_tools_webp_optimizer_build_item($word_image_id);
+        if (empty($item) || !ll_tools_webp_optimizer_item_matches_filters($item, $args)) {
+            continue;
+        }
+
+        if (empty($item['needs_conversion']) && !$include_non_flagged) {
+            continue;
+        }
+
+        $paged_rows[] = $item;
+    }
 
     return [
         'items' => array_values($paged_rows),
