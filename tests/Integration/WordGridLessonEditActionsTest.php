@@ -84,6 +84,7 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-word-edit-toggle', $html);
         $this->assertStringContainsString('data-ll-recording-delete-toggle', $html);
         $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $html);
+        $this->assertStringNotContainsString('ll-word-edit-category-count', $html);
         $this->assertIsArray($data['config'] ?? null);
         $this->assertNotEmpty((string) (($data['config'] ?? [])['editNonce'] ?? ''));
     }

@@ -232,6 +232,69 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_get_recordings_handler_returns_only_requested_wordset_rows(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Row Sync Wordset');
+        $other_wordset_id = $this->create_wordset('Other Row Sync Wordset');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Gamma',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', 'Third');
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Gamma Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'gamma');
+        update_post_meta($recording_id, 'recording_ipa', 'ga');
+
+        $other_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Outside',
+        ]);
+        wp_set_object_terms($other_word_id, [$other_wordset_id], 'wordset', false);
+        $other_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $other_word_id,
+            'post_title' => 'Outside Recording',
+        ]);
+
+        wp_set_current_user($user_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'recording_ids' => [$recording_id, $other_recording_id, 99999999, $recording_id],
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_get_ipa_keyboard_recordings_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+        $data = (array) ($response['data'] ?? []);
+        $recordings = array_values((array) ($data['recordings'] ?? []));
+        $this->assertCount(1, $recordings);
+        $this->assertSame($recording_id, (int) ($recordings[0]['recording_id'] ?? 0));
+        $this->assertSame($word_id, (int) ($recordings[0]['word_id'] ?? 0));
+        $this->assertSame('Gamma', (string) ($recordings[0]['word_text'] ?? ''));
+        $this->assertSame('Third', (string) ($recordings[0]['word_translation'] ?? ''));
+        $this->assertSame('gamma', (string) ($recordings[0]['recording_text'] ?? ''));
+
+        $missing = array_values(array_map('intval', (array) ($data['missing_recording_ids'] ?? [])));
+        $this->assertContains($other_recording_id, $missing);
+        $this->assertContains(99999999, $missing);
+    }
+
     public function test_set_review_state_handler_can_mark_and_clear_recording_review(): void
     {
         $user_id = $this->create_viewer_user();

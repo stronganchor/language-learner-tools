@@ -9239,6 +9239,101 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
     ]);
 }
 
+add_action('wp_ajax_ll_tools_get_ipa_keyboard_recordings', 'll_tools_get_ipa_keyboard_recordings_handler');
+function ll_tools_get_ipa_keyboard_recordings_handler() {
+    check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+    }
+
+    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
+    }
+
+    $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
+    if (!$wordset) {
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
+    }
+
+    $raw_recording_ids = $_POST['recording_ids'] ?? [];
+    if (is_array($raw_recording_ids)) {
+        $raw_recording_ids = wp_unslash($raw_recording_ids);
+    } else {
+        $raw_recording_ids = preg_split('/[\s,|]+/', (string) wp_unslash($raw_recording_ids), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    $recording_ids = array_values(array_unique(array_filter(array_map('absint', (array) $raw_recording_ids), static function (int $recording_id): bool {
+        return $recording_id > 0;
+    })));
+    $recording_ids = array_slice($recording_ids, 0, 500);
+    $transcription_mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
+    $can_edit = ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id);
+
+    if (empty($recording_ids)) {
+        wp_send_json_success([
+            'recordings' => [],
+            'missing_recording_ids' => [],
+            'can_edit' => $can_edit,
+        ]);
+    }
+
+    $recording_posts = array_filter(array_map('get_post', $recording_ids), static function ($post): bool {
+        return $post instanceof WP_Post;
+    });
+    if (!empty($recording_posts)) {
+        update_post_cache($recording_posts);
+    }
+
+    $recordings_by_id = [];
+    $word_ids = [];
+    $missing_recording_ids = [];
+    foreach ($recording_ids as $recording_id) {
+        $recording = get_post($recording_id);
+        if (!($recording instanceof WP_Post)
+            || $recording->post_type !== 'word_audio'
+            || $recording->post_status !== 'publish'
+            || !ll_tools_ipa_keyboard_recording_belongs_to_wordset_id($recording_id, $wordset_id, $recording)) {
+            $missing_recording_ids[] = $recording_id;
+            continue;
+        }
+
+        $word_id = (int) $recording->post_parent;
+        if ($word_id <= 0) {
+            $missing_recording_ids[] = $recording_id;
+            continue;
+        }
+
+        $recordings_by_id[$recording_id] = $recording;
+        $word_ids[$word_id] = $word_id;
+    }
+
+    $word_display = ll_tools_ipa_keyboard_get_word_display_map(array_values($word_ids));
+    $recordings = [];
+    foreach ($recording_ids as $recording_id) {
+        if (empty($recordings_by_id[$recording_id])) {
+            continue;
+        }
+
+        $word_id = (int) $recordings_by_id[$recording_id]->post_parent;
+        $recordings[] = ll_tools_ipa_keyboard_build_search_row_payload(
+            $recording_id,
+            $wordset_id,
+            (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => '']),
+            $transcription_mode,
+            true
+        );
+    }
+
+    ll_tools_ipa_keyboard_remember_wordset($wordset_id);
+    wp_send_json_success([
+        'recordings' => $recordings,
+        'missing_recording_ids' => $missing_recording_ids,
+        'can_edit' => $can_edit,
+    ]);
+}
+
 add_action('wp_ajax_ll_tools_update_ipa_keyboard_recording', 'll_tools_update_ipa_keyboard_recording_handler');
 function ll_tools_update_ipa_keyboard_recording_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');

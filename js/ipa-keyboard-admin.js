@@ -3694,7 +3694,145 @@
             return null;
         }
 
-        return replaceSearchRow($row, rec);
+        const $newRow = replaceSearchRow($row, rec);
+        replaceCurrentSearchPayloadRecording(rec);
+        return $newRow;
+    }
+
+    function uniquePositiveIntegerList(values) {
+        const source = Array.isArray(values) ? values : [values];
+        const seen = {};
+        const ids = [];
+        source.forEach(function (value) {
+            const id = parseInt(value, 10) || 0;
+            if (id > 0 && !seen[id]) {
+                seen[id] = true;
+                ids.push(id);
+            }
+        });
+
+        return ids;
+    }
+
+    function replaceCurrentSearchPayloadRecording(rec) {
+        const recordingId = parseInt(rec && rec.recording_id, 10) || parseInt(rec && rec.id, 10) || 0;
+        if (!recordingId || !currentSearchPayload || !Array.isArray(currentSearchPayload.results)) {
+            return;
+        }
+
+        let replaced = false;
+        const results = currentSearchPayload.results.map(function (entry) {
+            const entryRecordingId = parseInt(entry && entry.recording_id, 10) || 0;
+            if (entryRecordingId === recordingId) {
+                replaced = true;
+                return rec;
+            }
+            return entry;
+        });
+
+        if (replaced) {
+            currentSearchPayload = $.extend({}, currentSearchPayload, { results: results });
+        }
+    }
+
+    function removeCurrentSearchPayloadRecordings(recordingIds) {
+        const ids = uniquePositiveIntegerList(recordingIds);
+        if (!ids.length || !currentSearchPayload || !Array.isArray(currentSearchPayload.results)) {
+            return;
+        }
+
+        const idLookup = {};
+        ids.forEach(function (recordingId) {
+            idLookup[recordingId] = true;
+        });
+
+        const previousResults = currentSearchPayload.results;
+        const results = previousResults.filter(function (entry) {
+            const recordingId = parseInt(entry && entry.recording_id, 10) || 0;
+            return !recordingId || !idLookup[recordingId];
+        });
+        const removedCount = previousResults.length - results.length;
+        if (removedCount <= 0) {
+            return;
+        }
+
+        const shownCount = Math.max(0, (parseInt(currentSearchPayload.shown_count, 10) || previousResults.length) - removedCount);
+        const totalMatches = Math.max(shownCount, (parseInt(currentSearchPayload.total_matches, 10) || previousResults.length) - removedCount);
+        const pageStart = shownCount ? (parseInt(currentSearchPayload.page_start, 10) || 1) : 0;
+        const pageEnd = shownCount ? pageStart + shownCount - 1 : 0;
+
+        currentSearchPayload = $.extend({}, currentSearchPayload, {
+            results: results,
+            total_matches: totalMatches,
+            shown_count: shownCount,
+            has_more: !!currentSearchPayload.has_more && totalMatches > pageEnd,
+            page_start: pageStart,
+            page_end: pageEnd
+        });
+    }
+
+    function syncSearchResultsAfterRowRemoval() {
+        cleanupDetachedIpaKeyboard();
+        const rowCount = $searchResults.find('tr[data-recording-id]').length;
+        if (rowCount > 0) {
+            updateSearchSummaryFromCurrentPayload();
+            return;
+        }
+
+        if (currentSearchPayload) {
+            currentSearchPayload = $.extend({}, currentSearchPayload, {
+                results: [],
+                shown_count: 0,
+                has_more: false,
+                page_start: 0,
+                page_end: 0
+            });
+        }
+        setSearchSummary('');
+        $searchResults.empty().append($('<div>', {
+            class: 'll-ipa-empty',
+            text: t('searchResultsEmpty', 'No recordings matched this search.')
+        }));
+    }
+
+    function updateSearchSummaryFromCurrentPayload() {
+        if (!currentSearchPayload) {
+            return;
+        }
+
+        const rowCount = $searchResults.find('tr[data-recording-id]').length;
+        if (!rowCount) {
+            setSearchSummary('');
+            return;
+        }
+
+        setSearchSummary(buildSearchSummaryText(
+            parseInt(currentSearchPayload.total_matches, 10) || rowCount,
+            parseInt(currentSearchPayload.page_start, 10) || 1,
+            parseInt(currentSearchPayload.page_end, 10) || rowCount,
+            !!currentSearchPayload.issues_only,
+            !!currentSearchPayload.review_only
+        ));
+        replaceSearchLazyControl(currentSearchPayload, false);
+    }
+
+    function removeSearchRowsByRecordingIds(recordingIds) {
+        const ids = uniquePositiveIntegerList(recordingIds);
+        let removed = false;
+        ids.forEach(function (recordingId) {
+            const $row = getSearchRowByRecordingId(recordingId);
+            if ($row.length) {
+                $row.remove();
+                removed = true;
+            }
+        });
+
+        if (removed) {
+            removeCurrentSearchPayloadRecordings(ids);
+            syncSearchResultsAfterRowRemoval();
+        }
+
+        return removed;
     }
 
     function setSearchWordEditorOpeningState($row, opening) {
@@ -3839,7 +3977,130 @@
         });
     }
 
-    function refreshSearchAfterWordEditorEvent(detail) {
+    function collectRecordingIdsFromEditorEvent(detail) {
+        const info = parseEditorEventDetail(detail);
+        const data = info.data && typeof info.data === 'object' ? info.data : {};
+        const ids = [
+            info.recordingId,
+            info.recording_id,
+            data.recordingId,
+            data.recording_id
+        ];
+
+        if (data.recording && typeof data.recording === 'object') {
+            ids.push(data.recording.recording_id, data.recording.id);
+        }
+        if (Array.isArray(data.recordings)) {
+            data.recordings.forEach(function (recording) {
+                if (recording && typeof recording === 'object') {
+                    ids.push(recording.recording_id, recording.id);
+                }
+            });
+        }
+
+        return uniquePositiveIntegerList(ids);
+    }
+
+    function collectWordIdsFromEditorEvent(detail) {
+        const info = parseEditorEventDetail(detail);
+        const data = info.data && typeof info.data === 'object' ? info.data : {};
+        return uniquePositiveIntegerList([
+            info.wordId,
+            info.word_id,
+            data.wordId,
+            data.word_id,
+            info.sourceWordId,
+            info.source_word_id,
+            data.sourceWordId,
+            data.source_word_id,
+            info.targetWordId,
+            info.target_word_id,
+            data.targetWordId,
+            data.target_word_id
+        ]);
+    }
+
+    function collectVisibleRecordingIdsForEditorEvent(detail) {
+        const ids = collectRecordingIdsFromEditorEvent(detail);
+        collectWordIdsFromEditorEvent(detail).forEach(function (wordId) {
+            $searchResults.find('tr[data-word-id="' + wordId + '"]').each(function () {
+                ids.push(parseInt($(this).attr('data-recording-id'), 10) || 0);
+            });
+        });
+
+        return uniquePositiveIntegerList(ids).filter(function (recordingId) {
+            return getSearchRowByRecordingId(recordingId).length > 0;
+        });
+    }
+
+    function removeSearchRowsForEditorEvent(detail) {
+        return removeSearchRowsByRecordingIds(collectVisibleRecordingIdsForEditorEvent(detail));
+    }
+
+    function requestSearchRowsSync(recordingIds) {
+        const ids = uniquePositiveIntegerList(recordingIds).filter(function (recordingId) {
+            return getSearchRowByRecordingId(recordingId).length > 0;
+        });
+        if (!ids.length || !currentWordsetId) {
+            return;
+        }
+
+        const scrollState = getWindowScrollState();
+        $.post(ajaxUrl, {
+            action: 'll_tools_get_ipa_keyboard_recordings',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_ids: ids
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+
+            const data = response.data || {};
+            if (data.transcription) {
+                applyTranscriptionConfig(data.transcription);
+            }
+            if (typeof data.can_edit !== 'undefined') {
+                setCanEdit(!!data.can_edit);
+            }
+
+            const returnedIds = {};
+            const recordings = Array.isArray(data.recordings) ? data.recordings : [];
+            recordings.forEach(function (rec) {
+                const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
+                const $row = getSearchRowByRecordingId(recordingId);
+                if (!recordingId || !$row.length) {
+                    return;
+                }
+                returnedIds[recordingId] = true;
+                if ($row.data('llSearchRowSaving') || searchReviewStateIsSaving($row) || searchRowHasUnsavedChanges($row)) {
+                    return;
+                }
+                replaceSearchRowByRecordingId(recordingId, rec);
+            });
+
+            const missingSource = Array.isArray(data.missing_recording_ids) ? data.missing_recording_ids : [];
+            const missingIds = uniquePositiveIntegerList(missingSource.concat(ids.filter(function (recordingId) {
+                return !returnedIds[recordingId];
+            })));
+            if (missingIds.length) {
+                removeSearchRowsByRecordingIds(missingIds);
+            } else {
+                updateSearchSummaryFromCurrentPayload();
+                cleanupDetachedIpaKeyboard();
+            }
+
+            markTabsDirty(['map', 'symbols', 'orthography']);
+            setStatus(t('searchRowsSynced', 'Transcription rows updated.'), false);
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
+            restoreWindowScrollState(scrollState);
+        });
+    }
+
+    function refreshSearchAfterWordEditorEvent(detail, eventType) {
         if (currentTab !== 'search' || !currentWordsetId) {
             return;
         }
@@ -3858,11 +4119,17 @@
         searchWordEditorRefreshTimer = window.setTimeout(function () {
             searchWordEditorRefreshTimer = null;
             markTabsDirty(['map', 'symbols', 'search', 'orthography']);
-            loadSearch(currentWordsetId, true, {
-                quietStatus: true,
-                showLoading: false,
-                successStatus: t('searchRowsSynced', 'Transcription rows updated.')
-            });
+            const type = (eventType || '').toString();
+            if (type === 'lltools:word-grid-word-deleted' || type === 'lltools:word-grid-recording-deleted') {
+                const scrollState = getWindowScrollState();
+                if (removeSearchRowsForEditorEvent(detail)) {
+                    setStatus(t('searchRowsSynced', 'Transcription rows updated.'), false);
+                    restoreWindowScrollState(scrollState);
+                }
+                return;
+            }
+
+            requestSearchRowsSync(collectVisibleRecordingIdsForEditorEvent(detail));
         }, 120);
     }
 
@@ -3888,6 +4155,16 @@
             x: window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
             y: window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
         };
+    }
+
+    function restoreWindowScrollState(scrollState) {
+        if (!scrollState) {
+            return;
+        }
+
+        window.requestAnimationFrame(function () {
+            window.scrollTo(scrollState.x, scrollState.y);
+        });
     }
 
     function setSearchRowDirtyState($row, dirty) {
@@ -4889,8 +5166,8 @@
 
     $(document).on(
         'lltools:word-grid-word-updated.llIpaKeyboardAdmin lltools:word-grid-word-deleted.llIpaKeyboardAdmin lltools:word-grid-recording-deleted.llIpaKeyboardAdmin lltools:word-grid-recording-moved.llIpaKeyboardAdmin',
-        function (_event, detail) {
-            refreshSearchAfterWordEditorEvent(detail);
+        function (event, detail) {
+            refreshSearchAfterWordEditorEvent(detail, event.type);
         }
     );
 

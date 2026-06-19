@@ -866,7 +866,7 @@ test('search results render a small first chunk and append later rows on demand'
   ]);
 });
 
-test('recording rows open the detached word editor and refresh after modal changes', async ({ page }) => {
+test('recording rows open the detached word editor and sync affected rows without refreshing search', async ({ page }) => {
   await page.route('**/*', route => route.fulfill({
     status: 200,
     contentType: 'text/html',
@@ -997,6 +997,24 @@ test('recording rows open the detached word editor and refresh after modal chang
           return;
         }
 
+        if (requestData.action === 'll_tools_get_ipa_keyboard_recordings') {
+          const requestedIds = Array.isArray(requestData.recording_ids)
+            ? requestData.recording_ids.map(id => Number(id))
+            : [];
+          const results = mock.recordings
+            .filter(recording => requestedIds.includes(Number(recording.recording_id)))
+            .map(clone);
+          deferred.resolve({
+            success: true,
+            data: {
+              recordings: results,
+              missing_recording_ids: requestedIds.filter(id => !results.some(recording => Number(recording.recording_id) === id)),
+              can_edit: true
+            }
+          });
+          return;
+        }
+
         deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
       }, 0);
 
@@ -1045,6 +1063,27 @@ test('recording rows open the detached word editor and refresh after modal chang
 
   await page.evaluate(() => {
     const mock = window.__llTranscriptionEditMock;
+    mock.recordings = mock.recordings.map(recording => Object.assign({}, recording, {
+      word_text: 'Gamma edited',
+      recording_text: 'gamma edited',
+      recording_ipa: 'gamma edited'
+    }));
+    window.jQuery(document).trigger('lltools:word-grid-word-updated', [{
+      wordId: 77,
+      data: {
+        word_id: 77,
+        recordings: [{ id: 303 }]
+      }
+    }]);
+  });
+
+  const updatedRow = page.locator('#ll-ipa-search-results tbody tr').first();
+  await expect(updatedRow.locator('.ll-ipa-search-word-link')).toHaveText('Gamma edited');
+  await expect(updatedRow.locator('.ll-ipa-search-text-input')).toHaveValue('gamma edited');
+  await expect(updatedRow.locator('.ll-ipa-search-ipa-input')).toHaveValue('gamma edited');
+
+  await page.evaluate(() => {
+    const mock = window.__llTranscriptionEditMock;
     mock.recordings = [];
     window.jQuery(document).trigger('lltools:word-grid-recording-deleted', [{
       wordId: 77,
@@ -1065,7 +1104,7 @@ test('recording rows open the detached word editor and refresh after modal chang
 
   expect(actions).toEqual([
     'll_tools_search_ipa_keyboard_recordings',
-    'll_tools_search_ipa_keyboard_recordings'
+    'll_tools_get_ipa_keyboard_recordings'
   ]);
 });
 
