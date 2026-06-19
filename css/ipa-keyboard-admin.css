@@ -1084,7 +1084,7 @@ body.ll-ipa-keyboard-open {
 .ll-ipa-inline-keyboard-wrap {
     position: fixed;
     left: 50%;
-    bottom: 0;
+    bottom: var(--ll-ipa-native-keyboard-bottom, 0);
     z-index: 100050;
     box-sizing: border-box;
     width: min(1320px, calc(100vw - 32px));

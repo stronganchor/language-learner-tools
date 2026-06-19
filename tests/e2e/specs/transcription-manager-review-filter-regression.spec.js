@@ -866,6 +866,218 @@ test('search results render a small first chunk and append later rows on demand'
   ]);
 });
 
+test('bottom IPA field stays visible when the mobile visual viewport shrinks', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    const listeners = {};
+    const viewport = {
+      width: 390,
+      height: 430,
+      scale: 1,
+      offsetLeft: 0,
+      offsetTop: 0,
+      pageLeft: 0,
+      pageTop: 0,
+      addEventListener(type, callback) {
+        listeners[type] = listeners[type] || [];
+        listeners[type].push(callback);
+      },
+      removeEventListener(type, callback) {
+        listeners[type] = (listeners[type] || []).filter(listener => listener !== callback);
+      },
+      dispatch(type) {
+        (listeners[type] || []).forEach(callback => callback({ type, target: viewport }));
+      }
+    };
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: viewport
+    });
+
+    document.body.style.margin = '0';
+    const spacer = document.createElement('div');
+    spacer.style.height = '1200px';
+    spacer.setAttribute('data-test-spacer', 'mobile-keyboard-scroll-before');
+    document.body.insertBefore(spacer, document.querySelector('.ll-ipa-admin'));
+
+    try {
+      window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+      window.localStorage.removeItem('llTranscriptionManagerLastTab');
+    } catch (error) {
+      // Ignore storage cleanup failures in the test harness.
+    }
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function buildRecording() {
+      return {
+        recording_id: 101,
+        word_text: 'Alpha',
+        word_translation: '',
+        word_edit_link: '',
+        recording_text: 'alpha',
+        recording_translation: '',
+        recording_ipa: 'alpha ipa',
+        categories: [],
+        issues: [],
+        ignored_issues: [],
+        issue_count: 0,
+        ignored_issue_count: 0,
+        needs_review: false,
+        review_fields: {
+          recording_text: false,
+          recording_ipa: false
+        },
+        review_note: '',
+        image: {},
+        audio_url: '',
+        audio_label: 'Play recording'
+      };
+    }
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'search',
+      initialSearch: {
+        query: '',
+        scope: 'both',
+        issues_only: false,
+        review_only: false,
+        exact_transcription: false,
+        page: 1
+      },
+      i18n: {}
+    };
+
+    window.__llMobileKeyboardMock = {
+      postCalls: []
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const requestData = Object.assign({}, data);
+      window.__llMobileKeyboardMock.postCalls.push({
+        url: String(url || ''),
+        data: requestData
+      });
+
+      window.setTimeout(function () {
+        if (requestData.action !== 'll_tools_search_ipa_keyboard_recordings') {
+          deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
+          return;
+        }
+
+        deferred.resolve({
+          success: true,
+          data: {
+            wordset: {
+              id: 7,
+              name: 'Mobile Keyboard Wordset'
+            },
+            transcription: {
+              mode: 'ipa',
+              symbols_column_label: 'IPA',
+              common_chars: ['a', 'e', 'i', 'o', 'u'],
+              common_chars_label: 'Common'
+            },
+            results: [clone(buildRecording())],
+            total_matches: 1,
+            shown_count: 1,
+            has_more: false,
+            current_page: 1,
+            total_pages: 1,
+            per_page: 100,
+            page_start: 1,
+            page_end: 1,
+            issues_only: false,
+            review_only: false,
+            exact_transcription: false,
+            can_edit: true,
+            validation_config: {
+              supports_rules: true,
+              builtin_rules: [],
+              custom_rules: []
+            }
+          }
+        });
+      }, 0);
+
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  const ipaInput = page.locator('#ll-ipa-search-results tbody tr .ll-ipa-search-ipa-input').first();
+  await expect(ipaInput).toHaveValue('alpha ipa');
+
+  const before = await ipaInput.evaluate((input) => {
+    const rect = input.getBoundingClientRect();
+    window.scrollTo(0, window.scrollY + rect.bottom - window.innerHeight + 16);
+    const nextRect = input.getBoundingClientRect();
+    return {
+      inputBottom: Math.round(nextRect.bottom),
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollY: window.scrollY,
+      visualBottom: Math.round(window.visualViewport.offsetTop + window.visualViewport.height)
+    };
+  });
+
+  expect(before.inputBottom).toBeGreaterThan(before.visualBottom);
+
+  await ipaInput.click();
+  await expect(page.locator('[data-ll-ipa-inline-keyboard-wrap]')).toBeVisible();
+  await page.waitForFunction(() => document.body.classList.contains('ll-ipa-keyboard-open'));
+  await page.waitForTimeout(50);
+
+  const after = await page.evaluate(() => {
+    const input = document.querySelector('#ll-ipa-search-results tbody tr .ll-ipa-search-ipa-input');
+    const keyboard = document.querySelector('[data-ll-ipa-inline-keyboard-wrap]');
+    const inputRect = input.getBoundingClientRect();
+    const keyboardRect = keyboard.getBoundingClientRect();
+    const visualBottom = window.visualViewport.offsetTop + window.visualViewport.height;
+    const hiddenBottom = window.innerHeight - visualBottom;
+    const padding = parseFloat(document.body.style.getPropertyValue('--ll-ipa-keyboard-bottom-padding')) || 0;
+    const nativeOffset = parseFloat(keyboard.style.getPropertyValue('--ll-ipa-native-keyboard-bottom')) || 0;
+
+    return {
+      hiddenBottom: Math.round(hiddenBottom),
+      inputBottom: Math.round(inputRect.bottom),
+      keyboardBottom: Math.round(keyboardRect.bottom),
+      keyboardTop: Math.round(keyboardRect.top),
+      nativeOffset: Math.round(nativeOffset),
+      padding: Math.round(padding),
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollY: window.scrollY,
+      visualBottom: Math.round(visualBottom)
+    };
+  });
+
+  expect(after.padding).toBeGreaterThan(after.hiddenBottom + 30);
+  expect(after.nativeOffset).toBe(after.hiddenBottom);
+  expect(after.keyboardBottom).toBeLessThanOrEqual(after.visualBottom + 1);
+  expect(after.inputBottom).toBeLessThan(after.keyboardTop);
+  expect(after.scrollHeight).toBeGreaterThan(before.scrollHeight + after.hiddenBottom - 10);
+  expect(after.scrollY).toBeGreaterThan(before.scrollY);
+});
+
 test('recording rows open the detached word editor and sync affected rows without refreshing search', async ({ page }) => {
   await page.route('**/*', route => route.fulfill({
     status: 200,

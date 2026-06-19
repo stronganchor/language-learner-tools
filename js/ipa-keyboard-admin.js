@@ -450,8 +450,30 @@
             .append(buildIpaKeyboardPanel(visibleGroups));
     }
 
+    function getIpaViewportMetrics() {
+        const layoutHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const visualViewport = window.visualViewport || null;
+        const visualHeight = visualViewport && typeof visualViewport.height === 'number' && visualViewport.height > 0
+            ? visualViewport.height
+            : layoutHeight;
+        const visualOffsetTop = visualViewport && typeof visualViewport.offsetTop === 'number'
+            ? Math.max(0, visualViewport.offsetTop)
+            : 0;
+        const visualBottom = visualHeight ? visualOffsetTop + visualHeight : layoutHeight;
+        const hiddenBottom = layoutHeight && visualBottom
+            ? Math.max(0, layoutHeight - visualBottom)
+            : 0;
+
+        return {
+            height: visualHeight || layoutHeight,
+            top: visualOffsetTop,
+            bottom: visualBottom || layoutHeight,
+            hiddenBottom: hiddenBottom
+        };
+    }
+
     function getIpaKeyboardViewportMaxHeight() {
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const viewportHeight = getIpaViewportMetrics().height;
         if (!viewportHeight) {
             return 360;
         }
@@ -480,19 +502,20 @@
         }
 
         const keyboardHeight = $activeIpaKeyboard.outerHeight() || 0;
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-        if (!viewportHeight) {
+        const viewport = getIpaViewportMetrics();
+        if (!viewport.height) {
             return;
         }
 
         const margin = 14;
         const rect = input.getBoundingClientRect();
-        const keyboardTop = viewportHeight - keyboardHeight - margin;
+        const keyboardTop = viewport.bottom - keyboardHeight - margin;
+        const viewportTop = viewport.top + margin;
         let delta = 0;
         if (rect.bottom > keyboardTop) {
             delta = rect.bottom - keyboardTop;
-        } else if (rect.top < margin) {
-            delta = rect.top - margin;
+        } else if (rect.top < viewportTop) {
+            delta = rect.top - viewportTop;
         }
 
         if (Math.abs(delta) < 1) {
@@ -518,14 +541,16 @@
         renderIpaKeyboardGroups($activeIpaKeyboard, activeIpaKeyboardGroups, false);
 
         const hasOptionalGroups = activeIpaKeyboardGroups.some(ipaKeyboardGroupIsOptionalOnTightScreens);
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const viewport = getIpaViewportMetrics();
+        const viewportHeight = viewport.height;
         const tightViewport = viewportHeight > 0 && viewportHeight < 520;
         if (hasOptionalGroups && (tightViewport || ($activeIpaKeyboard.outerHeight() || 0) > maxHeight)) {
             renderIpaKeyboardGroups($activeIpaKeyboard, activeIpaKeyboardGroups, true);
         }
 
         const keyboardHeight = Math.min($activeIpaKeyboard.outerHeight() || 0, maxHeight);
-        document.body.style.setProperty('--ll-ipa-keyboard-bottom-padding', (keyboardHeight + 18) + 'px');
+        $activeIpaKeyboard.css('--ll-ipa-native-keyboard-bottom', viewport.hiddenBottom + 'px');
+        document.body.style.setProperty('--ll-ipa-keyboard-bottom-padding', (keyboardHeight + viewport.hiddenBottom + 18) + 'px');
         $(document.body).addClass('ll-ipa-keyboard-open');
         ensureActiveIpaFieldVisible();
     }
@@ -5393,9 +5418,16 @@
         hideIpaKeyboard();
     });
 
-    $(window).on('resize.llIpaKeyboardAdmin', function () {
+    function handleIpaViewportChange() {
         window.setTimeout(fitIpaKeyboardToViewport, 0);
-    });
+    }
+
+    $(window).on('resize.llIpaKeyboardAdmin', handleIpaViewportChange);
+
+    if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
+        window.visualViewport.addEventListener('resize', handleIpaViewportChange);
+        window.visualViewport.addEventListener('scroll', handleIpaViewportChange);
+    }
 
     function init() {
         if (!$wordset.length || !$wordset.find('option').length) {
