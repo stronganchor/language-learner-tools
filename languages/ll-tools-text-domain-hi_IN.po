@@ -4534,3 +4534,8 @@ msgstr "शब्दकोश आयात पंक्ति दें।"
 #: includes/api/automation-rest.php:1594
 msgid "Dictionary row entry is required."
 msgstr "शब्दकोश पंक्ति प्रविष्टि आवश्यक है।"
+
+#. ll-tools-upkeep: public-ui-gap
+#: includes/shortcodes/word-grid-shortcode.php:6142
+msgid "Drag to reorder word"
+msgstr "शब्द का क्रम बदलने के लिए खींचें"

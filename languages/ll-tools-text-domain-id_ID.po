@@ -4534,3 +4534,8 @@ msgstr "Berikan satu baris impor kamus."
 #: includes/api/automation-rest.php:1594
 msgid "Dictionary row entry is required."
 msgstr "Entri baris kamus wajib diisi."
+
+#. ll-tools-upkeep: public-ui-gap
+#: includes/shortcodes/word-grid-shortcode.php:6142
+msgid "Drag to reorder word"
+msgstr "Seret untuk mengurutkan ulang kata"

@@ -27508,3 +27508,23 @@ msgstr "Gib eine Wörterbuch-Importzeile an."
 #: includes/api/automation-rest.php:1594
 msgid "Dictionary row entry is required."
 msgstr "Der Eintrag in der Wörterbuchzeile ist erforderlich."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/ipa-keyboard-admin.php:484
+msgid "Generic"
+msgstr "Allgemein"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:5019
+msgid "Speaker user not found."
+msgstr "Sprecher-Benutzer nicht gefunden."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:5031
+msgid "Speaker user precondition failed."
+msgstr "Vorbedingung für Sprecher-Benutzer fehlgeschlagen."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:5042
+msgid "Post author precondition failed."
+msgstr "Vorbedingung für Beitragsautor fehlgeschlagen."

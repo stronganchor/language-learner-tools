@@ -4567,3 +4567,8 @@ msgstr "Укажите строку импорта словаря."
 #: includes/api/automation-rest.php:1594
 msgid "Dictionary row entry is required."
 msgstr "Запись в строке словаря обязательна."
+
+#. ll-tools-upkeep: public-ui-gap
+#: includes/shortcodes/word-grid-shortcode.php:6142
+msgid "Drag to reorder word"
+msgstr "Перетащите, чтобы изменить порядок слова"

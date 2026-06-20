@@ -27347,3 +27347,18 @@ msgstr "Bir sözlük içe aktarma satırı sağla."
 #: includes/api/automation-rest.php:1594
 msgid "Dictionary row entry is required."
 msgstr "Sözlük satırı girişi gerekli."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:5019
+msgid "Speaker user not found."
+msgstr "Konuşmacı kullanıcısı bulunamadı."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:5031
+msgid "Speaker user precondition failed."
+msgstr "Konuşmacı kullanıcısı önkoşulu başarısız oldu."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/api/automation-rest.php:5042
+msgid "Post author precondition failed."
+msgstr "Yazı yazarı önkoşulu başarısız oldu."

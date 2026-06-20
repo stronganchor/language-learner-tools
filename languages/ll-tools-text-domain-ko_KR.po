@@ -4516,3 +4516,8 @@ msgstr "사전 가져오기 행을 입력하세요."
 #: includes/api/automation-rest.php:1594
 msgid "Dictionary row entry is required."
 msgstr "사전 행 항목은 필수입니다."
+
+#. ll-tools-upkeep: public-ui-gap
+#: includes/shortcodes/word-grid-shortcode.php:6142
+msgid "Drag to reorder word"
+msgstr "단어 순서를 바꾸려면 드래그하세요"

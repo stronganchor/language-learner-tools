@@ -4534,3 +4534,8 @@ msgstr "Fornisci una riga di importazione del dizionario."
 #: includes/api/automation-rest.php:1594
 msgid "Dictionary row entry is required."
 msgstr "La voce della riga del dizionario è obbligatoria."
+
+#. ll-tools-upkeep: public-ui-gap
+#: includes/shortcodes/word-grid-shortcode.php:6142
+msgid "Drag to reorder word"
+msgstr "Trascina per riordinare la parola"
