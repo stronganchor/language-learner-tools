@@ -4266,7 +4266,7 @@ function ll_tools_prompt_card_recorder_category_context(int $prompt_card_id, arr
     ];
 }
 
-function ll_tools_get_prompt_cards_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0): array {
+function ll_tools_get_prompt_cards_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $options = []): array {
     if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {
         return [];
     }
@@ -4303,15 +4303,21 @@ function ll_tools_get_prompt_cards_needing_audio($category_slug = '', $wordset_t
         ];
     }
 
+    $limit = isset($options['limit']) ? max(0, absint($options['limit'])) : 0;
+    $offset = isset($options['offset']) ? max(0, absint($options['offset'])) : 0;
+
     $query_args = [
         'post_type'      => LL_TOOLS_PROMPT_CARD_POST_TYPE,
         'post_status'    => ['publish', 'draft', 'pending'],
-        'posts_per_page' => -1,
+        'posts_per_page' => $limit > 0 ? $limit : -1,
         'fields'         => 'ids',
         'no_found_rows'  => true,
         'orderby'        => 'title',
         'order'          => 'ASC',
     ];
+    if ($offset > 0 && $limit > 0) {
+        $query_args['offset'] = $offset;
+    }
     if (!empty($tax_query)) {
         $query_args['tax_query'] = count($tax_query) > 1
             ? array_merge(['relation' => 'AND'], $tax_query)
@@ -4390,9 +4396,14 @@ function ll_tools_get_prompt_cards_needing_audio($category_slug = '', $wordset_t
     return array_values($items);
 }
 
-function ll_tools_get_recording_queue_items($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $candidate_word_ids = []): array {
-    $items = ll_get_images_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id, $candidate_word_ids);
-    $prompt_items = ll_tools_get_prompt_cards_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id);
+function ll_tools_get_recording_queue_items($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $candidate_word_ids = [], array $options = []): array {
+    $items = ll_get_images_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id, $candidate_word_ids, $options);
+    $include_prompt_cards = array_key_exists('include_prompt_cards', $options)
+        ? !empty($options['include_prompt_cards'])
+        : true;
+    $prompt_items = $include_prompt_cards
+        ? ll_tools_get_prompt_cards_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id, (array) ($options['prompt_cards'] ?? []))
+        : [];
 
     if (empty($prompt_items)) {
         return $items;
@@ -4435,7 +4446,7 @@ function ll_tools_get_recording_queue_items($category_slug = '', $wordset_term_i
  *   ...
  * ]
  */
-function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $candidate_word_ids = []) {
+function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $candidate_word_ids = [], array $options = []) {
     if (empty($wordset_term_ids)) {
         $default_id = ll_get_default_wordset_term_id();
         if ($default_id) {
@@ -4446,6 +4457,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
         return $word_id > 0;
     })));
+    $candidate_word_ids_limited = !empty($options['candidate_word_ids_limited']);
 
     $is_uncategorized_request = ($category_slug === 'uncategorized');
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
@@ -4549,8 +4561,10 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         ]];
     }
 
-    $image_posts = empty($candidate_word_ids) ? get_posts($image_args) : [];
-    $referenced_image_posts = ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope($wordset_term_ids, (string) $category_slug, $active_category_term_id, $candidate_word_ids);
+    $image_posts = (!$candidate_word_ids_limited && empty($candidate_word_ids)) ? get_posts($image_args) : [];
+    $referenced_image_posts = !empty($candidate_word_ids)
+        ? ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope($wordset_term_ids, (string) $category_slug, $active_category_term_id, $candidate_word_ids)
+        : [];
     if (!empty($referenced_image_posts)) {
         $image_posts = array_values(array_unique(array_merge(
             array_map('intval', (array) $image_posts),
@@ -4561,7 +4575,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     // Category-specific fallback:
     // Include image posts referenced by words in this category even when those image posts
     // were not categorized yet (common after category-duplication workflows).
-    if (!empty($category_slug) && !$is_uncategorized_request) {
+    if (!$candidate_word_ids_limited && !empty($category_slug) && !$is_uncategorized_request) {
         $word_image_word_query = [
             'post_type'      => 'words',
             'post_status'    => ['publish', 'draft', 'pending', 'private', 'future'],
@@ -4904,7 +4918,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
     }
 
-    $text_words = get_posts($word_args);
+    $text_words = (!$candidate_word_ids_limited || !empty($candidate_word_ids))
+        ? get_posts($word_args)
+        : [];
     if (!empty($text_words)) {
         ll_prime_recording_type_cache_for_words((array) $text_words, $current_uid);
         if (function_exists('ll_tools_prime_preferred_speaker_cache_for_words')) {

@@ -150,13 +150,13 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Recorder Queues', $html);
         $this->assertStringContainsString('Queue Recorder', $html);
-        $this->assertStringContainsString('Visible Queue Word', $html);
+        $this->assertStringNotContainsString('Visible Queue Word', $html);
         $this->assertStringNotContainsString('Hidden Queue Word', $html);
         $this->assertStringContainsString('Queue by Category', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-grid', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-card', $html);
-        $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview has-images', $html);
-        $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--image', $html);
+        $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview', $html);
+        $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--empty', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
         $this->assertStringContainsString('Change queue settings', $html);
         $this->assertStringContainsString('data-ll-recorder-queue-autosave="settings"', $html);
@@ -214,6 +214,88 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Hidden Queue Word', $hidden_html);
         $this->assertStringNotContainsString('Visible Queue Word', $hidden_html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="unhide"', $hidden_html);
+    }
+
+    public function test_recorder_queue_category_view_pages_visible_items(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        update_term_meta((int) $fixture['category_id'], 'll_desired_recording_types', ['isolation']);
+
+        wp_update_post([
+            'ID' => (int) $fixture['word_id'],
+            'post_title' => 'Alpha Queue Page Word',
+        ]);
+
+        $beta_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Beta Queue Page Word',
+        ]);
+        wp_set_post_terms($beta_word_id, [(int) $fixture['category_id']], 'word-category', false);
+        wp_set_post_terms($beta_word_id, [$wordset_id], 'wordset', false);
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Paged Queue Recorder',
+        ]);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $page_size_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_page_size', $page_size_filter);
+
+        try {
+            $_GET = [
+                'll_wordset_tool' => 'recorder-queues',
+                'll_recorder_queue_focus' => (string) $recorder_id,
+                'll_recorder_queue_category' => (string) $fixture['category_slug'],
+            ];
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg(
+                [
+                    'll_recorder_queue_focus' => (string) $recorder_id,
+                    'll_recorder_queue_category' => (string) $fixture['category_slug'],
+                ],
+                ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues')
+            ));
+            set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+            set_query_var('ll_wordset_view', 'settings');
+
+            $first_page_html = ll_tools_render_wordset_page_content($wordset_id);
+
+            $this->assertStringContainsString('Alpha Queue Page Word', $first_page_html);
+            $this->assertStringNotContainsString('Beta Queue Page Word', $first_page_html);
+            $this->assertStringContainsString('Page 1', $first_page_html);
+            $this->assertStringContainsString('ll_recorder_queue_page=2', $first_page_html);
+
+            $_GET['ll_recorder_queue_page'] = '2';
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg(
+                [
+                    'll_recorder_queue_focus' => (string) $recorder_id,
+                    'll_recorder_queue_category' => (string) $fixture['category_slug'],
+                    'll_recorder_queue_page' => '2',
+                ],
+                ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues')
+            ));
+
+            $second_page_html = ll_tools_render_wordset_page_content($wordset_id);
+
+            $this->assertStringNotContainsString('Alpha Queue Page Word', $second_page_html);
+            $this->assertStringContainsString('Beta Queue Page Word', $second_page_html);
+            $this->assertStringContainsString('Page 2', $second_page_html);
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_page_size', $page_size_filter);
+        }
     }
 
     public function test_recorder_queue_action_hides_and_unhides_words_for_assigned_recorders(): void
