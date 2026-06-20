@@ -1454,9 +1454,12 @@ function ll_tools_rest_word_metadata_apply_canonical_text_row(int $word_id, int 
         if ($target_text === '') {
             return new WP_Error('ll_tools_rest_canonical_text_missing_target', __('Cannot canonicalize a word without target text.', 'll-tools-text-domain'));
         }
+        $mirror_post_title = !empty($actions['mirror_post_title']);
         $target_result = function_exists('ll_tools_update_word_target_text')
-            ? ll_tools_update_word_target_text($word_id, $target_text, true)
-            : wp_update_post(['ID' => $word_id, 'post_title' => $target_text], true);
+            ? ll_tools_update_word_target_text($word_id, $target_text, $mirror_post_title)
+            : ($mirror_post_title
+                ? wp_update_post(['ID' => $word_id, 'post_title' => $target_text], true)
+                : update_post_meta($word_id, defined('LL_TOOLS_WORD_TARGET_TEXT_META_KEY') ? LL_TOOLS_WORD_TARGET_TEXT_META_KEY : 'll_word_target_text', $target_text));
         if (is_wp_error($target_result)) {
             return $target_result;
         }
