@@ -283,6 +283,7 @@ Routes:
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process`
 - `POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard`
 - `GET /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result`
+- `POST /wordsets/{wordset}/canonical-text-migration`
 - `POST /wordsets/{wordset}/transcriptions`
 - `POST /wordsets/{wordset}/word-audio-speakers`
 - `POST /wordsets/{wordset}/transcription-validations`
@@ -1079,6 +1080,33 @@ The response includes `legacy_only_count`, `redundant_count`, `conflict_count`,
 row list with `planned_actions`. Conflicts are reported and never overwritten.
 Run with `dry_run=true` first, review conflicts locally, then process safe
 cleanup serially with the returned `next_offset` while honoring `Retry-After`.
+
+### `POST /wordsets/{wordset}/canonical-text-migration`
+
+Materializes the canonical word text storage for one wordset in bounded chunks.
+Use this after deploying the canonical text helpers when legacy title/meta roles
+still make the target-language word and helper translation ambiguous.
+
+Body fields:
+
+- `dry_run` optional boolean, default true
+- `limit` optional integer; write calls default to 50 and cap at 100, dry runs
+  default to 200 and cap at 500
+- `offset` optional integer for paged scans
+
+The route derives target text from `ll_word_target_text` when present; otherwise
+it falls back through the wordset's legacy title-role setting. It derives the
+default helper translation from the existing `ll_word_translations` locale map
+when present; otherwise it fills the wordset's default translation locale from
+legacy helper fields. Existing additional locale entries are preserved. Applied
+chunks write `ll_word_target_text`, mirror `post_title` to the target text, and
+sync the old `word_translation` compatibility mirror from the canonical default
+locale. Legacy/canonical mismatches are returned as warnings instead of being
+used to overwrite existing canonical data.
+
+Run dry-run pages first, then apply serially with the same `offset`/`limit`
+until `batch.has_more` is false. Follow with `legacy-translation-cleanup` only
+after canonical readback is clean and you have reviewed any warnings.
 
 ### `POST /wordsets/{wordset}/transcriptions`
 

@@ -64,6 +64,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-title-updates', (string) ($data['routes']['word_title_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', (string) ($data['routes']['word_helper_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/legacy-translation-cleanup', (string) ($data['routes']['legacy_translation_cleanup'] ?? ''));
+        $this->assertSame('/ll-tools/v1/wordsets/{wordset}/canonical-text-migration', (string) ($data['routes']['canonical_text_migration'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-updates', (string) ($data['routes']['word_category_updates'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-category-terms', (string) ($data['routes']['word_category_terms'] ?? ''));
         $this->assertSame('/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership', (string) ($data['routes']['word_image_category_ownership'] ?? ''));
@@ -76,6 +77,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(25, (int) (($data['resource_guard']['word_metadata_plan_jobs_batch']['max_process_limit'] ?? 0)));
         $this->assertSame(50, (int) (($data['resource_guard']['legacy_translation_cleanup_batch']['default_write_limit'] ?? 0)));
         $this->assertSame(100, (int) (($data['resource_guard']['legacy_translation_cleanup_batch']['max_write_limit'] ?? 0)));
+        $this->assertSame(50, (int) (($data['resource_guard']['canonical_text_migration_batch']['default_write_limit'] ?? 0)));
+        $this->assertSame(100, (int) (($data['resource_guard']['canonical_text_migration_batch']['max_write_limit'] ?? 0)));
         $this->assertSame(25, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['default_process_limit'] ?? 0)));
         $this->assertSame(100, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['max_process_limit'] ?? 0)));
         $this->assertSame(15, (int) (($data['resource_guard']['transcription_validation_jobs_batch']['default_max_runtime_seconds'] ?? 0)));
@@ -1167,6 +1170,71 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Legacy', (string) get_post_meta($conflict_word_id, 'word_english_meaning', true));
         $this->assertSame('Translation Only', (string) get_post_meta($translation_only_word_id, 'word_translation', true));
         $this->assertSame('', (string) get_post_meta($translation_only_word_id, 'word_english_meaning', true));
+    }
+
+    public function test_canonical_text_migration_materializes_target_and_locale_map(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Canonical Text Wordset', 'rest-canonical-text-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Canonical Text Category', 'rest-canonical-text-category');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, 'translation');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, 'Turkish');
+
+        $legacy_word_id = $this->create_word($wordset_id, [$category_id], 'Turkish helper title', 'Zazaki legacy target');
+        update_post_meta($legacy_word_id, 'word_english_meaning', 'Turkish helper title');
+
+        $canonical_word_id = $this->create_word($wordset_id, [$category_id], 'Old helper mirror', 'Wrong mirror');
+        update_post_meta($canonical_word_id, LL_TOOLS_WORD_TARGET_TEXT_META_KEY, 'Canonical Zazaki target');
+        update_post_meta($canonical_word_id, LL_TOOLS_WORD_TRANSLATIONS_META_KEY, [
+            'tr' => 'Canonical Turkish helper',
+            'en' => 'English helper',
+        ]);
+        update_post_meta($canonical_word_id, 'word_english_meaning', 'Legacy Turkish helper');
+
+        wp_set_current_user($admin_id);
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-canonical-text-wordset/canonical-text-migration', [
+            'dry_run' => true,
+            'limit' => 10,
+        ]);
+
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['dry_run'] ?? false));
+        $this->assertSame(2, (int) ($dry_data['scanned_count'] ?? 0));
+        $this->assertSame(2, (int) ($dry_data['planned_update_count'] ?? 0));
+        $this->assertSame('', (string) get_post_meta($legacy_word_id, LL_TOOLS_WORD_TARGET_TEXT_META_KEY, true));
+        $this->assertSame('Wrong mirror', (string) get_post_meta($canonical_word_id, 'word_translation', true));
+
+        $apply = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-canonical-text-wordset/canonical-text-migration', [
+            'dry_run' => false,
+            'limit' => 10,
+        ]);
+
+        $this->assertSame(200, $apply->get_status());
+        $data = $apply->get_data();
+        $this->assertIsArray($data);
+        $this->assertFalse((bool) ($data['dry_run'] ?? true));
+        $this->assertSame(2, (int) ($data['updated_count'] ?? 0));
+
+        $this->assertSame('Zazaki legacy target', (string) get_post_meta($legacy_word_id, LL_TOOLS_WORD_TARGET_TEXT_META_KEY, true));
+        $this->assertSame('Zazaki legacy target', get_the_title($legacy_word_id));
+        $this->assertSame('Turkish helper title', (string) get_post_meta($legacy_word_id, 'word_translation', true));
+        $legacy_translations = get_post_meta($legacy_word_id, LL_TOOLS_WORD_TRANSLATIONS_META_KEY, true);
+        $this->assertIsArray($legacy_translations);
+        $this->assertSame('Turkish helper title', (string) ($legacy_translations['tr'] ?? ''));
+
+        $this->assertSame('Canonical Zazaki target', get_the_title($canonical_word_id));
+        $this->assertSame('Canonical Turkish helper', (string) get_post_meta($canonical_word_id, 'word_translation', true));
+        $canonical_translations = get_post_meta($canonical_word_id, LL_TOOLS_WORD_TRANSLATIONS_META_KEY, true);
+        $this->assertIsArray($canonical_translations);
+        $this->assertSame('Canonical Turkish helper', (string) ($canonical_translations['tr'] ?? ''));
+        $this->assertSame('English helper', (string) ($canonical_translations['en'] ?? ''));
+
+        $display = ll_tools_word_grid_resolve_display_text($legacy_word_id);
+        $this->assertSame('Zazaki legacy target', (string) ($display['word_text'] ?? ''));
+        $this->assertSame('Turkish helper title', (string) ($display['translation_text'] ?? ''));
     }
 
     public function test_word_category_updates_route_targets_explicit_word_ids_and_syncs_linked_images(): void

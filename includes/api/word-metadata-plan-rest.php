@@ -1291,6 +1291,318 @@ function ll_tools_rest_automation_word_legacy_translation_cleanup(WP_REST_Reques
     return rest_ensure_response($summary);
 }
 
+function ll_tools_rest_word_metadata_canonical_text_query_word_ids(int $wordset_id, int $limit, int $offset): array {
+    $query = new WP_Query([
+        'post_type' => 'words',
+        'post_status' => 'any',
+        'fields' => 'ids',
+        'posts_per_page' => max(1, $limit),
+        'offset' => max(0, $offset),
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'no_found_rows' => false,
+        'tax_query' => [
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+                'include_children' => false,
+            ],
+        ],
+    ]);
+
+    $ids = array_values(array_map('intval', (array) $query->posts));
+    $total = (int) $query->found_posts;
+    wp_reset_postdata();
+
+    return [
+        'ids' => $ids,
+        'total' => $total,
+    ];
+}
+
+function ll_tools_rest_word_metadata_canonical_text_values_match(string $left, string $right): bool {
+    if (function_exists('ll_tools_word_text_values_match')) {
+        return ll_tools_word_text_values_match($left, $right);
+    }
+
+    return trim($left) === trim($right);
+}
+
+function ll_tools_rest_word_metadata_canonical_text_clean($value): string {
+    if (function_exists('ll_tools_decode_word_text_value')) {
+        return ll_tools_decode_word_text_value($value);
+    }
+
+    return trim(html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8'));
+}
+
+function ll_tools_rest_word_metadata_canonical_text_row(int $word_id, int $wordset_id, string $default_locale): array {
+    $post = get_post($word_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== 'words') {
+        return [
+            'word_id' => $word_id,
+            'classification' => 'missing_word',
+            'planned_actions' => [],
+            'warnings' => [],
+        ];
+    }
+
+    $wordset_ids = [$wordset_id];
+    $target_meta_key = defined('LL_TOOLS_WORD_TARGET_TEXT_META_KEY') ? LL_TOOLS_WORD_TARGET_TEXT_META_KEY : 'll_word_target_text';
+    $target_meta_exists = metadata_exists('post', $word_id, $target_meta_key);
+    $canonical_target_text = ll_tools_rest_word_metadata_canonical_text_clean(get_post_meta($word_id, $target_meta_key, true));
+    $legacy = function_exists('ll_tools_get_legacy_word_text_parts')
+        ? ll_tools_get_legacy_word_text_parts($word_id, $wordset_ids)
+        : [
+            'word_text' => (string) get_post_field('post_title', $word_id),
+            'translation_text' => (string) get_post_meta($word_id, 'word_translation', true),
+            'raw_title' => (string) get_post_field('post_title', $word_id),
+            'raw_word_translation' => (string) get_post_meta($word_id, 'word_translation', true),
+            'raw_legacy_translation' => (string) get_post_meta($word_id, 'word_english_meaning', true),
+            'title_role' => 'target',
+        ];
+
+    $legacy_target_text = ll_tools_rest_word_metadata_canonical_text_clean((string) ($legacy['word_text'] ?? ''));
+    $target_text = $canonical_target_text !== '' ? $canonical_target_text : $legacy_target_text;
+    $legacy_translation_text = function_exists('ll_tools_get_legacy_default_translation_text')
+        ? ll_tools_get_legacy_default_translation_text($word_id, $target_text, $wordset_ids)
+        : (string) ($legacy['translation_text'] ?? '');
+    $legacy_translation_text = ll_tools_rest_word_metadata_canonical_text_clean($legacy_translation_text);
+    if ($legacy_translation_text === '') {
+        $legacy_translation_text = ll_tools_rest_word_metadata_canonical_text_clean((string) ($legacy['translation_text'] ?? ''));
+    }
+
+    $translation_map = function_exists('ll_tools_get_word_translation_map')
+        ? ll_tools_get_word_translation_map($word_id)
+        : [];
+    $default_locale_value = $default_locale !== '' && isset($translation_map[$default_locale])
+        ? ll_tools_rest_word_metadata_canonical_text_clean((string) $translation_map[$default_locale])
+        : '';
+    $default_translation_text = $default_locale_value !== '' ? $default_locale_value : $legacy_translation_text;
+
+    $raw_title = ll_tools_rest_word_metadata_canonical_text_clean((string) get_post_field('post_title', $word_id));
+    $raw_word_translation = ll_tools_rest_word_metadata_canonical_text_clean(get_post_meta($word_id, 'word_translation', true));
+    $raw_legacy_translation = ll_tools_rest_word_metadata_canonical_text_clean(get_post_meta($word_id, 'word_english_meaning', true));
+    $warnings = [];
+
+    if ($canonical_target_text !== '' && $legacy_target_text !== '' && !ll_tools_rest_word_metadata_canonical_text_values_match($canonical_target_text, $legacy_target_text)) {
+        $warnings[] = [
+            'code' => 'canonical_legacy_target_mismatch',
+            'canonical_target_text' => $canonical_target_text,
+            'legacy_target_text' => $legacy_target_text,
+        ];
+    }
+    if ($default_locale_value !== '' && $legacy_translation_text !== '' && !ll_tools_rest_word_metadata_canonical_text_values_match($default_locale_value, $legacy_translation_text)) {
+        $warnings[] = [
+            'code' => 'canonical_legacy_translation_mismatch',
+            'canonical_translation_text' => $default_locale_value,
+            'legacy_translation_text' => $legacy_translation_text,
+        ];
+    }
+
+    $planned_actions = [
+        'set_target_text' => $target_text !== '' && (!$target_meta_exists || $canonical_target_text === ''),
+        'mirror_post_title' => $target_text !== '' && !ll_tools_rest_word_metadata_canonical_text_values_match($raw_title, $target_text),
+        'set_default_translation_locale' => $default_locale !== '' && $default_translation_text !== '' && (
+            $default_locale_value === ''
+            || !ll_tools_rest_word_metadata_canonical_text_values_match($default_locale_value, $default_translation_text)
+        ),
+        'sync_word_translation_mirror' => $default_translation_text !== '' && !ll_tools_rest_word_metadata_canonical_text_values_match($raw_word_translation, $default_translation_text),
+    ];
+
+    $classification = in_array(true, $planned_actions, true) ? 'planned_update' : 'no_action';
+    if ($target_text === '') {
+        $classification = 'missing_target_text';
+    }
+
+    return [
+        'word_id' => $word_id,
+        'word_slug' => (string) $post->post_name,
+        'word_title' => (string) $post->post_title,
+        'classification' => $classification,
+        'default_translation_locale' => $default_locale,
+        'values' => [
+            'raw_title' => $raw_title,
+            'raw_word_translation' => $raw_word_translation,
+            'raw_word_english_meaning' => $raw_legacy_translation,
+            'canonical_target_text' => $canonical_target_text,
+            'legacy_target_text' => $legacy_target_text,
+            'target_text' => $target_text,
+            'legacy_translation_text' => $legacy_translation_text,
+            'default_translation_text' => $default_translation_text,
+            'word_translations' => $translation_map,
+            'target_meta_exists' => $target_meta_exists,
+            'title_role' => (string) ($legacy['title_role'] ?? ''),
+        ],
+        'planned_actions' => $planned_actions,
+        'warnings' => $warnings,
+    ];
+}
+
+function ll_tools_rest_word_metadata_apply_canonical_text_row(int $word_id, int $wordset_id, array $row) {
+    $actions = (array) ($row['planned_actions'] ?? []);
+    if (!in_array(true, $actions, true)) {
+        return true;
+    }
+
+    $values = (array) ($row['values'] ?? []);
+    $target_text = (string) ($values['target_text'] ?? '');
+    $default_translation_text = (string) ($values['default_translation_text'] ?? '');
+
+    if (($actions['set_target_text'] ?? false) || ($actions['mirror_post_title'] ?? false)) {
+        if ($target_text === '') {
+            return new WP_Error('ll_tools_rest_canonical_text_missing_target', __('Cannot canonicalize a word without target text.', 'll-tools-text-domain'));
+        }
+        $target_result = function_exists('ll_tools_update_word_target_text')
+            ? ll_tools_update_word_target_text($word_id, $target_text, true)
+            : wp_update_post(['ID' => $word_id, 'post_title' => $target_text], true);
+        if (is_wp_error($target_result)) {
+            return $target_result;
+        }
+    }
+
+    if (($actions['set_default_translation_locale'] ?? false) || ($actions['sync_word_translation_mirror'] ?? false)) {
+        if ($default_translation_text === '') {
+            return true;
+        }
+        $default_locale = function_exists('ll_tools_normalize_translation_locale')
+            ? ll_tools_normalize_translation_locale((string) ($row['default_translation_locale'] ?? ''))
+            : sanitize_key((string) ($row['default_translation_locale'] ?? ''));
+        if (($actions['set_default_translation_locale'] ?? false) && $default_locale !== '' && function_exists('ll_tools_update_word_translation_for_locale')) {
+            ll_tools_update_word_translation_for_locale($word_id, $default_locale, $default_translation_text);
+        }
+        if (function_exists('ll_tools_default_translation_legacy_mirror_guard')) {
+            $previous = ll_tools_default_translation_legacy_mirror_guard(true);
+            try {
+                update_post_meta($word_id, 'word_translation', $default_translation_text);
+            } finally {
+                ll_tools_default_translation_legacy_mirror_guard($previous);
+            }
+        } else {
+            update_post_meta($word_id, 'word_translation', $default_translation_text);
+        }
+    }
+
+    clean_post_cache($word_id);
+    return true;
+}
+
+function ll_tools_rest_automation_word_canonical_text_migration(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $dry_run = $request->has_param('dry_run')
+        ? rest_sanitize_boolean($request->get_param('dry_run'))
+        : true;
+    $offset = max(0, (int) $request->get_param('offset'));
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'canonical_text_migration', $dry_run);
+    $limit = (int) $limit_info['effective'];
+    $wordset_id = (int) $wordset_term->term_id;
+    $translation_language = function_exists('ll_tools_get_wordset_translation_language')
+        ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
+        : '';
+    $default_locale = function_exists('ll_tools_normalize_translation_locale')
+        ? ll_tools_normalize_translation_locale($translation_language)
+        : sanitize_key($translation_language);
+    $query_result = ll_tools_rest_word_metadata_canonical_text_query_word_ids($wordset_id, $limit, $offset);
+    $word_ids = array_values(array_map('intval', (array) ($query_result['ids'] ?? [])));
+    $total = (int) ($query_result['total'] ?? 0);
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => [
+            'id' => $wordset_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'default_translation_locale' => $default_locale,
+        'batch' => [
+            'requested_limit' => (int) $limit_info['requested'],
+            'effective_limit' => $limit,
+            'max_limit' => (int) $limit_info['max'],
+            'limit_clamped' => (bool) $limit_info['clamped'],
+            'offset' => $offset,
+            'has_more' => ($offset + count($word_ids)) < $total,
+            'next_offset' => ($offset + count($word_ids)) < $total ? $offset + count($word_ids) : null,
+        ],
+        'total_count' => $total,
+        'scanned_count' => count($word_ids),
+        'planned_update_count' => 0,
+        'updated_count' => 0,
+        'unchanged_count' => 0,
+        'missing_target_count' => 0,
+        'target_meta_missing_count' => 0,
+        'default_translation_missing_count' => 0,
+        'warning_count' => 0,
+        'error_count' => 0,
+        'rows' => [],
+        'errors' => [],
+    ];
+
+    $changed_word_ids = [];
+    foreach ($word_ids as $word_id) {
+        $row = ll_tools_rest_word_metadata_canonical_text_row($word_id, $wordset_id, $default_locale);
+        $values = (array) ($row['values'] ?? []);
+        $actions = (array) ($row['planned_actions'] ?? []);
+        if (!empty($row['warnings'])) {
+            $summary['warning_count'] += count((array) $row['warnings']);
+        }
+        if (($row['classification'] ?? '') === 'missing_target_text') {
+            $summary['missing_target_count']++;
+        }
+        if (empty($values['target_meta_exists']) || (string) ($values['canonical_target_text'] ?? '') === '') {
+            $summary['target_meta_missing_count']++;
+        }
+        if ($default_locale !== '' && (string) ($values['default_translation_text'] ?? '') === '') {
+            $summary['default_translation_missing_count']++;
+        }
+
+        if (in_array(true, $actions, true)) {
+            $summary['planned_update_count']++;
+        } else {
+            $summary['unchanged_count']++;
+        }
+
+        if (!$dry_run && in_array(true, $actions, true)) {
+            $apply_result = ll_tools_rest_word_metadata_apply_canonical_text_row($word_id, $wordset_id, $row);
+            if (is_wp_error($apply_result)) {
+                $summary['errors'][] = [
+                    'word_id' => $word_id,
+                    'word_slug' => (string) ($row['word_slug'] ?? ''),
+                    'message' => $apply_result->get_error_message(),
+                ];
+                $summary['error_count']++;
+                $row['error'] = $apply_result->get_error_message();
+            } else {
+                $summary['updated_count']++;
+                $changed_word_ids[] = $word_id;
+                $row['applied'] = true;
+            }
+        }
+
+        $summary['rows'][] = $row;
+    }
+
+    if (!$dry_run && !empty($changed_word_ids)) {
+        $changed_word_ids = array_values(array_unique(array_filter(array_map('intval', $changed_word_ids))));
+        if (function_exists('ll_tools_word_grid_bump_category_cache_for_words')) {
+            ll_tools_word_grid_bump_category_cache_for_words($changed_word_ids);
+        }
+        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+            ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+        }
+        if (function_exists('ll_tools_wordset_editor_invalidate_wordset')) {
+            ll_tools_wordset_editor_invalidate_wordset($wordset_id);
+        }
+    }
+
+    return rest_ensure_response($summary);
+}
+
 function ll_tools_rest_automation_create_word_metadata_plan_job(WP_REST_Request $request) {
     $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
     if (is_wp_error($wordset_term)) {

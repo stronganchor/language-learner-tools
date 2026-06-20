@@ -572,6 +572,10 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'default' => $dry_run ? 200 : 50,
             'max' => $dry_run ? 500 : 100,
         ],
+        'canonical_text_migration' => [
+            'default' => $dry_run ? 200 : 50,
+            'max' => $dry_run ? 500 : 100,
+        ],
         'missing_meta' => [
             'default' => 100,
             'max' => 250,
@@ -751,7 +755,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 5.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|word-category-updates|word-image-category-ownership|legacy-translation-cleanup|transcriptions|word-audio-speakers|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile|translations)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|word-category-updates|word-image-category-ownership|legacy-translation-cleanup|canonical-text-migration|transcriptions|word-audio-speakers|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile|translations)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         if ((string) $matches[1] === 'transcription-validations') {
             $delay_seconds = 30.0;
@@ -1034,6 +1038,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_title_updates' => '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
             'word_helper_updates' => '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
             'legacy_translation_cleanup' => '/ll-tools/v1/wordsets/{wordset}/legacy-translation-cleanup',
+            'canonical_text_migration' => '/ll-tools/v1/wordsets/{wordset}/canonical-text-migration',
             'word_category_updates' => '/ll-tools/v1/wordsets/{wordset}/word-category-updates',
             'word_category_terms' => '/ll-tools/v1/wordsets/{wordset}/word-category-terms',
             'word_image_category_ownership' => '/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership',
@@ -1118,6 +1123,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/word-title-updates',
                 '/ll-tools/v1/wordsets/{wordset}/word-helper-updates',
                 '/ll-tools/v1/wordsets/{wordset}/legacy-translation-cleanup',
+                '/ll-tools/v1/wordsets/{wordset}/canonical-text-migration',
                 '/ll-tools/v1/wordsets/{wordset}/word-category-updates',
                 '/ll-tools/v1/wordsets/{wordset}/word-category-terms',
                 '/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership',
@@ -1166,6 +1172,12 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('legacy_translation_cleanup', true)['default'],
                 'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('legacy_translation_cleanup', true)['max'],
                 'modes' => ['report', 'copy_missing', 'clear_redundant', 'copy_missing_and_clear_redundant'],
+            ],
+            'canonical_text_migration_batch' => [
+                'default_write_limit' => ll_tools_rest_automation_batch_limit('canonical_text_migration', false)['default'],
+                'max_write_limit' => ll_tools_rest_automation_batch_limit('canonical_text_migration', false)['max'],
+                'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('canonical_text_migration', true)['default'],
+                'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('canonical_text_migration', true)['max'],
             ],
             'word_category_updates_batch' => [
                 'default_write_limit' => ll_tools_rest_automation_batch_limit('word_category_updates', false)['default'],
@@ -9434,6 +9446,28 @@ function ll_tools_rest_register_automation_routes(): void {
                 'default' => 'report',
                 'enum' => ['report', 'scan', 'copy_missing', 'copy', 'migrate', 'clear_redundant', 'clear', 'copy_missing_and_clear_redundant', 'copy_and_clear', 'migrate_and_clear'],
             ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+            'limit' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'offset' => [
+                'required' => false,
+                'type' => 'integer',
+                'default' => 0,
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/canonical-text-migration', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_word_canonical_text_migration',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => [
             'dry_run' => [
                 'required' => false,
                 'type' => 'boolean',
