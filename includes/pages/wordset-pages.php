@@ -8468,8 +8468,8 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
             }
 
             // Bulk import pairs are treated as text->text by default:
-            // prompt => word_translation, answer => post_title.
-            $raw_title_text = $answer_text;
+            // prompt => canonical target text, answer => default helper translation.
+            $raw_title_text = $prompt_text;
             $normalized_title = function_exists('ll_tools_import_capitalize_word')
                 ? ll_tools_import_capitalize_word($raw_title_text, $wordset_id)
                 : ucfirst($raw_title_text);
@@ -8515,9 +8515,23 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
                 }
             }
 
-            $target_language_text = $prompt_text;
+            $target_language_text = $normalized_title;
             $helper_text = $answer_text;
-            update_post_meta($post_id, 'word_translation', $target_language_text);
+            if (function_exists('ll_tools_update_word_target_text')) {
+                ll_tools_update_word_target_text($post_id, $target_language_text, true);
+            } else {
+                wp_update_post([
+                    'ID' => $post_id,
+                    'post_title' => $target_language_text,
+                ]);
+            }
+            if (function_exists('ll_tools_update_word_default_translation_text')) {
+                ll_tools_update_word_default_translation_text($post_id, $helper_text, true);
+            } elseif ($helper_text !== '') {
+                update_post_meta($post_id, 'word_translation', $helper_text);
+            } else {
+                delete_post_meta($post_id, 'word_translation');
+            }
             if ($helper_text !== '') {
                 update_post_meta($post_id, 'word_english_meaning', $helper_text);
             } else {

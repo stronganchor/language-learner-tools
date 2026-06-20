@@ -4164,14 +4164,11 @@ function ll_tools_get_word_display_text_map(array $word_ids, ?bool $store_in_tit
 
     sort($word_ids, SORT_NUMERIC);
 
-    $titles_by_word = ll_tools_get_word_post_titles_map($word_ids);
     $wordset_ids_by_word = ll_tools_get_object_term_ids_map($word_ids, 'wordset');
-    $category_option_type_by_word = ll_tools_get_word_primary_category_option_type_map($word_ids);
     $store_in_title_cache = [];
     $map = [];
 
     foreach ($word_ids as $word_id) {
-        $raw_post_title = html_entity_decode((string) ($titles_by_word[$word_id] ?? ''), ENT_QUOTES, 'UTF-8');
         $wordset_ids_for_word = isset($wordset_ids_by_word[$word_id]) && is_array($wordset_ids_by_word[$word_id])
             ? $wordset_ids_by_word[$word_id]
             : [];
@@ -4187,35 +4184,18 @@ function ll_tools_get_word_display_text_map(array $word_ids, ?bool $store_in_tit
             }
         }
 
-        if ($store_in_title_override !== null) {
-            $store_in_title = $store_in_title_override;
-        } else {
-            $store_in_title = (bool) $store_in_title_cache[$role_cache_key];
-            $category_option_type = sanitize_key((string) ($category_option_type_by_word[$word_id] ?? ''));
-            if ($category_option_type === 'text_title') {
-                $store_in_title = true;
-            } elseif (in_array($category_option_type, ['text_translation', 'text_audio'], true)) {
-                $store_in_title = false;
-            }
-        }
-
-        $word_translation = trim((string) get_post_meta($word_id, 'word_translation', true));
-        if ($store_in_title && $word_translation === '') {
-            $word_translation = trim((string) get_post_meta($word_id, 'word_english_meaning', true));
-        }
-
-        if ($store_in_title) {
-            $word_text = $raw_post_title;
-            $translation_text = $word_translation;
-        } else {
-            $word_text = $word_translation;
-            $translation_text = $raw_post_title;
-        }
+        $store_in_title = $store_in_title_override !== null
+            ? $store_in_title_override
+            : (bool) $store_in_title_cache[$role_cache_key];
+        $display = function_exists('ll_tools_get_word_text_parts')
+            ? ll_tools_get_word_text_parts($word_id, null, true, $wordset_ids_for_word)
+            : [];
+        $raw_post_title = (string) ($display['raw_title'] ?? get_the_title($word_id));
 
         $map[$word_id] = [
             'raw_title' => $raw_post_title,
-            'word_text' => html_entity_decode((string) $word_text, ENT_QUOTES, 'UTF-8'),
-            'translation_text' => html_entity_decode((string) $translation_text, ENT_QUOTES, 'UTF-8'),
+            'word_text' => (string) ($display['word_text'] ?? $raw_post_title),
+            'translation_text' => (string) ($display['translation_text'] ?? ''),
             'store_in_title' => $store_in_title,
         ];
     }

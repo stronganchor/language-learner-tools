@@ -447,6 +447,9 @@ function ll_tools_rest_automation_request_string_list(WP_REST_Request $request, 
 
 function ll_tools_rest_automation_normalize_word_update_field(string $field): string {
     $field = sanitize_key($field);
+    if (in_array($field, ['target_text', 'word_target_text'], true)) {
+        return 'word_text';
+    }
     if (in_array($field, ['translation', 'helper_translation', 'known_language_translation', 'english_meaning', 'word_english_meaning'], true)) {
         return 'word_translation';
     }
@@ -3100,6 +3103,8 @@ function ll_tools_rest_automation_word_helper_updates(WP_REST_Request $request) 
                         $apply_failed = true;
                         break;
                     }
+                } elseif ($field === 'word_translation' && function_exists('ll_tools_update_word_default_translation_text')) {
+                    ll_tools_update_word_default_translation_text($word_id, (string) (($change['after'][$field] ?? '')), true);
                 } else {
                     $value = (string) (($change['after'][$field] ?? ''));
                     if ($value === '') {

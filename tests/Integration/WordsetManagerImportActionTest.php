@@ -48,7 +48,21 @@ final class WordsetManagerImportActionTest extends LL_Tools_TestCase
 
         $this->assertSame('ok', (string) ($redirect_query['ll_wordset_manager_import'] ?? ''));
         $this->assertSame('5', (string) ($redirect_query['ll_wordset_manager_import_created'] ?? ''));
-        $this->assertCount(5, $this->findWordIdsInScope($fixture['wordset_id'], $fixture['category_id']));
+        $imported_word_ids = $this->findWordIdsInScope($fixture['wordset_id'], $fixture['category_id']);
+        $this->assertCount(5, $imported_word_ids);
+
+        $target_meta_key = defined('LL_TOOLS_WORD_TARGET_TEXT_META_KEY') ? LL_TOOLS_WORD_TARGET_TEXT_META_KEY : 'll_word_target_text';
+        $lion_word_id = 0;
+        foreach ($imported_word_ids as $word_id) {
+            if ((string) get_post_field('post_title', $word_id) === 'Lion') {
+                $lion_word_id = $word_id;
+                break;
+            }
+        }
+        $this->assertGreaterThan(0, $lion_word_id);
+        $this->assertSame('Lion', (string) get_post_meta($lion_word_id, $target_meta_key, true));
+        $this->assertSame('doud', (string) get_post_meta($lion_word_id, 'word_translation', true));
+        $this->assertSame('doud', (string) get_post_meta($lion_word_id, 'word_english_meaning', true));
 
         $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
         $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));

@@ -63,6 +63,8 @@ final class AudioProcessorWordEditTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($response['success'] ?? false));
         $this->assertSame('New Word', (string) get_post_field('post_title', $word_id));
+        $target_meta_key = defined('LL_TOOLS_WORD_TARGET_TEXT_META_KEY') ? LL_TOOLS_WORD_TARGET_TEXT_META_KEY : 'll_word_target_text';
+        $this->assertSame('New Word', (string) get_post_meta($word_id, $target_meta_key, true));
         $this->assertSame('New Translation', (string) get_post_meta($word_id, 'word_translation', true));
         $this->assertSame('New Translation', (string) get_post_meta($word_id, 'word_english_meaning', true));
 
@@ -100,14 +102,16 @@ final class AudioProcessorWordEditTest extends LL_Tools_TestCase
         });
 
         $this->assertTrue((bool) ($response['success'] ?? false));
-        $this->assertSame('Updated Translation', (string) get_post_field('post_title', $word_id));
-        $this->assertSame('Yeni Kelime', (string) get_post_meta($word_id, 'word_translation', true));
+        $target_meta_key = defined('LL_TOOLS_WORD_TARGET_TEXT_META_KEY') ? LL_TOOLS_WORD_TARGET_TEXT_META_KEY : 'll_word_target_text';
+        $this->assertSame('Yeni Kelime', (string) get_post_field('post_title', $word_id));
+        $this->assertSame('Yeni Kelime', (string) get_post_meta($word_id, $target_meta_key, true));
+        $this->assertSame('Updated Translation', (string) get_post_meta($word_id, 'word_translation', true));
         $this->assertSame('Updated Translation', (string) get_post_meta($word_id, 'word_english_meaning', true));
 
         $data = (array) ($response['data'] ?? []);
         $this->assertSame('Yeni Kelime', (string) ($data['wordText'] ?? ''));
         $this->assertSame('Updated Translation', (string) ($data['translationText'] ?? ''));
-        $this->assertFalse((bool) ($data['storeInTitle'] ?? true));
+        $this->assertTrue((bool) ($data['storeInTitle'] ?? false));
     }
 
     private function create_audio_processor_editor(): int

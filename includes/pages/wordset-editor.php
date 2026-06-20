@@ -1519,10 +1519,10 @@ function ll_tools_wordset_editor_compare_values($left, $right): int {
     return strnatcasecmp($left, $right);
 }
 
-function ll_tools_wordset_editor_sort_rows(array $rows, array $filters): array {
+function ll_tools_wordset_editor_sort_rows(array $rows, array $filters, bool $word_sort_uses_post_titles = true): array {
     $sort = sanitize_key((string) ($filters['sort'] ?? 'word'));
     $dir = ((string) ($filters['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
-    $value_for = static function (array $row) use ($sort) {
+    $value_for = static function (array $row) use ($sort, $word_sort_uses_post_titles) {
         if ($sort === 'translation') {
             return (string) ($row['translation'] ?? '');
         }
@@ -1537,6 +1537,12 @@ function ll_tools_wordset_editor_sort_rows(array $rows, array $filters): array {
         }
         if ($sort === 'recording') {
             return (int) ($row['published_audio_count'] ?? 0);
+        }
+        if (!$word_sort_uses_post_titles) {
+            $translation = trim((string) ($row['translation'] ?? ''));
+            if ($translation !== '') {
+                return $translation;
+            }
         }
 
         return (string) ($row['title'] ?? '');
@@ -1757,6 +1763,7 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     $filters = array_merge(ll_tools_wordset_editor_get_filters(), $filters);
     $hydrate_details = array_key_exists('hydrate_details', $options) ? !empty($options['hydrate_details']) : true;
     $hydrate_images = array_key_exists('hydrate_images', $options) ? !empty($options['hydrate_images']) : true;
+    $word_sort_uses_post_titles = ll_tools_wordset_editor_word_sort_uses_post_titles($wordset_id, $category_rows);
     $word_ids = array_key_exists('word_ids', $options)
         ? ll_tools_wordset_editor_normalize_word_ids((array) $options['word_ids'])
         : ll_tools_wordset_editor_get_word_ids($wordset_id, $filters);
@@ -1909,7 +1916,7 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     }
 
     return [
-        'rows'                => ll_tools_wordset_editor_sort_rows($filtered_rows, $filters),
+        'rows'                => ll_tools_wordset_editor_sort_rows($filtered_rows, $filters, $word_sort_uses_post_titles),
         'summary'             => $summary,
         'category_filter_ids' => $category_filter_ids,
     ];
@@ -2236,16 +2243,20 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         $translation = isset($_POST['ll_wordset_editor_word_translation'])
             ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_wordset_editor_word_translation'])))
             : '';
-        $previous_title = (string) get_post_field('post_title', $word_id);
+        $previous_title = function_exists('ll_tools_get_word_target_text')
+            ? ll_tools_get_word_target_text($word_id, true)
+            : (string) get_post_field('post_title', $word_id);
         $previous_translation = (string) get_post_meta($word_id, 'word_translation', true);
         $previous_english_meaning = (string) get_post_meta($word_id, 'word_english_meaning', true);
         $changed = 0;
 
         if ($title !== $previous_title) {
-            $updated = wp_update_post([
-                'ID'         => $word_id,
-                'post_title' => $title,
-            ], true);
+            $updated = function_exists('ll_tools_update_word_target_text')
+                ? ll_tools_update_word_target_text($word_id, $title, true)
+                : wp_update_post([
+                    'ID'         => $word_id,
+                    'post_title' => $title,
+                ], true);
             if (is_wp_error($updated) || (int) $updated <= 0) {
                 $redirect_error('word');
             }
@@ -2253,7 +2264,14 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         }
 
         if ($translation !== $previous_translation || $translation !== $previous_english_meaning) {
-            if ($translation === '') {
+            if (function_exists('ll_tools_update_word_default_translation_text')) {
+                ll_tools_update_word_default_translation_text($word_id, $translation, true);
+                if ($translation === '') {
+                    delete_post_meta($word_id, 'word_english_meaning');
+                } else {
+                    update_post_meta($word_id, 'word_english_meaning', $translation);
+                }
+            } elseif ($translation === '') {
                 delete_post_meta($word_id, 'word_translation');
                 delete_post_meta($word_id, 'word_english_meaning');
             } else {

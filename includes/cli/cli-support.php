@@ -590,30 +590,17 @@ function ll_tools_cli_resume_mark_processed(string $path, array &$resume_state, 
 }
 
 function ll_tools_cli_update_word_text(int $word_id, string $word_text) {
+    if (function_exists('ll_tools_update_word_target_text')) {
+        return ll_tools_update_word_target_text($word_id, $word_text, true);
+    }
+
     $word_text = function_exists('ll_sanitize_word_title_text')
         ? ll_sanitize_word_title_text($word_text)
         : trim(sanitize_text_field($word_text));
-    $display_values = function_exists('ll_tools_word_grid_resolve_display_text')
-        ? ll_tools_word_grid_resolve_display_text($word_id)
-        : [
-            'store_in_title' => true,
-        ];
-    $store_in_title = !empty($display_values['store_in_title']);
-
-    if ($store_in_title) {
-        return wp_update_post([
-            'ID' => $word_id,
-            'post_title' => $word_text,
-        ], true);
-    }
-
-    if ($word_text !== '') {
-        update_post_meta($word_id, 'word_translation', $word_text);
-    } else {
-        delete_post_meta($word_id, 'word_translation');
-    }
-
-    return true;
+    return wp_update_post([
+        'ID' => $word_id,
+        'post_title' => $word_text,
+    ], true);
 }
 
 function ll_tools_cli_update_word_title(int $word_id, string $word_title) {
@@ -629,34 +616,13 @@ function ll_tools_cli_update_word_title(int $word_id, string $word_title) {
 
 function ll_tools_cli_update_word_translation(int $word_id, string $translation_text): void {
     $translation_text = trim($translation_text);
-    $display_values = function_exists('ll_tools_word_grid_resolve_display_text')
-        ? ll_tools_word_grid_resolve_display_text($word_id)
-        : [
-            'word_text' => (string) get_the_title($word_id),
-            'store_in_title' => true,
-        ];
-    $store_in_title = !empty($display_values['store_in_title']);
-    $word_text = trim((string) ($display_values['word_text'] ?? get_the_title($word_id)));
-
-    if ($store_in_title) {
-        if ($translation_text !== '') {
-            update_post_meta($word_id, 'word_translation', $translation_text);
-        } else {
-            delete_post_meta($word_id, 'word_translation');
-        }
-        if (function_exists('ll_tools_update_word_default_translation_locale')) {
-            ll_tools_update_word_default_translation_locale($word_id, $translation_text);
-        }
+    if (function_exists('ll_tools_update_word_default_translation_text')) {
+        ll_tools_update_word_default_translation_text($word_id, $translation_text, true);
         return;
     }
 
-    wp_update_post([
-        'ID' => $word_id,
-        'post_title' => $translation_text,
-    ]);
-
-    if ($word_text !== '') {
-        update_post_meta($word_id, 'word_translation', $word_text);
+    if ($translation_text !== '') {
+        update_post_meta($word_id, 'word_translation', $translation_text);
     } else {
         delete_post_meta($word_id, 'word_translation');
     }

@@ -502,8 +502,16 @@ function ll_tools_render_bulk_word_import_page() {
                     }
                 }
 
+                if (function_exists('ll_tools_update_word_target_text')) {
+                    ll_tools_update_word_target_text((int) $post_id, $normalized, true);
+                }
+
                 if ($translation !== '') {
-                    update_post_meta($post_id, 'word_translation', $translation);
+                    if (function_exists('ll_tools_update_word_default_translation_text')) {
+                        ll_tools_update_word_default_translation_text((int) $post_id, $translation, true);
+                    } else {
+                        update_post_meta($post_id, 'word_translation', $translation);
+                    }
                     $created_with_translation++;
                 }
 

@@ -962,6 +962,9 @@ function ll_tools_site_sync_build_metadata_record(int $wordset_id, int $word_id,
             'modified_gmt' => (string) $word_post->post_modified_gmt,
         ],
         'values' => [
+            'word_target_text' => function_exists('ll_tools_get_word_target_text')
+                ? (string) ll_tools_get_word_target_text($word_id, true)
+                : (string) ($row['word_text'] ?? ''),
             'word_text' => (string) ($row['word_text'] ?? ''),
             'word_translation' => (string) ($row['word_translation'] ?? ''),
             'word_english_meaning' => (string) ($row['word_english_meaning'] ?? ''),
@@ -1718,24 +1721,47 @@ function ll_tools_site_sync_apply_remote_word_metadata(int $word_id, int $wordse
     }
 
     $remote_word = (array) ($remote_record['word'] ?? []);
+    $remote_values = (array) ($remote_record['values'] ?? []);
     $remote_word_sync_id = trim((string) ($remote_word['sync_id'] ?? ''));
     if ($remote_word_sync_id !== '') {
         update_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), $remote_word_sync_id);
     }
 
-    $word_translation = (string) ($remote_word['word_translation'] ?? '');
-    if ($word_translation !== '') {
-        update_post_meta($word_id, 'word_translation', $word_translation);
+    wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+    $target_text = trim((string) ($remote_values['word_target_text'] ?? ''));
+    if ($target_text === '') {
+        $target_text = trim((string) ($remote_values['word_text'] ?? ''));
+    }
+    if ($target_text !== '') {
+        if (function_exists('ll_tools_update_word_target_text')) {
+            ll_tools_update_word_target_text($word_id, $target_text, true);
+        } else {
+            wp_update_post([
+                'ID' => $word_id,
+                'post_title' => $target_text,
+            ]);
+        }
     }
 
-    $word_english_meaning = (string) ($remote_word['word_english_meaning'] ?? '');
+    $word_translation = (string) ($remote_values['word_translation'] ?? ($remote_word['word_translation'] ?? ''));
+    if (!empty($remote_values['word_translations']) && is_array($remote_values['word_translations']) && function_exists('ll_tools_update_word_translation_map')) {
+        ll_tools_update_word_translation_map($word_id, (array) $remote_values['word_translations']);
+    }
+    if ($word_translation !== '') {
+        if (function_exists('ll_tools_update_word_default_translation_text')) {
+            ll_tools_update_word_default_translation_text($word_id, $word_translation, true);
+        } else {
+            update_post_meta($word_id, 'word_translation', $word_translation);
+        }
+    }
+
+    $word_english_meaning = (string) ($remote_values['word_english_meaning'] ?? ($remote_word['word_english_meaning'] ?? ''));
     if ($word_english_meaning !== '') {
         update_post_meta($word_id, 'word_english_meaning', $word_english_meaning);
     } elseif ($word_translation !== '') {
         update_post_meta($word_id, 'word_english_meaning', $word_translation);
     }
-
-    wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
 
     $category_ids = [];
     foreach ((array) ($remote_word['categories'] ?? []) as $remote_category) {

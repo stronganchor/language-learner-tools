@@ -897,12 +897,17 @@ function ll_ajax_bulk_translations_save() {
             continue;
         }
 
-        if (!in_array(get_post_type($id), ['words', 'word_images'], true) || !current_user_can('edit_post', $id)) {
+        $post_type = get_post_type($id);
+        if (!in_array($post_type, ['words', 'word_images'], true) || !current_user_can('edit_post', $id)) {
             $skipped++;
             continue;
         }
 
-        update_post_meta($id, 'word_translation', $txt);
+        if ($post_type === 'words' && function_exists('ll_tools_update_word_default_translation_text')) {
+            ll_tools_update_word_default_translation_text($id, $txt, true);
+        } else {
+            update_post_meta($id, 'word_translation', $txt);
+        }
         $saved++;
     }
 
@@ -940,7 +945,11 @@ function ll_handle_bulk_translations_migrate() {
         }
         $val = get_post_meta($id, 'word_english_meaning', true);
         if ($val !== '') {
-            update_post_meta($id, 'word_translation', $val);
+            if (function_exists('ll_tools_update_word_default_translation_text')) {
+                ll_tools_update_word_default_translation_text((int) $id, (string) $val, true);
+            } else {
+                update_post_meta($id, 'word_translation', $val);
+            }
             $migrated++;
         }
     }

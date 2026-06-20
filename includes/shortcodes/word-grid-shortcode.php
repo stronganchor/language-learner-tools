@@ -2336,34 +2336,18 @@ function ll_tools_word_grid_resolve_display_text(int $word_id, ?bool $store_in_t
         ];
     }
 
+    $display = function_exists('ll_tools_get_word_text_parts')
+        ? ll_tools_get_word_text_parts($word_id)
+        : [];
     $store_in_title = $store_in_title_override !== null
         ? $store_in_title_override
-        : (function_exists('ll_tools_should_store_word_in_title')
+        : (bool) ($display['store_in_title'] ?? (function_exists('ll_tools_should_store_word_in_title')
             ? ll_tools_should_store_word_in_title($word_id)
-            : true);
-    $word_title = get_the_title($word_id);
-    $word_translation = get_post_meta($word_id, 'word_translation', true);
-    $legacy_translation = get_post_meta($word_id, 'word_english_meaning', true);
-    if ($store_in_title && $word_translation === '') {
-        $word_translation = $legacy_translation;
-    }
-
-    if ($store_in_title) {
-        $word_text = $word_title;
-        $translation_text = $word_translation;
-    } else {
-        $word_text = $word_translation;
-        $translation_text = trim((string) $legacy_translation) !== '' ? $legacy_translation : $word_title;
-    }
-
-    if (function_exists('ll_tools_decode_display_entities')) {
-        $word_text = ll_tools_decode_display_entities($word_text);
-        $translation_text = ll_tools_decode_display_entities($translation_text);
-    }
+            : true));
 
     return [
-        'word_text' => (string) $word_text,
-        'translation_text' => (string) $translation_text,
+        'word_text' => (string) ($display['word_text'] ?? get_the_title($word_id)),
+        'translation_text' => (string) ($display['translation_text'] ?? ''),
         'store_in_title' => (bool) $store_in_title,
     ];
 }
@@ -7449,7 +7433,6 @@ function ll_tools_get_isolation_recording_data(int $word_id): array {
 
 function ll_tools_fill_missing_word_fields_from_recording(int $word_id, string $candidate_text, string $candidate_translation): array {
     $display_values = ll_tools_word_grid_resolve_display_text($word_id);
-    $store_in_title = isset($display_values['store_in_title']) ? (bool) $display_values['store_in_title'] : true;
     $current_text = trim((string) ($display_values['word_text'] ?? ''));
     $current_translation = trim((string) ($display_values['translation_text'] ?? ''));
 
@@ -7458,29 +7441,26 @@ function ll_tools_fill_missing_word_fields_from_recording(int $word_id, string $
 
     $updated = false;
     if ($current_text === '' && $candidate_text !== '') {
-        $word_text = function_exists('ll_sanitize_word_title_text')
-            ? ll_sanitize_word_title_text($candidate_text)
-            : $candidate_text;
-        if ($store_in_title) {
+        if (function_exists('ll_tools_update_word_target_text')) {
+            ll_tools_update_word_target_text($word_id, $candidate_text, true);
+        } else {
+            $word_text = function_exists('ll_sanitize_word_title_text')
+                ? ll_sanitize_word_title_text($candidate_text)
+                : $candidate_text;
             wp_update_post([
                 'ID' => $word_id,
                 'post_title' => $word_text,
             ]);
-        } else {
-            update_post_meta($word_id, 'word_translation', $word_text);
         }
         $updated = true;
     }
 
     if ($current_translation === '' && $candidate_translation !== '') {
         $translation_text = sanitize_text_field($candidate_translation);
-        if ($store_in_title) {
-            update_post_meta($word_id, 'word_translation', $translation_text);
+        if (function_exists('ll_tools_update_word_default_translation_text')) {
+            ll_tools_update_word_default_translation_text($word_id, $translation_text, true);
         } else {
-            wp_update_post([
-                'ID' => $word_id,
-                'post_title' => $translation_text,
-            ]);
+            update_post_meta($word_id, 'word_translation', $translation_text);
         }
         update_post_meta($word_id, 'word_english_meaning', $translation_text);
         $updated = true;
@@ -7956,40 +7936,27 @@ function ll_tools_word_grid_update_word_handler() {
         }
     }
 
-    $store_in_title = function_exists('ll_tools_should_store_word_in_title')
-        ? ll_tools_should_store_word_in_title($word_id)
-        : true;
-    $new_title = $word_post->post_title;
-    if ($store_in_title) {
-        $new_title = $word_text;
+    if (function_exists('ll_tools_update_word_target_text')) {
+        ll_tools_update_word_target_text($word_id, $word_text, true);
     } else {
-        $new_title = $translation_text;
-    }
-
-    if ($new_title !== $word_post->post_title) {
         wp_update_post([
             'ID' => $word_id,
-            'post_title' => $new_title,
+            'post_title' => $word_text,
         ]);
+    }
+
+    if (function_exists('ll_tools_update_word_default_translation_text')) {
+        ll_tools_update_word_default_translation_text($word_id, $translation_text, true);
+    } elseif ($translation_text !== '') {
+        update_post_meta($word_id, 'word_translation', $translation_text);
+    } else {
+        delete_post_meta($word_id, 'word_translation');
     }
 
     if ($translation_text !== '') {
         update_post_meta($word_id, 'word_english_meaning', $translation_text);
     } else {
         delete_post_meta($word_id, 'word_english_meaning');
-    }
-    if ($store_in_title) {
-        if ($translation_text !== '') {
-            update_post_meta($word_id, 'word_translation', $translation_text);
-        } else {
-            delete_post_meta($word_id, 'word_translation');
-        }
-    } else {
-        if ($word_text !== '') {
-            update_post_meta($word_id, 'word_translation', $word_text);
-        } else {
-            delete_post_meta($word_id, 'word_translation');
-        }
     }
 
     $word_note = trim((string) get_post_meta($word_id, 'll_word_usage_note', true));

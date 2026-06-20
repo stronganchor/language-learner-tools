@@ -37,6 +37,8 @@ function ll_tools_rest_word_metadata_plan_field_alias(string $field): string {
         'title' => 'word_title',
         'post_title' => 'word_title',
         'word_title' => 'word_title',
+        'target_text' => 'word_text',
+        'word_target_text' => 'word_text',
         'text' => 'word_text',
         'word_text' => 'word_text',
         'translation' => 'word_translation',

@@ -116,7 +116,10 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($response['success'] ?? false));
         $this->assertSame(1, (int) (($response['data']['converted_count'] ?? 0)));
-        $this->assertSame('baš', (string) get_post_meta($candidate_word_id, 'word_translation', true));
+        $target_meta_key = defined('LL_TOOLS_WORD_TARGET_TEXT_META_KEY') ? LL_TOOLS_WORD_TARGET_TEXT_META_KEY : 'll_word_target_text';
+        $this->assertSame('baš', (string) get_post_meta($candidate_word_id, $target_meta_key, true));
+        $this->assertSame('baš', (string) get_the_title($candidate_word_id));
+        $this->assertSame('', (string) get_post_meta($candidate_word_id, 'word_translation', true));
         $this->assertSame('baš', (string) get_post_meta($candidate_recording_id, 'recording_text', true));
         $this->assertSame(0, (int) (($response['data']['orthography']['stats']['candidate_count'] ?? 0)));
     }
