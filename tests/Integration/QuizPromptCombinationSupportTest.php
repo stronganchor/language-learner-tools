@@ -160,6 +160,32 @@ final class QuizPromptCombinationSupportTest extends LL_Tools_TestCase
         $this->assertNotEmpty((string) ($rows[0]['image'] ?? ''));
     }
 
+    public function test_image_translation_answer_options_use_translation_label_when_present(): void
+    {
+        $category = wp_insert_term('Image Translation Label Category', 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image_text_translation');
+
+        $word_id = $this->createWord($category_id, 'Baraqa', 'Toki (devlet yapmis)');
+        $this->addAudio($word_id, '-audio');
+        $this->addImage($word_id, '-image');
+
+        $term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $config = ll_tools_get_category_quiz_config($term);
+        $rows = ll_get_words_by_category('Image Translation Label Category', 'image_text_translation', null, $config);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Baraqa', (string) ($rows[0]['title'] ?? ''));
+        $this->assertSame('Toki (devlet yapmis)', (string) ($rows[0]['translation'] ?? ''));
+        $this->assertSame('Toki (devlet yapmis)', (string) ($rows[0]['label'] ?? ''));
+    }
+
     public function test_image_audio_prompt_with_audio_answers_requires_both_assets_and_keeps_audio_option(): void
     {
         $category = wp_insert_term('Image Audio Prompt Category', 'word-category');

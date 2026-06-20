@@ -3234,7 +3234,7 @@ function ll_tools_word_grid_get_category_editor_quiz_requirements(WP_Term $term,
         'requires_image' => function_exists('ll_tools_quiz_requires_image')
             ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : ($prompt_type === 'image' || $option_type === 'image'),
-        'requires_option_label' => in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true),
+        'requires_option_label' => in_array($option_type, ['image_text_translation', 'text_translation', 'text_title', 'text_audio'], true),
         'prompt_text_type' => $prompt_text_type,
         'requires_prompt_label' => $prompt_text_type !== '',
     ];
@@ -3325,7 +3325,10 @@ function ll_tools_word_grid_get_category_editor_quizzable_counts(int $wordset_id
                 $title = $word_text !== '' ? $word_text : $raw_title;
                 $option_label = $title;
                 $option_type = (string) ($requirements['option_type'] ?? '');
-                if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation_text !== '') {
+                $uses_translation_label = function_exists('ll_tools_quiz_option_type_uses_translation_label')
+                    ? ll_tools_quiz_option_type_uses_translation_label($option_type)
+                    : in_array($option_type, ['image_text_translation', 'text_translation', 'text_audio'], true);
+                if ($uses_translation_label && $translation_text !== '') {
                     $option_label = $translation_text;
                 }
                 if (!empty($requirements['requires_option_label']) && trim((string) $option_label) === '') {

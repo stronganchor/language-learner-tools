@@ -2530,7 +2530,10 @@ function ll_tools_wordset_preview_build_answer_option_label(int $word_id, string
     }
 
     $label = $title;
-    if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation !== '') {
+    $uses_translation_label = function_exists('ll_tools_quiz_option_type_uses_translation_label')
+        ? ll_tools_quiz_option_type_uses_translation_label($option_type)
+        : in_array($option_type, ['image_text_translation', 'text_translation', 'text_audio'], true);
+    if ($uses_translation_label && $translation !== '') {
         $label = $translation;
     }
 

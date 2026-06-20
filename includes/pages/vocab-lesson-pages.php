@@ -1274,6 +1274,28 @@ function ll_tools_vocab_lesson_render_prompt_card_text_stack(array $parts, strin
     return $html;
 }
 
+function ll_tools_vocab_lesson_resolve_answer_label(array $parts, string $option_type, int $word_id = 0): string {
+    $option_type = sanitize_key($option_type);
+    $text = trim((string) ($parts['text'] ?? ''));
+    $translation = trim((string) ($parts['translation'] ?? ''));
+
+    $uses_translation_label = function_exists('ll_tools_quiz_option_type_uses_translation_label')
+        ? ll_tools_quiz_option_type_uses_translation_label($option_type)
+        : in_array($option_type, ['image_text_translation', 'text_translation', 'text_audio'], true);
+
+    if ($uses_translation_label) {
+        $label = $translation !== '' ? $translation : $text;
+    } else {
+        $label = $text !== '' ? $text : $translation;
+    }
+
+    if ($label === '' && $word_id > 0) {
+        $label = trim((string) get_the_title($word_id));
+    }
+
+    return $label;
+}
+
 function ll_tools_vocab_lesson_render_state_icon(bool $is_correct): string {
     if ($is_correct) {
         return '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1325,7 +1347,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
     $option_has_image = function_exists('ll_tools_quiz_option_type_has_image')
         ? ll_tools_quiz_option_type_has_image($effective_option_type)
         : in_array($effective_option_type, ['image', 'image_text_translation'], true);
-    $option_has_text = in_array($effective_option_type, ['text_translation', 'text_title', 'text_audio'], true);
+    $option_has_text = in_array($effective_option_type, ['image_text_translation', 'text_translation', 'text_title', 'text_audio'], true);
     $use_referent_only_lesson_grid = $prompt_has_image && ($option_has_image || $option_has_text);
     $suppress_referent_prompt_text = $use_referent_only_lesson_grid;
     $word_ids = [];
@@ -1540,13 +1562,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                                 continue;
                             }
                             $answer_parts = ll_tools_vocab_lesson_get_word_display_parts($answer_word_id, [], $transcription_mode);
-                            $answer_label = trim((string) ($answer_parts['text'] ?? ''));
-                            if ($answer_label === '') {
-                                $answer_label = trim((string) ($answer_parts['translation'] ?? ''));
-                            }
-                            if ($answer_label === '') {
-                                $answer_label = trim((string) get_the_title($answer_word_id));
-                            }
+                            $answer_label = ll_tools_vocab_lesson_resolve_answer_label($answer_parts, $effective_option_type, $answer_word_id);
                             $answer_image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
                                 ? ll_tools_get_effective_word_image_data_for_word($answer_word_id, 'medium_large', true)
                                 : [];
@@ -1582,13 +1598,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                                 }
                                 $is_correct = !empty($answer_row['is_correct']);
                                 $answer_parts = ll_tools_vocab_lesson_get_word_display_parts($answer_word_id, [], $transcription_mode);
-                                $answer_label = trim((string) ($answer_parts['text'] ?? ''));
-                                if ($answer_label === '') {
-                                    $answer_label = trim((string) ($answer_parts['translation'] ?? ''));
-                                }
-                                if ($answer_label === '') {
-                                    $answer_label = trim((string) get_the_title($answer_word_id));
-                                }
+                                $answer_label = ll_tools_vocab_lesson_resolve_answer_label($answer_parts, $effective_option_type, $answer_word_id);
                                 $answer_image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
                                     ? ll_tools_get_effective_word_image_data_for_word($answer_word_id, 'medium_large', true)
                                     : [];

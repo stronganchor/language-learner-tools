@@ -214,6 +214,12 @@
             const normalized = Util.normalizeOptionType(optionType);
             return normalized === 'image' || normalized === 'image_text_translation';
         },
+        optionTypeUsesTranslationLabel(optionType) {
+            const normalized = Util.normalizeOptionType(optionType);
+            return normalized === 'image_text_translation'
+                || normalized === 'text_translation'
+                || normalized === 'text_audio';
+        },
         isPlainTextOptionType(optionType) {
             const normalized = Util.normalizeOptionType(optionType);
             return normalized === 'text' || normalized === 'text_title' || normalized === 'text_translation';
@@ -275,7 +281,7 @@
 
             if (
                 Util.promptTypeHasAudio(promptType)
-                && (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio')
+                && Util.optionTypeUsesTranslationLabel(normalizedOptionType)
                 && promptRecordingType
             ) {
                 const recordingTranslation = Util.getRecordingTranslationForType(word, promptRecordingType);
@@ -284,16 +290,16 @@
                 }
             }
 
-            const label = String(word.label || '').trim();
-            if (label) {
-                return label;
-            }
-
-            if (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio') {
+            if (Util.optionTypeUsesTranslationLabel(normalizedOptionType)) {
                 const translation = String(word.translation || '').trim();
                 if (translation) {
                     return translation;
                 }
+            }
+
+            const label = String(word.label || '').trim();
+            if (label) {
+                return label;
             }
 
             return String(word.title || '').trim();
@@ -307,12 +313,17 @@
                 return '';
             }
 
+            const translation = String(word.translation || '').trim();
+            if (translation) {
+                return translation;
+            }
+
             const label = String(word.label || '').trim();
             if (label) {
                 return label;
             }
 
-            return String(word.translation || '').trim();
+            return String(word.title || '').trim();
         },
         protectMaqafNoBreak(value) {
             const text = (value === null || value === undefined) ? '' : String(value);

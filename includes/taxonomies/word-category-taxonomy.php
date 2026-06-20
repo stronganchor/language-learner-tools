@@ -1199,6 +1199,10 @@ function ll_tools_quiz_option_type_has_image($option_type): bool {
     return in_array(sanitize_key((string) $option_type), ['image', 'image_text_translation'], true);
 }
 
+function ll_tools_quiz_option_type_uses_translation_label($option_type): bool {
+    return in_array(sanitize_key((string) $option_type), ['image_text_translation', 'text_translation', 'text_audio'], true);
+}
+
 /**
  * Normalize stored prompt/option values with safe fallbacks.
  */
@@ -4262,7 +4266,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
-        'text_label_schema'    => 7,
+        'text_label_schema'    => 8,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -4512,7 +4516,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
         $title = $word_text !== '' ? $word_text : $raw_title;
         $translation_label = $translation_text;
         $label = $title;
-        if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation_label !== '') {
+        if (ll_tools_quiz_option_type_uses_translation_label($option_type) && $translation_label !== '') {
             $label = $translation_label;
         }
 
@@ -4675,7 +4679,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
-        'text_label_schema'    => 7,
+        'text_label_schema'    => 8,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -4908,7 +4912,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         $title = $word_text !== '' ? $word_text : $raw_title;
         $translation_label = $translation_text;
         $label = $title;
-        if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation_label !== '') {
+        if (ll_tools_quiz_option_type_uses_translation_label($option_type) && $translation_label !== '') {
             $label = $translation_label;
         }
 
@@ -5294,7 +5298,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         // test cases when term IDs are recycled after DB resets.
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
-        'text_label_schema'    => 7,
+        'text_label_schema'    => 8,
         'prompt_card_schema'   => 4,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
@@ -5723,7 +5727,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
 
         $label = $title;
-        if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation_label !== '') {
+        if (ll_tools_quiz_option_type_uses_translation_label($option_type) && $translation_label !== '') {
             $label = $translation_label;
         }
 

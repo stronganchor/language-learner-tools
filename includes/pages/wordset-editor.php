@@ -1587,7 +1587,9 @@ function ll_tools_wordset_editor_word_sort_uses_post_titles(int $wordset_id, arr
 
         $quiz_config = ll_tools_get_category_quiz_config($category_id);
         $option_type = sanitize_key((string) ($quiz_config['option_type'] ?? ''));
-        if (in_array($option_type, ['text_translation', 'text_audio'], true)) {
+        if ((function_exists('ll_tools_quiz_option_type_uses_translation_label') && ll_tools_quiz_option_type_uses_translation_label($option_type))
+            || in_array($option_type, ['image_text_translation', 'text_translation', 'text_audio'], true)
+        ) {
             return false;
         }
     }

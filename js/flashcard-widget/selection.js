@@ -1094,7 +1094,11 @@
         );
         if (
             promptTypeHasAudio(promptType)
-            && (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio')
+            && (
+                (Util && typeof Util.optionTypeUsesTranslationLabel === 'function')
+                    ? Util.optionTypeUsesTranslationLabel(normalizedOptionType)
+                    : (normalizedOptionType === 'image_text_translation' || normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio')
+            )
             && activeRecordingType
         ) {
             const recordingTranslation = getRecordingTranslationForType(word, activeRecordingType);
@@ -1103,16 +1107,19 @@
             }
         }
 
-        const label = String(word.label || '').trim();
-        if (label) {
-            return label;
-        }
-
-        if (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio') {
+        const usesTranslationLabel = (Util && typeof Util.optionTypeUsesTranslationLabel === 'function')
+            ? Util.optionTypeUsesTranslationLabel(normalizedOptionType)
+            : (normalizedOptionType === 'image_text_translation' || normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio');
+        if (usesTranslationLabel) {
             const translation = String(word.translation || '').trim();
             if (translation) {
                 return translation;
             }
+        }
+
+        const label = String(word.label || '').trim();
+        if (label) {
+            return label;
         }
 
         return String(word.title || '').trim();

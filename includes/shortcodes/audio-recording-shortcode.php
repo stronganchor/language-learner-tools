@@ -3497,7 +3497,9 @@ function ll_tools_should_store_word_in_title($word_id, ?array $wordset_ids = nul
         $opt_type = isset($cat_cfg['option_type']) ? (string) $cat_cfg['option_type'] : '';
         if ($opt_type === 'text_title') {
             $store_in_title = true;
-        } elseif (in_array($opt_type, ['text_translation', 'text_audio'], true)) {
+        } elseif ((function_exists('ll_tools_quiz_option_type_uses_translation_label') && ll_tools_quiz_option_type_uses_translation_label($opt_type))
+            || in_array($opt_type, ['image_text_translation', 'text_translation', 'text_audio'], true)
+        ) {
             $store_in_title = false;
         }
     }
