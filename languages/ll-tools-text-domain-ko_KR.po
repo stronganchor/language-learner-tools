@@ -4521,3 +4521,33 @@ msgstr "사전 행 항목은 필수입니다."
 #: includes/shortcodes/word-grid-shortcode.php:6142
 msgid "Drag to reorder word"
 msgstr "단어 순서를 바꾸려면 드래그하세요"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:359 includes/admin/admin-dashboard-menu.php:818 includes/admin/admin-dashboard-menu.php:819 includes/admin/bulk-translation-admin.php:125 includes/admin/image-aspect-normalizer-admin.php:103 includes/post-types/word-image-post-type.php:12 includes/post-types/word-image-post-type.php:7
+msgid "Word Images"
+msgstr "단어 이미지"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:360
+msgid "Manage image records linked to vocabulary words."
+msgstr "어휘 단어에 연결된 이미지 기록을 관리합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:366 includes/admin/admin-dashboard-menu.php:826 includes/admin/admin-dashboard-menu.php:827 includes/admin/orphan-media-admin.php:853 includes/post-types/word-audio-post-type.php:11
+msgid "Word Audio"
+msgstr "단어 오디오"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:367
+msgid "Review and edit published audio posts used across the site."
+msgstr "사이트 전체에서 사용하는 게시된 오디오 게시물을 검토하고 편집합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:373 includes/admin/admin-dashboard-menu.php:834 includes/admin/admin-dashboard-menu.php:835 includes/post-types/dictionary-entry-post-type.php:618 includes/post-types/dictionary-entry-post-type.php:627 includes/post-types/dictionary-entry-post-type.php:631
+msgid "Dictionary Entries"
+msgstr "사전 항목"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:374
+msgid "Maintain dictionary-style reference entries and supporting details."
+msgstr "사전식 참조 항목과 보조 세부 정보를 관리합니다."

@@ -4572,3 +4572,33 @@ msgstr "Запись в строке словаря обязательна."
 #: includes/shortcodes/word-grid-shortcode.php:6142
 msgid "Drag to reorder word"
 msgstr "Перетащите, чтобы изменить порядок слова"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:359 includes/admin/admin-dashboard-menu.php:818 includes/admin/admin-dashboard-menu.php:819 includes/admin/bulk-translation-admin.php:125 includes/admin/image-aspect-normalizer-admin.php:103 includes/post-types/word-image-post-type.php:12 includes/post-types/word-image-post-type.php:7
+msgid "Word Images"
+msgstr "Изображения слов"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:360
+msgid "Manage image records linked to vocabulary words."
+msgstr "Управляйте записями изображений, связанными со словарными словами."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:366 includes/admin/admin-dashboard-menu.php:826 includes/admin/admin-dashboard-menu.php:827 includes/admin/orphan-media-admin.php:853 includes/post-types/word-audio-post-type.php:11
+msgid "Word Audio"
+msgstr "Аудио слов"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:367
+msgid "Review and edit published audio posts used across the site."
+msgstr "Просматривайте и редактируйте опубликованные аудиозаписи, используемые на сайте."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:373 includes/admin/admin-dashboard-menu.php:834 includes/admin/admin-dashboard-menu.php:835 includes/post-types/dictionary-entry-post-type.php:618 includes/post-types/dictionary-entry-post-type.php:627 includes/post-types/dictionary-entry-post-type.php:631
+msgid "Dictionary Entries"
+msgstr "Словарные статьи"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:374
+msgid "Maintain dictionary-style reference entries and supporting details."
+msgstr "Ведите справочные словарные статьи и связанные сведения."

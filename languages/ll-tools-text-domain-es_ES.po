@@ -4539,3 +4539,33 @@ msgstr "La entrada de la fila del diccionario es obligatoria."
 #: includes/shortcodes/word-grid-shortcode.php:6142
 msgid "Drag to reorder word"
 msgstr "Arrastra para reordenar la palabra"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:359 includes/admin/admin-dashboard-menu.php:818 includes/admin/admin-dashboard-menu.php:819 includes/admin/bulk-translation-admin.php:125 includes/admin/image-aspect-normalizer-admin.php:103 includes/post-types/word-image-post-type.php:12 includes/post-types/word-image-post-type.php:7
+msgid "Word Images"
+msgstr "Imágenes de palabras"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:360
+msgid "Manage image records linked to vocabulary words."
+msgstr "Gestiona registros de imágenes vinculados a palabras de vocabulario."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:366 includes/admin/admin-dashboard-menu.php:826 includes/admin/admin-dashboard-menu.php:827 includes/admin/orphan-media-admin.php:853 includes/post-types/word-audio-post-type.php:11
+msgid "Word Audio"
+msgstr "Audio de palabras"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:367
+msgid "Review and edit published audio posts used across the site."
+msgstr "Revisa y edita entradas de audio publicadas usadas en todo el sitio."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:373 includes/admin/admin-dashboard-menu.php:834 includes/admin/admin-dashboard-menu.php:835 includes/post-types/dictionary-entry-post-type.php:618 includes/post-types/dictionary-entry-post-type.php:627 includes/post-types/dictionary-entry-post-type.php:631
+msgid "Dictionary Entries"
+msgstr "Entradas del diccionario"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:374
+msgid "Maintain dictionary-style reference entries and supporting details."
+msgstr "Mantén entradas de referencia de tipo diccionario y detalles de apoyo."

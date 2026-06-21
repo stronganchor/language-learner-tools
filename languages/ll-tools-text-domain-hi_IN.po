@@ -4539,3 +4539,33 @@ msgstr "शब्दकोश पंक्ति प्रविष्टि आ
 #: includes/shortcodes/word-grid-shortcode.php:6142
 msgid "Drag to reorder word"
 msgstr "शब्द का क्रम बदलने के लिए खींचें"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:359 includes/admin/admin-dashboard-menu.php:818 includes/admin/admin-dashboard-menu.php:819 includes/admin/bulk-translation-admin.php:125 includes/admin/image-aspect-normalizer-admin.php:103 includes/post-types/word-image-post-type.php:12 includes/post-types/word-image-post-type.php:7
+msgid "Word Images"
+msgstr "शब्द चित्र"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:360
+msgid "Manage image records linked to vocabulary words."
+msgstr "शब्दावली शब्दों से जुड़े चित्र रिकॉर्ड प्रबंधित करें."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:366 includes/admin/admin-dashboard-menu.php:826 includes/admin/admin-dashboard-menu.php:827 includes/admin/orphan-media-admin.php:853 includes/post-types/word-audio-post-type.php:11
+msgid "Word Audio"
+msgstr "शब्द ऑडियो"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:367
+msgid "Review and edit published audio posts used across the site."
+msgstr "पूरे साइट पर उपयोग होने वाली प्रकाशित ऑडियो पोस्ट की समीक्षा और संपादन करें."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:373 includes/admin/admin-dashboard-menu.php:834 includes/admin/admin-dashboard-menu.php:835 includes/post-types/dictionary-entry-post-type.php:618 includes/post-types/dictionary-entry-post-type.php:627 includes/post-types/dictionary-entry-post-type.php:631
+msgid "Dictionary Entries"
+msgstr "शब्दकोश प्रविष्टियाँ"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:374
+msgid "Maintain dictionary-style reference entries and supporting details."
+msgstr "शब्दकोश-शैली की संदर्भ प्रविष्टियाँ और सहायक विवरण बनाए रखें."
