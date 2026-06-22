@@ -194,6 +194,113 @@ function ll_tools_dictionary_normalize_search_text(string $value): string {
 }
 
 /**
+ * Return character groups that should behave as close dictionary-search matches.
+ *
+ * Exact lookup/title identity intentionally does not use these groups. They are
+ * only for search expansion so imports and strict duplicate checks stay stable.
+ *
+ * @return array<int,array<int,string>>
+ */
+function ll_tools_dictionary_get_close_match_character_groups(): array {
+    $groups = [
+        ['i', "\u{0131}", "\u{00EE}", 'y'],
+        ['u', "\u{00FC}", "\u{00FB}", 'w'],
+        ['o', "\u{00F6}"],
+        ['c', "\u{00E7}"],
+        ['s', "\u{015F}"],
+        ['e', "\u{00EA}"],
+    ];
+
+    $groups = apply_filters('ll_tools_dictionary_close_match_character_groups', $groups);
+    if (!is_array($groups)) {
+        return [];
+    }
+
+    $normalized_groups = [];
+    foreach ($groups as $group) {
+        if (!is_array($group)) {
+            continue;
+        }
+
+        $chars = [];
+        $seen = [];
+        foreach ($group as $char) {
+            $char = trim((string) $char);
+            if ($char === '' || isset($seen[$char])) {
+                continue;
+            }
+
+            $seen[$char] = true;
+            $chars[] = $char;
+        }
+
+        if (count($chars) > 1) {
+            $normalized_groups[] = $chars;
+        }
+    }
+
+    return $normalized_groups;
+}
+
+/**
+ * Build a normalized close-match character map from the configured groups.
+ *
+ * @return array<string,string>
+ */
+function ll_tools_dictionary_get_close_match_character_map(): array {
+    $map = [];
+
+    foreach (ll_tools_dictionary_get_close_match_character_groups() as $group) {
+        $canonical = '';
+        $variants = [];
+
+        foreach ($group as $char) {
+            $char = (string) $char;
+            $normalized_char = ll_tools_dictionary_normalize_search_text($char);
+            if ($canonical === '' && $normalized_char !== '') {
+                $canonical = $normalized_char;
+            }
+
+            foreach ([$char, $normalized_char] as $variant) {
+                $variant = trim((string) $variant);
+                if ($variant !== '') {
+                    $variants[$variant] = true;
+                }
+            }
+        }
+
+        if ($canonical === '') {
+            continue;
+        }
+
+        foreach (array_keys($variants) as $variant) {
+            $map[$variant] = $canonical;
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * Normalize text to a dictionary-search key that folds configured close sounds.
+ */
+function ll_tools_dictionary_normalize_close_match_text(string $value): string {
+    $value = ll_tools_dictionary_normalize_search_text($value);
+    if ($value === '') {
+        return '';
+    }
+
+    $map = ll_tools_dictionary_get_close_match_character_map();
+    if (!empty($map)) {
+        $value = strtr($value, $map);
+    }
+
+    $value = preg_replace('/\s+/u', ' ', (string) $value);
+
+    return trim((string) $value);
+}
+
+/**
  * Normalize a language identifier to a stable key when possible.
  */
 function ll_tools_dictionary_normalize_language_key(string $value): string {
@@ -4203,7 +4310,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'preferred_languages' => $preferred_languages,
         'statuses' => $statuses,
         'viewer' => ll_tools_dictionary_viewer_cache_key(),
-        'query_schema' => 3,
+        'query_schema' => 4,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('query_entries', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -4301,7 +4408,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         }
         if ($search !== '' && !ll_tools_dictionary_search_scopes_use_all($search_scopes)) {
             $rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($entry_id, $search, $search_scopes);
-            if ((int) ($rank['bucket'] ?? 7) >= 7) {
+            if ((int) ($rank['bucket'] ?? 9) >= 9) {
                 continue;
             }
         }
@@ -4921,6 +5028,8 @@ function ll_tools_dictionary_lookup_text_score(string $candidate, string $term):
     $term_lookup = ll_tools_dictionary_entry_normalize_lookup_value($term);
     $candidate_norm = ll_tools_dictionary_normalize_search_text($candidate);
     $term_norm = ll_tools_dictionary_normalize_search_text($term);
+    $candidate_close = ll_tools_dictionary_normalize_close_match_text($candidate);
+    $term_close = ll_tools_dictionary_normalize_close_match_text($term);
 
     if ($candidate_lookup !== '' && $candidate_lookup === $term_lookup) {
         return 0;
@@ -4939,6 +5048,15 @@ function ll_tools_dictionary_lookup_text_score(string $candidate, string $term):
     }
     if ($term_norm !== '' && strpos($candidate_norm, $term_norm) !== false) {
         return 5;
+    }
+    if ($candidate_close !== '' && $term_close !== '' && $candidate_close === $term_close) {
+        return 6;
+    }
+    if ($term_close !== '' && strpos($candidate_close, $term_close) === 0) {
+        return 7;
+    }
+    if ($term_close !== '' && strpos($candidate_close, $term_close) !== false) {
+        return 8;
     }
 
     return 99;
@@ -5076,7 +5194,7 @@ function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, str
     }
 
     $best_rank = [
-        'bucket' => 7,
+        'bucket' => 9,
         'secondary_score' => 99,
         'secondary_length' => PHP_INT_MAX,
         'title' => trim((string) get_the_title($entry_id)),
@@ -5170,7 +5288,7 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, 
         : '';
     $fulltext_score = $search_index !== '' ? ll_tools_dictionary_lookup_text_score($search_index, $term) : 99;
 
-    $bucket = 7;
+    $bucket = 9;
     $secondary_score = $fulltext_score;
     $secondary_length = $title_length;
 
@@ -5198,8 +5316,16 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, 
         $bucket = 5;
         $secondary_score = $translation_score;
         $secondary_length = $translation_length;
-    } elseif ($fulltext_score <= 5) {
+    } elseif ($headword_score <= 8) {
         $bucket = 6;
+        $secondary_score = $headword_score;
+        $secondary_length = $headword_length;
+    } elseif ($translation_score <= 8) {
+        $bucket = 7;
+        $secondary_score = $translation_score;
+        $secondary_length = $translation_length;
+    } elseif ($fulltext_score <= 5) {
+        $bucket = 8;
         $secondary_score = $fulltext_score;
         $secondary_length = $title_length;
     }

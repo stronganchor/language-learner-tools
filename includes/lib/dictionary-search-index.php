@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION')) {
-    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '1');
+    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '2');
 }
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION', 'll_tools_dictionary_lookup_version');
@@ -209,6 +209,27 @@ function ll_tools_dictionary_prepare_lookup_value(string $value): string {
 }
 
 /**
+ * Normalize and cap one close-match lookup value.
+ */
+function ll_tools_dictionary_prepare_close_lookup_value(string $value): string {
+    $value = function_exists('ll_tools_dictionary_normalize_close_match_text')
+        ? ll_tools_dictionary_normalize_close_match_text($value)
+        : ll_tools_dictionary_prepare_lookup_value($value);
+
+    if ($value === '') {
+        return '';
+    }
+
+    if (function_exists('mb_substr')) {
+        $value = mb_substr($value, 0, 191, 'UTF-8');
+    } else {
+        $value = substr($value, 0, 191);
+    }
+
+    return trim((string) $value);
+}
+
+/**
  * Build lookup rows for one dictionary entry.
  *
  * @return array<int,array{entry_id:int,lookup_kind:string,lookup_value:string,value_length:int}>
@@ -248,6 +269,27 @@ function ll_tools_dictionary_build_lookup_rows_for_entry(int $entry_id): array {
             'entry_id' => $entry_id,
             'lookup_kind' => $kind,
             'lookup_value' => $lookup_value,
+            'value_length' => function_exists('mb_strlen')
+                ? (int) mb_strlen($candidate, 'UTF-8')
+                : strlen($candidate),
+        ];
+
+        $close_lookup_value = ll_tools_dictionary_prepare_close_lookup_value($candidate);
+        if ($close_lookup_value === '' || $close_lookup_value === $lookup_value) {
+            return;
+        }
+
+        $close_kind = $kind . '_close';
+        $close_lookup_key = $close_kind . ':' . $close_lookup_value;
+        if (isset($seen[$close_lookup_key])) {
+            return;
+        }
+
+        $seen[$close_lookup_key] = true;
+        $rows[] = [
+            'entry_id' => $entry_id,
+            'lookup_kind' => $close_kind,
+            'lookup_value' => $close_lookup_value,
             'value_length' => function_exists('mb_strlen')
                 ? (int) mb_strlen($candidate, 'UTF-8')
                 : strlen($candidate),
@@ -474,15 +516,22 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
     $search_scope = function_exists('ll_tools_dictionary_normalize_search_scope')
         ? ll_tools_dictionary_normalize_search_scope($search_scope)
         : trim(strtolower($search_scope));
+    $close_lookup = function_exists('ll_tools_dictionary_prepare_close_lookup_value')
+        ? ll_tools_dictionary_prepare_close_lookup_value($search)
+        : $lookup;
+    $has_close_lookup = ($close_lookup !== '');
+    $close_lookup_differs = ($close_lookup !== '' && $close_lookup !== $lookup);
     if ($lookup === '' || empty($statuses) || !ll_tools_dictionary_lookup_is_ready()) {
         return [];
     }
 
     $cache_args = [
         'search' => $lookup,
+        'close_search' => $close_lookup,
         'search_scope' => $search_scope,
         'statuses' => array_values($statuses),
         'limit' => $limit,
+        'close_match_schema' => 1,
     ];
     $cached = function_exists('ll_tools_dictionary_browser_get_cached_payload')
         ? ll_tools_dictionary_browser_get_cached_payload('lookup_entry_ids', $cache_args, $request_cache)
@@ -497,15 +546,24 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
     }
 
     $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
-    $prefix_lookup = $wpdb->esc_like($lookup) . '%';
-    $contains_lookup = '%' . $wpdb->esc_like($lookup) . '%';
     $lookup_length = function_exists('mb_strlen') ? mb_strlen($lookup, 'UTF-8') : strlen($lookup);
+    if ($close_lookup_differs) {
+        $close_lookup_length = function_exists('mb_strlen') ? mb_strlen($close_lookup, 'UTF-8') : strlen($close_lookup);
+        $lookup_length = max($lookup_length, $close_lookup_length);
+    }
     $use_contains = ($lookup_length >= 3);
-    $kind_where = '';
+
+    $normal_kinds = [];
+    $close_kinds = [];
     if ($search_scope === 'headword') {
-        $kind_where = " AND l.lookup_kind = 'headword'";
+        $normal_kinds = ['headword'];
+        $close_kinds = ['headword_close'];
     } elseif ($search_scope !== '' && $search_scope !== 'all') {
-        $kind_where = " AND l.lookup_kind = 'translation'";
+        $normal_kinds = ['translation'];
+        $close_kinds = ['translation_close'];
+    } else {
+        $normal_kinds = ['headword', 'translation'];
+        $close_kinds = ['headword_close', 'translation_close'];
     }
 
     $run_lookup_query = static function (bool $contains_only) use (
@@ -513,37 +571,96 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $table,
         $status_placeholders,
         $statuses,
-        $kind_where,
         $lookup,
-        $prefix_lookup,
-        $contains_lookup,
+        $close_lookup,
+        $has_close_lookup,
+        $close_lookup_differs,
+        $normal_kinds,
+        $close_kinds,
         $limit
     ): array {
+        $search_clauses = [];
+        $where_params = [];
+        $case_sql = [];
+        $case_params = [];
+
+        $add_clause = static function (
+            string $kind,
+            string $operator,
+            string $value,
+            int $rank
+        ) use (&$search_clauses, &$where_params, &$case_sql, &$case_params): void {
+            if ($value === '') {
+                return;
+            }
+
+            $search_clauses[] = "(l.lookup_kind = %s AND l.lookup_value {$operator} %s)";
+            $where_params[] = $kind;
+            $where_params[] = $value;
+            $case_sql[] = "WHEN l.lookup_kind = %s AND l.lookup_value {$operator} %s THEN {$rank}";
+            $case_params[] = $kind;
+            $case_params[] = $value;
+        };
+
         if ($contains_only) {
-            $where_sql = 'l.lookup_value LIKE %s';
-            $where_params = [$contains_lookup];
-            $case_sql = "
-                CASE
-                    WHEN l.lookup_kind = 'headword' AND l.lookup_value LIKE %s THEN 4
-                    WHEN l.lookup_kind = 'translation' AND l.lookup_value LIKE %s THEN 5
-                    ELSE 9
-                END
-            ";
-            $case_params = [$contains_lookup, $contains_lookup];
+            $contains_lookup = '%' . $wpdb->esc_like($lookup) . '%';
+            foreach ($normal_kinds as $kind) {
+                $rank = ($kind === 'headword') ? 4 : 5;
+                $add_clause((string) $kind, 'LIKE', $contains_lookup, $rank);
+            }
+
+            if ($has_close_lookup) {
+                $contains_close_lookup = '%' . $wpdb->esc_like($close_lookup) . '%';
+                if ($close_lookup_differs) {
+                    foreach ($normal_kinds as $kind) {
+                        $rank = ($kind === 'headword') ? 10 : 11;
+                        $add_clause((string) $kind, 'LIKE', $contains_close_lookup, $rank);
+                    }
+                }
+                foreach ($close_kinds as $kind) {
+                    $rank = ($kind === 'headword_close') ? 10 : 11;
+                    $add_clause((string) $kind, 'LIKE', $contains_close_lookup, $rank);
+                }
+            }
         } else {
-            $where_sql = '(l.lookup_value = %s OR l.lookup_value LIKE %s)';
-            $where_params = [$lookup, $prefix_lookup];
-            $case_sql = "
-                CASE
-                    WHEN l.lookup_kind = 'headword' AND l.lookup_value = %s THEN 0
-                    WHEN l.lookup_kind = 'translation' AND l.lookup_value = %s THEN 1
-                    WHEN l.lookup_kind = 'headword' AND l.lookup_value LIKE %s THEN 2
-                    WHEN l.lookup_kind = 'translation' AND l.lookup_value LIKE %s THEN 3
-                    ELSE 9
-                END
-            ";
-            $case_params = [$lookup, $lookup, $prefix_lookup, $prefix_lookup];
+            $prefix_lookup = $wpdb->esc_like($lookup) . '%';
+            foreach ($normal_kinds as $kind) {
+                $exact_rank = ($kind === 'headword') ? 0 : 1;
+                $prefix_rank = ($kind === 'headword') ? 2 : 3;
+                $add_clause((string) $kind, '=', $lookup, $exact_rank);
+                $add_clause((string) $kind, 'LIKE', $prefix_lookup, $prefix_rank);
+            }
+
+            if ($has_close_lookup) {
+                $prefix_close_lookup = $wpdb->esc_like($close_lookup) . '%';
+                if ($close_lookup_differs) {
+                    foreach ($normal_kinds as $kind) {
+                        $exact_rank = ($kind === 'headword') ? 6 : 7;
+                        $prefix_rank = ($kind === 'headword') ? 8 : 9;
+                        $add_clause((string) $kind, '=', $close_lookup, $exact_rank);
+                        $add_clause((string) $kind, 'LIKE', $prefix_close_lookup, $prefix_rank);
+                    }
+                }
+                foreach ($close_kinds as $kind) {
+                    $exact_rank = ($kind === 'headword_close') ? 6 : 7;
+                    $prefix_rank = ($kind === 'headword_close') ? 8 : 9;
+                    $add_clause((string) $kind, '=', $close_lookup, $exact_rank);
+                    $add_clause((string) $kind, 'LIKE', $prefix_close_lookup, $prefix_rank);
+                }
+            }
         }
+
+        if (empty($search_clauses)) {
+            return [];
+        }
+
+        $where_sql = '(' . implode(' OR ', $search_clauses) . ')';
+        $case_sql = "
+            CASE
+                " . implode("\n                ", $case_sql) . "
+                ELSE 99
+            END
+        ";
 
         $sql = "
             SELECT l.entry_id
@@ -552,7 +669,6 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                     ON p.ID = l.entry_id
             WHERE p.post_type = 'll_dictionary_entry'
               AND p.post_status IN ({$status_placeholders})
-              {$kind_where}
               AND {$where_sql}
             GROUP BY l.entry_id, p.post_title
             ORDER BY

@@ -1437,6 +1437,124 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertCount(1, $limited_lookup_ids);
     }
 
+    public function test_dictionary_search_matches_configured_close_character_groups(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        ll_tools_install_dictionary_lookup_schema();
+
+        $exact_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Kwe',
+                'definition' => 'exact spelling',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $close_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Kue',
+                'definition' => 'close spelling',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $dotless_i = "\u{0131}";
+        $pising_title = 'P' . $dotless_i . 'sing';
+        $pising_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => $pising_title,
+                'definition' => 'close i spelling',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($exact_result);
+        $this->assertIsArray($close_result);
+        $this->assertIsArray($pising_result);
+
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+
+        $exact_id = (int) ($exact_result['entry_id'] ?? 0);
+        $close_id = (int) ($close_result['entry_id'] ?? 0);
+        $pising_id = (int) ($pising_result['entry_id'] ?? 0);
+        $this->assertGreaterThan(0, $exact_id);
+        $this->assertGreaterThan(0, $close_id);
+        $this->assertGreaterThan(0, $pising_id);
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $this->assertSame('kue', (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT lookup_value FROM {$table} WHERE entry_id = %d AND lookup_kind = 'headword_close'",
+            $exact_id
+        )));
+        $this->assertSame('pising', (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT lookup_value FROM {$table} WHERE entry_id = %d AND lookup_kind = 'headword_close'",
+            $pising_id
+        )));
+
+        $kwe_query = ll_tools_dictionary_query_entries([
+            'search' => 'kwe',
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $kwe_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($kwe_query['items'] ?? [])));
+
+        $this->assertSame('Kwe', $kwe_titles[0] ?? '');
+        $this->assertContains('Kue', $kwe_titles);
+
+        $pising_query = ll_tools_dictionary_query_entries([
+            'search' => 'pising',
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $dotless_query = 'p' . $dotless_i . 's' . $dotless_i . 'ng';
+        $dotless_query_results = ll_tools_dictionary_query_entries([
+            'search' => $dotless_query,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+
+        $pising_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($pising_query['items'] ?? [])));
+        $dotless_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($dotless_query_results['items'] ?? [])));
+
+        $this->assertContains($pising_title, $pising_titles);
+        $this->assertContains($pising_title, $dotless_titles);
+    }
+
     public function test_dictionary_postmeta_search_fallback_avoids_contains_search_by_default(): void
     {
         $entry_id = self::factory()->post->create([
