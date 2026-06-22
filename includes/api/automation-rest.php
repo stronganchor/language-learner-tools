@@ -6359,6 +6359,19 @@ function ll_tools_rest_automation_wordset_profile_payload(WP_Term $wordset_term)
         'language_code' => (string) ($profile['language_code'] ?? ''),
         'target_language' => (string) ($profile['language_code'] ?? ''),
         'translation_language' => (string) ($profile['translation_language'] ?? ''),
+        'dictionary_close_match_groups' => function_exists('ll_tools_get_wordset_dictionary_close_match_groups')
+            ? ll_tools_get_wordset_dictionary_close_match_groups([$wordset_id])
+            : [],
+        'dictionary_close_match_groups_text' => function_exists('ll_tools_format_wordset_dictionary_close_match_groups')
+            ? ll_tools_format_wordset_dictionary_close_match_groups(
+                function_exists('ll_tools_get_wordset_dictionary_close_match_groups')
+                    ? ll_tools_get_wordset_dictionary_close_match_groups([$wordset_id])
+                    : []
+            )
+            : '',
+        'dictionary_optional_apostrophes' => function_exists('ll_tools_is_wordset_dictionary_apostrophe_optional')
+            ? ll_tools_is_wordset_dictionary_apostrophe_optional([$wordset_id])
+            : false,
         'profile_blurb' => (string) ($profile['profile_blurb'] ?? ''),
         'display_profile_blurb' => function_exists('ll_tools_get_wordset_profile_blurb')
             ? ll_tools_get_wordset_profile_blurb((int) $wordset_term->term_id, ['use_locale' => true])
@@ -7159,9 +7172,45 @@ function ll_tools_rest_automation_wordset_profile(WP_REST_Request $request) {
         $changed_keys[] = 'translation_language';
     }
 
+    if (ll_tools_rest_automation_request_has_any_param($request, ['dictionary_close_match_groups', 'dictionary_close_match_groups_text', 'close_match_groups'])) {
+        $raw_groups = ll_tools_rest_automation_first_request_param($request, [
+            'dictionary_close_match_groups',
+            'dictionary_close_match_groups_text',
+            'close_match_groups',
+        ]);
+        $dictionary_close_match_groups = function_exists('ll_tools_sanitize_wordset_dictionary_close_match_groups')
+            ? ll_tools_sanitize_wordset_dictionary_close_match_groups($raw_groups)
+            : [];
+        if (!empty($dictionary_close_match_groups)) {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY, $dictionary_close_match_groups);
+        } else {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY);
+        }
+        $changed_keys[] = 'dictionary_close_match_groups';
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['dictionary_optional_apostrophes', 'optional_apostrophes'])) {
+        $optional_apostrophes = rest_sanitize_boolean(ll_tools_rest_automation_first_request_param($request, [
+            'dictionary_optional_apostrophes',
+            'optional_apostrophes',
+        ])) ? 1 : 0;
+        if ($optional_apostrophes === 1) {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY, 1);
+        } else {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY);
+        }
+        $changed_keys[] = 'dictionary_optional_apostrophes';
+    }
+
     $changed_keys = array_values(array_unique($changed_keys));
     if (!empty($changed_keys) && function_exists('ll_tools_bump_wordset_cache_epoch')) {
         ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+    }
+    if (
+        array_intersect($changed_keys, ['dictionary_close_match_groups', 'dictionary_optional_apostrophes'])
+        && function_exists('ll_tools_bump_dictionary_browser_cache_version')
+    ) {
+        ll_tools_bump_dictionary_browser_cache_version();
     }
 
     return rest_ensure_response([
@@ -9847,6 +9896,24 @@ function ll_tools_rest_register_automation_routes(): void {
             'translation_language' => [
                 'required' => false,
                 'type' => 'string',
+            ],
+            'dictionary_close_match_groups' => [
+                'required' => false,
+            ],
+            'dictionary_close_match_groups_text' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'close_match_groups' => [
+                'required' => false,
+            ],
+            'dictionary_optional_apostrophes' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'optional_apostrophes' => [
+                'required' => false,
+                'type' => 'boolean',
             ],
         ],
     ]);

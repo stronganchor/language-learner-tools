@@ -347,6 +347,12 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         $wordset_id = $this->ensure_term('wordset', 'REST Profile Wordset', 'rest-profile-wordset');
         $attachment_id = $this->create_image_attachment('rest-profile-thumbnail.png');
+        $dictionary_groups_text = implode("\n", [
+            'i ' . "\u{0131}" . ' ' . "\u{00EE}" . ' y',
+            'u ' . "\u{00FC}" . ' ' . "\u{00FB}" . ' w',
+            "\u{011F}" . ' x',
+            'k q g',
+        ]);
 
         wp_set_current_user($admin_id);
 
@@ -354,6 +360,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'profile_image_attachment_id' => $attachment_id,
             'language_code' => 'he',
             'profile_blurb' => "Complements Aleph with Beth videos.\nIncludes early reading practice.",
+            'dictionary_close_match_groups_text' => $dictionary_groups_text,
+            'dictionary_optional_apostrophes' => true,
         ]);
 
         $this->assertSame(200, $update->get_status());
@@ -363,9 +371,16 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertContains('profile_image_attachment_id', (array) ($data['changed_keys'] ?? []));
         $this->assertContains('profile_blurb', (array) ($data['changed_keys'] ?? []));
         $this->assertContains('language_code', (array) ($data['changed_keys'] ?? []));
+        $this->assertContains('dictionary_close_match_groups', (array) ($data['changed_keys'] ?? []));
+        $this->assertContains('dictionary_optional_apostrophes', (array) ($data['changed_keys'] ?? []));
         $this->assertSame($attachment_id, (int) get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true));
         $this->assertSame('he', (string) get_term_meta($wordset_id, 'll_language', true));
         $this->assertSame("Complements Aleph with Beth videos.\nIncludes early reading practice.", (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, true));
+        $this->assertSame(
+            ll_tools_sanitize_wordset_dictionary_close_match_groups($dictionary_groups_text),
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY, true)
+        );
+        $this->assertSame('1', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY, true));
 
         $read = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-profile-wordset/profile');
         $this->assertSame(200, $read->get_status());
@@ -374,6 +389,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame($attachment_id, (int) ($read_data['profile_image_attachment_id'] ?? 0));
         $this->assertSame('he', (string) ($read_data['language_code'] ?? ''));
         $this->assertSame("Complements Aleph with Beth videos.\nIncludes early reading practice.", (string) ($read_data['profile_blurb'] ?? ''));
+        $this->assertSame(
+            ll_tools_sanitize_wordset_dictionary_close_match_groups($dictionary_groups_text),
+            $read_data['dictionary_close_match_groups'] ?? []
+        );
+        $this->assertTrue((bool) ($read_data['dictionary_optional_apostrophes'] ?? false));
     }
 
     public function test_wordset_translations_rest_route_updates_locale_entity_text(): void

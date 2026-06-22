@@ -798,6 +798,12 @@ function ll_tools_site_sync_wordset_metadata_payload(int $wordset_id, bool $ensu
             'category_translation_source' => function_exists('ll_tools_get_wordset_category_translation_source')
                 ? (string) ll_tools_get_wordset_category_translation_source([$wordset_id], true)
                 : '',
+            'dictionary_close_match_groups' => function_exists('ll_tools_get_wordset_dictionary_close_match_groups')
+                ? ll_tools_get_wordset_dictionary_close_match_groups([$wordset_id])
+                : [],
+            'dictionary_optional_apostrophes' => function_exists('ll_tools_is_wordset_dictionary_apostrophe_optional')
+                ? (bool) ll_tools_is_wordset_dictionary_apostrophe_optional([$wordset_id])
+                : false,
             'gender_enabled' => function_exists('ll_tools_wordset_has_grammatical_gender')
                 ? (bool) ll_tools_wordset_has_grammatical_gender($wordset_id)
                 : false,
