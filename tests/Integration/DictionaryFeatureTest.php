@@ -1642,7 +1642,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }, (array) ($global_kwe_query['items'] ?? [])));
 
         $this->assertContains('Kue', $global_kwe_titles);
-        $this->assertNotContains('Kue Plain', $global_kwe_titles);
 
         $pising_query = ll_tools_dictionary_query_entries([
             'search' => 'pising',

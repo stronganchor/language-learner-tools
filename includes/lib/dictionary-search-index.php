@@ -605,10 +605,6 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         }
     }
     $apostrophe_variants = array_keys($apostrophe_variants);
-    $global_close_scope_wordset_ids = ($wordset_id <= 0 && $has_close_config && function_exists('ll_tools_dictionary_get_global_close_search_wordset_ids'))
-        ? ll_tools_dictionary_get_global_close_search_wordset_ids()
-        : [];
-
     $cache_args = [
         'search' => $lookup,
         'search_scope' => $search_scope,
@@ -652,73 +648,31 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $lookup,
         $close_variants,
         $apostrophe_variants,
-        $global_close_scope_wordset_ids,
         $normal_kinds,
         $limit
     ): array {
-        $joins = [];
         $search_clauses = [];
         $where_params = [];
         $case_sql = [];
         $case_params = [];
-        $close_scope_sql = '';
-        $close_scope_params = [];
-
-        if (!empty($global_close_scope_wordset_ids)) {
-            $scope_parts = [];
-            if (defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
-                $joins[] = "
-                    LEFT JOIN {$wpdb->postmeta} scope_meta
-                           ON scope_meta.post_id = l.entry_id
-                          AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
-                ";
-                foreach ($global_close_scope_wordset_ids as $scope_wordset_id) {
-                    $scope_parts[] = 'scope_meta.meta_value LIKE %s';
-                    $close_scope_params[] = '%|' . (int) $scope_wordset_id . '|%';
-                }
-            }
-            if (defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY')) {
-                $joins[] = "
-                    LEFT JOIN {$wpdb->postmeta} explicit_wordset_meta
-                           ON explicit_wordset_meta.post_id = l.entry_id
-                          AND explicit_wordset_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY) . "'
-                ";
-                $scope_parts[] = 'explicit_wordset_meta.meta_value IN (' . implode(', ', array_fill(0, count($global_close_scope_wordset_ids), '%s')) . ')';
-                foreach ($global_close_scope_wordset_ids as $scope_wordset_id) {
-                    $close_scope_params[] = (string) (int) $scope_wordset_id;
-                }
-            }
-
-            if (!empty($scope_parts)) {
-                $close_scope_sql = ' AND (' . implode(' OR ', $scope_parts) . ')';
-            }
-        }
 
         $add_clause = static function (
             string $kind,
             string $expression,
             string $operator,
             string $value,
-            int $rank,
-            string $extra_sql = '',
-            array $extra_params = []
+            int $rank
         ) use (&$search_clauses, &$where_params, &$case_sql, &$case_params): void {
             if ($value === '') {
                 return;
             }
 
-            $search_clauses[] = "(l.lookup_kind = %s AND {$expression} {$operator} %s{$extra_sql})";
+            $search_clauses[] = "(l.lookup_kind = %s AND {$expression} {$operator} %s)";
             $where_params[] = $kind;
             $where_params[] = $value;
-            foreach ($extra_params as $extra_param) {
-                $where_params[] = $extra_param;
-            }
-            $case_sql[] = "WHEN l.lookup_kind = %s AND {$expression} {$operator} %s{$extra_sql} THEN {$rank}";
+            $case_sql[] = "WHEN l.lookup_kind = %s AND {$expression} {$operator} %s THEN {$rank}";
             $case_params[] = $kind;
             $case_params[] = $value;
-            foreach ($extra_params as $extra_param) {
-                $case_params[] = $extra_param;
-            }
         };
 
         if ($contains_only) {
@@ -732,7 +686,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                 $contains_variant = '%' . $wpdb->esc_like((string) $variant) . '%';
                 foreach ($normal_kinds as $kind) {
                     $rank = ($kind === 'headword') ? 10 : 11;
-                    $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $contains_variant, $rank, $close_scope_sql, $close_scope_params);
+                    $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $contains_variant, $rank);
                 }
             }
 
@@ -740,7 +694,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                 $contains_variant = '%' . $wpdb->esc_like((string) $variant) . '%';
                 foreach ($normal_kinds as $kind) {
                     $rank = ($kind === 'headword') ? 10 : 11;
-                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $contains_variant, $rank, $close_scope_sql, $close_scope_params);
+                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $contains_variant, $rank);
                 }
             }
         } else {
@@ -757,8 +711,8 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                 foreach ($normal_kinds as $kind) {
                     $exact_rank = ($kind === 'headword') ? 6 : 7;
                     $prefix_rank = ($kind === 'headword') ? 8 : 9;
-                    $add_clause((string) $kind, 'l.lookup_value', '=', (string) $variant, $exact_rank, $close_scope_sql, $close_scope_params);
-                    $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $prefix_variant, $prefix_rank, $close_scope_sql, $close_scope_params);
+                    $add_clause((string) $kind, 'l.lookup_value', '=', (string) $variant, $exact_rank);
+                    $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $prefix_variant, $prefix_rank);
                 }
             }
 
@@ -767,8 +721,8 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                 foreach ($normal_kinds as $kind) {
                     $exact_rank = ($kind === 'headword') ? 6 : 7;
                     $prefix_rank = ($kind === 'headword') ? 8 : 9;
-                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", '=', (string) $variant, $exact_rank, $close_scope_sql, $close_scope_params);
-                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $prefix_variant, $prefix_rank, $close_scope_sql, $close_scope_params);
+                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", '=', (string) $variant, $exact_rank);
+                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $prefix_variant, $prefix_rank);
                 }
             }
         }
@@ -790,7 +744,6 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             FROM {$table} l
             INNER JOIN {$wpdb->posts} p
                     ON p.ID = l.entry_id
-            " . implode("\n", $joins) . "
             WHERE p.post_type = 'll_dictionary_entry'
               AND p.post_status IN ({$status_placeholders})
               AND {$where_sql}
