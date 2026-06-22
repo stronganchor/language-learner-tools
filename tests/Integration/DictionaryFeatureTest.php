@@ -1447,6 +1447,41 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->ensurePartOfSpeechTerm('noun', 'Noun');
         ll_tools_install_dictionary_lookup_schema();
 
+        $plain_wordset = wp_insert_term('Plain Close Search ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($plain_wordset);
+        $plain_wordset_id = (int) $plain_wordset['term_id'];
+
+        $zazaki_wordset = wp_insert_term('Zazaki Close Search ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($zazaki_wordset);
+        $zazaki_wordset_id = (int) $zazaki_wordset['term_id'];
+
+        $dotless_i = "\u{0131}";
+        $soft_g = "\u{011F}";
+        update_term_meta($zazaki_wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY, [
+            ['i', $dotless_i, "\u{00EE}", 'y'],
+            ['u', "\u{00FC}", "\u{00FB}", 'w'],
+            ['o', "\u{00F6}"],
+            ['c', "\u{00E7}"],
+            ['s', "\u{015F}"],
+            ['e', "\u{00EA}"],
+            [$soft_g, 'x'],
+            ['k', 'q', 'g'],
+        ]);
+        update_term_meta($zazaki_wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY, 1);
+
+        $plain_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Kue Plain',
+                'definition' => 'unconfigured spelling',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'wordset_id' => $plain_wordset_id,
+        ]);
         $exact_result = ll_tools_dictionary_upsert_entry_from_rows([
             [
                 'entry' => 'Kwe',
@@ -1458,6 +1493,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
+            'wordset_id' => $zazaki_wordset_id,
         ]);
         $close_result = ll_tools_dictionary_upsert_entry_from_rows([
             [
@@ -1470,9 +1506,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
+            'wordset_id' => $zazaki_wordset_id,
         ]);
 
-        $dotless_i = "\u{0131}";
         $pising_title = 'P' . $dotless_i . 'sing';
         $pising_result = ll_tools_dictionary_upsert_entry_from_rows([
             [
@@ -1485,11 +1521,58 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
+            'wordset_id' => $zazaki_wordset_id,
         ]);
 
+        $soft_g_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => "\u{011E}" . 'ale',
+                'definition' => 'soft g close spelling',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'wordset_id' => $zazaki_wordset_id,
+        ]);
+
+        $q_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Qal',
+                'definition' => 'q close spelling',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'wordset_id' => $zazaki_wordset_id,
+        ]);
+
+        $apostrophe_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => "K'al",
+                'definition' => 'apostrophe spelling',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'wordset_id' => $zazaki_wordset_id,
+        ]);
+
+        $this->assertIsArray($plain_result);
         $this->assertIsArray($exact_result);
         $this->assertIsArray($close_result);
         $this->assertIsArray($pising_result);
+        $this->assertIsArray($soft_g_result);
+        $this->assertIsArray($q_result);
+        $this->assertIsArray($apostrophe_result);
 
         ll_tools_schedule_dictionary_lookup_rebuild(true);
         ll_tools_dictionary_lookup_process_rebuild_batch();
@@ -1497,22 +1580,41 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $exact_id = (int) ($exact_result['entry_id'] ?? 0);
         $close_id = (int) ($close_result['entry_id'] ?? 0);
         $pising_id = (int) ($pising_result['entry_id'] ?? 0);
+        $apostrophe_id = (int) ($apostrophe_result['entry_id'] ?? 0);
         $this->assertGreaterThan(0, $exact_id);
         $this->assertGreaterThan(0, $close_id);
         $this->assertGreaterThan(0, $pising_id);
+        $this->assertGreaterThan(0, $apostrophe_id);
+        $this->assertSame("K'al", (string) get_post_field('post_title', $apostrophe_id));
 
         $table = ll_tools_dictionary_lookup_table_name();
-        $this->assertSame('kue', (string) $wpdb->get_var($wpdb->prepare(
-            "SELECT lookup_value FROM {$table} WHERE entry_id = %d AND lookup_kind = 'headword_close'",
-            $exact_id
-        )));
-        $this->assertSame('pising', (string) $wpdb->get_var($wpdb->prepare(
-            "SELECT lookup_value FROM {$table} WHERE entry_id = %d AND lookup_kind = 'headword_close'",
-            $pising_id
-        )));
+        $this->assertSame(0, (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$table} WHERE lookup_kind IN ('headword_close', 'translation_close')"
+        ));
+        $apostrophe_lookups = array_values(array_map('strval', (array) $wpdb->get_col($wpdb->prepare(
+            "SELECT lookup_value FROM {$table} WHERE entry_id = %d AND lookup_kind = 'headword'",
+            $apostrophe_id
+        ))));
+        $this->assertContains("k'al", $apostrophe_lookups, wp_json_encode($apostrophe_lookups));
+
+        $plain_query = ll_tools_dictionary_query_entries([
+            'search' => 'kwe',
+            'wordset_id' => $plain_wordset_id,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $plain_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($plain_query['items'] ?? [])));
+
+        $this->assertNotContains('Kue Plain', $plain_titles);
 
         $kwe_query = ll_tools_dictionary_query_entries([
             'search' => 'kwe',
+            'wordset_id' => $zazaki_wordset_id,
             'page' => 1,
             'per_page' => 10,
             'sense_limit' => 1,
@@ -1528,6 +1630,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $pising_query = ll_tools_dictionary_query_entries([
             'search' => 'pising',
+            'wordset_id' => $zazaki_wordset_id,
             'page' => 1,
             'per_page' => 10,
             'sense_limit' => 1,
@@ -1537,6 +1640,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $dotless_query = 'p' . $dotless_i . 's' . $dotless_i . 'ng';
         $dotless_query_results = ll_tools_dictionary_query_entries([
             'search' => $dotless_query,
+            'wordset_id' => $zazaki_wordset_id,
             'page' => 1,
             'per_page' => 10,
             'sense_limit' => 1,
@@ -1553,6 +1657,52 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertContains($pising_title, $pising_titles);
         $this->assertContains($pising_title, $dotless_titles);
+
+        $x_query = ll_tools_dictionary_query_entries([
+            'search' => 'xale',
+            'wordset_id' => $zazaki_wordset_id,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $x_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($x_query['items'] ?? [])));
+        $this->assertContains("\u{011E}" . 'ale', $x_titles);
+
+        $g_query = ll_tools_dictionary_query_entries([
+            'search' => 'gal',
+            'wordset_id' => $zazaki_wordset_id,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $g_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($g_query['items'] ?? [])));
+        $this->assertContains('Qal', $g_titles);
+
+        $apostrophe_query = ll_tools_dictionary_query_entries([
+            'search' => 'kal',
+            'wordset_id' => $zazaki_wordset_id,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $apostrophe_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($apostrophe_query['items'] ?? [])));
+        $apostrophe_titles_normalized = array_map(static function (string $title): string {
+            $title = html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            return str_replace("\u{2019}", "'", $title);
+        }, $apostrophe_titles);
+        $this->assertContains("K'al", $apostrophe_titles_normalized, wp_json_encode($apostrophe_titles));
     }
 
     public function test_dictionary_postmeta_search_fallback_avoids_contains_search_by_default(): void

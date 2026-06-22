@@ -7713,6 +7713,10 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $recording_transcription_mode = isset($_POST['ll_wordset_recording_transcription_mode'])
             ? ll_tools_sanitize_wordset_recording_transcription_mode(wp_unslash((string) $_POST['ll_wordset_recording_transcription_mode']))
             : 'ipa';
+        $dictionary_close_match_groups = isset($_POST['ll_wordset_dictionary_close_match_groups'])
+            ? ll_tools_sanitize_wordset_dictionary_close_match_groups(wp_unslash((string) $_POST['ll_wordset_dictionary_close_match_groups']))
+            : [];
+        $dictionary_optional_apostrophes = isset($_POST['ll_wordset_dictionary_optional_apostrophes']) ? 1 : 0;
         $previous_category_translation_enabled = function_exists('ll_tools_is_wordset_category_translation_enabled')
             ? (bool) ll_tools_is_wordset_category_translation_enabled([$wordset_id])
             : false;
@@ -7723,6 +7727,19 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_SOURCE_META_KEY, $category_translation_source);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, $word_title_language_role);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, $recording_transcription_mode);
+        if (!empty($dictionary_close_match_groups)) {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY, $dictionary_close_match_groups);
+        } else {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY);
+        }
+        if ($dictionary_optional_apostrophes === 1) {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY, 1);
+        } else {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY);
+        }
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
 
         if (!$previous_category_translation_enabled && $category_translation_enabled === 1 && function_exists('ll_tools_auto_translate_categories_for_wordset')) {
             ll_tools_auto_translate_categories_for_wordset($wordset_id);
@@ -12390,6 +12407,13 @@ function ll_tools_wordset_page_render_settings_language_tool(WP_Term $wordset_te
     $recording_transcription_mode = function_exists('ll_tools_sanitize_wordset_recording_transcription_mode')
         ? ll_tools_sanitize_wordset_recording_transcription_mode((string) ($settings['recording_transcription_mode'] ?? 'ipa'))
         : sanitize_key((string) ($settings['recording_transcription_mode'] ?? 'ipa'));
+    $dictionary_close_match_groups = is_array($settings['dictionary_close_match_groups'] ?? null)
+        ? (array) $settings['dictionary_close_match_groups']
+        : [];
+    $dictionary_close_match_groups_text = function_exists('ll_tools_format_wordset_dictionary_close_match_groups')
+        ? ll_tools_format_wordset_dictionary_close_match_groups($dictionary_close_match_groups)
+        : '';
+    $dictionary_optional_apostrophes = !empty($settings['dictionary_optional_apostrophes']);
     $translation_source_labels = ll_tools_wordset_page_get_category_translation_source_labels($language, $translation_language);
 
     ob_start();
@@ -12466,6 +12490,34 @@ function ll_tools_wordset_page_render_settings_language_tool(WP_Term $wordset_te
                             <p class="description"><?php echo esc_html__('Choose how the secondary recording text field behaves in this word set. Transliteration is better for romanized systems that do not need IPA formatting.', 'll-tools-text-domain'); ?></p>
                         </div>
                     </div>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Dictionary search', 'll-tools-text-domain'); ?></h3>
+                    <div class="ll-wordset-settings-card__field">
+                        <label for="ll-wordset-settings-dictionary-close-match-groups">
+                            <span><?php echo esc_html__('Close character groups', 'll-tools-text-domain'); ?></span>
+                            <textarea
+                                id="ll-wordset-settings-dictionary-close-match-groups"
+                                name="ll_wordset_dictionary_close_match_groups"
+                                class="large-text code"
+                                rows="6"
+                                spellcheck="false"
+                            ><?php echo esc_textarea($dictionary_close_match_groups_text); ?></textarea>
+                        </label>
+                        <p class="description"><?php echo esc_html__('One group per line. Separate characters with spaces, commas, slashes, or pipes. Search treats characters in the same group as close matches for this word set only.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                    <label for="ll-wordset-settings-dictionary-optional-apostrophes" class="ll-wordset-settings-card__checkbox-item">
+                        <input
+                            type="checkbox"
+                            id="ll-wordset-settings-dictionary-optional-apostrophes"
+                            name="ll_wordset_dictionary_optional_apostrophes"
+                            value="1"
+                            <?php checked($dictionary_optional_apostrophes, true); ?>
+                        />
+                        <span><?php echo esc_html__('Treat apostrophes as optional in dictionary search.', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <p class="description"><?php echo esc_html__('Use this for word sets where apostrophes mark optional pronunciation or pharyngeal information instead of changing dictionary identity.', 'll-tools-text-domain'); ?></p>
                 </div>
 
                 <div class="ll-wordset-settings-card__group">
@@ -16824,6 +16876,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $recording_transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? (string) ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
         : 'ipa';
+    $dictionary_close_match_groups = function_exists('ll_tools_get_wordset_dictionary_close_match_groups')
+        ? ll_tools_get_wordset_dictionary_close_match_groups([$wordset_id])
+        : [];
+    $dictionary_optional_apostrophes = function_exists('ll_tools_is_wordset_dictionary_apostrophe_optional')
+        ? ll_tools_is_wordset_dictionary_apostrophe_optional([$wordset_id])
+        : false;
     $autoplay_text_audio_answer_options = function_exists('ll_tools_should_autoplay_text_audio_answer_options')
         ? ll_tools_should_autoplay_text_audio_answer_options([$wordset_id])
         : false;
@@ -18760,6 +18818,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'category_translation_source' => $category_translation_source,
                     'word_title_language_role' => $word_title_language_role,
                     'recording_transcription_mode' => $recording_transcription_mode,
+                    'dictionary_close_match_groups' => $dictionary_close_match_groups,
+                    'dictionary_optional_apostrophes' => $dictionary_optional_apostrophes,
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 ?>
             <?php elseif ($settings_tool === 'visibility' && $can_manage_wordset_content) : ?>

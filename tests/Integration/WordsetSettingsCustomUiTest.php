@@ -812,6 +812,12 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $back_url = home_url('/custom-return/');
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $dictionary_groups_text = implode("\n", [
+            'i ' . "\u{0131}" . ' ' . "\u{00EE}" . ' y',
+            'u ' . "\u{00FC}" . ' ' . "\u{00FB}" . ' w',
+            "\u{011F}" . ' x',
+            'k q g',
+        ]);
 
         $_GET = [];
         $_POST = [
@@ -828,6 +834,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_category_translation_source' => 'translation',
             'll_wordset_word_title_language_role' => 'translation',
             'll_wordset_recording_transcription_mode' => 'transliteration',
+            'll_wordset_dictionary_close_match_groups' => $dictionary_groups_text,
+            'll_wordset_dictionary_optional_apostrophes' => '1',
         ];
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
@@ -848,6 +856,11 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('translation', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_SOURCE_META_KEY, true));
         $this->assertSame('translation', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, true));
         $this->assertSame('transliteration', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, true));
+        $this->assertSame(
+            ll_tools_sanitize_wordset_dictionary_close_match_groups($dictionary_groups_text),
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY, true)
+        );
+        $this->assertSame('1', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY, true));
     }
 
     public function test_study_settings_action_updates_hide_lesson_text_toggle(): void

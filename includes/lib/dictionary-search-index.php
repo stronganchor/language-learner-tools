@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION')) {
-    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '2');
+    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '3');
 }
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION', 'll_tools_dictionary_lookup_version');
@@ -209,27 +209,6 @@ function ll_tools_dictionary_prepare_lookup_value(string $value): string {
 }
 
 /**
- * Normalize and cap one close-match lookup value.
- */
-function ll_tools_dictionary_prepare_close_lookup_value(string $value): string {
-    $value = function_exists('ll_tools_dictionary_normalize_close_match_text')
-        ? ll_tools_dictionary_normalize_close_match_text($value)
-        : ll_tools_dictionary_prepare_lookup_value($value);
-
-    if ($value === '') {
-        return '';
-    }
-
-    if (function_exists('mb_substr')) {
-        $value = mb_substr($value, 0, 191, 'UTF-8');
-    } else {
-        $value = substr($value, 0, 191);
-    }
-
-    return trim((string) $value);
-}
-
-/**
  * Build lookup rows for one dictionary entry.
  *
  * @return array<int,array{entry_id:int,lookup_kind:string,lookup_value:string,value_length:int}>
@@ -274,26 +253,6 @@ function ll_tools_dictionary_build_lookup_rows_for_entry(int $entry_id): array {
                 : strlen($candidate),
         ];
 
-        $close_lookup_value = ll_tools_dictionary_prepare_close_lookup_value($candidate);
-        if ($close_lookup_value === '' || $close_lookup_value === $lookup_value) {
-            return;
-        }
-
-        $close_kind = $kind . '_close';
-        $close_lookup_key = $close_kind . ':' . $close_lookup_value;
-        if (isset($seen[$close_lookup_key])) {
-            return;
-        }
-
-        $seen[$close_lookup_key] = true;
-        $rows[] = [
-            'entry_id' => $entry_id,
-            'lookup_kind' => $close_kind,
-            'lookup_value' => $close_lookup_value,
-            'value_length' => function_exists('mb_strlen')
-                ? (int) mb_strlen($candidate, 'UTF-8')
-                : strlen($candidate),
-        ];
     };
 
     foreach ($headwords as $candidate) {
@@ -499,39 +458,163 @@ function ll_tools_dictionary_lookup_maybe_process_admin_batch(): void {
 add_action('admin_init', 'll_tools_dictionary_lookup_maybe_process_admin_batch', 20);
 
 /**
+ * Split a UTF-8 string into searchable characters.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_lookup_split_chars(string $value): array {
+    if ($value === '') {
+        return [];
+    }
+
+    $chars = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+    if (is_array($chars)) {
+        return array_values(array_map('strval', $chars));
+    }
+
+    return str_split($value);
+}
+
+/**
+ * Build lookup-table variants for a wordset's configured close-character groups.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_build_close_lookup_variants(string $lookup, int $wordset_id = 0): array {
+    $lookup = ll_tools_dictionary_prepare_lookup_value($lookup);
+    $wordset_id = max(0, (int) $wordset_id);
+    if ($lookup === '' || $wordset_id <= 0 || !function_exists('ll_tools_dictionary_get_close_match_character_groups')) {
+        return $lookup !== '' ? [$lookup] : [];
+    }
+
+    $max_variants = (int) apply_filters('ll_tools_dictionary_close_lookup_variant_limit', 128, $lookup, $wordset_id);
+    $max_variants = max(8, min(512, $max_variants));
+    $variant_map = [];
+    foreach (ll_tools_dictionary_get_close_match_character_groups($wordset_id) as $group) {
+        $group_variants = [];
+        foreach ($group as $char) {
+            $char_lookup = ll_tools_dictionary_prepare_lookup_value((string) $char);
+            if ($char_lookup !== '') {
+                $group_variants[$char_lookup] = true;
+            }
+        }
+        if (count($group_variants) < 2) {
+            continue;
+        }
+        foreach (array_keys($group_variants) as $char_lookup) {
+            $variant_map[$char_lookup] = array_keys($group_variants);
+        }
+    }
+
+    $variants = ['' => true];
+    foreach (ll_tools_dictionary_lookup_split_chars($lookup) as $char) {
+        $choices = $variant_map[$char] ?? [$char];
+        $next = [];
+        foreach (array_keys($variants) as $prefix) {
+            foreach ($choices as $choice) {
+                $candidate = $prefix . $choice;
+                $next[$candidate] = true;
+                if (count($next) >= $max_variants) {
+                    break 2;
+                }
+            }
+        }
+        $variants = $next;
+        if (count($variants) >= $max_variants) {
+            break;
+        }
+    }
+
+    if (function_exists('ll_tools_dictionary_uses_optional_search_apostrophes')
+        && ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id)
+        && function_exists('ll_tools_dictionary_strip_optional_search_apostrophes')
+    ) {
+        foreach (array_keys($variants) as $variant) {
+            $stripped = ll_tools_dictionary_prepare_lookup_value(
+                ll_tools_dictionary_strip_optional_search_apostrophes($variant)
+            );
+            if ($stripped !== '') {
+                $variants[$stripped] = true;
+            }
+            if (count($variants) >= $max_variants) {
+                break;
+            }
+        }
+    }
+
+    return array_values(array_filter(array_keys($variants), static function (string $variant): bool {
+        return $variant !== '';
+    }));
+}
+
+/**
+ * Return close variants that differ from the strict lookup value.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_get_non_strict_close_lookup_variants(string $lookup, int $wordset_id = 0): array {
+    $lookup = ll_tools_dictionary_prepare_lookup_value($lookup);
+    $variants = ll_tools_dictionary_build_close_lookup_variants($lookup, $wordset_id);
+
+    return array_values(array_filter($variants, static function (string $variant) use ($lookup): bool {
+        return $variant !== '' && $variant !== $lookup;
+    }));
+}
+
+/**
  * Query entry IDs from the indexed lookup table.
  *
  * @param string[] $statuses Allowed post statuses.
  * @param int      $limit      Optional maximum number of candidate IDs to return.
  * @return int[]
  */
-function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, array $statuses, string $search_scope = 'all', int $limit = 0): array {
+function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, array $statuses, string $search_scope = 'all', int $limit = 0, int $wordset_id = 0): array {
     static $request_cache = [];
     global $wpdb;
 
     $limit = max(0, $limit);
+    $wordset_id = max(0, (int) $wordset_id);
     $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
         ? ll_tools_dictionary_entry_normalize_lookup_value($search)
         : trim(strtolower($search));
     $search_scope = function_exists('ll_tools_dictionary_normalize_search_scope')
         ? ll_tools_dictionary_normalize_search_scope($search_scope)
         : trim(strtolower($search_scope));
-    $close_lookup = function_exists('ll_tools_dictionary_prepare_close_lookup_value')
-        ? ll_tools_dictionary_prepare_close_lookup_value($search)
-        : $lookup;
-    $has_close_lookup = ($close_lookup !== '');
-    $close_lookup_differs = ($close_lookup !== '' && $close_lookup !== $lookup);
     if ($lookup === '' || empty($statuses) || !ll_tools_dictionary_lookup_is_ready()) {
         return [];
     }
 
+    $has_close_config = function_exists('ll_tools_dictionary_wordset_has_close_search_config')
+        && ll_tools_dictionary_wordset_has_close_search_config($wordset_id);
+    $close_variants = $has_close_config
+        ? ll_tools_dictionary_get_non_strict_close_lookup_variants($lookup, $wordset_id)
+        : [];
+    $apostrophe_variants = [];
+    $apostrophes_optional = $has_close_config
+        && function_exists('ll_tools_dictionary_uses_optional_search_apostrophes')
+        && ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id)
+        && function_exists('ll_tools_dictionary_strip_optional_search_apostrophes');
+    if ($apostrophes_optional) {
+        foreach (array_merge([$lookup], $close_variants) as $variant) {
+            $stripped = ll_tools_dictionary_prepare_lookup_value(
+                ll_tools_dictionary_strip_optional_search_apostrophes((string) $variant)
+            );
+            if ($stripped !== '') {
+                $apostrophe_variants[$stripped] = true;
+            }
+        }
+    }
+    $apostrophe_variants = array_keys($apostrophe_variants);
+
     $cache_args = [
         'search' => $lookup,
-        'close_search' => $close_lookup,
         'search_scope' => $search_scope,
+        'wordset_id' => $wordset_id,
         'statuses' => array_values($statuses),
         'limit' => $limit,
-        'close_match_schema' => 1,
+        'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
+            ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)
+            : '',
     ];
     $cached = function_exists('ll_tools_dictionary_browser_get_cached_payload')
         ? ll_tools_dictionary_browser_get_cached_payload('lookup_entry_ids', $cache_args, $request_cache)
@@ -547,23 +630,15 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
 
     $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
     $lookup_length = function_exists('mb_strlen') ? mb_strlen($lookup, 'UTF-8') : strlen($lookup);
-    if ($close_lookup_differs) {
-        $close_lookup_length = function_exists('mb_strlen') ? mb_strlen($close_lookup, 'UTF-8') : strlen($close_lookup);
-        $lookup_length = max($lookup_length, $close_lookup_length);
-    }
     $use_contains = ($lookup_length >= 3);
 
     $normal_kinds = [];
-    $close_kinds = [];
     if ($search_scope === 'headword') {
         $normal_kinds = ['headword'];
-        $close_kinds = ['headword_close'];
     } elseif ($search_scope !== '' && $search_scope !== 'all') {
         $normal_kinds = ['translation'];
-        $close_kinds = ['translation_close'];
     } else {
         $normal_kinds = ['headword', 'translation'];
-        $close_kinds = ['headword_close', 'translation_close'];
     }
 
     $run_lookup_query = static function (bool $contains_only) use (
@@ -572,11 +647,9 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $status_placeholders,
         $statuses,
         $lookup,
-        $close_lookup,
-        $has_close_lookup,
-        $close_lookup_differs,
+        $close_variants,
+        $apostrophe_variants,
         $normal_kinds,
-        $close_kinds,
         $limit
     ): array {
         $search_clauses = [];
@@ -586,6 +659,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
 
         $add_clause = static function (
             string $kind,
+            string $expression,
             string $operator,
             string $value,
             int $rank
@@ -594,10 +668,10 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                 return;
             }
 
-            $search_clauses[] = "(l.lookup_kind = %s AND l.lookup_value {$operator} %s)";
+            $search_clauses[] = "(l.lookup_kind = %s AND {$expression} {$operator} %s)";
             $where_params[] = $kind;
             $where_params[] = $value;
-            $case_sql[] = "WHEN l.lookup_kind = %s AND l.lookup_value {$operator} %s THEN {$rank}";
+            $case_sql[] = "WHEN l.lookup_kind = %s AND {$expression} {$operator} %s THEN {$rank}";
             $case_params[] = $kind;
             $case_params[] = $value;
         };
@@ -606,20 +680,22 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             $contains_lookup = '%' . $wpdb->esc_like($lookup) . '%';
             foreach ($normal_kinds as $kind) {
                 $rank = ($kind === 'headword') ? 4 : 5;
-                $add_clause((string) $kind, 'LIKE', $contains_lookup, $rank);
+                $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $contains_lookup, $rank);
             }
 
-            if ($has_close_lookup) {
-                $contains_close_lookup = '%' . $wpdb->esc_like($close_lookup) . '%';
-                if ($close_lookup_differs) {
-                    foreach ($normal_kinds as $kind) {
-                        $rank = ($kind === 'headword') ? 10 : 11;
-                        $add_clause((string) $kind, 'LIKE', $contains_close_lookup, $rank);
-                    }
+            foreach ($close_variants as $variant) {
+                $contains_variant = '%' . $wpdb->esc_like((string) $variant) . '%';
+                foreach ($normal_kinds as $kind) {
+                    $rank = ($kind === 'headword') ? 10 : 11;
+                    $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $contains_variant, $rank);
                 }
-                foreach ($close_kinds as $kind) {
-                    $rank = ($kind === 'headword_close') ? 10 : 11;
-                    $add_clause((string) $kind, 'LIKE', $contains_close_lookup, $rank);
+            }
+
+            foreach ($apostrophe_variants as $variant) {
+                $contains_variant = '%' . $wpdb->esc_like((string) $variant) . '%';
+                foreach ($normal_kinds as $kind) {
+                    $rank = ($kind === 'headword') ? 10 : 11;
+                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $contains_variant, $rank);
                 }
             }
         } else {
@@ -627,25 +703,27 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             foreach ($normal_kinds as $kind) {
                 $exact_rank = ($kind === 'headword') ? 0 : 1;
                 $prefix_rank = ($kind === 'headword') ? 2 : 3;
-                $add_clause((string) $kind, '=', $lookup, $exact_rank);
-                $add_clause((string) $kind, 'LIKE', $prefix_lookup, $prefix_rank);
+                $add_clause((string) $kind, 'l.lookup_value', '=', $lookup, $exact_rank);
+                $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $prefix_lookup, $prefix_rank);
             }
 
-            if ($has_close_lookup) {
-                $prefix_close_lookup = $wpdb->esc_like($close_lookup) . '%';
-                if ($close_lookup_differs) {
-                    foreach ($normal_kinds as $kind) {
-                        $exact_rank = ($kind === 'headword') ? 6 : 7;
-                        $prefix_rank = ($kind === 'headword') ? 8 : 9;
-                        $add_clause((string) $kind, '=', $close_lookup, $exact_rank);
-                        $add_clause((string) $kind, 'LIKE', $prefix_close_lookup, $prefix_rank);
-                    }
+            foreach ($close_variants as $variant) {
+                $prefix_variant = $wpdb->esc_like((string) $variant) . '%';
+                foreach ($normal_kinds as $kind) {
+                    $exact_rank = ($kind === 'headword') ? 6 : 7;
+                    $prefix_rank = ($kind === 'headword') ? 8 : 9;
+                    $add_clause((string) $kind, 'l.lookup_value', '=', (string) $variant, $exact_rank);
+                    $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $prefix_variant, $prefix_rank);
                 }
-                foreach ($close_kinds as $kind) {
-                    $exact_rank = ($kind === 'headword_close') ? 6 : 7;
-                    $prefix_rank = ($kind === 'headword_close') ? 8 : 9;
-                    $add_clause((string) $kind, '=', $close_lookup, $exact_rank);
-                    $add_clause((string) $kind, 'LIKE', $prefix_close_lookup, $prefix_rank);
+            }
+
+            foreach ($apostrophe_variants as $variant) {
+                $prefix_variant = $wpdb->esc_like((string) $variant) . '%';
+                foreach ($normal_kinds as $kind) {
+                    $exact_rank = ($kind === 'headword') ? 6 : 7;
+                    $prefix_rank = ($kind === 'headword') ? 8 : 9;
+                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", '=', (string) $variant, $exact_rank);
+                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $prefix_variant, $prefix_rank);
                 }
             }
         }

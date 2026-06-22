@@ -48,6 +48,12 @@ if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY')) {
     define('LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY', 'll_wordset_speaking_game_access');
 }
+if (!defined('LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY')) {
+    define('LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY', 'll_wordset_dictionary_close_match_groups');
+}
+if (!defined('LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY')) {
+    define('LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY', 'll_wordset_dictionary_optional_apostrophes');
+}
 if (!defined('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION')) {
     define('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION', 'll_tools_wordset_language_settings_migrated_version');
 }
@@ -493,6 +499,145 @@ function ll_tools_normalize_wordset_setting_ids($wordset_ids): array {
     }
 
     return array_map('intval', array_keys($normalized));
+}
+
+/**
+ * Sanitize close-character groups used by wordset-scoped dictionary search.
+ *
+ * @param mixed $value Raw textarea text or stored array data.
+ * @return array<int,array<int,string>>
+ */
+function ll_tools_sanitize_wordset_dictionary_close_match_groups($value): array {
+    $raw_groups = [];
+    if (is_string($value)) {
+        $raw_groups = preg_split('/\r\n|\r|\n/', $value) ?: [];
+    } elseif (is_array($value)) {
+        $raw_groups = $value;
+    } else {
+        return [];
+    }
+
+    $normalize_key = static function (string $value): string {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+    };
+
+    $normalized_groups = [];
+    $seen_groups = [];
+    foreach ($raw_groups as $group) {
+        if (is_array($group)) {
+            $tokens = array_values($group);
+        } else {
+            $line = trim((string) $group);
+            if ($line === '') {
+                continue;
+            }
+            $tokens = preg_split('/[\s,\/|;]+/u', $line, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        $chars = [];
+        $seen_chars = [];
+        foreach ($tokens as $token) {
+            $char = trim((string) $token);
+            if ($char === '') {
+                continue;
+            }
+
+            $char = wp_strip_all_tags($char);
+            $char = preg_replace('/[\p{C}]+/u', '', (string) $char);
+            $char = trim((string) $char);
+            if ($char === '') {
+                continue;
+            }
+
+            $char_key = $normalize_key($char);
+            if ($char_key === '' || isset($seen_chars[$char_key])) {
+                continue;
+            }
+
+            $seen_chars[$char_key] = true;
+            $chars[] = $char;
+            if (count($chars) >= 16) {
+                break;
+            }
+        }
+
+        if (count($chars) < 2) {
+            continue;
+        }
+
+        $group_key = implode("\n", array_keys($seen_chars));
+        if (isset($seen_groups[$group_key])) {
+            continue;
+        }
+
+        $seen_groups[$group_key] = true;
+        $normalized_groups[] = $chars;
+        if (count($normalized_groups) >= 24) {
+            break;
+        }
+    }
+
+    return $normalized_groups;
+}
+
+/**
+ * Format stored close-character groups for the wordset settings textarea.
+ *
+ * @param array<int,array<int,string>> $groups
+ */
+function ll_tools_format_wordset_dictionary_close_match_groups(array $groups): string {
+    $lines = [];
+    foreach (ll_tools_sanitize_wordset_dictionary_close_match_groups($groups) as $group) {
+        $lines[] = implode(' ', array_map('strval', $group));
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Resolve close-character groups for dictionary search in one wordset context.
+ *
+ * @param mixed $wordset_ids
+ * @return array<int,array<int,string>>
+ */
+function ll_tools_get_wordset_dictionary_close_match_groups($wordset_ids = []): array {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_dictionary_close_match_groups(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY, true)
+        );
+    }
+
+    return [];
+}
+
+/**
+ * Resolve whether apostrophe-like marker characters are optional for dictionary search.
+ *
+ * @param mixed $wordset_ids
+ */
+function ll_tools_is_wordset_dictionary_apostrophe_optional($wordset_ids = []): bool {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_normalize_wordset_boolean_setting(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY, true)
+        ) === 1;
+    }
+
+    return false;
 }
 
 /**

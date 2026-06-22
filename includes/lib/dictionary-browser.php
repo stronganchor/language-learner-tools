@@ -201,45 +201,74 @@ function ll_tools_dictionary_normalize_search_text(string $value): string {
  *
  * @return array<int,array<int,string>>
  */
-function ll_tools_dictionary_get_close_match_character_groups(): array {
-    $groups = [
-        ['i', "\u{0131}", "\u{00EE}", 'y'],
-        ['u', "\u{00FC}", "\u{00FB}", 'w'],
-        ['o', "\u{00F6}"],
-        ['c', "\u{00E7}"],
-        ['s', "\u{015F}"],
-        ['e', "\u{00EA}"],
+function ll_tools_dictionary_get_close_match_character_groups(int $wordset_id = 0): array {
+    $wordset_id = max(0, (int) $wordset_id);
+    $groups = ($wordset_id > 0 && function_exists('ll_tools_get_wordset_dictionary_close_match_groups'))
+        ? ll_tools_get_wordset_dictionary_close_match_groups([$wordset_id])
+        : [];
+
+    $groups = apply_filters('ll_tools_dictionary_close_match_character_groups', $groups, $wordset_id);
+
+    return function_exists('ll_tools_sanitize_wordset_dictionary_close_match_groups') && is_array($groups)
+        ? ll_tools_sanitize_wordset_dictionary_close_match_groups($groups)
+        : [];
+}
+
+/**
+ * Determine whether apostrophe-like marker characters are optional in a wordset.
+ */
+function ll_tools_dictionary_uses_optional_search_apostrophes(int $wordset_id = 0): bool {
+    $wordset_id = max(0, (int) $wordset_id);
+    if ($wordset_id <= 0 || !function_exists('ll_tools_is_wordset_dictionary_apostrophe_optional')) {
+        return false;
+    }
+
+    return (bool) apply_filters(
+        'll_tools_dictionary_optional_search_apostrophes',
+        ll_tools_is_wordset_dictionary_apostrophe_optional([$wordset_id]),
+        $wordset_id
+    );
+}
+
+/**
+ * Strip apostrophe-like pharyngeal markers when a wordset configures them as optional.
+ */
+function ll_tools_dictionary_strip_optional_search_apostrophes(string $value): string {
+    return str_replace(
+        ["\xE2\x80\x98", "\xE2\x80\x99", "\xE2\x80\x9B", "\xCA\xBC", "'", '`'],
+        '',
+        $value
+    );
+}
+
+/**
+ * Determine whether a wordset has any close-search behavior configured.
+ */
+function ll_tools_dictionary_wordset_has_close_search_config(int $wordset_id = 0): bool {
+    $wordset_id = max(0, (int) $wordset_id);
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    return !empty(ll_tools_dictionary_get_close_match_character_groups($wordset_id))
+        || ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id);
+}
+
+/**
+ * Build a stable cache fingerprint for wordset close-search settings.
+ */
+function ll_tools_dictionary_get_close_match_config_hash(int $wordset_id = 0): string {
+    $wordset_id = max(0, (int) $wordset_id);
+    if ($wordset_id <= 0) {
+        return '';
+    }
+
+    $payload = [
+        'groups' => ll_tools_dictionary_get_close_match_character_groups($wordset_id),
+        'optional_apostrophes' => ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id) ? 1 : 0,
     ];
 
-    $groups = apply_filters('ll_tools_dictionary_close_match_character_groups', $groups);
-    if (!is_array($groups)) {
-        return [];
-    }
-
-    $normalized_groups = [];
-    foreach ($groups as $group) {
-        if (!is_array($group)) {
-            continue;
-        }
-
-        $chars = [];
-        $seen = [];
-        foreach ($group as $char) {
-            $char = trim((string) $char);
-            if ($char === '' || isset($seen[$char])) {
-                continue;
-            }
-
-            $seen[$char] = true;
-            $chars[] = $char;
-        }
-
-        if (count($chars) > 1) {
-            $normalized_groups[] = $chars;
-        }
-    }
-
-    return $normalized_groups;
+    return md5((string) wp_json_encode($payload));
 }
 
 /**
@@ -247,16 +276,18 @@ function ll_tools_dictionary_get_close_match_character_groups(): array {
  *
  * @return array<string,string>
  */
-function ll_tools_dictionary_get_close_match_character_map(): array {
+function ll_tools_dictionary_get_close_match_character_map(int $wordset_id = 0): array {
     $map = [];
 
-    foreach (ll_tools_dictionary_get_close_match_character_groups() as $group) {
+    foreach (ll_tools_dictionary_get_close_match_character_groups($wordset_id) as $group) {
         $canonical = '';
         $variants = [];
 
         foreach ($group as $char) {
             $char = (string) $char;
-            $normalized_char = ll_tools_dictionary_normalize_search_text($char);
+            $normalized_char = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+                ? ll_tools_dictionary_entry_normalize_lookup_value($char)
+                : (function_exists('mb_strtolower') ? mb_strtolower($char, 'UTF-8') : strtolower($char));
             if ($canonical === '' && $normalized_char !== '') {
                 $canonical = $normalized_char;
             }
@@ -264,7 +295,12 @@ function ll_tools_dictionary_get_close_match_character_map(): array {
             foreach ([$char, $normalized_char] as $variant) {
                 $variant = trim((string) $variant);
                 if ($variant !== '') {
-                    $variants[$variant] = true;
+                    $variant = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+                        ? ll_tools_dictionary_entry_normalize_lookup_value($variant)
+                        : (function_exists('mb_strtolower') ? mb_strtolower($variant, 'UTF-8') : strtolower($variant));
+                    if ($variant !== '') {
+                        $variants[$variant] = true;
+                    }
                 }
             }
         }
@@ -284,17 +320,25 @@ function ll_tools_dictionary_get_close_match_character_map(): array {
 /**
  * Normalize text to a dictionary-search key that folds configured close sounds.
  */
-function ll_tools_dictionary_normalize_close_match_text(string $value): string {
-    $value = ll_tools_dictionary_normalize_search_text($value);
+function ll_tools_dictionary_normalize_close_match_text(string $value, int $wordset_id = 0): string {
+    $wordset_id = max(0, (int) $wordset_id);
+    $value = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+        ? ll_tools_dictionary_entry_normalize_lookup_value($value)
+        : (function_exists('mb_strtolower') ? mb_strtolower(trim($value), 'UTF-8') : strtolower(trim($value)));
     if ($value === '') {
         return '';
     }
 
-    $map = ll_tools_dictionary_get_close_match_character_map();
+    if (ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id)) {
+        $value = ll_tools_dictionary_strip_optional_search_apostrophes($value);
+    }
+
+    $map = ll_tools_dictionary_get_close_match_character_map($wordset_id);
     if (!empty($map)) {
         $value = strtr($value, $map);
     }
 
+    $value = preg_replace('/[^\p{L}\p{N}\s\'"-]+/u', ' ', (string) $value);
     $value = preg_replace('/\s+/u', ' ', (string) $value);
 
     return trim((string) $value);
@@ -4049,6 +4093,27 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         $pos_slug,
         $limit
     );
+    $has_close_config = function_exists('ll_tools_dictionary_wordset_has_close_search_config')
+        && ll_tools_dictionary_wordset_has_close_search_config($wordset_id);
+    $close_variants = ($has_close_config && function_exists('ll_tools_dictionary_get_non_strict_close_lookup_variants'))
+        ? ll_tools_dictionary_get_non_strict_close_lookup_variants($lookup, $wordset_id)
+        : [];
+    $apostrophe_variants = [];
+    $apostrophes_optional = $has_close_config
+        && function_exists('ll_tools_dictionary_uses_optional_search_apostrophes')
+        && ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id)
+        && function_exists('ll_tools_dictionary_strip_optional_search_apostrophes');
+    if ($apostrophes_optional) {
+        foreach (array_merge([$lookup], $close_variants) as $variant) {
+            $stripped = function_exists('ll_tools_dictionary_prepare_lookup_value')
+                ? ll_tools_dictionary_prepare_lookup_value(ll_tools_dictionary_strip_optional_search_apostrophes((string) $variant))
+                : strtolower(ll_tools_dictionary_strip_optional_search_apostrophes((string) $variant));
+            if ($stripped !== '') {
+                $apostrophe_variants[$stripped] = true;
+            }
+        }
+    }
+    $apostrophe_variants = array_keys($apostrophe_variants);
 
     $cache_args = [
         'search' => $search,
@@ -4058,6 +4123,9 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         'pos_slug' => $pos_slug,
         'limit' => $limit,
         'allow_contains' => $allow_contains ? 1 : 0,
+        'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
+            ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)
+            : '',
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('search_meta_entry_ids', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -4083,6 +4151,8 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         $search_norm,
         $norm_prefix,
         $norm_contains,
+        $close_variants,
+        $apostrophe_variants,
         $limit
     ): array {
         $joins = [];
@@ -4128,6 +4198,21 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                 $params[] = $lookup_contains;
                 $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 4';
                 $case_params[] = $lookup_contains;
+
+                foreach ($close_variants as $variant) {
+                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = 'lookup_title.meta_value LIKE %s';
+                    $params[] = $variant_contains;
+                    $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 6';
+                    $case_params[] = $variant_contains;
+                }
+                foreach ($apostrophe_variants as $variant) {
+                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = "REPLACE(lookup_title.meta_value, CHAR(39), '') LIKE %s";
+                    $params[] = $variant_contains;
+                    $case_sql[] = "WHEN REPLACE(lookup_title.meta_value, CHAR(39), '') LIKE %s THEN 6";
+                    $case_params[] = $variant_contains;
+                }
             } else {
                 $search_clauses[] = 'lookup_title.meta_value = %s';
                 $params[] = $lookup;
@@ -4138,6 +4223,29 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                 $case_params[] = $lookup;
                 $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 2';
                 $case_params[] = $lookup_prefix;
+
+                foreach ($close_variants as $variant) {
+                    $variant_prefix = $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = 'lookup_title.meta_value = %s';
+                    $params[] = (string) $variant;
+                    $search_clauses[] = 'lookup_title.meta_value LIKE %s';
+                    $params[] = $variant_prefix;
+                    $case_sql[] = 'WHEN lookup_title.meta_value = %s THEN 6';
+                    $case_params[] = (string) $variant;
+                    $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 8';
+                    $case_params[] = $variant_prefix;
+                }
+                foreach ($apostrophe_variants as $variant) {
+                    $variant_prefix = $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = "REPLACE(lookup_title.meta_value, CHAR(39), '') = %s";
+                    $params[] = (string) $variant;
+                    $search_clauses[] = "REPLACE(lookup_title.meta_value, CHAR(39), '') LIKE %s";
+                    $params[] = $variant_prefix;
+                    $case_sql[] = "WHEN REPLACE(lookup_title.meta_value, CHAR(39), '') = %s THEN 6";
+                    $case_params[] = (string) $variant;
+                    $case_sql[] = "WHEN REPLACE(lookup_title.meta_value, CHAR(39), '') LIKE %s THEN 8";
+                    $case_params[] = $variant_prefix;
+                }
 
                 if ($search_norm !== '' && $search_norm !== $lookup) {
                     $joins[] = "
@@ -4166,6 +4274,21 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                 $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 5';
                 $case_params[] = $lookup_contains;
 
+                foreach ($close_variants as $variant) {
+                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
+                    $params[] = $variant_contains;
+                    $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 7';
+                    $case_params[] = $variant_contains;
+                }
+                foreach ($apostrophe_variants as $variant) {
+                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = "REPLACE(lookup_translation.meta_value, CHAR(39), '') LIKE %s";
+                    $params[] = $variant_contains;
+                    $case_sql[] = "WHEN REPLACE(lookup_translation.meta_value, CHAR(39), '') LIKE %s THEN 7";
+                    $case_params[] = $variant_contains;
+                }
+
                 if ($search_norm !== '') {
                     $joins[] = "
                         LEFT JOIN {$wpdb->postmeta} search_index
@@ -4187,6 +4310,29 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                 $case_params[] = $lookup;
                 $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 3';
                 $case_params[] = $lookup_prefix;
+
+                foreach ($close_variants as $variant) {
+                    $variant_prefix = $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = 'lookup_translation.meta_value = %s';
+                    $params[] = (string) $variant;
+                    $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
+                    $params[] = $variant_prefix;
+                    $case_sql[] = 'WHEN lookup_translation.meta_value = %s THEN 7';
+                    $case_params[] = (string) $variant;
+                    $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 9';
+                    $case_params[] = $variant_prefix;
+                }
+                foreach ($apostrophe_variants as $variant) {
+                    $variant_prefix = $wpdb->esc_like((string) $variant) . '%';
+                    $search_clauses[] = "REPLACE(lookup_translation.meta_value, CHAR(39), '') = %s";
+                    $params[] = (string) $variant;
+                    $search_clauses[] = "REPLACE(lookup_translation.meta_value, CHAR(39), '') LIKE %s";
+                    $params[] = $variant_prefix;
+                    $case_sql[] = "WHEN REPLACE(lookup_translation.meta_value, CHAR(39), '') = %s THEN 7";
+                    $case_params[] = (string) $variant;
+                    $case_sql[] = "WHEN REPLACE(lookup_translation.meta_value, CHAR(39), '') LIKE %s THEN 9";
+                    $case_params[] = $variant_prefix;
+                }
             }
         }
 
@@ -4348,7 +4494,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         && ll_tools_dictionary_lookup_is_ready()
         && function_exists('ll_tools_dictionary_query_entry_ids_from_lookup_table')
     ) {
-        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope, $candidate_fetch_limit);
+        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope, $candidate_fetch_limit, $wordset_id);
         $search_results_pre_ranked = ll_tools_dictionary_search_scopes_use_all($search_scopes) && !empty($candidate_ids);
         if (!empty($candidate_ids)) {
             $needs_meta_cache = (!ll_tools_dictionary_search_scopes_use_all($search_scopes) || !empty($pos_slugs) || !empty($source_ids) || $dialect !== '');
@@ -4407,7 +4553,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             continue;
         }
         if ($search !== '' && !ll_tools_dictionary_search_scopes_use_all($search_scopes)) {
-            $rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($entry_id, $search, $search_scopes);
+            $rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($entry_id, $search, $search_scopes, $wordset_id);
             if ((int) ($rank['bucket'] ?? 9) >= 9) {
                 continue;
             }
@@ -4430,9 +4576,9 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             return $left_id <=> $right_id;
         });
     } elseif ($search !== '' && !empty($filtered_ids) && !$search_results_pre_ranked) {
-        usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $search_scopes, $title_language): int {
-            $left_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($left_id, $search, $search_scopes);
-            $right_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($right_id, $search, $search_scopes);
+        usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $search_scopes, $title_language, $wordset_id): int {
+            $left_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($left_id, $search, $search_scopes, $wordset_id);
+            $right_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($right_id, $search, $search_scopes, $wordset_id);
 
             foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
                 $compared = ((int) ($left_rank[$field] ?? 0)) <=> ((int) ($right_rank[$field] ?? 0));
@@ -5023,13 +5169,14 @@ function ll_tools_dictionary_language_matches(string $stored, string $requested)
 /**
  * Compute a small lookup score for one text candidate.
  */
-function ll_tools_dictionary_lookup_text_score(string $candidate, string $term): int {
+function ll_tools_dictionary_lookup_text_score(string $candidate, string $term, int $wordset_id = 0): int {
     $candidate_lookup = ll_tools_dictionary_entry_normalize_lookup_value($candidate);
     $term_lookup = ll_tools_dictionary_entry_normalize_lookup_value($term);
     $candidate_norm = ll_tools_dictionary_normalize_search_text($candidate);
     $term_norm = ll_tools_dictionary_normalize_search_text($term);
-    $candidate_close = ll_tools_dictionary_normalize_close_match_text($candidate);
-    $term_close = ll_tools_dictionary_normalize_close_match_text($term);
+    $has_close_config = ll_tools_dictionary_wordset_has_close_search_config($wordset_id);
+    $candidate_close = $has_close_config ? ll_tools_dictionary_normalize_close_match_text($candidate, $wordset_id) : '';
+    $term_close = $has_close_config ? ll_tools_dictionary_normalize_close_match_text($term, $wordset_id) : '';
 
     if ($candidate_lookup !== '' && $candidate_lookup === $term_lookup) {
         return 0;
@@ -5176,19 +5323,19 @@ function ll_tools_dictionary_get_entry_translation_candidates(array $senses, str
  * @param string[]|string $scopes
  * @return array{bucket:int,secondary_score:int,secondary_length:int,title:string}
  */
-function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, string $term, $scopes = ['all']): array {
+function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, string $term, $scopes = ['all'], int $wordset_id = 0): array {
     static $request_cache = [];
 
     $normalized_scopes = ll_tools_dictionary_normalize_search_scopes($scopes);
     if (ll_tools_dictionary_search_scopes_use_all($normalized_scopes)) {
-        return ll_tools_dictionary_get_entry_search_rank($entry_id, $term, 'all');
+        return ll_tools_dictionary_get_entry_search_rank($entry_id, $term, 'all', $wordset_id);
     }
 
     if (count($normalized_scopes) === 1) {
-        return ll_tools_dictionary_get_entry_search_rank($entry_id, $term, (string) $normalized_scopes[0]);
+        return ll_tools_dictionary_get_entry_search_rank($entry_id, $term, (string) $normalized_scopes[0], $wordset_id);
     }
 
-    $cache_key = $entry_id . ':' . implode('|', $normalized_scopes) . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
+    $cache_key = $entry_id . ':' . max(0, $wordset_id) . ':' . ll_tools_dictionary_get_close_match_config_hash($wordset_id) . ':' . implode('|', $normalized_scopes) . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
     if ($cache_key !== '' && isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
         return $request_cache[$cache_key];
     }
@@ -5201,7 +5348,7 @@ function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, str
     ];
 
     foreach ($normalized_scopes as $scope) {
-        $rank = ll_tools_dictionary_get_entry_search_rank($entry_id, $term, (string) $scope);
+        $rank = ll_tools_dictionary_get_entry_search_rank($entry_id, $term, (string) $scope, $wordset_id);
         $is_better = false;
 
         foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
@@ -5233,13 +5380,14 @@ function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, str
  *
  * @return array{bucket:int,secondary_score:int,secondary_length:int,title:string}
  */
-function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, string $scope = 'all'): array {
+function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, string $scope = 'all', int $wordset_id = 0): array {
     static $request_cache = [];
 
     $entry_id = (int) $entry_id;
     $term = trim((string) $term);
     $scope = ll_tools_dictionary_normalize_search_scope($scope);
-    $cache_key = $entry_id . ':' . $scope . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
+    $wordset_id = max(0, (int) $wordset_id);
+    $cache_key = $entry_id . ':' . $wordset_id . ':' . ll_tools_dictionary_get_close_match_config_hash($wordset_id) . ':' . $scope . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
     if ($cache_key !== '' && isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
         return $request_cache[$cache_key];
     }
@@ -5264,7 +5412,7 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, 
     $headword_score = 99;
     $headword_length = PHP_INT_MAX;
     foreach ($headword_candidates as $candidate) {
-        $score = ll_tools_dictionary_lookup_text_score($candidate, $term);
+        $score = ll_tools_dictionary_lookup_text_score($candidate, $term, $wordset_id);
         $length = $measure_length($candidate);
         if ($score < $headword_score || ($score === $headword_score && $length < $headword_length)) {
             $headword_score = $score;
@@ -5275,7 +5423,7 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, 
     $translation_score = 99;
     $translation_length = PHP_INT_MAX;
     foreach ($translation_candidates as $candidate) {
-        $score = ll_tools_dictionary_lookup_text_score($candidate, $term);
+        $score = ll_tools_dictionary_lookup_text_score($candidate, $term, $wordset_id);
         $length = $measure_length($candidate);
         if ($score < $translation_score || ($score === $translation_score && $length < $translation_length)) {
             $translation_score = $score;
@@ -5286,7 +5434,7 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, 
     $search_index = ($scope === 'all')
         ? trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY, true))
         : '';
-    $fulltext_score = $search_index !== '' ? ll_tools_dictionary_lookup_text_score($search_index, $term) : 99;
+    $fulltext_score = $search_index !== '' ? ll_tools_dictionary_lookup_text_score($search_index, $term, $wordset_id) : 99;
 
     $bucket = 9;
     $secondary_score = $fulltext_score;
