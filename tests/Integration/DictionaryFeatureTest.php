@@ -1628,6 +1628,22 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('Kwe', $kwe_titles[0] ?? '');
         $this->assertContains('Kue', $kwe_titles);
 
+        $global_kwe_query = ll_tools_dictionary_query_entries([
+            'search' => 'kwe',
+            'wordset_id' => 0,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $global_kwe_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($global_kwe_query['items'] ?? [])));
+
+        $this->assertContains('Kue', $global_kwe_titles);
+        $this->assertNotContains('Kue Plain', $global_kwe_titles);
+
         $pising_query = ll_tools_dictionary_query_entries([
             'search' => 'pising',
             'wordset_id' => $zazaki_wordset_id,
@@ -1657,6 +1673,20 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertContains($pising_title, $pising_titles);
         $this->assertContains($pising_title, $dotless_titles);
+
+        $global_pising_query = ll_tools_dictionary_query_entries([
+            'search' => 'pising',
+            'wordset_id' => 0,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $global_pising_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($global_pising_query['items'] ?? [])));
+        $this->assertContains($pising_title, $global_pising_titles);
 
         $x_query = ll_tools_dictionary_query_entries([
             'search' => 'xale',

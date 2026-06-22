@@ -194,6 +194,172 @@ function ll_tools_dictionary_normalize_search_text(string $value): string {
 }
 
 /**
+ * Return configured visible wordsets that can contribute to global close search.
+ *
+ * @return int[]
+ */
+function ll_tools_dictionary_get_global_close_search_wordset_ids(): array {
+    static $cache = [];
+
+    $user_id = (int) get_current_user_id();
+    $cache_key = (string) $user_id;
+    if (array_key_exists($cache_key, $cache)) {
+        return $cache[$cache_key];
+    }
+
+    if (
+        !defined('LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY')
+        || !defined('LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY')
+        || !function_exists('get_terms')
+    ) {
+        $cache[$cache_key] = [];
+        return [];
+    }
+
+    $term_ids = get_terms([
+        'taxonomy' => 'wordset',
+        'hide_empty' => false,
+        'fields' => 'ids',
+        'meta_query' => [
+            'relation' => 'OR',
+            [
+                'key' => LL_TOOLS_WORDSET_DICTIONARY_CLOSE_MATCH_GROUPS_META_KEY,
+                'compare' => 'EXISTS',
+            ],
+            [
+                'key' => LL_TOOLS_WORDSET_DICTIONARY_OPTIONAL_APOSTROPHES_META_KEY,
+                'compare' => 'EXISTS',
+            ],
+        ],
+    ]);
+    if (is_wp_error($term_ids)) {
+        $term_ids = [];
+    }
+
+    $ids = [];
+    foreach ((array) $term_ids as $term_id) {
+        $wordset_id = (int) $term_id;
+        if ($wordset_id <= 0) {
+            continue;
+        }
+        if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_id, $user_id)) {
+            continue;
+        }
+        $ids[] = $wordset_id;
+    }
+
+    $ids = array_values(array_unique($ids));
+    sort($ids, SORT_NUMERIC);
+    $ids = array_values(array_filter($ids, static function (int $wordset_id): bool {
+        return (
+            function_exists('ll_tools_get_wordset_dictionary_close_match_groups')
+            && !empty(ll_tools_get_wordset_dictionary_close_match_groups([$wordset_id]))
+        ) || (
+            function_exists('ll_tools_is_wordset_dictionary_apostrophe_optional')
+            && ll_tools_is_wordset_dictionary_apostrophe_optional([$wordset_id])
+        );
+    }));
+
+    $ids = apply_filters('ll_tools_dictionary_global_close_search_wordset_ids', $ids, $user_id);
+    $cache[$cache_key] = array_values(array_unique(array_filter(array_map('intval', (array) $ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+
+    return $cache[$cache_key];
+}
+
+/**
+ * Return the wordsets whose close-search settings apply to this context.
+ *
+ * A zero wordset is the global dictionary context, which inherits merged
+ * settings from configured visible wordsets instead of hard-coded language data.
+ *
+ * @return int[]
+ */
+function ll_tools_dictionary_get_close_match_config_wordset_ids(int $wordset_id = 0): array {
+    $wordset_id = max(0, (int) $wordset_id);
+    if ($wordset_id > 0) {
+        return [$wordset_id];
+    }
+
+    return ll_tools_dictionary_get_global_close_search_wordset_ids();
+}
+
+/**
+ * Merge close-character groups, unioning groups that share at least one member.
+ *
+ * @param array<int,array<int,string>> $groups
+ * @return array<int,array<int,string>>
+ */
+function ll_tools_dictionary_merge_close_match_character_groups(array $groups): array {
+    if (!function_exists('ll_tools_sanitize_wordset_dictionary_close_match_groups')) {
+        return [];
+    }
+
+    $sets = [];
+    $normalize_key = static function (string $value): string {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+    };
+
+    foreach (ll_tools_sanitize_wordset_dictionary_close_match_groups($groups) as $group) {
+        $group_chars = [];
+        $group_keys = [];
+        foreach ($group as $char) {
+            $char = (string) $char;
+            $key = $normalize_key($char);
+            if ($key === '') {
+                continue;
+            }
+            $group_keys[$key] = true;
+            $group_chars[$key] = $char;
+        }
+        if (count($group_chars) < 2) {
+            continue;
+        }
+
+        $matching_indexes = [];
+        foreach ($sets as $index => $set) {
+            if (!empty(array_intersect_key((array) ($set['keys'] ?? []), $group_keys))) {
+                $matching_indexes[] = (int) $index;
+            }
+        }
+
+        if (empty($matching_indexes)) {
+            $sets[] = [
+                'keys' => $group_keys,
+                'chars' => $group_chars,
+            ];
+            continue;
+        }
+
+        $target_index = array_shift($matching_indexes);
+        foreach ($group_chars as $key => $char) {
+            $sets[$target_index]['keys'][$key] = true;
+            $sets[$target_index]['chars'][$key] = $sets[$target_index]['chars'][$key] ?? $char;
+        }
+
+        foreach (array_reverse($matching_indexes) as $source_index) {
+            foreach ((array) ($sets[$source_index]['chars'] ?? []) as $key => $char) {
+                $sets[$target_index]['keys'][$key] = true;
+                $sets[$target_index]['chars'][$key] = $sets[$target_index]['chars'][$key] ?? $char;
+            }
+            unset($sets[$source_index]);
+        }
+        $sets = array_values($sets);
+    }
+
+    return array_values(array_filter(array_map(static function (array $set): array {
+        return array_values(array_map('strval', (array) ($set['chars'] ?? [])));
+    }, $sets), static function (array $group): bool {
+        return count($group) >= 2;
+    }));
+}
+
+/**
  * Return character groups that should behave as close dictionary-search matches.
  *
  * Exact lookup/title identity intentionally does not use these groups. They are
@@ -202,10 +368,16 @@ function ll_tools_dictionary_normalize_search_text(string $value): string {
  * @return array<int,array<int,string>>
  */
 function ll_tools_dictionary_get_close_match_character_groups(int $wordset_id = 0): array {
-    $wordset_id = max(0, (int) $wordset_id);
-    $groups = ($wordset_id > 0 && function_exists('ll_tools_get_wordset_dictionary_close_match_groups'))
-        ? ll_tools_get_wordset_dictionary_close_match_groups([$wordset_id])
-        : [];
+    $groups = [];
+    if (function_exists('ll_tools_get_wordset_dictionary_close_match_groups')) {
+        foreach (ll_tools_dictionary_get_close_match_config_wordset_ids($wordset_id) as $config_wordset_id) {
+            $groups = array_merge(
+                $groups,
+                ll_tools_get_wordset_dictionary_close_match_groups([$config_wordset_id])
+            );
+        }
+    }
+    $groups = ll_tools_dictionary_merge_close_match_character_groups($groups);
 
     $groups = apply_filters('ll_tools_dictionary_close_match_character_groups', $groups, $wordset_id);
 
@@ -218,14 +390,21 @@ function ll_tools_dictionary_get_close_match_character_groups(int $wordset_id = 
  * Determine whether apostrophe-like marker characters are optional in a wordset.
  */
 function ll_tools_dictionary_uses_optional_search_apostrophes(int $wordset_id = 0): bool {
-    $wordset_id = max(0, (int) $wordset_id);
-    if ($wordset_id <= 0 || !function_exists('ll_tools_is_wordset_dictionary_apostrophe_optional')) {
+    if (!function_exists('ll_tools_is_wordset_dictionary_apostrophe_optional')) {
         return false;
+    }
+
+    $uses_optional_apostrophes = false;
+    foreach (ll_tools_dictionary_get_close_match_config_wordset_ids($wordset_id) as $config_wordset_id) {
+        if (ll_tools_is_wordset_dictionary_apostrophe_optional([$config_wordset_id])) {
+            $uses_optional_apostrophes = true;
+            break;
+        }
     }
 
     return (bool) apply_filters(
         'll_tools_dictionary_optional_search_apostrophes',
-        ll_tools_is_wordset_dictionary_apostrophe_optional([$wordset_id]),
+        $uses_optional_apostrophes,
         $wordset_id
     );
 }
@@ -245,11 +424,6 @@ function ll_tools_dictionary_strip_optional_search_apostrophes(string $value): s
  * Determine whether a wordset has any close-search behavior configured.
  */
 function ll_tools_dictionary_wordset_has_close_search_config(int $wordset_id = 0): bool {
-    $wordset_id = max(0, (int) $wordset_id);
-    if ($wordset_id <= 0) {
-        return false;
-    }
-
     return !empty(ll_tools_dictionary_get_close_match_character_groups($wordset_id))
         || ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id);
 }
@@ -259,11 +433,12 @@ function ll_tools_dictionary_wordset_has_close_search_config(int $wordset_id = 0
  */
 function ll_tools_dictionary_get_close_match_config_hash(int $wordset_id = 0): string {
     $wordset_id = max(0, (int) $wordset_id);
-    if ($wordset_id <= 0) {
+    if (!ll_tools_dictionary_wordset_has_close_search_config($wordset_id)) {
         return '';
     }
 
     $payload = [
+        'wordset_ids' => ll_tools_dictionary_get_close_match_config_wordset_ids($wordset_id),
         'groups' => ll_tools_dictionary_get_close_match_character_groups($wordset_id),
         'optional_apostrophes' => ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id) ? 1 : 0,
     ];
