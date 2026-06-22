@@ -313,9 +313,9 @@
                 return '';
             }
 
-            const translation = String(word.translation || '').trim();
-            if (translation) {
-                return translation;
+            const resolvedLabel = String(word.__resolvedOptionLabel || '').trim();
+            if (resolvedLabel) {
+                return resolvedLabel;
             }
 
             const label = String(word.label || '').trim();
@@ -323,7 +323,7 @@
                 return label;
             }
 
-            return String(word.title || '').trim();
+            return String(word.translation || '').trim();
         },
         protectMaqafNoBreak(value) {
             const text = (value === null || value === undefined) ? '' : String(value);
