@@ -41,6 +41,20 @@ function pluginSourceFiles() {
   ].filter((file) => fs.existsSync(file));
 }
 
+function collectContextPackNames() {
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts', 'build-ai-context-pack.php'), 'utf8');
+  const start = source.indexOf('function ll_tools_context_pack_definitions()');
+  const end = source.indexOf('function ll_tools_context_pack_print_usage()');
+
+  expect(start, 'build-ai-context-pack.php is missing ll_tools_context_pack_definitions().').toBeGreaterThanOrEqual(0);
+  expect(end, 'build-ai-context-pack.php is missing ll_tools_context_pack_print_usage().').toBeGreaterThan(start);
+
+  const definitionBlock = source.slice(start, end);
+  return [...definitionBlock.matchAll(/^\s{8}'([a-z0-9-]+)'\s*=>\s*\[/gm)]
+    .map((match) => match[1])
+    .sort();
+}
+
 function isLikelyUiText(value) {
   const normalized = value
     .replace(/\\[nrt]/g, ' ')
@@ -248,6 +262,27 @@ test('CODEBASE_ARCHITECTURE bootstrap include index matches loaded plugin module
     .map((match) => match[1]);
 
   expect(documented).toEqual(collectBootstrapIncludePaths());
+});
+
+test('AI context router and workflow docs cover configured context packs', async () => {
+  const packNames = collectContextPackNames();
+  const contextReadme = fs.readFileSync(path.join(repoRoot, 'docs', 'ai-context', 'README.md'), 'utf8');
+  const router = fs.readFileSync(path.join(repoRoot, 'docs', 'ai-context', 'task-router.md'), 'utf8');
+  const workflow = fs.readFileSync(path.join(repoRoot, 'docs', 'ai-context', 'AGENT_WORKFLOW.md'), 'utf8');
+  const ignorePolicy = fs.readFileSync(path.join(repoRoot, 'docs', 'ai-context', 'AI_IGNORE.md'), 'utf8');
+
+  for (const requiredDoc of ['task-router.md', 'AI_IGNORE.md', 'AGENT_WORKFLOW.md']) {
+    expect(contextReadme, `docs/ai-context/README.md should link ${requiredDoc}.`).toContain(requiredDoc);
+  }
+
+  const missingFromRouter = packNames.filter((packName) => !router.includes(`\`${packName}\``));
+  expect(
+    missingFromRouter,
+    `docs/ai-context/task-router.md is missing configured packs: ${missingFromRouter.join(', ')}`
+  ).toEqual([]);
+
+  expect(workflow).toContain('Feedback Loop');
+  expect(ignorePolicy).toContain('Usually Skip On First Pass');
 });
 
 test('high-confidence user-facing strings are translation-ready', async () => {

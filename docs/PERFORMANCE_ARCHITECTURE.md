@@ -13,9 +13,9 @@ cached/materialized aggregate. Full scans and hydration of every word in a
 wordset belong only in explicit maintenance jobs, bounded imports/exports, or
 admin flows that show progress and can be resumed.
 
-When a fix needs broader context, generate a local context pack with
-`scripts/build-ai-context-pack.php` instead of sending the whole plugin to an
-external model.
+When a fix needs broader context, use `docs/ai-context/task-router.md` and
+generate a local context pack with `scripts/build-ai-context-pack.php` instead
+of sending the whole plugin to an external model.
 
 ## Hot paths
 
@@ -97,6 +97,11 @@ php scripts/build-ai-context-pack.php --pack wordset-vocab-manager
 php scripts/build-ai-context-pack.php --pack performance-benchmark --changed-only --manifest-only
 php scripts/build-ai-context-pack.php --pack performance-benchmark --output -
 ```
+
+Packs include git change-frequency hints for their source files. For
+performance work, treat hot files as likely entry points, but keep following
+the measured growth dimension and owner path when quiet files are the real
+source of truth.
 
 Generated packs default to `test-results/ai-context/`, which is ignored. Do not
 commit generated packs unless there is a specific reason.

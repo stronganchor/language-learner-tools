@@ -4,6 +4,14 @@ Context packs are local generated markdown files that collect the source and
 test files for one workflow. They are meant to help a human or local agent build
 the right mental model without sending the entire plugin to an external API.
 
+Start with:
+
+- `task-router.md` to map user-facing task language to the right pack.
+- `AI_IGNORE.md` to keep generated, vendor, and builder-only files out of the
+  first-pass context unless the task points there.
+- `AGENT_WORKFLOW.md` for the feedback loop that tells agents when to update
+  this system as they work.
+
 Generate them with:
 
 ```bash
@@ -11,6 +19,7 @@ php scripts/build-ai-context-pack.php --list
 php scripts/build-ai-context-pack.php --pack wordset-vocab-manager
 php scripts/build-ai-context-pack.php --pack performance-benchmark --output -
 php scripts/build-ai-context-pack.php --pack performance-benchmark --changed-only --manifest-only
+php scripts/build-ai-context-pack.php --pack wordset-vocab-manager --history-months 6 --manifest-only
 php scripts/build-ai-context-pack.php --all --format both
 ```
 
@@ -30,11 +39,18 @@ Useful options:
 --max-chars 120000
 --max-file-chars 12000
 --excerpt-lines 80
+--history-months 12
+--max-change-files 12
 --manifest-only
 --changed-only
 --include-untracked
 --check
 ```
+
+By default, each pack includes git change-frequency hints for the selected
+source files over the last 12 months. Hot/warm files are useful scan-order
+clues; quiet files are not off-limits, but agents should verify ownership
+before editing them.
 
 Use `--changed-only` to narrow a workflow pack to files changed from `HEAD`.
 Add `--include-untracked` when new files should be included too.

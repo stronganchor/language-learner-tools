@@ -2,6 +2,7 @@ See `CODEBASE_ARCHITECTURE.md` for the canonical map of entry points, flows, and
 
 Codebase-specific guidelines:
 - For testing workflows and conventions (PHPUnit + Playwright), see `tests/AI_TESTING_PLAYBOOK.md` and `tests/README.md`.
+- For broad or ambiguous changes, start with `docs/ai-context/task-router.md`, `docs/ai-context/AI_IGNORE.md`, and `docs/ai-context/AGENT_WORKFLOW.md`; update the relevant context pack/router/docs in the same change when a new route, shared helper, invariant, or canonical test would help future agents find the right context.
 - When a request reveals that a larger structural change would make the solution cleaner or more maintainable, agents should use judgment: implement it when the broader change is safe and obvious; document it as a maintenance follow-up when it is useful but not needed immediately; or pause and ask whether to take the more elegant out-of-scope path or keep the smaller scoped fix.
 - Treat large wordsets as a normal production case. New code paths should avoid unbounded scans or hydration of all `words`, `word_audio`, `word_images`, prompt cards, or generated media for a wordset unless the operation is explicitly a bounded batch job, cached/materialized aggregate, or admin maintenance flow with clear progress behavior.
 - When adding buttons or using emojis, ensure the styling remains consistent across WordPress themes and devices by applying explicit classes and theme-resistant CSS (avoid relying on theme defaults).

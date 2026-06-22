@@ -26,6 +26,8 @@ $options = getopt('', [
     'max-chars:',
     'max-file-chars:',
     'excerpt-lines:',
+    'history-months:',
+    'max-change-files:',
     'manifest-only',
     'changed-only',
     'include-untracked',
@@ -70,6 +72,8 @@ $settings = [
     'max_chars' => max(0, (int) ($options['max-chars'] ?? 120000)),
     'max_file_chars' => max(500, (int) ($options['max-file-chars'] ?? 12000)),
     'excerpt_lines' => max(20, (int) ($options['excerpt-lines'] ?? 80)),
+    'history_months' => max(0, (int) ($options['history-months'] ?? 12)),
+    'max_change_files' => max(0, (int) ($options['max-change-files'] ?? 12)),
     'manifest_only' => isset($options['manifest-only']),
     'changed_only' => isset($options['changed-only']),
     'include_untracked' => isset($options['include-untracked']),
@@ -383,6 +387,8 @@ function ll_tools_context_pack_print_usage(): void
     echo "  --max-chars <n>       Total markdown character budget, default 120000, 0 for uncapped.\n";
     echo "  --max-file-chars <n>  Per-file excerpt budget, default 12000.\n";
     echo "  --excerpt-lines <n>   Max lines per file excerpt window, default 80.\n";
+    echo "  --history-months <n>  Git history window for change-frequency hints, default 12, 0 to disable.\n";
+    echo "  --max-change-files <n> Max hot/quiet file rows in the frequency summary, default 12.\n";
     echo "  --manifest-only       Write indexes and metadata without source excerpts.\n";
     echo "  --changed-only        Include only tracked files changed from HEAD.\n";
     echo "  --include-untracked   Include untracked files with --changed-only.\n";
@@ -395,6 +401,7 @@ function ll_tools_context_pack_build(string $root, string $packName, array $pack
         'AGENTS.md',
         'CODEBASE_ARCHITECTURE.md',
         'docs/PERFORMANCE_ARCHITECTURE.md',
+        'docs/ai-context/*.md',
         'tests/AI_TESTING_PLAYBOOK.md',
         'tests/README.md',
     ], $pack['sources']);
@@ -411,15 +418,20 @@ function ll_tools_context_pack_build(string $root, string $packName, array $pack
         }));
     }
 
+    $changeStats = ll_tools_context_pack_change_frequency($root, $settings['history_months']);
     $sourceRows = [];
     foreach ($files as $file) {
         $absolute = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $file);
         $contents = is_file($absolute) ? (string) file_get_contents($absolute) : '';
+        $recentChanges = (int) ($changeStats['counts'][$file] ?? 0);
         $sourceRows[] = [
             'path' => $file,
             'bytes' => strlen($contents),
             'lines' => $contents === '' ? 0 : substr_count($contents, "\n") + 1,
             'sha256' => is_file($absolute) ? hash_file('sha256', $absolute) : '',
+            'recent_changes' => $recentChanges,
+            'change_rank' => $changeStats['ranks'][$file] ?? null,
+            'change_band' => $changeStats['bands'][$file] ?? ($recentChanges > 0 ? 'cool' : 'quiet'),
             'anchors' => ll_tools_context_pack_extract_anchors($file, $contents),
         ];
     }
@@ -433,6 +445,8 @@ function ll_tools_context_pack_build(string $root, string $packName, array $pack
         'worktree_status' => ll_tools_context_pack_git($root, ['status', '--short']) === '' ? 'clean' : 'dirty',
         'max_chars' => $settings['max_chars'],
         'max_file_chars' => $settings['max_file_chars'],
+        'history_months' => $settings['history_months'],
+        'change_frequency_counted_files' => count($changeStats['counts']),
         'changed_only' => $settings['changed_only'] ? 'true' : 'false',
         'include_untracked' => $settings['include_untracked'] ? 'true' : 'false',
         'changed_source_count' => count($changedFiles),
@@ -523,6 +537,70 @@ function ll_tools_context_pack_changed_files(string $root, bool $includeUntracke
     return $files;
 }
 
+function ll_tools_context_pack_change_frequency(string $root, int $historyMonths): array
+{
+    static $cache = [];
+
+    if ($historyMonths <= 0) {
+        return [
+            'counts' => [],
+            'ranks' => [],
+            'bands' => [],
+        ];
+    }
+
+    $cacheKey = $root . '|' . $historyMonths;
+    if (isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+
+    $output = ll_tools_context_pack_git($root, [
+        'log',
+        '--since=' . $historyMonths . ' months ago',
+        '--name-only',
+        '--pretty=format:',
+        '--',
+        '.',
+    ]);
+
+    $counts = [];
+    foreach (preg_split('/\r\n|\r|\n/', trim((string) $output)) as $file) {
+        $file = str_replace('\\', '/', trim($file));
+        if ($file === '' || ll_tools_context_pack_is_excluded($file)) {
+            continue;
+        }
+        $counts[$file] = ($counts[$file] ?? 0) + 1;
+    }
+
+    arsort($counts);
+    $rankedFiles = array_keys($counts);
+    $rankCount = count($rankedFiles);
+    $hotLimit = $rankCount > 0 ? max(20, (int) ceil($rankCount * 0.05)) : 0;
+    $warmLimit = $rankCount > 0 ? max(80, (int) ceil($rankCount * 0.20)) : 0;
+
+    $ranks = [];
+    $bands = [];
+    foreach ($rankedFiles as $index => $file) {
+        $rank = $index + 1;
+        $ranks[$file] = $rank;
+        if ($rank <= $hotLimit) {
+            $bands[$file] = 'hot';
+        } elseif ($rank <= $warmLimit) {
+            $bands[$file] = 'warm';
+        } else {
+            $bands[$file] = 'cool';
+        }
+    }
+
+    $cache[$cacheKey] = [
+        'counts' => $counts,
+        'ranks' => $ranks,
+        'bands' => $bands,
+    ];
+
+    return $cache[$cacheKey];
+}
+
 function ll_tools_context_pack_has_glob(string $pattern): bool
 {
     return strpbrk($pattern, '*?[') !== false;
@@ -531,9 +609,19 @@ function ll_tools_context_pack_has_glob(string $pattern): bool
 function ll_tools_context_pack_all_files(string $root): array
 {
     $files = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+    $directory = new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS);
+    $filter = new RecursiveCallbackFilterIterator(
+        $directory,
+        static function (SplFileInfo $current) use ($root): bool {
+            if (!$current->isDir()) {
+                return true;
+            }
+
+            $relative = str_replace('\\', '/', substr($current->getPathname(), strlen($root) + 1));
+            return !ll_tools_context_pack_is_excluded_directory($relative);
+        }
     );
+    $iterator = new RecursiveIteratorIterator($filter);
     foreach ($iterator as $fileInfo) {
         if (!$fileInfo instanceof SplFileInfo || !$fileInfo->isFile()) {
             continue;
@@ -548,9 +636,26 @@ function ll_tools_context_pack_all_files(string $root): array
     return $files;
 }
 
-function ll_tools_context_pack_is_excluded(string $relative): bool
+function ll_tools_context_pack_is_excluded_directory(string $relative): bool
 {
-    $excludedPrefixes = [
+    $relative = trim(str_replace('\\', '/', $relative), '/');
+    if ($relative === '') {
+        return false;
+    }
+
+    foreach (ll_tools_context_pack_excluded_prefixes() as $prefix) {
+        $prefix = trim($prefix, '/');
+        if ($relative === $prefix || strpos($relative . '/', $prefix . '/') === 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_context_pack_excluded_prefixes(): array
+{
+    return [
         '.git/',
         'vendor/',
         'node_modules/',
@@ -561,7 +666,11 @@ function ll_tools_context_pack_is_excluded(string $relative): bool
         'playwright-report/',
         'blob-report/',
     ];
-    foreach ($excludedPrefixes as $prefix) {
+}
+
+function ll_tools_context_pack_is_excluded(string $relative): bool
+{
+    foreach (ll_tools_context_pack_excluded_prefixes() as $prefix) {
         if (strpos($relative, $prefix) === 0) {
             return true;
         }
@@ -639,6 +748,9 @@ function ll_tools_context_pack_render_markdown(
         $markdown .= '    lines: ' . (int) $row['lines'] . "\n";
         $markdown .= '    bytes: ' . (int) $row['bytes'] . "\n";
         $markdown .= '    sha256: ' . ll_tools_context_pack_yaml_scalar($row['sha256']) . "\n";
+        $markdown .= '    recent_changes: ' . (int) $row['recent_changes'] . "\n";
+        $markdown .= '    change_rank: ' . ($row['change_rank'] === null ? 'null' : (int) $row['change_rank']) . "\n";
+        $markdown .= '    change_band: ' . ll_tools_context_pack_yaml_scalar($row['change_band']) . "\n";
         $markdown .= '    anchors: [' . implode(', ', array_map('ll_tools_context_pack_yaml_scalar', $row['anchors'])) . "]\n";
     }
     $markdown .= "---\n\n";
@@ -651,12 +763,15 @@ function ll_tools_context_pack_render_markdown(
         $markdown .= '- ' . $invariant . "\n";
     }
     $markdown .= "\n## Source Index\n\n";
-    $markdown .= "| Path | Lines | Bytes | Anchors |\n";
-    $markdown .= "| --- | ---: | ---: | --- |\n";
+    $markdown .= "| Path | Lines | Bytes | Change Signal | Anchors |\n";
+    $markdown .= "| --- | ---: | ---: | --- | --- |\n";
     foreach ($sourceRows as $row) {
         $markdown .= '| `' . $row['path'] . '` | ' . (int) $row['lines'] . ' | ' . (int) $row['bytes'] . ' | '
+            . ll_tools_context_pack_table_cell(ll_tools_context_pack_change_signal($row)) . ' | '
             . ll_tools_context_pack_table_cell(implode(', ', $row['anchors'])) . " |\n";
     }
+
+    $markdown .= ll_tools_context_pack_render_change_frequency($sourceRows, $settings);
 
     $markdown .= "\n## Hooks/Routes/Shortcodes/Globals\n\n";
     foreach ($sourceRows as $row) {
@@ -735,6 +850,74 @@ function ll_tools_context_pack_file_excerpt(string $root, string $path, array $s
     $suffix = (count($lines) > $lineLimit || strlen($contents) > strlen($excerpt)) ? "\n\n[excerpt truncated]" : '';
 
     return "\n### {$path}\n\n```{$language}\n" . $excerpt . $suffix . "\n```\n";
+}
+
+function ll_tools_context_pack_render_change_frequency(array $sourceRows, array $settings): string
+{
+    $historyMonths = (int) ($settings['history_months'] ?? 0);
+    if ($historyMonths <= 0) {
+        return "\n## Change Frequency Signals\n\n_Disabled for this pack run._\n";
+    }
+
+    $maxRows = max(0, (int) ($settings['max_change_files'] ?? 12));
+    if ($maxRows === 0) {
+        return '';
+    }
+
+    $changedRows = array_values(array_filter($sourceRows, static function (array $row): bool {
+        return (int) $row['recent_changes'] > 0;
+    }));
+    usort($changedRows, static function (array $a, array $b): int {
+        $changeCompare = (int) $b['recent_changes'] <=> (int) $a['recent_changes'];
+        if ($changeCompare !== 0) {
+            return $changeCompare;
+        }
+        return strcmp($a['path'], $b['path']);
+    });
+
+    $quietRows = array_values(array_filter($sourceRows, static function (array $row): bool {
+        return (int) $row['recent_changes'] === 0;
+    }));
+    usort($quietRows, static function (array $a, array $b): int {
+        return strcmp($a['path'], $b['path']);
+    });
+
+    $markdown = "\n## Change Frequency Signals\n\n";
+    $markdown .= "Counts are based on git commits that touched each file in the last {$historyMonths} months. ";
+    $markdown .= "Use them as a triage clue, not as proof that a file is the right or wrong place to edit.\n\n";
+
+    $markdown .= "### Most Changed Files In This Pack\n\n";
+    if ($changedRows) {
+        foreach (array_slice($changedRows, 0, $maxRows) as $row) {
+            $markdown .= '- `' . $row['path'] . '`: ' . ll_tools_context_pack_change_signal($row) . "\n";
+        }
+    } else {
+        $markdown .= "_No files in this pack were touched in the selected history window._\n";
+    }
+
+    $markdown .= "\n### Quiet Files In This Pack\n\n";
+    if ($quietRows) {
+        foreach (array_slice($quietRows, 0, $maxRows) as $row) {
+            $markdown .= '- `' . $row['path'] . "`: quiet 0\n";
+        }
+    } else {
+        $markdown .= "_Every file in this pack was touched in the selected history window._\n";
+    }
+
+    return $markdown;
+}
+
+function ll_tools_context_pack_change_signal(array $row): string
+{
+    $band = (string) ($row['change_band'] ?? 'quiet');
+    $changes = (int) ($row['recent_changes'] ?? 0);
+    if ($changes === 0) {
+        return 'quiet 0';
+    }
+
+    $rank = $row['change_rank'] ?? null;
+    $rankText = is_int($rank) ? ', rank #' . $rank : '';
+    return $band . ' ' . $changes . $rankText;
 }
 
 function ll_tools_context_pack_language_for_path(string $path): string
