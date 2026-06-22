@@ -9,6 +9,9 @@
     const loadingLabel = typeof config.loadingLabel === 'string' && config.loadingLabel
         ? config.loadingLabel
         : 'Loading dictionary results...';
+    const detailLoadingLabel = typeof config.detailLoadingLabel === 'string' && config.detailLoadingLabel
+        ? config.detailLoadingLabel
+        : 'Loading dictionary entry...';
     const toolbarLoadingLabel = typeof config.toolbarLoadingLabel === 'string' && config.toolbarLoadingLabel
         ? config.toolbarLoadingLabel
         : 'Loading dictionary filters...';
@@ -486,6 +489,11 @@
         let scopePreferencesRestored = false;
         let hasScrolledForSearchQuery = false;
         let filtersPinnedOpen = false;
+        let detailActive = false;
+        let detailController = null;
+        let detailRequestId = 0;
+        let browseSnapshot = null;
+        const detailHtmlCache = new Map();
 
         const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -909,27 +917,120 @@
             results.removeAttribute('aria-busy');
         };
 
+        const updateHistoryUrl = (url, method) => {
+            if (!url || !window.history || typeof window.history[method] !== 'function') {
+                return;
+            }
+
+            try {
+                window.history[method](null, '', String(url));
+            } catch (error) {
+                // Cross-origin or opaque test-page URLs should not break the enhanced dictionary UI.
+            }
+        };
+
+        const setDetailMode = (active) => {
+            detailActive = !!active;
+            root.classList.toggle('is-detail-active', detailActive);
+            toolbar.hidden = detailActive;
+        };
+
+        const cancelActiveDetailRequest = () => {
+            if (detailController) {
+                detailController.abort();
+                detailController = null;
+            }
+
+            detailRequestId += 1;
+            results.removeAttribute('aria-busy');
+        };
+
+        const resetDetailState = () => {
+            cancelActiveDetailRequest();
+            setDetailMode(false);
+            browseSnapshot = null;
+            detailHtmlCache.clear();
+        };
+
+        const ensureBrowseSnapshot = () => {
+            if (browseSnapshot && detailActive) {
+                return;
+            }
+
+            browseSnapshot = {
+                html: results.innerHTML,
+                url: window.location.href,
+                scrollY: Math.max(0, window.scrollY || window.pageYOffset || 0),
+                toolbarClassName: toolbar.className,
+            };
+            detailHtmlCache.clear();
+        };
+
+        const cacheCurrentDetailHtml = () => {
+            if (!detailActive) {
+                return;
+            }
+
+            try {
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('ll_dictionary_entry')) {
+                    detailHtmlCache.set(String(window.location.href), results.innerHTML);
+                }
+            } catch (error) {
+                // Ignore malformed or opaque test-page URLs.
+            }
+        };
+
+        const restoreBrowseSnapshot = (updateUrl, urlOverride) => {
+            if (!browseSnapshot) {
+                return false;
+            }
+
+            cancelActiveDetailRequest();
+            results.innerHTML = browseSnapshot.html;
+            results.removeAttribute('aria-busy');
+            initInlineControls(root);
+            toolbar.className = browseSnapshot.toolbarClassName || toolbar.className;
+            setDetailMode(false);
+
+            if (updateUrl) {
+                updateHistoryUrl(urlOverride || browseSnapshot.url, 'replaceState');
+            }
+
+            const targetScrollY = Number(browseSnapshot.scrollY || 0);
+            if (Number.isFinite(targetScrollY) && typeof window.scrollTo === 'function') {
+                window.requestAnimationFrame(() => {
+                    window.scrollTo({
+                        top: targetScrollY,
+                        behavior: 'auto',
+                    });
+                });
+            }
+
+            return true;
+        };
+
         const renderResponsePayload = (payload) => {
             if (!payload || !payload.success || !payload.data) {
                 throw new Error('invalid_payload');
             }
 
+            resetDetailState();
             results.innerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
             initInlineControls(root);
             setActiveState(Boolean(payload.data.has_active_query));
 
-            if (payload.data.url && window.history && typeof window.history.replaceState === 'function') {
-                window.history.replaceState(null, '', String(payload.data.url));
-            }
+            updateHistoryUrl(payload.data.url, 'replaceState');
         };
 
-        const buildLoadingMarkup = () => {
+        const buildLoadingMarkup = (label) => {
+            label = typeof label === 'string' && label ? label : loadingLabel;
             const markup = [
                 '<div class="ll-dictionary__loading" role="status" aria-live="polite" aria-label="',
-                escapeHtml(loadingLabel),
+                escapeHtml(label),
                 '">',
                 '<span class="screen-reader-text">',
-                escapeHtml(loadingLabel),
+                escapeHtml(label),
                 '</span>',
                 '<div class="ll-dictionary__loading-meta" aria-hidden="true"></div>',
             ];
@@ -970,6 +1071,7 @@
         };
 
         const showLoadingState = () => {
+            resetDetailState();
             cancelActiveRequest();
             results.innerHTML = buildLoadingMarkup();
             results.setAttribute('aria-busy', 'true');
@@ -977,14 +1079,13 @@
         };
 
         const clearResults = () => {
+            resetDetailState();
             cancelActiveRequest();
             results.innerHTML = '';
             setActiveState(false);
 
             const baseUrl = root.dataset.baseUrl || window.location.href;
-            if (window.history && typeof window.history.replaceState === 'function') {
-                window.history.replaceState(null, '', baseUrl);
-            }
+            updateHistoryUrl(baseUrl, 'replaceState');
         };
 
         const canRunQuery = () => {
@@ -1051,6 +1152,126 @@
             payload.set('ll_dictionary_dialect', getFieldValue('ll_dictionary_dialect'));
 
             return payload;
+        };
+
+        const buildDetailPayload = (link, entryId) => {
+            let url = null;
+            try {
+                url = new URL(link.href, window.location.href);
+            } catch (error) {
+                url = null;
+            }
+
+            const requestPage = url && url.searchParams.has('ll_dictionary_page')
+                ? Number(url.searchParams.get('ll_dictionary_page') || '1')
+                : getCurrentPageFromLocation();
+            const payload = buildPayload(requestPage);
+            payload.set('action', 'll_tools_dictionary_entry_detail');
+            payload.set('entry_id', String(entryId || ''));
+            payload.set('ll_dictionary_entry', String(entryId || ''));
+
+            if (url) {
+                [
+                    'll_dictionary_q',
+                    'll_dictionary_scope',
+                    'll_dictionary_letter',
+                    'll_dictionary_page',
+                    'll_dictionary_pos',
+                    'll_dictionary_source',
+                    'll_dictionary_dialect',
+                ].forEach((key) => {
+                    if (url.searchParams.has(key)) {
+                        payload.set(key, url.searchParams.get(key) || '');
+                    }
+                });
+            }
+
+            return payload;
+        };
+
+        const getEntryIdFromDetailLink = (link) => {
+            const dataEntryId = Number(link.dataset.entryId || '0');
+            if (dataEntryId > 0) {
+                return dataEntryId;
+            }
+
+            try {
+                const url = new URL(link.href, window.location.href);
+                return Number(url.searchParams.get('ll_dictionary_entry') || '0');
+            } catch (error) {
+                return 0;
+            }
+        };
+
+        const isPlainLinkClick = (event, link) => {
+            if (!link || !link.href || link.getAttribute('href') === '#') {
+                return false;
+            }
+            if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return false;
+            }
+            const target = String(link.getAttribute('target') || '').trim().toLowerCase();
+            return target === '' || target === '_self';
+        };
+
+        const requestEntryDetail = (link) => {
+            const entryId = getEntryIdFromDetailLink(link);
+            if (entryId <= 0) {
+                return false;
+            }
+
+            ensureBrowseSnapshot();
+            cacheCurrentDetailHtml();
+            cancelActiveRequest();
+            cancelActiveDetailRequest();
+
+            const requestId = ++detailRequestId;
+            detailController = new AbortController();
+            results.innerHTML = buildLoadingMarkup(detailLoadingLabel);
+            results.setAttribute('aria-busy', 'true');
+            setDetailMode(true);
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: buildDetailPayload(link, entryId),
+                signal: detailController.signal,
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('request_failed');
+                    }
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (requestId !== detailRequestId || !payload || !payload.success || !payload.data) {
+                        throw new Error('invalid_payload');
+                    }
+
+                    const detailHtml = typeof payload.data.html === 'string' ? payload.data.html : '';
+                    const detailUrl = payload.data.url ? String(payload.data.url) : link.href;
+                    results.innerHTML = detailHtml;
+                    results.removeAttribute('aria-busy');
+                    initInlineControls(root);
+                    setDetailMode(true);
+                    detailHtmlCache.set(detailUrl, detailHtml);
+                    updateHistoryUrl(detailUrl, 'pushState');
+                })
+                .catch((error) => {
+                    if (error && error.name === 'AbortError') {
+                        return;
+                    }
+
+                    window.location.href = link.href;
+                })
+                .finally(() => {
+                    if (requestId === detailRequestId) {
+                        detailController = null;
+                        results.removeAttribute('aria-busy');
+                    }
+                });
+
+            return true;
         };
 
         const requestResults = (page, fallbackToFullSubmit) => {
@@ -1297,6 +1518,22 @@
                 return;
             }
 
+            const backLink = event.target.closest('[data-ll-dictionary-back]');
+            if (backLink && root.contains(backLink) && isPlainLinkClick(event, backLink) && browseSnapshot) {
+                event.preventDefault();
+                restoreBrowseSnapshot(true, backLink.href);
+                return;
+            }
+
+            const detailLink = event.target.closest('[data-ll-dictionary-detail-link]');
+            if (detailLink && root.contains(detailLink) && isPlainLinkClick(event, detailLink)) {
+                event.preventDefault();
+                if (!requestEntryDetail(detailLink)) {
+                    window.location.href = detailLink.href;
+                }
+                return;
+            }
+
             const link = event.target.closest('.ll-dictionary__pagination a, .ll-dictionary__letters a');
             if (!link || !link.href || link.getAttribute('href') === '#') {
                 return;
@@ -1329,6 +1566,35 @@
 
             showLoadingState();
             requestResults(Number(url.searchParams.get('ll_dictionary_page') || '1'), false);
+        });
+
+        window.addEventListener('popstate', () => {
+            if (!browseSnapshot && !detailActive) {
+                return;
+            }
+
+            let currentUrl = null;
+            try {
+                currentUrl = new URL(window.location.href);
+            } catch (error) {
+                currentUrl = null;
+            }
+
+            if (currentUrl && currentUrl.searchParams.has('ll_dictionary_entry')) {
+                const cachedDetailHtml = detailHtmlCache.get(String(window.location.href));
+                if (cachedDetailHtml) {
+                    cancelActiveDetailRequest();
+                    results.innerHTML = cachedDetailHtml;
+                    results.removeAttribute('aria-busy');
+                    initInlineControls(root);
+                    setDetailMode(true);
+                }
+                return;
+            }
+
+            if (detailActive) {
+                restoreBrowseSnapshot(false);
+            }
         });
 
         if (scopePreferencesRestored && hasActiveQuery()) {

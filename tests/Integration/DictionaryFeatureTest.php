@@ -183,9 +183,33 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             ],
         ], 'https://example.test/sozluk/?ll_dictionary_entry=123');
 
-        $this->assertStringContainsString('class="ll-dictionary__more-link"', $html);
+        $this->assertStringContainsString('ll-dictionary__more-link', $html);
+        $this->assertStringContainsString('data-ll-dictionary-detail-link', $html);
         $this->assertStringContainsString('href="https://example.test/sozluk/?ll_dictionary_entry=123"', $html);
+        $this->assertStringContainsString('View details', $html);
         $this->assertStringContainsString('+ 1 more sense', $html);
+    }
+
+    public function test_dictionary_result_card_links_single_sense_with_examples_to_entry_detail(): void
+    {
+        $html = ll_tools_dictionary_render_result_card([
+            'id' => 456,
+            'title' => 'pising',
+            'sense_count' => 1,
+            'senses' => [
+                [
+                    'definition' => 'cat',
+                    'entry_type' => 'noun',
+                    'examples' => ['Pising kewt mal.'],
+                    'example_translations' => ['The cat entered the house.'],
+                ],
+            ],
+        ], 'https://example.test/sozluk/?ll_dictionary_entry=456');
+
+        $this->assertStringContainsString('data-ll-dictionary-detail-link', $html);
+        $this->assertStringContainsString('data-entry-id="456"', $html);
+        $this->assertStringContainsString('View details', $html);
+        $this->assertStringContainsString('1 example', $html);
     }
 
     public function test_dictionary_detail_renders_sense_breakdown_with_combined_definitions(): void
@@ -1098,6 +1122,66 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertFalse((bool) ($toolbar['success'] ?? true));
         $this->assertStringContainsString('permission', (string) ($toolbar['data']['message'] ?? ''));
+    }
+
+    public function test_dictionary_entry_detail_ajax_returns_in_place_detail_payload(): void
+    {
+        wp_set_current_user(0);
+
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Ajax Detail Pising',
+            'post_content' => 'cat',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [
+            [
+                'definition' => 'cat',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+                'examples' => ['Pising kewt mal.'],
+                'example_translations' => ['The cat entered the house.'],
+            ],
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_entry_detail',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'entry_id' => (string) $entry_id,
+            'll_dictionary_q' => 'pising',
+            'll_dictionary_page' => '2',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_entry_detail();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $html = (string) ($data['html'] ?? '');
+
+        $this->assertStringContainsString('ll-dictionary__detail', $html);
+        $this->assertStringContainsString('Back to dictionary', $html);
+        $this->assertStringContainsString('Ajax Detail Pising', $html);
+        $this->assertStringContainsString('Pising kewt mal.', $html);
+
+        $detail_url = (string) ($data['url'] ?? '');
+        $back_url = (string) ($data['back_url'] ?? '');
+        $this->assertStringContainsString('ll_dictionary_entry=' . $entry_id, $detail_url);
+        $this->assertStringNotContainsString('ll_dictionary_q=pising', $detail_url);
+        $this->assertStringNotContainsString('ll_dictionary_page=2', $detail_url);
+        $this->assertStringContainsString('ll_dictionary_q=pising', $back_url);
+        $this->assertStringContainsString('ll_dictionary_page=2', $back_url);
+        $this->assertStringNotContainsString('ll_dictionary_entry=', $back_url);
     }
 
     public function test_unscoped_dictionary_hides_entries_explicitly_assigned_to_private_wordsets(): void

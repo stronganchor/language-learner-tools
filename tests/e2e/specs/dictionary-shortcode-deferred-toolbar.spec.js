@@ -117,6 +117,7 @@ async function mountDictionaryHarness(page, options = {}) {
       loadingCards: 2,
       cacheSize: 0,
       loadingLabel: 'Loading dictionary results...',
+      detailLoadingLabel: 'Loading dictionary entry...',
       toolbarLoadingLabel: 'Loading dictionary filters...'
     };
 
@@ -214,14 +215,47 @@ async function mountDictionaryHarness(page, options = {}) {
       }
 
       if (requestData.action === 'll_tools_dictionary_live_search') {
+        const query = requestData.ll_dictionary_q || '';
         return {
           ok: true,
           json: async () => ({
             success: true,
             data: {
-              html: `<article class="ll-dictionary__entry">Query:${requestData.ll_dictionary_q || ''}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}; Letter:${requestData.ll_dictionary_letter || ''}</article>`,
+              html: `
+                <article class="ll-dictionary__entry">
+                  Query:${query}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}; Letter:${requestData.ll_dictionary_letter || ''}
+                  <a
+                    class="ll-dictionary__details-link"
+                    href="https://example.com/dictionary/?ll_dictionary_entry=77"
+                    data-ll-dictionary-detail-link
+                    data-entry-id="77"
+                  >View details</a>
+                </article>
+              `,
               has_active_query: true,
-              url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(requestData.ll_dictionary_q || '')}`
+              url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(query)}`
+            }
+          })
+        };
+      }
+
+      if (requestData.action === 'll_tools_dictionary_entry_detail') {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              html: `
+                <article class="ll-dictionary__detail" data-ll-dictionary-detail>
+                  <div class="ll-dictionary__detail-top">
+                    <a class="ll-dictionary__back" href="https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(requestData.ll_dictionary_q || '')}" data-ll-dictionary-back>Back to dictionary</a>
+                  </div>
+                  <h3>Detail:${requestData.entry_id}</h3>
+                </article>
+              `,
+              url: `https://example.com/dictionary/?ll_dictionary_entry=${encodeURIComponent(requestData.entry_id || '')}`,
+              back_url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(requestData.ll_dictionary_q || '')}`,
+              entry_id: Number(requestData.entry_id || 0)
             }
           })
         };
@@ -272,6 +306,29 @@ test('loads deferred dictionary filters on first interaction only once', async (
   const bootstrapCalls = fetchCalls.filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap');
 
   expect(bootstrapCalls).toHaveLength(1);
+});
+
+test('opens entry details in place and restores the live search results', async ({ page }) => {
+  await mountDictionaryHarness(page);
+
+  await page.locator('#ll-dictionary-search').fill('apa');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; Source:all');
+
+  await page.locator('[data-ll-dictionary-detail-link]').click();
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Detail:77');
+  await expect(page.locator('.ll-dictionary__toolbar')).toBeHidden();
+
+  const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
+  const detailCall = [...fetchCalls].reverse().find((call) => call.action === 'll_tools_dictionary_entry_detail');
+
+  expect(detailCall).toMatchObject({
+    entry_id: '77',
+    ll_dictionary_q: 'apa'
+  });
+
+  await page.locator('[data-ll-dictionary-back]').click();
+  await expect(page.locator('.ll-dictionary__toolbar')).toBeVisible();
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; Source:all');
 });
 
 test('live search still reacts to deferred filter controls after bootstrap', async ({ page }) => {
