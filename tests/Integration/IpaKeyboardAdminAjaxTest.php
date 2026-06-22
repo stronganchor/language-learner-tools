@@ -245,6 +245,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         ]);
         wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
         update_post_meta($word_id, 'word_translation', 'Third');
+        ll_tools_set_internal_review_note($word_id, 'Check the word-level note from the transcription queue.');
 
         $recording_id = self::factory()->post->create([
             'post_type' => 'word_audio',
@@ -288,6 +289,8 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame($word_id, (int) ($recordings[0]['word_id'] ?? 0));
         $this->assertSame('Gamma', (string) ($recordings[0]['word_text'] ?? ''));
         $this->assertSame('Third', (string) ($recordings[0]['word_translation'] ?? ''));
+        $this->assertSame('Check the word-level note from the transcription queue.', (string) ($recordings[0]['internal_review_note'] ?? ''));
+        $this->assertTrue((bool) ($recordings[0]['can_manage_internal_review_note'] ?? false));
         $this->assertSame('gamma', (string) ($recordings[0]['recording_text'] ?? ''));
 
         $missing = array_values(array_map('intval', (array) ($data['missing_recording_ids'] ?? [])));

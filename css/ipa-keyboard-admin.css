@@ -1281,6 +1281,147 @@ body.ll-ipa-keyboard-open {
     min-width: 0;
 }
 
+.ll-ipa-search-word-review-note.ll-internal-review-note {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    margin: 2px 0 0;
+    padding: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--ll-ipa-text);
+    text-align: left;
+}
+
+.ll-ipa-search-word-review-note.ll-internal-review-note:not([open]) {
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+    padding: 0;
+    border-style: dashed;
+    background: #ffffff;
+}
+
+.ll-ipa-search-word-review-note.ll-internal-review-note.has-internal-review-note:not([open]) {
+    border-color: #93c5fd;
+    background: #f8fafc;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__summary {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    max-width: 100%;
+    padding: 5px 9px;
+    color: #334155;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 0;
+    list-style: none;
+    text-align: center;
+    text-decoration: none;
+    text-transform: none;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__summary::-webkit-details-marker {
+    display: none;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__summary::before {
+    content: "+";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    margin-right: 5px;
+    border: 1px solid #94a3b8;
+    border-radius: 50%;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__summary:focus-visible {
+    outline: 2px solid rgba(100, 116, 139, 0.35);
+    outline-offset: 2px;
+}
+
+.ll-ipa-search-word-review-note[open] > .ll-internal-review-note__summary {
+    display: none;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__label {
+    display: block;
+    margin: 0 0 4px;
+    color: #0f172a;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__description {
+    display: block;
+    margin: 0 0 7px;
+    padding: 0;
+    color: #475569;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__input {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-height: 68px;
+    margin: 0;
+    padding: 7px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: none;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+    resize: vertical;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__input:focus {
+    border-color: #64748b;
+    outline: 2px solid rgba(100, 116, 139, 0.25);
+    outline-offset: 1px;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__status {
+    min-height: 15px;
+    margin-top: 5px;
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__status.is-error {
+    color: #b91c1c;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__status.is-success {
+    color: #15803d;
+}
+
+.ll-ipa-search-word-review-note .ll-internal-review-note__status:empty {
+    display: none;
+}
+
 .ll-ipa-search-meta-recording .ll-ipa-recording-cell {
     display: inline-grid;
     justify-items: start;

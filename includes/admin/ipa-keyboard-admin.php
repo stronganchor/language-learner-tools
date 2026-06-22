@@ -266,6 +266,10 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
         isset($_GET['wordset_id']) ? (int) $_GET['wordset_id'] : 0
     );
     $initial_search = ll_tools_ipa_keyboard_get_requested_search_state();
+    $internal_notes_available = is_user_logged_in()
+        && (current_user_can('view_ll_tools') || current_user_can('manage_options'))
+        && function_exists('ll_tools_current_user_can_manage_internal_review_notes')
+        && function_exists('ll_tools_get_internal_review_note');
 
     ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
     ll_enqueue_asset_by_timestamp('/css/ipa-keyboard-admin.css', 'll-ipa-keyboard-admin-css', ['ll-ipa-fonts']);
@@ -283,6 +287,20 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
         'initialTab' => ll_tools_ipa_keyboard_get_requested_tab(),
         'initialSearch' => $initial_search,
         'searchInitialPerPage' => ll_tools_ipa_keyboard_get_initial_search_results_per_page(),
+        'internalNotes' => [
+            'enabled' => $internal_notes_available,
+            'action' => 'll_tools_save_internal_review_note',
+            'nonce' => $internal_notes_available ? wp_create_nonce('ll_internal_review_note') : '',
+            'saveDelayMs' => (int) apply_filters('ll_tools_internal_review_note_save_delay_ms', 3000),
+            'i18n' => [
+                'emptyLabel' => __('Add internal review note', 'll-tools-text-domain'),
+                'label' => __('Internal review note', 'll-tools-text-domain'),
+                'description' => __('For staff-only review instructions, such as image fixes, split requests, or cleanup notes. This is not shown to learners.', 'll-tools-text-domain'),
+                'saving' => __('Saving review note...', 'll-tools-text-domain'),
+                'saved' => __('Review note saved.', 'll-tools-text-domain'),
+                'error' => __('Unable to save the review note.', 'll-tools-text-domain'),
+            ],
+        ],
         'i18n' => [
             'loading' => __('Loading transcription data...', 'll-tools-text-domain'),
             'empty' => __('No special characters found for this word set.', 'll-tools-text-domain'),
@@ -833,6 +851,47 @@ function ll_tools_ipa_keyboard_get_word_display_map(array $word_ids): array {
     return $map;
 }
 
+function ll_tools_ipa_keyboard_get_word_internal_review_note(int $word_id, int $wordset_id): string {
+    static $runtime_cache = [];
+
+    $word_id = (int) $word_id;
+    $wordset_id = (int) $wordset_id;
+    if ($word_id <= 0 || $wordset_id <= 0) {
+        return '';
+    }
+
+    $cache_key = $wordset_id . ':' . $word_id;
+    if (array_key_exists($cache_key, $runtime_cache)) {
+        return (string) $runtime_cache[$cache_key];
+    }
+
+    $can_read = function_exists('ll_tools_current_user_can_read_internal_review_notes')
+        && ll_tools_current_user_can_read_internal_review_notes($wordset_id);
+    if (!$can_read || !function_exists('ll_tools_get_internal_review_note')) {
+        $runtime_cache[$cache_key] = '';
+        return '';
+    }
+
+    $runtime_cache[$cache_key] = ll_tools_get_internal_review_note($word_id);
+    return (string) $runtime_cache[$cache_key];
+}
+
+function ll_tools_ipa_keyboard_can_manage_word_internal_review_note(int $wordset_id): bool {
+    static $runtime_cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !function_exists('ll_tools_current_user_can_manage_internal_review_notes')) {
+        return false;
+    }
+
+    if (array_key_exists($wordset_id, $runtime_cache)) {
+        return (bool) $runtime_cache[$wordset_id];
+    }
+
+    $runtime_cache[$wordset_id] = ll_tools_current_user_can_manage_internal_review_notes($wordset_id);
+    return (bool) $runtime_cache[$wordset_id];
+}
+
 function ll_tools_ipa_keyboard_get_word_image_payload(int $word_id): array {
     $fallback = [
         'url' => '',
@@ -1024,6 +1083,8 @@ function ll_tools_ipa_keyboard_build_recording_payload(
         'word_id' => (int) $word_id,
         'word_text' => (string) ($word_info['word_text'] ?? ''),
         'word_translation' => (string) ($word_info['translation'] ?? ''),
+        'internal_review_note' => ll_tools_ipa_keyboard_get_word_internal_review_note($word_id, $wordset_id),
+        'can_manage_internal_review_note' => ll_tools_ipa_keyboard_can_manage_word_internal_review_note($wordset_id),
         'recording_type' => $recording_type,
         'recording_type_slug' => $recording_type_slug,
         'recording_icon_type' => $recording_icon_type,

@@ -699,6 +699,244 @@ test('shared review notes render on every flagged transcription field after part
   expect(afterReviewLayout.rowHeight).toBeGreaterThanOrEqual(beforeReviewLayout.rowHeight);
 });
 
+test('word internal review notes autosave and sync visible duplicate recording rows', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    try {
+      window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+      window.localStorage.removeItem('llTranscriptionManagerLastTab');
+    } catch (error) {
+      // Ignore storage cleanup failures in the test harness.
+    }
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function buildRecording(recordingId, recordingText, recordingType) {
+      const wordId = 55;
+      return {
+        recording_id: recordingId,
+        word_id: wordId,
+        word_text: 'Gamma',
+        word_translation: 'Third',
+        word_edit_link: '',
+        recording_type: recordingType,
+        recording_type_slug: recordingType.toLowerCase(),
+        recording_text: recordingText,
+        recording_translation: '',
+        recording_ipa: recordingText,
+        categories: [
+          {
+            name: 'Regression Category',
+            url: '/quiz/regression-category/'
+          }
+        ],
+        issues: [],
+        ignored_issues: [],
+        issue_count: 0,
+        ignored_issue_count: 0,
+        needs_review: false,
+        review_fields: {
+          recording_text: false,
+          recording_ipa: false
+        },
+        review_note: '',
+        internal_review_note: window.__llWordReviewNoteMock.wordNotes[wordId] || '',
+        can_manage_internal_review_note: true,
+        image: {},
+        audio_url: '',
+        audio_label: 'Play recording'
+      };
+    }
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'search',
+      initialSearch: {
+        query: '',
+        scope: 'both',
+        issues_only: false,
+        review_only: false,
+        exact_transcription: false,
+        page: 1
+      },
+      internalNotes: {
+        enabled: true,
+        action: 'll_tools_save_internal_review_note',
+        nonce: 'internal-note-nonce',
+        saveDelayMs: 20,
+        i18n: {
+          emptyLabel: 'Add internal review note',
+          label: 'Internal review note',
+          description: 'Staff-only note.',
+          saving: 'Saving review note...',
+          saved: 'Review note saved.',
+          error: 'Unable to save the review note.'
+        }
+      },
+      i18n: {}
+    };
+
+    window.__llWordReviewNoteMock = {
+      wordNotes: {
+        55: 'Check the family image before publishing.'
+      },
+      postCalls: []
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const requestData = Object.assign({}, data);
+      const mock = window.__llWordReviewNoteMock;
+      mock.postCalls.push({
+        url: String(url || ''),
+        data: requestData
+      });
+
+      window.setTimeout(function () {
+        if (requestData.action === 'll_tools_search_ipa_keyboard_recordings') {
+          deferred.resolve({
+            success: true,
+            data: {
+              wordset: {
+                id: 7,
+                name: 'Duplicate Note Wordset'
+              },
+              transcription: {
+                mode: 'ipa',
+                symbols_column_label: 'Pronunciation'
+              },
+              results: [
+                clone(buildRecording(401, 'gamma intro', 'Introduction')),
+                clone(buildRecording(402, 'gamma isolation', 'Isolation'))
+              ],
+              total_matches: 2,
+              shown_count: 2,
+              has_more: false,
+              current_page: 1,
+              total_pages: 1,
+              per_page: 100,
+              page_start: 1,
+              page_end: 2,
+              issues_only: false,
+              review_only: false,
+              exact_transcription: false,
+              can_edit: true,
+              validation_config: {
+                supports_rules: true,
+                builtin_rules: [],
+                custom_rules: []
+              }
+            }
+          });
+          return;
+        }
+
+        if (requestData.action === 'll_tools_save_internal_review_note') {
+          const wordId = parseInt(requestData.object_id, 10) || 0;
+          const note = (requestData.note || '').toString();
+          mock.wordNotes[wordId] = note;
+          deferred.resolve({
+            success: true,
+            data: {
+              object_type: 'word',
+              object_id: wordId,
+              wordset_id: parseInt(requestData.wordset_id, 10) || 0,
+              note,
+              row: {
+                object_type: 'word',
+                object_id: wordId,
+                note,
+                title: 'Gamma'
+              }
+            }
+          });
+          return;
+        }
+
+        deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
+      }, 0);
+
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  const rows = page.locator('#ll-ipa-search-results tbody tr');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toHaveAttribute('data-word-id', '55');
+  await expect(rows.nth(1)).toHaveAttribute('data-word-id', '55');
+
+  const notes = page.locator('[data-ll-search-word-review-note]');
+  await expect(notes).toHaveCount(2);
+  await expect(notes.nth(0)).toHaveJSProperty('open', true);
+  await expect(notes.nth(1)).toHaveJSProperty('open', true);
+  await expect(notes.nth(0).locator('[data-ll-internal-review-note-input]')).toHaveValue('Check the family image before publishing.');
+  await expect(notes.nth(1).locator('[data-ll-internal-review-note-input]')).toHaveValue('Check the family image before publishing.');
+
+  const firstMetaOrder = await rows.nth(0).locator('.ll-ipa-search-meta').evaluate((meta) => {
+    const children = Array.from(meta.children);
+    return children.map((child) => ({
+      className: String(child.className || ''),
+      isNote: child.hasAttribute('data-ll-search-word-review-note')
+    }));
+  });
+  expect(firstMetaOrder[firstMetaOrder.length - 1].isNote).toBe(true);
+
+  const firstInput = notes.nth(0).locator('[data-ll-internal-review-note-input]');
+  const secondInput = notes.nth(1).locator('[data-ll-internal-review-note-input]');
+  await firstInput.fill('Use the alternate family photo.');
+
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__llWordReviewNoteMock.postCalls
+      .filter(call => call.data.action === 'll_tools_save_internal_review_note')
+      .length;
+  })).toBe(1);
+
+  await expect(firstInput).toHaveValue('Use the alternate family photo.');
+  await expect(secondInput).toHaveValue('Use the alternate family photo.');
+  await expect(notes.nth(0).locator('[data-ll-internal-review-note-status]')).toHaveText('Review note saved.');
+
+  const saveCalls = await page.evaluate(() => {
+    return window.__llWordReviewNoteMock.postCalls
+      .filter(call => call.data.action === 'll_tools_save_internal_review_note')
+      .map(call => ({
+        nonce: call.data.nonce,
+        object_id: Number(call.data.object_id),
+        object_type: call.data.object_type,
+        wordset_id: Number(call.data.wordset_id),
+        note: call.data.note
+      }));
+  });
+
+  expect(saveCalls).toEqual([
+    {
+      nonce: 'internal-note-nonce',
+      object_id: 55,
+      object_type: 'word',
+      wordset_id: 7,
+      note: 'Use the alternate family photo.'
+    }
+  ]);
+});
+
 test('search results render a small first chunk and append later rows on demand', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 800 });
   await page.route('**/*', route => route.fulfill({
