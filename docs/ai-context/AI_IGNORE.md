@@ -4,6 +4,8 @@ Use this with `task-router.md` and generated context packs. The goal is not to
 hide code from agents; it is to keep first-pass context focused on files likely
 to own the requested behavior.
 
+The `--activity-report` command uses the same first-pass exclusions.
+
 ## Usually Skip On First Pass
 
 These paths are excluded from generated context packs unless a task explicitly
@@ -13,10 +15,13 @@ points at them:
   update work.
 - `offline-app-builder/`: native/offline APK build tooling. Inspect only for
   offline builder or packaged app work.
-- `node_modules/`, `tests/e2e/node_modules/`: installed dependencies.
-- `test-results/`, `playwright-report/`, `blob-report/`: generated outputs.
+- `node_modules/`, `tests/vendor/`, `tests/e2e/node_modules/`: installed
+  dependencies.
+- `test-results/`, `playwright-report/`, `blob-report/`,
+  `tests/e2e/test-results/`, `tests/e2e/playwright-report/`, and
+  `tests/e2e/blob-report/`: generated outputs.
 - Binary or generated artifacts such as `.mo`, `.l10n.php`, images, audio,
-  zip files, PDFs, SQLite files, and database files.
+  font files, zip files, PDFs, SQLite files, and database files.
 
 ## Downrank Unless Relevant
 

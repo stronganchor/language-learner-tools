@@ -18,6 +18,8 @@ $root = dirname(__DIR__);
 $options = getopt('', [
     'help',
     'list',
+    'suggest-pack:',
+    'activity-report',
     'pack:',
     'all',
     'output:',
@@ -80,6 +82,20 @@ $settings = [
     'check' => isset($options['check']),
 ];
 
+$output = (string) ($options['output'] ?? '');
+
+if (isset($options['suggest-pack'])) {
+    $suggestions = ll_tools_context_pack_suggest_packs($packs, $aliases, (string) $options['suggest-pack'], $settings);
+    ll_tools_context_pack_emit_auxiliary_result($root, $output, 'pack-suggestions', $format, $suggestions);
+    exit(0);
+}
+
+if (isset($options['activity-report'])) {
+    $activityReport = ll_tools_context_pack_activity_report($root, $packs, $settings);
+    ll_tools_context_pack_emit_auxiliary_result($root, $output, 'file-activity-report', $format, $activityReport);
+    exit(0);
+}
+
 $packNames = [];
 if (isset($options['all'])) {
     $packNames = array_keys($packs);
@@ -94,7 +110,6 @@ if (isset($options['all'])) {
     $packNames = [$packName];
 }
 
-$output = (string) ($options['output'] ?? '');
 if (count($packNames) > 1 && $output === '-') {
     fwrite(STDERR, "--output - is only supported for a single pack.\n");
     exit(1);
@@ -124,6 +139,18 @@ function ll_tools_context_pack_definitions(): array
         'core-runtime-data-model' => [
             'description' => 'Bootstrap, assets, templates, post types, taxonomies, roles, and wordset isolation.',
             'load_when' => 'A change touches plugin loading, core taxonomies, CPT registration, roles, templates, or source/docs contracts.',
+            'signals' => [
+                'bootstrap',
+                'plugin activation',
+                'asset enqueue',
+                'template override',
+                'custom post type',
+                'taxonomy',
+                'roles capabilities',
+                'wordset isolation',
+                'source docs contract',
+                'direct include order',
+            ],
             'invariants' => [
                 'Bootstrap include order must match CODEBASE_ARCHITECTURE.md.',
                 'Template overrides must respect includes/template-loader.php order.',
@@ -152,6 +179,20 @@ function ll_tools_context_pack_definitions(): array
         'public-quiz-flashcards' => [
             'description' => 'Public quiz pages, flashcard payloads, shell rendering, and practice/listening flows.',
             'load_when' => 'A change touches quiz pages, flashcard AJAX payloads, option constraints, listening mode, or public quiz assets.',
+            'signals' => [
+                'quiz page',
+                'flashcard',
+                'practice mode',
+                'learning mode',
+                'listening mode',
+                'answer option',
+                'option label',
+                'prompt card',
+                'embed route',
+                'quiz popup',
+                'gender mode',
+                'self check',
+            ],
             'invariants' => [
                 'Do not hydrate all words when a count or bounded candidate pool is enough.',
                 'Keep ll_get_words_by_category() payload fields stable for option safety.',
@@ -185,6 +226,20 @@ function ll_tools_context_pack_definitions(): array
         'wordset-vocab-manager' => [
             'description' => 'Wordset pages, lazy cards, search, editor/settings UI, vocab lessons, and word grid.',
             'load_when' => 'A change touches public wordset pages, category shells, search, recommendations, editor rows, or vocab lesson cards.',
+            'signals' => [
+                'wordset page',
+                'wordset manager',
+                'category shell',
+                'lazy card',
+                'vocab lesson',
+                'word grid',
+                'word editor',
+                'inline edit',
+                'category search',
+                'progress summary',
+                'recommendations',
+                'large wordset first paint',
+            ],
             'invariants' => [
                 'Large wordsets are production data; first paint must stay bounded.',
                 'Use shell cards, paged editor rows, ID queries, and lazy hydration before full word/media hydration.',
@@ -217,6 +272,20 @@ function ll_tools_context_pack_definitions(): array
         'recording-media-transcription' => [
             'description' => 'Audio recording, media admin/imports, IPA/transcription manager, matching, and media helpers.',
             'load_when' => 'A change touches recordings, audio uploads, transcription rows, IPA matching, or generated media assignment.',
+            'signals' => [
+                'audio recorder',
+                'recording interface',
+                'audio upload',
+                'audio processor',
+                'recording type',
+                'transcription manager',
+                'IPA keyboard',
+                'review note',
+                'media matching',
+                'word audio',
+                'word image',
+                'prompt audio',
+            ],
             'invariants' => [
                 'Initial admin loads should be paged/lazy; validation can be deeper but must be explicit.',
                 'Publishing words may be blocked without published word_audio depending on category config.',
@@ -250,6 +319,20 @@ function ll_tools_context_pack_definitions(): array
         'automation-import-sync' => [
             'description' => 'Automation REST control plane, imports/exports, CLI helpers, site sync, and bulk jobs.',
             'load_when' => 'A change touches REST automation, import previews, site sync snapshots, remote apply flows, or server-side jobs.',
+            'signals' => [
+                'automation rest',
+                'site sync',
+                'snapshot',
+                'import preview',
+                'export import',
+                'bulk job',
+                'CLI command',
+                'sync id',
+                'ensure sync ids',
+                'remote apply',
+                'readback',
+                'lease',
+            ],
             'invariants' => [
                 'REST should control, enqueue, and report status for heavy work rather than doing unbounded work inline.',
                 'Site-sync snapshots must be paged for large wordsets; use ensure_sync_ids=0 and include_media=0 for lightweight read-only inspection.',
@@ -280,6 +363,20 @@ function ll_tools_context_pack_definitions(): array
         'dictionary-i18n-cache' => [
             'description' => 'Dictionary search/browser, public i18n, language switcher, and static cache behavior.',
             'load_when' => 'A change touches dictionary search, dictionary cache, locale negotiation, public strings, or language switching.',
+            'signals' => [
+                'dictionary',
+                'dictionary search',
+                'dictionary browser',
+                'public cache',
+                'static cache',
+                'language switcher',
+                'locale',
+                'translation ready',
+                'public UI strings',
+                'tier2 public UI',
+                'Loco Translate',
+                'i18n manifest',
+            ],
             'invariants' => [
                 'Public dictionary search should avoid broad postmeta contains scans.',
                 'Static cache keys must be deterministic and locale-safe.',
@@ -315,6 +412,20 @@ function ll_tools_context_pack_definitions(): array
         'offline-games-content-progress' => [
             'description' => 'Offline app export/sync, wordset games, user progress, content lessons, interlinear content, and classes.',
             'load_when' => 'A change touches offline bundles, wordset games, progress/study rows, content lessons, or teacher classes.',
+            'signals' => [
+                'offline app',
+                'offline export',
+                'offline sync',
+                'wordset game',
+                'space shooter',
+                'user progress',
+                'study metrics',
+                'content lesson',
+                'interlinear',
+                'teacher class',
+                'privacy retention',
+                'game launch',
+            ],
             'invariants' => [
                 'Game launch and study candidate pools should be capped before hydration.',
                 'Offline export can do batch work, but it should be explicit and resumable where possible.',
@@ -351,6 +462,20 @@ function ll_tools_context_pack_definitions(): array
         'performance-benchmark' => [
             'description' => 'Performance fixture manifests, seeding, Playwright scenarios, budgets, and history comparison.',
             'load_when' => 'A change touches performance test data, benchmark scenarios, page-speed budgets, or release-to-release performance evidence.',
+            'signals' => [
+                'performance',
+                'benchmark',
+                'page speed',
+                'large wordset',
+                'XL profile',
+                'fixture seeding',
+                'query count',
+                'payload size',
+                'first actionable',
+                'throttled load',
+                'history comparison',
+                'regression budget',
+            ],
             'invariants' => [
                 'Default benchmark runs must stay affordable.',
                 'Use LL_PERF_PROFILE=xl for thousands-of-words coverage.',
@@ -381,6 +506,8 @@ function ll_tools_context_pack_print_usage(): void
 {
     echo "Usage:\n";
     echo "  php scripts/build-ai-context-pack.php --list\n";
+    echo "  php scripts/build-ai-context-pack.php --suggest-pack \"task description\"\n";
+    echo "  php scripts/build-ai-context-pack.php --activity-report [--output <path|->] [--format markdown|json|both]\n";
     echo "  php scripts/build-ai-context-pack.php --pack <name> [--output <path|->] [--format markdown|json|both]\n";
     echo "  php scripts/build-ai-context-pack.php --all [--output <directory>] [--format markdown|json|both] [--check]\n";
     echo "Options:\n";
@@ -395,16 +522,21 @@ function ll_tools_context_pack_print_usage(): void
     echo "  --check               Exit non-zero when configured source patterns are missing.\n";
 }
 
-function ll_tools_context_pack_build(string $root, string $packName, array $pack, array $settings): array
+function ll_tools_context_pack_base_source_patterns(): array
 {
-    $sourcePatterns = array_merge([
+    return [
         'AGENTS.md',
         'CODEBASE_ARCHITECTURE.md',
         'docs/PERFORMANCE_ARCHITECTURE.md',
         'docs/ai-context/*.md',
         'tests/AI_TESTING_PLAYBOOK.md',
         'tests/README.md',
-    ], $pack['sources']);
+    ];
+}
+
+function ll_tools_context_pack_build(string $root, string $packName, array $pack, array $settings): array
+{
+    $sourcePatterns = array_merge(ll_tools_context_pack_base_source_patterns(), $pack['sources']);
     $testPatterns = $pack['tests'];
     $expandedSources = ll_tools_context_pack_expand_patterns($root, $sourcePatterns);
     $expandedTests = ll_tools_context_pack_expand_patterns($root, $testPatterns);
@@ -461,12 +593,390 @@ function ll_tools_context_pack_build(string $root, string $packName, array $pack
         'pack' => [
             'description' => $pack['description'],
             'load_when' => $pack['load_when'],
+            'signals' => $pack['signals'] ?? [],
             'invariants' => $pack['invariants'],
         ],
         'sources' => $sourceRows,
         'missing' => $missing,
         'markdown' => $markdown,
     ];
+}
+
+function ll_tools_context_pack_suggest_packs(array $packs, array $aliases, string $query, array $settings): array
+{
+    $normalizedQuery = ll_tools_context_pack_normalize_text($query);
+    $queryTokens = ll_tools_context_pack_tokenize($query);
+    $rows = [];
+
+    foreach ($packs as $packName => $pack) {
+        $signals = $pack['signals'] ?? [];
+        $haystack = ll_tools_context_pack_normalize_text(implode(' ', array_merge([
+            $packName,
+            $pack['description'],
+            $pack['load_when'],
+        ], $signals, $pack['invariants'])));
+
+        $score = 0;
+        $matches = [];
+        foreach ($signals as $signal) {
+            $normalizedSignal = ll_tools_context_pack_normalize_text($signal);
+            if ($normalizedSignal !== '' && strpos($normalizedQuery, $normalizedSignal) !== false) {
+                $score += strpos($normalizedSignal, ' ') === false ? 4 : 8;
+                $matches[] = $signal;
+                continue;
+            }
+
+            $signalTokens = ll_tools_context_pack_tokenize($signal);
+            $overlap = array_intersect($queryTokens, $signalTokens);
+            if ($overlap) {
+                $score += count($overlap) * 2;
+                $matches[] = $signal;
+            }
+        }
+
+        foreach ($queryTokens as $token) {
+            if (strlen($token) < 4) {
+                continue;
+            }
+            if (strpos($haystack, $token) !== false) {
+                $score++;
+            }
+        }
+
+        $matches = array_values(array_unique($matches));
+        $rows[] = [
+            'pack_id' => $packName,
+            'score' => $score,
+            'description' => $pack['description'],
+            'load_when' => $pack['load_when'],
+            'matched_signals' => array_slice($matches, 0, 8),
+            'aliases' => array_keys(array_filter($aliases, static function (string $target) use ($packName): bool {
+                return $target === $packName;
+            })),
+        ];
+    }
+
+    usort($rows, static function (array $a, array $b): int {
+        $scoreCompare = (int) $b['score'] <=> (int) $a['score'];
+        if ($scoreCompare !== 0) {
+            return $scoreCompare;
+        }
+        return strcmp($a['pack_id'], $b['pack_id']);
+    });
+
+    $matchedRows = array_values(array_filter($rows, static function (array $row): bool {
+        return !empty($row['matched_signals']);
+    }));
+    if ($matchedRows) {
+        $rows = $matchedRows;
+    }
+
+    $positiveRows = array_values(array_filter($rows, static function (array $row): bool {
+        return (int) $row['score'] > 0;
+    }));
+    if ($positiveRows) {
+        $rows = $positiveRows;
+    }
+
+    $rows = array_slice($rows, 0, 5);
+    $metadata = [
+        'schema' => 'll-tools-ai-pack-suggestion/v1',
+        'generated_at_gmt' => gmdate('c'),
+        'query' => $query,
+        'history_months' => $settings['history_months'],
+    ];
+
+    return [
+        'metadata' => $metadata,
+        'suggestions' => $rows,
+        'markdown' => ll_tools_context_pack_render_suggestions_markdown($metadata, $rows),
+    ];
+}
+
+function ll_tools_context_pack_activity_report(string $root, array $packs, array $settings): array
+{
+    $historyMonths = (int) $settings['history_months'];
+    $changeStats = ll_tools_context_pack_change_frequency($root, $historyMonths);
+    $files = ll_tools_context_pack_all_files($root);
+    $packFiles = [];
+    $filePacks = [];
+
+    foreach ($packs as $packName => $pack) {
+        $patterns = array_merge(ll_tools_context_pack_base_source_patterns(), $pack['sources'], $pack['tests']);
+        $expanded = ll_tools_context_pack_expand_patterns($root, $patterns);
+        $packFiles[$packName] = $expanded['files'];
+        foreach ($expanded['files'] as $file) {
+            $filePacks[$file][] = $packName;
+        }
+    }
+
+    $rows = [];
+    $directorySummary = [];
+    $changedCurrentFiles = 0;
+    foreach ($files as $file) {
+        $absolute = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $file);
+        $bytes = is_file($absolute) ? (int) filesize($absolute) : 0;
+        $recentChanges = (int) ($changeStats['counts'][$file] ?? 0);
+        $topLevel = ll_tools_context_pack_top_level($file);
+        $band = $changeStats['bands'][$file] ?? ($recentChanges > 0 ? 'cool' : 'quiet');
+        $row = [
+            'path' => $file,
+            'top_level' => $topLevel,
+            'bytes' => $bytes,
+            'recent_changes' => $recentChanges,
+            'change_rank' => $changeStats['ranks'][$file] ?? null,
+            'change_band' => $band,
+            'packs' => $filePacks[$file] ?? [],
+        ];
+        $rows[] = $row;
+
+        if (!isset($directorySummary[$topLevel])) {
+            $directorySummary[$topLevel] = [
+                'top_level' => $topLevel,
+                'file_count' => 0,
+                'bytes' => 0,
+                'changed_files' => 0,
+                'quiet_files' => 0,
+                'hot_files' => 0,
+            ];
+        }
+        $directorySummary[$topLevel]['file_count']++;
+        $directorySummary[$topLevel]['bytes'] += $bytes;
+        if ($recentChanges > 0) {
+            $directorySummary[$topLevel]['changed_files']++;
+            $changedCurrentFiles++;
+        } else {
+            $directorySummary[$topLevel]['quiet_files']++;
+        }
+        if ($band === 'hot') {
+            $directorySummary[$topLevel]['hot_files']++;
+        }
+    }
+
+    usort($rows, static function (array $a, array $b): int {
+        $changeCompare = (int) $b['recent_changes'] <=> (int) $a['recent_changes'];
+        if ($changeCompare !== 0) {
+            return $changeCompare;
+        }
+        return strcmp($a['path'], $b['path']);
+    });
+
+    $quietRows = array_values(array_filter($rows, static function (array $row): bool {
+        return (int) $row['recent_changes'] === 0;
+    }));
+    usort($quietRows, static function (array $a, array $b): int {
+        $bytesCompare = (int) $b['bytes'] <=> (int) $a['bytes'];
+        if ($bytesCompare !== 0) {
+            return $bytesCompare;
+        }
+        return strcmp($a['path'], $b['path']);
+    });
+
+    $directoryRows = array_values($directorySummary);
+    usort($directoryRows, static function (array $a, array $b): int {
+        $hotCompare = (int) $b['hot_files'] <=> (int) $a['hot_files'];
+        if ($hotCompare !== 0) {
+            return $hotCompare;
+        }
+        return (int) $b['changed_files'] <=> (int) $a['changed_files'];
+    });
+
+    $packRows = [];
+    foreach ($packFiles as $packName => $filesInPack) {
+        $packRows[] = ll_tools_context_pack_activity_pack_row($packName, $filesInPack, $changeStats);
+    }
+
+    $metadata = [
+        'schema' => 'll-tools-ai-file-activity-report/v1',
+        'generated_at_gmt' => gmdate('c'),
+        'git_head' => ll_tools_context_pack_git($root, ['rev-parse', '--short', 'HEAD']),
+        'history_months' => $historyMonths,
+        'source_file_count' => count($files),
+        'changed_file_count' => $changedCurrentFiles,
+        'excluded_prefixes' => ll_tools_context_pack_excluded_prefixes(),
+    ];
+
+    $rowLimit = max(0, (int) $settings['max_change_files']);
+    $payload = [
+        'metadata' => $metadata,
+        'directories' => $directoryRows,
+        'packs' => $packRows,
+        'most_changed_files' => array_slice($rows, 0, $rowLimit),
+        'quiet_large_files' => array_slice($quietRows, 0, $rowLimit),
+    ];
+
+    return [
+        'metadata' => $metadata,
+        'payload' => $payload,
+        'markdown' => ll_tools_context_pack_render_activity_markdown($payload),
+    ];
+}
+
+function ll_tools_context_pack_render_suggestions_markdown(array $metadata, array $rows): string
+{
+    $markdown = '# LL Tools Context Pack Suggestions' . "\n\n";
+    $markdown .= 'Query: `' . str_replace('`', "'", (string) $metadata['query']) . "`\n\n";
+    $markdown .= "| Rank | Pack | Score | Matched Signals | Next Command |\n";
+    $markdown .= "| ---: | --- | ---: | --- | --- |\n";
+    foreach ($rows as $index => $row) {
+        $matched = $row['matched_signals'] ? implode(', ', $row['matched_signals']) : '_none_';
+        $command = 'php scripts/build-ai-context-pack.php --pack ' . $row['pack_id'] . ' --manifest-only';
+        $markdown .= '| ' . ($index + 1) . ' | `' . $row['pack_id'] . '` | ' . (int) $row['score'] . ' | '
+            . ll_tools_context_pack_table_cell($matched) . ' | `' . $command . "` |\n";
+    }
+
+    $markdown .= "\nUse this as a starting point only. Verify ownership with source search and focused tests before editing.\n";
+    return $markdown;
+}
+
+function ll_tools_context_pack_activity_pack_row(string $packName, array $filesInPack, array $changeStats): array
+{
+    $changed = 0;
+    $quiet = 0;
+    $hot = 0;
+    $topFiles = [];
+
+    foreach ($filesInPack as $file) {
+        $recentChanges = (int) ($changeStats['counts'][$file] ?? 0);
+        $band = $changeStats['bands'][$file] ?? ($recentChanges > 0 ? 'cool' : 'quiet');
+        if ($recentChanges > 0) {
+            $changed++;
+        } else {
+            $quiet++;
+        }
+        if ($band === 'hot') {
+            $hot++;
+        }
+        if ($recentChanges > 0) {
+            $topFiles[] = [
+                'path' => $file,
+                'recent_changes' => $recentChanges,
+                'change_rank' => $changeStats['ranks'][$file] ?? null,
+                'change_band' => $band,
+            ];
+        }
+    }
+
+    usort($topFiles, static function (array $a, array $b): int {
+        $changeCompare = (int) $b['recent_changes'] <=> (int) $a['recent_changes'];
+        if ($changeCompare !== 0) {
+            return $changeCompare;
+        }
+        return strcmp($a['path'], $b['path']);
+    });
+
+    return [
+        'pack_id' => $packName,
+        'file_count' => count($filesInPack),
+        'changed_files' => $changed,
+        'quiet_files' => $quiet,
+        'hot_files' => $hot,
+        'top_files' => array_slice($topFiles, 0, 8),
+    ];
+}
+
+function ll_tools_context_pack_render_activity_markdown(array $payload): string
+{
+    $metadata = $payload['metadata'];
+    $markdown = '# LL Tools File Activity Report' . "\n\n";
+    $markdown .= '- Git HEAD: `' . $metadata['git_head'] . "`\n";
+    $markdown .= '- History window: last ' . (int) $metadata['history_months'] . " months\n";
+    $markdown .= '- Source files counted after AI context exclusions: ' . (int) $metadata['source_file_count'] . "\n";
+    $markdown .= '- Files with at least one recent change: ' . (int) $metadata['changed_file_count'] . "\n\n";
+    $markdown .= "Use this report as a scan-order hint. Quiet files can still be authoritative owner files.\n\n";
+
+    $markdown .= "## Directory Signals\n\n";
+    $markdown .= "| Directory | Files | Changed | Quiet | Hot |\n";
+    $markdown .= "| --- | ---: | ---: | ---: | ---: |\n";
+    foreach ($payload['directories'] as $row) {
+        $markdown .= '| `' . $row['top_level'] . '` | ' . (int) $row['file_count'] . ' | '
+            . (int) $row['changed_files'] . ' | ' . (int) $row['quiet_files'] . ' | '
+            . (int) $row['hot_files'] . " |\n";
+    }
+
+    $markdown .= "\n## Pack Signals\n\n";
+    $markdown .= "| Pack | Files | Changed | Quiet | Hot | Most Changed Files |\n";
+    $markdown .= "| --- | ---: | ---: | ---: | ---: | --- |\n";
+    foreach ($payload['packs'] as $row) {
+        $topFiles = array_map(static function (array $file): string {
+            return '`' . $file['path'] . '` (' . (int) $file['recent_changes'] . ')';
+        }, array_slice($row['top_files'], 0, 5));
+        $markdown .= '| `' . $row['pack_id'] . '` | ' . (int) $row['file_count'] . ' | '
+            . (int) $row['changed_files'] . ' | ' . (int) $row['quiet_files'] . ' | '
+            . (int) $row['hot_files'] . ' | ' . ll_tools_context_pack_table_cell(implode(', ', $topFiles)) . " |\n";
+    }
+
+    $markdown .= "\n## Most Changed Files\n\n";
+    foreach ($payload['most_changed_files'] as $row) {
+        $packs = $row['packs'] ? implode(', ', $row['packs']) : 'no pack';
+        $markdown .= '- `' . $row['path'] . '`: ' . ll_tools_context_pack_change_signal($row)
+            . '; packs: ' . $packs . "\n";
+    }
+
+    $markdown .= "\n## Largest Quiet Files\n\n";
+    foreach ($payload['quiet_large_files'] as $row) {
+        $packs = $row['packs'] ? implode(', ', $row['packs']) : 'no pack';
+        $markdown .= '- `' . $row['path'] . '`: ' . number_format((int) $row['bytes']) . ' bytes; packs: ' . $packs . "\n";
+    }
+
+    return $markdown;
+}
+
+function ll_tools_context_pack_normalize_text(string $text): string
+{
+    $text = strtolower($text);
+    $text = preg_replace('/[^a-z0-9]+/', ' ', $text);
+    return trim((string) $text);
+}
+
+function ll_tools_context_pack_tokenize(string $text): array
+{
+    $normalized = ll_tools_context_pack_normalize_text($text);
+    if ($normalized === '') {
+        return [];
+    }
+
+    $stopWords = array_fill_keys([
+        'about',
+        'after',
+        'again',
+        'with',
+        'from',
+        'that',
+        'this',
+        'when',
+        'where',
+        'which',
+        'into',
+        'the',
+        'and',
+        'for',
+        'but',
+        'fix',
+        'bug',
+        'change',
+        'update',
+        'page',
+    ], true);
+
+    $tokens = [];
+    foreach (preg_split('/\s+/', $normalized) as $token) {
+        if ($token === '' || isset($stopWords[$token])) {
+            continue;
+        }
+        $tokens[] = $token;
+    }
+
+    return array_values(array_unique($tokens));
+}
+
+function ll_tools_context_pack_top_level(string $path): string
+{
+    if (strpos($path, '/') === false) {
+        return '<root>';
+    }
+
+    return substr($path, 0, strpos($path, '/'));
 }
 
 function ll_tools_context_pack_expand_patterns(string $root, array $patterns): array
@@ -608,6 +1118,29 @@ function ll_tools_context_pack_has_glob(string $pattern): bool
 
 function ll_tools_context_pack_all_files(string $root): array
 {
+    static $cache = [];
+
+    if (isset($cache[$root])) {
+        return $cache[$root];
+    }
+
+    $gitFiles = ll_tools_context_pack_git($root, ['ls-files', '--cached', '--others', '--exclude-standard']);
+    $files = [];
+    foreach (preg_split('/\r\n|\r|\n/', trim((string) $gitFiles)) as $file) {
+        $file = str_replace('\\', '/', trim($file));
+        if ($file === '' || ll_tools_context_pack_is_excluded($file)) {
+            continue;
+        }
+        $files[] = $file;
+    }
+
+    if ($files) {
+        $files = array_values(array_unique($files));
+        sort($files);
+        $cache[$root] = $files;
+        return $cache[$root];
+    }
+
     $files = [];
     $directory = new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS);
     $filter = new RecursiveCallbackFilterIterator(
@@ -633,7 +1166,8 @@ function ll_tools_context_pack_all_files(string $root): array
         $files[] = $relative;
     }
     sort($files);
-    return $files;
+    $cache[$root] = $files;
+    return $cache[$root];
 }
 
 function ll_tools_context_pack_is_excluded_directory(string $relative): bool
@@ -659,7 +1193,11 @@ function ll_tools_context_pack_excluded_prefixes(): array
         '.git/',
         'vendor/',
         'node_modules/',
+        'tests/vendor/',
         'tests/e2e/node_modules/',
+        'tests/e2e/playwright-report/',
+        'tests/e2e/test-results/',
+        'tests/e2e/blob-report/',
         'offline-app-builder/',
         'dist/',
         'test-results/',
@@ -676,7 +1214,7 @@ function ll_tools_context_pack_is_excluded(string $relative): bool
         }
     }
 
-    return preg_match('/\.(mo|l10n\.php|png|jpe?g|gif|webp|mp3|wav|zip|pdf|sqlite|db)$/i', $relative) === 1;
+    return preg_match('/\.(mo|l10n\.php|png|jpe?g|gif|webp|mp3|wav|zip|pdf|sqlite|db|woff2?|ttf|otf)$/i', $relative) === 1;
 }
 
 function ll_tools_context_pack_pattern_regex(string $pattern): string
@@ -758,6 +1296,13 @@ function ll_tools_context_pack_render_markdown(
     $markdown .= '# LL Tools Context Pack: ' . $packName . "\n\n";
     $markdown .= "## Purpose\n\n" . $pack['description'] . "\n\n";
     $markdown .= "## Load When\n\n" . $pack['load_when'] . "\n\n";
+    if (!empty($pack['signals'])) {
+        $markdown .= "## Task Signals\n\n";
+        foreach ($pack['signals'] as $signal) {
+            $markdown .= '- ' . $signal . "\n";
+        }
+        $markdown .= "\n";
+    }
     $markdown .= "## Hard Invariants\n\n";
     foreach ($pack['invariants'] as $invariant) {
         $markdown .= '- ' . $invariant . "\n";
@@ -946,6 +1491,61 @@ function ll_tools_context_pack_render_for_format(array $result, string $format, 
     return $result['markdown'];
 }
 
+function ll_tools_context_pack_emit_auxiliary_result(string $root, string $output, string $slug, string $format, array $result): void
+{
+    if ($output === '' || $output === '-') {
+        echo ll_tools_context_pack_render_auxiliary_for_format($result, $format, $output === '-');
+        return;
+    }
+
+    $target = ll_tools_context_pack_auxiliary_output_target($root, $output, $slug, $format);
+    $dir = dirname($target);
+    if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+        fwrite(STDERR, "Unable to create output directory: {$dir}\n");
+        exit(1);
+    }
+
+    if ($format === 'json') {
+        file_put_contents($target, ll_tools_context_pack_render_auxiliary_for_format($result, 'json'));
+        echo "Wrote {$target}\n";
+        return;
+    }
+
+    file_put_contents($target, $result['markdown']);
+    echo "Wrote {$target}\n";
+
+    if ($format === 'both') {
+        $jsonTarget = preg_replace('/\.[^.]+$/', '.json', $target);
+        if (!is_string($jsonTarget) || $jsonTarget === '') {
+            $jsonTarget = $target . '.json';
+        }
+        file_put_contents($jsonTarget, ll_tools_context_pack_render_auxiliary_for_format($result, 'json'));
+        echo "Wrote {$jsonTarget}\n";
+    }
+}
+
+function ll_tools_context_pack_render_auxiliary_for_format(array $result, string $format, bool $stdout = false): string
+{
+    if ($format === 'json') {
+        return json_encode(ll_tools_context_pack_auxiliary_json_payload($result), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+    }
+    if ($format === 'both' && $stdout) {
+        return $result['markdown'] . "\n\n<!-- JSON sidecar omitted on stdout; use --format json for machine output. -->\n";
+    }
+    return $result['markdown'];
+}
+
+function ll_tools_context_pack_auxiliary_json_payload(array $result): array
+{
+    if (isset($result['payload'])) {
+        return $result['payload'];
+    }
+
+    $payload = $result;
+    unset($payload['markdown']);
+    return $payload;
+}
+
 function ll_tools_context_pack_json_payload(array $result): array
 {
     return [
@@ -954,6 +1554,16 @@ function ll_tools_context_pack_json_payload(array $result): array
         'sources' => $result['sources'],
         'missing' => $result['missing'],
     ];
+}
+
+function ll_tools_context_pack_auxiliary_output_target(string $root, string $output, string $slug, string $format): string
+{
+    $resolved = ll_tools_context_pack_resolve_output_path($root, $output);
+    if (pathinfo($resolved, PATHINFO_EXTENSION) !== '') {
+        return $resolved;
+    }
+
+    return rtrim($resolved, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $slug . '.' . ($format === 'json' ? 'json' : 'md');
 }
 
 function ll_tools_context_pack_output_target(string $root, string $output, string $packName, string $format): string

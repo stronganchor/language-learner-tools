@@ -4,18 +4,30 @@ Use this workflow when the repo feels too large to inspect directly.
 
 ## First Pass
 
-1. Match the task to a pack in `docs/ai-context/task-router.md`.
-2. Generate a manifest first:
+1. Ask the local router for a starting pack:
+
+   ```bash
+   php scripts/build-ai-context-pack.php --suggest-pack "short task description"
+   ```
+
+2. If the owner is still unclear, read `docs/ai-context/task-router.md` and
+   generate the repo-wide activity report:
+
+   ```bash
+   php scripts/build-ai-context-pack.php --activity-report --output -
+   ```
+
+3. Generate a manifest for the selected pack:
 
    ```bash
    php scripts/build-ai-context-pack.php --pack <pack> --manifest-only
    ```
 
-3. Read the hot/warm files from the change-frequency section before quiet files,
+4. Read the hot/warm files from the change-frequency section before quiet files,
    unless the route, shortcode, test, or invariant points elsewhere.
-4. Apply `docs/ai-context/AI_IGNORE.md` so generated, vendor, or builder-only
+5. Apply `docs/ai-context/AI_IGNORE.md` so generated, vendor, or builder-only
    paths do not crowd out the owning source files.
-5. Generate full excerpts only after the owner is clear:
+6. Generate full excerpts only after the owner is clear:
 
    ```bash
    php scripts/build-ai-context-pack.php --pack <pack> --output -
@@ -34,7 +46,7 @@ Update the context-pack system in the same change when any of these are true:
 - A performance fix identifies a new hot path, unbounded load pattern, cache
   contract, or benchmark scenario.
 - A task was hard to route because the router lacked the user's vocabulary for
-  the affected surface.
+  the affected surface or `--suggest-pack` ranked the wrong pack first.
 
 Prefer small updates:
 
@@ -50,6 +62,8 @@ For context-pack changes, run the narrowest relevant checks:
 ```bash
 php scripts/build-ai-context-pack.php --pack <pack> --manifest-only --check
 php scripts/build-ai-context-pack.php --pack <pack> --format json --manifest-only --output -
+php scripts/build-ai-context-pack.php --suggest-pack "dictionary cache locale bug"
+php scripts/build-ai-context-pack.php --activity-report --format json --output -
 ```
 
 When docs or pack definitions change, also run the maintenance contract test if

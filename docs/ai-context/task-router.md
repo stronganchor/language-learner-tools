@@ -4,6 +4,8 @@ Start here when the task is broad or the owner is unclear. Pick the nearest
 pack, generate it, then verify against current source before editing.
 
 ```bash
+php scripts/build-ai-context-pack.php --suggest-pack "short task description"
+php scripts/build-ai-context-pack.php --activity-report --output -
 php scripts/build-ai-context-pack.php --pack <pack> --manifest-only
 php scripts/build-ai-context-pack.php --pack <pack> --output -
 ```
@@ -11,6 +13,9 @@ php scripts/build-ai-context-pack.php --pack <pack> --output -
 The generated pack includes git change-frequency signals for each source file.
 Use hot/warm files as a scan-order clue, and use quiet files as a reason to
 verify ownership before editing.
+
+If the suggested pack looks wrong, update the `signals` for the relevant pack in
+`scripts/build-ai-context-pack.php` or add a clearer row below.
 
 | Task signal | Start with pack | Search next |
 | --- | --- | --- |

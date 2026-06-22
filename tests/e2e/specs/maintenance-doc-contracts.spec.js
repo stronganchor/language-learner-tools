@@ -55,6 +55,21 @@ function collectContextPackNames() {
     .sort();
 }
 
+function contextPackDefinitionBlock(packName) {
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts', 'build-ai-context-pack.php'), 'utf8');
+  const marker = `        '${packName}' => [`;
+  const start = source.indexOf(marker);
+
+  expect(start, `build-ai-context-pack.php is missing pack ${packName}.`).toBeGreaterThanOrEqual(0);
+
+  const next = source.indexOf("\n        '", start + marker.length);
+  const end = next === -1 ? source.indexOf('    ];', start) : next;
+
+  expect(end, `Could not find end of pack block for ${packName}.`).toBeGreaterThan(start);
+
+  return source.slice(start, end);
+}
+
 function isLikelyUiText(value) {
   const normalized = value
     .replace(/\\[nrt]/g, ' ')
@@ -274,6 +289,11 @@ test('AI context router and workflow docs cover configured context packs', async
   for (const requiredDoc of ['task-router.md', 'AI_IGNORE.md', 'AGENT_WORKFLOW.md']) {
     expect(contextReadme, `docs/ai-context/README.md should link ${requiredDoc}.`).toContain(requiredDoc);
   }
+  for (const command of ['--suggest-pack', '--activity-report']) {
+    expect(contextReadme, `docs/ai-context/README.md should document ${command}.`).toContain(command);
+    expect(router, `docs/ai-context/task-router.md should document ${command}.`).toContain(command);
+    expect(workflow, `docs/ai-context/AGENT_WORKFLOW.md should document ${command}.`).toContain(command);
+  }
 
   const missingFromRouter = packNames.filter((packName) => !router.includes(`\`${packName}\``));
   expect(
@@ -281,8 +301,14 @@ test('AI context router and workflow docs cover configured context packs', async
     `docs/ai-context/task-router.md is missing configured packs: ${missingFromRouter.join(', ')}`
   ).toEqual([]);
 
+  for (const packName of packNames) {
+    const block = contextPackDefinitionBlock(packName);
+    expect(block, `Context pack ${packName} should define task-routing signals.`).toContain("'signals' => [");
+  }
+
   expect(workflow).toContain('Feedback Loop');
   expect(ignorePolicy).toContain('Usually Skip On First Pass');
+  expect(ignorePolicy).toContain('--activity-report');
 });
 
 test('high-confidence user-facing strings are translation-ready', async () => {
