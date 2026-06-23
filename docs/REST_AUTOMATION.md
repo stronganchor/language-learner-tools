@@ -139,7 +139,8 @@ the server with image, media, or metadata updates:
   with repeated auth/status checks while a write is already running.
 - Basic-auth automation writes that can mutate or rebuild larger LL Tools
   surfaces are also serialized, including static-cache purge, wordset writes,
-  import preview/start/process/discard, and corpus-text asset/import routes.
+  dictionary lookup-index rebuilds, import preview/start/process/discard, and
+  corpus-text asset/import routes.
 - Plugin update automation is also serialized. It supports the fixed Strong
   Anchor GitHub dev branch package only, defaults to dry-run, and requires
   explicit confirmation for writes.
@@ -266,6 +267,7 @@ Routes:
 
 - `GET /automation/status`
 - `POST /automation/plugin-update`
+- `POST /automation/dictionary-lookup-index`
 - `POST /automation/dictionary-entry-headwords`
 - `POST /automation/dictionary-entry-supersede`
 - `POST /automation/dictionary-entry-upsert-row`
@@ -694,7 +696,9 @@ curl -u codex-temp:YOUR_PASSWORD \
 ### `GET /automation/status`
 
 Returns the authenticated user, auth mode, LL Tools capability checks, and the
-available automation routes. Use this as the first smoke test on a live site.
+available automation routes. It also includes dictionary lookup-index status
+and row counts when that subsystem is installed. Use this as the first smoke
+test on a live site.
 
 ### `POST /automation/plugin-update`
 
@@ -721,6 +725,24 @@ versions plus upgrader messages.
 This route cannot bootstrap itself onto an older live site. Use wp-admin upload,
 WordPress' normal updater, or a one-time server-side replacement to install the
 first LL Tools version that contains it.
+
+### `POST /automation/dictionary-lookup-index`
+
+Runs guarded dictionary lookup-index maintenance for the optional apostrophe and
+close-search lookup table.
+
+Body fields:
+
+- `dry_run` optional boolean, default `true`
+- `process_batches` optional integer, default `0`, capped at `250`
+- `backfill_apostrophes` optional boolean, default `true`
+
+Dry-runs return before/after lookup status without mutating data. Applied writes
+require `manage_options` plus LL Tools view access, may upgrade the lookup table
+schema, can backfill optional-apostrophe lookup rows, and process up to the
+requested number of rebuild batches. Responses include `before` and `after`
+status payloads, row counts by lookup kind, processed batch count, and the
+number of backfilled rows.
 
 ### `POST /automation/dictionary-entry-headwords`
 

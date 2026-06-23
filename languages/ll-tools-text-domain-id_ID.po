@@ -4569,3 +4569,33 @@ msgstr "Entri Kamus"
 #: includes/admin/admin-dashboard-menu.php:374
 msgid "Maintain dictionary-style reference entries and supporting details."
 msgstr "Kelola entri referensi bergaya kamus dan detail pendukung."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:339
+msgid "Create and organize categories used to build quizzes and pages."
+msgstr "Buat dan atur kategori yang digunakan untuk membuat kuis dan halaman."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:346
+msgid "Review generated public quiz pages without mixing them into normal Pages."
+msgstr "Tinjau halaman kuis publik yang dibuat tanpa mencampurnya dengan Halaman biasa."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:353
+msgid "Add and edit vocabulary entries, meanings, and metadata."
+msgstr "Tambahkan dan edit entri kosakata, makna, dan metadata."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:384
+msgid "Create teacher classes, invite learners, and review student progress."
+msgstr "Buat kelas pengajar, undang pelajar, dan tinjau progres siswa."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:395
+msgid "Open the utilities menu for import/export, processing, and maintenance workflows."
+msgstr "Buka menu utilitas untuk alur kerja impor/ekspor, pemrosesan, dan pemeliharaan."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:401 includes/admin/admin-dashboard-menu.php:843 includes/pages/wordset-pages.php:12060 language-learner-tools.php:839
+msgid "Settings"
+msgstr "Pengaturan"

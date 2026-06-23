@@ -4602,3 +4602,33 @@ msgstr "Словарные статьи"
 #: includes/admin/admin-dashboard-menu.php:374
 msgid "Maintain dictionary-style reference entries and supporting details."
 msgstr "Ведите справочные словарные статьи и связанные сведения."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:339
+msgid "Create and organize categories used to build quizzes and pages."
+msgstr "Создавайте и упорядочивайте категории, используемые для создания викторин и страниц."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:346
+msgid "Review generated public quiz pages without mixing them into normal Pages."
+msgstr "Проверяйте созданные публичные страницы викторин, не смешивая их с обычными страницами."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:353
+msgid "Add and edit vocabulary entries, meanings, and metadata."
+msgstr "Добавляйте и редактируйте словарные элементы, значения и метаданные."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:384
+msgid "Create teacher classes, invite learners, and review student progress."
+msgstr "Создавайте учебные классы, приглашайте учащихся и просматривайте прогресс учеников."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:395
+msgid "Open the utilities menu for import/export, processing, and maintenance workflows."
+msgstr "Откройте меню утилит для процессов импорта/экспорта, обработки и обслуживания."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:401 includes/admin/admin-dashboard-menu.php:843 includes/pages/wordset-pages.php:12060 language-learner-tools.php:839
+msgid "Settings"
+msgstr "Настройки"

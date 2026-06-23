@@ -4551,3 +4551,33 @@ msgstr "사전 항목"
 #: includes/admin/admin-dashboard-menu.php:374
 msgid "Maintain dictionary-style reference entries and supporting details."
 msgstr "사전식 참조 항목과 보조 세부 정보를 관리합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:339
+msgid "Create and organize categories used to build quizzes and pages."
+msgstr "퀴즈와 페이지를 만드는 데 사용하는 카테고리를 만들고 정리합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:346
+msgid "Review generated public quiz pages without mixing them into normal Pages."
+msgstr "생성된 공개 퀴즈 페이지를 일반 페이지와 섞지 않고 검토합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:353
+msgid "Add and edit vocabulary entries, meanings, and metadata."
+msgstr "어휘 항목, 뜻, 메타데이터를 추가하고 편집합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:384
+msgid "Create teacher classes, invite learners, and review student progress."
+msgstr "교사 클래스를 만들고 학습자를 초대하며 학생 진행 상황을 검토합니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:395
+msgid "Open the utilities menu for import/export, processing, and maintenance workflows."
+msgstr "가져오기/내보내기, 처리, 유지관리 작업을 위한 유틸리티 메뉴를 엽니다."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:401 includes/admin/admin-dashboard-menu.php:843 includes/pages/wordset-pages.php:12060 language-learner-tools.php:839
+msgid "Settings"
+msgstr "설정"

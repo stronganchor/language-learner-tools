@@ -4569,3 +4569,33 @@ msgstr "शब्दकोश प्रविष्टियाँ"
 #: includes/admin/admin-dashboard-menu.php:374
 msgid "Maintain dictionary-style reference entries and supporting details."
 msgstr "शब्दकोश-शैली की संदर्भ प्रविष्टियाँ और सहायक विवरण बनाए रखें."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:339
+msgid "Create and organize categories used to build quizzes and pages."
+msgstr "क्विज़ और पेज बनाने के लिए उपयोग की जाने वाली श्रेणियाँ बनाएँ और व्यवस्थित करें।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:346
+msgid "Review generated public quiz pages without mixing them into normal Pages."
+msgstr "बनाए गए सार्वजनिक क्विज़ पेजों की समीक्षा करें, उन्हें सामान्य पेजों में मिलाए बिना।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:353
+msgid "Add and edit vocabulary entries, meanings, and metadata."
+msgstr "शब्दावली प्रविष्टियाँ, अर्थ और मेटाडेटा जोड़ें और संपादित करें।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:384
+msgid "Create teacher classes, invite learners, and review student progress."
+msgstr "शिक्षक कक्षाएँ बनाएँ, विद्यार्थियों को आमंत्रित करें और विद्यार्थी प्रगति की समीक्षा करें।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:395
+msgid "Open the utilities menu for import/export, processing, and maintenance workflows."
+msgstr "आयात/निर्यात, प्रसंस्करण और रखरखाव वर्कफ़्लो के लिए उपयोगिता मेनू खोलें।"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:401 includes/admin/admin-dashboard-menu.php:843 includes/pages/wordset-pages.php:12060 language-learner-tools.php:839
+msgid "Settings"
+msgstr "सेटिंग्स"
