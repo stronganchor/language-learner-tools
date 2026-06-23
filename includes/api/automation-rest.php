@@ -412,6 +412,23 @@ function ll_tools_rest_automation_require_plugin_update_access() {
     return true;
 }
 
+function ll_tools_rest_automation_require_dictionary_lookup_index_access() {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    if (!current_user_can('manage_options')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_automation_dictionary_lookup_forbidden',
+            __('You cannot manage the dictionary lookup index through LL Tools automation.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return true;
+}
+
 function ll_tools_rest_automation_request_string(WP_REST_Request $request, string $key): string {
     $value = $request->get_param($key);
     if (!is_scalar($value)) {
@@ -725,6 +742,10 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
         $resource = 'll_tools_plugin_update';
         $delay_seconds = 10.0;
         $lock_ttl_seconds = 300.0;
+    } elseif ($route === '/ll-tools/v1/automation/dictionary-lookup-index') {
+        $resource = 'll_tools_dictionary_lookup_index';
+        $delay_seconds = 5.0;
+        $lock_ttl_seconds = 300.0;
     } elseif ($route === '/ll-tools/v1/automation/dictionary-entry-headwords') {
         $resource = 'll_tools_dictionary_entry_headwords';
         $delay_seconds = 5.0;
@@ -999,6 +1020,55 @@ function ll_tools_rest_automation_rest_import_word_image_time_budget($seconds, a
 }
 add_filter('ll_tools_import_job_word_image_process_time_budget_seconds', 'll_tools_rest_automation_rest_import_word_image_time_budget', 10, 2);
 
+function ll_tools_rest_automation_dictionary_lookup_index_status(): array {
+    global $wpdb;
+
+    $table_exists = function_exists('ll_tools_dictionary_lookup_table_exists')
+        ? (bool) ll_tools_dictionary_lookup_table_exists()
+        : false;
+    $state = function_exists('ll_tools_get_dictionary_lookup_rebuild_state')
+        ? ll_tools_get_dictionary_lookup_rebuild_state()
+        : [];
+    $row_counts = [];
+    $total_rows = 0;
+
+    if ($table_exists && function_exists('ll_tools_dictionary_lookup_table_name')) {
+        $table = ll_tools_dictionary_lookup_table_name();
+        $rows = (array) $wpdb->get_results(
+            "SELECT lookup_kind, COUNT(*) AS row_count
+             FROM {$table}
+             GROUP BY lookup_kind
+             ORDER BY lookup_kind ASC",
+            ARRAY_A
+        );
+        foreach ($rows as $row) {
+            $kind = sanitize_key((string) ($row['lookup_kind'] ?? ''));
+            $count = max(0, (int) ($row['row_count'] ?? 0));
+            if ($kind === '') {
+                continue;
+            }
+
+            $row_counts[$kind] = $count;
+            $total_rows += $count;
+        }
+    }
+
+    return [
+        'table_exists' => $table_exists,
+        'ready' => function_exists('ll_tools_dictionary_lookup_is_ready')
+            ? (bool) ll_tools_dictionary_lookup_is_ready()
+            : false,
+        'installed_version' => (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, ''),
+        'target_version' => defined('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION')
+            ? (string) LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
+            : '',
+        'state' => $state,
+        'total_rows' => $total_rows,
+        'row_counts' => $row_counts,
+        'has_optional_apostrophe_rows' => !empty($row_counts['headword_apos']) || !empty($row_counts['translation_apos']),
+    ];
+}
+
 function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Response {
     $user = wp_get_current_user();
     $auth_mode = isset($GLOBALS['ll_tools_rest_automation_auth_mode']) && is_string($GLOBALS['ll_tools_rest_automation_auth_mode'])
@@ -1010,6 +1080,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
         'plugin_version' => defined('LL_TOOLS_VERSION') ? LL_TOOLS_VERSION : '',
         'auth_mode' => $auth_mode,
         'password_basic_auth_allowed' => ll_tools_rest_automation_password_auth_is_allowed(),
+        'dictionary_lookup' => ll_tools_rest_automation_dictionary_lookup_index_status(),
         'user' => [
             'id' => $user instanceof WP_User ? (int) $user->ID : 0,
             'login' => $user instanceof WP_User ? (string) $user->user_login : '',
@@ -1028,6 +1099,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
         'routes' => [
             'status' => '/ll-tools/v1/automation/status',
             'plugin_update' => '/ll-tools/v1/automation/plugin-update',
+            'dictionary_lookup_index' => '/ll-tools/v1/automation/dictionary-lookup-index',
             'dictionary_entry_headwords' => '/ll-tools/v1/automation/dictionary-entry-headwords',
             'dictionary_entry_supersede' => '/ll-tools/v1/automation/dictionary-entry-supersede',
             'dictionary_entry_upsert_row' => '/ll-tools/v1/automation/dictionary-entry-upsert-row',
@@ -1114,6 +1186,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             ],
             'automation_write_routes' => [
                 '/ll-tools/v1/automation/plugin-update',
+                '/ll-tools/v1/automation/dictionary-lookup-index',
                 '/ll-tools/v1/automation/dictionary-entry-headwords',
                 '/ll-tools/v1/automation/dictionary-entry-supersede',
                 '/ll-tools/v1/automation/dictionary-entry-upsert-row',
@@ -1652,6 +1725,70 @@ function ll_tools_rest_automation_dictionary_entry_upsert_row(WP_REST_Request $r
             'after' => trim((string) get_post_field('post_title', $entry_id)),
         ],
         'status' => (string) get_post_status($entry_id),
+    ]);
+}
+
+function ll_tools_rest_automation_dictionary_lookup_index(WP_REST_Request $request): WP_REST_Response {
+    $dry_run = $request->has_param('dry_run')
+        ? (bool) rest_sanitize_boolean($request->get_param('dry_run'))
+        : true;
+    $process_batches = max(0, min(250, (int) $request->get_param('process_batches')));
+    $run_backfill = $request->has_param('backfill_apostrophes')
+        ? (bool) rest_sanitize_boolean($request->get_param('backfill_apostrophes'))
+        : true;
+
+    $before = ll_tools_rest_automation_dictionary_lookup_index_status();
+    $processed_batches = 0;
+    $backfilled_rows = 0;
+
+    if (!$dry_run) {
+        if (function_exists('ll_tools_maybe_upgrade_dictionary_lookup_schema')) {
+            ll_tools_maybe_upgrade_dictionary_lookup_schema();
+        }
+
+        if ($run_backfill && function_exists('ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index')) {
+            $backfilled_rows += ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index();
+        }
+
+        for ($batch = 0; $batch < $process_batches; $batch++) {
+            if (!function_exists('ll_tools_get_dictionary_lookup_rebuild_state') || !function_exists('ll_tools_dictionary_lookup_process_rebuild_batch')) {
+                break;
+            }
+
+            $state = ll_tools_get_dictionary_lookup_rebuild_state();
+            if (($state['status'] ?? '') === 'completed' && (int) ($state['truncate_pending'] ?? 0) === 0) {
+                break;
+            }
+
+            $previous_last_id = (int) ($state['last_id'] ?? 0);
+            $previous_processed = (int) ($state['processed'] ?? 0);
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+            $processed_batches++;
+
+            $next_state = ll_tools_get_dictionary_lookup_rebuild_state();
+            if (
+                (int) ($next_state['last_id'] ?? 0) === $previous_last_id
+                && (int) ($next_state['processed'] ?? 0) === $previous_processed
+                && ($next_state['status'] ?? '') !== 'completed'
+            ) {
+                break;
+            }
+        }
+
+        if ($run_backfill && function_exists('ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index')) {
+            $backfilled_rows += ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index();
+        }
+    }
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'process_batches_requested' => $process_batches,
+        'processed_batches' => $processed_batches,
+        'backfill_apostrophes' => $run_backfill,
+        'backfilled_rows' => $backfilled_rows,
+        'before' => $before,
+        'after' => ll_tools_rest_automation_dictionary_lookup_index_status(),
     ]);
 }
 
@@ -9321,6 +9458,31 @@ function ll_tools_rest_register_automation_routes(): void {
             'expected_version' => [
                 'required' => false,
                 'type' => 'string',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/automation/dictionary-lookup-index', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_dictionary_lookup_index',
+        'permission_callback' => 'll_tools_rest_automation_require_dictionary_lookup_index_access',
+        'args' => [
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+            'process_batches' => [
+                'required' => false,
+                'type' => 'integer',
+                'default' => 0,
+                'minimum' => 0,
+                'maximum' => 250,
+            ],
+            'backfill_apostrophes' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
             ],
         ],
     ]);
