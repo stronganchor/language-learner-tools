@@ -421,6 +421,32 @@ function ll_tools_dictionary_strip_optional_search_apostrophes(string $value): s
 }
 
 /**
+ * Return the literal lookup values used for optional-apostrophe comparisons.
+ *
+ * These are intentionally based on the user's search text only. Close-match
+ * variants stay on indexed exact/prefix clauses; multiplying unindexed
+ * apostrophe stripping by every close variant is too expensive on large
+ * dictionaries.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_get_optional_apostrophe_lookup_variants(string $lookup, int $wordset_id = 0): array {
+    if (!ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id)) {
+        return [];
+    }
+
+    $normalized = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+        ? ll_tools_dictionary_entry_normalize_lookup_value($lookup)
+        : (function_exists('mb_strtolower') ? mb_strtolower(trim($lookup), 'UTF-8') : strtolower(trim($lookup)));
+    $stripped = trim((string) ll_tools_dictionary_strip_optional_search_apostrophes($normalized));
+    if ($stripped === '') {
+        return [];
+    }
+
+    return [$stripped];
+}
+
+/**
  * Determine whether a wordset has any close-search behavior configured.
  */
 function ll_tools_dictionary_wordset_has_close_search_config(int $wordset_id = 0): bool {
@@ -4273,22 +4299,13 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
     $close_variants = ($has_close_config && function_exists('ll_tools_dictionary_get_non_strict_close_lookup_variants'))
         ? ll_tools_dictionary_get_non_strict_close_lookup_variants($lookup, $wordset_id)
         : [];
-    $apostrophe_variants = [];
-    $apostrophes_optional = $has_close_config
-        && function_exists('ll_tools_dictionary_uses_optional_search_apostrophes')
-        && ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id)
-        && function_exists('ll_tools_dictionary_strip_optional_search_apostrophes');
-    if ($apostrophes_optional) {
-        foreach (array_merge([$lookup], $close_variants) as $variant) {
-            $stripped = function_exists('ll_tools_dictionary_prepare_lookup_value')
-                ? ll_tools_dictionary_prepare_lookup_value(ll_tools_dictionary_strip_optional_search_apostrophes((string) $variant))
-                : strtolower(ll_tools_dictionary_strip_optional_search_apostrophes((string) $variant));
-            if ($stripped !== '') {
-                $apostrophe_variants[$stripped] = true;
-            }
-        }
-    }
-    $apostrophe_variants = array_keys($apostrophe_variants);
+    $apostrophe_variants = ($has_close_config && function_exists('ll_tools_dictionary_get_optional_apostrophe_lookup_variants'))
+        ? array_values(array_filter(array_unique(array_map(static function (string $variant): string {
+            return function_exists('ll_tools_dictionary_prepare_lookup_value')
+                ? ll_tools_dictionary_prepare_lookup_value($variant)
+                : strtolower(trim($variant));
+        }, ll_tools_dictionary_get_optional_apostrophe_lookup_variants($lookup, $wordset_id)))))
+        : [];
 
     $cache_args = [
         'search' => $search,
@@ -4373,21 +4390,6 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                 $params[] = $lookup_contains;
                 $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 4';
                 $case_params[] = $lookup_contains;
-
-                foreach ($close_variants as $variant) {
-                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
-                    $search_clauses[] = 'lookup_title.meta_value LIKE %s';
-                    $params[] = $variant_contains;
-                    $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 6';
-                    $case_params[] = $variant_contains;
-                }
-                foreach ($apostrophe_variants as $variant) {
-                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
-                    $search_clauses[] = "REPLACE(lookup_title.meta_value, CHAR(39), '') LIKE %s";
-                    $params[] = $variant_contains;
-                    $case_sql[] = "WHEN REPLACE(lookup_title.meta_value, CHAR(39), '') LIKE %s THEN 6";
-                    $case_params[] = $variant_contains;
-                }
             } else {
                 $search_clauses[] = 'lookup_title.meta_value = %s';
                 $params[] = $lookup;
@@ -4448,21 +4450,6 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                 $params[] = $lookup_contains;
                 $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 5';
                 $case_params[] = $lookup_contains;
-
-                foreach ($close_variants as $variant) {
-                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
-                    $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
-                    $params[] = $variant_contains;
-                    $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 7';
-                    $case_params[] = $variant_contains;
-                }
-                foreach ($apostrophe_variants as $variant) {
-                    $variant_contains = '%' . $wpdb->esc_like((string) $variant) . '%';
-                    $search_clauses[] = "REPLACE(lookup_translation.meta_value, CHAR(39), '') LIKE %s";
-                    $params[] = $variant_contains;
-                    $case_sql[] = "WHEN REPLACE(lookup_translation.meta_value, CHAR(39), '') LIKE %s THEN 7";
-                    $case_params[] = $variant_contains;
-                }
 
                 if ($search_norm !== '') {
                     $joins[] = "

@@ -1521,6 +1521,104 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertCount(1, $limited_lookup_ids);
     }
 
+    public function test_dictionary_lookup_table_avoids_contains_search_for_anonymous_users(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        ll_tools_install_dictionary_lookup_schema();
+
+        $result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Roj, Ruecarek',
+                'definition' => 'sunlight',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($result);
+
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        ll_tools_bump_dictionary_browser_cache_version();
+        wp_set_current_user(0);
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $ids = ll_tools_dictionary_query_entry_ids_from_lookup_table('uecar', ['publish'], 'all', 10);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame([], $ids);
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString(ll_tools_dictionary_lookup_table_name(), $queries_sql);
+        $this->assertStringContainsString("LIKE 'uecar%'", $queries_sql);
+        $this->assertStringNotContainsString("LIKE '%uecar%'", $queries_sql);
+    }
+
+    public function test_dictionary_lookup_table_contains_search_requires_explicit_opt_in(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        ll_tools_install_dictionary_lookup_schema();
+
+        $result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Roj, Ruecarek',
+                'definition' => 'sunlight',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($result);
+
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        ll_tools_bump_dictionary_browser_cache_version();
+        wp_set_current_user(0);
+
+        $allow_contains = static function (): bool {
+            return true;
+        };
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('ll_tools_dictionary_allow_lookup_contains_fallback', $allow_contains);
+        add_filter('query', $capture);
+        try {
+            $ids = ll_tools_dictionary_query_entry_ids_from_lookup_table('uecar', ['publish'], 'all', 10);
+        } finally {
+            remove_filter('query', $capture);
+            remove_filter('ll_tools_dictionary_allow_lookup_contains_fallback', $allow_contains);
+        }
+
+        $this->assertNotEmpty($ids);
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString("LIKE 'uecar%'", $queries_sql);
+        $this->assertStringContainsString("LIKE '%uecar%'", $queries_sql);
+    }
+
     public function test_dictionary_search_matches_configured_close_character_groups(): void
     {
         global $wpdb;
@@ -1670,6 +1768,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $pising_id);
         $this->assertGreaterThan(0, $apostrophe_id);
         $this->assertSame("K'al", (string) get_post_field('post_title', $apostrophe_id));
+        $dotless_query = 'p' . $dotless_i . 's' . $dotless_i . 'ng';
 
         $table = ll_tools_dictionary_lookup_table_name();
         $this->assertSame(0, (int) $wpdb->get_var(
@@ -1680,6 +1779,33 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             $apostrophe_id
         ))));
         $this->assertContains("k'al", $apostrophe_lookups, wp_json_encode($apostrophe_lookups));
+
+        $variant_queries = [];
+        $variant_capture = static function (string $query) use (&$variant_queries): string {
+            $variant_queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $variant_capture);
+        try {
+            $dotless_lookup_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table(
+                $dotless_query,
+                ['publish'],
+                'all',
+                0,
+                $zazaki_wordset_id
+            );
+        } finally {
+            remove_filter('query', $variant_capture);
+        }
+
+        $this->assertContains($pising_id, $dotless_lookup_ids);
+        $variant_queries_sql = implode("\n", $variant_queries);
+        $this->assertLessThanOrEqual(
+            8,
+            substr_count($variant_queries_sql, "REPLACE(l.lookup_value, CHAR(39), '')"),
+            $variant_queries_sql
+        );
 
         $plain_query = ll_tools_dictionary_query_entries([
             'search' => 'kwe',
@@ -1736,7 +1862,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'linked_word_limit' => 0,
             'post_status' => ['publish'],
         ]);
-        $dotless_query = 'p' . $dotless_i . 's' . $dotless_i . 'ng';
         $dotless_query_results = ll_tools_dictionary_query_entries([
             'search' => $dotless_query,
             'wordset_id' => $zazaki_wordset_id,

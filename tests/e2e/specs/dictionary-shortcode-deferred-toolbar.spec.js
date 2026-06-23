@@ -215,6 +215,12 @@ async function mountDictionaryHarness(page, options = {}) {
       }
 
       if (requestData.action === 'll_tools_dictionary_live_search') {
+        if (config && Number(config.liveSearchDelayMs || 0) > 0) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, Number(config.liveSearchDelayMs));
+          });
+        }
+
         const query = requestData.ll_dictionary_q || '';
         return {
           ok: true,
@@ -306,6 +312,17 @@ test('loads deferred dictionary filters on first interaction only once', async (
   const bootstrapCalls = fetchCalls.filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap');
 
   expect(bootstrapCalls).toHaveLength(1);
+});
+
+test('shows the loading skeleton immediately while live search is pending', async ({ page }) => {
+  await mountDictionaryHarness(page, { liveSearchDelayMs: 600 });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+
+  await expect(page.locator('.ll-dictionary__loading')).toBeVisible();
+  await expect(page.locator('[data-ll-dictionary-results]')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).not.toHaveAttribute('aria-busy', 'true');
 });
 
 test('opens entry details in place and restores the live search results', async ({ page }) => {

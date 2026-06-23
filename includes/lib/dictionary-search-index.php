@@ -562,6 +562,53 @@ function ll_tools_dictionary_get_non_strict_close_lookup_variants(string $lookup
 }
 
 /**
+ * Return the minimum normalized length before lookup-table contains fallback may run.
+ */
+function ll_tools_dictionary_lookup_contains_fallback_min_chars(): int {
+    $min_chars = (int) apply_filters('ll_tools_dictionary_lookup_contains_fallback_min_chars', 3);
+
+    return max(3, $min_chars);
+}
+
+/**
+ * Determine whether the lookup table may use broad contains matching.
+ *
+ * Indexed exact/prefix lookup is the public path. Leading-wildcard contains
+ * searches are reserved for staff/debug contexts or explicit site opt-in
+ * because they can scan the whole dictionary lookup table.
+ *
+ * @param string[] $statuses Allowed post statuses.
+ */
+function ll_tools_dictionary_allow_lookup_contains_fallback(
+    string $search,
+    array $statuses,
+    string $search_scope = 'all',
+    int $wordset_id = 0,
+    int $limit = 0
+): bool {
+    $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+        ? ll_tools_dictionary_entry_normalize_lookup_value($search)
+        : strtolower(trim($search));
+    $lookup_length = function_exists('mb_strlen') ? mb_strlen($lookup, 'UTF-8') : strlen($lookup);
+    if ($lookup_length < ll_tools_dictionary_lookup_contains_fallback_min_chars()) {
+        return false;
+    }
+
+    $allowed = function_exists('current_user_can')
+        && (current_user_can('view_ll_tools') || current_user_can('edit_posts'));
+
+    return (bool) apply_filters(
+        'll_tools_dictionary_allow_lookup_contains_fallback',
+        $allowed,
+        $search,
+        $statuses,
+        $search_scope,
+        $wordset_id,
+        $limit
+    );
+}
+
+/**
  * Query entry IDs from the indexed lookup table.
  *
  * @param string[] $statuses Allowed post statuses.
@@ -589,28 +636,26 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
     $close_variants = $has_close_config
         ? ll_tools_dictionary_get_non_strict_close_lookup_variants($lookup, $wordset_id)
         : [];
-    $apostrophe_variants = [];
-    $apostrophes_optional = $has_close_config
-        && function_exists('ll_tools_dictionary_uses_optional_search_apostrophes')
-        && ll_tools_dictionary_uses_optional_search_apostrophes($wordset_id)
-        && function_exists('ll_tools_dictionary_strip_optional_search_apostrophes');
-    if ($apostrophes_optional) {
-        foreach (array_merge([$lookup], $close_variants) as $variant) {
-            $stripped = ll_tools_dictionary_prepare_lookup_value(
-                ll_tools_dictionary_strip_optional_search_apostrophes((string) $variant)
-            );
-            if ($stripped !== '') {
-                $apostrophe_variants[$stripped] = true;
-            }
-        }
-    }
-    $apostrophe_variants = array_keys($apostrophe_variants);
+    $apostrophe_variants = ($has_close_config && function_exists('ll_tools_dictionary_get_optional_apostrophe_lookup_variants'))
+        ? array_values(array_filter(array_unique(array_map(
+            'll_tools_dictionary_prepare_lookup_value',
+            ll_tools_dictionary_get_optional_apostrophe_lookup_variants($lookup, $wordset_id)
+        ))))
+        : [];
+    $allow_contains = ll_tools_dictionary_allow_lookup_contains_fallback(
+        $search,
+        $statuses,
+        $search_scope,
+        $wordset_id,
+        $limit
+    );
     $cache_args = [
         'search' => $lookup,
         'search_scope' => $search_scope,
         'wordset_id' => $wordset_id,
         'statuses' => array_values($statuses),
         'limit' => $limit,
+        'allow_contains' => $allow_contains ? 1 : 0,
         'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
             ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)
             : '',
@@ -629,7 +674,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
 
     $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
     $lookup_length = function_exists('mb_strlen') ? mb_strlen($lookup, 'UTF-8') : strlen($lookup);
-    $use_contains = ($lookup_length >= 3);
+    $use_contains = $allow_contains && $lookup_length >= ll_tools_dictionary_lookup_contains_fallback_min_chars();
 
     $normal_kinds = [];
     if ($search_scope === 'headword') {
@@ -680,22 +725,6 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             foreach ($normal_kinds as $kind) {
                 $rank = ($kind === 'headword') ? 4 : 5;
                 $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $contains_lookup, $rank);
-            }
-
-            foreach ($close_variants as $variant) {
-                $contains_variant = '%' . $wpdb->esc_like((string) $variant) . '%';
-                foreach ($normal_kinds as $kind) {
-                    $rank = ($kind === 'headword') ? 10 : 11;
-                    $add_clause((string) $kind, 'l.lookup_value', 'LIKE', $contains_variant, $rank);
-                }
-            }
-
-            foreach ($apostrophe_variants as $variant) {
-                $contains_variant = '%' . $wpdb->esc_like((string) $variant) . '%';
-                foreach ($normal_kinds as $kind) {
-                    $rank = ($kind === 'headword') ? 10 : 11;
-                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $contains_variant, $rank);
-                }
             }
         } else {
             $prefix_lookup = $wpdb->esc_like($lookup) . '%';
