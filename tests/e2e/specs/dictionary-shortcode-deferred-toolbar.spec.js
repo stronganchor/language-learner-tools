@@ -229,13 +229,19 @@ async function mountDictionaryHarness(page, options = {}) {
             data: {
               html: `
                 <article class="ll-dictionary__entry">
+                  <h3 class="ll-dictionary__title">Preview:${query || 'Entry'}</h3>
                   Query:${query}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}; Letter:${requestData.ll_dictionary_letter || ''}
-                  <a
-                    class="ll-dictionary__details-link"
-                    href="https://example.com/dictionary/?ll_dictionary_entry=77"
-                    data-ll-dictionary-detail-link
-                    data-entry-id="77"
-                  >View details</a>
+                  <div class="ll-dictionary__card-actions">
+                    <a
+                      class="ll-dictionary__details-link"
+                      href="https://example.com/dictionary/?ll_dictionary_entry=77"
+                      data-ll-dictionary-detail-link
+                      data-entry-id="77"
+                    >View details</a>
+                    <span class="ll-dictionary__detail-chips">
+                      <span class="ll-dictionary__detail-chip">+2 examples</span>
+                    </span>
+                  </div>
                 </article>
               `,
               has_active_query: true,
@@ -246,6 +252,12 @@ async function mountDictionaryHarness(page, options = {}) {
       }
 
       if (requestData.action === 'll_tools_dictionary_entry_detail') {
+        if (config && Number(config.detailDelayMs || 0) > 0) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, Number(config.detailDelayMs));
+          });
+        }
+
         return {
           ok: true,
           json: async () => ({
@@ -584,9 +596,10 @@ test('scrolls the first rendered search result into view when it is below the vi
   });
 });
 
-test('scrolls to the top of an entry detail when a result is opened in place', async ({ page }) => {
+test('scrolls to an entry-specific loading detail immediately when a result is opened in place', async ({ page }) => {
   await mountDictionaryHarness(page, {
     trackScroll: true,
+    detailDelayMs: 600,
     scrollY: 300,
     searchRectTop: 80,
     loadingRectTop: 120,
@@ -602,13 +615,16 @@ test('scrolls to the top of an entry detail when a result is opened in place', a
   });
 
   await page.locator('[data-ll-dictionary-detail-link]').click();
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Detail:77');
+  await expect(page.locator('[data-ll-dictionary-loading-detail]')).toBeVisible();
+  await expect(page.locator('[data-ll-dictionary-loading-detail]')).toContainText('Preview:apa');
+  await expect(page.locator('[data-ll-dictionary-loading-detail]')).toContainText('+2 examples');
   await page.waitForFunction(() => window.__scrollCalls.some((call) => call.top === 878));
 
-  const scrollCalls = await page.evaluate(() => window.__scrollCalls);
-  expect(scrollCalls).toHaveLength(1);
-  expect(scrollCalls[0]).toMatchObject({
+  const loadingScrollCalls = await page.evaluate(() => window.__scrollCalls);
+  expect(loadingScrollCalls[0]).toMatchObject({
     top: 878,
     behavior: 'smooth'
   });
+
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Detail:77');
 });

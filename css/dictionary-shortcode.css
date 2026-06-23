@@ -951,6 +951,16 @@
     line-height: 1.08;
 }
 
+.ll-dictionary__detail--loading .ll-dictionary__loading-stack {
+    margin-top: 12px;
+}
+
+.ll-dictionary__detail--loading .ll-dictionary__detail-section {
+    display: grid;
+    gap: 12px;
+    min-height: 116px;
+}
+
 .ll-dictionary__detail-title-edit {
     display: grid;
     gap: 8px;

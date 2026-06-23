@@ -1069,9 +1069,9 @@
             queueElementScroll(() => results.querySelector('.ll-dictionary__loading-card, .ll-dictionary__loading') || results);
         };
 
-        const scrollDetailIntoView = () => {
+        const scrollDetailIntoView = (options = {}) => {
             queueElementScroll(() => results.querySelector('[data-ll-dictionary-detail], .ll-dictionary__detail') || results.firstElementChild, {
-                force: true,
+                force: Boolean(options.force),
             });
         };
 
@@ -1137,6 +1137,76 @@
 
             markup.push('</div>');
             return markup.join('');
+        };
+
+        const getDetailPreviewFromLink = (link) => {
+            const preview = {
+                title: '',
+                chips: [],
+            };
+            if (!link) {
+                return preview;
+            }
+
+            const card = link.closest('.ll-dictionary__card, .ll-dictionary__entry, [data-ll-dictionary-entry], [data-ll-dictionary-detail]');
+            const directTitle = link.closest('.ll-dictionary__title, .ll-dictionary__detail-title');
+            const titleNode = directTitle || (card ? card.querySelector('.ll-dictionary__title, .ll-dictionary__detail-title, [data-ll-dictionary-entry-title]') : null);
+            if (titleNode) {
+                preview.title = String(titleNode.textContent || '').trim();
+            }
+
+            if (card) {
+                preview.chips = Array.from(card.querySelectorAll('.ll-dictionary__detail-chip'))
+                    .map((chip) => String(chip.textContent || '').trim())
+                    .filter((chip) => chip !== '');
+            }
+
+            return preview;
+        };
+
+        const buildDetailLoadingMarkup = (label, preview = {}) => {
+            label = typeof label === 'string' && label ? label : detailLoadingLabel;
+            const title = typeof preview.title === 'string' ? preview.title.trim() : '';
+            const chips = Array.isArray(preview.chips) ? preview.chips : [];
+            const chipMarkup = chips
+                .map((chip) => String(chip || '').trim())
+                .filter((chip) => chip !== '')
+                .map((chip) => '<span class="ll-dictionary__detail-chip">' + escapeHtml(chip) + '</span>')
+                .join('');
+
+            return [
+                '<article class="ll-dictionary__detail ll-dictionary__detail--loading" data-ll-dictionary-detail data-ll-dictionary-loading-detail role="status" aria-live="polite" aria-label="',
+                escapeHtml(label),
+                '">',
+                '<header class="ll-dictionary__detail-header">',
+                '<div class="ll-dictionary__detail-heading-wrap">',
+                title !== ''
+                    ? '<h3 class="ll-dictionary__detail-title">' + escapeHtml(title) + '</h3>'
+                    : '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--title" aria-hidden="true"></span>',
+                '<div class="ll-dictionary__loading-stack" aria-hidden="true">',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body"></span>',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body ll-dictionary__loading-line--body-short"></span>',
+                '</div>',
+                '</div>',
+                '<div class="ll-dictionary__detail-side"',
+                chipMarkup === '' ? ' aria-hidden="true">' : '>',
+                chipMarkup !== ''
+                    ? '<span class="ll-dictionary__detail-chips">' + chipMarkup + '</span>'
+                    : '<span class="ll-dictionary__loading-pill ll-dictionary__loading-pill--wide"></span><span class="ll-dictionary__loading-pill"></span>',
+                '</div>',
+                '</header>',
+                '<section class="ll-dictionary__detail-section" aria-hidden="true">',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--title ll-dictionary__loading-line--title-medium"></span>',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body"></span>',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body ll-dictionary__loading-line--body-short"></span>',
+                '</section>',
+                '<section class="ll-dictionary__detail-section" aria-hidden="true">',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--title ll-dictionary__loading-line--title-short"></span>',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body"></span>',
+                '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body"></span>',
+                '</section>',
+                '</article>',
+            ].join('');
         };
 
         const showLoadingState = () => {
@@ -1296,9 +1366,10 @@
 
             const requestId = ++detailRequestId;
             detailController = new AbortController();
-            results.innerHTML = buildLoadingMarkup(detailLoadingLabel);
+            results.innerHTML = buildDetailLoadingMarkup(detailLoadingLabel, getDetailPreviewFromLink(link));
             results.setAttribute('aria-busy', 'true');
             setDetailMode(true);
+            scrollDetailIntoView({ force: true });
 
             fetch(ajaxUrl, {
                 method: 'POST',
