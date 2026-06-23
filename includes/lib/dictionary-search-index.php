@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION')) {
-    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '3');
+    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '4');
 }
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION', 'll_tools_dictionary_lookup_version');
@@ -87,6 +87,47 @@ function ll_tools_install_dictionary_lookup_schema(): void {
     ll_tools_dictionary_lookup_table_exists(true);
     update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, '1', false);
     update_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION, false);
+}
+
+/**
+ * Backfill indexed optional-apostrophe rows from already-built lookup rows.
+ */
+function ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index(): int {
+    global $wpdb;
+
+    if (!ll_tools_dictionary_lookup_table_exists()) {
+        return 0;
+    }
+
+    $table = ll_tools_dictionary_lookup_table_name();
+    $sql = "
+        INSERT IGNORE INTO {$table} (entry_id, lookup_kind, lookup_value, value_length)
+        SELECT src.entry_id,
+               CASE src.lookup_kind
+                   WHEN 'headword' THEN 'headword_apos'
+                   ELSE 'translation_apos'
+               END AS lookup_kind,
+               src.stripped_lookup,
+               CHAR_LENGTH(src.stripped_lookup)
+        FROM (
+            SELECT entry_id,
+                   lookup_kind,
+                   lookup_value,
+                   REPLACE(lookup_value, CHAR(39), '') AS stripped_lookup
+            FROM {$table}
+            WHERE lookup_kind IN ('headword', 'translation')
+              AND lookup_value LIKE CONCAT('%', CHAR(39), '%')
+        ) src
+        WHERE src.stripped_lookup <> ''
+          AND src.stripped_lookup <> src.lookup_value
+    ";
+
+    $inserted = $wpdb->query($sql);
+    if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
+
+    return max(0, (int) $inserted);
 }
 
 /**
@@ -182,6 +223,15 @@ function ll_tools_maybe_upgrade_dictionary_lookup_schema(): void {
         return;
     }
 
+    if ($installed === '3' && ll_tools_dictionary_lookup_table_exists()) {
+        ll_tools_install_dictionary_lookup_schema();
+        $state = ll_tools_get_dictionary_lookup_rebuild_state();
+        if ($state['status'] === 'completed' && $state['truncate_pending'] === 0) {
+            ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index();
+            return;
+        }
+    }
+
     ll_tools_install_dictionary_lookup_schema();
     ll_tools_schedule_dictionary_lookup_rebuild(true);
 }
@@ -206,6 +256,20 @@ function ll_tools_dictionary_prepare_lookup_value(string $value): string {
     }
 
     return trim((string) $value);
+}
+
+/**
+ * Return the indexed lookup kind used for optional-apostrophe rows.
+ */
+function ll_tools_dictionary_optional_apostrophe_lookup_kind(string $kind): string {
+    if ($kind === 'headword') {
+        return 'headword_apos';
+    }
+    if ($kind === 'translation') {
+        return 'translation_apos';
+    }
+
+    return '';
 }
 
 /**
@@ -256,10 +320,26 @@ function ll_tools_dictionary_build_lookup_rows_for_entry(int $entry_id): array {
     };
 
     foreach ($headwords as $candidate) {
-        $append('headword', (string) $candidate);
+        $candidate = (string) $candidate;
+        $append('headword', $candidate);
+        $lookup_value = ll_tools_dictionary_prepare_lookup_value($candidate);
+        $stripped = function_exists('ll_tools_dictionary_strip_optional_search_apostrophes')
+            ? ll_tools_dictionary_prepare_lookup_value(ll_tools_dictionary_strip_optional_search_apostrophes($lookup_value))
+            : $lookup_value;
+        if ($stripped !== '' && $stripped !== $lookup_value) {
+            $append('headword_apos', $stripped);
+        }
     }
     foreach ($translations as $candidate) {
-        $append('translation', (string) $candidate);
+        $candidate = (string) $candidate;
+        $append('translation', $candidate);
+        $lookup_value = ll_tools_dictionary_prepare_lookup_value($candidate);
+        $stripped = function_exists('ll_tools_dictionary_strip_optional_search_apostrophes')
+            ? ll_tools_dictionary_prepare_lookup_value(ll_tools_dictionary_strip_optional_search_apostrophes($lookup_value))
+            : $lookup_value;
+        if ($stripped !== '' && $stripped !== $lookup_value) {
+            $append('translation_apos', $stripped);
+        }
     }
 
     return $rows;
@@ -656,6 +736,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         'statuses' => array_values($statuses),
         'limit' => $limit,
         'allow_contains' => $allow_contains ? 1 : 0,
+        'lookup_table_version' => LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
         'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
             ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)
             : '',
@@ -748,10 +829,14 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             foreach ($apostrophe_variants as $variant) {
                 $prefix_variant = $wpdb->esc_like((string) $variant) . '%';
                 foreach ($normal_kinds as $kind) {
+                    $apostrophe_kind = ll_tools_dictionary_optional_apostrophe_lookup_kind((string) $kind);
+                    if ($apostrophe_kind === '') {
+                        continue;
+                    }
                     $exact_rank = ($kind === 'headword') ? 6 : 7;
                     $prefix_rank = ($kind === 'headword') ? 8 : 9;
-                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", '=', (string) $variant, $exact_rank);
-                    $add_clause((string) $kind, "REPLACE(l.lookup_value, CHAR(39), '')", 'LIKE', $prefix_variant, $prefix_rank);
+                    $add_clause($apostrophe_kind, 'l.lookup_value', '=', (string) $variant, $exact_rank);
+                    $add_clause($apostrophe_kind, 'l.lookup_value', 'LIKE', $prefix_variant, $prefix_rank);
                 }
             }
         }

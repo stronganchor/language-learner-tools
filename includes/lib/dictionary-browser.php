@@ -4299,7 +4299,19 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
     $close_variants = ($has_close_config && function_exists('ll_tools_dictionary_get_non_strict_close_lookup_variants'))
         ? ll_tools_dictionary_get_non_strict_close_lookup_variants($lookup, $wordset_id)
         : [];
-    $apostrophe_variants = ($has_close_config && function_exists('ll_tools_dictionary_get_optional_apostrophe_lookup_variants'))
+    $allow_unindexed_apostrophe_search = function_exists('current_user_can')
+        && (current_user_can('view_ll_tools') || current_user_can('edit_posts'));
+    $allow_unindexed_apostrophe_search = (bool) apply_filters(
+        'll_tools_dictionary_allow_postmeta_apostrophe_fallback',
+        $allow_unindexed_apostrophe_search,
+        $search,
+        $statuses,
+        $search_scope,
+        $wordset_id,
+        $pos_slug,
+        $limit
+    );
+    $apostrophe_variants = ($allow_unindexed_apostrophe_search && $has_close_config && function_exists('ll_tools_dictionary_get_optional_apostrophe_lookup_variants'))
         ? array_values(array_filter(array_unique(array_map(static function (string $variant): string {
             return function_exists('ll_tools_dictionary_prepare_lookup_value')
                 ? ll_tools_dictionary_prepare_lookup_value($variant)
@@ -4315,6 +4327,7 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         'pos_slug' => $pos_slug,
         'limit' => $limit,
         'allow_contains' => $allow_contains ? 1 : 0,
+        'allow_unindexed_apostrophe' => $allow_unindexed_apostrophe_search ? 1 : 0,
         'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
             ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)
             : '',
@@ -4618,7 +4631,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'preferred_languages' => $preferred_languages,
         'statuses' => $statuses,
         'viewer' => ll_tools_dictionary_viewer_cache_key(),
-        'query_schema' => 4,
+        'query_schema' => 5,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('query_entries', $cache_args, $request_cache);
     if (is_array($cached)) {

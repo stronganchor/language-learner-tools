@@ -1566,6 +1566,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString(ll_tools_dictionary_lookup_table_name(), $queries_sql);
         $this->assertStringContainsString("LIKE 'uecar%'", $queries_sql);
         $this->assertStringNotContainsString("LIKE '%uecar%'", $queries_sql);
+        $this->assertStringNotContainsString("REPLACE(l.lookup_value, CHAR(39), '')", $queries_sql);
     }
 
     public function test_dictionary_lookup_table_contains_search_requires_explicit_opt_in(): void
@@ -1775,10 +1776,11 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             "SELECT COUNT(*) FROM {$table} WHERE lookup_kind IN ('headword_close', 'translation_close')"
         ));
         $apostrophe_lookups = array_values(array_map('strval', (array) $wpdb->get_col($wpdb->prepare(
-            "SELECT lookup_value FROM {$table} WHERE entry_id = %d AND lookup_kind = 'headword'",
+            "SELECT CONCAT(lookup_kind, ':', lookup_value) FROM {$table} WHERE entry_id = %d AND lookup_kind IN ('headword', 'headword_apos')",
             $apostrophe_id
         ))));
-        $this->assertContains("k'al", $apostrophe_lookups, wp_json_encode($apostrophe_lookups));
+        $this->assertContains("headword:k'al", $apostrophe_lookups, wp_json_encode($apostrophe_lookups));
+        $this->assertContains('headword_apos:kal', $apostrophe_lookups, wp_json_encode($apostrophe_lookups));
 
         $variant_queries = [];
         $variant_capture = static function (string $query) use (&$variant_queries): string {
@@ -1801,11 +1803,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertContains($pising_id, $dotless_lookup_ids);
         $variant_queries_sql = implode("\n", $variant_queries);
-        $this->assertLessThanOrEqual(
-            8,
+        $this->assertSame(
+            0,
             substr_count($variant_queries_sql, "REPLACE(l.lookup_value, CHAR(39), '')"),
             $variant_queries_sql
         );
+        $this->assertStringContainsString('headword_apos', $variant_queries_sql);
 
         $plain_query = ll_tools_dictionary_query_entries([
             'search' => 'kwe',
