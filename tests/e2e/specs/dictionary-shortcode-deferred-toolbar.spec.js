@@ -112,7 +112,7 @@ async function mountDictionaryHarness(page, options = {}) {
     window.llToolsDictionary = {
       ajaxUrl: '/fake-admin-ajax.php',
       nonce: 'test-nonce',
-      minChars: 2,
+      minChars: 1,
       debounceMs: 80,
       loadingCards: 2,
       cacheSize: 0,
@@ -312,6 +312,20 @@ test('loads deferred dictionary filters on first interaction only once', async (
   const bootstrapCalls = fetchCalls.filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap');
 
   expect(bootstrapCalls).toHaveLength(1);
+});
+
+test('live search accepts one-character queries', async ({ page }) => {
+  await mountDictionaryHarness(page);
+
+  await page.locator('#ll-dictionary-search').fill('a');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:a; Scope:all; Source:all');
+
+  const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
+  const lastSearchCall = [...fetchCalls].reverse().find((call) => call.action === 'll_tools_dictionary_live_search');
+
+  expect(lastSearchCall).toMatchObject({
+    ll_dictionary_q: 'a'
+  });
 });
 
 test('shows the loading skeleton immediately while live search is pending', async ({ page }) => {

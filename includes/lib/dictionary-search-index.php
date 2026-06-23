@@ -689,6 +689,34 @@ function ll_tools_dictionary_allow_lookup_contains_fallback(
 }
 
 /**
+ * Return the maximum normalized length that should use exact/prefix-only search.
+ */
+function ll_tools_dictionary_short_search_max_chars(): int {
+    $max_chars = (int) apply_filters('ll_tools_dictionary_short_search_max_chars', 2);
+
+    return max(0, min(4, $max_chars));
+}
+
+/**
+ * Determine whether a search should skip close/apostrophe/contains matching.
+ */
+function ll_tools_dictionary_is_short_search_lookup(string $lookup): bool {
+    $lookup = ll_tools_dictionary_prepare_lookup_value($lookup);
+    if ($lookup === '') {
+        return false;
+    }
+
+    $max_chars = ll_tools_dictionary_short_search_max_chars();
+    if ($max_chars <= 0) {
+        return false;
+    }
+
+    $lookup_length = function_exists('mb_strlen') ? mb_strlen($lookup, 'UTF-8') : strlen($lookup);
+
+    return $lookup_length <= $max_chars;
+}
+
+/**
  * Query entry IDs from the indexed lookup table.
  *
  * @param string[] $statuses Allowed post statuses.
@@ -711,7 +739,9 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         return [];
     }
 
-    $has_close_config = function_exists('ll_tools_dictionary_wordset_has_close_search_config')
+    $is_short_query = ll_tools_dictionary_is_short_search_lookup($lookup);
+    $has_close_config = !$is_short_query
+        && function_exists('ll_tools_dictionary_wordset_has_close_search_config')
         && ll_tools_dictionary_wordset_has_close_search_config($wordset_id);
     $close_variants = $has_close_config
         ? ll_tools_dictionary_get_non_strict_close_lookup_variants($lookup, $wordset_id)
@@ -722,7 +752,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             ll_tools_dictionary_get_optional_apostrophe_lookup_variants($lookup, $wordset_id)
         ))))
         : [];
-    $allow_contains = ll_tools_dictionary_allow_lookup_contains_fallback(
+    $allow_contains = !$is_short_query && ll_tools_dictionary_allow_lookup_contains_fallback(
         $search,
         $statuses,
         $search_scope,
@@ -736,6 +766,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         'statuses' => array_values($statuses),
         'limit' => $limit,
         'allow_contains' => $allow_contains ? 1 : 0,
+        'short_query_mode' => $is_short_query ? 1 : 0,
         'lookup_table_version' => LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
         'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
             ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)

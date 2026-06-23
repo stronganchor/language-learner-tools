@@ -16,7 +16,7 @@ function ll_tools_dictionary_shortcode_query_keys(): array {
 }
 
 function ll_tools_dictionary_live_search_min_chars(): int {
-    return max(1, (int) apply_filters('ll_tools_dictionary_live_search_min_chars', 2));
+    return max(1, (int) apply_filters('ll_tools_dictionary_live_search_min_chars', 1));
 }
 
 function ll_tools_dictionary_live_search_debounce_ms(): int {

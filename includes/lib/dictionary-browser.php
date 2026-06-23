@@ -4282,11 +4282,13 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         return [];
     }
 
+    $is_short_query = function_exists('ll_tools_dictionary_is_short_search_lookup')
+        && ll_tools_dictionary_is_short_search_lookup($lookup);
     $search_scope = ll_tools_dictionary_normalize_search_scope($search_scope);
     $wordset_id = max(0, $wordset_id);
     $pos_slug = sanitize_title($pos_slug);
     $limit = max(0, $limit);
-    $allow_contains = ll_tools_dictionary_allow_postmeta_contains_fallback(
+    $allow_contains = !$is_short_query && ll_tools_dictionary_allow_postmeta_contains_fallback(
         $search,
         $statuses,
         $search_scope,
@@ -4294,12 +4296,14 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         $pos_slug,
         $limit
     );
-    $has_close_config = function_exists('ll_tools_dictionary_wordset_has_close_search_config')
+    $has_close_config = !$is_short_query
+        && function_exists('ll_tools_dictionary_wordset_has_close_search_config')
         && ll_tools_dictionary_wordset_has_close_search_config($wordset_id);
     $close_variants = ($has_close_config && function_exists('ll_tools_dictionary_get_non_strict_close_lookup_variants'))
         ? ll_tools_dictionary_get_non_strict_close_lookup_variants($lookup, $wordset_id)
         : [];
-    $allow_unindexed_apostrophe_search = function_exists('current_user_can')
+    $allow_unindexed_apostrophe_search = !$is_short_query
+        && function_exists('current_user_can')
         && (current_user_can('view_ll_tools') || current_user_can('edit_posts'));
     $allow_unindexed_apostrophe_search = (bool) apply_filters(
         'll_tools_dictionary_allow_postmeta_apostrophe_fallback',
@@ -4327,6 +4331,7 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         'pos_slug' => $pos_slug,
         'limit' => $limit,
         'allow_contains' => $allow_contains ? 1 : 0,
+        'short_query_mode' => $is_short_query ? 1 : 0,
         'allow_unindexed_apostrophe' => $allow_unindexed_apostrophe_search ? 1 : 0,
         'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
             ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)
@@ -4358,6 +4363,7 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
         $norm_contains,
         $close_variants,
         $apostrophe_variants,
+        $is_short_query,
         $limit
     ): array {
         $joins = [];
@@ -4437,7 +4443,7 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
                     $case_params[] = $variant_prefix;
                 }
 
-                if ($search_norm !== '' && $search_norm !== $lookup) {
+                if (!$is_short_query && $search_norm !== '' && $search_norm !== $lookup) {
                     $joins[] = "
                         LEFT JOIN {$wpdb->postmeta} search_index
                                ON search_index.post_id = p.ID
@@ -4631,7 +4637,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'preferred_languages' => $preferred_languages,
         'statuses' => $statuses,
         'viewer' => ll_tools_dictionary_viewer_cache_key(),
-        'query_schema' => 5,
+        'query_schema' => 6,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('query_entries', $cache_args, $request_cache);
     if (is_array($cached)) {

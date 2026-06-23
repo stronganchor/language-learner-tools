@@ -887,8 +887,27 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', $args));
     }
 
-    public function test_dictionary_live_search_ignores_direct_one_character_ajax_search_without_filters(): void
+    public function test_dictionary_live_search_accepts_direct_one_character_ajax_search_without_filters(): void
     {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Ava',
+                'definition' => 'water',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($result);
+        ll_tools_bump_dictionary_browser_cache_version();
+
         wp_set_current_user(0);
 
         $_POST = [
@@ -911,13 +930,35 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($response['success'] ?? false));
         $data = is_array($response['data'] ?? null) ? $response['data'] : [];
-        $this->assertSame('', (string) ($data['html'] ?? 'missing'));
-        $this->assertFalse((bool) ($data['has_active_query'] ?? true));
-        $this->assertSame('https://example.com/sozluk/', (string) ($data['url'] ?? ''));
+        $this->assertTrue((bool) ($data['has_active_query'] ?? false));
+        $this->assertStringContainsString('Ava', (string) ($data['html'] ?? ''));
+        $this->assertStringContainsString('ll_dictionary_q=a', (string) ($data['url'] ?? ''));
     }
 
-    public function test_dictionary_shortcode_ignores_direct_one_character_search_without_filters(): void
+    public function test_dictionary_shortcode_accepts_direct_one_character_search_without_filters(): void
     {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Ava',
+                'definition' => 'water',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($result);
+
+        ll_tools_install_dictionary_lookup_schema();
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        ll_tools_bump_dictionary_browser_cache_version();
         wp_set_current_user(0);
 
         $_GET = [
@@ -939,9 +980,11 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
 
         $this->assertStringNotContainsString('No entries found.', $html);
+        $this->assertStringContainsString('Ava', $html);
         $queries_sql = implode("\n", $queries);
-        $this->assertStringNotContainsString('lookup_title.meta_value', $queries_sql);
-        $this->assertStringNotContainsString('lookup_translation.meta_value', $queries_sql);
+        $this->assertStringContainsString(ll_tools_dictionary_lookup_table_name(), $queries_sql);
+        $this->assertStringContainsString("LIKE 'a%'", $queries_sql);
+        $this->assertStringNotContainsString("LIKE '%a%'", $queries_sql);
         $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
     }
 
@@ -1840,6 +1883,35 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertSame('Kwe', $kwe_titles[0] ?? '');
         $this->assertContains('Kue', $kwe_titles);
+
+        $short_kw_query = ll_tools_dictionary_query_entries([
+            'search' => 'kw',
+            'wordset_id' => $zazaki_wordset_id,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $short_kw_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($short_kw_query['items'] ?? [])));
+        $this->assertContains('Kwe', $short_kw_titles);
+        $this->assertNotContains('Kue', $short_kw_titles);
+
+        $short_pi_query = ll_tools_dictionary_query_entries([
+            'search' => 'pi',
+            'wordset_id' => $zazaki_wordset_id,
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $short_pi_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($short_pi_query['items'] ?? [])));
+        $this->assertNotContains($pising_title, $short_pi_titles);
 
         $global_kwe_query = ll_tools_dictionary_query_entries([
             'search' => 'kwe',
