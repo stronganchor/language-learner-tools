@@ -717,6 +717,15 @@ function ll_tools_dictionary_is_short_search_lookup(string $lookup): bool {
 }
 
 /**
+ * Return a bounded fallback limit for uncapped short lookup-table searches.
+ */
+function ll_tools_dictionary_short_lookup_uncapped_limit(): int {
+    $limit = (int) apply_filters('ll_tools_dictionary_short_lookup_uncapped_limit', 1000);
+
+    return max(100, min(5000, $limit));
+}
+
+/**
  * Query entry IDs from the indexed lookup table.
  *
  * @param string[] $statuses Allowed post statuses.
@@ -795,6 +804,90 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $normal_kinds = ['translation'];
     } else {
         $normal_kinds = ['headword', 'translation'];
+    }
+
+    $run_short_lookup_query = static function () use (
+        $wpdb,
+        $table,
+        $status_placeholders,
+        $statuses,
+        $lookup,
+        $normal_kinds,
+        $limit
+    ): array {
+        $target_limit = $limit > 0 ? $limit : ll_tools_dictionary_short_lookup_uncapped_limit();
+        $target_limit = max(1, $target_limit);
+        $prefix_lookup = $wpdb->esc_like($lookup) . '%';
+        $seen = [];
+        $ids = [];
+
+        $append_results = static function (string $kind, string $operator, string $value) use (
+            $wpdb,
+            $table,
+            $status_placeholders,
+            $statuses,
+            $target_limit,
+            &$seen,
+            &$ids
+        ): void {
+            if (count($ids) >= $target_limit) {
+                return;
+            }
+
+            $remaining = max(1, $target_limit - count($ids));
+            $sql = "
+                SELECT l.entry_id
+                FROM {$table} l
+                INNER JOIN {$wpdb->posts} p
+                        ON p.ID = l.entry_id
+                WHERE p.post_type = 'll_dictionary_entry'
+                  AND p.post_status IN ({$status_placeholders})
+                  AND l.lookup_kind = %s
+                  AND l.lookup_value {$operator} %s
+                ORDER BY
+                    l.lookup_value ASC,
+                    l.value_length ASC,
+                    l.entry_id ASC
+                LIMIT %d
+            ";
+            $params = array_merge($statuses, [$kind, $value, $remaining]);
+            $rows = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+            foreach ($rows as $entry_id) {
+                if ($entry_id <= 0 || isset($seen[$entry_id])) {
+                    continue;
+                }
+
+                $seen[$entry_id] = true;
+                $ids[] = $entry_id;
+                if (count($ids) >= $target_limit) {
+                    break;
+                }
+            }
+        };
+
+        foreach ($normal_kinds as $kind) {
+            $append_results((string) $kind, '=', $lookup);
+        }
+        foreach ($normal_kinds as $kind) {
+            $append_results((string) $kind, 'LIKE', $prefix_lookup);
+        }
+
+        return $ids;
+    };
+
+    if ($is_short_query) {
+        $ids = $run_short_lookup_query();
+        if (function_exists('ll_tools_dictionary_browser_store_cached_payload')) {
+            return ll_tools_dictionary_browser_store_cached_payload(
+                'lookup_entry_ids',
+                $cache_args,
+                $ids,
+                10 * MINUTE_IN_SECONDS,
+                $request_cache
+            );
+        }
+
+        return $ids;
     }
 
     $run_lookup_query = static function (bool $contains_only) use (

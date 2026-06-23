@@ -985,6 +985,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString(ll_tools_dictionary_lookup_table_name(), $queries_sql);
         $this->assertStringContainsString("LIKE 'a%'", $queries_sql);
         $this->assertStringNotContainsString("LIKE '%a%'", $queries_sql);
+        $this->assertStringNotContainsString('GROUP BY l.entry_id', $queries_sql);
         $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
     }
 
