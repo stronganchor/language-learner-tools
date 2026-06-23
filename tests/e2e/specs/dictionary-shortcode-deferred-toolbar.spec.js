@@ -287,9 +287,24 @@ async function mountDictionaryHarness(page, options = {}) {
       }
     });
 
-    if (config && (typeof config.entryRectTop === 'number' || typeof config.detailRectTop === 'number')) {
+    if (
+      config
+      && (
+        typeof config.entryRectTop === 'number'
+        || typeof config.detailRectTop === 'number'
+        || typeof config.loadingRectTop === 'number'
+      )
+    ) {
       const nativeGetBoundingClientRect = Element.prototype.getBoundingClientRect;
       Element.prototype.getBoundingClientRect = function patchedGetBoundingClientRect() {
+        if (
+          typeof config.loadingRectTop === 'number'
+          && typeof this.matches === 'function'
+          && this.matches('.ll-dictionary__loading-card, .ll-dictionary__loading')
+        ) {
+          return buildClientRect(config.loadingRectTop, 140, 520);
+        }
+
         if (
           typeof config.entryRectTop === 'number'
           && typeof this.matches === 'function'
@@ -523,25 +538,28 @@ test('filter dropdowns close on outside click and Escape', async ({ page }) => {
   await expect(sourceMenu).not.toHaveAttribute('open', '');
 });
 
-test('scrolls down once when live search starts so the search field stays visible', async ({ page }) => {
+test('scrolls the loading result into view immediately when live search starts', async ({ page }) => {
   await mountDictionaryHarness(page, {
     trackScroll: true,
+    liveSearchDelayMs: 600,
     scrollY: 40,
     searchRectTop: 420,
+    loadingRectTop: 520,
     entryRectTop: 120,
-    viewportHeight: 900
+    viewportHeight: 500
   });
 
   await page.locator('#ll-dictionary-search').fill('ap');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
+  await expect(page.locator('.ll-dictionary__loading')).toBeVisible();
   await page.waitForFunction(() => Array.isArray(window.__scrollCalls) && window.__scrollCalls.length > 0);
 
   const scrollCalls = await page.evaluate(() => window.__scrollCalls);
   expect(scrollCalls).toHaveLength(1);
   expect(scrollCalls[0]).toMatchObject({
-    top: 364,
+    top: 488,
     behavior: 'smooth'
   });
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
 });
 
 test('scrolls the first rendered search result into view when it is below the viewport', async ({ page }) => {
@@ -549,6 +567,7 @@ test('scrolls the first rendered search result into view when it is below the vi
     trackScroll: true,
     scrollY: 100,
     searchRectTop: 80,
+    loadingRectTop: 120,
     entryRectTop: 760,
     viewportHeight: 500
   });
@@ -570,6 +589,7 @@ test('scrolls to the top of an entry detail when a result is opened in place', a
     trackScroll: true,
     scrollY: 300,
     searchRectTop: 80,
+    loadingRectTop: 120,
     entryRectTop: 120,
     detailRectTop: 650,
     viewportHeight: 600

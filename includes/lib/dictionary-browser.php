@@ -4761,7 +4761,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             $left_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($left_id, $search, $search_scopes, $wordset_id);
             $right_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($right_id, $search, $search_scopes, $wordset_id);
 
-            foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
+            foreach (['bucket', 'secondary_score', 'title_exact_priority', 'secondary_length'] as $field) {
                 $compared = ((int) ($left_rank[$field] ?? 0)) <=> ((int) ($right_rank[$field] ?? 0));
                 if ($compared !== 0) {
                     return $compared;
@@ -5502,7 +5502,7 @@ function ll_tools_dictionary_get_entry_translation_candidates(array $senses, str
  * Build one sortable search-rank tuple for a dictionary entry across selected scopes.
  *
  * @param string[]|string $scopes
- * @return array{bucket:int,secondary_score:int,secondary_length:int,title:string}
+ * @return array{bucket:int,secondary_score:int,title_exact_priority:int,secondary_length:int,title:string}
  */
 function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, string $term, $scopes = ['all'], int $wordset_id = 0): array {
     static $request_cache = [];
@@ -5524,6 +5524,7 @@ function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, str
     $best_rank = [
         'bucket' => 9,
         'secondary_score' => 99,
+        'title_exact_priority' => 1,
         'secondary_length' => PHP_INT_MAX,
         'title' => trim((string) get_the_title($entry_id)),
     ];
@@ -5532,7 +5533,7 @@ function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, str
         $rank = ll_tools_dictionary_get_entry_search_rank($entry_id, $term, (string) $scope, $wordset_id);
         $is_better = false;
 
-        foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
+        foreach (['bucket', 'secondary_score', 'title_exact_priority', 'secondary_length'] as $field) {
             $current = (int) ($rank[$field] ?? 0);
             $best = (int) ($best_rank[$field] ?? 0);
             if ($current < $best) {
@@ -5559,7 +5560,7 @@ function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, str
 /**
  * Build one sortable search-rank tuple for a dictionary entry.
  *
- * @return array{bucket:int,secondary_score:int,secondary_length:int,title:string}
+ * @return array{bucket:int,secondary_score:int,title_exact_priority:int,secondary_length:int,title:string}
  */
 function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, string $scope = 'all', int $wordset_id = 0): array {
     static $request_cache = [];
@@ -5578,6 +5579,9 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, 
     };
 
     $title = trim((string) get_the_title($entry_id));
+    $term_lookup = ll_tools_dictionary_entry_normalize_lookup_value($term);
+    $title_lookup = ll_tools_dictionary_entry_normalize_lookup_value($title);
+    $title_exact_priority = ($term_lookup !== '' && $title_lookup === $term_lookup) ? 0 : 1;
     $title_length = $title !== '' ? $measure_length($title) : PHP_INT_MAX;
     $senses = ll_tools_get_dictionary_entry_senses($entry_id);
     $translation_language = ll_tools_dictionary_search_scope_translation_language($scope);
@@ -5662,6 +5666,7 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, 
     $rank = [
         'bucket' => $bucket,
         'secondary_score' => $secondary_score,
+        'title_exact_priority' => $title_exact_priority,
         'secondary_length' => $secondary_length,
         'title' => $title,
     ];

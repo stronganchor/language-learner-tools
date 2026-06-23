@@ -835,6 +835,13 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             }
 
             $remaining = max(1, $target_limit - count($ids));
+            $title_exact_order_sql = '';
+            $title_exact_params = [];
+            if ($kind === 'headword' && $operator === '=') {
+                $title_exact_order_sql = "CASE WHEN LOWER(TRIM(p.post_title)) = %s THEN 0 ELSE 1 END,";
+                $title_exact_params[] = $value;
+            }
+
             $sql = "
                 SELECT l.entry_id
                 FROM {$table} l
@@ -845,12 +852,13 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                   AND l.lookup_kind = %s
                   AND l.lookup_value {$operator} %s
                 ORDER BY
+                    {$title_exact_order_sql}
                     l.lookup_value ASC,
                     l.value_length ASC,
                     l.entry_id ASC
                 LIMIT %d
             ";
-            $params = array_merge($statuses, [$kind, $value, $remaining]);
+            $params = array_merge($statuses, [$kind, $value], $title_exact_params, [$remaining]);
             $rows = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
             foreach ($rows as $entry_id) {
                 if ($entry_id <= 0 || isset($seen[$entry_id])) {
@@ -988,12 +996,13 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             GROUP BY l.entry_id, p.post_title
             ORDER BY
                 MIN({$case_sql}) ASC,
+                MIN(CASE WHEN l.lookup_kind = 'headword' AND l.lookup_value = %s AND LOWER(TRIM(p.post_title)) = %s THEN 0 ELSE 1 END) ASC,
                 MIN(l.value_length) ASC,
                 p.post_title ASC,
                 l.entry_id ASC
         ";
 
-        $params = array_merge($statuses, $where_params, $case_params);
+        $params = array_merge($statuses, $where_params, $case_params, [$lookup, $lookup]);
         if ($limit > 0) {
             $sql .= "\nLIMIT %d";
             $params[] = $limit;

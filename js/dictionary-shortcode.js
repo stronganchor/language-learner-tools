@@ -487,7 +487,6 @@
         const responseCache = new Map();
         const storageKey = `llDictionaryScopePrefs:${root.dataset.wordsetId || '0'}`;
         let scopePreferencesRestored = false;
-        let hasScrolledForSearchQuery = false;
         let filtersPinnedOpen = false;
         let detailActive = false;
         let detailController = null;
@@ -1066,6 +1065,10 @@
             queueElementScroll(() => results.querySelector('.ll-dictionary__card, .ll-dictionary__entry, [data-ll-dictionary-entry]'));
         };
 
+        const scrollLoadingResultIntoViewIfNeeded = () => {
+            queueElementScroll(() => results.querySelector('.ll-dictionary__loading-card, .ll-dictionary__loading') || results);
+        };
+
         const scrollDetailIntoView = () => {
             queueElementScroll(() => results.querySelector('[data-ll-dictionary-detail], .ll-dictionary__detail') || results.firstElementChild, {
                 force: true,
@@ -1423,38 +1426,6 @@
             }
         };
 
-        const scrollResultsPreviewIntoView = () => {
-            const query = String(searchInput.value || '').trim();
-            if (query === '' || hasScrolledForSearchQuery || typeof window.scrollTo !== 'function') {
-                if (query === '') {
-                    hasScrolledForSearchQuery = false;
-                }
-                return;
-            }
-
-            hasScrolledForSearchQuery = true;
-            window.requestAnimationFrame(() => {
-                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-                const searchRect = searchInput.getBoundingClientRect();
-                if (!viewportHeight || !searchRect || typeof searchRect.top !== 'number') {
-                    return;
-                }
-
-                const currentScrollTop = Math.max(0, window.scrollY || window.pageYOffset || 0);
-                const desiredSearchTop = Math.max(20, Math.min(96, Math.round(viewportHeight * 0.16)));
-                const targetTop = Math.max(currentScrollTop, currentScrollTop + searchRect.top - desiredSearchTop);
-
-                if (Math.abs(targetTop - currentScrollTop) < 8) {
-                    return;
-                }
-
-                window.scrollTo({
-                    top: targetTop,
-                    behavior: getScrollBehavior(),
-                });
-            });
-        };
-
         const primeToolbarBootstrap = () => {
             ensureToolbarBootstrap().catch(() => {});
         };
@@ -1483,8 +1454,6 @@
             primeToolbarBootstrap();
             if (String(searchInput.value || '').trim() !== '') {
                 letterInput.value = '';
-            } else {
-                hasScrolledForSearchQuery = false;
             }
 
             if (!canRunQuery()) {
@@ -1493,7 +1462,7 @@
             }
 
             showLoadingState();
-            scrollResultsPreviewIntoView();
+            scrollLoadingResultIntoViewIfNeeded();
             scheduleLiveSearch();
         });
 
@@ -1518,6 +1487,7 @@
             }
 
             showLoadingState();
+            scrollLoadingResultIntoViewIfNeeded();
             triggerLiveSearch(1);
         });
 
@@ -1529,10 +1499,8 @@
 
             event.preventDefault();
             revealScopeOptions();
-            if (String(searchInput.value || '').trim() !== '') {
-                scrollResultsPreviewIntoView();
-            }
             showLoadingState();
+            scrollLoadingResultIntoViewIfNeeded();
             requestResults(1, true);
         });
 
@@ -1629,6 +1597,7 @@
             updateAllFilterMenuSummaries();
 
             showLoadingState();
+            scrollLoadingResultIntoViewIfNeeded();
             requestResults(Number(url.searchParams.get('ll_dictionary_page') || '1'), false);
         });
 

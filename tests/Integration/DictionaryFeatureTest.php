@@ -1026,7 +1026,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'linked_word_limit' => 4,
             'gloss_lang' => '',
             'base_url' => 'https://example.com/sozluk/',
-            'search' => '',
+            'search' => 'a',
             'search_scopes' => $search_scopes,
             'letter' => '',
             'pos_slug' => '',
@@ -1035,7 +1035,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
             'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
             'browse_letter_schema' => 7,
-            'has_active_query' => false,
+            'has_active_query' => true,
             'query_limits' => [
                 'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
                 'candidate_scan_limit' => ll_tools_dictionary_anonymous_live_search_candidate_scan_cap(),
@@ -1611,6 +1611,76 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString("LIKE 'uecar%'", $queries_sql);
         $this->assertStringNotContainsString("LIKE '%uecar%'", $queries_sql);
         $this->assertStringNotContainsString("REPLACE(l.lookup_value, CHAR(39), '')", $queries_sql);
+    }
+
+    public function test_dictionary_short_search_prioritizes_exact_title_headword_before_exact_aliases(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        ll_tools_install_dictionary_lookup_schema();
+
+        $main_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Ra',
+                'definition' => 'main short headword',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $alias_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Ber, Ra',
+                'definition' => 'entry with ra as an alias',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $prefix_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Raye',
+                'definition' => 'prefix match',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($main_result);
+        $this->assertIsArray($alias_result);
+        $this->assertIsArray($prefix_result);
+
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+
+        $query = ll_tools_dictionary_query_entries([
+            'search' => 'ra',
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+
+        $titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($query['items'] ?? [])));
+
+        $this->assertSame('Ra', $titles[0] ?? '', wp_json_encode($titles));
+        $this->assertContains('Ber, Ra', $titles, wp_json_encode($titles));
+        $this->assertContains('Raye', $titles, wp_json_encode($titles));
     }
 
     public function test_dictionary_lookup_table_contains_search_requires_explicit_opt_in(): void
