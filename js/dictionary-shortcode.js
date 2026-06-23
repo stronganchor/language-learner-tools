@@ -494,6 +494,8 @@
         let detailRequestId = 0;
         let browseSnapshot = null;
         const detailHtmlCache = new Map();
+        const resultScrollTopOffset = 72;
+        const resultScrollViewportPadding = 24;
 
         const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -1010,6 +1012,66 @@
             return true;
         };
 
+        const getScrollBehavior = () => {
+            const prefersReducedMotion = typeof window.matchMedia === 'function'
+                && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            return prefersReducedMotion ? 'auto' : 'smooth';
+        };
+
+        const scrollElementTopIntoView = (element, options = {}) => {
+            if (!element || typeof element.getBoundingClientRect !== 'function' || typeof window.scrollTo !== 'function') {
+                return;
+            }
+
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            const rect = element.getBoundingClientRect();
+            if (!viewportHeight || !rect || typeof rect.top !== 'number') {
+                return;
+            }
+
+            const force = Boolean(options.force);
+            const topIsVisible = rect.top >= resultScrollTopOffset
+                && rect.top <= Math.max(resultScrollTopOffset, viewportHeight - resultScrollViewportPadding);
+            if (!force && topIsVisible) {
+                return;
+            }
+
+            const currentScrollTop = Math.max(0, window.scrollY || window.pageYOffset || 0);
+            const targetTop = Math.max(0, currentScrollTop + rect.top - resultScrollTopOffset);
+            if (Math.abs(targetTop - currentScrollTop) < (force ? 2 : 8)) {
+                return;
+            }
+
+            window.scrollTo({
+                top: targetTop,
+                behavior: getScrollBehavior(),
+            });
+        };
+
+        const queueElementScroll = (getElement, options = {}) => {
+            const callback = () => {
+                scrollElementTopIntoView(getElement(), options);
+            };
+
+            if (typeof window.requestAnimationFrame === 'function') {
+                window.requestAnimationFrame(callback);
+                return;
+            }
+
+            window.setTimeout(callback, 0);
+        };
+
+        const scrollFirstResultIntoViewIfNeeded = () => {
+            queueElementScroll(() => results.querySelector('.ll-dictionary__card, .ll-dictionary__entry, [data-ll-dictionary-entry]'));
+        };
+
+        const scrollDetailIntoView = () => {
+            queueElementScroll(() => results.querySelector('[data-ll-dictionary-detail], .ll-dictionary__detail') || results.firstElementChild, {
+                force: true,
+            });
+        };
+
         const renderResponsePayload = (payload) => {
             if (!payload || !payload.success || !payload.data) {
                 throw new Error('invalid_payload');
@@ -1021,6 +1083,10 @@
             setActiveState(Boolean(payload.data.has_active_query));
 
             updateHistoryUrl(payload.data.url, 'replaceState');
+
+            if (payload.data.has_active_query) {
+                scrollFirstResultIntoViewIfNeeded();
+            }
         };
 
         const buildLoadingMarkup = (label) => {
@@ -1256,6 +1322,7 @@
                     setDetailMode(true);
                     detailHtmlCache.set(detailUrl, detailHtml);
                     updateHistoryUrl(detailUrl, 'pushState');
+                    scrollDetailIntoView();
                 })
                 .catch((error) => {
                     if (error && error.name === 'AbortError') {
@@ -1381,12 +1448,9 @@
                     return;
                 }
 
-                const prefersReducedMotion = typeof window.matchMedia === 'function'
-                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
                 window.scrollTo({
                     top: targetTop,
-                    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+                    behavior: getScrollBehavior(),
                 });
             });
         };
@@ -1588,6 +1652,7 @@
                     results.removeAttribute('aria-busy');
                     initInlineControls(root);
                     setDetailMode(true);
+                    scrollDetailIntoView();
                 }
                 return;
             }

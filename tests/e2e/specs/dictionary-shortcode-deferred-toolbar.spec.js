@@ -273,21 +273,46 @@ async function mountDictionaryHarness(page, options = {}) {
       };
     };
 
+    const buildClientRect = (top, height = 48, width = 320) => ({
+      x: 0,
+      y: top,
+      width,
+      height,
+      top,
+      right: width,
+      bottom: top + height,
+      left: 0,
+      toJSON() {
+        return this;
+      }
+    });
+
+    if (config && (typeof config.entryRectTop === 'number' || typeof config.detailRectTop === 'number')) {
+      const nativeGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function patchedGetBoundingClientRect() {
+        if (
+          typeof config.entryRectTop === 'number'
+          && typeof this.matches === 'function'
+          && this.matches('.ll-dictionary__card, .ll-dictionary__entry, [data-ll-dictionary-entry]')
+        ) {
+          return buildClientRect(config.entryRectTop, 140, 520);
+        }
+
+        if (
+          typeof config.detailRectTop === 'number'
+          && typeof this.matches === 'function'
+          && this.matches('[data-ll-dictionary-detail], .ll-dictionary__detail')
+        ) {
+          return buildClientRect(config.detailRectTop, 280, 520);
+        }
+
+        return nativeGetBoundingClientRect.call(this);
+      };
+    }
+
     if (config && typeof config.searchRectTop === 'number') {
       const searchInput = document.querySelector('#ll-dictionary-search');
-      searchInput.getBoundingClientRect = () => ({
-        x: 0,
-        y: config.searchRectTop,
-        width: 320,
-        height: 48,
-        top: config.searchRectTop,
-        right: 320,
-        bottom: config.searchRectTop + 48,
-        left: 0,
-        toJSON() {
-          return this;
-        }
-      });
+      searchInput.getBoundingClientRect = () => buildClientRect(config.searchRectTop);
     }
   }, options);
 
@@ -503,6 +528,7 @@ test('scrolls down once when live search starts so the search field stays visibl
     trackScroll: true,
     scrollY: 40,
     searchRectTop: 420,
+    entryRectTop: 120,
     viewportHeight: 900
   });
 
@@ -514,6 +540,55 @@ test('scrolls down once when live search starts so the search field stays visibl
   expect(scrollCalls).toHaveLength(1);
   expect(scrollCalls[0]).toMatchObject({
     top: 364,
+    behavior: 'smooth'
+  });
+});
+
+test('scrolls the first rendered search result into view when it is below the viewport', async ({ page }) => {
+  await mountDictionaryHarness(page, {
+    trackScroll: true,
+    scrollY: 100,
+    searchRectTop: 80,
+    entryRectTop: 760,
+    viewportHeight: 500
+  });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
+  await page.waitForFunction(() => window.__scrollCalls.some((call) => call.top === 788));
+
+  const scrollCalls = await page.evaluate(() => window.__scrollCalls);
+  expect(scrollCalls).toHaveLength(1);
+  expect(scrollCalls[0]).toMatchObject({
+    top: 788,
+    behavior: 'smooth'
+  });
+});
+
+test('scrolls to the top of an entry detail when a result is opened in place', async ({ page }) => {
+  await mountDictionaryHarness(page, {
+    trackScroll: true,
+    scrollY: 300,
+    searchRectTop: 80,
+    entryRectTop: 120,
+    detailRectTop: 650,
+    viewportHeight: 600
+  });
+
+  await page.locator('#ll-dictionary-search').fill('apa');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; Source:all');
+  await page.evaluate(() => {
+    window.__scrollCalls = [];
+  });
+
+  await page.locator('[data-ll-dictionary-detail-link]').click();
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Detail:77');
+  await page.waitForFunction(() => window.__scrollCalls.some((call) => call.top === 878));
+
+  const scrollCalls = await page.evaluate(() => window.__scrollCalls);
+  expect(scrollCalls).toHaveLength(1);
+  expect(scrollCalls[0]).toMatchObject({
+    top: 878,
     behavior: 'smooth'
   });
 });
