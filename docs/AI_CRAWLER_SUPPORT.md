@@ -14,6 +14,10 @@ crawlers:
 These files are served by `includes/lib/ai-crawler-support.php` during
 `template_redirect`.
 
+The module also emits `<link rel="alternate">` tags and HTTP `Link` headers for
+`/llms.txt` and `/ll-tools/index.md` on normal front-end requests. These are
+discovery hints only; they do not define crawl or training policy.
+
 ## Invariants
 
 - Exports must only include anonymous public content.
@@ -26,11 +30,12 @@ These files are served by `includes/lib/ai-crawler-support.php` during
   discovery/context surfaces.
 - Do not expose admin pages, editor workflows, recording tools, nonces, REST
   mutation endpoints, or private training/control policy through these files.
+- WebMCP annotations should remain limited to anonymous public read-only forms
+  unless the workflow has explicit user confirmation and permission checks.
 
 ## Follow-Up Areas
 
 - Site owners may still need explicit `robots.txt`, response header, or
   Cloudflare Content Signals policy for crawl/training preferences.
-- WebMCP annotations should be limited to read-only public forms first, such as
-  dictionary search, and should not describe mutation/admin forms as public
-  tools.
+- Richer WebMCP work can add result payload handling for read-only searches
+  after browser support stabilizes.

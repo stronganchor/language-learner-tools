@@ -3659,7 +3659,16 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
             <?php echo ll_tools_dictionary_render_detail_view($requested_entry_id, $base_url, $preferred_languages, $source_ids); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php else : ?>
             <div class="<?php echo esc_attr(implode(' ', $toolbar_classes)); ?>">
-                <form class="ll-dictionary__form" method="get" action="<?php echo esc_url($base_url); ?>" autocomplete="off" data-ll-dictionary-form>
+                <form
+                    class="ll-dictionary__form"
+                    method="get"
+                    action="<?php echo esc_url($base_url); ?>"
+                    autocomplete="off"
+                    data-ll-dictionary-form
+                    toolname="searchLlToolsDictionary"
+                    tooldescription="<?php echo esc_attr__('Searches the public LL Tools dictionary for matching headwords, definitions, translations, sources, and dialect notes.', 'll-tools-text-domain'); ?>"
+                    toolautosubmit
+                >
                     <?php echo ll_tools_dictionary_preserve_non_dictionary_query_inputs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <input type="hidden" name="ll_dictionary_letter" value="<?php echo esc_attr($letter); ?>">
                     <div class="ll-dictionary__search-row">
@@ -3676,6 +3685,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                                 autocapitalize="none"
                                 autocorrect="off"
                                 spellcheck="false"
+                                toolparamdescription="<?php echo esc_attr__('Dictionary search query. Use a headword, translated meaning, example text, source name, or dialect term.', 'll-tools-text-domain'); ?>"
                             >
                         </div>
                         <div class="ll-dictionary__actions ll-dictionary__actions--primary">

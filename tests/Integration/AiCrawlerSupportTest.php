@@ -42,6 +42,22 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Admin screens', $content);
     }
 
+    public function test_discovery_links_advertise_llms_and_ai_index(): void
+    {
+        $links = ll_tools_ai_crawler_discovery_links();
+        $this->assertCount(2, $links);
+        $this->assertSame(home_url('/llms.txt'), $links[0]['href']);
+        $this->assertSame('text/plain', $links[0]['type']);
+        $this->assertSame(home_url('/ll-tools/index.md'), $links[1]['href']);
+        $this->assertSame('text/markdown', $links[1]['type']);
+
+        ob_start();
+        ll_tools_ai_crawler_render_head_links();
+        $html = (string) ob_get_clean();
+        $this->assertStringContainsString('href="' . esc_url(home_url('/llms.txt')) . '"', $html);
+        $this->assertStringContainsString('href="' . esc_url(home_url('/ll-tools/index.md')) . '"', $html);
+    }
+
     public function test_dictionary_markdown_excludes_private_wordset_entries_for_anonymous_agents(): void
     {
         $public_wordset_id = $this->createWordset('AI Public Dictionary Wordset', 'ai-public-dictionary-wordset');

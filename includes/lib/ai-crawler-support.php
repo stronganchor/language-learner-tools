@@ -91,6 +91,88 @@ function ll_tools_ai_crawler_maybe_serve_export(): void {
 }
 add_action('template_redirect', 'll_tools_ai_crawler_maybe_serve_export', 0);
 
+/**
+ * @return array<int,array{href:string,rel:string,type:string,title:string}>
+ */
+function ll_tools_ai_crawler_discovery_links(): array {
+    $links = [
+        [
+            'href' => home_url('/llms.txt'),
+            'rel' => 'alternate',
+            'type' => 'text/plain',
+            'title' => 'llms.txt',
+        ],
+        [
+            'href' => home_url('/ll-tools/index.md'),
+            'rel' => 'alternate',
+            'type' => 'text/markdown',
+            'title' => 'LL Tools AI index',
+        ],
+    ];
+
+    return array_values(array_filter((array) apply_filters('ll_tools_ai_crawler_discovery_links', $links), static function ($link): bool {
+        return is_array($link)
+            && esc_url_raw((string) ($link['href'] ?? '')) !== ''
+            && trim((string) ($link['rel'] ?? '')) !== ''
+            && trim((string) ($link['type'] ?? '')) !== '';
+    }));
+}
+
+function ll_tools_ai_crawler_should_emit_discovery_links(): bool {
+    if (is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+        return false;
+    }
+
+    return (bool) apply_filters('ll_tools_ai_crawler_emit_discovery_links', true);
+}
+
+function ll_tools_ai_crawler_render_head_links(): void {
+    if (!ll_tools_ai_crawler_should_emit_discovery_links()) {
+        return;
+    }
+
+    foreach (ll_tools_ai_crawler_discovery_links() as $link) {
+        printf(
+            "<link rel=\"%s\" type=\"%s\" title=\"%s\" href=\"%s\">\n",
+            esc_attr((string) ($link['rel'] ?? 'alternate')),
+            esc_attr((string) ($link['type'] ?? '')),
+            esc_attr((string) ($link['title'] ?? '')),
+            esc_url((string) ($link['href'] ?? ''))
+        );
+    }
+}
+add_action('wp_head', 'll_tools_ai_crawler_render_head_links', 2);
+
+function ll_tools_ai_crawler_send_discovery_link_headers(): void {
+    if (!ll_tools_ai_crawler_should_emit_discovery_links() || headers_sent()) {
+        return;
+    }
+
+    foreach (ll_tools_ai_crawler_discovery_links() as $link) {
+        $href = esc_url_raw((string) ($link['href'] ?? ''));
+        $rel = sanitize_key((string) ($link['rel'] ?? 'alternate'));
+        $type = sanitize_mime_type((string) ($link['type'] ?? ''));
+        $title = ll_tools_ai_crawler_link_header_param((string) ($link['title'] ?? ''));
+        if ($href === '' || $rel === '' || $type === '') {
+            continue;
+        }
+
+        $header = '<' . $href . '>; rel="' . $rel . '"; type="' . $type . '"';
+        if ($title !== '') {
+            $header .= '; title="' . $title . '"';
+        }
+        header('Link: ' . $header, false);
+    }
+}
+add_action('send_headers', 'll_tools_ai_crawler_send_discovery_link_headers', 20);
+
+function ll_tools_ai_crawler_link_header_param(string $value): string {
+    $value = ll_tools_ai_crawler_markdown_text($value);
+    $value = preg_replace('/[^A-Za-z0-9 ._:-]/', '', $value);
+
+    return trim(is_string($value) ? $value : '');
+}
+
 function ll_tools_ai_crawler_response_cache_seconds(): int {
     return max(60, min(DAY_IN_SECONDS, (int) apply_filters('ll_tools_ai_crawler_response_cache_seconds', 10 * MINUTE_IN_SECONDS)));
 }
@@ -896,6 +978,7 @@ function ll_tools_ai_crawler_build_notes_markdown(): string {
         '## ' . __('Crawler Interpretation', 'll-tools-text-domain'),
         '- ' . __('Prefer Markdown exports for compact context gathering.', 'll-tools-text-domain'),
         '- ' . __('Prefer canonical HTML URLs when citing or sending a user to the site.', 'll-tools-text-domain'),
+        '- ' . __('Use the public dictionary WebMCP tool only for read-only dictionary search.', 'll-tools-text-domain'),
         '- ' . __('Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them.', 'll-tools-text-domain'),
     ];
 

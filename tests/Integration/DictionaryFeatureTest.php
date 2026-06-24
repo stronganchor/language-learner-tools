@@ -3887,7 +3887,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll-dictionary__hint', $idle_html);
         $this->assertStringContainsString('ll-dictionary__letters', $idle_html);
         $this->assertStringContainsString('ll_dictionary_letter=', $idle_html);
-        $this->assertStringContainsString('autocomplete="off" data-ll-dictionary-form', $idle_html);
+        $this->assertStringContainsString('autocomplete="off"', $idle_html);
+        $this->assertStringContainsString('data-ll-dictionary-form', $idle_html);
+        $this->assertStringContainsString('toolname="searchLlToolsDictionary"', $idle_html);
+        $this->assertStringContainsString('tooldescription="Searches the public LL Tools dictionary', $idle_html);
+        $this->assertStringContainsString('toolautosubmit', $idle_html);
+        $this->assertStringContainsString('toolparamdescription="Dictionary search query.', $idle_html);
         $this->assertStringContainsString('name="ll_dictionary_q"', $idle_html);
         $this->assertStringContainsString('autocomplete="off"', $idle_html);
         $this->assertStringContainsString('autocapitalize="none"', $idle_html);
