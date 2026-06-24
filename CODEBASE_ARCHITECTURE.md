@@ -85,7 +85,7 @@ read_first:
   - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
   - Provides a front-end home for selected sitewide settings, managed shortcode pages, plugin-update controls, privacy retention, and maintenance actions that previously lived only in wp-admin.
 - `includes/lib/ai-crawler-support.php`
-  - Serves generated `/llms.txt` and `/ll-tools/*.md` exports for anonymous public AI-crawler discovery.
+  - Serves generated `/llms.txt`, `/ll-tools/*.md`, and `/ll-tools/index.jsonld` exports for anonymous public AI-crawler discovery.
   - Exports must stay bounded and filter through explicit anonymous wordset/category visibility checks; canonical HTML pages remain the source of record.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.

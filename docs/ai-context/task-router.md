@@ -25,7 +25,7 @@ If the suggested pack looks wrong, update the `signals` for the relevant pack in
 | Recording interface, audio upload/processing, media matching, IPA/transcription manager | `recording-media-transcription` | `audio_recording_interface`, `ipa-keyboard`, `recording_type`, `review_note`, `ll-matching` |
 | Automation REST, site sync, imports/exports, CLI support, live apply/readback flows | `automation-import-sync` | `automation-rest`, `site-sync`, `export-import`, `ensure_sync_ids`, `snapshot` |
 | Dictionary search/browser, public cache, language switcher, public i18n manifests | `dictionary-i18n-cache` | `dictionary-search-index`, `dictionary-browser`, `public-static-cache`, `tier2-public-ui-sources`, `language-switcher` |
-| AI crawler discovery, llms.txt, agent Markdown exports, crawler notes, WebMCP annotations | `dictionary-i18n-cache` | `ai-crawler-support`, `llms.txt`, `dictionary-browser`, `content-lesson`, `wordset-pages`, `WebMCP` |
+| AI crawler discovery, llms.txt, agent Markdown/JSON-LD exports, dictionary letter chunks, crawler notes, WebMCP annotations | `dictionary-i18n-cache` | `ai-crawler-support`, `llms.txt`, `Schema.org`, `dictionary-browser`, `content-lesson`, `wordset-pages`, `WebMCP` |
 | Offline export/sync, wordset games, progress/study metrics, content lessons, teacher classes | `offline-games-content-progress` | `offline-app-sync`, `wordset-games`, `user-progress`, `content-lesson`, `teacher-classes` |
 | Performance fixtures, benchmark scenarios, page-speed budgets, large-wordset evidence | `performance-benchmark` | `PERFORMANCE_ARCHITECTURE`, `LL_PERF_PROFILE`, `performance-history`, `page-speed`, `large-wordset` |
 
@@ -36,7 +36,7 @@ The generator supports these shorter names:
 - `wordset-page`, `wordset-editor`, `word-grid` -> `wordset-vocab-manager`
 - `transcription-manager` -> `recording-media-transcription`
 - `dictionary` -> `dictionary-i18n-cache`
-- `llms.txt`, `ai-crawler`, `WebMCP` -> `dictionary-i18n-cache`
+- `llms.txt`, `ai-crawler`, `JSON-LD`, `Schema.org`, `WebMCP` -> `dictionary-i18n-cache`
 - `imports-sync` -> `automation-import-sync`
 
 ## When No Row Fits

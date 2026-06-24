@@ -6,6 +6,14 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
     /** @var array<int,string> */
     private array $created_terms = [];
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
+    }
+
     protected function tearDown(): void
     {
         $_GET = [];
@@ -27,6 +35,10 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         }
         $this->created_terms = [];
 
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
+
         parent::tearDown();
     }
 
@@ -36,6 +48,7 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
 
         $this->assertStringStartsWith('# ', $content);
         $this->assertStringContainsString('/ll-tools/index.md', $content);
+        $this->assertStringContainsString('/ll-tools/index.jsonld', $content);
         $this->assertStringContainsString('/ll-tools/dictionary.md', $content);
         $this->assertStringContainsString('/ll-tools/wordsets.md', $content);
         $this->assertStringContainsString('/ll-tools/content-lessons.md', $content);
@@ -45,17 +58,20 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
     public function test_discovery_links_advertise_llms_and_ai_index(): void
     {
         $links = ll_tools_ai_crawler_discovery_links();
-        $this->assertCount(2, $links);
+        $this->assertCount(3, $links);
         $this->assertSame(home_url('/llms.txt'), $links[0]['href']);
         $this->assertSame('text/plain', $links[0]['type']);
         $this->assertSame(home_url('/ll-tools/index.md'), $links[1]['href']);
         $this->assertSame('text/markdown', $links[1]['type']);
+        $this->assertSame(home_url('/ll-tools/index.jsonld'), $links[2]['href']);
+        $this->assertSame('application/ld+json', $links[2]['type']);
 
         ob_start();
         ll_tools_ai_crawler_render_head_links();
         $html = (string) ob_get_clean();
         $this->assertStringContainsString('href="' . esc_url(home_url('/llms.txt')) . '"', $html);
         $this->assertStringContainsString('href="' . esc_url(home_url('/ll-tools/index.md')) . '"', $html);
+        $this->assertStringContainsString('href="' . esc_url(home_url('/ll-tools/index.jsonld')) . '"', $html);
     }
 
     public function test_dictionary_markdown_excludes_private_wordset_entries_for_anonymous_agents(): void
@@ -107,6 +123,70 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_dictionary_entry=' . (string) $public_entry_id, $content);
         $this->assertStringNotContainsString('secret-headword', $content);
         $this->assertStringNotContainsString('hidden definition', $content);
+    }
+
+    public function test_dictionary_letter_markdown_uses_public_letter_scope(): void
+    {
+        $public_wordset_id = $this->createWordset('AI Letter Public Wordset', 'ai-letter-public-wordset');
+        $private_wordset_id = $this->createWordset('AI Letter Private Wordset', 'ai-letter-private-wordset', true);
+
+        $this->createDictionaryEntry('Ava', $public_wordset_id, 'water');
+        $this->createDictionaryEntry('Bero', $public_wordset_id, 'come');
+        $this->createDictionaryEntry('A-secret', $private_wordset_id, 'hidden A definition');
+        $this->createDictionaryEntry('Z-secret', $private_wordset_id, 'hidden Z definition');
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
+
+        wp_set_current_user(0);
+        $content = ll_tools_ai_crawler_build_dictionary_letter_markdown('a', ['limit' => 20, 'sense_limit' => 4]);
+        $letters = ll_tools_ai_crawler_get_dictionary_letters(20);
+
+        $this->assertStringContainsString('# Public Dictionary: A', $content);
+        $this->assertStringContainsString('Ava', $content);
+        $this->assertStringContainsString('water', $content);
+        $this->assertStringContainsString('/ll-tools/dictionary.md', $content);
+        $this->assertStringNotContainsString('Bero', $content);
+        $this->assertStringNotContainsString('A-secret', $content);
+        $this->assertStringNotContainsString('hidden A definition', $content);
+        $this->assertContains('A', $letters);
+        $this->assertContains('B', $letters);
+        $this->assertNotContains('Z', $letters);
+    }
+
+    public function test_jsonld_index_exposes_schema_graph_and_dictionary_chunks(): void
+    {
+        $public_wordset_id = $this->createWordset('AI JSON Public Wordset', 'ai-json-public-wordset');
+        $private_wordset_id = $this->createWordset('AI JSON Private Wordset', 'ai-json-private-wordset', true);
+
+        $this->createDictionaryEntry('Ava', $public_wordset_id, 'water');
+        $this->createDictionaryEntry('Z-secret', $private_wordset_id, 'hidden Z definition');
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
+
+        wp_set_current_user(0);
+        $json = ll_tools_ai_crawler_build_index_jsonld([
+            'dictionary_entry_limit' => 5,
+            'dictionary_letter_limit' => 10,
+        ]);
+        $data = json_decode($json, true);
+
+        $this->assertIsArray($data);
+        $this->assertSame('https://schema.org', $data['@context']);
+        $graph = $data['@graph'] ?? [];
+        $this->assertIsArray($graph);
+        $types = array_map(static fn($node): string => is_array($node) ? (string) ($node['@type'] ?? '') : '', $graph);
+        $this->assertContains('WebSite', $types);
+        $this->assertContains('Dataset', $types);
+        $this->assertContains('DefinedTermSet', $types);
+        $this->assertContains('ItemList', $types);
+        $this->assertStringContainsString('/ll-tools/dictionary/A.md', $json);
+        $this->assertStringContainsString('DefinedTerm', $json);
+        $this->assertStringContainsString('Ava', $json);
+        $this->assertStringContainsString('water', $json);
+        $this->assertStringNotContainsString('Z-secret', $json);
+        $this->assertStringNotContainsString('hidden Z definition', $json);
     }
 
     public function test_wordset_and_content_exports_filter_private_surfaces(): void
@@ -195,5 +275,28 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         $this->created_terms[$term_id] = 'word-category';
 
         return $term_id;
+    }
+
+    private function createDictionaryEntry(string $title, int $wordset_id, string $definition): int
+    {
+        $entry_id = wp_insert_post([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => $title,
+            'post_content' => $definition,
+        ], true);
+        $this->assertIsInt($entry_id);
+
+        update_post_meta((int) $entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, (string) $wordset_id);
+        update_post_meta((int) $entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [
+            [
+                'definition' => $definition,
+                'translations' => ['en' => $definition],
+                'entry_type' => 'noun',
+                'source_dictionary' => 'Test Dictionary',
+            ],
+        ]);
+
+        return (int) $entry_id;
     }
 }

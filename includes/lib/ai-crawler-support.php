@@ -5,7 +5,7 @@ if (!defined('WPINC')) { die; }
 /**
  * Return the generated AI-crawler export routes.
  *
- * @return array<string,array{key:string,content_type:string}>
+ * @return array<string,array<string,string>>
  */
 function ll_tools_ai_crawler_export_routes(): array {
     return [
@@ -20,6 +20,10 @@ function ll_tools_ai_crawler_export_routes(): array {
         '/ll-tools/index.md' => [
             'key' => 'index',
             'content_type' => 'text/markdown; charset=utf-8',
+        ],
+        '/ll-tools/index.jsonld' => [
+            'key' => 'index-jsonld',
+            'content_type' => 'application/ld+json; charset=utf-8',
         ],
         '/ll-tools/dictionary.md' => [
             'key' => 'dictionary',
@@ -38,6 +42,29 @@ function ll_tools_ai_crawler_export_routes(): array {
             'content_type' => 'text/markdown; charset=utf-8',
         ],
     ];
+}
+
+/**
+ * @return array<string,string>|null
+ */
+function ll_tools_ai_crawler_resolve_export(string $path): ?array {
+    $routes = ll_tools_ai_crawler_export_routes();
+    if (isset($routes[$path])) {
+        return $routes[$path];
+    }
+
+    if (preg_match('#^/ll-tools/dictionary/([^/]+)\.md$#u', $path, $matches) === 1) {
+        $letter = ll_tools_ai_crawler_normalize_dictionary_letter((string) ($matches[1] ?? ''));
+        if ($letter !== '') {
+            return [
+                'key' => 'dictionary-letter',
+                'content_type' => 'text/markdown; charset=utf-8',
+                'letter' => $letter,
+            ];
+        }
+    }
+
+    return null;
 }
 
 function ll_tools_ai_crawler_current_request_path(): string {
@@ -67,14 +94,13 @@ function ll_tools_ai_crawler_maybe_serve_export(): void {
         return;
     }
 
-    $routes = ll_tools_ai_crawler_export_routes();
     $path = ll_tools_ai_crawler_current_request_path();
-    if (!isset($routes[$path])) {
+    $export = ll_tools_ai_crawler_resolve_export($path);
+    if ($export === null) {
         return;
     }
 
-    $export = $routes[$path];
-    $body = ll_tools_ai_crawler_build_export((string) $export['key']);
+    $body = ll_tools_ai_crawler_build_export((string) $export['key'], $export);
     if ($body === '') {
         return;
     }
@@ -107,6 +133,12 @@ function ll_tools_ai_crawler_discovery_links(): array {
             'rel' => 'alternate',
             'type' => 'text/markdown',
             'title' => 'LL Tools AI index',
+        ],
+        [
+            'href' => home_url('/ll-tools/index.jsonld'),
+            'rel' => 'alternate',
+            'type' => 'application/ld+json',
+            'title' => 'LL Tools AI structured index',
         ],
     ];
 
@@ -177,14 +209,18 @@ function ll_tools_ai_crawler_response_cache_seconds(): int {
     return max(60, min(DAY_IN_SECONDS, (int) apply_filters('ll_tools_ai_crawler_response_cache_seconds', 10 * MINUTE_IN_SECONDS)));
 }
 
-function ll_tools_ai_crawler_build_export(string $key): string {
+function ll_tools_ai_crawler_build_export(string $key, array $args = []): string {
     switch ($key) {
         case 'llms':
             return ll_tools_ai_crawler_build_llms_txt();
         case 'index':
             return ll_tools_ai_crawler_build_index_markdown();
+        case 'index-jsonld':
+            return ll_tools_ai_crawler_build_index_jsonld($args);
         case 'dictionary':
             return ll_tools_ai_crawler_build_dictionary_markdown();
+        case 'dictionary-letter':
+            return ll_tools_ai_crawler_build_dictionary_letter_markdown((string) ($args['letter'] ?? ''), $args);
         case 'wordsets':
             return ll_tools_ai_crawler_build_wordsets_markdown();
         case 'content-lessons':
@@ -286,6 +322,54 @@ function ll_tools_ai_crawler_dictionary_detail_url(int $entry_id): string {
         ['ll_dictionary_entry' => (string) max(0, $entry_id)],
         ll_tools_ai_crawler_dictionary_page_url()
     );
+}
+
+function ll_tools_ai_crawler_dictionary_title_language(int $wordset_id = 0): string {
+    $filtered = apply_filters('ll_tools_ai_crawler_dictionary_title_language', '', max(0, $wordset_id));
+    if (is_string($filtered) && trim($filtered) !== '') {
+        return function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key($filtered)
+            : sanitize_key($filtered);
+    }
+
+    if ($wordset_id > 0 && function_exists('ll_tools_dictionary_get_wordset_title_language_code')) {
+        return (string) ll_tools_dictionary_get_wordset_title_language_code(max(0, $wordset_id));
+    }
+
+    $target_language = (string) get_option('ll_target_language', '');
+    if ($target_language !== '') {
+        return function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key($target_language)
+            : sanitize_key($target_language);
+    }
+
+    return '';
+}
+
+function ll_tools_ai_crawler_normalize_dictionary_letter(string $letter): string {
+    $letter = trim(rawurldecode($letter));
+    $letter = (string) preg_replace('/\.md$/i', '', $letter);
+    $language = ll_tools_ai_crawler_dictionary_title_language(0);
+
+    if (function_exists('ll_tools_dictionary_normalize_browse_letter')) {
+        return (string) ll_tools_dictionary_normalize_browse_letter($letter, $language);
+    }
+
+    if (preg_match('/^([\p{L}\p{N}])/u', $letter, $matches) !== 1) {
+        return '';
+    }
+
+    $letter = (string) $matches[1];
+    return function_exists('mb_strtoupper') ? mb_strtoupper($letter, 'UTF-8') : strtoupper($letter);
+}
+
+function ll_tools_ai_crawler_dictionary_letter_url(string $letter): string {
+    $letter = ll_tools_ai_crawler_normalize_dictionary_letter($letter);
+    if ($letter === '') {
+        return home_url('/ll-tools/dictionary.md');
+    }
+
+    return home_url('/ll-tools/dictionary/' . rawurlencode($letter) . '.md');
 }
 
 function ll_tools_ai_crawler_can_view_wordset($wordset): bool {
@@ -403,11 +487,42 @@ function ll_tools_ai_crawler_get_public_wordsets(int $limit): array {
 /**
  * @return array<int,array<string,mixed>>
  */
-function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sense_limit): array {
+function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sense_limit, string $letter = ''): array {
     $limit = max(1, min(100, $limit));
     $sense_limit = max(1, min(8, $sense_limit));
+    $letter = ll_tools_ai_crawler_normalize_dictionary_letter($letter);
+    $language = ll_tools_ai_crawler_dictionary_title_language(0);
 
     $items = [];
+    if ($letter !== '' && function_exists('ll_tools_dictionary_query_entry_ids_by_browse_constraints')) {
+        $candidate_limit = min(500, max(100, $limit * 10));
+        $ids = array_values(array_filter(array_map('intval', ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+            ['publish'],
+            0,
+            $letter,
+            '',
+            '',
+            '',
+            $candidate_limit,
+            $language
+        ))));
+        if (!empty($ids)) {
+            update_postmeta_cache($ids);
+        }
+        foreach ($ids as $entry_id) {
+            $item = ll_tools_ai_crawler_dictionary_entry_item($entry_id, $sense_limit);
+            if ($item === null) {
+                continue;
+            }
+            $items[] = $item;
+            if (count($items) >= $limit) {
+                break;
+            }
+        }
+
+        return $items;
+    }
+
     $offset = 0;
     $chunk_size = min(100, max(25, $limit));
     $scan_limit = min(500, max($chunk_size, $limit * 5));
@@ -432,37 +547,17 @@ function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sens
         update_postmeta_cache($ids);
 
         foreach ($ids as $entry_id) {
-            if (!ll_tools_ai_crawler_can_view_dictionary_entry($entry_id)) {
+            if ($letter !== '' && function_exists('ll_tools_dictionary_entry_matches_browse_letter')
+                && !ll_tools_dictionary_entry_matches_browse_letter($entry_id, $letter, $language)
+            ) {
                 continue;
             }
-            $item = function_exists('ll_tools_dictionary_get_entry_data')
-                ? ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, 0)
-                : [];
-            if (!is_array($item) || empty($item)) {
-                $item = [
-                    'id' => $entry_id,
-                    'title' => (string) get_the_title($entry_id),
-                    'translation' => wp_strip_all_tags((string) get_post_field('post_content', $entry_id)),
-                    'senses' => [],
-                    'sense_count' => 0,
-                    'sources' => [],
-                    'dialects' => [],
-                    'wordset_names' => [],
-                ];
+            $item = ll_tools_ai_crawler_dictionary_entry_item($entry_id, $sense_limit);
+            if ($item === null) {
+                continue;
             }
 
-            $items[] = [
-                'id' => (int) ($item['id'] ?? $entry_id),
-                'title' => (string) ($item['title'] ?? get_the_title($entry_id)),
-                'translation' => (string) ($item['translation'] ?? ''),
-                'entry_type' => (string) ($item['entry_type'] ?? ''),
-                'pos_label' => (string) ($item['pos_label'] ?? ''),
-                'wordset_names' => is_array($item['wordset_names'] ?? null) ? $item['wordset_names'] : [],
-                'sources' => is_array($item['sources'] ?? null) ? $item['sources'] : [],
-                'dialects' => is_array($item['dialects'] ?? null) ? $item['dialects'] : [],
-                'senses' => is_array($item['senses'] ?? null) ? $item['senses'] : [],
-                'sense_count' => (int) ($item['sense_count'] ?? 0),
-            ];
+            $items[] = $item;
             if (count($items) >= $limit) {
                 break 2;
             }
@@ -470,6 +565,177 @@ function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sens
     }
 
     return $items;
+}
+
+/**
+ * @return array<string,mixed>|null
+ */
+function ll_tools_ai_crawler_dictionary_entry_item(int $entry_id, int $sense_limit): ?array {
+    if (!ll_tools_ai_crawler_can_view_dictionary_entry($entry_id)) {
+        return null;
+    }
+
+    $item = function_exists('ll_tools_dictionary_get_entry_data')
+        ? ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, 0)
+        : [];
+    if (!is_array($item) || empty($item)) {
+        $item = [
+            'id' => $entry_id,
+            'title' => (string) get_the_title($entry_id),
+            'translation' => wp_strip_all_tags((string) get_post_field('post_content', $entry_id)),
+            'senses' => [],
+            'sense_count' => 0,
+            'sources' => [],
+            'dialects' => [],
+            'wordset_names' => [],
+        ];
+    }
+
+    return [
+        'id' => (int) ($item['id'] ?? $entry_id),
+        'title' => (string) ($item['title'] ?? get_the_title($entry_id)),
+        'translation' => (string) ($item['translation'] ?? ''),
+        'entry_type' => (string) ($item['entry_type'] ?? ''),
+        'pos_label' => (string) ($item['pos_label'] ?? ''),
+        'wordset_names' => is_array($item['wordset_names'] ?? null) ? $item['wordset_names'] : [],
+        'sources' => is_array($item['sources'] ?? null) ? $item['sources'] : [],
+        'dialects' => is_array($item['dialects'] ?? null) ? $item['dialects'] : [],
+        'senses' => is_array($item['senses'] ?? null) ? $item['senses'] : [],
+        'sense_count' => (int) ($item['sense_count'] ?? 0),
+    ];
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_ai_crawler_get_dictionary_letters(int $limit = 64): array {
+    static $request_cache = [];
+
+    $limit = max(1, min(100, $limit));
+    $cache_key = (function_exists('ll_tools_get_dictionary_browser_cache_version') ? (int) ll_tools_get_dictionary_browser_cache_version() : 1) . ':' . $limit;
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $language = ll_tools_ai_crawler_dictionary_title_language(0);
+    $candidates = [];
+    foreach (ll_tools_ai_crawler_query_public_dictionary_raw_letters(max(80, $limit * 3)) as $raw_letter) {
+        $letter = function_exists('ll_tools_dictionary_normalize_browse_letter')
+            ? ll_tools_dictionary_normalize_browse_letter($raw_letter, $language)
+            : ll_tools_ai_crawler_normalize_dictionary_letter($raw_letter);
+        if ($letter !== '') {
+            $candidates[$letter] = true;
+        }
+    }
+
+    if (empty($candidates)) {
+        $raw_titles = get_posts([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'posts_per_page' => 500,
+            'fields' => 'ids',
+            'orderby' => 'title',
+            'order' => 'ASC',
+            'no_found_rows' => true,
+        ]);
+        foreach (array_map('intval', (array) $raw_titles) as $entry_id) {
+            $letter = function_exists('ll_tools_dictionary_normalize_browse_letter')
+                ? ll_tools_dictionary_normalize_browse_letter((string) get_the_title($entry_id), $language)
+                : ll_tools_ai_crawler_normalize_dictionary_letter((string) get_the_title($entry_id));
+            if ($letter !== '') {
+                $candidates[$letter] = true;
+            }
+        }
+    }
+
+    $ordered_candidates = function_exists('ll_tools_dictionary_order_browse_letters')
+        ? ll_tools_dictionary_order_browse_letters($candidates, $language)
+        : array_keys($candidates);
+
+    $request_cache[$cache_key] = array_slice($ordered_candidates, 0, $limit);
+    return $request_cache[$cache_key];
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_ai_crawler_query_public_dictionary_raw_letters(int $limit = 200): array {
+    global $wpdb;
+
+    if (!defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY')) {
+        return [];
+    }
+
+    $public_wordset_ids = ll_tools_ai_crawler_get_public_wordset_ids_for_dictionary_letters();
+    if (empty($public_wordset_ids)) {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+    $first_letter_sql = 'LEFT(TRIM(p.post_title), 1)';
+    $wordset_placeholders = implode(', ', array_fill(0, count($public_wordset_ids), '%s'));
+    $params = [
+        LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY,
+    ];
+    foreach ($public_wordset_ids as $wordset_id) {
+        $params[] = (string) $wordset_id;
+    }
+    $params[] = $limit;
+    $sql = "
+        SELECT {$first_letter_sql} AS raw_letter
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->postmeta} explicit_wordset
+               ON explicit_wordset.post_id = p.ID
+              AND explicit_wordset.meta_key = %s
+              AND explicit_wordset.meta_value IN ({$wordset_placeholders})
+        WHERE p.post_type = 'll_dictionary_entry'
+          AND p.post_status = 'publish'
+          AND p.post_password = ''
+          AND TRIM(p.post_title) <> ''
+        GROUP BY BINARY {$first_letter_sql}
+        ORDER BY raw_letter ASC
+        LIMIT %d
+    ";
+
+    $raw_letters = (array) $wpdb->get_col($wpdb->prepare($sql, $params));
+    return array_values(array_filter(array_map('strval', $raw_letters), static function (string $letter): bool {
+        return trim($letter) !== '';
+    }));
+}
+
+/**
+ * @return int[]
+ */
+function ll_tools_ai_crawler_get_public_wordset_ids_for_dictionary_letters(): array {
+    static $request_cache = [];
+
+    $cache_key = (function_exists('ll_tools_get_dictionary_browser_cache_version') ? (int) ll_tools_get_dictionary_browser_cache_version() : 1);
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $terms = get_terms([
+        'taxonomy' => 'wordset',
+        'hide_empty' => false,
+        'fields' => 'ids',
+        'number' => 500,
+        'orderby' => 'id',
+        'order' => 'ASC',
+    ]);
+    if (is_wp_error($terms) || !is_array($terms)) {
+        $request_cache[$cache_key] = [];
+        return $request_cache[$cache_key];
+    }
+
+    $ids = [];
+    foreach (array_map('intval', $terms) as $term_id) {
+        if ($term_id > 0 && ll_tools_ai_crawler_can_view_wordset($term_id)) {
+            $ids[] = $term_id;
+        }
+    }
+
+    $request_cache[$cache_key] = array_values(array_unique($ids));
+    return $request_cache[$cache_key];
 }
 
 /**
@@ -568,6 +834,9 @@ function ll_tools_ai_crawler_build_llms_txt(): string {
         ll_tools_ai_crawler_markdown_link(__('Wordsets Markdown', 'll-tools-text-domain'), home_url('/ll-tools/wordsets.md'), __('Public wordset hubs and public vocab lessons.', 'll-tools-text-domain')),
         ll_tools_ai_crawler_markdown_link(__('Content Lessons Markdown', 'll-tools-text-domain'), home_url('/ll-tools/content-lessons.md'), __('Public content lessons with compact transcript samples.', 'll-tools-text-domain')),
         '',
+        '## Structured Data',
+        ll_tools_ai_crawler_markdown_link(__('AI index JSON-LD', 'll-tools-text-domain'), home_url('/ll-tools/index.jsonld'), __('Schema.org structured discovery graph for the generated public exports.', 'll-tools-text-domain')),
+        '',
         '## Optional',
         ll_tools_ai_crawler_markdown_link(__('AI crawler notes', 'll-tools-text-domain'), home_url('/ll-tools/ai-crawler.md'), __('Operational notes about how these generated files should be interpreted.', 'll-tools-text-domain')),
     ];
@@ -589,6 +858,7 @@ function ll_tools_ai_crawler_build_index_markdown(): string {
         '## Discovery',
         ll_tools_ai_crawler_markdown_link(__('Root llms.txt', 'll-tools-text-domain'), home_url('/llms.txt'), __('Site-level AI discovery file.', 'll-tools-text-domain')),
         ll_tools_ai_crawler_markdown_link(__('LL Tools llms.txt', 'll-tools-text-domain'), home_url('/ll-tools/llms.txt'), __('Plugin-scoped copy of the discovery file.', 'll-tools-text-domain')),
+        ll_tools_ai_crawler_markdown_link(__('AI index JSON-LD', 'll-tools-text-domain'), home_url('/ll-tools/index.jsonld'), __('Schema.org structured discovery graph for the generated public exports.', 'll-tools-text-domain')),
         '',
         '## Public Content',
         ll_tools_ai_crawler_markdown_link(__('Dictionary Markdown', 'll-tools-text-domain'), home_url('/ll-tools/dictionary.md'), __('Headwords, summaries, sources, dialects, and dictionary detail links.', 'll-tools-text-domain')),
@@ -599,13 +869,176 @@ function ll_tools_ai_crawler_build_index_markdown(): string {
         ll_tools_ai_crawler_markdown_link(__('AI crawler notes', 'll-tools-text-domain'), home_url('/ll-tools/ai-crawler.md'), __('Scope and interpretation notes for these generated exports.', 'll-tools-text-domain')),
     ];
 
+    $letters = ll_tools_ai_crawler_get_dictionary_letters();
+    if (!empty($letters)) {
+        $lines[] = '';
+        $lines[] = '## ' . __('Dictionary Letter Chunks', 'll-tools-text-domain');
+        $lines[] = __('Letter chunks expose smaller dictionary slices for agents that need focused context instead of a broad sample.', 'll-tools-text-domain');
+        foreach ($letters as $letter) {
+            $lines[] = ll_tools_ai_crawler_markdown_link(
+                sprintf(
+                    /* translators: %s: Dictionary browse letter. */
+                    __('Dictionary letter %s', 'll-tools-text-domain'),
+                    $letter
+                ),
+                ll_tools_ai_crawler_dictionary_letter_url($letter)
+            );
+        }
+    }
+
     return ll_tools_ai_crawler_markdown_document($lines);
+}
+
+function ll_tools_ai_crawler_build_index_jsonld(array $args = []): string {
+    $entry_limit = ll_tools_ai_crawler_limit($args, 'dictionary_entry_limit', 'll_tools_ai_crawler_jsonld_dictionary_entry_limit', 20, 1, 50);
+    $letter_limit = ll_tools_ai_crawler_limit($args, 'dictionary_letter_limit', 'll_tools_ai_crawler_jsonld_dictionary_letter_limit', 64, 1, 100);
+    $site_name = ll_tools_ai_crawler_site_name();
+    $index_id = home_url('/ll-tools/index.jsonld#ai-index');
+    $dictionary_id = home_url('/ll-tools/dictionary.md#dictionary');
+
+    $downloads = [
+        [
+            '@type' => 'DataDownload',
+            'name' => __('Root llms.txt', 'll-tools-text-domain'),
+            'encodingFormat' => 'text/plain',
+            'contentUrl' => home_url('/llms.txt'),
+        ],
+        [
+            '@type' => 'DataDownload',
+            'name' => __('AI index Markdown', 'll-tools-text-domain'),
+            'encodingFormat' => 'text/markdown',
+            'contentUrl' => home_url('/ll-tools/index.md'),
+        ],
+        [
+            '@type' => 'DataDownload',
+            'name' => __('Dictionary Markdown', 'll-tools-text-domain'),
+            'encodingFormat' => 'text/markdown',
+            'contentUrl' => home_url('/ll-tools/dictionary.md'),
+        ],
+        [
+            '@type' => 'DataDownload',
+            'name' => __('Wordsets Markdown', 'll-tools-text-domain'),
+            'encodingFormat' => 'text/markdown',
+            'contentUrl' => home_url('/ll-tools/wordsets.md'),
+        ],
+        [
+            '@type' => 'DataDownload',
+            'name' => __('Content Lessons Markdown', 'll-tools-text-domain'),
+            'encodingFormat' => 'text/markdown',
+            'contentUrl' => home_url('/ll-tools/content-lessons.md'),
+        ],
+    ];
+
+    $letters = ll_tools_ai_crawler_get_dictionary_letters($letter_limit);
+    $letter_items = [];
+    foreach ($letters as $index => $letter) {
+        $letter_items[] = [
+            '@type' => 'ListItem',
+            'position' => $index + 1,
+            'name' => $letter,
+            'url' => ll_tools_ai_crawler_dictionary_letter_url($letter),
+        ];
+    }
+
+    $terms = [];
+    foreach (ll_tools_ai_crawler_get_public_dictionary_entries($entry_limit, 2) as $entry) {
+        $entry_id = (int) ($entry['id'] ?? 0);
+        $name = ll_tools_ai_crawler_markdown_text((string) ($entry['title'] ?? ''));
+        if ($entry_id <= 0 || $name === '') {
+            continue;
+        }
+
+        $description = ll_tools_ai_crawler_markdown_excerpt((string) ($entry['translation'] ?? ''), 360);
+        if ($description === '') {
+            foreach ((array) ($entry['senses'] ?? []) as $sense) {
+                if (!is_array($sense)) {
+                    continue;
+                }
+                $description = ll_tools_ai_crawler_dictionary_sense_line($sense);
+                if ($description !== '') {
+                    break;
+                }
+            }
+        }
+
+        $term = [
+            '@type' => 'DefinedTerm',
+            '@id' => ll_tools_ai_crawler_dictionary_detail_url($entry_id) . '#term',
+            'name' => $name,
+            'url' => ll_tools_ai_crawler_dictionary_detail_url($entry_id),
+            'inDefinedTermSet' => [
+                '@id' => $dictionary_id,
+            ],
+            'identifier' => 'll_dictionary_entry:' . (string) $entry_id,
+        ];
+        if ($description !== '') {
+            $term['description'] = $description;
+        }
+
+        $terms[] = $term;
+    }
+
+    $graph = [
+        [
+            '@type' => 'WebSite',
+            '@id' => home_url('/#website'),
+            'name' => $site_name,
+            'url' => home_url('/'),
+            'hasPart' => [
+                ['@id' => $index_id],
+                ['@id' => $dictionary_id],
+            ],
+        ],
+        [
+            '@type' => 'Dataset',
+            '@id' => $index_id,
+            'name' => sprintf(
+                /* translators: %s: Site name. */
+                __('%s LL Tools AI discovery index', 'll-tools-text-domain'),
+                $site_name
+            ),
+            'description' => __('Generated, bounded, anonymous-public LL Tools discovery index for AI agents.', 'll-tools-text-domain'),
+            'url' => home_url('/ll-tools/index.md'),
+            'encodingFormat' => ['text/markdown', 'application/ld+json'],
+            'distribution' => $downloads,
+        ],
+        [
+            '@type' => 'DefinedTermSet',
+            '@id' => $dictionary_id,
+            'name' => __('Public Dictionary', 'll-tools-text-domain'),
+            'description' => __('Bounded public dictionary entries exposed for compact AI context.', 'll-tools-text-domain'),
+            'url' => home_url('/ll-tools/dictionary.md'),
+        ],
+    ];
+
+    if (!empty($terms)) {
+        $graph[2]['hasDefinedTerm'] = $terms;
+    }
+    if (!empty($letter_items)) {
+        $graph[] = [
+            '@type' => 'ItemList',
+            '@id' => home_url('/ll-tools/dictionary.md#letter-chunks'),
+            'name' => __('Dictionary letter Markdown exports', 'll-tools-text-domain'),
+            'itemListElement' => $letter_items,
+        ];
+    }
+
+    $json = wp_json_encode(
+        [
+            '@context' => 'https://schema.org',
+            '@graph' => $graph,
+        ],
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
+    );
+
+    return is_string($json) ? $json . "\n" : "{}\n";
 }
 
 function ll_tools_ai_crawler_build_dictionary_markdown(array $args = []): string {
     $limit = ll_tools_ai_crawler_limit($args, 'limit', 'll_tools_ai_crawler_dictionary_limit', 50, 1, 100);
     $sense_limit = ll_tools_ai_crawler_limit($args, 'sense_limit', 'll_tools_ai_crawler_dictionary_sense_limit', 4, 1, 8);
     $entries = ll_tools_ai_crawler_get_public_dictionary_entries($limit, $sense_limit);
+    $letters = ll_tools_ai_crawler_get_dictionary_letters();
 
     $lines = [
         '# ' . ll_tools_ai_crawler_markdown_heading(__('Public Dictionary', 'll-tools-text-domain')),
@@ -619,12 +1052,73 @@ function ll_tools_ai_crawler_build_dictionary_markdown(array $args = []): string
         ll_tools_ai_crawler_markdown_link(__('Public dictionary page', 'll-tools-text-domain'), ll_tools_ai_crawler_dictionary_page_url()),
     ];
 
+    if (!empty($letters)) {
+        $lines[] = '';
+        $lines[] = '## ' . __('Dictionary Letter Chunks', 'll-tools-text-domain');
+        foreach ($letters as $letter) {
+            $lines[] = ll_tools_ai_crawler_markdown_link(
+                sprintf(
+                    /* translators: %s: Dictionary browse letter. */
+                    __('Letter %s', 'll-tools-text-domain'),
+                    $letter
+                ),
+                ll_tools_ai_crawler_dictionary_letter_url($letter)
+            );
+        }
+    }
+
     if (empty($entries)) {
         $lines[] = '';
         $lines[] = __('No public dictionary entries are currently available.', 'll-tools-text-domain');
         return ll_tools_ai_crawler_markdown_document($lines);
     }
 
+    return ll_tools_ai_crawler_markdown_document(ll_tools_ai_crawler_append_dictionary_entries($lines, $entries));
+}
+
+function ll_tools_ai_crawler_build_dictionary_letter_markdown(string $letter, array $args = []): string {
+    $letter = ll_tools_ai_crawler_normalize_dictionary_letter($letter);
+    if ($letter === '') {
+        return '';
+    }
+
+    $limit = ll_tools_ai_crawler_limit($args, 'limit', 'll_tools_ai_crawler_dictionary_letter_limit', 25, 1, 50);
+    $sense_limit = ll_tools_ai_crawler_limit($args, 'sense_limit', 'll_tools_ai_crawler_dictionary_sense_limit', 4, 1, 8);
+    $entries = ll_tools_ai_crawler_get_public_dictionary_entries($limit, $sense_limit, $letter);
+
+    $lines = [
+        '# ' . ll_tools_ai_crawler_markdown_heading(sprintf(
+            /* translators: %s: Dictionary browse letter. */
+            __('Public Dictionary: %s', 'll-tools-text-domain'),
+            $letter
+        )),
+        '',
+        sprintf(
+            /* translators: 1: Entry limit. 2: Dictionary browse letter. */
+            __('This bounded export includes up to %1$d anonymous public dictionary entries for the browse letter %2$s.', 'll-tools-text-domain'),
+            $limit,
+            $letter
+        ),
+        '',
+        ll_tools_ai_crawler_markdown_link(__('Dictionary Markdown index', 'll-tools-text-domain'), home_url('/ll-tools/dictionary.md')),
+        ll_tools_ai_crawler_markdown_link(__('Public dictionary page', 'll-tools-text-domain'), ll_tools_ai_crawler_dictionary_page_url()),
+    ];
+
+    if (empty($entries)) {
+        $lines[] = '';
+        $lines[] = __('No public dictionary entries are currently available for this letter.', 'll-tools-text-domain');
+        return ll_tools_ai_crawler_markdown_document($lines);
+    }
+
+    return ll_tools_ai_crawler_markdown_document(ll_tools_ai_crawler_append_dictionary_entries($lines, $entries));
+}
+
+/**
+ * @param array<int,string> $lines
+ * @param array<int,array<string,mixed>> $entries
+ * @return array<int,string>
+ */
+function ll_tools_ai_crawler_append_dictionary_entries(array $lines, array $entries): array {
     foreach ($entries as $entry) {
         $entry_id = (int) ($entry['id'] ?? 0);
         $title = ll_tools_ai_crawler_markdown_heading((string) ($entry['title'] ?? ''));
@@ -672,7 +1166,7 @@ function ll_tools_ai_crawler_build_dictionary_markdown(array $args = []): string
         }
     }
 
-    return ll_tools_ai_crawler_markdown_document($lines);
+    return $lines;
 }
 
 /**

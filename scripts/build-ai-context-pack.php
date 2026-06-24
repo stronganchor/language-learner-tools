@@ -380,6 +380,9 @@ function ll_tools_context_pack_definitions(): array
                 'AI crawler',
                 'agent Markdown',
                 'Markdown export',
+                'JSON-LD',
+                'Schema.org',
+                'dictionary letter chunk',
                 'WebMCP',
             ],
             'invariants' => [
