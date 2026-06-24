@@ -84,6 +84,9 @@ read_first:
   - Ensures a default Site Tools page with `[ll_site_tools]`.
   - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
   - Provides a front-end home for selected sitewide settings, managed shortcode pages, plugin-update controls, privacy retention, and maintenance actions that previously lived only in wp-admin.
+- `includes/lib/ai-crawler-support.php`
+  - Serves generated `/llms.txt` and `/ll-tools/*.md` exports for anonymous public AI-crawler discovery.
+  - Exports must stay bounded and filter through explicit anonymous wordset/category visibility checks; canonical HTML pages remain the source of record.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 
@@ -192,6 +195,7 @@ module list.
 - includes/pages/editor-hub-page.php
 - includes/pages/dictionary-page.php
 - includes/pages/site-tools-page.php
+- includes/lib/ai-crawler-support.php
 - includes/shortcodes/flashcard-widget.php
 - includes/shortcodes/word-audio-shortcode.php
 - includes/shortcodes/interlinear-shortcode.php

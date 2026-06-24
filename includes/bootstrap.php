@@ -158,6 +158,7 @@ require_once(__DIR__ . '/pages/recording-page.php');
 require_once(__DIR__ . '/pages/editor-hub-page.php');
 require_once(__DIR__ . '/pages/dictionary-page.php');
 require_once(__DIR__ . '/pages/site-tools-page.php');
+require_once(__DIR__ . '/lib/ai-crawler-support.php');
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
