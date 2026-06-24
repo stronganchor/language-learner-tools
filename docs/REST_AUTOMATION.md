@@ -139,8 +139,9 @@ the server with image, media, or metadata updates:
   with repeated auth/status checks while a write is already running.
 - Basic-auth automation writes that can mutate or rebuild larger LL Tools
   surfaces are also serialized, including static-cache purge, wordset writes,
-  dictionary lookup-index rebuilds, import preview/start/process/discard, and
-  corpus-text asset/import routes.
+  dictionary lookup-index rebuilds, dictionary entry translation AI-flag
+  updates, import preview/start/process/discard, and corpus-text asset/import
+  routes.
 - Plugin update automation is also serialized. It supports the fixed Strong
   Anchor GitHub dev branch package only, defaults to dry-run, and requires
   explicit confirmation for writes.
@@ -270,6 +271,7 @@ Routes:
 - `POST /automation/dictionary-lookup-index`
 - `POST /automation/dictionary-entry-headwords`
 - `POST /automation/dictionary-entry-supersede`
+- `POST /automation/dictionary-entry-translation-ai`
 - `POST /automation/dictionary-entry-upsert-row`
 - `POST /cache/static/purge`
 - `POST /wordsets`
@@ -790,6 +792,30 @@ Use this only after a reviewed duplicate decision. Dry-runs return old/target
 titles, statuses, and whether the old entry would change without mutating data.
 Applied writes require edit access to the old dictionary entry.
 
+### `POST /automation/dictionary-entry-translation-ai`
+
+Sets or clears the metadata flag that marks a dictionary entry's displayed
+translation as AI-generated. This is the safest route for Codex bulk flagging
+with temporary WordPress credentials because it updates only the metadata flag
+and does not replace imported senses.
+
+Body fields:
+
+- `entry_id` required dictionary entry post ID for a single update
+- `translation_is_ai` required boolean for a single update
+- `expected_title` optional live-title guard; returns a per-row `409` error if
+  the current entry title differs
+- `expected_translation` optional live-translation guard; returns a per-row
+  `409` error if the current displayed entry translation differs
+- `updates` optional array of update objects using the same fields; when this is
+  provided, top-level `entry_id` and `translation_is_ai` are ignored
+- `dry_run` optional boolean, default `true`
+
+Dry-runs report current title, translation, before/after flag state, and whether
+each row would change. Applied writes require edit access to each dictionary
+entry, update up to 50 rows per request by default, and bump dictionary browser
+caches once after successful changes. Dry-runs accept up to 100 rows by default.
+
 ### `POST /automation/dictionary-entry-upsert-row`
 
 Replaces one dictionary entry's imported senses from a single raw dictionary
@@ -802,7 +828,9 @@ Body fields:
 - `expected_title` optional live-title guard; returns `409` if the current entry
   title differs
 - `row` required object containing a normalized dictionary import row; its
-  `entry` value is required
+  `entry` value is required. Include `translation_is_ai` or aliases such as
+  `ai_translation` when the row should also set or clear the entry translation
+  AI flag.
 - `dry_run` optional boolean, default `true`
 
 Use this for one-entry dictionary row repairs when Codex has already reviewed

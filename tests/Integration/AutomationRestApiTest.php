@@ -56,6 +56,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertTrue(!empty($data['capabilities']['manage_plugin_updates']));
         $this->assertSame('/ll-tools/v1/automation/plugin-update', (string) ($data['routes']['plugin_update'] ?? ''));
         $this->assertSame('/ll-tools/v1/automation/dictionary-entry-headwords', (string) ($data['routes']['dictionary_entry_headwords'] ?? ''));
+        $this->assertSame('/ll-tools/v1/automation/dictionary-entry-translation-ai', (string) ($data['routes']['dictionary_entry_translation_ai'] ?? ''));
         $this->assertSame('/ll-tools/v1/cache/static/purge', (string) ($data['routes']['static_cache_purge'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/asset', (string) ($data['routes']['corpus_text_asset'] ?? ''));
         $this->assertSame('/ll-tools/v1/corpus-texts/import', (string) ($data['routes']['corpus_text_import'] ?? ''));
@@ -268,6 +269,75 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame("'her | her", (string) ($updated_sense['title_keys'] ?? ''));
         $this->assertSame(["'her", 'her'], array_values((array) ($updated_sense['headword_forms'] ?? [])));
         $this->assertNotContains("\u{0127}er", array_map('strval', (array) (($data['headword_candidates']['after'] ?? []))));
+    }
+
+    public function test_dictionary_entry_translation_ai_route_updates_flag_with_guards(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        if (function_exists('ll_tools_register_dictionary_entry_post_type')) {
+            ll_tools_register_dictionary_entry_post_type();
+        }
+
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Ava',
+            'post_content' => 'water',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, 'water');
+
+        $payload = [
+            'entry_id' => $entry_id,
+            'translation_is_ai' => true,
+            'expected_title' => 'Ava',
+            'expected_translation' => 'water',
+        ];
+
+        $dry_run = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/automation/dictionary-entry-translation-ai',
+            $payload + ['dry_run' => true]
+        );
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_data = $dry_run->get_data();
+        $this->assertIsArray($dry_data);
+        $this->assertTrue((bool) ($dry_data['dry_run'] ?? false));
+        $this->assertSame(1, (int) ($dry_data['changed_count'] ?? 0));
+        $this->assertFalse(ll_tools_dictionary_entry_translation_is_ai($entry_id));
+
+        $update = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/automation/dictionary-entry-translation-ai',
+            $payload + ['dry_run' => false]
+        );
+        $this->assertSame(200, $update->get_status());
+        $update_data = $update->get_data();
+        $this->assertIsArray($update_data);
+        $this->assertFalse((bool) ($update_data['dry_run'] ?? true));
+        $this->assertSame(1, (int) ($update_data['changed_count'] ?? 0));
+        $this->assertTrue(ll_tools_dictionary_entry_translation_is_ai($entry_id));
+
+        $guarded = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/automation/dictionary-entry-translation-ai',
+            [
+                'entry_id' => $entry_id,
+                'translation_is_ai' => false,
+                'expected_title' => 'Ava',
+                'expected_translation' => 'wrong translation',
+                'dry_run' => false,
+            ]
+        );
+        $this->assertSame(200, $guarded->get_status());
+        $guarded_data = $guarded->get_data();
+        $this->assertIsArray($guarded_data);
+        $this->assertSame(1, (int) ($guarded_data['failed_count'] ?? 0));
+        $first_result = is_array(($guarded_data['results'] ?? [])[0] ?? null) ? $guarded_data['results'][0] : [];
+        $error = is_array($first_result['error'] ?? null) ? $first_result['error'] : [];
+        $this->assertSame('ll_tools_rest_dictionary_entry_translation_mismatch', (string) ($error['code'] ?? ''));
+        $this->assertTrue(ll_tools_dictionary_entry_translation_is_ai($entry_id));
     }
 
     public function test_static_cache_purge_route_requires_admin_and_deletes_cache_files(): void

@@ -208,6 +208,9 @@ function ll_tools_dictionary_build_entry_snapshot(int $entry_id): array {
         'translation' => function_exists('ll_tools_get_dictionary_entry_translation')
             ? (string) ll_tools_get_dictionary_entry_translation($entry_id)
             : trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true)),
+        'translation_is_ai' => function_exists('ll_tools_dictionary_entry_translation_is_ai')
+            ? ll_tools_dictionary_entry_translation_is_ai($entry_id)
+            : false,
         'wordset' => ll_tools_dictionary_snapshot_build_wordset_payload($explicit_wordset_id),
         'senses' => array_values(array_map(
             static function (array $sense): array {
@@ -341,6 +344,9 @@ function ll_tools_dictionary_snapshot_sanitize_entry(array $entry): array {
         'title' => trim(sanitize_text_field((string) ($entry['title'] ?? ''))),
         'status' => ll_tools_dictionary_snapshot_normalize_status((string) ($entry['status'] ?? 'publish')),
         'translation' => trim(sanitize_text_field((string) ($entry['translation'] ?? ''))),
+        'translation_is_ai' => function_exists('ll_tools_dictionary_sanitize_optional_boolean_flag')
+            ? (ll_tools_dictionary_sanitize_optional_boolean_flag($entry['translation_is_ai'] ?? false) === true)
+            : !empty($entry['translation_is_ai']),
         'wordset' => ll_tools_dictionary_snapshot_sanitize_wordset($entry['wordset'] ?? null),
         'senses' => $senses,
     ];
@@ -503,6 +509,10 @@ function ll_tools_dictionary_upsert_entry_from_snapshot(array $entry, array $opt
         update_post_meta($saved_entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, $translation);
     } else {
         delete_post_meta($saved_entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY);
+    }
+
+    if (function_exists('ll_tools_update_dictionary_entry_translation_ai_flag')) {
+        ll_tools_update_dictionary_entry_translation_ai_flag($saved_entry_id, !empty($snapshot['translation_is_ai']));
     }
 
     if ($wordset_id > 0) {

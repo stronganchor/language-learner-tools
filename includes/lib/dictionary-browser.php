@@ -3036,6 +3036,41 @@ function ll_tools_dictionary_collect_row_dialects(array $row): array {
 }
 
 /**
+ * Return an explicitly provided boolean flag from one import row.
+ *
+ * Blank values are treated as absent so optional TSV columns do not clear
+ * existing metadata unless they contain an explicit false-like value.
+ *
+ * @param array<string|int,mixed> $row
+ * @param string[]                $keys
+ */
+function ll_tools_dictionary_get_import_row_optional_bool(array $row, array $keys): ?bool {
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+
+        $value = $row[$key];
+        if (is_array($value)) {
+            continue;
+        }
+
+        if (function_exists('ll_tools_dictionary_sanitize_optional_boolean_flag')) {
+            return ll_tools_dictionary_sanitize_optional_boolean_flag($value);
+        }
+
+        $normalized = strtolower(trim(sanitize_text_field((string) $value)));
+        if ($normalized === '') {
+            return null;
+        }
+
+        return in_array($normalized, ['1', 'true', 'yes', 'y', 'on'], true);
+    }
+
+    return null;
+}
+
+/**
  * Normalize one import row.
  *
  * @param array<string|int,mixed> $row Raw import row.
@@ -3074,6 +3109,7 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         'examples' => [],
         'example_translations' => [],
         'semantic_domains' => [],
+        'translation_is_ai' => null,
     ];
 
     $source_aliases = ll_tools_dictionary_collect_import_source_aliases($row);
@@ -3131,6 +3167,13 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
     $prepared['examples'] = ll_tools_dictionary_get_import_row_text_list($row, ['examples', 'examples_zza', 'example_zza']);
     $prepared['example_translations'] = ll_tools_dictionary_get_import_row_text_list($row, ['example_translations', 'example_translations_tr', 'examples_translation_tr']);
     $prepared['semantic_domains'] = ll_tools_dictionary_get_import_row_text_list($row, ['semantic_domains', 'semantic_domain']);
+    $prepared['translation_is_ai'] = ll_tools_dictionary_get_import_row_optional_bool($row, [
+        'translation_is_ai',
+        'translation_ai',
+        'ai_translation',
+        'is_ai_translation',
+        'll_dictionary_entry_translation_is_ai',
+    ]);
 
     $prepared['source_id'] = ll_tools_dictionary_resolve_source_id($prepared['source_id'], $prepared['source_dictionary']);
     $prepared['source_dictionary'] = ll_tools_dictionary_resolve_source_label($prepared['source_id'], $prepared['source_dictionary']);
@@ -3469,6 +3512,19 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
         $preferred_languages[] = $language_key;
     }
 
+    $has_explicit_translation_ai_flag = false;
+    $translation_is_ai = false;
+    foreach ($rows as $row) {
+        if (!is_array($row) || !array_key_exists('translation_is_ai', $row) || $row['translation_is_ai'] === null) {
+            continue;
+        }
+
+        $has_explicit_translation_ai_flag = true;
+        if (!empty($row['translation_is_ai'])) {
+            $translation_is_ai = true;
+        }
+    }
+
     $incoming_senses = [];
     foreach ($rows as $row) {
         $sense = ll_tools_dictionary_sanitize_sense([
@@ -3548,6 +3604,10 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
         update_post_meta($saved_entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, $translation);
     } else {
         delete_post_meta($saved_entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY);
+    }
+
+    if ($has_explicit_translation_ai_flag && function_exists('ll_tools_update_dictionary_entry_translation_ai_flag')) {
+        ll_tools_update_dictionary_entry_translation_ai_flag($saved_entry_id, $translation_is_ai);
     }
 
     if ($wordset_id > 0) {
@@ -3940,6 +4000,9 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         : 0;
     $sources = ll_tools_dictionary_collect_sources($senses);
     $dialects = ll_tools_dictionary_collect_dialects($senses);
+    $translation_is_ai = function_exists('ll_tools_dictionary_entry_translation_is_ai')
+        ? ll_tools_dictionary_entry_translation_is_ai($entry_id)
+        : false;
 
     return ll_tools_dictionary_browser_store_cached_payload(
         'entry_data',
@@ -3948,6 +4011,7 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         'id' => $entry_id,
         'title' => $title,
         'translation' => $translation,
+        'translation_is_ai' => $translation_is_ai,
         'entry_type' => $entry_type,
         'page_number' => $page_number,
         'wordset_id' => $wordset_id,

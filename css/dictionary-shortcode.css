@@ -681,6 +681,48 @@
     color: var(--ll-dictionary-muted);
 }
 
+.ll-dictionary__translation-ai-row {
+    margin: 0 0 10px;
+}
+
+.ll-dictionary__translation-ai {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    margin-top: 8px;
+    padding: 5px 9px;
+    border: 1px solid #bfd3e6;
+    border-radius: 999px;
+    background: #f2f7fb;
+    color: #31506f;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.ll-dictionary__translation-ai-icon {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+}
+
+.ll-dictionary__translation-ai-icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.ll-dictionary__translation-ai-text {
+    overflow-wrap: anywhere;
+}
+
 .ll-dictionary__card-translations {
     margin: 0 0 14px;
 }
@@ -1115,6 +1157,12 @@
 
 .ll-dictionary__inline-editor.is-saving {
     opacity: 0.78;
+}
+
+.ll-dictionary__detail-summary-wrap {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
 }
 
 .ll-dictionary__detail-summary {

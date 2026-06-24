@@ -752,6 +752,9 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/automation/dictionary-entry-supersede') {
         $resource = 'll_tools_dictionary_entry_supersede';
         $delay_seconds = 5.0;
+    } elseif ($route === '/ll-tools/v1/automation/dictionary-entry-translation-ai') {
+        $resource = 'll_tools_dictionary_entry_translation_ai';
+        $delay_seconds = 5.0;
     } elseif ($route === '/ll-tools/v1/automation/dictionary-entry-upsert-row') {
         $resource = 'll_tools_dictionary_entry_upsert_row';
         $delay_seconds = 5.0;
@@ -1102,6 +1105,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'dictionary_lookup_index' => '/ll-tools/v1/automation/dictionary-lookup-index',
             'dictionary_entry_headwords' => '/ll-tools/v1/automation/dictionary-entry-headwords',
             'dictionary_entry_supersede' => '/ll-tools/v1/automation/dictionary-entry-supersede',
+            'dictionary_entry_translation_ai' => '/ll-tools/v1/automation/dictionary-entry-translation-ai',
             'dictionary_entry_upsert_row' => '/ll-tools/v1/automation/dictionary-entry-upsert-row',
             'static_cache_purge' => '/ll-tools/v1/cache/static/purge',
             'create_wordset' => '/ll-tools/v1/wordsets',
@@ -1189,6 +1193,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/automation/dictionary-lookup-index',
                 '/ll-tools/v1/automation/dictionary-entry-headwords',
                 '/ll-tools/v1/automation/dictionary-entry-supersede',
+                '/ll-tools/v1/automation/dictionary-entry-translation-ai',
                 '/ll-tools/v1/automation/dictionary-entry-upsert-row',
                 '/ll-tools/v1/cache/static/purge',
                 '/ll-tools/v1/wordsets',
@@ -1607,6 +1612,215 @@ function ll_tools_rest_automation_dictionary_entry_supersede(WP_REST_Request $re
 }
 
 /**
+ * Normalize one dictionary translation AI-flag update from REST input.
+ *
+ * @param array<string,mixed> $update
+ * @return array<string,mixed>
+ */
+function ll_tools_rest_automation_normalize_dictionary_translation_ai_update(array $update): array {
+    $normalized = [
+        'entry_id' => max(0, (int) ($update['entry_id'] ?? 0)),
+        'expected_title' => isset($update['expected_title']) ? ll_tools_rest_automation_sanitize_dictionary_headword_text($update['expected_title']) : null,
+        'expected_translation' => isset($update['expected_translation']) ? trim(sanitize_text_field((string) $update['expected_translation'])) : null,
+        'has_translation_is_ai' => false,
+        'translation_is_ai' => false,
+    ];
+
+    foreach (['translation_is_ai', 'is_ai_translation', 'ai_translation', 'translation_ai'] as $key) {
+        if (!array_key_exists($key, $update)) {
+            continue;
+        }
+
+        $normalized['has_translation_is_ai'] = true;
+        $flag = function_exists('ll_tools_dictionary_sanitize_optional_boolean_flag')
+            ? ll_tools_dictionary_sanitize_optional_boolean_flag($update[$key])
+            : rest_sanitize_boolean($update[$key]);
+        if ($flag === null) {
+            $normalized['has_translation_is_ai'] = false;
+            break;
+        }
+        $normalized['translation_is_ai'] = ($flag === true);
+        break;
+    }
+
+    return $normalized;
+}
+
+/**
+ * Mark one or more dictionary entry translations as AI-generated or manually reviewed.
+ */
+function ll_tools_rest_automation_dictionary_entry_translation_ai(WP_REST_Request $request) {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    if (!function_exists('ll_tools_dictionary_entry_translation_is_ai') || !function_exists('ll_tools_update_dictionary_entry_translation_ai_flag')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_helpers_missing',
+            __('Dictionary entry helpers are not available.', 'll-tools-text-domain'),
+            500
+        );
+    }
+
+    $dry_run = $request->has_param('dry_run') ? rest_sanitize_boolean($request->get_param('dry_run')) : true;
+    $raw_updates = $request->get_param('updates');
+    if (!is_array($raw_updates)) {
+        $single_update = [
+            'entry_id' => $request->get_param('entry_id'),
+        ];
+        foreach (['translation_is_ai', 'expected_title', 'expected_translation'] as $param) {
+            if ($request->has_param($param)) {
+                $single_update[$param] = $request->get_param($param);
+            }
+        }
+        $raw_updates = [$single_update];
+    }
+
+    $raw_updates = array_values(array_filter($raw_updates, 'is_array'));
+    if (empty($raw_updates)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_translation_ai_updates_required',
+            __('Provide one or more dictionary translation AI flag updates.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $max_updates = (int) apply_filters(
+        $dry_run ? 'll_tools_rest_dictionary_translation_ai_max_dry_run_updates' : 'll_tools_rest_dictionary_translation_ai_max_write_updates',
+        $dry_run ? 100 : 50,
+        $request
+    );
+    $max_updates = max(1, min(250, $max_updates));
+    if (count($raw_updates) > $max_updates) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_dictionary_translation_ai_too_many_updates',
+            sprintf(
+                /* translators: %d: maximum update count */
+                __('Too many dictionary translation AI flag updates in one request. Maximum is %d.', 'll-tools-text-domain'),
+                $max_updates
+            ),
+            400,
+            ['max_updates' => $max_updates]
+        );
+    }
+
+    $results = [];
+    $changed_count = 0;
+    $failed_count = 0;
+
+    foreach ($raw_updates as $index => $raw_update) {
+        $update = ll_tools_rest_automation_normalize_dictionary_translation_ai_update((array) $raw_update);
+        $entry_id = (int) ($update['entry_id'] ?? 0);
+        $result = [
+            'index' => (int) $index,
+            'entry_id' => $entry_id,
+            'changed' => false,
+        ];
+
+        if ($entry_id <= 0 || get_post_type($entry_id) !== 'll_dictionary_entry') {
+            $result['error'] = [
+                'code' => 'll_tools_rest_invalid_dictionary_entry',
+                'message' => __('Dictionary entry not found.', 'll-tools-text-domain'),
+                'status' => 404,
+            ];
+            $failed_count++;
+            $results[] = $result;
+            continue;
+        }
+
+        if (empty($update['has_translation_is_ai'])) {
+            $result['error'] = [
+                'code' => 'll_tools_rest_dictionary_translation_ai_required',
+                'message' => __('Provide translation_is_ai as true or false.', 'll-tools-text-domain'),
+                'status' => 400,
+            ];
+            $failed_count++;
+            $results[] = $result;
+            continue;
+        }
+
+        if (!current_user_can('edit_post', $entry_id)) {
+            $result['error'] = [
+                'code' => 'll_tools_rest_dictionary_entry_forbidden',
+                'message' => __('You are not allowed to edit this dictionary entry.', 'll-tools-text-domain'),
+                'status' => 403,
+            ];
+            $failed_count++;
+            $results[] = $result;
+            continue;
+        }
+
+        $current_title = trim((string) get_post_field('post_title', $entry_id));
+        $current_translation = function_exists('ll_tools_get_dictionary_entry_translation')
+            ? ll_tools_get_dictionary_entry_translation($entry_id)
+            : trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
+        $current_is_ai = ll_tools_dictionary_entry_translation_is_ai($entry_id);
+        $next_is_ai = !empty($update['translation_is_ai']);
+
+        $result['title'] = $current_title;
+        $result['translation'] = $current_translation;
+        $result['before'] = [
+            'translation_is_ai' => $current_is_ai,
+        ];
+        $result['after'] = [
+            'translation_is_ai' => $next_is_ai,
+        ];
+
+        if ($update['expected_title'] !== null && $current_title !== (string) $update['expected_title']) {
+            $result['error'] = [
+                'code' => 'll_tools_rest_dictionary_entry_title_mismatch',
+                'message' => __('Expected dictionary entry title does not match live state.', 'll-tools-text-domain'),
+                'status' => 409,
+                'current_title' => $current_title,
+                'expected_title' => (string) $update['expected_title'],
+            ];
+            $failed_count++;
+            $results[] = $result;
+            continue;
+        }
+
+        if ($update['expected_translation'] !== null && $current_translation !== (string) $update['expected_translation']) {
+            $result['error'] = [
+                'code' => 'll_tools_rest_dictionary_entry_translation_mismatch',
+                'message' => __('Expected dictionary entry translation does not match live state.', 'll-tools-text-domain'),
+                'status' => 409,
+                'current_translation' => $current_translation,
+                'expected_translation' => (string) $update['expected_translation'],
+            ];
+            $failed_count++;
+            $results[] = $result;
+            continue;
+        }
+
+        $changed = ($current_is_ai !== $next_is_ai);
+        $result['changed'] = $changed;
+
+        if (!$dry_run && $changed) {
+            ll_tools_update_dictionary_entry_translation_ai_flag($entry_id, $next_is_ai);
+            clean_post_cache($entry_id);
+            $changed_count++;
+        } elseif ($changed) {
+            $changed_count++;
+        }
+
+        $results[] = $result;
+    }
+
+    if (!$dry_run && $changed_count > 0 && function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
+
+    return rest_ensure_response([
+        'dry_run' => $dry_run,
+        'processed' => count($results),
+        'changed_count' => $changed_count,
+        'failed_count' => $failed_count,
+        'results' => $results,
+    ]);
+}
+
+/**
  * Replace one dictionary entry's imported senses from a single raw import row.
  */
 function ll_tools_rest_automation_dictionary_entry_upsert_row(WP_REST_Request $request) {
@@ -1700,6 +1914,9 @@ function ll_tools_rest_automation_dictionary_entry_upsert_row(WP_REST_Request $r
             'entry_id' => $entry_id,
             'dry_run' => true,
             'current_title' => $current_title,
+            'current_translation_is_ai' => function_exists('ll_tools_dictionary_entry_translation_is_ai')
+                ? ll_tools_dictionary_entry_translation_is_ai($entry_id)
+                : false,
             'row' => $raw_row,
         ]);
     }
@@ -1724,6 +1941,9 @@ function ll_tools_rest_automation_dictionary_entry_upsert_row(WP_REST_Request $r
             'before' => $current_title,
             'after' => trim((string) get_post_field('post_title', $entry_id)),
         ],
+        'translation_is_ai' => function_exists('ll_tools_dictionary_entry_translation_is_ai')
+            ? ll_tools_dictionary_entry_translation_is_ai($entry_id)
+            : false,
         'status' => (string) get_post_status($entry_id),
     ]);
 }
@@ -9547,6 +9767,38 @@ function ll_tools_rest_register_automation_routes(): void {
             'reason' => [
                 'required' => false,
                 'type' => 'string',
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => true,
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/automation/dictionary-entry-translation-ai', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_dictionary_entry_translation_ai',
+        'permission_callback' => 'll_tools_rest_automation_require_view_access',
+        'args' => [
+            'entry_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'translation_is_ai' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'expected_title' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'expected_translation' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'updates' => [
+                'required' => false,
             ],
             'dry_run' => [
                 'required' => false,

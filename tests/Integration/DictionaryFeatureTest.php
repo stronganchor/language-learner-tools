@@ -2605,6 +2605,62 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>TR<', $detail_html);
     }
 
+    public function test_dictionary_entry_translation_ai_flag_imports_renders_and_round_trips_in_snapshots(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $wordset = wp_insert_term('AI Translation Wordset', 'wordset', ['slug' => 'ai-translation-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Roc',
+                'definition' => 'sun',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+                'translation_is_ai' => 'yes',
+            ],
+        ], [
+            'wordset_id' => $wordset_id,
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Roc', $wordset_id);
+        $this->assertGreaterThan(0, $entry_id);
+        $this->assertSame('sun', ll_tools_get_dictionary_entry_translation($entry_id));
+        $this->assertTrue(ll_tools_dictionary_entry_translation_is_ai($entry_id));
+
+        $entry_data = ll_tools_dictionary_get_entry_data($entry_id);
+        $this->assertTrue((bool) ($entry_data['translation_is_ai'] ?? false));
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+        $detail_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        $this->assertStringContainsString('ll-dictionary__translation-ai', $detail_html);
+        $this->assertStringContainsString('AI translation', $detail_html);
+
+        $snapshot = ll_tools_dictionary_build_entry_snapshot($entry_id);
+        $this->assertTrue((bool) ($snapshot['translation_is_ai'] ?? false));
+
+        $snapshot['translation_is_ai'] = false;
+        $snapshot['translation'] = 'sun reviewed';
+        $snapshot['senses'][0]['definition'] = 'sun reviewed';
+        $snapshot_result = ll_tools_dictionary_upsert_entry_from_snapshot($snapshot);
+        $this->assertIsArray($snapshot_result);
+        $this->assertSame($entry_id, (int) ($snapshot_result['entry_id'] ?? 0));
+        $this->assertFalse(ll_tools_dictionary_entry_translation_is_ai($entry_id));
+        $this->assertSame('sun reviewed', ll_tools_get_dictionary_entry_translation($entry_id));
+    }
+
     public function test_flex_style_tsv_import_preserves_examples_and_source_metadata(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

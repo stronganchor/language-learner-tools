@@ -17,6 +17,90 @@ if (!defined('LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY')) {
 if (!defined('LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY')) {
     define('LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY', 'll_dictionary_entry_translation');
 }
+if (!defined('LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_AI_META_KEY')) {
+    define('LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_AI_META_KEY', 'll_dictionary_entry_translation_is_ai');
+}
+
+/**
+ * Sanitize an optional boolean-style metadata value.
+ *
+ * Empty strings mean "not provided"; explicit false-like values clear the flag.
+ */
+function ll_tools_dictionary_sanitize_optional_boolean_flag($value): ?bool {
+    if ($value === null) {
+        return null;
+    }
+
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return ((int) $value) !== 0;
+    }
+
+    if (!is_scalar($value)) {
+        return null;
+    }
+
+    $normalized = strtolower(trim(sanitize_text_field((string) $value)));
+    if ($normalized === '') {
+        return null;
+    }
+
+    if (in_array($normalized, ['1', 'true', 'yes', 'y', 'on', 'ai', 'ai-generated', 'ai_generated', 'generated', 'machine', 'machine-translation', 'machine_translation'], true)) {
+        return true;
+    }
+
+    if (in_array($normalized, ['0', 'false', 'no', 'n', 'off', 'human', 'manual'], true)) {
+        return false;
+    }
+
+    return null;
+}
+
+/**
+ * Determine whether the stored entry translation is marked as AI-generated.
+ */
+function ll_tools_dictionary_entry_translation_is_ai($entry_id): bool {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return false;
+    }
+
+    return ll_tools_dictionary_sanitize_optional_boolean_flag(
+        get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_AI_META_KEY, true)
+    ) === true;
+}
+
+/**
+ * Update or clear the AI-generated translation marker for one dictionary entry.
+ */
+function ll_tools_update_dictionary_entry_translation_ai_flag($entry_id, $is_ai): bool {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return false;
+    }
+
+    $next_flag = ll_tools_dictionary_sanitize_optional_boolean_flag($is_ai);
+    if ($next_flag === null) {
+        return false;
+    }
+
+    $next = $next_flag === true;
+    $current = ll_tools_dictionary_entry_translation_is_ai($entry_id);
+    if ($current === $next) {
+        return false;
+    }
+
+    if ($next) {
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_AI_META_KEY, '1');
+    } else {
+        delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_AI_META_KEY);
+    }
+
+    return true;
+}
 
 /**
  * Resolve the primary wordset assigned to a word.
@@ -1217,6 +1301,7 @@ function ll_tools_dictionary_entry_render_translation_metabox($post) {
     wp_nonce_field('ll_tools_dictionary_entry_translation_save', 'll_tools_dictionary_entry_translation_nonce');
 
     $translation = ll_tools_get_dictionary_entry_translation((int) $post->ID);
+    $translation_is_ai = ll_tools_dictionary_entry_translation_is_ai((int) $post->ID);
     ?>
     <p>
         <label for="ll_dictionary_entry_translation" style="display:block;font-weight:600;">
@@ -1232,6 +1317,21 @@ function ll_tools_dictionary_entry_render_translation_metabox($post) {
         >
         <span class="description">
             <?php esc_html_e('Shown in dictionary entry listings and dictionary views.', 'll-tools-text-domain'); ?>
+        </span>
+    </p>
+    <p>
+        <label for="ll_dictionary_entry_translation_is_ai">
+            <input
+                type="checkbox"
+                id="ll_dictionary_entry_translation_is_ai"
+                name="ll_dictionary_entry_translation_is_ai"
+                value="1"
+                <?php checked($translation_is_ai); ?>
+            >
+            <?php esc_html_e('Mark this as an AI translation', 'll-tools-text-domain'); ?>
+        </label>
+        <span class="description" style="display:block;">
+            <?php esc_html_e('Shows an AI translation indicator next to this entry translation in the public dictionary.', 'll-tools-text-domain'); ?>
         </span>
     </p>
     <?php
@@ -1272,6 +1372,11 @@ function ll_tools_dictionary_entry_save_translation_metabox($post_id, $post) {
     } else {
         delete_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY);
     }
+
+    ll_tools_update_dictionary_entry_translation_ai_flag(
+        $post_id,
+        isset($_POST['ll_dictionary_entry_translation_is_ai'])
+    );
 }
 add_action('save_post_ll_dictionary_entry', 'll_tools_dictionary_entry_save_translation_metabox', 20, 2);
 
@@ -1316,6 +1421,16 @@ function ll_tools_dictionary_entry_quick_edit_fields($column_name, $post_type, $
                 <span class="title"><?php esc_html_e('Translation', 'll-tools-text-domain'); ?></span>
                 <span class="input-text-wrap">
                     <input type="text" name="ll_dictionary_entry_translation_quick" value="">
+                </span>
+            </label>
+            <label>
+                <span class="title"><?php esc_html_e('AI translation', 'll-tools-text-domain'); ?></span>
+                <span class="input-text-wrap">
+                    <input type="hidden" name="ll_dictionary_entry_translation_is_ai_quick" value="0">
+                    <span>
+                        <input type="checkbox" name="ll_dictionary_entry_translation_is_ai_quick" value="1">
+                        <?php esc_html_e('Mark as AI-generated', 'll-tools-text-domain'); ?>
+                    </span>
                 </span>
             </label>
             <label>
@@ -1372,6 +1487,13 @@ function ll_tools_dictionary_entry_save_quick_edit($post_id, $post) {
         } else {
             delete_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY);
         }
+    }
+
+    if (array_key_exists('ll_dictionary_entry_translation_is_ai_quick', $_POST)) {
+        ll_tools_update_dictionary_entry_translation_ai_flag(
+            $post_id,
+            wp_unslash((string) $_POST['ll_dictionary_entry_translation_is_ai_quick'])
+        );
     }
 
     if (array_key_exists('ll_dictionary_entry_pos_quick', $_POST)) {
@@ -1432,6 +1554,7 @@ jQuery(function ($) {
         }
 
         var translation = ($inlineData.attr('data-translation') || '').toString();
+        var translationIsAi = ($inlineData.attr('data-translation-is-ai') || '').toString() === '1';
         var pos = ($inlineData.attr('data-pos') || '').toString();
         var $editRow = $('#edit-' + postId);
         if (!$editRow.length) {
@@ -1439,6 +1562,7 @@ jQuery(function ($) {
         }
 
         $editRow.find('input[name="ll_dictionary_entry_translation_quick"]').val(translation);
+        $editRow.find('input[name="ll_dictionary_entry_translation_is_ai_quick"][type="checkbox"]').prop('checked', translationIsAi);
         $editRow.find('select[name="ll_dictionary_entry_pos_quick"]').val(pos);
     };
 });
@@ -1801,9 +1925,10 @@ add_filter('manage_ll_dictionary_entry_posts_columns', 'll_tools_dictionary_entr
 function ll_tools_dictionary_entry_column_content($column, $post_id) {
     if ($column === 'entry_id') {
         $translation = ll_tools_get_dictionary_entry_translation((int) $post_id);
+        $translation_is_ai = ll_tools_dictionary_entry_translation_is_ai((int) $post_id);
         $pos_slug = ll_tools_get_dictionary_entry_primary_pos_slug((int) $post_id);
         echo esc_html((string) ((int) $post_id));
-        echo '<span class="hidden ll-dictionary-entry-inline-data" data-translation="' . esc_attr($translation) . '" data-pos="' . esc_attr($pos_slug) . '"></span>';
+        echo '<span class="hidden ll-dictionary-entry-inline-data" data-translation="' . esc_attr($translation) . '" data-translation-is-ai="' . esc_attr($translation_is_ai ? '1' : '0') . '" data-pos="' . esc_attr($pos_slug) . '"></span>';
         return;
     }
 
@@ -1814,6 +1939,9 @@ function ll_tools_dictionary_entry_column_content($column, $post_id) {
             return;
         }
         echo esc_html($translation);
+        if (ll_tools_dictionary_entry_translation_is_ai((int) $post_id)) {
+            echo '<br><span class="ll-dictionary-entry-ai-translation">' . esc_html__('AI translation', 'll-tools-text-domain') . '</span>';
+        }
         return;
     }
 

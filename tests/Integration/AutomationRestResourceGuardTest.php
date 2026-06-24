@@ -149,6 +149,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/result', $guardedReadRoutes);
         $this->assertContains('/ll-tools/v1/automation/plugin-update', $automationRoutes);
         $this->assertContains('/ll-tools/v1/automation/dictionary-entry-headwords', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/automation/dictionary-entry-translation-ai', $automationRoutes);
         $this->assertContains('/ll-tools/v1/cache/static/purge', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-image-category-ownership', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/orthography-conversion', $automationRoutes);
