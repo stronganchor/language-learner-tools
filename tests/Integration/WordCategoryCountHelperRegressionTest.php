@@ -64,6 +64,93 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         return (int) $term['term_id'];
     }
 
+    private function forceCategoryParent(int $categoryId, int $parentId): void
+    {
+        global $wpdb;
+
+        $updated = $wpdb->update(
+            $wpdb->term_taxonomy,
+            ['parent' => (int) $parentId],
+            [
+                'term_id' => (int) $categoryId,
+                'taxonomy' => 'word-category',
+            ],
+            ['%d'],
+            ['%d', '%s']
+        );
+
+        $this->assertNotFalse($updated);
+        clean_term_cache([$categoryId, $parentId], 'word-category');
+    }
+
+    private function wordIdsFromRows(array $rows): array
+    {
+        $ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $rows), static function (int $id): bool {
+            return $id > 0;
+        }));
+        sort($ids, SORT_NUMERIC);
+
+        return $ids;
+    }
+
+    public function test_quiz_helpers_ignore_stale_category_parent_relationships(): void
+    {
+        $this->assertFalse(is_taxonomy_hierarchical('word-category'));
+
+        $suffix = (string) wp_rand(1000, 9999);
+        $parent_name = 'Flat Parent Category ' . $suffix;
+        $child_name = 'Flat Child Category ' . $suffix;
+        $parent_id = $this->createCategory($parent_name, 'text_title', 'text_title');
+        $child_id = $this->createCategory($child_name, 'text_title', 'text_title');
+        $this->forceCategoryParent($child_id, $parent_id);
+
+        $parent_term = get_term($parent_id, 'word-category');
+        $child_term = get_term($child_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $parent_term);
+        $this->assertInstanceOf(WP_Term::class, $child_term);
+        $this->assertSame($parent_id, (int) $child_term->parent);
+
+        $parent_word_id = $this->createWord($parent_id, 'Parent Exact Word ' . $suffix, 'Parent Exact Translation');
+        $child_word_id = $this->createWord($child_id, 'Child Exact Word ' . $suffix, 'Child Exact Translation');
+
+        $config = [
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+        ];
+
+        $parent_rows = ll_get_words_by_category($parent_term, 'text', null, $config);
+        $child_rows = ll_get_words_by_category($child_term, 'text', null, $config);
+
+        $this->assertSame([$parent_word_id], $this->wordIdsFromRows($parent_rows));
+        $this->assertSame([$child_word_id], $this->wordIdsFromRows($child_rows));
+        $this->assertSame(1, ll_get_words_by_category_count($parent_term, 'text', null, $config));
+        $this->assertSame(1, ll_get_words_by_category_count($child_term, 'text', null, $config));
+
+        $wordset_id = $this->createWordset('Flat Category Wordset ' . $suffix);
+        wp_set_object_terms($child_word_id, [$wordset_id], 'wordset', false);
+        $effective_child_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($child_id, $wordset_id, true)
+            : $child_id;
+        $effective_parent_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($parent_id, $wordset_id, true)
+            : $parent_id;
+
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        try {
+            $available_category_ids = ll_collect_wc_ids_for_wordset_term_ids([$wordset_id]);
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+
+        $this->assertContains($effective_child_id, $available_category_ids);
+        $this->assertNotContains($effective_parent_id, $available_category_ids);
+    }
+
     public function test_count_helper_matches_rows_for_text_and_image_quiz_filters(): void
     {
         $category_name = 'Count Helper Filters ' . (string) wp_rand(1000, 9999);

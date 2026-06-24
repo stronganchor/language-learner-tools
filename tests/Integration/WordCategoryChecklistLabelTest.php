@@ -43,29 +43,23 @@ final class WordCategoryChecklistLabelTest extends LL_Tools_TestCase
         $this->assertLessThan(strpos($html, $zulu_label), strpos($html, $alpha_label));
     }
 
-    public function test_image_upload_parent_category_dropdown_uses_wordset_labeled_category_names(): void
+    public function test_image_upload_logical_category_options_use_flat_category_names(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
 
-        $wordset = wp_insert_term('Parent Scope', 'wordset', ['slug' => 'parent-scope']);
+        $wordset = wp_insert_term('Upload Scope', 'wordset', ['slug' => 'upload-scope']);
         $this->assertIsArray($wordset);
 
         $wordset_id = (int) $wordset['term_id'];
         $parent_id = ll_tools_create_or_get_wordset_category('Plants', $wordset_id);
         $this->assertIsInt($parent_id);
 
-        $terms = get_terms([
-            'taxonomy' => 'word-category',
-            'hide_empty' => false,
-        ]);
+        $options = ll_image_upload_get_logical_category_options([$wordset_id]);
+        $labels_by_id = [];
+        foreach ($options as $option) {
+            $labels_by_id[(int) ($option['id'] ?? 0)] = (string) ($option['label'] ?? '');
+        }
 
-        $this->assertIsArray($terms);
-
-        ob_start();
-        ll_image_upload_render_parent_category_options($terms);
-        $html = (string) ob_get_clean();
-
-        $this->assertStringContainsString('value="' . $parent_id . '"', $html);
-        $this->assertStringContainsString('Plants - Parent Scope', $html);
+        $this->assertSame('Plants', $labels_by_id[$parent_id] ?? '');
     }
 }

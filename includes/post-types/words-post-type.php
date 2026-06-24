@@ -893,7 +893,7 @@ function ll_tools_display_vocab_content($content) {
         $word_example_sentence         = get_post_meta($post->ID, 'word_example_sentence', true);
         $word_example_translation      = get_post_meta($post->ID, 'word_example_sentence_translation', true);
 
-        // Build the category list, including any parent terms.
+        // Build the category list from explicitly assigned terms only.
         $word_categories_content = '';
         $word_categories = get_the_terms($post->ID, 'word-category');
         if (!empty($word_categories) && !is_wp_error($word_categories)) {
@@ -906,18 +906,6 @@ function ll_tools_display_vocab_content($content) {
                 $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
                                     . ll_tools_esc_html_display($decoded_name)
                                     . '</a>';
-
-                // Walk up the parent chain to include ancestors.
-                while ($category->parent != 0) {
-                    $category = get_term($category->parent, 'word-category');
-                    if (is_wp_error($category) || ! $category) {
-                        break;
-                    }
-                    $decoded_parent = html_entity_decode($category->name, ENT_QUOTES, 'UTF-8');
-                    $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
-                                        . ll_tools_esc_html_display($decoded_parent)
-                                        . '</a>';
-                }
             }
 
             // Remove duplicates and join with commas.
@@ -1260,19 +1248,24 @@ function ll_add_words_filters() {
 }
 
 /**
- * Renders category dropdown options with accurate published post counts
+ * Renders flat category dropdown options with accurate published post counts.
  *
  * @param string $taxonomy  Taxonomy slug (always 'word-category').
  * @param string $post_type Post type to count (e.g. 'words').
  * @param string $selected  Currently selected term ID.
- * @param int    $parent    Parent term ID for recursion.
- * @param int    $level     Depth level for indentation.
+ * @param int    $parent    Deprecated. Ignored because categories are flat.
+ * @param int    $level     Deprecated. Ignored because categories are flat.
  */
 function ll_render_category_dropdown_with_counts($taxonomy, $post_type, $selected = '', $parent = 0, $level = 0) {
+    if ((int) $parent !== 0) {
+        return;
+    }
+
     $terms = get_terms([
         'taxonomy'   => $taxonomy,
         'hide_empty' => false,
-        'parent'     => $parent,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
     ]);
     if (is_wp_error($terms)) {
         return;
@@ -1287,6 +1280,7 @@ function ll_render_category_dropdown_with_counts($taxonomy, $post_type, $selecte
                 'taxonomy' => $taxonomy,
                 'field'    => 'term_id',
                 'terms'    => $term->term_id,
+                'include_children' => false,
             ]],
             'posts_per_page' => 1,
             'fields'         => 'ids',
@@ -1295,20 +1289,15 @@ function ll_render_category_dropdown_with_counts($taxonomy, $post_type, $selecte
         $count = $q->found_posts;
         wp_reset_postdata();
 
-        $indent = str_repeat('&nbsp;&nbsp;', $level);
         $is_selected = selected($selected, $term->term_id, false);
 
         printf(
-            '<option value="%d"%s>%s%s (%d)</option>',
+            '<option value="%d"%s>%s (%d)</option>',
             esc_attr($term->term_id),
             $is_selected,
-            $indent,
             esc_html($term->name),
             intval($count)
         );
-
-        // Recurse into children
-        ll_render_category_dropdown_with_counts($taxonomy, $post_type, $selected, $term->term_id, $level + 1);
     }
 }
 
@@ -1823,12 +1812,6 @@ function ll_words_get_quick_edit_category_ids_by_wordset(): array {
             }
 
             $visible_ids[$effective_id] = $effective_id;
-            foreach ((array) get_ancestors($effective_id, 'word-category', 'taxonomy') as $ancestor_id) {
-                $ancestor_id = (int) $ancestor_id;
-                if ($ancestor_id > 0) {
-                    $visible_ids[$ancestor_id] = $ancestor_id;
-                }
-            }
         }
 
         $ids = array_values(array_map('intval', array_keys($visible_ids)));

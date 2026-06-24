@@ -879,12 +879,15 @@ function ll_tools_create_or_get_wordset_category(string $name, int $wordset_id, 
     }
 
     if ($wordset_id <= 0 || !ll_tools_is_wordset_isolation_enabled()) {
-        $existing = term_exists($name, 'word-category', isset($args['parent']) ? (int) $args['parent'] : 0);
+        $existing = term_exists($name, 'word-category', 0);
         if ($existing) {
             return (int) (is_array($existing) ? ($existing['term_id'] ?? 0) : $existing);
         }
 
-        $insert = wp_insert_term($name, 'word-category', $args);
+        $insert_args = $args;
+        unset($insert_args['parent']);
+
+        $insert = wp_insert_term($name, 'word-category', $insert_args);
         if (is_wp_error($insert)) {
             return $insert;
         }
@@ -896,14 +899,10 @@ function ll_tools_create_or_get_wordset_category(string $name, int $wordset_id, 
         return $term_id;
     }
 
-    $parent_id = isset($args['parent']) ? (int) $args['parent'] : 0;
-    $parent_id = $parent_id > 0 ? ll_tools_get_or_create_isolated_category_copy($parent_id, $wordset_id) : 0;
-
     $existing_terms = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
         'name'       => $name,
-        'parent'     => $parent_id,
         'meta_query' => [
             [
                 'key'   => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
@@ -927,9 +926,7 @@ function ll_tools_create_or_get_wordset_category(string $name, int $wordset_id, 
         ? (string) $args['slug']
         : $name;
     $insert_args['slug'] = ll_tools_build_isolated_category_slug((string) $base_slug, $wordset_id);
-    if ($parent_id > 0) {
-        $insert_args['parent'] = $parent_id;
-    }
+    unset($insert_args['parent']);
 
     $insert = wp_insert_term($name, 'word-category', $insert_args);
     if (is_wp_error($insert)) {
@@ -971,15 +968,9 @@ function ll_tools_get_or_create_isolated_category_copy($source_category, int $wo
         return $existing_id;
     }
 
-    $parent_id = 0;
-    if ((int) $source_term->parent > 0) {
-        $parent_id = ll_tools_get_or_create_isolated_category_copy((int) $source_term->parent, $wordset_id);
-    }
-
     $insert = wp_insert_term($source_term->name, 'word-category', [
         'slug'        => ll_tools_build_isolated_category_slug((string) $source_term->slug, $wordset_id),
         'description' => (string) $source_term->description,
-        'parent'      => $parent_id,
     ]);
     if (is_wp_error($insert)) {
         if ($insert->get_error_code() === 'term_exists') {
@@ -1438,12 +1429,6 @@ function ll_tools_build_legacy_category_wordset_usage_map(array $word_ids): arra
             }
 
             $source_category_ids[$source_category_id] = true;
-            foreach ((array) get_ancestors($source_category_id, 'word-category', 'taxonomy') as $ancestor_id) {
-                $ancestor_id = (int) $ancestor_id;
-                if ($ancestor_id > 0) {
-                    $source_category_ids[$ancestor_id] = true;
-                }
-            }
         }
 
         foreach (array_keys($source_category_ids) as $source_category_id) {

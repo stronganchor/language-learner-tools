@@ -1258,7 +1258,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertCount(1, $created_categories);
         $created_category = $created_categories[0];
         $this->assertInstanceOf(WP_Term::class, $created_category);
-        $this->assertSame((int) $fixture['category_id'], (int) $created_category->parent);
+        $this->assertSame(0, (int) $created_category->parent);
         $this->assertSame('Yeni Kategori', (string) get_term_meta((int) $created_category->term_id, 'term_translation', true));
 
         $_POST = [
@@ -1272,7 +1272,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_category_id' => (string) $created_category->term_id,
             'll_wordset_category_name' => 'Updated Manager Category',
             'll_wordset_category_translation' => 'Guncel Kategori',
-            'll_wordset_category_parent_id' => '0',
+            'll_wordset_category_parent_id' => (string) $fixture['category_id'],
         ];
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'categories'));

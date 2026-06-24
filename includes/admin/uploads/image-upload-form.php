@@ -249,24 +249,9 @@ function ll_image_upload_get_logical_category_option_label(int $logical_category
         return '';
     }
 
-    $parts = [];
-    $ancestor_ids = array_reverse(array_map('intval', (array) get_ancestors($logical_category_id, 'word-category', 'taxonomy')));
-    $path_ids = array_merge($ancestor_ids, [$logical_category_id]);
-    foreach ($path_ids as $path_id) {
-        $path_term = ($path_id === $logical_category_id) ? $term : get_term($path_id, 'word-category');
-        if (!($path_term instanceof WP_Term) || is_wp_error($path_term)) {
-            continue;
-        }
-
-        $part = function_exists('ll_tools_get_category_display_name')
-            ? (string) ll_tools_get_category_display_name($path_term)
-            : (string) $path_term->name;
-        if ($part !== '') {
-            $parts[] = $part;
-        }
-    }
-
-    $label = implode(' / ', $parts);
+    $label = function_exists('ll_tools_get_category_display_name')
+        ? (string) ll_tools_get_category_display_name($term)
+        : (string) $term->name;
     if ($label === '') {
         $label = (string) $term->name;
     }
@@ -279,7 +264,7 @@ function ll_image_upload_get_logical_category_option_label(int $logical_category
  * Collect deduped logical category options for the image upload UI.
  *
  * @param array $allowed_wordset_ids Word set IDs the current user may target.
- * @return array<int,array{id:int,label:string,parent_id:int,is_shared:bool,wordset_ids:int[],autocreate:bool}>
+ * @return array<int,array{id:int,label:string,is_shared:bool,wordset_ids:int[],autocreate:bool}>
  */
 function ll_image_upload_get_logical_category_options(array $allowed_wordset_ids = []): array {
     $allowed_wordset_ids = array_values(array_filter(array_map('intval', $allowed_wordset_ids), static function ($id) {
@@ -321,17 +306,9 @@ function ll_image_upload_get_logical_category_options(array $allowed_wordset_ids
                 $logical_term = $term;
             }
 
-            $parent_id = 0;
-            if ((int) $logical_term->parent > 0) {
-                $parent_id = function_exists('ll_tools_get_category_isolation_source_id')
-                    ? (int) ll_tools_get_category_isolation_source_id((int) $logical_term->parent)
-                    : (int) $logical_term->parent;
-            }
-
             $options[$logical_category_id] = [
                 'id' => $logical_category_id,
                 'label' => ll_image_upload_get_logical_category_option_label((int) $logical_term->term_id),
-                'parent_id' => max(0, (int) $parent_id),
                 'is_shared' => false,
                 'wordset_ids' => [],
                 'autocreate' => ll_image_upload_category_supports_autocreate((int) $logical_term->term_id),
@@ -407,6 +384,8 @@ function ll_image_upload_get_requested_wordset_ids_from_request(): array {
  * @param int   $depth       Current depth level.
  */
 function ll_image_upload_render_parent_category_options($terms, $selected_id = 0, $parent_id = 0, $depth = 0) {
+    return;
+
     $children = array_filter((array) $terms, function ($term) use ($parent_id) {
         return isset($term->parent) && (int) $term->parent === (int) $parent_id;
     });
@@ -657,20 +636,6 @@ function ll_image_upload_form_shortcode($atts = []) {
             </div>
 
             <div style="margin-top:10px; display:none;" data-ll-new-category-advanced>
-                <label for="ll-new-category-parent"><?php esc_html_e('Parent Category', 'll-tools-text-domain'); ?>:</label><br>
-                <select id="ll-new-category-parent" name="ll_new_category_parent" class="regular-text" data-ll-new-category-parent>
-                    <option value="0"><?php esc_html_e('None', 'll-tools-text-domain'); ?></option>
-                    <?php foreach ($logical_category_options as $category_option) : ?>
-                        <option
-                            value="<?php echo esc_attr((int) $category_option['id']); ?>"
-                            data-ll-category-wordsets="<?php echo esc_attr(implode(',', array_map('intval', (array) ($category_option['wordset_ids'] ?? [])))); ?>"
-                            data-ll-category-shared="<?php echo !empty($category_option['is_shared']) ? '1' : '0'; ?>"
-                        >
-                            <?php echo esc_html((string) ($category_option['label'] ?? '')); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-
                 <?php if ($show_translation_field) : ?>
                     <div style="margin-top:10px;">
                         <label for="ll-new-category-translation"><?php esc_html_e('Translated Name', 'll-tools-text-domain'); ?>:</label><br>
@@ -1009,24 +974,12 @@ add_action('admin_post_process_image_files', 'll_handle_image_file_uploads');
  */
 function ll_image_upload_create_category_from_request() {
     $requested_wordset_ids = ll_image_upload_get_requested_wordset_ids_from_request();
-    $parent_id = isset($_POST['ll_new_category_parent']) ? (int) wp_unslash($_POST['ll_new_category_parent']) : 0;
     if (
         !current_user_can('manage_categories')
         && (
             !function_exists('ll_tools_current_user_can_manage_wordset_categories')
-            || (
-                empty($requested_wordset_ids)
-                && (
-                    $parent_id <= 0
-                    || !function_exists('ll_tools_get_category_wordset_owner_id')
-                    || (int) ll_tools_get_category_wordset_owner_id($parent_id) <= 0
-                    || !ll_tools_current_user_can_manage_wordset_categories([(int) ll_tools_get_category_wordset_owner_id($parent_id)])
-                )
-            )
-            || (
-                !empty($requested_wordset_ids)
-                && !ll_tools_current_user_can_manage_wordset_categories($requested_wordset_ids)
-            )
+            || empty($requested_wordset_ids)
+            || !ll_tools_current_user_can_manage_wordset_categories($requested_wordset_ids)
         )
     ) {
         return new WP_Error('ll_image_upload_category_permission', __('You do not have permission to create categories.', 'll-tools-text-domain'));
@@ -1038,31 +991,18 @@ function ll_image_upload_create_category_from_request() {
     if ($title === '') {
         return new WP_Error('ll_image_upload_category_title_required', __('Please enter a title for the new category.', 'll-tools-text-domain'));
     }
-    if ($parent_id > 0) {
-        $parent_term = get_term($parent_id, 'word-category');
-        if (!$parent_term || is_wp_error($parent_term)) {
-            $parent_id = 0;
-        }
-    }
-
-    $insert_args = [];
-    if ($parent_id > 0) {
-        $insert_args['parent'] = $parent_id;
-    }
 
     $translation_context_ids = $requested_wordset_ids;
     $target_wordset_id = 0;
     if (count($translation_context_ids) === 1) {
         $target_wordset_id = (int) $translation_context_ids[0];
-    } elseif (empty($translation_context_ids) && $parent_id > 0 && function_exists('ll_tools_get_category_wordset_owner_id')) {
-        $target_wordset_id = (int) ll_tools_get_category_wordset_owner_id($parent_id);
     }
     if ($target_wordset_id > 0 && empty($translation_context_ids)) {
         $translation_context_ids = [$target_wordset_id];
     }
 
     if (function_exists('ll_tools_create_or_get_wordset_category')) {
-        $created = ll_tools_create_or_get_wordset_category($title, $target_wordset_id, $insert_args);
+        $created = ll_tools_create_or_get_wordset_category($title, $target_wordset_id);
         if (is_wp_error($created)) {
             $reason = $created->get_error_message();
             return new WP_Error(

@@ -1576,6 +1576,7 @@ function ll_tools_flashcards_public_ajax_option_pool_word_ids(WP_Term $term, arr
         'taxonomy' => 'word-category',
         'field' => (string) ($category_context['query_field'] ?? 'term_id'),
         'terms' => $category_context['query_terms'] ?? [(int) $term->term_id],
+        'include_children' => false,
     ]];
     if (!empty($wordset_terms)) {
         $tax_query[] = [

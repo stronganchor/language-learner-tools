@@ -489,69 +489,21 @@ function ll_tools_word_grid_filter_word_ids_to_deepest_category(array $word_ids,
         }));
     }
 
-    $terms_by_word = [];
-    $parent_ids = [];
+    $assigned_lookup = [];
     foreach ($terms as $term) {
         $word_id = isset($term->object_id) ? (int) $term->object_id : 0;
         $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
         if ($word_id <= 0 || $term_id <= 0) {
             continue;
         }
-        $terms_by_word[$word_id][] = $term;
-        $parent_ids[$term_id] = isset($term->parent) ? (int) $term->parent : 0;
-    }
-
-    $depth_cache = [];
-    $get_depth = static function (int $term_id) use (&$get_depth, &$depth_cache, &$parent_ids): int {
-        if ($term_id <= 0) {
-            return 0;
-        }
-        if (isset($depth_cache[$term_id])) {
-            return $depth_cache[$term_id];
-        }
-
-        if (!array_key_exists($term_id, $parent_ids)) {
-            $parent_ids[$term_id] = (int) get_term_field('parent', $term_id, 'word-category');
-        }
-
-        $parent_id = (int) $parent_ids[$term_id];
-        $depth = ($parent_id > 0) ? ($get_depth($parent_id) + 1) : 0;
-        $depth_cache[$term_id] = $depth;
-        return $depth;
-    };
-
-    $filtered_ids = [];
-    foreach ($word_ids as $word_id) {
-        $word_terms = $terms_by_word[$word_id] ?? [];
-        if (empty($word_terms)) {
-            if (ll_tools_word_grid_word_in_deepest_category((int) $word_id, $category_id)) {
-                $filtered_ids[] = (int) $word_id;
-            }
-            continue;
-        }
-
-        $max_depth = -1;
-        $deepest_ids = [];
-        foreach ($word_terms as $term) {
-            $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
-            if ($term_id <= 0) {
-                continue;
-            }
-            $depth = $get_depth($term_id);
-            if ($depth > $max_depth) {
-                $max_depth = $depth;
-                $deepest_ids = [$term_id];
-            } elseif ($depth === $max_depth) {
-                $deepest_ids[] = $term_id;
-            }
-        }
-
-        if (in_array($category_id, $deepest_ids, true)) {
-            $filtered_ids[] = (int) $word_id;
+        if ($term_id === $category_id) {
+            $assigned_lookup[$word_id] = true;
         }
     }
 
-    return $filtered_ids;
+    return array_values(array_filter($word_ids, static function (int $word_id) use ($assigned_lookup): bool {
+        return !empty($assigned_lookup[$word_id]);
+    }));
 }
 
 function ll_tools_word_grid_filter_posts_to_deepest_category(array $posts, int $category_id): array {

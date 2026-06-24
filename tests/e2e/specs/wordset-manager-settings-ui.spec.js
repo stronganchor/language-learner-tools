@@ -351,16 +351,6 @@ function buildCategoriesToolMarkup() {
                   </label>
                   <p class="description">Shown when category translations are enabled for this word set.</p>
                 </div>
-                <div class="ll-wordset-settings-card__field">
-                  <label for="ll-wordset-category-new-parent">
-                    <span>Parent category</span>
-                    <select id="ll-wordset-category-new-parent" name="ll_wordset_category_parent_id" class="ll-tools-settings-select">
-                      <option value="0">Top level</option>
-                      <option value="11">Basics</option>
-                      <option value="12">Travel</option>
-                    </select>
-                  </label>
-                </div>
               </div>
               <div class="ll-wordset-settings-category-actions">
                 <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--primary">Add Category</button>
@@ -371,7 +361,7 @@ function buildCategoriesToolMarkup() {
           <div class="ll-wordset-settings-card__group">
             <h3 class="ll-wordset-settings-card__subtitle">Existing Categories</h3>
             <p class="description" style="margin-top:0;">
-              Rename categories, update translated names, move them under a different parent, or delete categories.
+              Rename categories, update translated names, or delete categories.
             </p>
             <div class="ll-wordset-settings-category-list">
               <form class="ll-wordset-settings-category-row">
@@ -396,15 +386,6 @@ function buildCategoriesToolMarkup() {
                     <label>
                       <span>Translated name</span>
                       <input type="text" class="ll-tools-settings-input" value="Temeller" />
-                    </label>
-                  </div>
-                  <div class="ll-wordset-settings-card__field">
-                    <label>
-                      <span>Parent category</span>
-                      <select class="ll-tools-settings-select">
-                        <option value="0" selected>Top level</option>
-                        <option value="12">Travel</option>
-                      </select>
                     </label>
                   </div>
                 </div>
@@ -881,7 +862,7 @@ test('manager categories tool keeps create and edit actions visible on mobile', 
 
   await expect(page.locator('#ll-wordset-category-new-name')).toBeVisible();
   await expect(page.locator('#ll-wordset-category-new-translation')).toBeVisible();
-  await expect(page.locator('#ll-wordset-category-new-parent')).toBeVisible();
+  await expect(page.locator('#ll-wordset-category-new-parent')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add Category' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save Category' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Delete Category' })).toBeVisible();

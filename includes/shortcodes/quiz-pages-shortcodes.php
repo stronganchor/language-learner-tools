@@ -125,9 +125,9 @@ function ll_raw_resolve_wordset_term_ids($spec) {
 }
 
 /**
- * Collect all word-category IDs used by at least MINIMUM published "words" posts
- * that belong to ANY of the provided wordset term IDs. Uses direct SQL.
- * Includes ancestor categories so parents appear.
+ * Collect all word-category IDs used by at least MINIMUM published quiz items
+ * that belong to ANY of the provided wordset term IDs. Uses direct SQL and
+ * intentionally ignores category parent/child relationships.
  */
 function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
     global $wpdb;
@@ -152,6 +152,7 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
         'wordset_ids' => $wordset_term_ids,
         'min_words' => $min_words,
         'epoch' => $category_cache_epoch,
+        'schema' => 2,
     ]));
     $cache_group = 'll_tools';
     $cache_ttl = HOUR_IN_SECONDS;
@@ -190,15 +191,9 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
         return [];
     }
 
-    // Include ancestors so parents appear
-    $with_anc = [];
-    foreach ($cat_ids as $cid) {
-        $with_anc[$cid] = true;
-        foreach (get_ancestors($cid, 'word-category', 'taxonomy') as $aid) {
-            $with_anc[(int) $aid] = true;
-        }
-    }
-    $result = array_values(array_map('intval', array_keys($with_anc)));
+    $result = array_values(array_unique(array_filter($cat_ids, static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
     wp_cache_set($cache_key, $result, $cache_group, $cache_ttl);
     set_transient($cache_key, $result, $cache_ttl);
     return $result;

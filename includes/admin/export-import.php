@@ -2634,12 +2634,6 @@ function ll_tools_export_get_full_bundle_wordset_category_ids(int $wordset_id): 
         }
 
         $scoped_ids[$effective_category_id] = true;
-        foreach ((array) get_ancestors($effective_category_id, 'word-category', 'taxonomy') as $ancestor_id) {
-            $ancestor_id = (int) $ancestor_id;
-            if ($ancestor_id > 0) {
-                $scoped_ids[$ancestor_id] = true;
-            }
-        }
     }
 
     return array_values(array_map('intval', array_keys($scoped_ids)));
@@ -3608,7 +3602,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 ]);
                 ?>
             </p>
-            <p class="description"><?php esc_html_e('Selecting a category exports that category and its children, plus all word images assigned to them. Choose “All categories” for a full export.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('Selecting a category exports that category only, plus word images assigned to it. Choose All categories for a full export.', 'll-tools-text-domain'); ?></p>
 
             <p><strong><?php esc_html_e('Bundle content', 'll-tools-text-domain'); ?></strong></p>
             <p>
@@ -3661,7 +3655,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     <?php endif; ?>
                 </select>
             </p>
-            <p class="description"><?php esc_html_e('Only used when full bundle mode is enabled. Select one or more categories to export those categories (and their child categories). Leave empty to use the single Category scope dropdown above.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('Only used when full bundle mode is enabled. Select one or more categories to export exactly those categories. Leave empty to use the single Category scope dropdown above.', 'll-tools-text-domain'); ?></p>
             <p class="description"><?php esc_html_e('Tip: Hold Ctrl (Windows) or Command (Mac) to select multiple categories.', 'll-tools-text-domain'); ?></p>
             <p class="description">
                 <?php
@@ -10646,10 +10640,6 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id) {
         }
 
         $term = $terms_by_id[$category_id];
-        $parent_slug = '';
-        if ((int) $term->parent > 0 && isset($terms_by_id[(int) $term->parent])) {
-            $parent_slug = (string) $terms_by_id[(int) $term->parent]->slug;
-        }
 
         $extra_skip_keys = [];
         if (defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
@@ -10673,7 +10663,7 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id) {
             'slug'        => (string) $term->slug,
             'name'        => (string) $term->name,
             'description' => (string) $term->description,
-            'parent_slug' => $parent_slug,
+            'parent_slug' => '',
             'meta'        => ll_tools_prepare_meta_for_export(get_term_meta($category_id), $extra_skip_keys),
         ];
     }
@@ -10803,7 +10793,7 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
             'slug'        => $term->slug,
             'name'        => $term->name,
             'description' => $term->description,
-            'parent_slug' => $term->parent && isset($term_by_id[$term->parent]) ? $term_by_id[$term->parent]->slug : '',
+            'parent_slug' => '',
             'meta'        => ll_tools_prepare_meta_for_export(get_term_meta($term->term_id)),
         ];
     }
@@ -10833,7 +10823,7 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
             'taxonomy'         => 'word-category',
             'field'            => 'term_id',
             'terms'            => $term_ids,
-            'include_children' => true,
+            'include_children' => false,
         ]];
     }
 
@@ -11073,7 +11063,7 @@ function ll_tools_export_collect_full_words_payload(array $category_term_ids, ar
             'taxonomy'         => 'word-category',
             'field'            => 'term_id',
             'terms'            => array_values(array_unique(array_map('intval', $category_term_ids))),
-            'include_children' => true,
+            'include_children' => false,
         ];
     }
     if (count($tax_query) > 1) {
@@ -11395,19 +11385,7 @@ function ll_tools_get_export_terms($root_category_ids = 0) {
             );
         }
 
-        $args = $base_args;
-        $args['child_of'] = $root_category_id;
-        $terms = get_terms($args);
-        if (is_wp_error($terms)) {
-            return $terms;
-        }
-
-        $terms[] = $root;
-        foreach ($terms as $term) {
-            if (isset($term->term_id)) {
-                $deduped[(int) $term->term_id] = $term;
-            }
-        }
+        $deduped[(int) $root->term_id] = $root;
     }
 
     if (empty($deduped)) {
@@ -12830,17 +12808,9 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
         }
 
         $category_payload = $categories_by_slug[$category_slug];
-        $parent_slug = sanitize_title((string) ($category_payload['parent_slug'] ?? ''));
-        $parent_id = 0;
-        if ($parent_slug !== '') {
-            $parent_id = $create_category($parent_slug);
-        }
 
         $category_name = isset($category_payload['name']) ? sanitize_text_field((string) $category_payload['name']) : $category_slug;
         $create_args = [];
-        if ($parent_id > 0) {
-            $create_args['parent'] = $parent_id;
-        }
         if (isset($category_payload['description'])) {
             $create_args['description'] = (string) $category_payload['description'];
         }
@@ -13111,13 +13081,6 @@ function ll_tools_import_apply_category_details_chunk(array $categories, array $
             }
         } else {
             $update_args['slug'] = $slug;
-        }
-
-        if (!empty($cat['parent_slug'])) {
-            $parent_slug = sanitize_title((string) $cat['parent_slug']);
-            if ($parent_slug !== '' && isset($slug_to_term_id[$parent_slug])) {
-                $update_args['parent'] = (int) $slug_to_term_id[$parent_slug];
-            }
         }
 
         $term_id = (int) $slug_to_term_id[$slug];

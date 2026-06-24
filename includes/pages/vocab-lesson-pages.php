@@ -1747,15 +1747,14 @@ function ll_tools_vocab_lesson_get_word_category_depth_rows(): array {
     global $wpdb;
 
     $rows = $wpdb->get_results($wpdb->prepare(
-        "SELECT term_taxonomy_id, term_id, parent FROM {$wpdb->term_taxonomy} WHERE taxonomy = %s",
+        "SELECT term_taxonomy_id, term_id FROM {$wpdb->term_taxonomy} WHERE taxonomy = %s",
         'word-category'
     ), ARRAY_A);
     if (empty($rows)) {
         return [];
     }
 
-    $parent_by_term = [];
-    $term_taxonomy_by_term = [];
+    $depth_rows = [];
     foreach ((array) $rows as $row) {
         if (!is_array($row)) {
             continue;
@@ -1765,48 +1764,10 @@ function ll_tools_vocab_lesson_get_word_category_depth_rows(): array {
         if ($term_id <= 0 || $term_taxonomy_id <= 0) {
             continue;
         }
-        $term_taxonomy_by_term[$term_id] = $term_taxonomy_id;
-        $parent_by_term[$term_id] = isset($row['parent']) ? max(0, (int) $row['parent']) : 0;
-    }
-
-    $depth_cache = [];
-    $get_depth = static function (int $term_id) use (&$depth_cache, $parent_by_term): int {
-        if (isset($depth_cache[$term_id])) {
-            return (int) $depth_cache[$term_id];
-        }
-
-        $depth = 0;
-        $cursor = $term_id;
-        $seen = [];
-        while (isset($parent_by_term[$cursor])) {
-            if (!empty($seen[$cursor])) {
-                break;
-            }
-            $seen[$cursor] = true;
-
-            $parent_id = (int) ($parent_by_term[$cursor] ?? 0);
-            if ($parent_id <= 0 || !isset($parent_by_term[$parent_id])) {
-                break;
-            }
-
-            $depth++;
-            if (isset($depth_cache[$parent_id])) {
-                $depth += (int) $depth_cache[$parent_id];
-                break;
-            }
-            $cursor = $parent_id;
-        }
-
-        $depth_cache[$term_id] = $depth;
-        return $depth;
-    };
-
-    $depth_rows = [];
-    foreach ($term_taxonomy_by_term as $term_id => $term_taxonomy_id) {
         $depth_rows[] = [
             'term_taxonomy_id' => (int) $term_taxonomy_id,
             'term_id' => (int) $term_id,
-            'depth' => $get_depth((int) $term_id),
+            'depth' => 0,
         ];
     }
 
@@ -4386,6 +4347,7 @@ function ll_tools_get_vocab_lesson_print_posts(int $wordset_id, int $category_id
                 'taxonomy' => 'word-category',
                 'field'    => 'term_id',
                 'terms'    => [$category_id],
+                'include_children' => false,
             ],
             [
                 'taxonomy' => 'wordset',

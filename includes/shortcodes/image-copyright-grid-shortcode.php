@@ -371,7 +371,7 @@ function ll_image_copyright_grid_shortcode($atts) {
                 'taxonomy' => 'word-category',
                 'field' => 'term_id',
                 'terms' => [(int) $filters['category_id']],
-                'include_children' => true,
+                'include_children' => false,
             ],
         ];
     }

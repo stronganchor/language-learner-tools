@@ -478,20 +478,6 @@ function ll_audio_upload_form_shortcode($atts = []) {
             </div>
 
             <div style="margin-top:10px; display:none;" data-ll-new-category-advanced data-ll-audio-create-only>
-                <label for="ll-audio-new-category-parent"><?php esc_html_e('Parent Category', 'll-tools-text-domain'); ?>:</label><br>
-                <select id="ll-audio-new-category-parent" name="ll_new_category_parent" class="regular-text" data-ll-new-category-parent>
-                    <option value="0"><?php esc_html_e('None', 'll-tools-text-domain'); ?></option>
-                    <?php foreach ($logical_category_options as $category_option) : ?>
-                        <option
-                            value="<?php echo esc_attr((int) $category_option['id']); ?>"
-                            data-ll-category-wordsets="<?php echo esc_attr(implode(',', array_map('intval', (array) ($category_option['wordset_ids'] ?? [])))); ?>"
-                            data-ll-category-shared="<?php echo !empty($category_option['is_shared']) ? '1' : '0'; ?>"
-                        >
-                            <?php echo esc_html((string) ($category_option['label'] ?? '')); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-
                 <?php if ($show_translation_field) : ?>
                     <div style="margin-top:10px;">
                         <label for="ll-audio-new-category-translation"><?php esc_html_e('Translated Name', 'll-tools-text-domain'); ?>:</label><br>

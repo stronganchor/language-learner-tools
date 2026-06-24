@@ -37,6 +37,7 @@ read_first:
 - WordPress plugin for vocabulary-driven language learning.
 - Custom post types for words, dictionary entries, word images, word audio recordings, vocab lessons, content lessons, prompt cards, and teacher classes.
 - Taxonomies for word categories, word sets, language, part of speech, and recording types.
+- `word-category` is a flat taxonomy in LL Tools behavior. Existing database parent values may exist, but quiz, lesson, editor, import/export, and sync code should ignore parent/child relationships and treat each category term as its own exact entity.
 - Flashcard quizzes with multiple modes (practice, learning, listening, gender, self-check) and per-category prompt/option config.
 - Auto quiz pages under `/quiz/<category>` are generated `ll_quiz_page` records, not normal WordPress Pages; embeddable pages under `/embed/<category>`, wordset hub routes, vocab lesson routes, content lessons, games, and teacher class views.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.

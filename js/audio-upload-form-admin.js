@@ -138,8 +138,7 @@
         var selectedWordsetIds = getSelectedWordsetIds($form);
 
         $.each([
-            $form.find('[data-ll-existing-category]'),
-            $form.find('[data-ll-new-category-parent]')
+            $form.find('[data-ll-existing-category]')
         ], function (_, $select) {
             if (!$select.length) {
                 return;
@@ -308,7 +307,7 @@
 
             $form.on(
                 'change input',
-                '[data-ll-match-existing], input[name="ll_wordset_scope_mode"], [data-ll-single-wordset], [data-ll-multi-wordset], input[name="ll_category_mode"], [data-ll-existing-category], [data-ll-new-category-title], [data-ll-new-category-parent], [data-ll-new-category-prompt], [data-ll-new-category-option]',
+                '[data-ll-match-existing], input[name="ll_wordset_scope_mode"], [data-ll-single-wordset], [data-ll-multi-wordset], input[name="ll_category_mode"], [data-ll-existing-category], [data-ll-new-category-title], [data-ll-new-category-prompt], [data-ll-new-category-option]',
                 function () {
                     syncFormState($form);
                 }

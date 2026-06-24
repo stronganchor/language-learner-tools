@@ -495,18 +495,12 @@ function ll_tools_site_sync_word_categories(int $word_id, bool $ensure_sync_ids 
             continue;
         }
 
-        $parent_slug = '';
-        if ($term->parent > 0) {
-            $raw_parent_slug = get_term_field('slug', (int) $term->parent, 'word-category');
-            $parent_slug = is_wp_error($raw_parent_slug) ? '' : (string) $raw_parent_slug;
-        }
-
         $categories[] = [
             'id' => (int) $term->term_id,
             'sync_id' => ll_tools_site_sync_get_or_create_term_uuid((int) $term->term_id, $ensure_sync_ids),
             'slug' => (string) $term->slug,
             'name' => (string) $term->name,
-            'parent_slug' => $parent_slug,
+            'parent_slug' => '',
         ];
     }
 
@@ -712,12 +706,6 @@ function ll_tools_site_sync_collect_wordset_category_records(int $wordset_id, bo
             continue;
         }
 
-        $parent_slug = '';
-        if ((int) $term->parent > 0) {
-            $raw_parent_slug = get_term_field('slug', (int) $term->parent, 'word-category');
-            $parent_slug = is_wp_error($raw_parent_slug) ? '' : (string) $raw_parent_slug;
-        }
-
         $config = function_exists('ll_tools_get_category_quiz_config')
             ? (array) ll_tools_get_category_quiz_config($term)
             : [];
@@ -730,8 +718,8 @@ function ll_tools_site_sync_collect_wordset_category_records(int $wordset_id, bo
             'display_name' => function_exists('ll_tools_get_category_display_name')
                 ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
                 : (string) $term->name,
-            'parent_id' => (int) $term->parent,
-            'parent_slug' => $parent_slug,
+            'parent_id' => 0,
+            'parent_slug' => '',
             'term_count' => (int) $term->count,
             'quiz_config' => $config,
             'can_generate_quiz' => function_exists('ll_can_category_generate_quiz')

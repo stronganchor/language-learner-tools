@@ -588,7 +588,7 @@ function ll_tools_register_word_category_taxonomy() {
         "labels" => $labels,
         "public" => true,
         "publicly_queryable" => true,
-        "hierarchical" => true,
+        "hierarchical" => false,
         "show_ui" => true,
         "show_in_menu" => true,
         "show_in_nav_menus" => true,
@@ -650,6 +650,7 @@ function ll_fix_word_category_counts_in_admin($terms, $taxonomies, $args) {
                 'taxonomy' => 'word-category',
                 'field'    => 'term_id',
                 'terms'    => $term->term_id,
+                'include_children' => false,
             ]],
             'posts_per_page' => 1,
             'fields'         => 'ids',
@@ -1676,6 +1677,7 @@ function ll_tools_get_category_lineup_allowed_word_ids($term): array {
                 'taxonomy' => 'word-category',
                 'field'    => 'term_id',
                 'terms'    => [(int) $term->term_id],
+                'include_children' => false,
             ],
         ],
     ]);
@@ -1839,6 +1841,7 @@ function ll_tools_get_category_lineup_word_items($term): array {
                 'taxonomy' => 'word-category',
                 'field'    => 'term_id',
                 'terms'    => [(int) $term->term_id],
+                'include_children' => false,
             ],
         ],
     ]);
@@ -2784,42 +2787,25 @@ function ll_tools_get_preferred_speaker_from_audio_posts(array $audio_posts, arr
  * @param string $taxonomy Taxonomy name.
  */
 /**
- * Determines the deepest-level categories for a given post.
+ * Determines the category terms for a given post.
  *
  * @param int $post_id The post ID.
- * @return array An array of deepest-level category objects.
+ * @return array An array of category term objects.
  */
 function ll_get_deepest_categories($post_id) {
     $categories = wp_get_post_terms($post_id, 'word-category');
-    $deepest_categories = [];
-    $max_depth = -1;
-
-    foreach ($categories as $category) {
-        $depth = ll_get_category_depth($category->term_id);
-        if ($depth > $max_depth) {
-            $max_depth = $depth;
-            $deepest_categories = [$category];
-        } elseif ($depth == $max_depth) {
-            $deepest_categories[] = $category;
-        }
-    }
-
-    return $deepest_categories;
+    return is_wp_error($categories) ? [] : (array) $categories;
 }
 
 /**
- * Recursively determines the depth of a category in the category hierarchy.
+ * Category hierarchy is intentionally ignored; all word categories are flat.
  *
  * @param int $category_id The category ID.
  * @param int $depth The current depth.
  * @return int The depth of the category.
  */
 function ll_get_category_depth($category_id, $depth = 0) {
-    $parent_id = get_term_field('parent', $category_id, 'word-category');
-    if ($parent_id != 0) {
-        $depth = ll_get_category_depth($parent_id, $depth + 1);
-    }
-    return $depth;
+    return 0;
 }
 
 /**
@@ -3035,6 +3021,7 @@ function ll_tools_get_category_published_word_count($term, $wordset_ids = []): i
         'taxonomy' => 'word-category',
         'field' => 'term_id',
         'terms' => [$term_id],
+        'include_children' => false,
     ]];
     if (!empty($wordset_ids)) {
         $tax_query[] = [
@@ -3108,6 +3095,7 @@ function ll_tools_get_category_published_wordset_terms($term): array {
             'taxonomy' => 'word-category',
             'field' => 'term_id',
             'terms' => [$term_id],
+            'include_children' => false,
         ]],
     ]);
 
@@ -4402,6 +4390,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
             'taxonomy' => 'word-category',
             'field'    => (string) ($category_context['query_field'] ?? 'name'),
             'terms'    => $category_context['query_terms'] ?? '',
+            'include_children' => false,
         ]],
         'fields'         => 'ids',
         'no_found_rows'  => true,
@@ -4799,6 +4788,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
             'taxonomy' => 'word-category',
             'field'    => (string) ($category_context['query_field'] ?? 'name'),
             'terms'    => $category_context['query_terms'] ?? '',
+            'include_children' => false,
         ]],
         'fields'         => 'ids',
         'no_found_rows'  => true,
@@ -5169,6 +5159,7 @@ function ll_tools_count_gender_eligible_words_for_category($categoryName, $words
             'taxonomy' => 'word-category',
             'field'    => (string) ($category_context['query_field'] ?? 'name'),
             'terms'    => $category_context['query_terms'] ?? '',
+            'include_children' => false,
         ]],
         'fields'         => 'ids',
         'no_found_rows'  => true,
@@ -5361,6 +5352,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'taxonomy' => 'word-category',
             'field'    => (string) ($category_context['query_field'] ?? 'name'),
             'terms'    => $category_context['query_terms'] ?? '',
+            'include_children' => false,
         ]],
         'fields'         => 'ids',
         'no_found_rows'  => true,
@@ -6658,10 +6650,13 @@ function ll_tools_sort_category_terms_for_admin_selection( array $terms ) {
  * @param int    $level     Depth level for indentation.
  */
 function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $level = 0 ) {
+    if ((int) $parent !== 0) {
+        return;
+    }
+
     $terms = get_terms([
         'taxonomy'   => $taxonomy,
         'hide_empty' => false,
-        'parent'     => $parent,
     ]);
     if ( is_wp_error( $terms ) ) {
         return;
@@ -6677,6 +6672,7 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
                 'taxonomy' => $taxonomy,
                 'field'    => 'term_id',
                 'terms'    => $term->term_id,
+                'include_children' => false,
             ]],
             'posts_per_page' => 1,
             'fields'         => 'ids',
@@ -6684,7 +6680,6 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
         ]);
         $count = $q->found_posts;
 
-        $indent = str_repeat( '&nbsp;&nbsp;&nbsp;', $level );
         $label  = ll_tools_get_category_admin_selection_label( $term );
         $input_id = sprintf(
             'll-word-category-%1$s-%2$d',
@@ -6692,17 +6687,12 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
             (int) $term->term_id
         );
         printf(
-            '%1$s<input id="%2$s" type="checkbox" name="ll_word_categories[]" value="%3$d" data-parent-id="%4$d"> <label for="%2$s">%5$s (%6$d)</label><br>',
-            $indent,
+            '<input id="%1$s" type="checkbox" name="ll_word_categories[]" value="%2$d"> <label for="%1$s">%3$s (%4$d)</label><br>',
             esc_attr( $input_id ),
             esc_attr( $term->term_id ),
-            esc_attr( $term->parent ),
             esc_html( $label ),
             (int) $count
         );
-
-        // Recurse into children
-        ll_display_categories_checklist( $taxonomy, $post_type, $term->term_id, $level + 1 );
     }
 }
 
