@@ -608,6 +608,8 @@
     const $grid = $root.find('[data-ll-wordset-main-grid]').first().length
         ? $root.find('[data-ll-wordset-main-grid]').first()
         : $root.find('.ll-wordset-grid').not('.ll-wordset-grid--content-lessons').first();
+    let detachedAddCategoryCards = $();
+    let addCategoryRestoreBeforeNode = null;
     const $selectAllButton = $root.find('[data-ll-wordset-select-all]');
     const $mainCategorySearchInput = $root.find('[data-ll-wordset-page-search]');
     const $mainCategorySearchClear = $root.find('[data-ll-wordset-page-search-clear]');
@@ -8663,6 +8665,67 @@
         }
     }
 
+    function getAddCategoryCardsInGrid() {
+        if (!$grid.length) {
+            return $();
+        }
+        return $grid.children('.ll-wordset-card[data-ll-wordset-card-type="add-category"]');
+    }
+
+    function detachAddCategoryCardsForSearch() {
+        const $cards = getAddCategoryCardsInGrid();
+        if (!$cards.length) {
+            return;
+        }
+
+        const lastCard = $cards.last()[0] || null;
+        addCategoryRestoreBeforeNode = lastCard ? lastCard.nextSibling : null;
+        detachedAddCategoryCards = detachedAddCategoryCards.add($cards);
+        $cards
+            .prop('hidden', true)
+            .addClass('is-search-filtered-out')
+            .attr('aria-hidden', 'true')
+            .detach();
+    }
+
+    function restoreAddCategoryCardsAfterSearch() {
+        if (!$grid.length || !detachedAddCategoryCards.length) {
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        detachedAddCategoryCards.each(function () {
+            this.hidden = false;
+            if (this.classList) {
+                this.classList.remove('is-search-filtered-out');
+            }
+            this.setAttribute('aria-hidden', 'false');
+            fragment.appendChild(this);
+        });
+
+        if (addCategoryRestoreBeforeNode && addCategoryRestoreBeforeNode.parentNode === $grid[0]) {
+            $grid[0].insertBefore(fragment, addCategoryRestoreBeforeNode);
+        } else {
+            $grid[0].insertBefore(fragment, $grid[0].firstChild);
+        }
+
+        detachedAddCategoryCards = $();
+        addCategoryRestoreBeforeNode = null;
+    }
+
+    function syncAddCategoryCardSearchState(searchActive) {
+        if (searchActive) {
+            detachAddCategoryCardsForSearch();
+            return;
+        }
+
+        restoreAddCategoryCardsAfterSearch();
+        getAddCategoryCardsInGrid()
+            .prop('hidden', false)
+            .removeClass('is-search-filtered-out')
+            .attr('aria-hidden', 'false');
+    }
+
     function getLazyCardsPlaceholderColumnCount() {
         if (!$grid.length) {
             return 1;
@@ -9458,6 +9521,7 @@
             }
         });
 
+        syncAddCategoryCardSearchState(!!query);
         if (!query) {
             removeTemporarySearchResultCards();
         }

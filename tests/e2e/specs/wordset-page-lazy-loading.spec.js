@@ -242,6 +242,16 @@ function buildContentLessonCardMarkup(card) {
   `;
 }
 
+function buildAddCategoryCardMarkup() {
+  return `
+    <article class="ll-wordset-card ll-wordset-card--add-category" role="listitem" data-ll-wordset-card-type="add-category">
+      <a class="ll-wordset-add-category-card" href="/wordsets/lazy-wordset/settings/" aria-label="Add category">
+        <span class="ll-wordset-add-category-card__title">Add Category</span>
+      </a>
+    </article>
+  `;
+}
+
 function buildInactiveCardMarkup(category) {
   const cat = category || {};
 
@@ -865,6 +875,45 @@ test('mixed content lesson cards keep order and category-only selection behavior
   await expect(page.locator('.ll-wordset-card[data-cat-id]:not([hidden])')).toHaveCount(0);
   await expect(page.locator('[data-ll-wordset-select]:checked')).toHaveCount(0);
   await expect(page.locator('[data-ll-wordset-selection-bar]')).toBeHidden();
+});
+
+test('wordset search removes manager add category card from result grid flow', async ({ page }) => {
+  const initialCardsMarkup = [
+    buildAddCategoryCardMarkup(),
+    buildCardMarkup(allCategories[0]),
+    buildCardMarkup(allCategories[1])
+  ].join('');
+
+  await mountWordsetPage(page, {
+    categories: [allCategories[0], allCategories[1]],
+    remainingCards: [],
+    initialCardsMarkup,
+    lazyCards: {
+      enabled: false,
+      loaded: 2,
+      total: 2,
+      remaining: 0
+    }
+  });
+
+  await expect.poll(async () => page.locator('[data-ll-wordset-main-grid] > .ll-wordset-card').evaluateAll((cards) => cards.map((card) => (
+    card.getAttribute('data-ll-wordset-card-type') || card.getAttribute('data-cat-id')
+  )))).toEqual(['add-category', '11', '22']);
+
+  await page.fill('[data-ll-wordset-page-search]', 'cat');
+
+  await expect(page.locator('[data-ll-wordset-main-grid] > [data-ll-wordset-card-type="add-category"]'))
+    .toHaveCount(0);
+  await expect.poll(async () => page.locator('[data-ll-wordset-main-grid] > .ll-wordset-card').evaluateAll((cards) => cards
+    .filter((card) => !card.hidden)
+    .map((card) => card.getAttribute('data-ll-wordset-card-type') || card.getAttribute('data-cat-id'))))
+    .toEqual(['22']);
+
+  await page.fill('[data-ll-wordset-page-search]', '');
+
+  await expect.poll(async () => page.locator('[data-ll-wordset-main-grid] > .ll-wordset-card').evaluateAll((cards) => cards.map((card) => (
+    card.getAttribute('data-ll-wordset-card-type') || card.getAttribute('data-cat-id')
+  )))).toEqual(['add-category', '11', '22']);
 });
 
 test('wordset search hydrates matching unloaded categories with real previews', async ({ page }) => {
