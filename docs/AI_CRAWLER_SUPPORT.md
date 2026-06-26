@@ -35,6 +35,9 @@ normalization as the public dictionary browser.
   content lessons appear.
 - Keep exports bounded with filterable caps. Do not dump all words,
   dictionary entries, transcript cues, generated media, or large wordsets.
+- GET export bodies are cached in the object cache and transients, keyed by
+  route, locale, dictionary version, and wordset/category cache epochs.
+- HEAD requests must remain header-only and must not build cold export bodies.
 - Letter-scoped dictionary exports must still pass every entry through
   anonymous wordset visibility checks before a letter is advertised or rendered.
 - The advertised letter list is conservative: it is built from entries with

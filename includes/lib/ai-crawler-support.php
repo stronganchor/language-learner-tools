@@ -100,8 +100,8 @@ function ll_tools_ai_crawler_maybe_serve_export(): void {
         return;
     }
 
-    $body = ll_tools_ai_crawler_build_export((string) $export['key'], $export);
-    if ($body === '') {
+    $response = ll_tools_ai_crawler_prepare_export_response($method, $export);
+    if (empty($response['ok'])) {
         return;
     }
 
@@ -109,9 +109,10 @@ function ll_tools_ai_crawler_maybe_serve_export(): void {
     header('Content-Type: ' . $export['content_type']);
     header('X-Robots-Tag: index, follow');
     header('Cache-Control: public, max-age=' . (string) ll_tools_ai_crawler_response_cache_seconds());
+    header('X-LL-Tools-AI-Crawler-Cache: ' . (string) ($response['cache_status'] ?? 'MISS'));
 
-    if ($method !== 'HEAD') {
-        echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    if (!empty($response['send_body'])) {
+        echo (string) $response['body']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     }
     exit;
 }
@@ -207,6 +208,108 @@ function ll_tools_ai_crawler_link_header_param(string $value): string {
 
 function ll_tools_ai_crawler_response_cache_seconds(): int {
     return max(60, min(DAY_IN_SECONDS, (int) apply_filters('ll_tools_ai_crawler_response_cache_seconds', 10 * MINUTE_IN_SECONDS)));
+}
+
+function ll_tools_ai_crawler_cache_group(): string {
+    return defined('LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP') ? LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP : 'll_tools';
+}
+
+/**
+ * @return array<string,mixed>
+ */
+function ll_tools_ai_crawler_export_cache_args(array $export): array {
+    $locale = function_exists('determine_locale') ? determine_locale() : get_locale();
+
+    return [
+        'schema' => 1,
+        'key' => sanitize_key((string) ($export['key'] ?? '')),
+        'letter' => isset($export['letter']) ? ll_tools_ai_crawler_normalize_dictionary_letter((string) $export['letter']) : '',
+        'locale' => (string) $locale,
+        'blog_id' => function_exists('get_current_blog_id') ? (int) get_current_blog_id() : 0,
+        'dictionary_version' => function_exists('ll_tools_get_dictionary_browser_cache_version') ? max(1, (int) ll_tools_get_dictionary_browser_cache_version()) : 1,
+        'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
+        'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
+    ];
+}
+
+function ll_tools_ai_crawler_export_cache_key(array $export): string {
+    return 'll_ai_export_' . md5((string) wp_json_encode(ll_tools_ai_crawler_export_cache_args($export)));
+}
+
+function ll_tools_ai_crawler_get_cached_export(array $export): ?string {
+    $cache_key = ll_tools_ai_crawler_export_cache_key($export);
+    $cached = wp_cache_get($cache_key, ll_tools_ai_crawler_cache_group());
+    if (false === $cached) {
+        $cached = get_transient($cache_key);
+    }
+
+    return is_string($cached) && $cached !== '' ? $cached : null;
+}
+
+function ll_tools_ai_crawler_set_cached_export(array $export, string $body): void {
+    if ($body === '') {
+        return;
+    }
+
+    $cache_key = ll_tools_ai_crawler_export_cache_key($export);
+    $ttl = ll_tools_ai_crawler_response_cache_seconds();
+    wp_cache_set($cache_key, $body, ll_tools_ai_crawler_cache_group(), $ttl);
+    set_transient($cache_key, $body, $ttl);
+}
+
+function ll_tools_ai_crawler_delete_cached_export(array $export): void {
+    $cache_key = ll_tools_ai_crawler_export_cache_key($export);
+    wp_cache_delete($cache_key, ll_tools_ai_crawler_cache_group());
+    delete_transient($cache_key);
+}
+
+/**
+ * @return array{ok:bool,send_body:bool,body:string,cache_status:string,content_length:int}
+ */
+function ll_tools_ai_crawler_prepare_export_response(string $method, array $export): array {
+    $method = strtoupper($method);
+    $cached_body = ll_tools_ai_crawler_get_cached_export($export);
+
+    if ($method === 'HEAD') {
+        return [
+            'ok' => true,
+            'send_body' => false,
+            'body' => '',
+            'cache_status' => is_string($cached_body) ? 'HIT' : 'HEAD',
+            'content_length' => is_string($cached_body) ? strlen($cached_body) : 0,
+        ];
+    }
+
+    if (is_string($cached_body)) {
+        return [
+            'ok' => true,
+            'send_body' => true,
+            'body' => $cached_body,
+            'cache_status' => 'HIT',
+            'content_length' => strlen($cached_body),
+        ];
+    }
+
+    $body = ll_tools_ai_crawler_build_export((string) ($export['key'] ?? ''), $export);
+    if ($body === '') {
+        return [
+            'ok' => false,
+            'send_body' => false,
+            'body' => '',
+            'cache_status' => 'BYPASS',
+            'content_length' => 0,
+        ];
+    }
+
+    ll_tools_ai_crawler_set_cached_export($export, $body);
+
+    return [
+        'ok' => true,
+        'send_body' => true,
+        'body' => $body,
+        'cache_status' => 'MISS',
+        'content_length' => strlen($body),
+    ];
 }
 
 function ll_tools_ai_crawler_build_export(string $key, array $args = []): string {

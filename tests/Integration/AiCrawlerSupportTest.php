@@ -74,6 +74,93 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         $this->assertStringContainsString('href="' . esc_url(home_url('/ll-tools/index.jsonld')) . '"', $html);
     }
 
+    public function test_export_response_caches_get_body_and_refreshes_when_dictionary_version_changes(): void
+    {
+        $public_wordset_id = $this->createWordset('AI Cached Export Wordset', 'ai-cached-export-wordset');
+        $this->createDictionaryEntry('Cached Export Entry', $public_wordset_id, 'cached definition');
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
+
+        $export = [
+            'key' => 'dictionary',
+            'content_type' => 'text/markdown; charset=utf-8',
+        ];
+        $first_cache_key = ll_tools_ai_crawler_export_cache_key($export);
+        ll_tools_ai_crawler_delete_cached_export($export);
+
+        try {
+            $first = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+            $this->assertTrue($first['ok']);
+            $this->assertTrue($first['send_body']);
+            $this->assertSame('MISS', $first['cache_status']);
+            $this->assertStringContainsString('Cached Export Entry', $first['body']);
+            $this->assertStringContainsString('cached definition', $first['body']);
+
+            $second = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+            $this->assertTrue($second['ok']);
+            $this->assertSame('HIT', $second['cache_status']);
+            $this->assertSame($first['body'], $second['body']);
+
+            $this->createDictionaryEntry('Refreshed Export Entry', $public_wordset_id, 'fresh definition');
+            if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+                ll_tools_bump_dictionary_browser_cache_version();
+            }
+
+            $third = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+            $this->assertTrue($third['ok']);
+            $this->assertSame('MISS', $third['cache_status']);
+            $this->assertStringContainsString('Refreshed Export Entry', $third['body']);
+            $this->assertStringContainsString('fresh definition', $third['body']);
+        } finally {
+            wp_cache_delete($first_cache_key, ll_tools_ai_crawler_cache_group());
+            delete_transient($first_cache_key);
+            ll_tools_ai_crawler_delete_cached_export($export);
+        }
+    }
+
+    public function test_head_export_response_does_not_build_uncached_body(): void
+    {
+        $export = [
+            'key' => 'dictionary',
+            'content_type' => 'text/markdown; charset=utf-8',
+        ];
+        ll_tools_ai_crawler_delete_cached_export($export);
+
+        $build_count = 0;
+        $count_filter = static function ($limit) use (&$build_count) {
+            $build_count++;
+            return $limit;
+        };
+        add_filter('ll_tools_ai_crawler_dictionary_limit', $count_filter);
+
+        try {
+            $head = ll_tools_ai_crawler_prepare_export_response('HEAD', $export);
+            $this->assertTrue($head['ok']);
+            $this->assertFalse($head['send_body']);
+            $this->assertSame('', $head['body']);
+            $this->assertSame('HEAD', $head['cache_status']);
+            $this->assertSame(0, $build_count);
+
+            $get = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+            $this->assertTrue($get['ok']);
+            $this->assertSame('MISS', $get['cache_status']);
+            $this->assertGreaterThan(0, $build_count);
+
+            $build_count = 0;
+            $cached_head = ll_tools_ai_crawler_prepare_export_response('HEAD', $export);
+            $this->assertTrue($cached_head['ok']);
+            $this->assertFalse($cached_head['send_body']);
+            $this->assertSame('', $cached_head['body']);
+            $this->assertSame('HIT', $cached_head['cache_status']);
+            $this->assertGreaterThan(0, $cached_head['content_length']);
+            $this->assertSame(0, $build_count);
+        } finally {
+            remove_filter('ll_tools_ai_crawler_dictionary_limit', $count_filter);
+            ll_tools_ai_crawler_delete_cached_export($export);
+        }
+    }
+
     public function test_dictionary_markdown_excludes_private_wordset_entries_for_anonymous_agents(): void
     {
         $public_wordset_id = $this->createWordset('AI Public Dictionary Wordset', 'ai-public-dictionary-wordset');
