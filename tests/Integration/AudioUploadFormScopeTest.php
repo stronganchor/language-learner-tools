@@ -41,7 +41,7 @@ final class AudioUploadFormScopeTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('name="ll_multi_wordset_ids[]"', $html);
     }
 
-    public function test_audio_upload_form_dedupes_isolated_categories_into_single_logical_option(): void
+    public function test_audio_upload_form_dedupes_isolated_categories_into_one_logical_option(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
 
@@ -67,7 +67,7 @@ final class AudioUploadFormScopeTest extends LL_Tools_TestCase
             '/<option[^>]+value="' . preg_quote((string) $shared_category_id, '/') . '"[^>]+data-ll-category-wordsets="[^"]*' . preg_quote((string) $wordset_one_id, '/') . '[^"]*' . preg_quote((string) $wordset_two_id, '/') . '[^"]*"[^>]*>\s*Shared Audio Trees\s*<\/option>/',
             $html
         );
-        $this->assertSame(2, preg_match_all('/<option[^>]*>\s*Shared Audio Trees\s*<\/option>/', $html, $matches));
+        $this->assertSame(1, preg_match_all('/<option[^>]*>\s*Shared Audio Trees\s*<\/option>/', $html, $matches));
         $this->assertStringNotContainsString('value="' . $isolated_one_id . '"', $html);
         $this->assertStringNotContainsString('value="' . $isolated_two_id . '"', $html);
     }

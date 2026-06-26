@@ -376,47 +376,6 @@ function ll_image_upload_get_requested_wordset_ids_from_request(): array {
 }
 
 /**
- * Render hierarchical category options for a <select>.
- *
- * @param array $terms       WP_Term list.
- * @param int   $selected_id Selected term ID.
- * @param int   $parent_id   Current parent ID.
- * @param int   $depth       Current depth level.
- */
-function ll_image_upload_render_parent_category_options($terms, $selected_id = 0, $parent_id = 0, $depth = 0) {
-    return;
-
-    $children = array_filter((array) $terms, function ($term) use ($parent_id) {
-        return isset($term->parent) && (int) $term->parent === (int) $parent_id;
-    });
-    if (empty($children)) {
-        return;
-    }
-
-    if (function_exists('ll_tools_sort_category_terms_for_admin_selection')) {
-        $children = ll_tools_sort_category_terms_for_admin_selection(array_values($children));
-    } else {
-        usort($children, static function ($a, $b) {
-            return strnatcasecmp((string) $a->name, (string) $b->name);
-        });
-    }
-
-    foreach ($children as $term) {
-        $label = function_exists('ll_tools_get_category_admin_selection_label')
-            ? ll_tools_get_category_admin_selection_label($term)
-            : (string) $term->name;
-        printf(
-            '<option value="%1$d" %2$s>%3$s%4$s</option>',
-            (int) $term->term_id,
-            selected((int) $selected_id, (int) $term->term_id, false),
-            esc_html(str_repeat('— ', $depth)),
-            esc_html($label)
-        );
-        ll_image_upload_render_parent_category_options($terms, $selected_id, (int) $term->term_id, $depth + 1);
-    }
-}
-
-/**
  * Shortcode handler for [image_upload_form].
  *
  * Supported attributes:

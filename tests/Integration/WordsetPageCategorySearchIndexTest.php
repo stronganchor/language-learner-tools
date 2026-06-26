@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
 {
-    public function test_category_search_index_limits_sql_to_words_with_allowed_categories_without_changing_deepest_category_rules(): void
+    public function test_category_search_index_uses_flat_exact_allowed_categories_without_promoting_children(): void
     {
         global $wpdb;
 
@@ -31,7 +31,8 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         update_term_meta($child_id, $owner_meta_key, (string) $wordset_id);
 
         $only_allowed = $this->createSearchWord('Allowed Search Token', 'Allowed Translation Token', $wordset_id, [$allowed_id]);
-        $deep_child = $this->createSearchWord('Child Search Token', 'Child Translation Token', $wordset_id, [$allowed_id, $child_id]);
+        $allowed_with_stale_child = $this->createSearchWord('Allowed With Stale Child Token', 'Allowed Stale Child Translation Token', $wordset_id, [$allowed_id, $child_id]);
+        $child_only = $this->createSearchWord('Child Only Search Token', 'Child Only Translation Token', $wordset_id, [$child_id]);
 
         $this->assertWordHasTerm($only_allowed, 'wordset', $wordset_id);
         $this->assertWordHasTerm($only_allowed, 'word-category', $allowed_id);
@@ -56,15 +57,18 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $search_text = (string) ($index[$allowed_id]['search_text'] ?? '');
         $this->assertStringContainsString('Allowed Search Token', $search_text);
         $this->assertStringContainsString('Allowed Translation Token', $search_text);
-        $this->assertStringNotContainsString('Child Search Token', $search_text);
-        $this->assertStringNotContainsString('Child Translation Token', $search_text);
+        $this->assertStringContainsString('Allowed With Stale Child Token', $search_text);
+        $this->assertStringContainsString('Allowed Stale Child Translation Token', $search_text);
+        $this->assertStringNotContainsString('Child Only Search Token', $search_text);
+        $this->assertStringNotContainsString('Child Only Translation Token', $search_text);
 
         $queries_sql = implode("\n", $captured_queries);
         $this->assertStringContainsString('allowed_category_relationships', $queries_sql);
         $this->assertStringContainsString('allowed_category_taxonomy.term_id IN', $queries_sql);
 
         $this->assertGreaterThan(0, $only_allowed);
-        $this->assertGreaterThan(0, $deep_child);
+        $this->assertGreaterThan(0, $allowed_with_stale_child);
+        $this->assertGreaterThan(0, $child_only);
         $this->assertNotEmpty($wpdb->last_query);
     }
 
