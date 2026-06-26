@@ -1228,6 +1228,97 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll_dictionary_entry=', $back_url);
     }
 
+    public function test_dictionary_public_linked_word_helper_uses_bounded_published_query(): void
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Bounded Linked Helper Entry',
+            'post_content' => 'bounded helper',
+        ]);
+
+        $draft_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Bounded Linked 00 Draft',
+        ]);
+        update_post_meta($draft_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, (string) $entry_id);
+
+        $published_ids = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Bounded Linked %02d', $index),
+            ]);
+            update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, (string) $entry_id);
+            $published_ids[] = (int) $word_id;
+        }
+
+        $this->assertSame(
+            array_slice($published_ids, 0, 2),
+            ll_tools_dictionary_get_public_word_ids_for_entry((int) $entry_id, 2)
+        );
+    }
+
+    public function test_dictionary_entry_detail_caps_linked_words_before_rendering_word_grid(): void
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Bounded Linked Detail Entry',
+            'post_content' => 'bounded detail',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [
+            [
+                'definition' => 'bounded detail',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+
+        $published_ids = [];
+        for ($index = 1; $index <= 4; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Bounded Detail Linked %02d', $index),
+            ]);
+            update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, (string) $entry_id);
+            $published_ids[] = (int) $word_id;
+        }
+
+        $captured_word_ids = [];
+        $preview_limit = static function (): int {
+            return 2;
+        };
+        $shortcode_capture = static function ($return, $tag, $attr = []) use (&$captured_word_ids) {
+            if ($tag !== 'word_grid') {
+                return $return;
+            }
+
+            $attr = is_array($attr) ? $attr : [];
+            $captured_word_ids = array_values(array_filter(array_map('intval', preg_split('/[\s,|]+/', (string) ($attr['word_ids'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [])));
+            return '<div class="captured-word-grid"></div>';
+        };
+
+        add_filter('ll_tools_dictionary_detail_linked_words_preview_limit', $preview_limit);
+        add_filter('pre_do_shortcode_tag', $shortcode_capture, 10, 3);
+        try {
+            $html = ll_tools_dictionary_render_detail_view((int) $entry_id, 'https://example.test/sozluk/', ['en']);
+        } finally {
+            remove_filter('pre_do_shortcode_tag', $shortcode_capture, 10);
+            remove_filter('ll_tools_dictionary_detail_linked_words_preview_limit', $preview_limit);
+        }
+
+        $this->assertSame(array_slice($published_ids, 0, 2), $captured_word_ids);
+        $this->assertStringContainsString('Linked Words', $html);
+        $this->assertStringContainsString('data-ll-linked-words-truncated="1"', $html);
+        $this->assertStringContainsString('data-ll-linked-words-limit="2"', $html);
+    }
+
     public function test_unscoped_dictionary_hides_entries_explicitly_assigned_to_private_wordsets(): void
     {
         $wordset = wp_insert_term('Private Dictionary Entry Scope ' . wp_generate_password(6, false), 'wordset');

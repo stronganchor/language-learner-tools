@@ -1314,14 +1314,16 @@ function ll_tools_dictionary_get_public_word_ids_for_entry(int $entry_id, int $l
         return [];
     }
 
-    if (function_exists('ll_tools_get_dictionary_entry_word_ids')) {
+    $limit = (int) $limit;
+    if ($limit === 0) {
+        $limit = -1;
+    }
+
+    if ($limit < 0 && function_exists('ll_tools_get_dictionary_entry_word_ids')) {
         $linked_ids = array_values(array_filter(array_map('intval', ll_tools_get_dictionary_entry_word_ids($entry_id, -1)), static function (int $word_id): bool {
             return $word_id > 0 && get_post_status($word_id) === 'publish';
         }));
         if (!empty($linked_ids)) {
-            if ($limit > 0) {
-                return array_slice($linked_ids, 0, $limit);
-            }
             return $linked_ids;
         }
     }
@@ -1329,7 +1331,7 @@ function ll_tools_dictionary_get_public_word_ids_for_entry(int $entry_id, int $l
     $query_args = [
         'post_type' => 'words',
         'post_status' => 'publish',
-        'posts_per_page' => $limit === 0 ? -1 : $limit,
+        'posts_per_page' => $limit > 0 ? $limit : -1,
         'fields' => 'ids',
         'orderby' => 'title',
         'order' => 'ASC',
@@ -1370,6 +1372,18 @@ function ll_tools_dictionary_get_public_word_ids_for_entry(int $entry_id, int $l
     }
 
     return array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+}
+
+function ll_tools_dictionary_detail_linked_words_preview_limit(): int {
+    $limit = (int) apply_filters('ll_tools_dictionary_detail_linked_words_preview_limit', 24);
+    if ($limit <= 0) {
+        return 0;
+    }
+
+    $max_limit = (int) apply_filters('ll_tools_dictionary_detail_linked_words_preview_max_limit', 50);
+    $max_limit = max(1, min(100, $max_limit));
+
+    return min($limit, $max_limit);
 }
 
 /**
@@ -2134,11 +2148,14 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
         ? ll_tools_dictionary_entry_has_review_flag($entry_id)
         : false;
     $wordset_names = array_values(array_filter(array_map('strval', (array) ($entry['wordset_names'] ?? []))));
-    $word_ids = function_exists('ll_tools_get_dictionary_entry_word_ids')
-        ? array_values(array_filter(array_map('intval', ll_tools_get_dictionary_entry_word_ids($entry_id, -1)), static function (int $word_id): bool {
-            return $word_id > 0 && get_post_status($word_id) === 'publish';
-        }))
-        : ll_tools_dictionary_get_public_word_ids_for_entry($entry_id, -1);
+    $linked_word_preview_limit = ll_tools_dictionary_detail_linked_words_preview_limit();
+    $linked_word_preview_ids = $linked_word_preview_limit > 0
+        ? ll_tools_dictionary_get_public_word_ids_for_entry($entry_id, $linked_word_preview_limit + 1)
+        : [];
+    $has_more_linked_words = count($linked_word_preview_ids) > $linked_word_preview_limit;
+    $word_ids = $linked_word_preview_limit > 0
+        ? array_slice($linked_word_preview_ids, 0, $linked_word_preview_limit)
+        : [];
     $related_entries = ll_tools_dictionary_collect_related_entries($entry_id, $preferred_languages, 6, $display_source_filter_ids);
     $current_source_query = ll_tools_dictionary_shortcode_build_source_query_value(
         ll_tools_dictionary_shortcode_resolve_source_ids_from_request($_GET)
@@ -2357,7 +2374,10 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
     }
 
     if (!empty($word_ids)) {
-        $html .= '<section class="ll-dictionary__detail-section">';
+        $linked_words_attrs = $has_more_linked_words
+            ? ' data-ll-linked-words-truncated="1" data-ll-linked-words-limit="' . esc_attr((string) $linked_word_preview_limit) . '"'
+            : '';
+        $html .= '<section class="ll-dictionary__detail-section"' . $linked_words_attrs . '>';
         $html .= '<h4 class="ll-dictionary__section-title">' . esc_html__('Linked Words', 'll-tools-text-domain') . '</h4>';
         $shortcode = '[word_grid word_ids="' . esc_attr(implode(',', $word_ids)) . '"]';
         $html .= do_shortcode($shortcode);
@@ -3342,7 +3362,8 @@ function ll_tools_dictionary_handle_entry_detail(): void {
         'dialect' => $dialect,
         'preferred_languages' => $preferred_languages,
         'title_language' => $title_language,
-        'detail_view_schema' => 1,
+        'linked_word_preview_limit' => ll_tools_dictionary_detail_linked_words_preview_limit(),
+        'detail_view_schema' => 2,
     ];
     $cached = ll_tools_dictionary_ajax_cache_get('entry_detail', $cache_args);
     if (is_array($cached)) {
