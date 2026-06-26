@@ -87,6 +87,7 @@ read_first:
 - `includes/lib/ai-crawler-support.php`
   - Serves generated `/llms.txt`, `/ll-tools/*.md`, and `/ll-tools/index.jsonld` exports for anonymous public AI-crawler discovery.
   - Exports must stay bounded and filter through explicit anonymous wordset/category visibility checks; canonical HTML pages remain the source of record.
+  - GET export bodies use route-level object/transient caching; HEAD requests remain header-only and must not build cold export bodies.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 

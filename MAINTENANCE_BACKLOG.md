@@ -1,16 +1,10 @@
 # Maintenance Backlog
 
-Updated June 12, 2026 after the weekly maintenance/performance audit, the
-first public lazy-card resource-protection follow-up pass, the E2E
-runner-health follow-up, the Speaking Practice E2E follow-up, the shared
-flashcard shell follow-up, the content lesson route/media E2E follow-up, and
-the prompt-card recorder real-upload E2E follow-up, the teacher-class coverage
-verification follow-up, the Speaking Practice microphone-denial follow-up, and
-the Speaking Practice hosted API failure follow-up, and the offline remote
-snapshot follow-up, the offline sync error-UX follow-up, the June 12
-large-wordset performance/regression follow-up pass, the June 19 public
-flashcard AJAX cache-stampede follow-up, and the June 19 WebP optimizer queue
-resource-guard follow-up.
+Updated June 26, 2026 after the weekly maintenance/performance audit follow-up
+sequence. Recent closed passes include the June 19 public flashcard AJAX
+cache-stampede and WebP optimizer queue resource guards, plus the June 26 flat
+category regression alignment, dictionary detail linked-word cap, AI crawler
+export cache/cheap HEAD guard, and testing-doc inventory refresh.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -18,10 +12,32 @@ being folded into a small opportunistic fix.
 ## Current Short List
 
 The active maintenance list for the current round is intentionally narrowed to
-browser regression coverage, helper cleanup decisions, and documentation upkeep.
+optional browser flake tracking, helper cleanup decisions, and deliberate larger
+projects. The June 26 resource-guard follow-ups from the audit are closed; keep
+new performance work evidence-led and scoped to a measured growth dimension.
 
 ## Recently Closed
 
+- June 26 maintenance/performance docs refresh:
+  the testing docs now record the measured local Playwright inventory as 363
+  tests in 81 files, the backlog reflects the June 26 closed resource guards,
+  and the performance/architecture docs include the AI crawler export cache and
+  cheap HEAD invariant.
+- June 26 AI crawler export resource-guard follow-up:
+  generated `/llms.txt` and `/ll-tools/*` GET export bodies are cached in the
+  object cache and transients by route, locale, dictionary browser version, and
+  wordset/category cache epochs. HEAD requests remain header-only and do not
+  build cold export bodies. `AiCrawlerSupportTest` covers cache hit/miss,
+  dictionary-version invalidation, and no-build HEAD behavior.
+- June 26 dictionary detail linked-word resource-guard follow-up:
+  public dictionary entry-detail rendering now uses a publish-only capped helper
+  query for linked-word preview rows, with a default preview limit of 24,
+  limit+1 truncation detection, and cache schema isolation. `DictionaryFeatureTest`
+  covers the capped helper and detail rendering before `[word_grid]`.
+- June 26 flat-category regression cleanup:
+  upload-form and wordset search regression tests now match the flat exact
+  category model, and the unreachable image-upload parent-category renderer was
+  removed after the aligned tests passed.
 - June 19 WebP optimizer queue resource-guard follow-up:
   the admin WebP optimizer queue no longer requests all `word_images` IDs in a
   single unbounded query on every page load. Queue indexing now scans in bounded
@@ -123,9 +139,11 @@ browser regression coverage, helper cleanup decisions, and documentation upkeep.
   single-query shape.
 - June 10 full local E2E timeout investigation: `bash tests/bin/run-e2e.sh --list`
   found 314 Playwright tests, and all four local shards completed successfully
-  with 313 passed and 1 skipped. No hung spec was isolated. Treat the
-  unsharded local E2E command as a long serial suite in automation; use shards
-  or a timeout of at least 35 minutes before declaring a runner hang.
+  with 313 passed and 1 skipped. Later follow-ups expanded the suite; the June
+  26 documentation refresh listed 363 tests in 81 files. No hung spec was
+  isolated. Treat the unsharded local E2E command as a long serial suite in
+  automation; use `--list`, shards, and a timeout of at least 35 minutes before
+  declaring a runner hang.
 - June 10 wordset category search indexing follow-up: the main wordset render
   path now localizes a tokenized `categorySearch` config instead of the full
   per-category word-search text. The first word/translation search request uses
