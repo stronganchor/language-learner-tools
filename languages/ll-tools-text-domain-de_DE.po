@@ -27567,3 +27567,43 @@ msgstr[1] "+ %d weitere verknüpfte Vokabeln"
 #: includes/shortcodes/dictionary-shortcode.php:87
 msgid "Loading dictionary entry..."
 msgstr "Wörterbucheintrag wird geladen..."
+
+#. ll-tools-public-key: 610f7e9aa0bdd405b90d45bea2e7687c694c2685
+#: includes/shortcodes/dictionary-shortcode.php:3690
+msgid "Searches the public LL Tools dictionary for matching headwords, definitions, translations, sources, and dialect notes."
+msgstr "Durchsucht das öffentliche LL Tools-Wörterbuch nach passenden Stichwörtern, Definitionen, Übersetzungen, Quellen und Dialekthinweisen."
+
+#. ll-tools-public-key: 2e60eff9f351c1b299a9b649f797386f5b1531d1
+#: includes/shortcodes/dictionary-shortcode.php:3709
+msgid "Dictionary search query. Use a headword, translated meaning, example text, source name, or dialect term."
+msgstr "Suchanfrage für das Wörterbuch. Verwende ein Stichwort, eine übersetzte Bedeutung, Beispieltext, einen Quellennamen oder einen Dialektbegriff."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:375
+msgid "Untitled"
+msgstr "Unbenannt"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:401
+msgid "LL Tools Site"
+msgstr "LL Tools-Website"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:927
+msgid "Public LL Tools language-learning content, optimized for AI agents and crawlers."
+msgstr "Öffentliche LL Tools-Inhalte zum Sprachenlernen, optimiert für KI-Agenten und Crawler."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:932
+msgid "LL Tools AI index"
+msgstr "LL Tools-KI-Index"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:932
+msgid "Compact generated Markdown index for AI agents."
+msgstr "Kompakter generierter Markdown-Index für KI-Agenten."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:933
+msgid "Public dictionary search and browse page."
+msgstr "Öffentliche Wörterbuchseite zum Suchen und Stöbern."

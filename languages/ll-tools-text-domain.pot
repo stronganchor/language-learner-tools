@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-06-25T04:34:32+00:00\n"
+"POT-Creation-Date: 2026-06-27T04:32:57+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -246,7 +246,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:786
 #: includes/admin/admin-dashboard-menu.php:787
 #: includes/admin/uploads/audio-upload-form.php:416
-#: includes/admin/uploads/image-upload-form.php:573
+#: includes/admin/uploads/image-upload-form.php:532
 #: includes/taxonomies/wordset-taxonomy.php:1318
 #: includes/taxonomies/wordset-taxonomy.php:1335
 #: includes/taxonomies/wordset-taxonomy.php:1342
@@ -474,7 +474,7 @@ msgid "Edit main audio/video lessons and synced transcript content."
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:639
-#: includes/lib/ai-crawler-support.php:1277
+#: includes/lib/ai-crawler-support.php:1380
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
 #: includes/post-types/vocab-lesson-post-type.php:23
@@ -680,8 +680,8 @@ msgstr ""
 #: includes/admin/audio-image-matcher.php:91
 #: includes/admin/uploads/audio-upload-form.php:406
 #: includes/admin/uploads/audio-upload-form.php:459
-#: includes/admin/uploads/image-upload-form.php:563
-#: includes/admin/uploads/image-upload-form.php:616
+#: includes/admin/uploads/image-upload-form.php:522
+#: includes/admin/uploads/image-upload-form.php:575
 #: templates/audio-image-matcher-template.php:33
 msgid "— Select —"
 msgstr ""
@@ -1437,7 +1437,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:545
 #: includes/admin/ipa-keyboard-admin.php:571
 #: includes/admin/ipa-keyboard-admin.php:594
-#: includes/shortcodes/dictionary-shortcode.php:3692
+#: includes/shortcodes/dictionary-shortcode.php:3713
 #: includes/shortcodes/image-copyright-grid-shortcode.php:161
 msgid "Search"
 msgstr ""
@@ -2216,7 +2216,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:637
 #: includes/admin/teacher-classes-page.php:695
 #: includes/admin/uploads/audio-upload-form.php:404
-#: includes/admin/uploads/image-upload-form.php:561
+#: includes/admin/uploads/image-upload-form.php:520
 #: includes/pages/wordset-pages.php:12036
 #: includes/pages/wordset-pages.php:12553
 #: includes/pages/wordset-pages.php:16673
@@ -2538,7 +2538,7 @@ msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:772
 #: includes/admin/uploads/audio-upload-form.php:444
-#: includes/admin/uploads/image-upload-form.php:601
+#: includes/admin/uploads/image-upload-form.php:560
 msgid "Use existing category"
 msgstr ""
 
@@ -2880,7 +2880,7 @@ msgstr ""
 #: includes/admin/orphan-media-admin.php:1855
 #: includes/admin/site-sync-admin.php:1050
 #: includes/admin/uploads/audio-upload-form.php:510
-#: includes/admin/uploads/image-upload-form.php:668
+#: includes/admin/uploads/image-upload-form.php:627
 #: includes/admin/word-option-rules-admin.php:1640
 #: includes/admin/word-option-rules-admin.php:1683
 #: includes/pages/wordset-pages.php:12069
@@ -5558,7 +5558,7 @@ msgstr ""
 #: includes/lib/interlinear.php:1667
 #: includes/pages/wordset-pages.php:15280
 #: includes/shortcodes/audio-credit-grid-shortcode.php:320
-#: includes/shortcodes/dictionary-shortcode.php:2434
+#: includes/shortcodes/dictionary-shortcode.php:2454
 #: includes/shortcodes/image-copyright-grid-shortcode.php:424
 msgid "Previous"
 msgstr ""
@@ -5576,7 +5576,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:19768
 #: includes/pages/wordset-pages.php:19897
 #: includes/shortcodes/audio-credit-grid-shortcode.php:321
-#: includes/shortcodes/dictionary-shortcode.php:2457
+#: includes/shortcodes/dictionary-shortcode.php:2477
 #: includes/shortcodes/flashcard-widget.php:537
 #: includes/shortcodes/image-copyright-grid-shortcode.php:425
 msgid "Next"
@@ -5793,7 +5793,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:323
 #: includes/admin/ipa-keyboard-admin.php:450
 #: includes/lib/dictionary-browser.php:5976
-#: includes/shortcodes/dictionary-shortcode.php:2314
+#: includes/shortcodes/dictionary-shortcode.php:2331
 msgid "Examples"
 msgstr ""
 
@@ -8089,7 +8089,7 @@ msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1784
 #: includes/admin/uploads/audio-upload-form.php:506
-#: includes/admin/uploads/image-upload-form.php:664
+#: includes/admin/uploads/image-upload-form.php:623
 #: includes/pages/wordset-pages.php:12066
 #: includes/taxonomies/word-category-taxonomy.php:1180
 #: includes/taxonomies/word-category-taxonomy.php:1973
@@ -8808,7 +8808,7 @@ msgstr ""
 #. translators: 1: first visible item, 2: last visible item, 3: total item count
 #. translators: 1: first visible result number, 2: last visible result number, 3: total result count
 #: includes/admin/site-sync-admin.php:1113
-#: includes/shortcodes/dictionary-shortcode.php:2555
+#: includes/shortcodes/dictionary-shortcode.php:2575
 msgid "Showing %1$d-%2$d of %3$d"
 msgstr ""
 
@@ -9668,8 +9668,8 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:223
 #: includes/admin/uploads/audio-upload-form.php:576
-#: includes/admin/uploads/image-upload-form.php:431
-#: includes/admin/uploads/image-upload-form.php:737
+#: includes/admin/uploads/image-upload-form.php:390
+#: includes/admin/uploads/image-upload-form.php:696
 #: includes/api/automation-rest.php:6769
 msgid "You do not have permission to upload files."
 msgstr ""
@@ -9703,17 +9703,17 @@ msgid "Match images based on translation instead of original word"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:373
-#: includes/admin/uploads/image-upload-form.php:530
+#: includes/admin/uploads/image-upload-form.php:489
 msgid "Target Scope"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:383
-#: includes/admin/uploads/image-upload-form.php:540
+#: includes/admin/uploads/image-upload-form.php:499
 msgid "Locked to this word set"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:384
-#: includes/admin/uploads/image-upload-form.php:541
+#: includes/admin/uploads/image-upload-form.php:500
 msgid "Only accessible word set"
 msgstr ""
 
@@ -9722,17 +9722,17 @@ msgid "Audio uploads will use this word set automatically."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:394
-#: includes/admin/uploads/image-upload-form.php:551
+#: includes/admin/uploads/image-upload-form.php:510
 msgid "One word set"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:398
-#: includes/admin/uploads/image-upload-form.php:555
+#: includes/admin/uploads/image-upload-form.php:514
 msgid "Multiple word sets"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:401
-#: includes/admin/uploads/image-upload-form.php:558
+#: includes/admin/uploads/image-upload-form.php:517
 msgid "Choose where this upload should land before selecting a category."
 msgstr ""
 
@@ -9745,59 +9745,59 @@ msgid "No word sets are available for audio upload right now."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:440
-#: includes/admin/uploads/image-upload-form.php:597
+#: includes/admin/uploads/image-upload-form.php:556
 msgid "Category Source"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:448
-#: includes/admin/uploads/image-upload-form.php:605
+#: includes/admin/uploads/image-upload-form.php:564
 msgid "Create new category"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:457
-#: includes/admin/uploads/image-upload-form.php:614
+#: includes/admin/uploads/image-upload-form.php:573
 msgid "Choose Category"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:470
-#: includes/admin/uploads/image-upload-form.php:628
+#: includes/admin/uploads/image-upload-form.php:587
 msgid "The selected logical category will be resolved into the chosen word set scope automatically."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:475
-#: includes/admin/uploads/image-upload-form.php:633
+#: includes/admin/uploads/image-upload-form.php:592
 #: includes/shortcodes/audio-recording-shortcode.php:1638
 msgid "New Category Name"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:477
-#: includes/admin/uploads/image-upload-form.php:635
+#: includes/admin/uploads/image-upload-form.php:594
 msgid "The new category will be created inside the selected word set scope."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:483
-#: includes/admin/uploads/image-upload-form.php:641
+#: includes/admin/uploads/image-upload-form.php:600
 #: includes/taxonomies/word-category-taxonomy.php:783
 #: includes/taxonomies/word-category-taxonomy.php:808
 msgid "Translated Name"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:489
-#: includes/admin/uploads/image-upload-form.php:647
+#: includes/admin/uploads/image-upload-form.php:606
 #: includes/taxonomies/word-category-taxonomy.php:1956
 #: includes/taxonomies/word-category-taxonomy.php:2056
 msgid "Quiz Prompt Type"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:491
-#: includes/admin/uploads/image-upload-form.php:649
+#: includes/admin/uploads/image-upload-form.php:608
 #: includes/taxonomies/word-category-taxonomy.php:1958
 #: includes/taxonomies/word-category-taxonomy.php:2060
 msgid "Play audio (default)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:492
-#: includes/admin/uploads/image-upload-form.php:650
+#: includes/admin/uploads/image-upload-form.php:609
 #: includes/taxonomies/word-category-taxonomy.php:1145
 #: includes/taxonomies/word-category-taxonomy.php:1959
 #: includes/taxonomies/word-category-taxonomy.php:2061
@@ -9805,7 +9805,7 @@ msgid "Play audio + show text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:493
-#: includes/admin/uploads/image-upload-form.php:651
+#: includes/admin/uploads/image-upload-form.php:610
 #: includes/taxonomies/word-category-taxonomy.php:1147
 #: includes/taxonomies/word-category-taxonomy.php:1960
 #: includes/taxonomies/word-category-taxonomy.php:2062
@@ -9813,7 +9813,7 @@ msgid "Play audio + show text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:494
-#: includes/admin/uploads/image-upload-form.php:652
+#: includes/admin/uploads/image-upload-form.php:611
 #: includes/taxonomies/word-category-taxonomy.php:1149
 #: includes/taxonomies/word-category-taxonomy.php:1961
 #: includes/taxonomies/word-category-taxonomy.php:2063
@@ -9821,7 +9821,7 @@ msgid "Show image"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:495
-#: includes/admin/uploads/image-upload-form.php:653
+#: includes/admin/uploads/image-upload-form.php:612
 #: includes/taxonomies/word-category-taxonomy.php:1151
 #: includes/taxonomies/word-category-taxonomy.php:1962
 #: includes/taxonomies/word-category-taxonomy.php:2064
@@ -9829,7 +9829,7 @@ msgid "Show image + play audio"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:496
-#: includes/admin/uploads/image-upload-form.php:654
+#: includes/admin/uploads/image-upload-form.php:613
 #: includes/taxonomies/word-category-taxonomy.php:1153
 #: includes/taxonomies/word-category-taxonomy.php:1963
 #: includes/taxonomies/word-category-taxonomy.php:2065
@@ -9837,7 +9837,7 @@ msgid "Show image + text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:497
-#: includes/admin/uploads/image-upload-form.php:655
+#: includes/admin/uploads/image-upload-form.php:614
 #: includes/taxonomies/word-category-taxonomy.php:1155
 #: includes/taxonomies/word-category-taxonomy.php:1964
 #: includes/taxonomies/word-category-taxonomy.php:2066
@@ -9845,7 +9845,7 @@ msgid "Show image + text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:498
-#: includes/admin/uploads/image-upload-form.php:656
+#: includes/admin/uploads/image-upload-form.php:615
 #: includes/taxonomies/word-category-taxonomy.php:1157
 #: includes/taxonomies/word-category-taxonomy.php:1965
 #: includes/taxonomies/word-category-taxonomy.php:2067
@@ -9853,7 +9853,7 @@ msgid "Show text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:499
-#: includes/admin/uploads/image-upload-form.php:657
+#: includes/admin/uploads/image-upload-form.php:616
 #: includes/taxonomies/word-category-taxonomy.php:1159
 #: includes/taxonomies/word-category-taxonomy.php:1966
 #: includes/taxonomies/word-category-taxonomy.php:2068
@@ -9861,21 +9861,21 @@ msgid "Show text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:504
-#: includes/admin/uploads/image-upload-form.php:662
+#: includes/admin/uploads/image-upload-form.php:621
 #: includes/taxonomies/word-category-taxonomy.php:1971
 #: includes/taxonomies/word-category-taxonomy.php:2075
 msgid "Answer Options"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:507
-#: includes/admin/uploads/image-upload-form.php:665
+#: includes/admin/uploads/image-upload-form.php:624
 #: includes/taxonomies/word-category-taxonomy.php:1975
 #: includes/taxonomies/word-category-taxonomy.php:2081
 msgid "Text (opposite prompt)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:508
-#: includes/admin/uploads/image-upload-form.php:666
+#: includes/admin/uploads/image-upload-form.php:625
 #: includes/taxonomies/word-category-taxonomy.php:1171
 #: includes/taxonomies/word-category-taxonomy.php:1976
 #: includes/taxonomies/word-category-taxonomy.php:2082
@@ -9883,7 +9883,7 @@ msgid "Text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:509
-#: includes/admin/uploads/image-upload-form.php:667
+#: includes/admin/uploads/image-upload-form.php:626
 #: includes/taxonomies/word-category-taxonomy.php:1173
 #: includes/taxonomies/word-category-taxonomy.php:1977
 #: includes/taxonomies/word-category-taxonomy.php:2083
@@ -9891,7 +9891,7 @@ msgid "Text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:511
-#: includes/admin/uploads/image-upload-form.php:669
+#: includes/admin/uploads/image-upload-form.php:628
 #: includes/pages/wordset-pages.php:16447
 #: includes/taxonomies/word-category-taxonomy.php:1177
 #: includes/taxonomies/word-category-taxonomy.php:1979
@@ -9900,7 +9900,7 @@ msgid "Text + audio pairs"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:517
-#: includes/admin/uploads/image-upload-form.php:675
+#: includes/admin/uploads/image-upload-form.php:634
 #: includes/shortcodes/audio-recording-shortcode.php:1642
 #: includes/taxonomies/word-category-taxonomy.php:2381
 #: includes/taxonomies/word-category-taxonomy.php:2416
@@ -9908,12 +9908,12 @@ msgid "Desired Recording Types"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:527
-#: includes/admin/uploads/image-upload-form.php:685
+#: includes/admin/uploads/image-upload-form.php:644
 msgid "Leave all unchecked to disable recording for this category."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:537
-#: includes/admin/uploads/image-upload-form.php:695
+#: includes/admin/uploads/image-upload-form.php:654
 msgid "Upload Target"
 msgstr ""
 
@@ -9926,7 +9926,7 @@ msgid "Bulk Audio Upload for Words"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:585
-#: includes/admin/uploads/image-upload-form.php:783
+#: includes/admin/uploads/image-upload-form.php:742
 msgid "Please choose at least one word set for this upload."
 msgstr ""
 
@@ -10038,53 +10038,53 @@ msgstr ""
 msgid "Large files:"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:462
+#: includes/admin/uploads/image-upload-form.php:421
 msgid "That word set is not available for image upload."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:546
+#: includes/admin/uploads/image-upload-form.php:505
 msgid "Images and any generated words will use this word set automatically."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:588
+#: includes/admin/uploads/image-upload-form.php:547
 msgid "Each uploaded image will be assigned to the same logical category in every selected word set."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:591
+#: includes/admin/uploads/image-upload-form.php:550
 msgid "No word sets are available for image upload right now."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:702
+#: includes/admin/uploads/image-upload-form.php:661
 msgid "Generated word posts will follow this same word set scope automatically when the selected category supports image-based word creation without audio."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:709
+#: includes/admin/uploads/image-upload-form.php:668
 msgid "Bulk Add Images"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:725
+#: includes/admin/uploads/image-upload-form.php:684
 msgid "Bulk Image Upload for Word Images"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:985
+#: includes/admin/uploads/image-upload-form.php:944
 msgid "You do not have permission to create categories."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:992
+#: includes/admin/uploads/image-upload-form.php:951
 msgid "Please enter a title for the new category."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:1011
-#: includes/admin/uploads/image-upload-form.php:1031
+#: includes/admin/uploads/image-upload-form.php:970
+#: includes/admin/uploads/image-upload-form.php:990
 msgid "Category \"%1$s\" could not be created: %2$s"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:1040
-#: includes/admin/uploads/image-upload-form.php:1049
+#: includes/admin/uploads/image-upload-form.php:999
+#: includes/admin/uploads/image-upload-form.php:1008
 msgid "Category could not be created."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:1335
+#: includes/admin/uploads/image-upload-form.php:1294
 msgid "Failed to create word post."
 msgstr ""
 
@@ -10796,7 +10796,7 @@ msgstr ""
 #: includes/api/automation-rest.php:1724
 #: includes/api/automation-rest.php:1836
 #: includes/shortcodes/dictionary-shortcode.php:749
-#: includes/shortcodes/dictionary-shortcode.php:3081
+#: includes/shortcodes/dictionary-shortcode.php:3101
 msgid "Dictionary entry not found."
 msgstr ""
 
@@ -11870,344 +11870,344 @@ msgstr ""
 msgid "Replay"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:272
+#: includes/lib/ai-crawler-support.php:375
 msgid "Untitled"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:298
+#: includes/lib/ai-crawler-support.php:401
 msgid "LL Tools Site"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:824
+#: includes/lib/ai-crawler-support.php:927
 msgid "Public LL Tools language-learning content, optimized for AI agents and crawlers."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:826
+#: includes/lib/ai-crawler-support.php:929
 msgid "This file lists anonymous, read-only public content. Use canonical HTML URLs for citation and the Markdown exports for compact context. Admin screens, editor workflows, recording tools, REST mutation endpoints, and private wordsets are not public crawl targets."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:829
+#: includes/lib/ai-crawler-support.php:932
 msgid "LL Tools AI index"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:829
+#: includes/lib/ai-crawler-support.php:932
 msgid "Compact generated Markdown index for AI agents."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:830
+#: includes/lib/ai-crawler-support.php:933
 #: includes/pages/dictionary-page.php:11
-#: includes/shortcodes/dictionary-shortcode.php:3625
+#: includes/shortcodes/dictionary-shortcode.php:3646
 #: includes/shortcodes/site-tools-shortcode.php:948
 msgid "Dictionary"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:830
+#: includes/lib/ai-crawler-support.php:933
 msgid "Public dictionary search and browse page."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:833
-#: includes/lib/ai-crawler-support.php:864
-#: includes/lib/ai-crawler-support.php:914
+#: includes/lib/ai-crawler-support.php:936
+#: includes/lib/ai-crawler-support.php:967
+#: includes/lib/ai-crawler-support.php:1017
 msgid "Dictionary Markdown"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:833
+#: includes/lib/ai-crawler-support.php:936
 msgid "Bounded public dictionary entries with definitions, sources, and canonical detail links."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:834
-#: includes/lib/ai-crawler-support.php:865
-#: includes/lib/ai-crawler-support.php:920
+#: includes/lib/ai-crawler-support.php:937
+#: includes/lib/ai-crawler-support.php:968
+#: includes/lib/ai-crawler-support.php:1023
 msgid "Wordsets Markdown"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:834
+#: includes/lib/ai-crawler-support.php:937
 msgid "Public wordset hubs and public vocab lessons."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:835
-#: includes/lib/ai-crawler-support.php:866
-#: includes/lib/ai-crawler-support.php:926
+#: includes/lib/ai-crawler-support.php:938
+#: includes/lib/ai-crawler-support.php:969
+#: includes/lib/ai-crawler-support.php:1029
 msgid "Content Lessons Markdown"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:835
+#: includes/lib/ai-crawler-support.php:938
 msgid "Public content lessons with compact transcript samples."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:838
-#: includes/lib/ai-crawler-support.php:861
+#: includes/lib/ai-crawler-support.php:941
+#: includes/lib/ai-crawler-support.php:964
 msgid "AI index JSON-LD"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:838
-#: includes/lib/ai-crawler-support.php:861
+#: includes/lib/ai-crawler-support.php:941
+#: includes/lib/ai-crawler-support.php:964
 msgid "Schema.org structured discovery graph for the generated public exports."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:841
-#: includes/lib/ai-crawler-support.php:869
+#: includes/lib/ai-crawler-support.php:944
+#: includes/lib/ai-crawler-support.php:972
 msgid "AI crawler notes"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:841
+#: includes/lib/ai-crawler-support.php:944
 msgid "Operational notes about how these generated files should be interpreted."
 msgstr ""
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:852
+#: includes/lib/ai-crawler-support.php:955
 msgid "%s LL Tools AI Index"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:856
+#: includes/lib/ai-crawler-support.php:959
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:859
-#: includes/lib/ai-crawler-support.php:902
+#: includes/lib/ai-crawler-support.php:962
+#: includes/lib/ai-crawler-support.php:1005
 msgid "Root llms.txt"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:859
+#: includes/lib/ai-crawler-support.php:962
 msgid "Site-level AI discovery file."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:860
+#: includes/lib/ai-crawler-support.php:963
 msgid "LL Tools llms.txt"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:860
+#: includes/lib/ai-crawler-support.php:963
 msgid "Plugin-scoped copy of the discovery file."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:864
+#: includes/lib/ai-crawler-support.php:967
 msgid "Headwords, summaries, sources, dialects, and dictionary detail links."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:865
+#: includes/lib/ai-crawler-support.php:968
 msgid "Public wordset landing pages and vocab lesson routes."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:866
+#: includes/lib/ai-crawler-support.php:969
 msgid "Content lessons and compact transcript cue samples."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:869
+#: includes/lib/ai-crawler-support.php:972
 msgid "Scope and interpretation notes for these generated exports."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:875
-#: includes/lib/ai-crawler-support.php:1057
+#: includes/lib/ai-crawler-support.php:978
+#: includes/lib/ai-crawler-support.php:1160
 msgid "Dictionary Letter Chunks"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:876
+#: includes/lib/ai-crawler-support.php:979
 msgid "Letter chunks expose smaller dictionary slices for agents that need focused context instead of a broad sample."
 msgstr ""
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:881
+#: includes/lib/ai-crawler-support.php:984
 msgid "Dictionary letter %s"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:908
+#: includes/lib/ai-crawler-support.php:1011
 msgid "AI index Markdown"
 msgstr ""
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:997
+#: includes/lib/ai-crawler-support.php:1100
 msgid "%s LL Tools AI discovery index"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1000
+#: includes/lib/ai-crawler-support.php:1103
 msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1008
-#: includes/lib/ai-crawler-support.php:1044
+#: includes/lib/ai-crawler-support.php:1111
+#: includes/lib/ai-crawler-support.php:1147
 msgid "Public Dictionary"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1009
+#: includes/lib/ai-crawler-support.php:1112
 msgid "Bounded public dictionary entries exposed for compact AI context."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1021
+#: includes/lib/ai-crawler-support.php:1124
 msgid "Dictionary letter Markdown exports"
 msgstr ""
 
 #. translators: %d: Entry limit.
-#: includes/lib/ai-crawler-support.php:1048
+#: includes/lib/ai-crawler-support.php:1151
 msgid "This bounded export includes up to %d anonymous public dictionary entries. Use each canonical detail URL for citation and the public dictionary page for search."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1052
-#: includes/lib/ai-crawler-support.php:1104
+#: includes/lib/ai-crawler-support.php:1155
+#: includes/lib/ai-crawler-support.php:1207
 msgid "Public dictionary page"
 msgstr ""
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1062
+#: includes/lib/ai-crawler-support.php:1165
 msgid "Letter %s"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1072
+#: includes/lib/ai-crawler-support.php:1175
 msgid "No public dictionary entries are currently available."
 msgstr ""
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1092
+#: includes/lib/ai-crawler-support.php:1195
 msgid "Public Dictionary: %s"
 msgstr ""
 
 #. translators: 1: Entry limit. 2: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1098
+#: includes/lib/ai-crawler-support.php:1201
 msgid "This bounded export includes up to %1$d anonymous public dictionary entries for the browse letter %2$s."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1103
+#: includes/lib/ai-crawler-support.php:1206
 msgid "Dictionary Markdown index"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1109
+#: includes/lib/ai-crawler-support.php:1212
 msgid "No public dictionary entries are currently available for this letter."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1128
-#: includes/lib/ai-crawler-support.php:1352
+#: includes/lib/ai-crawler-support.php:1231
+#: includes/lib/ai-crawler-support.php:1455
 msgid "Canonical URL:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1130
-#: includes/lib/ai-crawler-support.php:1359
+#: includes/lib/ai-crawler-support.php:1233
+#: includes/lib/ai-crawler-support.php:1462
 msgid "Summary:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1135
+#: includes/lib/ai-crawler-support.php:1238
 msgid "Part of speech:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1140
+#: includes/lib/ai-crawler-support.php:1243
 msgid "Wordsets:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1145
+#: includes/lib/ai-crawler-support.php:1248
 msgid "Sources:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1150
+#: includes/lib/ai-crawler-support.php:1253
 msgid "Dialects:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1156
-#: includes/shortcodes/dictionary-shortcode.php:2238
+#: includes/lib/ai-crawler-support.php:1259
+#: includes/shortcodes/dictionary-shortcode.php:2255
 msgid "Senses"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1257
+#: includes/lib/ai-crawler-support.php:1360
 msgid "Public Wordsets and Vocab Lessons"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1259
+#: includes/lib/ai-crawler-support.php:1362
 msgid "This export lists anonymous public wordset hubs and vocab lessons. Private wordsets and private categories are excluded."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1261
+#: includes/lib/ai-crawler-support.php:1364
 msgid "Wordsets"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1265
+#: includes/lib/ai-crawler-support.php:1368
 msgid "No public wordsets are currently available."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1279
+#: includes/lib/ai-crawler-support.php:1382
 msgid "No public vocab lessons are currently available."
 msgstr ""
 
 #. translators: %s: Wordset name.
-#: includes/lib/ai-crawler-support.php:1300
+#: includes/lib/ai-crawler-support.php:1403
 msgid "Wordset: %s"
 msgstr ""
 
 #. translators: %s: Category name.
-#: includes/lib/ai-crawler-support.php:1318
+#: includes/lib/ai-crawler-support.php:1421
 msgid "Category: %s"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1334
+#: includes/lib/ai-crawler-support.php:1437
 msgid "Public Content Lessons"
 msgstr ""
 
 #. translators: %d: Lesson limit.
-#: includes/lib/ai-crawler-support.php:1338
+#: includes/lib/ai-crawler-support.php:1441
 msgid "This bounded export includes up to %d public content lessons. Transcript cues are compact samples; use the canonical lesson URL for the full page."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1345
+#: includes/lib/ai-crawler-support.php:1448
 msgid "No public content lessons are currently available."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1364
+#: includes/lib/ai-crawler-support.php:1467
 msgid "Media:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1371
+#: includes/lib/ai-crawler-support.php:1474
 msgid "Wordset:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1377
+#: includes/lib/ai-crawler-support.php:1480
 msgid "Categories:"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1383
+#: includes/lib/ai-crawler-support.php:1486
 msgid "Transcript Sample"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1462
+#: includes/lib/ai-crawler-support.php:1565
 msgid "LL Tools AI Crawler Notes"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1464
+#: includes/lib/ai-crawler-support.php:1567
 msgid "These generated files are intended to help AI agents discover and summarize public LL Tools content efficiently."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1466
+#: includes/lib/ai-crawler-support.php:1569
 msgid "Scope"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1467
+#: includes/lib/ai-crawler-support.php:1570
 msgid "Only anonymous public content is included."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1468
+#: includes/lib/ai-crawler-support.php:1571
 msgid "Exports are bounded snapshots and may omit older or less relevant public records."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1469
+#: includes/lib/ai-crawler-support.php:1572
 msgid "Canonical HTML pages remain the source of record for citation and full context."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1470
+#: includes/lib/ai-crawler-support.php:1573
 msgid "These files do not grant access to private wordsets, admin pages, editor flows, recording tools, or mutation endpoints."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1472
+#: includes/lib/ai-crawler-support.php:1575
 msgid "Crawler Interpretation"
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1473
+#: includes/lib/ai-crawler-support.php:1576
 msgid "Prefer Markdown exports for compact context gathering."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1474
+#: includes/lib/ai-crawler-support.php:1577
 msgid "Prefer canonical HTML URLs when citing or sending a user to the site."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1475
+#: includes/lib/ai-crawler-support.php:1578
 msgid "Use the public dictionary WebMCP tool only for read-only dictionary search."
 msgstr ""
 
-#: includes/lib/ai-crawler-support.php:1476
+#: includes/lib/ai-crawler-support.php:1579
 msgid "Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them."
 msgstr ""
 
@@ -12317,9 +12317,9 @@ msgstr ""
 #. translators: %s: parent dictionary headword
 #. translators: %s: parent headword
 #: includes/lib/dictionary-browser.php:2396
-#: includes/shortcodes/dictionary-shortcode.php:1729
-#: includes/shortcodes/dictionary-shortcode.php:2011
-#: includes/shortcodes/dictionary-shortcode.php:2268
+#: includes/shortcodes/dictionary-shortcode.php:1743
+#: includes/shortcodes/dictionary-shortcode.php:2025
+#: includes/shortcodes/dictionary-shortcode.php:2285
 msgid "Parent: %s"
 msgstr ""
 
@@ -12688,7 +12688,7 @@ msgstr ""
 #: includes/lib/interlinear.php:2309
 #: includes/lib/interlinear.php:2310
 #: includes/post-types/dictionary-entry-post-type.php:1902
-#: includes/shortcodes/dictionary-shortcode.php:2335
+#: includes/shortcodes/dictionary-shortcode.php:2352
 msgid "Sources"
 msgstr ""
 
@@ -14619,7 +14619,7 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:3724
 #: includes/pages/vocab-lesson-pages.php:3855
 #: includes/pages/vocab-lesson-pages.php:4603
-#: includes/shortcodes/dictionary-shortcode.php:3068
+#: includes/shortcodes/dictionary-shortcode.php:3088
 msgid "Invalid request."
 msgstr ""
 
@@ -15152,8 +15152,8 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:3197
 #: includes/pages/wordset-pages.php:17908
-#: includes/shortcodes/dictionary-shortcode.php:2862
-#: includes/shortcodes/dictionary-shortcode.php:2876
+#: includes/shortcodes/dictionary-shortcode.php:2882
+#: includes/shortcodes/dictionary-shortcode.php:2896
 msgid "%d selected"
 msgstr ""
 
@@ -19429,7 +19429,7 @@ msgstr ""
 
 #: includes/post-types/dictionary-entry-post-type.php:1427
 #: includes/post-types/dictionary-entry-post-type.php:1943
-#: includes/shortcodes/dictionary-shortcode.php:1587
+#: includes/shortcodes/dictionary-shortcode.php:1601
 msgid "AI translation"
 msgstr ""
 
@@ -19462,7 +19462,7 @@ msgstr ""
 
 #: includes/post-types/dictionary-entry-post-type.php:1912
 #: includes/post-types/dictionary-entry-post-type.php:2320
-#: includes/shortcodes/dictionary-shortcode.php:2361
+#: includes/shortcodes/dictionary-shortcode.php:2381
 msgid "Linked Words"
 msgstr ""
 
@@ -19479,7 +19479,7 @@ msgstr ""
 
 #. translators: %d: linked word count
 #: includes/post-types/dictionary-entry-post-type.php:2085
-#: includes/shortcodes/dictionary-shortcode.php:1935
+#: includes/shortcodes/dictionary-shortcode.php:1949
 msgid "%d linked word"
 msgid_plural "%d linked words"
 msgstr[0] ""
@@ -21209,18 +21209,18 @@ msgid "Loading dictionary filters..."
 msgstr ""
 
 #: includes/shortcodes/dictionary-shortcode.php:89
-#: includes/shortcodes/dictionary-shortcode.php:3090
+#: includes/shortcodes/dictionary-shortcode.php:3110
 msgid "Enter a dictionary entry title."
 msgstr ""
 
 #: includes/shortcodes/dictionary-shortcode.php:90
-#: includes/shortcodes/dictionary-shortcode.php:3148
+#: includes/shortcodes/dictionary-shortcode.php:3168
 msgid "Enter a definition."
 msgstr ""
 
 #: includes/shortcodes/dictionary-shortcode.php:92
-#: includes/shortcodes/dictionary-shortcode.php:3104
-#: includes/shortcodes/dictionary-shortcode.php:3203
+#: includes/shortcodes/dictionary-shortcode.php:3124
+#: includes/shortcodes/dictionary-shortcode.php:3223
 msgid "Unable to save this dictionary entry right now."
 msgstr ""
 
@@ -21267,159 +21267,159 @@ msgid "Open in admin"
 msgstr ""
 
 #. translators: %s: source label
-#: includes/shortcodes/dictionary-shortcode.php:1576
+#: includes/shortcodes/dictionary-shortcode.php:1590
 msgid "Open source page for %s"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:1588
+#: includes/shortcodes/dictionary-shortcode.php:1602
 msgid "This translation was generated by AI."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:1635
-#: includes/shortcodes/dictionary-shortcode.php:1638
+#: includes/shortcodes/dictionary-shortcode.php:1649
+#: includes/shortcodes/dictionary-shortcode.php:1652
 msgid "Show more"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:1636
+#: includes/shortcodes/dictionary-shortcode.php:1650
 msgid "Show less"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:1853
+#: includes/shortcodes/dictionary-shortcode.php:1867
 msgid "View details"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:1855
+#: includes/shortcodes/dictionary-shortcode.php:1869
 msgid "Additional entry information"
 msgstr ""
 
 #. translators: %d: number of hidden senses
-#: includes/shortcodes/dictionary-shortcode.php:2058
+#: includes/shortcodes/dictionary-shortcode.php:2072
 msgid "+ %d more sense"
 msgid_plural "+ %d more senses"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: example sentence count
-#: includes/shortcodes/dictionary-shortcode.php:2067
+#: includes/shortcodes/dictionary-shortcode.php:2081
 msgid "%d example"
 msgid_plural "%d examples"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of hidden linked words
-#: includes/shortcodes/dictionary-shortcode.php:2076
+#: includes/shortcodes/dictionary-shortcode.php:2090
 msgid "+ %d more linked word"
 msgid_plural "+ %d more linked words"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2098
-#: includes/shortcodes/dictionary-shortcode.php:2110
-#: includes/shortcodes/dictionary-shortcode.php:3286
+#: includes/shortcodes/dictionary-shortcode.php:2112
+#: includes/shortcodes/dictionary-shortcode.php:2124
+#: includes/shortcodes/dictionary-shortcode.php:3306
 msgid "That dictionary entry could not be found."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2159
+#: includes/shortcodes/dictionary-shortcode.php:2176
 msgid "Back to dictionary"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2219
+#: includes/shortcodes/dictionary-shortcode.php:2236
 msgid "Definitions"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2296
+#: includes/shortcodes/dictionary-shortcode.php:2313
 msgid "Definition"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2352
+#: includes/shortcodes/dictionary-shortcode.php:2369
 msgid "View source page"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2369
+#: includes/shortcodes/dictionary-shortcode.php:2389
 msgid "Related Entries"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2413
+#: includes/shortcodes/dictionary-shortcode.php:2433
 msgid "Dictionary pagination"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2565
+#: includes/shortcodes/dictionary-shortcode.php:2585
 msgid "No entries found."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2585
+#: includes/shortcodes/dictionary-shortcode.php:2605
 msgid "Try a shorter query, another spelling, or switch to letter browsing."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2587
+#: includes/shortcodes/dictionary-shortcode.php:2607
 msgid "No entries matched this filter yet."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2766
+#: includes/shortcodes/dictionary-shortcode.php:2786
 msgid "Too many dictionary searches. Please wait a moment and try again."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2801
+#: includes/shortcodes/dictionary-shortcode.php:2821
 msgid "Dialect not marked"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:2997
-#: includes/shortcodes/dictionary-shortcode.php:2998
+#: includes/shortcodes/dictionary-shortcode.php:3017
+#: includes/shortcodes/dictionary-shortcode.php:3018
 msgid "Search settings"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3001
+#: includes/shortcodes/dictionary-shortcode.php:3021
 msgid "Search in languages"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3002
+#: includes/shortcodes/dictionary-shortcode.php:3022
 msgid "All languages"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3008
+#: includes/shortcodes/dictionary-shortcode.php:3028
 msgid "Source dictionaries"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3009
+#: includes/shortcodes/dictionary-shortcode.php:3029
 msgid "All sources"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3019
+#: includes/shortcodes/dictionary-shortcode.php:3039
 msgid "Browse dictionary by letter"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3062
+#: includes/shortcodes/dictionary-shortcode.php:3082
 msgid "Missing dictionary entry."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3074
+#: includes/shortcodes/dictionary-shortcode.php:3094
 msgid "You do not have permission to edit this dictionary entry."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3113
-#: includes/shortcodes/dictionary-shortcode.php:3138
-#: includes/shortcodes/dictionary-shortcode.php:3209
+#: includes/shortcodes/dictionary-shortcode.php:3133
+#: includes/shortcodes/dictionary-shortcode.php:3158
+#: includes/shortcodes/dictionary-shortcode.php:3229
 msgid "Dictionary entry updated."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3157
+#: includes/shortcodes/dictionary-shortcode.php:3177
 msgid "Dictionary definition not found."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3219
+#: includes/shortcodes/dictionary-shortcode.php:3239
 msgid "Invalid dictionary update request."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3669
+#: includes/shortcodes/dictionary-shortcode.php:3690
 msgid "Searches the public LL Tools dictionary for matching headwords, definitions, translations, sources, and dialect notes."
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3676
-#: includes/shortcodes/dictionary-shortcode.php:3683
+#: includes/shortcodes/dictionary-shortcode.php:3697
+#: includes/shortcodes/dictionary-shortcode.php:3704
 msgid "Search dictionary"
 msgstr ""
 
-#: includes/shortcodes/dictionary-shortcode.php:3688
+#: includes/shortcodes/dictionary-shortcode.php:3709
 msgid "Dictionary search query. Use a headword, translated meaning, example text, source name, or dialect term."
 msgstr ""
 

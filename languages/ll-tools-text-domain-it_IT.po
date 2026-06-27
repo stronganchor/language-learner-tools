@@ -4655,3 +4655,43 @@ msgstr[1] "+ %d altre parole collegate"
 #: includes/shortcodes/dictionary-shortcode.php:87
 msgid "Loading dictionary entry..."
 msgstr "Caricamento voce del dizionario..."
+
+#. ll-tools-public-key: 610f7e9aa0bdd405b90d45bea2e7687c694c2685
+#: includes/shortcodes/dictionary-shortcode.php:3690
+msgid "Searches the public LL Tools dictionary for matching headwords, definitions, translations, sources, and dialect notes."
+msgstr "Cerca nel dizionario pubblico di LL Tools lemmi, definizioni, traduzioni, fonti e note dialettali corrispondenti."
+
+#. ll-tools-public-key: 2e60eff9f351c1b299a9b649f797386f5b1531d1
+#: includes/shortcodes/dictionary-shortcode.php:3709
+msgid "Dictionary search query. Use a headword, translated meaning, example text, source name, or dialect term."
+msgstr "Query di ricerca del dizionario. Usa un lemma, un significato tradotto, un testo di esempio, il nome di una fonte o un termine dialettale."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:402
+msgid "Configure global plugin behavior, languages, and operational defaults."
+msgstr "Configura il comportamento globale del plugin, le lingue e i valori operativi predefiniti."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:411
+msgid "Use this dashboard to jump to each main area of the plugin. Tools opens workflow utilities; Settings controls global behavior."
+msgstr "Usa questa bacheca per passare a ogni area principale del plugin. Strumenti apre le utilità del flusso di lavoro; Impostazioni controlla il comportamento globale."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:414 includes/pages/wordset-editor.php:692
+msgid "Content"
+msgstr "Contenuto"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:415
+msgid "Primary content management pages for vocabulary, media, and dictionary data."
+msgstr "Pagine principali di gestione dei contenuti per vocabolario, media e dati del dizionario."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:420
+msgid "Administration"
+msgstr "Amministrazione"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:421
+msgid "Utility and configuration pages used less frequently."
+msgstr "Pagine di utilità e configurazione usate meno spesso."

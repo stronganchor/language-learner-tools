@@ -4655,3 +4655,43 @@ msgstr[1] "+ %d और जुड़े हुए शब्द"
 #: includes/shortcodes/dictionary-shortcode.php:87
 msgid "Loading dictionary entry..."
 msgstr "शब्दकोश प्रविष्टि लोड हो रही है..."
+
+#. ll-tools-public-key: 610f7e9aa0bdd405b90d45bea2e7687c694c2685
+#: includes/shortcodes/dictionary-shortcode.php:3690
+msgid "Searches the public LL Tools dictionary for matching headwords, definitions, translations, sources, and dialect notes."
+msgstr "मिलते-जुलते शीर्षशब्दों, परिभाषाओं, अनुवादों, स्रोतों और बोली नोटों के लिए सार्वजनिक LL Tools शब्दकोश खोजता है."
+
+#. ll-tools-public-key: 2e60eff9f351c1b299a9b649f797386f5b1531d1
+#: includes/shortcodes/dictionary-shortcode.php:3709
+msgid "Dictionary search query. Use a headword, translated meaning, example text, source name, or dialect term."
+msgstr "शब्दकोश खोज क्वेरी. कोई शीर्षशब्द, अनूदित अर्थ, उदाहरण पाठ, स्रोत का नाम या बोली शब्द इस्तेमाल करें."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:402
+msgid "Configure global plugin behavior, languages, and operational defaults."
+msgstr "वैश्विक प्लगइन व्यवहार, भाषाएँ और संचालन डिफ़ॉल्ट कॉन्फ़िगर करें."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:411
+msgid "Use this dashboard to jump to each main area of the plugin. Tools opens workflow utilities; Settings controls global behavior."
+msgstr "प्लगइन के हर मुख्य क्षेत्र पर जाने के लिए इस डैशबोर्ड का उपयोग करें. टूल्स वर्कफ़्लो उपयोगिताएँ खोलता है; सेटिंग्स वैश्विक व्यवहार नियंत्रित करती हैं."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:414 includes/pages/wordset-editor.php:692
+msgid "Content"
+msgstr "सामग्री"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:415
+msgid "Primary content management pages for vocabulary, media, and dictionary data."
+msgstr "शब्दावली, मीडिया और शब्दकोश डेटा के लिए मुख्य सामग्री प्रबंधन पृष्ठ."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:420
+msgid "Administration"
+msgstr "प्रशासन"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/admin/admin-dashboard-menu.php:421
+msgid "Utility and configuration pages used less frequently."
+msgstr "कम बार उपयोग होने वाले उपयोगिता और कॉन्फ़िगरेशन पृष्ठ."

@@ -27401,3 +27401,43 @@ msgstr[1] "+ %d bağlantılı kelime daha"
 #: includes/shortcodes/dictionary-shortcode.php:87
 msgid "Loading dictionary entry..."
 msgstr "Sözlük girişi yükleniyor..."
+
+#. ll-tools-public-key: 610f7e9aa0bdd405b90d45bea2e7687c694c2685
+#: includes/shortcodes/dictionary-shortcode.php:3690
+msgid "Searches the public LL Tools dictionary for matching headwords, definitions, translations, sources, and dialect notes."
+msgstr "Eşleşen başlık kelimeleri, tanımlar, çeviriler, kaynaklar ve lehçe notları için herkese açık LL Tools sözlüğünde arama yapar."
+
+#. ll-tools-public-key: 2e60eff9f351c1b299a9b649f797386f5b1531d1
+#: includes/shortcodes/dictionary-shortcode.php:3709
+msgid "Dictionary search query. Use a headword, translated meaning, example text, source name, or dialect term."
+msgstr "Sözlük arama sorgusu. Bir başlık kelimesi, çevrilmiş anlam, örnek metin, kaynak adı veya lehçe terimi kullan."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:375
+msgid "Untitled"
+msgstr "Başlıksız"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:401
+msgid "LL Tools Site"
+msgstr "LL Tools Sitesi"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:927
+msgid "Public LL Tools language-learning content, optimized for AI agents and crawlers."
+msgstr "AI aracıları ve tarayıcılar için optimize edilmiş herkese açık LL Tools dil öğrenme içeriği."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:932
+msgid "LL Tools AI index"
+msgstr "LL Tools AI dizini"
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:932
+msgid "Compact generated Markdown index for AI agents."
+msgstr "AI aracıları için oluşturulmuş kompakt Markdown dizini."
+
+#. ll-tools-upkeep: full-source-gap
+#: includes/lib/ai-crawler-support.php:933
+msgid "Public dictionary search and browse page."
+msgstr "Herkese açık sözlük arama ve göz atma sayfası."
