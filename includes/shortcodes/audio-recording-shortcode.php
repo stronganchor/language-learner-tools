@@ -4437,6 +4437,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         return $word_id > 0;
     })));
     $candidate_word_ids_limited = !empty($options['candidate_word_ids_limited']);
+    $candidate_image_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($options['candidate_image_ids'] ?? [])), static function (int $image_id): bool {
+        return $image_id > 0;
+    })));
 
     $is_uncategorized_request = ($category_slug === 'uncategorized');
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
@@ -4540,7 +4543,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         ]];
     }
 
-    $image_posts = (!$candidate_word_ids_limited && empty($candidate_word_ids)) ? get_posts($image_args) : [];
+    $image_posts = (!$candidate_word_ids_limited && empty($candidate_word_ids) && empty($candidate_image_ids)) ? get_posts($image_args) : [];
     $referenced_image_posts = !empty($candidate_word_ids)
         ? ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope($wordset_term_ids, (string) $category_slug, $active_category_term_id, $candidate_word_ids)
         : [];
@@ -4548,6 +4551,12 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $image_posts = array_values(array_unique(array_merge(
             array_map('intval', (array) $image_posts),
             array_map('intval', (array) $referenced_image_posts)
+        )));
+    }
+    if (!empty($candidate_image_ids)) {
+        $image_posts = array_values(array_unique(array_merge(
+            array_map('intval', (array) $image_posts),
+            $candidate_image_ids
         )));
     }
 
@@ -4640,6 +4649,11 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $image_word_map = [];
     $scoped_image_posts = [];
     foreach ((array) $image_posts as $img_id) {
+        $image_post = get_post((int) $img_id);
+        if (!($image_post instanceof WP_Post) || $image_post->post_type !== 'word_images' || $image_post->post_status !== 'publish') {
+            continue;
+        }
+
         $resolved_word_id = ll_get_word_for_image_in_wordset((int) $img_id, $wordset_term_ids);
         if (!ll_tools_recorder_word_image_is_allowed_for_wordset_queue((int) $img_id, (int) $resolved_word_id, $wordset_term_ids)) {
             continue;

@@ -132,6 +132,21 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'question' => 'Where is the visible queue word?',
         ]);
 
+        $completed_category = wp_insert_term('Completed Queue Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertFalse(is_wp_error($completed_category));
+        $this->assertIsArray($completed_category);
+        $completed_category_id = (int) $completed_category['term_id'];
+        update_term_meta($completed_category_id, 'll_desired_recording_types', ['isolation']);
+        ll_tools_set_category_wordset_owner($completed_category_id, $wordset_id, $completed_category_id);
+        $completed_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Completed Queue Category Word',
+        ]);
+        wp_set_post_terms($completed_word_id, [$completed_category_id], 'word-category', false);
+        wp_set_post_terms($completed_word_id, [$wordset_id], 'wordset', false);
+        $this->createAudioRecordingForWord((int) $completed_word_id, 'isolation', $recorder_id);
+
         ll_tools_add_hidden_recording_word($recorder_id, [
             'word_id' => $hidden_word_id,
             'title' => 'Hidden Queue Word',
@@ -150,13 +165,15 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Recorder Queues', $html);
         $this->assertStringContainsString('Queue Recorder', $html);
-        $this->assertStringNotContainsString('Visible Queue Word', $html);
         $this->assertStringNotContainsString('Hidden Queue Word', $html);
         $this->assertStringContainsString('Queue by Category', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-grid', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-card', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview', $html);
-        $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--empty', $html);
+        $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--image', $html);
+        $this->assertStringContainsString('visible-queue-word', $html);
+        $this->assertStringNotContainsString('Completed Queue Category', $html);
+        $this->assertStringNotContainsString('ll-wordset-recorder-queue-item__title">Visible Queue Word', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
         $this->assertStringContainsString('Change queue settings', $html);
         $this->assertStringContainsString('data-ll-recorder-queue-autosave="settings"', $html);
@@ -216,6 +233,77 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="unhide"', $hidden_html);
     }
 
+    public function test_recorder_queue_tool_renders_image_only_categories_as_recordable(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $category = wp_insert_term('Image Only Queue Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        $category_slug = (string) get_term_field('slug', $category_id, 'word-category');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Image Only Queue Picture',
+        ]);
+        wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+        ll_tools_set_word_image_wordset_owner($image_id, $wordset_id, $image_id);
+        set_post_thumbnail($image_id, $this->createImageAttachment('image-only-queue-picture.png'));
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Image Queue Recorder',
+        ]);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $_GET = [
+            'll_wordset_tool' => 'recorder-queues',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('Image Only Queue Category', $html);
+        $this->assertStringContainsString('image-only-queue-picture', $html);
+
+        $_GET = [
+            'll_wordset_tool' => 'recorder-queues',
+            'll_recorder_queue_focus' => (string) $recorder_id,
+            'll_recorder_queue_category' => $category_slug,
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg(
+            [
+                'll_recorder_queue_focus' => (string) $recorder_id,
+                'll_recorder_queue_category' => $category_slug,
+            ],
+            ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues')
+        ));
+
+        $focused_html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('Back to categories', $focused_html);
+        $this->assertStringContainsString('Image Only Queue Picture', $focused_html);
+        $this->assertStringContainsString('image-only-queue-picture', $focused_html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_action" value="hide"', $focused_html);
+        $this->assertStringNotContainsString('That category is no longer in this recorder queue.', $focused_html);
+    }
+
     public function test_recorder_queue_category_view_pages_visible_items(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();
@@ -234,6 +322,15 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'post_title' => 'Alpha Queue Page Word',
         ]);
 
+        $completed_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Aardvark Completed Queue Page Word',
+        ]);
+        wp_set_post_terms($completed_word_id, [(int) $fixture['category_id']], 'word-category', false);
+        wp_set_post_terms($completed_word_id, [$wordset_id], 'wordset', false);
+        $this->createAudioRecordingForWord((int) $completed_word_id, 'isolation', $admin_id);
+
         $beta_word_id = self::factory()->post->create([
             'post_type' => 'words',
             'post_status' => 'publish',
@@ -249,6 +346,23 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         update_user_meta($recorder_id, 'll_recording_config', [
             'wordset' => (string) $wordset_term->slug,
         ]);
+
+        $hidden_word_title = 'Aardwolf Hidden Queue Page Word';
+        $hidden_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $hidden_word_title,
+        ]);
+        wp_set_post_terms($hidden_word_id, [(int) $fixture['category_id']], 'word-category', false);
+        wp_set_post_terms($hidden_word_id, [$wordset_id], 'wordset', false);
+        ll_tools_add_hidden_recording_word($recorder_id, [
+            'key' => ll_tools_build_recording_hide_key((int) $hidden_word_id, 0, $hidden_word_title),
+            'word_id' => (int) $hidden_word_id,
+            'title' => $hidden_word_title,
+            'category_name' => (string) $fixture['category_name'],
+            'category_slug' => (string) $fixture['category_slug'],
+        ]);
+        $this->assertCount(1, ll_tools_get_hidden_recording_words_list($recorder_id));
 
         $page_size_filter = static function (): int {
             return 1;
@@ -273,6 +387,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
             $first_page_html = ll_tools_render_wordset_page_content($wordset_id);
 
+            $this->assertStringNotContainsString('Aardvark Completed Queue Page Word', $first_page_html);
+            $this->assertStringNotContainsString($hidden_word_title, $first_page_html);
             $this->assertStringContainsString('Alpha Queue Page Word', $first_page_html);
             $this->assertStringNotContainsString('Beta Queue Page Word', $first_page_html);
             $this->assertStringContainsString('Page 1', $first_page_html);
@@ -1900,6 +2016,27 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
 
         return (int) $attachment_id;
+    }
+
+    private function createAudioRecordingForWord(int $word_id, string $recording_type_slug, int $author_id = 0): int
+    {
+        $word_id = (int) $word_id;
+        $this->assertGreaterThan(0, $word_id);
+
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Recording for ' . get_the_title($word_id),
+            'post_parent' => $word_id,
+            'post_author' => max(0, (int) $author_id),
+        ]);
+        $this->assertGreaterThan(0, (int) $audio_id);
+
+        $recording_type = get_term_by('slug', $recording_type_slug, 'recording_type');
+        $this->assertInstanceOf(WP_Term::class, $recording_type);
+        wp_set_post_terms((int) $audio_id, [(int) $recording_type->term_id], 'recording_type', false);
+
+        return (int) $audio_id;
     }
 
     /**
