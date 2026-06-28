@@ -11,6 +11,7 @@
 - Dictionary static-cache files now default to a 7-day internal TTL because dictionary content changes relatively rarely and existing dictionary edit paths purge the cache.
 - Dictionary static-cache hits send a 5-minute browser/downstream `Cache-Control` max-age by default, so browsers and intermediary caches stay much shorter-lived than the 7-day internal file cache.
 - Static-cache purge helpers can optionally purge Cloudflare edge HTML when `LL_TOOLS_CLOUDFLARE_ZONE_ID` and `LL_TOOLS_CLOUDFLARE_API_TOKEN` are configured, or when equivalent filters provide those values. The default edge purge discovers the configured public dictionary page and purges that exact URL; sites can add more URLs with `ll_tools_cloudflare_static_cache_purge_urls`.
+- Locale-switch links remain signed GET bootstrap URLs for accessibility, but the rendered links now use `rel="nofollow"` and unsigned or expired public `ll_locale` GET/HEAD requests redirect to the clean URL without saving a locale. This reduces stale crawler work on nonce-bearing URLs while preserving normal signed language switching.
 - Both values remain configurable through constants and filters:
   - `LL_TOOLS_DICTIONARY_STATIC_CACHE_TTL`
   - `ll_tools_dictionary_static_cache_ttl`
@@ -28,7 +29,7 @@
 - Add stale-while-revalidate behavior for anonymous dictionary/public static-cache hits, guarded by a per-key lock so one request refreshes an expired file while other anonymous requests can temporarily receive the stale copy.
 - Add LL-owned static caching for public blog/article pages that contain LL shortcodes. These pages are intentionally excluded from generic page caches today, but a plugin-owned cache could safely refresh LL nonce placeholders while avoiding full PHP renders for mostly static article content.
 - Add an admin cache diagnostic panel that shows current LL cache status, page-cache bypass reason, cache directory size, and last purge/prewarm time.
-- Make public language-switcher links more cache-safe on generic pages, either by avoiding nonce-bearing URLs in cacheable markup or by resolving the switch action dynamically.
+- Continue making public language-switcher links more cache-safe on generic pages by avoiding nonce-bearing URLs in cacheable markup entirely, or by resolving the switch action dynamically from a small uncached endpoint.
 - Re-run a small live sitemap/header audit after major cache or template changes to confirm expected pages are cached and LL-specific pages remain excluded.
 
 ## Cloudflare Edge Cache Follow-Ups

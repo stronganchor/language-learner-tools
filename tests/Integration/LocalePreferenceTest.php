@@ -225,6 +225,47 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertSame('tr_TR', ll_tools_filter_locale('en_US'));
     }
 
+    public function test_unsigned_locale_switch_query_redirects_to_clean_url_without_persisting_locale(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/learn/?ll_locale=tr_TR&ll_locale_nonce=bad&keep=1';
+        $_GET = [
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => 'bad',
+            'keep' => '1',
+        ];
+        $_REQUEST = $_GET;
+
+        $redirect = $this->captureLocaleSwitchRedirect(static function (): void {
+            ll_tools_handle_locale_switch();
+        });
+
+        $this->assertStringContainsString('keep=1', $redirect);
+        $this->assertStringNotContainsString('ll_locale=', $redirect);
+        $this->assertStringNotContainsString('ll_locale_nonce=', $redirect);
+        $this->assertNotSame('tr_TR', $_COOKIE[LL_TOOLS_I18N_COOKIE] ?? '');
+    }
+
+    public function test_signed_locale_switch_query_persists_locale_then_redirects_to_clean_url(): void
+    {
+        $nonce = wp_create_nonce(ll_tools_get_locale_switch_nonce_action());
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/learn/?ll_locale=tr_TR&ll_locale_nonce=' . rawurlencode($nonce);
+        $_GET = [
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => $nonce,
+        ];
+        $_REQUEST = $_GET;
+
+        $redirect = $this->captureLocaleSwitchRedirect(static function (): void {
+            ll_tools_handle_locale_switch();
+        });
+
+        $this->assertStringNotContainsString('ll_locale=', $redirect);
+        $this->assertStringNotContainsString('ll_locale_nonce=', $redirect);
+        $this->assertSame('tr_TR', $_COOKIE[LL_TOOLS_I18N_COOKIE] ?? '');
+    }
+
     public function test_filter_locale_defaults_to_browser_language_when_enabled(): void
     {
         $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
@@ -270,6 +311,7 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll-lang-switcher__summary-label', $html);
         $this->assertStringNotContainsString('A/あ', $html);
         $this->assertStringContainsString('ll_locale_nonce', $html);
+        $this->assertStringContainsString('rel="nofollow"', $html);
     }
 
     public function test_language_switcher_list_defaults_to_first_three_languages_then_more_button(): void
@@ -437,5 +479,29 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
 
         $this->assertSame('en_US', ll_tools_filter_locale('en_US'));
+    }
+
+    private function captureLocaleSwitchRedirect(callable $callback): string
+    {
+        $redirect_url = '';
+        $redirect_filter = static function ($location) use (&$redirect_url) {
+            $redirect_url = (string) $location;
+            throw new RuntimeException('redirect_intercepted');
+        };
+
+        add_filter('wp_redirect', $redirect_filter, 10, 1);
+
+        try {
+            $callback();
+            $this->fail('Expected locale switch handler to redirect.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('redirect_intercepted', $e->getMessage());
+        } finally {
+            remove_filter('wp_redirect', $redirect_filter, 10);
+        }
+
+        $this->assertNotSame('', $redirect_url);
+
+        return $redirect_url;
     }
 }

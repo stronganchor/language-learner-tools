@@ -646,6 +646,43 @@ function ll_tools_verify_locale_switch_request_nonce(): bool {
     return (bool) wp_verify_nonce($nonce, ll_tools_get_locale_switch_nonce_action());
 }
 
+function ll_tools_has_locale_switch_query_request(): bool {
+    return isset($_GET['ll_locale']);
+}
+
+function ll_tools_locale_switch_request_allows_clean_redirect(): bool {
+    $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+
+    return in_array($method, ['GET', 'HEAD'], true);
+}
+
+function ll_tools_get_clean_locale_switch_redirect_url(): string {
+    $target = remove_query_arg(['ll_locale', 'll_locale_nonce']);
+    if ($target) {
+        return (string) $target;
+    }
+
+    $path = isset($_SERVER['REQUEST_URI']) ? (string) wp_parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH) : '/';
+    if ($path === '') {
+        $path = '/';
+    }
+
+    return home_url($path);
+}
+
+function ll_tools_send_locale_switch_noindex_header(): void {
+    if (!headers_sent()) {
+        header('X-Robots-Tag: noindex, nofollow', false);
+    }
+}
+
+function ll_tools_redirect_clean_locale_switch_request(): void {
+    ll_tools_send_locale_switch_noindex_header();
+    nocache_headers();
+    wp_safe_redirect(ll_tools_get_clean_locale_switch_redirect_url(), 302);
+    exit;
+}
+
 /**
  * Add the preferred locale to an internal URL so redirects land in the right UI language.
  */
@@ -758,22 +795,25 @@ function ll_tools_handle_locale_switch() {
         return; // front-end only
     }
     $requested = ll_tools_get_requested_switcher_locale(true);
-    if ($requested === '') return;
-    if (!ll_tools_verify_locale_switch_request_nonce()) return;
+    $should_clean_locale_query = ll_tools_has_locale_switch_query_request()
+        && ll_tools_locale_switch_request_allows_clean_redirect();
+    if ($requested === '') {
+        if ($should_clean_locale_query) {
+            ll_tools_redirect_clean_locale_switch_request();
+        }
+        return;
+    }
+    if (!ll_tools_verify_locale_switch_request_nonce()) {
+        if ($should_clean_locale_query) {
+            ll_tools_redirect_clean_locale_switch_request();
+        }
+        return;
+    }
 
     ll_tools_persist_locale_preference($requested);
 
-    // Redirect to a clean URL (remove the param). Use current URL as base safely.
-    $target = remove_query_arg(['ll_locale', 'll_locale_nonce']);
-    if (!$target) {
-        // very defensive fallback
-        $target = home_url(add_query_arg([], wp_parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/'));
-    }
-
     // Prevent any output + send no-cache headers before redirect
-    nocache_headers();
-    wp_safe_redirect($target, 302);
-    exit;
+    ll_tools_redirect_clean_locale_switch_request();
 }
 add_action('template_redirect', 'll_tools_handle_locale_switch');
 
@@ -876,7 +916,7 @@ function ll_tools_render_language_switcher_locale_item(string $locale, string $c
                 <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
             </span>
         <?php else: ?>
-            <a href="<?php echo $url; ?>" class="ll-lang-link">
+            <a href="<?php echo $url; ?>" class="ll-lang-link" rel="nofollow">
                 <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
                 <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
             </a>
