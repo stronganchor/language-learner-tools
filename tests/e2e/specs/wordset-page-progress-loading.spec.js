@@ -33,7 +33,8 @@ function buildAnalytics({
   categoryId = 11,
   label = 'Cat A',
   words = [],
-  wordsPagination = null
+  wordsPagination = null,
+  wordFilterCounts = null
 } = {}) {
   return {
     scope: {
@@ -76,6 +77,7 @@ function buildAnalytics({
       }
     ],
     words,
+    word_filter_counts: wordFilterCounts || {},
     words_pagination: wordsPagination || {
       enabled: false,
       total: Array.isArray(words) ? words.length : 0,
@@ -275,6 +277,12 @@ function buildProgressPageMarkup() {
           <span data-ll-wordset-progress-search-loading hidden></span>
           <button type="button" data-ll-wordset-progress-clear-filters hidden>Clear</button>
           <button type="button" data-ll-wordset-progress-select-all>Select all</button>
+          <div data-ll-wordset-progress-column-filter-options="star"></div>
+          <div data-ll-wordset-progress-column-filter-options="status"></div>
+          <div data-ll-wordset-progress-column-filter-options="difficulty"></div>
+          <div data-ll-wordset-progress-column-filter-options="seen"></div>
+          <div data-ll-wordset-progress-column-filter-options="wrong"></div>
+          <div data-ll-wordset-progress-category-filter-options></div>
           <div class="ll-wordset-progress-table-wrap" style="max-height: 40px; overflow: auto;">
             <table class="ll-wordset-progress-table ll-wordset-progress-table--words">
               <tbody data-ll-wordset-progress-words-body></tbody>
@@ -405,6 +413,17 @@ function buildPageConfig(overrides = {}) {
       analyticsDeselectAllShown: 'Deselect all',
       analyticsSelectAllContextFiltered: 'Filtered words',
       analyticsSelectionCount: '%d selected words',
+      analyticsWordStatusMastered: 'Learned',
+      analyticsWordStatusStudied: 'In progress',
+      analyticsWordStatusNew: 'New',
+      analyticsFilterStarredOnly: 'Starred only',
+      analyticsFilterUnstarredOnly: 'Unstarred only',
+      analyticsFilterLast24h: 'Last 24 hours',
+      analyticsFilterLast7d: 'Last 7 days',
+      analyticsFilterLast30d: 'Last 30 days',
+      analyticsFilterLastOlder: 'Older',
+      analyticsFilterLastNever: 'Never',
+      analyticsFilterDifficultyHard: 'Hard',
       analyticsMastered: 'Learned',
       analyticsStudied: 'In progress',
       analyticsNew: 'New',
@@ -847,6 +866,150 @@ test('progress starred filter requests matching word pages directly', async ({ p
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(12);
   await expect(page.locator('[data-ll-wordset-progress-words-loaded]')).toHaveText('Showing 12 of 12 matching words');
   await expect(page.locator('[data-ll-wordset-progress-words-load-more]')).toBeHidden();
+});
+
+test('progress filter option counts use full matching totals instead of loaded rows', async ({ page }) => {
+  await mountProgressPage(page, {
+    config: {
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: [1, 4, 9, 30, 44],
+        star_mode: 'normal',
+        fast_transitions: false
+      }
+    }
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(1);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    totalWords: 100,
+    masteredWords: 7,
+    studiedWords: 35,
+    newWords: 65,
+    starredWords: 5,
+    words: buildProgressWords(1, 30, { starredIds: [1, 4, 9, 30, 44] }),
+    wordFilterCounts: {
+      status: {
+        mastered: 7,
+        studied: 28,
+        new: 65
+      },
+      star: {
+        starred: 5,
+        unstarred: 95
+      },
+      category: {
+        11: 100
+      }
+    },
+    wordsPagination: {
+      enabled: true,
+      total: 100,
+      unfiltered_total: 100,
+      filtered: false,
+      offset: 0,
+      limit: 30,
+      loaded: 30,
+      next_offset: 30,
+      has_more: true
+    }
+  }));
+
+  await page.getByRole('button', { name: 'Words' }).click();
+
+  await expect(page.locator('[data-ll-wordset-progress-column-filter-options="status"] .ll-wordset-progress-filter-option__count'))
+    .toHaveText([' (7)', ' (28)', ' (65)']);
+  await expect(page.locator('[data-ll-wordset-progress-column-filter-options="star"] .ll-wordset-progress-filter-option__count'))
+    .toHaveText([' (5)', ' (95)']);
+  await expect(page.locator('[data-ll-wordset-progress-category-filter-options] .ll-wordset-progress-filter-option__count'))
+    .toHaveText([' (100)']);
+});
+
+test('progress select all enters loading state immediately while a filter applies', async ({ page }) => {
+  const matchingIds = Array.from({ length: 42 }, (_unused, index) => 101 + index);
+  await mountProgressPage(page, {
+    config: {
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: matchingIds,
+        star_mode: 'normal',
+        fast_transitions: false
+      }
+    }
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(1);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    totalWords: 80,
+    starredWords: 42,
+    studiedWords: 42,
+    newWords: 38,
+    words: buildProgressWords(1, 30),
+    wordsPagination: {
+      enabled: true,
+      total: 80,
+      unfiltered_total: 80,
+      filtered: false,
+      offset: 0,
+      limit: 30,
+      loaded: 30,
+      next_offset: 30,
+      has_more: true
+    }
+  }));
+
+  await page.getByRole('button', { name: 'Words' }).click();
+  await expect(page.locator('[data-ll-wordset-progress-select-all]')).toHaveText('Select all');
+
+  await page.locator('[data-ll-wordset-progress-kpi-filter="starred"]').click();
+
+  const selectAll = page.locator('[data-ll-wordset-progress-select-all]');
+  await expect(selectAll).toHaveText('Select all: Starred');
+  await expect(selectAll).toHaveClass(/is-loading/);
+  await expect(selectAll).toHaveAttribute('aria-busy', 'true');
+  await expect(selectAll).toBeDisabled();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(2);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(1, payload);
+  }, buildAnalytics({
+    totalWords: 80,
+    starredWords: 42,
+    studiedWords: 42,
+    newWords: 38,
+    words: matchingIds.slice(0, 30).map((id) => buildProgressWords(id, 1, { starredIds: matchingIds })[0]),
+    wordsPagination: {
+      enabled: true,
+      total: 42,
+      unfiltered_total: 80,
+      filtered: true,
+      offset: 0,
+      limit: 30,
+      loaded: 30,
+      next_offset: 30,
+      has_more: true
+    }
+  }));
+
+  await expect(selectAll).toHaveText('Select all: Starred');
+  await expect(selectAll).not.toHaveClass(/is-loading/);
+  await expect(selectAll).toHaveAttribute('aria-busy', 'false');
+  await expect(selectAll).toBeEnabled();
 });
 
 async function assertFilteredProgressPracticeLaunch(page, options) {

@@ -128,6 +128,7 @@
     let progressWordPageLoading = false;
     let progressWordPageRequestToken = 0;
     let progressWordRequestFilterKey = '';
+    let progressWordPendingFilterKey = null;
     let progressWordAutoLoadTimer = 0;
     let analyticsCategoryRenderTimer = null;
     let analyticsCategoryLoadingTimer = null;
@@ -1794,6 +1795,77 @@
         };
     }
 
+    function normalizeProgressFilterCountMap(raw) {
+        const source = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+        const out = {};
+        Object.keys(source).forEach(function (key) {
+            out[String(key)] = Math.max(0, parseInt(source[key], 10) || 0);
+        });
+        return out;
+    }
+
+    function normalizeProgressFilterFrequencyList(raw) {
+        if (Array.isArray(raw)) {
+            return raw.map(function (entry) {
+                const item = (entry && typeof entry === 'object') ? entry : {};
+                return {
+                    value: Math.max(0, parseInt(item.value, 10) || 0),
+                    count: Math.max(0, parseInt(item.count, 10) || 0)
+                };
+            }).filter(function (item) {
+                return item.count > 0;
+            });
+        }
+
+        if (raw && typeof raw === 'object') {
+            return Object.keys(raw).map(function (key) {
+                return {
+                    value: Math.max(0, parseInt(key, 10) || 0),
+                    count: Math.max(0, parseInt(raw[key], 10) || 0)
+                };
+            }).filter(function (item) {
+                return item.count > 0;
+            });
+        }
+
+        return [];
+    }
+
+    function normalizeProgressWordFilterCounts(raw) {
+        const source = (raw && typeof raw === 'object') ? raw : {};
+        const numericCounts = function (key) {
+            const item = (source[key] && typeof source[key] === 'object') ? source[key] : {};
+            return {
+                hard: Math.max(0, parseInt(item.hard, 10) || 0),
+                frequencies: normalizeProgressFilterFrequencyList(item.frequencies || item.frequency || {})
+            };
+        };
+        const partOfSpeechRaw = Array.isArray(source.part_of_speech)
+            ? source.part_of_speech
+            : (Array.isArray(source.partOfSpeech) ? source.partOfSpeech : []);
+
+        return {
+            category: normalizeProgressFilterCountMap(source.category || source.categories || {}),
+            star: normalizeProgressFilterCountMap(source.star || {}),
+            status: normalizeProgressFilterCountMap(source.status || {}),
+            part_of_speech: partOfSpeechRaw.map(function (entry) {
+                const item = (entry && typeof entry === 'object') ? entry : {};
+                const value = String(item.value || item.slug || '').trim();
+                const label = String(item.label || value).trim();
+                if (!value || !label) { return null; }
+                return {
+                    value: value,
+                    label: label,
+                    count: Math.max(0, parseInt(item.count, 10) || 0)
+                };
+            }).filter(Boolean),
+            last: normalizeProgressFilterCountMap(source.last || {}),
+            difficulty: numericCounts('difficulty'),
+            seen: numericCounts('seen'),
+            wrong: numericCounts('wrong')
+        };
+    }
+
     function normalizeAnalytics(raw) {
         const src = (raw && typeof raw === 'object') ? raw : {};
         const scopeRaw = (src.scope && typeof src.scope === 'object') ? src.scope : {};
@@ -1936,6 +2008,9 @@
         const wordsPaginationRaw = (src.words_pagination && typeof src.words_pagination === 'object')
             ? src.words_pagination
             : ((src.wordsPagination && typeof src.wordsPagination === 'object') ? src.wordsPagination : {});
+        const wordFilterCountsRaw = (src.word_filter_counts && typeof src.word_filter_counts === 'object')
+            ? src.word_filter_counts
+            : ((src.wordFilterCounts && typeof src.wordFilterCounts === 'object') ? src.wordFilterCounts : {});
 
         return {
             scope: {
@@ -1962,6 +2037,7 @@
             categories: categories,
             words: words,
             wordIds: uniqueIntList(src.word_ids || src.wordIds || []),
+            wordFilterCounts: normalizeProgressWordFilterCounts(wordFilterCountsRaw),
             wordsOmitted: !!src.words_omitted,
             wordsPagination: normalizeProgressWordPagination(wordsPaginationRaw, words.length)
         };
@@ -3230,7 +3306,6 @@
     }
 
     function analyticsBuildNumericRanges(values, targetCount) {
-        const count = Math.max(1, parseInt(targetCount, 10) || 5);
         const nums = (Array.isArray(values) ? values : []).map(function (value) {
             return Math.max(0, parseInt(value, 10) || 0);
         });
@@ -3252,6 +3327,23 @@
             });
         });
 
+        return analyticsBuildNumericRangesFromFrequencies(frequencies, targetCount);
+    }
+
+    function analyticsBuildNumericRangesFromFrequencies(frequencyInput, targetCount) {
+        const count = Math.max(1, parseInt(targetCount, 10) || 5);
+        const frequencies = (Array.isArray(frequencyInput) ? frequencyInput : []).map(function (entry) {
+            const item = (entry && typeof entry === 'object') ? entry : {};
+            return {
+                value: Math.max(0, parseInt(item.value, 10) || 0),
+                count: Math.max(0, parseInt(item.count, 10) || 0)
+            };
+        }).filter(function (entry) {
+            return entry.count > 0;
+        }).sort(function (left, right) {
+            return left.value - right.value;
+        });
+
         if (!frequencies.length) {
             return [];
         }
@@ -3268,7 +3360,9 @@
         const ranges = [];
         const bucketCount = Math.min(count, frequencies.length);
         let startIndex = 0;
-        let remainingTotal = nums.length;
+        let remainingTotal = frequencies.reduce(function (sum, entry) {
+            return sum + Math.max(0, parseInt(entry.count, 10) || 0);
+        }, 0);
 
         for (let bucketIndex = 0; bucketIndex < bucketCount && startIndex < frequencies.length; bucketIndex += 1) {
             const bucketsLeft = bucketCount - bucketIndex;
@@ -3385,6 +3479,10 @@
             progressSelectedAllWordFilterKey === currentKey &&
             progressSelectedAllWordCount > 0
         );
+    }
+
+    function progressWordFilterRefreshIsPending() {
+        return progressWordPendingFilterKey !== null && progressWordPendingFilterKey === getCurrentProgressWordRequestFilterKey();
     }
 
     function clearProgressAllFilteredSelection() {
@@ -3620,6 +3718,124 @@
         }
         const normalizedCount = normalizeProgressFilterOptionCount(count);
         return text + ' (' + String(normalizedCount) + ')';
+    }
+
+    function getProgressWordFilterCounts() {
+        return (analytics && analytics.wordFilterCounts && typeof analytics.wordFilterCounts === 'object')
+            ? analytics.wordFilterCounts
+            : {};
+    }
+
+    function getProgressWordFilterCountMap(key) {
+        const counts = getProgressWordFilterCounts();
+        const map = counts && counts[key] && typeof counts[key] === 'object' && !Array.isArray(counts[key])
+            ? counts[key]
+            : null;
+        return map;
+    }
+
+    function getProgressWordFilterCount(map, value) {
+        if (!map || typeof map !== 'object') {
+            return null;
+        }
+        const key = String(value);
+        if (!Object.prototype.hasOwnProperty.call(map, key)) {
+            return null;
+        }
+        return normalizeProgressFilterOptionCount(map[key]);
+    }
+
+    function getProgressPartOfSpeechFilterCountOptions() {
+        const counts = getProgressWordFilterCounts();
+        const options = Array.isArray(counts.part_of_speech) ? counts.part_of_speech : [];
+        if (!options.length) {
+            return null;
+        }
+        return options.map(function (entry) {
+            const item = (entry && typeof entry === 'object') ? entry : {};
+            const value = String(item.value || '').trim();
+            const label = String(item.label || value).trim();
+            if (!value || !label) { return null; }
+            return {
+                value: value,
+                label: label,
+                count: normalizeProgressFilterOptionCount(item.count)
+            };
+        }).filter(Boolean);
+    }
+
+    function getProgressNumericFilterCounts(key) {
+        const counts = getProgressWordFilterCounts();
+        const source = counts && counts[key] && typeof counts[key] === 'object' ? counts[key] : null;
+        if (!source || !Array.isArray(source.frequencies)) {
+            return null;
+        }
+        return {
+            hard: normalizeProgressFilterOptionCount(source.hard),
+            frequencies: source.frequencies.map(function (entry) {
+                const item = (entry && typeof entry === 'object') ? entry : {};
+                return {
+                    value: Math.max(0, parseInt(item.value, 10) || 0),
+                    count: normalizeProgressFilterOptionCount(item.count)
+                };
+            }).filter(function (item) {
+                return item.count > 0;
+            })
+        };
+    }
+
+    function getProgressFrequencyRangeCount(frequencies, token) {
+        const range = analyticsParseRangeToken(token);
+        if (!range) { return 0; }
+        return (Array.isArray(frequencies) ? frequencies : []).reduce(function (sum, entry) {
+            const item = (entry && typeof entry === 'object') ? entry : {};
+            const value = Math.max(0, parseInt(item.value, 10) || 0);
+            if (value < range.min || value > range.max) {
+                return sum;
+            }
+            return sum + normalizeProgressFilterOptionCount(item.count);
+        }, 0);
+    }
+
+    function appendSelectedNumericFallbackOptionsFromCounts(key, options, numericCounts) {
+        const list = Array.isArray(options) ? options.slice() : [];
+        const selectedValues = normalizeFilterSelectionList(analyticsWordColumnFilters[key] || []);
+        const seenValues = {};
+        list.forEach(function (item) {
+            const value = String(item && item.value || '').trim();
+            if (value) {
+                seenValues[value] = true;
+            }
+        });
+        selectedValues.forEach(function (value) {
+            if (!value || seenValues[value]) {
+                return;
+            }
+            let option = null;
+            if (key === 'difficulty' && value === 'hard') {
+                const label = String(i18n.analyticsFilterDifficultyHard || '');
+                option = {
+                    value: value,
+                    label: label,
+                    count: normalizeProgressFilterOptionCount(numericCounts && numericCounts.hard),
+                    iconHtml: hardWordsIconSvgMarkup(),
+                    ariaLabel: buildProgressFilterOptionAriaLabel(label, normalizeProgressFilterOptionCount(numericCounts && numericCounts.hard)),
+                    optionClass: 'll-wordset-progress-filter-option--hard-range'
+                };
+            } else if (analyticsParseRangeToken(value)) {
+                const range = analyticsParseRangeToken(value);
+                option = {
+                    value: value,
+                    label: analyticsFormatRangeLabel(range.min, range.max),
+                    count: getProgressFrequencyRangeCount(numericCounts && numericCounts.frequencies, value)
+                };
+            }
+            if (option) {
+                seenValues[value] = true;
+                list.push(option);
+            }
+        });
+        return list;
     }
 
     function appendProgressFilterOptionLabel($row, label, count) {
@@ -3970,28 +4186,33 @@
             const rows = buildProgressWordFilterContextRows(key);
             let options = [];
             if (key === 'part_of_speech') {
-                const partOfSpeechValues = {};
-                rows.forEach(function (row) {
-                    const value = analyticsWordPartOfSpeechSlug(row);
-                    const label = analyticsWordPartOfSpeechLabel(row);
-                    if (!value || !label || partOfSpeechValues[value]) {
-                        return;
-                    }
-                    partOfSpeechValues[value] = {
-                        value: value,
-                        label: label
-                    };
-                });
-                options = Object.keys(partOfSpeechValues).sort(function (left, right) {
-                    return localeTextCompare(partOfSpeechValues[left].label, partOfSpeechValues[right].label);
-                }).map(function (value) {
-                    const item = partOfSpeechValues[value];
-                    return $.extend({}, item, {
-                        count: rows.filter(function (row) {
-                            return analyticsWordMatchesPartOfSpeechFilter(row, item.value);
-                        }).length
+                const countedOptions = getProgressPartOfSpeechFilterCountOptions();
+                if (countedOptions) {
+                    options = countedOptions;
+                } else {
+                    const partOfSpeechValues = {};
+                    rows.forEach(function (row) {
+                        const value = analyticsWordPartOfSpeechSlug(row);
+                        const label = analyticsWordPartOfSpeechLabel(row);
+                        if (!value || !label || partOfSpeechValues[value]) {
+                            return;
+                        }
+                        partOfSpeechValues[value] = {
+                            value: value,
+                            label: label
+                        };
                     });
-                });
+                    options = Object.keys(partOfSpeechValues).sort(function (left, right) {
+                        return localeTextCompare(partOfSpeechValues[left].label, partOfSpeechValues[right].label);
+                    }).map(function (value) {
+                        const item = partOfSpeechValues[value];
+                        return $.extend({}, item, {
+                            count: rows.filter(function (row) {
+                                return analyticsWordMatchesPartOfSpeechFilter(row, item.value);
+                            }).length
+                        });
+                    });
+                }
             } else if (key === 'status') {
                 if (isGenderProgressViewActive()) {
                     const genderValues = {};
@@ -4022,8 +4243,10 @@
                         { value: 'studied', label: i18n.analyticsWordStatusStudied || '' },
                         { value: 'new', label: i18n.analyticsWordStatusNew || '' }
                     ].map(function (item) {
+                        const counts = getProgressWordFilterCountMap('status');
+                        const counted = getProgressWordFilterCount(counts, item.value);
                         return $.extend({}, item, {
-                            count: rows.filter(function (row) {
+                            count: counted !== null ? counted : rows.filter(function (row) {
                                 return String(row && row.status || 'new') === item.value;
                             }).length
                         });
@@ -4034,8 +4257,10 @@
                     { value: 'starred', label: i18n.analyticsFilterStarredOnly || '' },
                     { value: 'unstarred', label: i18n.analyticsFilterUnstarredOnly || '' }
                 ].map(function (item) {
+                    const counts = getProgressWordFilterCountMap('star');
+                    const counted = getProgressWordFilterCount(counts, item.value);
                     return $.extend({}, item, {
-                        count: rows.filter(function (row) {
+                        count: counted !== null ? counted : rows.filter(function (row) {
                             return analyticsWordMatchesStarFilter(row, item.value);
                         }).length
                     });
@@ -4048,8 +4273,10 @@
                     { value: 'older', label: i18n.analyticsFilterLastOlder || '' },
                     { value: 'never', label: i18n.analyticsFilterLastNever || '' }
                 ].map(function (item) {
+                    const counts = getProgressWordFilterCountMap('last');
+                    const counted = getProgressWordFilterCount(counts, item.value);
                     return $.extend({}, item, {
-                        count: rows.filter(function (row) {
+                        count: counted !== null ? counted : rows.filter(function (row) {
                             return analyticsWordMatchesLastFilter(row, item.value);
                         }).length
                     });
@@ -4069,47 +4296,79 @@
                         });
                     });
                 } else {
-                    const hardRows = rows.filter(function (row) {
-                        return analyticsWordIsDifficult(row);
-                    });
-                    const hardValues = hardRows.map(analyticsWordDifficulty);
-                    let nonHardValues = rows.filter(function (row) {
-                        return !analyticsWordIsDifficult(row);
-                    }).map(analyticsWordDifficulty);
-                    let hardMin = 0;
-                    let hardMax = 0;
-                    if (hardValues.length) {
-                        hardMin = Math.min.apply(null, hardValues);
-                        hardMax = Math.max.apply(null, hardValues);
-                        nonHardValues = nonHardValues.filter(function (value) {
-                            return value < hardMin || value > hardMax;
+                    const countedDifficulty = getProgressNumericFilterCounts('difficulty');
+                    if (countedDifficulty) {
+                        const difficultyRanges = analyticsBuildNumericRangesFromFrequencies(countedDifficulty.frequencies, 4);
+                        options = rangeToOptions(difficultyRanges);
+                        if (countedDifficulty.hard > 0) {
+                            const hardWordsLabel = String(i18n.analyticsFilterDifficultyHard || '');
+                            options.push({
+                                value: 'hard',
+                                label: hardWordsLabel,
+                                count: countedDifficulty.hard,
+                                iconHtml: hardWordsIconSvgMarkup(),
+                                ariaLabel: buildProgressFilterOptionAriaLabel(hardWordsLabel, countedDifficulty.hard),
+                                optionClass: 'll-wordset-progress-filter-option--hard-range'
+                            });
+                        }
+                        options = appendSelectedNumericFallbackOptionsFromCounts(key, options, countedDifficulty);
+                    } else {
+                        const hardRows = rows.filter(function (row) {
+                            return analyticsWordIsDifficult(row);
                         });
+                        const hardValues = hardRows.map(analyticsWordDifficulty);
+                        let nonHardValues = rows.filter(function (row) {
+                            return !analyticsWordIsDifficult(row);
+                        }).map(analyticsWordDifficulty);
+                        let hardMin = 0;
+                        let hardMax = 0;
+                        if (hardValues.length) {
+                            hardMin = Math.min.apply(null, hardValues);
+                            hardMax = Math.max.apply(null, hardValues);
+                            nonHardValues = nonHardValues.filter(function (value) {
+                                return value < hardMin || value > hardMax;
+                            });
+                        }
+                        const difficultyRanges = analyticsBuildNumericRanges(nonHardValues, 4);
+                        options = rangeToOptions(difficultyRanges);
+                        if (hardValues.length) {
+                            const hardWordsLabel = String(i18n.analyticsFilterDifficultyHard || '');
+                            options.push({
+                                value: 'hard',
+                                label: hardWordsLabel,
+                                count: hardRows.length,
+                                iconHtml: hardWordsIconSvgMarkup(),
+                                ariaLabel: buildProgressFilterOptionAriaLabel(hardWordsLabel, hardRows.length),
+                                optionClass: 'll-wordset-progress-filter-option--hard-range'
+                            });
+                        }
+                        options = appendSelectedFallbackOptions(key, options, rows);
                     }
-                    const difficultyRanges = analyticsBuildNumericRanges(nonHardValues, 4);
-                    options = rangeToOptions(difficultyRanges);
-                    if (hardValues.length) {
-                        const hardWordsLabel = String(i18n.analyticsFilterDifficultyHard || '');
-                        options.push({
-                            value: 'hard',
-                            label: hardWordsLabel,
-                            count: hardRows.length,
-                            iconHtml: hardWordsIconSvgMarkup(),
-                            ariaLabel: buildProgressFilterOptionAriaLabel(hardWordsLabel, hardRows.length),
-                            optionClass: 'll-wordset-progress-filter-option--hard-range'
-                        });
-                    }
-                    options = appendSelectedFallbackOptions(key, options, rows);
                 }
             } else if (key === 'seen') {
-                const seenRanges = analyticsBuildNumericRanges(rows.map(function (row) {
-                    return isGenderProgressViewActive() ? analyticsWordGenderSeen(row) : analyticsWordSeen(row);
-                }), 5);
-                options = rangeToOptions(seenRanges);
-                options = appendSelectedFallbackOptions(key, options, rows);
+                const countedSeen = getProgressNumericFilterCounts('seen');
+                if (countedSeen) {
+                    const seenRanges = analyticsBuildNumericRangesFromFrequencies(countedSeen.frequencies, 5);
+                    options = rangeToOptions(seenRanges);
+                    options = appendSelectedNumericFallbackOptionsFromCounts(key, options, countedSeen);
+                } else {
+                    const seenRanges = analyticsBuildNumericRanges(rows.map(function (row) {
+                        return isGenderProgressViewActive() ? analyticsWordGenderSeen(row) : analyticsWordSeen(row);
+                    }), 5);
+                    options = rangeToOptions(seenRanges);
+                    options = appendSelectedFallbackOptions(key, options, rows);
+                }
             } else if (key === 'wrong') {
-                const wrongRanges = analyticsBuildNumericRanges(rows.map(analyticsWordWrong), 5);
-                options = rangeToOptions(wrongRanges);
-                options = appendSelectedFallbackOptions(key, options, rows);
+                const countedWrong = getProgressNumericFilterCounts('wrong');
+                if (countedWrong) {
+                    const wrongRanges = analyticsBuildNumericRangesFromFrequencies(countedWrong.frequencies, 5);
+                    options = rangeToOptions(wrongRanges);
+                    options = appendSelectedNumericFallbackOptionsFromCounts(key, options, countedWrong);
+                } else {
+                    const wrongRanges = analyticsBuildNumericRanges(rows.map(analyticsWordWrong), 5);
+                    options = rangeToOptions(wrongRanges);
+                    options = appendSelectedFallbackOptions(key, options, rows);
+                }
             }
             analyticsWordColumnFilters[key] = setProgressColumnFilterCheckboxOptions(
                 $field,
@@ -4130,6 +4389,7 @@
             if (cid > 0) { selectedLookup[cid] = true; }
         });
         $progressCategoryFilterOptions.empty();
+        const serverCategoryCounts = getProgressWordFilterCountMap('category');
         const categoryCounts = {};
         rows.forEach(function (row) {
             const categoryIds = Array.isArray(row && row.category_ids) ? row.category_ids : [];
@@ -4155,6 +4415,8 @@
             if (!cid) { return; }
             const label = String(cat.translation || cat.name || '').trim();
             if (!label) { return; }
+            const counted = getProgressWordFilterCount(serverCategoryCounts, cid);
+            const count = counted !== null ? counted : (categoryCounts[cid] || 0);
             const inputId = 'll-wordset-progress-category-filter-' + String(cid);
             const $row = $('<label>', {
                 class: 'll-wordset-progress-filter-option ll-wordset-progress-category-filter-option',
@@ -4165,9 +4427,9 @@
                 type: 'checkbox',
                 'data-ll-wordset-progress-category-filter-check': cid,
                 checked: !!selectedLookup[cid],
-                'aria-label': buildProgressFilterOptionAriaLabel(label, categoryCounts[cid] || 0)
+                'aria-label': buildProgressFilterOptionAriaLabel(label, count)
             }).appendTo($row);
-            appendProgressFilterOptionLabel($row, label, categoryCounts[cid] || 0);
+            appendProgressFilterOptionLabel($row, label, count);
             $progressCategoryFilterOptions.append($row);
         });
         positionOpenProgressFilterPop();
@@ -4498,8 +4760,14 @@
         const loadingDelay = shouldShowLoading ? 80 : 0;
         const renderDelay = shouldShowLoading ? 95 : 0;
         const desiredFilterKey = getCurrentProgressWordRequestFilterKey();
+        const needsAnalyticsRefresh = desiredFilterKey !== progressWordRequestFilterKey;
         clearTimeout(analyticsWordRenderTimer);
         clearTimeout(analyticsWordLoadingTimer);
+
+        if (needsAnalyticsRefresh) {
+            progressWordPendingFilterKey = desiredFilterKey;
+            syncProgressSelectionControls([]);
+        }
 
         if (shouldShowLoading) {
             analyticsWordLoadingTimer = setTimeout(function () {
@@ -4512,7 +4780,7 @@
 
         analyticsWordRenderTimer = setTimeout(function () {
             if (token !== analyticsWordRenderToken) { return; }
-            if (desiredFilterKey !== progressWordRequestFilterKey) {
+            if (needsAnalyticsRefresh) {
                 clearTimeout(analyticsWordLoadingTimer);
                 analyticsWordLoadingTimer = null;
                 refreshProgressAnalyticsNow({
@@ -5686,19 +5954,23 @@
         const visibleWordIds = uniqueIntList(rows.map(function (row) {
             return parseInt(row && row.id, 10) || 0;
         }));
+        const filterRefreshPending = progressWordFilterRefreshIsPending();
         const selectedWordIds = getProgressSelectedWordIds();
         const selectedLookup = {};
         selectedWordIds.forEach(function (id) {
             selectedLookup[id] = true;
         });
         const allFilteredSelected = progressAllFilteredSelectionIsActive();
-        const allVisibleSelected = visibleWordIds.length > 0 && visibleWordIds.every(function (id) {
+        const allVisibleSelected = !filterRefreshPending && visibleWordIds.length > 0 && visibleWordIds.every(function (id) {
             return allFilteredSelected || !!selectedLookup[id];
         });
 
         if ($progressSelectAllButton.length) {
             $progressSelectAllButton
-                .prop('disabled', visibleWordIds.length === 0)
+                .prop('disabled', filterRefreshPending || visibleWordIds.length === 0)
+                .toggleClass('is-loading', filterRefreshPending)
+                .attr('aria-busy', filterRefreshPending ? 'true' : 'false')
+                .attr('aria-disabled', (filterRefreshPending || visibleWordIds.length === 0) ? 'true' : 'false')
                 .attr('aria-pressed', allVisibleSelected ? 'true' : 'false')
                 .text(buildProgressSelectAllButtonLabel(allVisibleSelected));
         }
@@ -6271,6 +6543,10 @@
         pendingProgressAnalyticsRefreshOptions = null;
         const wordFilterPayload = buildProgressWordRequestFilter();
         const wordFilterKey = getProgressWordRequestFilterKey(wordFilterPayload);
+        if (wordFilterKey !== progressWordRequestFilterKey) {
+            progressWordPendingFilterKey = wordFilterKey;
+            syncProgressSelectionControls([]);
+        }
         if (opts.showWordLoading) {
             setProgressWordLoading(true);
         }
@@ -6309,12 +6585,15 @@
                 analytics = normalizeAnalytics(res.data.analytics);
                 progressWordPagination = analytics.wordsPagination || null;
                 progressWordRequestFilterKey = wordFilterKey;
+                progressWordPendingFilterKey = null;
                 progressAnalyticsLoaded = true;
                 setSummaryMetricsLoadingState(false);
                 renderProgressAnalytics();
                 setProgressStatus('', '');
                 return;
             }
+            progressWordPendingFilterKey = null;
+            syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             setSummaryMetricsLoadingState(false);
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).fail(function () {
@@ -6323,6 +6602,8 @@
                 deferProgressAnalyticsRefreshUntilClose(opts);
                 return;
             }
+            progressWordPendingFilterKey = null;
+            syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             setSummaryMetricsLoadingState(false);
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).always(function () {
@@ -15864,6 +16145,9 @@
 
         $root.on('click', '[data-ll-wordset-progress-select-all]', function (evt) {
             evt.preventDefault();
+            if (progressWordFilterRefreshIsPending() || $(this).prop('disabled')) {
+                return;
+            }
             const visibleRows = buildProgressWordRowsForDisplay();
             const visibleWordIds = uniqueIntList(visibleRows.map(function (row) {
                 return parseInt(row && row.id, 10) || 0;

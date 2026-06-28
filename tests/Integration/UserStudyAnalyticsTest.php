@@ -1169,6 +1169,68 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_analytics_filter_counts_cover_full_filtered_set_not_loaded_page(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $word_ids = array_values(array_map('intval', (array) ($fixture['word_ids'] ?? [])));
+        [$cat_a, $cat_b] = array_values(array_map('intval', (array) ($fixture['category_ids'] ?? [])));
+        $this->assertGreaterThanOrEqual(8, count($word_ids));
+
+        $starred_word_ids = [$word_ids[1], $word_ids[3], $word_ids[6], $word_ids[7]];
+        ll_tools_save_user_study_state([
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'starred_word_ids' => $starred_word_ids,
+            'star_mode' => 'normal',
+            'fast_transitions' => false,
+        ], $user_id);
+
+        $this->seedWordProgressRow($user_id, $word_ids[1], $cat_a, $fixture['wordset_id'], [
+            'total_coverage' => 2,
+            'correct_clean' => 0,
+            'correct_after_retry' => 1,
+            'incorrect' => 1,
+            'stage' => 1,
+        ]);
+
+        $analytics = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $fixture['wordset_id'],
+            $fixture['category_ids'],
+            14,
+            false,
+            [
+                'include_words' => true,
+                'word_limit' => 2,
+                'word_offset' => 0,
+                'word_filter' => [
+                    'summary' => 'starred',
+                    'category_ids' => [],
+                    'column_filters' => [],
+                ],
+            ]
+        );
+
+        $this->assertCount(2, (array) ($analytics['words'] ?? []));
+        $this->assertSame(4, (int) ($analytics['words_pagination']['total'] ?? 0));
+
+        $counts = (array) ($analytics['word_filter_counts'] ?? []);
+        $status_counts = (array) ($counts['status'] ?? []);
+        $star_counts = (array) ($counts['star'] ?? []);
+        $category_counts = (array) ($counts['category'] ?? []);
+
+        $this->assertSame(0, (int) ($status_counts['mastered'] ?? -1));
+        $this->assertSame(1, (int) ($status_counts['studied'] ?? 0));
+        $this->assertSame(3, (int) ($status_counts['new'] ?? 0));
+        $this->assertSame(4, (int) ($star_counts['starred'] ?? 0));
+        $this->assertSame(0, (int) ($star_counts['unstarred'] ?? -1));
+        $this->assertSame(2, (int) ($category_counts[(string) $cat_a] ?? 0));
+        $this->assertSame(2, (int) ($category_counts[(string) $cat_b] ?? 0));
+    }
+
     public function test_analytics_ajax_returns_filtered_word_ids_without_hydrating_rows(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
