@@ -12,6 +12,7 @@
 - Dictionary static-cache hits send a 5-minute browser/downstream `Cache-Control` max-age by default, so browsers and intermediary caches stay much shorter-lived than the 7-day internal file cache.
 - Static-cache purge helpers can optionally purge Cloudflare edge HTML when `LL_TOOLS_CLOUDFLARE_ZONE_ID` and `LL_TOOLS_CLOUDFLARE_API_TOKEN` are configured, or when equivalent filters provide those values. The default edge purge discovers the configured public dictionary page and purges that exact URL; sites can add more URLs with `ll_tools_cloudflare_static_cache_purge_urls`.
 - Locale-switch links remain signed GET bootstrap URLs for accessibility, but the rendered links now use `rel="nofollow"` and unsigned or expired public `ll_locale` GET/HEAD requests redirect to the clean URL without saving a locale. This reduces stale crawler work on nonce-bearing URLs while preserving normal signed language switching.
+- Dictionary canonicalization now strips `ll_wordset_back` along with auth/nonce/tracking noise, and the redirect pass runs on dictionary front pages even when those front pages are intentionally excluded from static HTML caching. This keeps crawler-discovered dictionary detail URLs from multiplying through internal wordset return-state parameters.
 - Both values remain configurable through constants and filters:
   - `LL_TOOLS_DICTIONARY_STATIC_CACHE_TTL`
   - `ll_tools_dictionary_static_cache_ttl`

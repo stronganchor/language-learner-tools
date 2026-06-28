@@ -53,6 +53,7 @@ function ll_tools_dictionary_noise_query_keys(): array {
         'll_locale_nonce',
         'll_tools_auth',
         'll_tools_auth_feedback',
+        'll_wordset_back',
     ];
 
     $filtered = apply_filters('ll_tools_dictionary_noise_query_keys', $keys);
@@ -634,10 +635,7 @@ function ll_tools_dictionary_static_cache_maybe_redirect_canonical(array $identi
     exit;
 }
 
-/**
- * Determine whether the current request has the baseline anonymous dictionary cache shape.
- */
-function ll_tools_dictionary_static_cache_has_safe_request_shape(): bool {
+function ll_tools_dictionary_static_cache_has_baseline_read_request_shape(bool $allow_front_page = false): bool {
     $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : '';
     if (!in_array($method, ['GET', 'HEAD'], true)) {
         return false;
@@ -657,7 +655,7 @@ function ll_tools_dictionary_static_cache_has_safe_request_shape(): bool {
     if (is_user_logged_in()) {
         return false;
     }
-    if (is_front_page() || is_home()) {
+    if (!$allow_front_page && (is_front_page() || is_home())) {
         return false;
     }
     if (is_preview() || (function_exists('is_customize_preview') && is_customize_preview())) {
@@ -682,6 +680,20 @@ function ll_tools_dictionary_static_cache_has_safe_request_shape(): bool {
 }
 
 /**
+ * Determine whether the current request has the baseline anonymous dictionary cache shape.
+ */
+function ll_tools_dictionary_static_cache_has_safe_request_shape(): bool {
+    return ll_tools_dictionary_static_cache_has_baseline_read_request_shape(false);
+}
+
+/**
+ * Determine whether the current request may be canonicalized without being cacheable.
+ */
+function ll_tools_dictionary_static_cache_has_safe_canonical_request_shape(): bool {
+    return ll_tools_dictionary_static_cache_has_baseline_read_request_shape(true);
+}
+
+/**
  * Return whether this request is a signed locale-switch bootstrap request.
  */
 function ll_tools_dictionary_static_cache_has_signed_locale_switch_request(): bool {
@@ -695,6 +707,27 @@ function ll_tools_dictionary_static_cache_has_signed_locale_switch_request(): bo
 
     return false;
 }
+
+/**
+ * Redirect noisy anonymous dictionary URLs even on dictionary front pages excluded from static caching.
+ */
+function ll_tools_dictionary_static_cache_maybe_redirect_canonical_request(): void {
+    if (!ll_tools_dictionary_static_cache_has_safe_canonical_request_shape()) {
+        return;
+    }
+
+    $identity = ll_tools_dictionary_static_cache_request_identity();
+    if ($identity === null) {
+        return;
+    }
+
+    if (ll_tools_dictionary_static_cache_has_signed_locale_switch_request()) {
+        return;
+    }
+
+    ll_tools_dictionary_static_cache_maybe_redirect_canonical($identity);
+}
+add_action('template_redirect', 'll_tools_dictionary_static_cache_maybe_redirect_canonical_request', 0);
 
 /**
  * Determine whether the current request can use the anonymous dictionary static cache.

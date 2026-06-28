@@ -352,11 +352,13 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_locale' => 'tr_TR',
             'll_locale_nonce' => 'first',
             'll_tools_auth' => 'register',
+            'll_wordset_back' => home_url('/?ll_tools_auth=register'),
             'utm_source' => 'crawler',
         ], 'tr_TR');
         $second_key = ll_tools_dictionary_static_cache_key($identity, [
             'utm_source' => 'other',
             'll_tools_auth' => 'login',
+            'll_wordset_back' => home_url('/?ll_tools_auth=login'),
             'll_locale_nonce' => 'second',
             'll_locale' => 'tr_TR',
             'll_dictionary_letter' => 'J',
@@ -384,6 +386,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_dictionary_page' => '9',
             'll_locale_nonce' => 'ignored',
             'll_tools_auth' => 'ignored',
+            'll_wordset_back' => home_url('/?ll_tools_auth=register'),
             'll_locale' => 'tr_TR',
         ]);
         $this->assertSame([
@@ -429,6 +432,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_dictionary_source' => 'harun-turgut',
             'll_locale' => 'tr_TR',
             'll_locale_nonce' => 'nonce',
+            'll_wordset_back' => home_url('/?ll_tools_auth=register'),
             'foo' => 'bar',
         ]);
         $query = [];
@@ -447,6 +451,57 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ]);
 
         $this->assertSame('', (string) wp_parse_url($invalid, PHP_URL_QUERY));
+    }
+
+    public function test_dictionary_canonical_redirect_runs_on_front_page_without_static_cache(): void
+    {
+        $previous_show_on_front = get_option('show_on_front');
+        $previous_page_on_front = get_option('page_on_front');
+
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Dictionary Front Page',
+            'post_content' => '[ll_dictionary]',
+        ]);
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Front Page Dar',
+        ]);
+
+        try {
+            update_option('show_on_front', 'page');
+            update_option('page_on_front', $page_id);
+
+            wp_set_current_user(0);
+            $back_url = home_url('/?ll_tools_auth=register');
+            $request_uri = '/?ll_wordset_back=' . rawurlencode($back_url)
+                . '&ll_dictionary_entry=' . rawurlencode((string) $entry_id)
+                . '&ll_locale_nonce=stale';
+            $this->go_to(home_url($request_uri));
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_SERVER['REQUEST_URI'] = $request_uri;
+            $_GET = [
+                'll_wordset_back' => $back_url,
+                'll_dictionary_entry' => (string) $entry_id,
+                'll_locale_nonce' => 'stale',
+            ];
+            $_REQUEST = $_GET;
+
+            $this->assertTrue(is_front_page());
+            $this->assertFalse(ll_tools_dictionary_static_cache_has_safe_request_shape());
+            $this->assertTrue(ll_tools_dictionary_static_cache_has_safe_canonical_request_shape());
+
+            $redirect = $this->captureDictionaryRedirect(static function (): void {
+                ll_tools_dictionary_static_cache_maybe_redirect_canonical_request();
+            });
+
+            $this->assertSame(home_url('/?ll_dictionary_entry=' . rawurlencode((string) $entry_id)), $redirect);
+        } finally {
+            update_option('show_on_front', $previous_show_on_front);
+            update_option('page_on_front', $previous_page_on_front);
+        }
     }
 
     public function test_dictionary_static_cache_debug_logging_is_filterable(): void
@@ -631,13 +686,14 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
     public function test_dictionary_public_navigation_drops_nonce_auth_and_tracking_noise(): void
     {
         $clean_url = ll_tools_dictionary_strip_noise_query_args_from_url(
-            'https://example.com/sozluk/?ll_locale=tr_TR&ll_locale_nonce=abc&ll_tools_auth=login&utm_source=news&fbclid=1&foo=bar'
+            'https://example.com/sozluk/?ll_locale=tr_TR&ll_locale_nonce=abc&ll_tools_auth=login&ll_wordset_back=https%3A%2F%2Fexample.com%2F%3Fll_tools_auth%3Dregister&utm_source=news&fbclid=1&foo=bar'
         );
 
         $this->assertStringContainsString('ll_locale=tr_TR', $clean_url);
         $this->assertStringContainsString('foo=bar', $clean_url);
         $this->assertStringNotContainsString('ll_locale_nonce', $clean_url);
         $this->assertStringNotContainsString('ll_tools_auth', $clean_url);
+        $this->assertStringNotContainsString('ll_wordset_back', $clean_url);
         $this->assertStringNotContainsString('utm_source', $clean_url);
         $this->assertStringNotContainsString('fbclid', $clean_url);
 
@@ -646,6 +702,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_locale' => 'tr_TR',
             'll_locale_nonce' => 'abc',
             'll_tools_auth' => 'register',
+            'll_wordset_back' => home_url('/?ll_tools_auth=register'),
             'utm_source' => 'crawler',
             'foo' => 'bar',
         ];
@@ -656,6 +713,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll_dictionary_q', $hidden_inputs);
         $this->assertStringNotContainsString('ll_locale_nonce', $hidden_inputs);
         $this->assertStringNotContainsString('ll_tools_auth', $hidden_inputs);
+        $this->assertStringNotContainsString('ll_wordset_back', $hidden_inputs);
         $this->assertStringNotContainsString('utm_source', $hidden_inputs);
     }
 
@@ -4188,6 +4246,29 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $result = wp_insert_term($label, 'part_of_speech', ['slug' => $slug]);
         $this->assertTrue(is_array($result) || is_wp_error($result));
+    }
+
+    private function captureDictionaryRedirect(callable $callback): string
+    {
+        $redirect_url = '';
+        $redirect_filter = static function ($location) use (&$redirect_url) {
+            $redirect_url = (string) $location;
+            throw new RuntimeException('redirect_intercepted');
+        };
+
+        add_filter('wp_redirect', $redirect_filter, 10, 1);
+
+        try {
+            $callback();
+            $this->fail('Expected dictionary canonical redirect.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('redirect_intercepted', $e->getMessage());
+        } finally {
+            remove_filter('wp_redirect', $redirect_filter, 10);
+        }
+
+        $this->assertNotSame('', $redirect_url);
+        return $redirect_url;
     }
 
     /**

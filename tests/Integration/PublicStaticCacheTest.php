@@ -54,6 +54,7 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             'll_locale' => 'tr_TR',
             'll_locale_nonce' => 'first',
             'll_tools_auth' => 'login',
+            'll_wordset_back' => home_url('/?ll_tools_auth=register'),
             'utm_source' => 'crawler',
             'fbclid' => 'abc',
         ], 'tr_TR');
@@ -61,6 +62,7 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             'fbclid' => 'def',
             'utm_source' => 'other',
             'll_tools_auth' => 'register',
+            'll_wordset_back' => home_url('/?ll_tools_auth=login'),
             'll_locale_nonce' => 'second',
             'll_locale' => 'tr_TR',
         ], 'tr_TR');
@@ -106,6 +108,7 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             'll_translation' => 'de',
             'utm_campaign' => 'ignored',
             'll_locale_nonce' => 'ignored',
+            'll_wordset_back' => home_url('/?ll_tools_auth=register'),
             'unknown' => 'ignored',
         ]));
     }
