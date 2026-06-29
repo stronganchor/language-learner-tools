@@ -45,17 +45,25 @@ final class FrontendUtilityMenuWordsetContextTest extends LL_Tools_TestCase
         $manager_id = self::factory()->user->create([
             'role' => 'wordset_manager',
         ]);
-        $wordset_id = $this->ensureWordset('Editor Hub Shortcut Wordset', 'editor-hub-shortcut-wordset');
+        $wordset_id = $this->ensureWordset('Shortcut Wordset', 'shortcut-wordset');
+        $editor_hub_page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Editor Hub',
+            'post_content' => '[editor_hub]',
+        ]);
 
         update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        update_option('ll_default_editor_hub_page_id', $editor_hub_page_id);
         wp_set_current_user($manager_id);
 
         $markup = ll_tools_render_frontend_user_utility_menu([
             'current_area' => 'editor_hub',
         ]);
 
-        $this->assertStringContainsString('Editor Hub Shortcut Wordset', $markup);
-        $this->assertStringContainsString('Manage Editor Hub Shortcut Wordset', $markup);
+        $this->assertStringContainsString('Shortcut Wordset', $markup);
+        $this->assertStringContainsString('Manage Shortcut Wordset', $markup);
+        $this->assertStringNotContainsString('Editor Hub', $markup);
     }
 
     public function test_wordset_pages_do_not_show_admin_check_updates_shortcut(): void

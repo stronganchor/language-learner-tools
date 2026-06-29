@@ -440,6 +440,14 @@ vendor/
 - `_ll_needs_audio_processing` for unprocessed audio queue.
 
 # Deferred maintenance notes
+## Editor Hub product review
+- The Editor Hub remains loaded for shortcode/page compatibility and for existing
+  login redirects, but it is no longer linked from the primary front-end utility
+  nav.
+- Before expanding or promoting this surface again, decide whether to rebuild it
+  around current wordset-editor workflows or remove the standalone hub if no
+  active users depend on it.
+
 ## Routing scalability migration
 - Wordset/vocab-lesson routing scalability should be planned as a standalone
   compatibility migration. Do not replace the current root pretty routes without

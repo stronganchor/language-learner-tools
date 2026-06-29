@@ -11808,17 +11808,6 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
     $links = [];
     $is_wordset_page_context = in_array($current_area, ['wordset', 'wordset_settings', 'wordset_progress', 'wordset_hidden', 'wordset_games'], true);
     if ($user instanceof WP_User) {
-        if (function_exists('ll_tools_editor_hub_user_can_access') && ll_tools_editor_hub_user_can_access() && function_exists('ll_get_editor_hub_redirect_url')) {
-            $editor_hub_url = (string) ll_get_editor_hub_redirect_url((int) $user->ID);
-            if ($editor_hub_url !== '') {
-                $links[] = [
-                    'label' => __('Editor Hub', 'll-tools-text-domain'),
-                    'url' => $editor_hub_url,
-                    'is_active' => ($current_area === 'editor_hub'),
-                ];
-            }
-        }
-
         $show_recorder_menu_link = $is_admin_user || in_array('audio_recorder', $user_roles, true);
         if ($show_recorder_menu_link && function_exists('ll_tools_user_can_record') && ll_tools_user_can_record() && function_exists('ll_get_recording_redirect_url')) {
             $recording_url = (string) ll_get_recording_redirect_url((int) $user->ID);
@@ -17099,16 +17088,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     }
     $utility_links = [];
     if ($utility_user instanceof WP_User) {
-        if (function_exists('ll_tools_editor_hub_user_can_access') && ll_tools_editor_hub_user_can_access() && function_exists('ll_get_editor_hub_redirect_url')) {
-            $editor_hub_url = (string) ll_get_editor_hub_redirect_url((int) $utility_user->ID);
-            if ($editor_hub_url !== '') {
-                $utility_links[] = [
-                    'label' => __('Editor Hub', 'll-tools-text-domain'),
-                    'url' => $editor_hub_url,
-                    'is_active' => false,
-                ];
-            }
-        }
         if (function_exists('ll_tools_user_can_record') && ll_tools_user_can_record() && function_exists('ll_get_recording_redirect_url')) {
             $recording_url = (string) ll_get_recording_redirect_url((int) $utility_user->ID);
             if ($recording_url !== '') {

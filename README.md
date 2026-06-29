@@ -40,7 +40,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `[word_grid]` – grid of words with audio/text toggles, supports wordset filtering.
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
   - `[ll_interlinear]` - compact interlinear table using the shared LL Tools interlinear renderer.
-  - `[editor_hub]` – editor-facing workflow for filling missing word metadata and recording details.
+  - `[editor_hub]` - editor-facing workflow for filling missing word metadata and recording details. Maintenance note: hidden from the primary front-end utility nav; review for a focused rebuild or removal before promoting as an active workflow.
   - `[wordset_page]` / `[ll_wordset_page]` – front-end wordset hub with study, progress, and manager views.
   - `[ll_language_switcher]` – front-end locale switcher for the plugin’s available translations.
   - `[ll_locale_block]` - conditionally renders enclosed content for matching locale language keys.
@@ -120,7 +120,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
    [audio_recording_interface]
    ```
 
-9. Editor-facing missing-content workflow:
+9. Legacy/review-candidate editor-facing missing-content workflow:
    ```text
    [editor_hub]
    ```
@@ -239,6 +239,7 @@ FREE | little boy
 
 ### `[editor_hub]`
 - Editor-facing review flow for missing word fields, dictionary entry links, images, and recording metadata.
+- Maintenance note: this surface is no longer linked from the primary front-end utility nav and should be reviewed for either a focused rebuild or removal if it is not serving active users.
 
 ### `[wordset_page]` / `[ll_wordset_page]`
 - Front-end wordset hub that renders the current wordset context, including study/progress/settings views.
