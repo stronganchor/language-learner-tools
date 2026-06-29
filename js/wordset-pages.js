@@ -3770,7 +3770,7 @@
         if (!source || !Array.isArray(source.frequencies)) {
             return null;
         }
-        return {
+        const normalized = {
             hard: normalizeProgressFilterOptionCount(source.hard),
             frequencies: source.frequencies.map(function (entry) {
                 const item = (entry && typeof entry === 'object') ? entry : {};
@@ -3782,6 +3782,10 @@
                 return item.count > 0;
             })
         };
+        if (!normalized.frequencies.length && normalized.hard <= 0) {
+            return null;
+        }
+        return normalized;
     }
 
     function getProgressFrequencyRangeCount(frequencies, token) {

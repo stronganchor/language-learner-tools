@@ -506,13 +506,22 @@ async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
 
   const probe = pickSearchProbe(snapshot, exerciseConfig.wordsetSearchProbe);
   await searchInput.fill(probe);
-  await page.waitForTimeout(350);
-
+  await expect.poll(
+    () => countVisible(page, '.ll-wordset-card'),
+    { timeout: 10000 }
+  ).toBeGreaterThanOrEqual(1);
   const filteredVisibleCardCount = await countVisible(page, '.ll-wordset-card');
   expect(filteredVisibleCardCount).toBeGreaterThanOrEqual(1);
 
   await searchInput.fill('__codex_live_smoke_no_match__');
-  await page.waitForTimeout(350);
+  await expect.poll(
+    () => countVisible(page, '.ll-wordset-card'),
+    { timeout: 10000 }
+  ).toBe(0);
+  await expect.poll(
+    () => isSelectorVisible(page, '[data-ll-wordset-page-search-empty], .ll-wordset-empty--search'),
+    { timeout: 10000 }
+  ).toBe(true);
 
   const noMatchVisibleCardCount = await countVisible(page, '.ll-wordset-card');
   const emptyVisible = await isSelectorVisible(page, '[data-ll-wordset-page-search-empty], .ll-wordset-empty--search');
@@ -520,7 +529,10 @@ async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
   expect(emptyVisible).toBe(true);
 
   await searchInput.fill('');
-  await page.waitForTimeout(350);
+  await expect.poll(
+    () => countVisible(page, '.ll-wordset-card'),
+    { timeout: 10000 }
+  ).toBeGreaterThanOrEqual(initialVisibleCardCount);
 
   const restoredVisibleCardCount = await countVisible(page, '.ll-wordset-card');
   expect(restoredVisibleCardCount).toBeGreaterThanOrEqual(initialVisibleCardCount);
