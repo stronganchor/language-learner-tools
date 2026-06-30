@@ -4731,3 +4731,51 @@ msgstr "Администрирование"
 #: includes/admin/admin-dashboard-menu.php:421
 msgid "Utility and configuration pages used less frequently."
 msgstr "Страницы утилит и конфигурации, используемые реже."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16205
+msgid "Hidden by Category"
+msgstr "Скрытые по категориям"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16207
+msgid "No hidden words for this recorder."
+msgstr "Нет скрытых слов для этого диктора."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16360
+msgid "Enable Recorder Access"
+msgstr "Включить доступ диктора"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16366
+msgid "Invite Recorder By Email"
+msgstr "Пригласить диктора по электронной почте"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16377
+msgid "Recorder email"
+msgstr "Электронная почта диктора"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16387
+msgid "This sends a special signup link that creates or connects a recorder account and assigns that person to this word set."
+msgstr "Будет отправлена специальная ссылка для регистрации, которая создаст или свяжет учетную запись диктора и назначит этого человека этому набору слов."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16390
+msgid "Send Recorder Invite"
+msgstr "Отправить приглашение диктору"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16415
+msgid "This upload tool is unavailable right now."
+msgstr "Этот инструмент загрузки сейчас недоступен."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:17795
+msgid "%d activity queued"
+msgid_plural "%d activities queued"
+msgstr[0] "%d действие в очереди"
+msgstr[1] "%d действия в очереди"
+msgstr[2] "%d действий в очереди"

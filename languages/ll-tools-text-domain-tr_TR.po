@@ -27441,3 +27441,33 @@ msgstr "AI aracıları için oluşturulmuş kompakt Markdown dizini."
 #: includes/lib/ai-crawler-support.php:933
 msgid "Public dictionary search and browse page."
 msgstr "Herkese açık sözlük arama ve göz atma sayfası."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:424
+msgid "You cannot manage the dictionary lookup index through LL Tools automation."
+msgstr "Sözlük arama dizinini LL Tools otomasyonu üzerinden yönetemezsin."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1684
+msgid "Provide one or more dictionary translation AI flag updates."
+msgstr "Bir veya daha fazla sözlük çevirisi AI bayrağı güncellemesi sağla."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1700
+msgid "Too many dictionary translation AI flag updates in one request. Maximum is %d."
+msgstr "Tek istekte çok fazla sözlük çevirisi AI bayrağı güncellemesi var. En fazla %d olabilir."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1735
+msgid "Provide translation_is_ai as true or false."
+msgstr "translation_is_ai değerini true veya false olarak sağla."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1786
+msgid "Expected dictionary entry translation does not match live state."
+msgstr "Beklenen sözlük girişi çevirisi canlı durumla eşleşmiyor."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/word-metadata-plan-rest.php:1455
+msgid "Cannot canonicalize a word without target text."
+msgstr "Hedef metni olmayan bir kelime kanonikleştirilemez."

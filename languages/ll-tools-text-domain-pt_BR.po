@@ -4695,3 +4695,50 @@ msgstr "Administração"
 #: includes/admin/admin-dashboard-menu.php:421
 msgid "Utility and configuration pages used less frequently."
 msgstr "Páginas de utilitários e configuração usadas com menos frequência."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16205
+msgid "Hidden by Category"
+msgstr "Ocultas por categoria"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16207
+msgid "No hidden words for this recorder."
+msgstr "Não há palavras ocultas para esta conta de gravação."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16360
+msgid "Enable Recorder Access"
+msgstr "Ativar acesso de gravação"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16366
+msgid "Invite Recorder By Email"
+msgstr "Convidar conta de gravação por e-mail"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16377
+msgid "Recorder email"
+msgstr "E-mail da conta de gravação"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16387
+msgid "This sends a special signup link that creates or connects a recorder account and assigns that person to this word set."
+msgstr "Isso envia um link especial de cadastro que cria ou conecta uma conta de gravação e atribui essa pessoa a este conjunto de palavras."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16390
+msgid "Send Recorder Invite"
+msgstr "Enviar convite de gravação"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16415
+msgid "This upload tool is unavailable right now."
+msgstr "Esta ferramenta de envio não está disponível no momento."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:17795
+msgid "%d activity queued"
+msgid_plural "%d activities queued"
+msgstr[0] "%d atividade na fila"
+msgstr[1] "%d atividades na fila"

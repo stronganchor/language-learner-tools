@@ -27607,3 +27607,33 @@ msgstr "Kompakter generierter Markdown-Index für KI-Agenten."
 #: includes/lib/ai-crawler-support.php:933
 msgid "Public dictionary search and browse page."
 msgstr "Öffentliche Wörterbuchseite zum Suchen und Stöbern."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:424
+msgid "You cannot manage the dictionary lookup index through LL Tools automation."
+msgstr "Der Wörterbuch-Suchindex kann nicht über die LL Tools-Automatisierung verwaltet werden."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1684
+msgid "Provide one or more dictionary translation AI flag updates."
+msgstr "Gib mindestens eine Aktualisierung des KI-Kennzeichens für Wörterbuchübersetzungen an."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1700
+msgid "Too many dictionary translation AI flag updates in one request. Maximum is %d."
+msgstr "Zu viele Aktualisierungen des KI-Kennzeichens für Wörterbuchübersetzungen in einer Anfrage. Maximal %d."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1735
+msgid "Provide translation_is_ai as true or false."
+msgstr "Gib translation_is_ai als true oder false an."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/automation-rest.php:1786
+msgid "Expected dictionary entry translation does not match live state."
+msgstr "Die erwartete Übersetzung des Wörterbucheintrags stimmt nicht mit dem Live-Stand überein."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/api/word-metadata-plan-rest.php:1455
+msgid "Cannot canonicalize a word without target text."
+msgstr "Eine Vokabel ohne Zieltext kann nicht kanonisiert werden."

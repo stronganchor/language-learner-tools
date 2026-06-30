@@ -4695,3 +4695,50 @@ msgstr "Administrasi"
 #: includes/admin/admin-dashboard-menu.php:421
 msgid "Utility and configuration pages used less frequently."
 msgstr "Halaman utilitas dan konfigurasi yang lebih jarang digunakan."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16205
+msgid "Hidden by Category"
+msgstr "Disembunyikan menurut kategori"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16207
+msgid "No hidden words for this recorder."
+msgstr "Tidak ada kata tersembunyi untuk petugas rekaman ini."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16360
+msgid "Enable Recorder Access"
+msgstr "Aktifkan akses petugas rekaman"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16366
+msgid "Invite Recorder By Email"
+msgstr "Undang petugas rekaman lewat email"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16377
+msgid "Recorder email"
+msgstr "Email petugas rekaman"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16387
+msgid "This sends a special signup link that creates or connects a recorder account and assigns that person to this word set."
+msgstr "Ini mengirim tautan pendaftaran khusus yang membuat atau menghubungkan akun petugas rekaman dan menetapkan orang tersebut ke set kata ini."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16390
+msgid "Send Recorder Invite"
+msgstr "Kirim undangan petugas rekaman"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16415
+msgid "This upload tool is unavailable right now."
+msgstr "Alat unggah ini sedang tidak tersedia."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:17795
+msgid "%d activity queued"
+msgid_plural "%d activities queued"
+msgstr[0] "%d aktivitas dalam antrean"
+msgstr[1] "%d aktivitas dalam antrean"

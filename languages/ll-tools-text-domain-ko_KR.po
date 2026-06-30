@@ -4674,3 +4674,49 @@ msgstr "관리"
 #: includes/admin/admin-dashboard-menu.php:421
 msgid "Utility and configuration pages used less frequently."
 msgstr "자주 사용하지 않는 유틸리티 및 구성 페이지입니다."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16205
+msgid "Hidden by Category"
+msgstr "카테고리별 숨김"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16207
+msgid "No hidden words for this recorder."
+msgstr "이 녹음 담당자에게 숨겨진 단어가 없습니다."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16360
+msgid "Enable Recorder Access"
+msgstr "녹음 담당자 접근 활성화"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16366
+msgid "Invite Recorder By Email"
+msgstr "이메일로 녹음 담당자 초대"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16377
+msgid "Recorder email"
+msgstr "녹음 담당자 이메일"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16387
+msgid "This sends a special signup link that creates or connects a recorder account and assigns that person to this word set."
+msgstr "특별 가입 링크를 보내 녹음 담당자 계정을 만들거나 연결하고, 그 사람을 이 단어 세트에 배정합니다."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16390
+msgid "Send Recorder Invite"
+msgstr "녹음 담당자 초대 보내기"
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:16415
+msgid "This upload tool is unavailable right now."
+msgstr "지금은 이 업로드 도구를 사용할 수 없습니다."
+
+#. ll-tools-autonomous-upkeep: 2026-06-30 source-backed batch
+#: includes/pages/wordset-pages.php:17795
+msgid "%d activity queued"
+msgid_plural "%d activities queued"
+msgstr[0] "%d개 활동 대기 중"
