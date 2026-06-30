@@ -79,6 +79,7 @@
     let ipaKeyboardShowTimer = null;
     let $activeIpaSymbolMenu = $();
     let suppressSearchBlurSave = false;
+    let suppressSearchWordReviewNoteBlurSave = false;
     let searchWordEditorRefreshTimer = null;
 
     function t(key, fallback) {
@@ -2603,6 +2604,108 @@
         $wrap.removeData('llSearchWordReviewNoteTimer');
     }
 
+    function captureSearchWordReviewNoteStates($row) {
+        const states = {};
+        if (!internalNotesEnabled || !$row || !$row.length) {
+            return states;
+        }
+
+        const activeElement = document.activeElement;
+        $row.find('[data-ll-search-word-review-note]').each(function () {
+            const $wrap = $(this);
+            const objectId = parseInt($wrap.attr('data-object-id'), 10) || 0;
+            const $input = $wrap.find('[data-ll-internal-review-note-input]').first();
+            if (!objectId || !$input.length) {
+                return;
+            }
+
+            const input = $input.get(0);
+            const timer = parseInt($wrap.data('llSearchWordReviewNoteTimer'), 10) || 0;
+            const current = ($input.val() || '').toString();
+            const original = getSearchWordReviewNoteOriginalValue($input);
+            const focused = !!(input && activeElement === input);
+            const $status = $wrap.find('[data-ll-internal-review-note-status]').first();
+            let statusState = '';
+            if ($status.hasClass('is-saving')) {
+                statusState = 'saving';
+            } else if ($status.hasClass('is-success')) {
+                statusState = 'success';
+            } else if ($status.hasClass('is-error')) {
+                statusState = 'error';
+            }
+
+            if (timer > 0) {
+                window.clearTimeout(timer);
+                $wrap.removeData('llSearchWordReviewNoteTimer');
+            }
+
+            states[objectId] = {
+                open: $wrap.prop('open'),
+                value: current,
+                original: original,
+                dirty: !!$wrap.data('llSearchWordReviewNoteDirty') || current !== original,
+                hadTimer: timer > 0,
+                saving: $wrap.hasClass('is-saving'),
+                focused: focused,
+                selectionStart: focused && input && typeof input.selectionStart === 'number' ? input.selectionStart : null,
+                selectionEnd: focused && input && typeof input.selectionEnd === 'number' ? input.selectionEnd : null,
+                statusMessage: ($status.text() || '').toString(),
+                statusState: statusState
+            };
+        });
+
+        return states;
+    }
+
+    function restoreSearchWordReviewNoteStates($row, states) {
+        if (!internalNotesEnabled || !$row || !$row.length || !states || typeof states !== 'object') {
+            return;
+        }
+
+        $row.find('[data-ll-search-word-review-note]').each(function () {
+            const $wrap = $(this);
+            const objectId = parseInt($wrap.attr('data-object-id'), 10) || 0;
+            const state = objectId ? states[objectId] : null;
+            const $input = $wrap.find('[data-ll-internal-review-note-input]').first();
+            if (!state || !$input.length) {
+                return;
+            }
+
+            if (state.open) {
+                $wrap.attr('open', 'open');
+            } else {
+                $wrap.removeAttr('open');
+            }
+
+            if (state.dirty || state.hadTimer || state.focused || state.saving) {
+                setSearchWordReviewNoteOriginalValue($input, state.original, false);
+                $input.val(state.value);
+                updateSearchWordReviewNoteSummary($wrap, state.value);
+            }
+
+            if (state.saving) {
+                $wrap.addClass('is-saving');
+            }
+            if (state.statusMessage || state.statusState) {
+                setSearchWordReviewNoteStatus($wrap, state.statusMessage, state.statusState);
+            }
+            if (state.dirty || state.hadTimer) {
+                scheduleSearchWordReviewNoteSave($wrap);
+            }
+            if (state.focused) {
+                const input = $input.get(0);
+                if (input && !input.disabled) {
+                    input.focus();
+                    if (typeof input.setSelectionRange === 'function'
+                        && typeof state.selectionStart === 'number'
+                        && typeof state.selectionEnd === 'number') {
+                        input.setSelectionRange(state.selectionStart, state.selectionEnd);
+                    }
+                }
+            }
+        });
+    }
+
     function getSearchWordReviewNoteWrapsForWord(wordId) {
         const safeWordId = parseInt(wordId, 10) || 0;
         if (!safeWordId) {
@@ -2684,6 +2787,15 @@
             return;
         }
 
+        const objectId = parseInt($wrap.attr('data-object-id'), 10) || 0;
+        if (!$wrap.closest('html').length) {
+            const $visibleWrap = objectId ? getSearchWordReviewNoteWrapsForWord(objectId).first() : $();
+            if ($visibleWrap.length && $visibleWrap.get(0) !== $wrap.get(0)) {
+                saveSearchWordReviewNote($visibleWrap);
+            }
+            return;
+        }
+
         const $input = $wrap.find('[data-ll-internal-review-note-input]').first();
         if (!$input.length) {
             return;
@@ -2697,7 +2809,6 @@
             return;
         }
 
-        const objectId = parseInt($wrap.attr('data-object-id'), 10) || 0;
         const objectType = ($wrap.attr('data-object-type') || '').toString();
         const wordsetId = parseInt($wrap.attr('data-wordset-id'), 10) || 0;
         if (!objectId || !objectType || !wordsetId) {
@@ -4013,10 +4124,16 @@
 
     function replaceSearchRow($row, rec) {
         const layoutLocks = getSearchRowLayoutLocks($row);
+        const reviewNoteStates = captureSearchWordReviewNoteStates($row);
         const $newRow = buildSearchRow(rec);
+        suppressSearchWordReviewNoteBlurSave = true;
         $row.replaceWith($newRow);
+        window.setTimeout(function () {
+            suppressSearchWordReviewNoteBlurSave = false;
+        }, 0);
         applySearchRowLayoutLocks($newRow, layoutLocks);
         syncSearchWordReviewNoteFromRecord(rec);
+        restoreSearchWordReviewNoteStates($newRow, reviewNoteStates);
         cleanupDetachedIpaKeyboard();
         return $newRow;
     }
@@ -5535,7 +5652,10 @@
         scheduleSearchWordReviewNoteSave($wrap);
     });
 
-    $searchResults.on('blur change', '[data-ll-search-word-review-note] [data-ll-internal-review-note-input]', function () {
+    $searchResults.on('blur change', '[data-ll-search-word-review-note] [data-ll-internal-review-note-input]', function (event) {
+        if (suppressSearchWordReviewNoteBlurSave && (event.type === 'blur' || event.type === 'focusout')) {
+            return;
+        }
         saveSearchWordReviewNote($(this).closest('[data-ll-search-word-review-note]'));
     });
 
