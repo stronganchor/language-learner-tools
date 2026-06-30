@@ -485,6 +485,13 @@ Core settings live in `includes/admin/settings.php`:
 - `ll_update_branch` (`main` stable release asset channel, `dev` branch-testing channel).
 - `ll_user_progress_events_retention_days` (retention for detailed learner activity events; summary progress stays until erasure/deletion).
 
+Transcription and orthography behavior must be configurable at the site,
+wordset, recording type, or entry/word-bound setting layer. Do not hard-code
+new language-specific, site-specific, or wordset-specific transcription rules
+in plugin code; if a production language needs another exception or phonetic
+allowance, add a reusable setting and tests that prove an individual site or
+wordset can opt into it.
+
 # Public UI surfaces and routes
 ## Shortcodes (user-facing)
 - `[flashcard_widget]` (controller: `includes/shortcodes/flashcard-widget.php`)

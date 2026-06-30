@@ -2036,7 +2036,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 20;
+    return 21;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -2796,11 +2796,48 @@ function ll_tools_ipa_orthography_find_word_override_source_key(string $lookup_k
     return '';
 }
 
+function ll_tools_ipa_orthography_word_equivalent_pair_key(string $left_key, string $right_key): string {
+    $keys = [$left_key, $right_key];
+    sort($keys, SORT_STRING);
+    return implode('|', $keys);
+}
+
+function ll_tools_ipa_orthography_merge_word_equivalents(array ...$groups): array {
+    $merged = [];
+    $seen = [];
+    foreach ($groups as $group) {
+        foreach ($group as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $from_key = (string) ($entry['from_key'] ?? '');
+            $to_key = (string) ($entry['to_key'] ?? '');
+            if ($from_key === '' || $to_key === '' || $from_key === $to_key) {
+                continue;
+            }
+            $pair_key = ll_tools_ipa_orthography_word_equivalent_pair_key($from_key, $to_key);
+            if (isset($seen[$pair_key])) {
+                continue;
+            }
+            $seen[$pair_key] = true;
+            $merged[] = [
+                'from' => (string) ($entry['from'] ?? $from_key),
+                'from_key' => $from_key,
+                'to' => (string) ($entry['to'] ?? $to_key),
+                'to_key' => $to_key,
+            ];
+        }
+    }
+
+    return $merged;
+}
+
 function ll_tools_ipa_orthography_settings_defaults(): array {
     return [
         'word_overrides' => [],
         'word_override_word_ids' => [],
         'word_override_entry_ids' => [],
+        'word_equivalents' => [],
         'phrase_overrides' => [],
         'optional_matches' => [],
         'recording_type_punctuation' => [],
@@ -2843,6 +2880,10 @@ function ll_tools_ipa_orthography_merge_settings(array $base, array $override, a
             $settings['word_override_entry_ids'][$from_key] = $entry_id;
         }
     }
+    $settings['word_equivalents'] = ll_tools_ipa_orthography_merge_word_equivalents(
+        (array) ($base['word_equivalents'] ?? []),
+        (array) ($override['word_equivalents'] ?? [])
+    );
     $settings['phrase_overrides'] = array_values(array_merge(
         (array) ($base['phrase_overrides'] ?? []),
         (array) ($override['phrase_overrides'] ?? [])
@@ -3119,6 +3160,36 @@ function ll_tools_ipa_orthography_sanitize_settings($raw, int $wordset_id): arra
         }
     }
 
+    foreach ((array) ($raw['word_equivalents'] ?? []) as $from => $entry) {
+        if (is_array($entry)) {
+            $words = isset($entry['words']) && is_array($entry['words']) ? array_values($entry['words']) : [];
+            $from = $entry['from'] ?? ($entry['source'] ?? ($entry['actual'] ?? ($words[0] ?? ($entry[0] ?? $from))));
+            $to = $entry['to'] ?? ($entry['target'] ?? ($entry['suggested'] ?? ($words[1] ?? ($entry[1] ?? ''))));
+        } elseif (is_scalar($entry) && is_string($from) && !is_numeric($from)) {
+            $to = $entry;
+        } else {
+            continue;
+        }
+
+        $from_text = ll_tools_ipa_orthography_sanitize_setting_text($from);
+        $to_text = ll_tools_ipa_orthography_sanitize_setting_text($to);
+        $from_key = ll_tools_ipa_orthography_profile_compare_key($from_text, $language);
+        $to_key = ll_tools_ipa_orthography_profile_compare_key($to_text, $language);
+        if ($from_key === '' || $to_key === '' || $from_key === $to_key) {
+            continue;
+        }
+
+        $settings['word_equivalents'][] = [
+            'from' => $from_text,
+            'from_key' => $from_key,
+            'to' => $to_text,
+            'to_key' => $to_key,
+        ];
+    }
+    $settings['word_equivalents'] = ll_tools_ipa_orthography_merge_word_equivalents(
+        (array) ($settings['word_equivalents'] ?? [])
+    );
+
     foreach ((array) ($raw['phrase_overrides'] ?? []) as $entry) {
         if (!is_array($entry)) {
             continue;
@@ -3379,18 +3450,35 @@ function ll_tools_ipa_orthography_profile_words_equivalent(
         return true;
     }
 
-    if (ll_tools_ipa_orthography_profile_allows_zazaki_ez_elision($actual_key, $suggested_key, $language)) {
+    if (ll_tools_ipa_orthography_profile_words_match_configured_equivalent($actual_key, $suggested_key, $wordset_id)) {
         return true;
     }
 
     return ll_tools_ipa_orthography_words_match_optional_settings($actual_key, $suggested_key, $ipa_word, $wordset_id);
 }
 
-function ll_tools_ipa_orthography_profile_allows_zazaki_ez_elision(string $actual_key, string $suggested_key, string $language = ''): bool {
-    $language = strtolower(trim($language));
-    return $actual_key === 'ez'
-        && $suggested_key === 'e'
-        && in_array($language, ['zza', 'diq', 'kiu', 'zazaki', 'zaza'], true);
+function ll_tools_ipa_orthography_profile_words_match_configured_equivalent(
+    string $actual_key,
+    string $suggested_key,
+    int $wordset_id
+): bool {
+    if ($wordset_id <= 0 || $actual_key === '' || $suggested_key === '' || $actual_key === $suggested_key) {
+        return false;
+    }
+
+    $pair_key = ll_tools_ipa_orthography_word_equivalent_pair_key($actual_key, $suggested_key);
+    foreach ((array) (ll_tools_ipa_orthography_get_settings($wordset_id)['word_equivalents'] ?? []) as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $from_key = (string) ($entry['from_key'] ?? '');
+        $to_key = (string) ($entry['to_key'] ?? '');
+        if ($from_key !== '' && $to_key !== '' && ll_tools_ipa_orthography_word_equivalent_pair_key($from_key, $to_key) === $pair_key) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function ll_tools_ipa_orthography_profile_word_matches_configured_override(

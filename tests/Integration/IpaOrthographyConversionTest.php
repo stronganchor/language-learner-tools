@@ -527,16 +527,33 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
-    public function test_zazaki_mismatch_detail_allows_ez_pronoun_without_final_z(): void
+    public function test_word_equivalent_setting_allows_exact_token_mismatch(): void
     {
-        $wordset_id = $this->createWordset('Zazaki Ez Elision');
-        update_term_meta($wordset_id, 'll_language', 'zza');
+        $wordset_id = $this->createWordset('Configurable Word Equivalence');
 
         $prediction = [
             'complete' => true,
             'text' => 'E biyo veshun ey la e numeyo kiye.',
             'requires_lexical_decision' => false,
         ];
+        $without_setting = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Ez biyo veshun ey la ez numeyo kiye.',
+            'e bijo veshun ej la e numejo kije',
+            $wordset_id,
+            'sentence',
+            $prediction
+        );
+        $this->assertFalse((bool) ($without_setting['matches'] ?? true));
+
+        $this->setOrthographySettings($wordset_id, [
+            'word_equivalents' => [
+                [
+                    'from' => 'e',
+                    'to' => 'ez',
+                ],
+            ],
+        ]);
+
         $detail = ll_tools_ipa_orthography_profile_mismatch_detail(
             'Ez biyo veshun ey la ez numeyo kiye.',
             'e bijo veshun ej la e numejo kije',
@@ -544,7 +561,6 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             'sentence',
             $prediction
         );
-
         $this->assertTrue((bool) ($detail['matches'] ?? false));
         $this->assertSame('Ez biyo veshun ey la ez numeyo kiye.', (string) ($detail['suggested_text'] ?? ''));
 

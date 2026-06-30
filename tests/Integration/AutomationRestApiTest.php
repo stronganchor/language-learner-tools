@@ -597,6 +597,12 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                         'word_id' => $override_word_id,
                     ],
                 ],
+                'word_equivalents' => [
+                    [
+                        'from' => 'e',
+                        'to' => 'ez',
+                    ],
+                ],
                 'phrase_overrides' => [
                     [
                         'from' => ['des', 'erzen'],
@@ -666,6 +672,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('se', (string) ($read_data['orthography_settings']['word_overrides']['sq'] ?? ''));
         $this->assertSame('ve', (string) ($read_data['orthography_settings']['word_overrides']['vq'] ?? ''));
         $this->assertSame($override_word_id, (int) ($read_data['orthography_settings']['word_override_word_ids']['vq'] ?? 0));
+        $this->assertSame('e', (string) ($read_data['orthography_settings']['word_equivalents'][0]['from_key'] ?? ''));
+        $this->assertSame('ez', (string) ($read_data['orthography_settings']['word_equivalents'][0]['to_key'] ?? ''));
         $this->assertSame(['des', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['from'] ?? []));
         $this->assertSame(['dest', 'erzen'], (array) ($read_data['orthography_settings']['phrase_overrides'][0]['to'] ?? []));
         $this->assertSame('x', (string) ($read_data['orthography_settings']['optional_matches'][0]['ipa'] ?? ''));
