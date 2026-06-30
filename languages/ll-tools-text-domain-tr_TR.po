@@ -3474,7 +3474,7 @@ msgstr "Zor kelimeler"
 #: includes/pages/wordset-pages.php:14179
 #: includes/pages/wordset-pages.php:14182
 msgid "Hard words only"
-msgstr "Sadece sert kelimeler"
+msgstr "Sadece zor kelimeler"
 
 #: includes/pages/wordset-pages.php:13196
 msgid "Hardest"
@@ -5606,7 +5606,7 @@ msgstr "Bu kelime setinde kelime içeren hiçbir kaynak kategori bulunamadı."
 
 #: includes/pages/wordset-pages.php:13168
 msgid "No starred hard words are available for this selection."
-msgstr "Bu seçim için yıldızlı sert kelimeler mevcut değildir."
+msgstr "Bu seçim için yıldızlı zor kelimeler mevcut değildir."
 
 #: includes/pages/wordset-pages.php:13163
 msgid "No starred words are available for this selection."

@@ -32,6 +32,7 @@
 | dictionary entry | `sözlük girişi` | |
 | quiz | `quiz` | Prefer `quiz` over `sınav` or `test`; it better conveys a lightweight knowledge check rather than a serious graded exam. |
 | flashcard | `bilgi kartı` | Use only when the source really means `flashcard`, not `quiz`. |
+| hard (difficult) | `zor` | Use for learning difficulty filters/status. Avoid `sert` unless the source means physically hard or strict. |
 | learner | `öğrenci` | |
 | recorder / audio recorder | `ses kaydedici` | Prefer this over shorter variants in role labels. |
 | manager | `yönetici` | Avoid `müdür` for software/admin roles. |
