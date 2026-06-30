@@ -3379,7 +3379,18 @@ function ll_tools_ipa_orthography_profile_words_equivalent(
         return true;
     }
 
+    if (ll_tools_ipa_orthography_profile_allows_zazaki_ez_elision($actual_key, $suggested_key, $language)) {
+        return true;
+    }
+
     return ll_tools_ipa_orthography_words_match_optional_settings($actual_key, $suggested_key, $ipa_word, $wordset_id);
+}
+
+function ll_tools_ipa_orthography_profile_allows_zazaki_ez_elision(string $actual_key, string $suggested_key, string $language = ''): bool {
+    $language = strtolower(trim($language));
+    return $actual_key === 'ez'
+        && $suggested_key === 'e'
+        && in_array($language, ['zza', 'diq', 'kiu', 'zazaki', 'zaza'], true);
 }
 
 function ll_tools_ipa_orthography_profile_word_matches_configured_override(

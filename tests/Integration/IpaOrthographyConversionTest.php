@@ -527,6 +527,43 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
+    public function test_zazaki_mismatch_detail_allows_ez_pronoun_without_final_z(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Ez Elision');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        $prediction = [
+            'complete' => true,
+            'text' => 'E biyo veshun ey la e numeyo kiye.',
+            'requires_lexical_decision' => false,
+        ];
+        $detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Ez biyo veshun ey la ez numeyo kiye.',
+            'e bijo veshun ej la e numejo kije',
+            $wordset_id,
+            'sentence',
+            $prediction
+        );
+
+        $this->assertTrue((bool) ($detail['matches'] ?? false));
+        $this->assertSame('Ez biyo veshun ey la ez numeyo kiye.', (string) ($detail['suggested_text'] ?? ''));
+
+        $non_pronoun_prediction = [
+            'complete' => true,
+            'text' => 'Be biyo',
+            'requires_lexical_decision' => false,
+        ];
+        $non_pronoun_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
+            'Bez biyo',
+            'be bijo',
+            $wordset_id,
+            'sentence',
+            $non_pronoun_prediction
+        );
+
+        $this->assertFalse((bool) ($non_pronoun_detail['matches'] ?? true));
+    }
+
     public function test_zazaki_word_id_bound_override_limits_final_dotless_i_exception_to_one_word(): void
     {
         $wordset_id = $this->createWordset('Zazaki Word Bound Final Vowel Override');
