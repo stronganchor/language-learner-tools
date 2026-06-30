@@ -90,8 +90,10 @@ async function mountRecorder(page, options = {}) {
   await page.goto('about:blank');
   await page.setContent(buildRecorderMarkup());
 
-  await page.evaluate(() => {
+  await page.evaluate(({ categoryPages }) => {
     window.__requestedCategories = [];
+    window.__requestedCategoryPages = [];
+    window.__categoryPages = categoryPages || {};
 
     const makeJsonResponse = (payload) => ({
       ok: true,
@@ -112,13 +114,28 @@ async function mountRecorder(page, options = {}) {
       const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
       if (action === 'll_get_images_for_recording') {
         const category = String(body.get('category') || '');
+        const page = String(body.get('category_page') || '1');
         window.__requestedCategories.push(category);
+        window.__requestedCategoryPages.push(`${category}:${page}`);
+        const configuredPage = window.__categoryPages?.[category]?.[page];
+        if (configuredPage) {
+          return Promise.resolve(makeJsonResponse({
+            success: true,
+            data: configuredPage
+          }));
+        }
         if (category === 'ağaç-çeşitleri') {
           return Promise.resolve(makeJsonResponse({
             success: true,
             data: {
               images: [],
-              recording_types: []
+              recording_types: [],
+              pagination: {
+                category,
+                page: 1,
+                per_page: 1,
+                has_more: false
+              }
             }
           }));
         }
@@ -141,7 +158,13 @@ async function mountRecorder(page, options = {}) {
               my_existing_types: [],
               is_text_only: true
             }],
-            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }]
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+            pagination: {
+              category,
+              page: Number(page) || 1,
+              per_page: 1,
+              has_more: false
+            }
           }
         }));
       }
@@ -170,6 +193,8 @@ async function mountRecorder(page, options = {}) {
         }
       };
     }
+  }, {
+    categoryPages: options.categoryPages || null
   });
 
   const initialImage = options.initialImage || buildQueueItem('baby-animals', 'Baby animals', 'calf');
@@ -200,6 +225,12 @@ async function mountRecorder(page, options = {}) {
       include_types: '',
       exclude_types: '',
       auto_process_recordings: false,
+      category_queue: {
+        category: 'baby-animals',
+        page: 1,
+        per_page: 1,
+        has_more: false
+      },
       stop_delay_ms: 0,
       current_user_id: 10,
       hidden_words: [],
@@ -208,6 +239,7 @@ async function mountRecorder(page, options = {}) {
         category: 'Category:',
         uncategorized: 'Uncategorized',
         switching_category: 'Switching category...',
+        loading_more_category: 'Loading more words in this category...',
         no_images_in_category: 'No images need audio in this category.',
         category_switched: 'Category switched. Ready to record.',
         invalid_response: 'Server returned invalid response format'
@@ -236,6 +268,56 @@ test('manual category switch stays on an empty Turkish category instead of advan
   await expect(page.locator('#ll-upload-status')).toContainText('No images need audio in this category.');
 
   await expect.poll(async () => page.evaluate(() => window.__requestedCategories.join('|'))).toBe('ağaç-çeşitleri');
+});
+
+test('category switch loads the next queue page before marking the category complete', async ({ page }) => {
+  const firstItem = buildQueueItem('baby-animals', 'Baby animals', 'calf', {
+    word_id: 201
+  });
+  const secondItem = buildQueueItem('baby-animals', 'Baby animals', 'foal', {
+    word_id: 202
+  });
+
+  await mountRecorder(page, {
+    initialImage: firstItem,
+    categoryPages: {
+      'baby-animals': {
+        '1': {
+          images: [firstItem],
+          recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+          pagination: {
+            category: 'baby-animals',
+            page: 1,
+            per_page: 1,
+            has_more: true,
+            count: 2,
+            count_is_lower_bound: true
+          }
+        },
+        '2': {
+          images: [secondItem],
+          recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+          pagination: {
+            category: 'baby-animals',
+            page: 2,
+            per_page: 1,
+            has_more: false,
+            count: 2,
+            count_is_lower_bound: false
+          }
+        }
+      }
+    }
+  });
+
+  await page.locator('#ll-category-select').dispatchEvent('change');
+  await expect(page.locator('#ll-image-title')).toHaveText('calf');
+
+  await page.locator('#ll-skip-btn').click();
+
+  await expect(page.locator('#ll-image-title')).toHaveText('foal');
+  await expect(page.locator('.ll-recording-complete')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|'))).toBe('baby-animals:1|baby-animals:2');
 });
 
 test('recorder text setting hides image-backed word text but keeps text-only prompts usable', async ({ page }) => {

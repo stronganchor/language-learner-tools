@@ -474,6 +474,52 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertContains((int) $word_a, $category_word_ids);
     }
 
+    public function test_recording_category_queue_page_uses_bounded_candidate_pages(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Paged Queue', 'recorder-paged-queue');
+        $category_id = $this->ensure_term('word-category', 'Recorder Paged Category', 'recorder-paged-category');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+
+        $recorder_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_ids = [];
+        foreach (['Alpha', 'Bravo', 'Charlie'] as $title) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Paged Queue ' . $title,
+            ]);
+            wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+            wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+            $word_ids[] = (int) $word_id;
+        }
+
+        $page_size_filter = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_recorder_category_switch_page_size', $page_size_filter);
+
+        try {
+            $first_page = ll_tools_get_recording_category_queue_page('recorder-paged-category', [$wordset_id], '', '', 1, 0, $recorder_id);
+            $second_page = ll_tools_get_recording_category_queue_page('recorder-paged-category', [$wordset_id], '', '', 2, 0, $recorder_id);
+        } finally {
+            remove_filter('ll_tools_recorder_category_switch_page_size', $page_size_filter);
+        }
+
+        $first_ids = array_map(static function (array $item): int {
+            return (int) ($item['word_id'] ?? 0);
+        }, (array) ($first_page['items'] ?? []));
+        $second_ids = array_map(static function (array $item): int {
+            return (int) ($item['word_id'] ?? 0);
+        }, (array) ($second_page['items'] ?? []));
+
+        $this->assertSame(array_slice($word_ids, 0, 2), $first_ids);
+        $this->assertSame(array_slice($word_ids, 2, 1), $second_ids);
+        $this->assertTrue((bool) ($first_page['pagination']['has_more'] ?? false));
+        $this->assertFalse((bool) ($second_page['pagination']['has_more'] ?? true));
+        $this->assertSame(2, (int) ($first_page['pagination']['per_page'] ?? 0));
+    }
+
     public function test_recorder_category_resolver_remaps_isolated_slug_to_requested_wordset(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);

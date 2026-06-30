@@ -45,6 +45,8 @@
     let recordingStartToken = 0;
     let pendingRecordingStart = null;
     let pendingRecordingStop = null;
+    let categoryQueuePagination = null;
+    let pendingCategoryQueuePageRequest = null;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -78,6 +80,10 @@
     const recordingTypeOrder = Array.isArray(window.ll_recorder_data?.recording_type_order)
         ? window.ll_recorder_data.recording_type_order
         : ['isolation', 'introduction', 'question', 'sentence'];
+    categoryQueuePagination = normalizeCategoryQueuePagination(
+        window.ll_recorder_data?.category_queue,
+        window.ll_recorder_data?.initial_category || ''
+    );
     const recordingTypeIcons = (window.ll_recorder_data && typeof window.ll_recorder_data.recording_type_icons === 'object' && window.ll_recorder_data.recording_type_icons !== null)
         ? window.ll_recorder_data.recording_type_icons
         : {};
@@ -165,6 +171,128 @@
     function appendRequestLocale(formData) {
         if (!formData || !requestLocale) return;
         formData.append('ll_locale', requestLocale);
+    }
+
+    function normalizePositiveInteger(value, fallback) {
+        const parsed = parseInt(value, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    }
+
+    function normalizeCategoryQueuePagination(raw, fallbackCategory) {
+        if (!raw || typeof raw !== 'object') return null;
+        const category = String(raw.category || fallbackCategory || '').trim();
+        const page = normalizePositiveInteger(raw.page, 1);
+        const perPage = normalizePositiveInteger(raw.per_page || raw.perPage, 0);
+
+        return {
+            category,
+            page,
+            perPage,
+            hasMore: !!(raw.has_more || raw.hasMore),
+            count: normalizePositiveInteger(raw.count, 0),
+            countIsLowerBound: !!(raw.count_is_lower_bound || raw.countIsLowerBound)
+        };
+    }
+
+    function setCategoryQueuePagination(raw, fallbackCategory) {
+        categoryQueuePagination = normalizeCategoryQueuePagination(raw, fallbackCategory);
+        if (window.ll_recorder_data) {
+            window.ll_recorder_data.category_queue = raw || null;
+        }
+        return categoryQueuePagination;
+    }
+
+    function appendRecordingCategoryRequest(formData, category, page) {
+        formData.append('action', 'll_get_images_for_recording');
+        formData.append('nonce', nonce);
+        appendRequestLocale(formData);
+        formData.append('category', category);
+        formData.append('category_page', String(Math.max(1, page || 1)));
+        formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
+        formData.append('include_types', window.ll_recorder_data?.include_types || '');
+        formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
+    }
+
+    async function requestRecordingCategoryPage(category, page) {
+        const formData = new FormData();
+        appendRecordingCategoryRequest(formData, category, page);
+
+        const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+        }
+
+        return response.json();
+    }
+
+    function applyRecordingCategoryPagePayload(payload, category, replace) {
+        if (typeof payload?.hide_recorder_text === 'boolean') {
+            window.ll_recorder_data.hide_recorder_text = payload.hide_recorder_text;
+            window.ll_recorder_data.hide_name = payload.hide_recorder_text;
+        } else if (typeof payload?.hide_name === 'boolean') {
+            window.ll_recorder_data.hide_recorder_text = payload.hide_name;
+            window.ll_recorder_data.hide_name = payload.hide_name;
+        }
+
+        const newImages = Array.isArray(payload?.images) ? payload.images : [];
+        newImages.forEach(normalizeImageRecordingTypeState);
+        if (replace) {
+            images.length = 0;
+        }
+        images.push(...newImages);
+        window.ll_recorder_data.images = images;
+        setCategoryQueuePagination(payload?.pagination || null, category);
+
+        const newTypes = sortRecordingTypes(payload?.recording_types || []);
+        if (replace || newTypes.length > 0) {
+            updateRecordingTypeOptions(newTypes);
+        }
+
+        if (window.llRecorder?.totalNum) {
+            window.llRecorder.totalNum.textContent = String(images.length);
+        }
+
+        return newImages;
+    }
+
+    async function loadNextCategoryQueuePage() {
+        const el = window.llRecorder;
+        const category = String(el?.categorySelect?.value || categoryQueuePagination?.category || '').trim();
+        if (!category || !categoryQueuePagination || categoryQueuePagination.category !== category || !categoryQueuePagination.hasMore) {
+            return false;
+        }
+
+        if (pendingCategoryQueuePageRequest) {
+            return pendingCategoryQueuePageRequest;
+        }
+
+        pendingCategoryQueuePageRequest = (async () => {
+            showStatus(i18n.loading_more_category || 'Loading more words in this category...', 'info');
+            const nextPage = Math.max(1, categoryQueuePagination.page + 1);
+            const data = await requestRecordingCategoryPage(category, nextPage);
+            if (!data?.success) {
+                const errorMsg = data?.data || data?.message || (i18n.switch_failed_message || 'Switch failed');
+                throw new Error(String(errorMsg));
+            }
+
+            const addedImages = applyRecordingCategoryPagePayload(data.data || {}, category, false);
+            return addedImages.length > 0;
+        })();
+
+        try {
+            return await pendingCategoryQueuePageRequest;
+        } catch (err) {
+            console.error('Category page load error:', err);
+            showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + (err?.message || ''), 'error');
+            return null;
+        } finally {
+            pendingCategoryQueuePageRequest = null;
+        }
     }
 
     function init() {
@@ -3487,7 +3615,22 @@
 
     function loadImage(index) {
         if (index >= images.length) {
-            showComplete();
+            const loadToken = beginDisplayLoading();
+            loadNextCategoryQueuePage().then(loaded => {
+                endDisplayLoading(loadToken);
+                if (loaded === true && index < images.length) {
+                    loadImage(index);
+                    return;
+                }
+                if (loaded === false) {
+                    showComplete();
+                    return;
+                }
+                if (images.length > 0) {
+                    currentImageIndex = Math.max(0, images.length - 1);
+                    loadImage(currentImageIndex);
+                }
+            });
             return;
         }
 
@@ -4983,45 +5126,16 @@
         el.skipBtn.disabled = true;
         if (el.hideBtn) el.hideBtn.disabled = true;
 
-        const formData = new FormData();
-        formData.append('action', 'll_get_images_for_recording');
-        formData.append('nonce', nonce);
-        appendRequestLocale(formData);
-        formData.append('category', newCategory);
-        formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
-        formData.append('include_types', window.ll_recorder_data?.include_types || '');
-        formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
-
         try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
-            }
-
-            const data = await response.json();
+            const data = await requestRecordingCategoryPage(newCategory, 1);
 
             if (data.success) {
-                if (typeof data.data?.hide_recorder_text === 'boolean') {
-                    window.ll_recorder_data.hide_recorder_text = data.data.hide_recorder_text;
-                    window.ll_recorder_data.hide_name = data.data.hide_recorder_text;
-                } else if (typeof data.data?.hide_name === 'boolean') {
-                    window.ll_recorder_data.hide_recorder_text = data.data.hide_name;
-                    window.ll_recorder_data.hide_name = data.data.hide_name;
-                }
-
-                const newImages = Array.isArray(data.data?.images) ? data.data.images : [];
-                newImages.forEach(normalizeImageRecordingTypeState);
+                const newImages = applyRecordingCategoryPagePayload(data.data || {}, newCategory, true);
                 if (newImages.length === 0) {
                     exhaustedCategories.add(newCategory);
                     window.ll_recorder_data.images = [];
                     images.length = 0;
                     currentImageIndex = 0;
-                    updateRecordingTypeOptions([]);
                     if (el.currentNum) el.currentNum.textContent = '0';
                     if (el.totalNum) el.totalNum.textContent = '0';
                     if (el.mainScreen) el.mainScreen.style.display = 'none';
@@ -5031,15 +5145,7 @@
                     return;
                 }
 
-                // Update global images and reset indexer
-                window.ll_recorder_data.images = newImages;
-                images.length = 0;
-                images.push(...newImages);
                 currentImageIndex = 0;
-
-                // Update recording type dropdown options
-                const newTypes = sortRecordingTypes(data.data?.recording_types || []);
-                updateRecordingTypeOptions(newTypes);
 
                 // Reset and load first image
                 if (el.completeScreen) el.completeScreen.style.display = 'none';
