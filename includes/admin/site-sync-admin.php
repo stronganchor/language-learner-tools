@@ -424,7 +424,7 @@ function ll_tools_site_sync_submitted_edit_values(array $fields, array $current_
         : [];
 
     foreach ($fields as $field) {
-        if (in_array($field, ['recording_text', 'recording_ipa', 'review_note'], true)) {
+        if (in_array($field, ['recording_text', 'recording_translation', 'recording_ipa', 'review_note'], true)) {
             $values[$field] = isset($raw_after_values[$field]) ? (string) $raw_after_values[$field] : '';
             continue;
         }
@@ -531,7 +531,7 @@ function ll_tools_site_sync_push_local_conflict_updates(array $plan): array {
 
         $local_values = ll_tools_site_sync_normalize_record_values((array) ($local_record['values'] ?? []));
         $update = (array) ($updates_by_recording[$recording_id] ?? ['recording_id' => $recording_id]);
-        if (in_array($field, ['recording_text', 'recording_ipa'], true)) {
+        if (in_array($field, ['recording_text', 'recording_translation', 'recording_ipa'], true)) {
             $update[$field] = (string) ($local_values[$field] ?? '');
         } elseif (in_array($field, ['needs_review', 'review_fields', 'review_note'], true)) {
             $update['needs_review'] = (bool) ($local_values['needs_review'] ?? false);
@@ -1043,6 +1043,7 @@ function ll_tools_site_sync_get_wordset_options(): array {
 function ll_tools_site_sync_field_label(string $field): string {
     $labels = [
         'recording_text' => __('Orthography', 'll-tools-text-domain'),
+        'recording_translation' => __('Recording translation', 'll-tools-text-domain'),
         'recording_ipa' => __('IPA', 'll-tools-text-domain'),
         'needs_review' => __('Needs review', 'll-tools-text-domain'),
         'review_fields' => __('Review fields', 'll-tools-text-domain'),
@@ -1252,7 +1253,7 @@ function ll_tools_site_sync_render_after_value_control(string $field, $value): v
     ?>
     <div class="ll-site-sync-edit-field ll-site-sync-edit-field--<?php echo esc_attr($field); ?>">
         <span><?php echo esc_html(ll_tools_site_sync_field_label($field)); ?></span>
-        <?php if (in_array($field, ['recording_text', 'recording_ipa', 'review_note'], true)) : ?>
+        <?php if (in_array($field, ['recording_text', 'recording_translation', 'recording_ipa', 'review_note'], true)) : ?>
             <textarea name="ll_site_sync_after_values[<?php echo esc_attr($field); ?>]" rows="2"><?php echo esc_textarea((string) $value); ?></textarea>
         <?php elseif ($field === 'needs_review') : ?>
             <label class="ll-site-sync-checkbox ll-site-sync-checkbox--compact">

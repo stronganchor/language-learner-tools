@@ -266,7 +266,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
                 $body = json_decode((string) ($args['body'] ?? ''), true);
                 $updates = array_values((array) ($body['updates'] ?? []));
                 foreach ($updates as $update) {
-                    foreach (['recording_text', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'] as $field) {
+                    foreach (['recording_text', 'recording_translation', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'] as $field) {
                         if (array_key_exists($field, $update)) {
                             $remote_record['values'][$field] = $update[$field];
                         }
@@ -435,7 +435,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
                         if ((int) (($remote_record['recording'] ?? [])['id'] ?? 0) !== $recording_id) {
                             continue;
                         }
-                        foreach (['recording_text', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'] as $field) {
+                        foreach (['recording_text', 'recording_translation', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'] as $field) {
                             if (array_key_exists($field, $update)) {
                                 $remote_record['values'][$field] = $update[$field];
                             }
@@ -1128,6 +1128,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $word_id = $this->create_word($wordset_id, [$category_id], 'Local Action Word', 'Local Action Translation');
         $recording_id = $this->create_recording($word_id, 'Local Action Recording', [
             'recording_text' => 'baseline text',
+            'recording_translation' => 'baseline translation',
             'recording_ipa' => 'changed.ipa',
         ]);
 
@@ -1152,9 +1153,10 @@ final class SiteSyncTest extends LL_Tools_TestCase
 
             $_POST = [
                 'll_site_sync_recording_id' => (string) $recording_id,
-                'll_site_sync_fields_json' => wp_json_encode(['recording_text', 'recording_ipa', 'needs_review', 'review_fields', 'review_note']),
+                'll_site_sync_fields_json' => wp_json_encode(['recording_text', 'recording_translation', 'recording_ipa', 'needs_review', 'review_fields', 'review_note']),
                 'll_site_sync_after_values' => [
                     'recording_text' => 'edited text',
+                    'recording_translation' => 'edited translation',
                     'recording_ipa' => 'edited.ipa',
                     'review_note' => 'edited note',
                 ],
@@ -1168,6 +1170,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
         }
 
         $this->assertSame('edited text', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('edited translation', (string) get_post_meta($recording_id, 'recording_translation', true));
         $this->assertSame('edited.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
         $this->assertSame('edited note', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
         $this->assertSame(['recording_ipa'], ll_tools_ipa_keyboard_get_recording_review_field_list($recording_id));

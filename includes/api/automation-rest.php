@@ -4972,6 +4972,11 @@ function ll_tools_rest_automation_sanitize_transcription_update_fields(array $fi
             continue;
         }
 
+        if ($meta_key === 'recording_translation') {
+            $prepared[$meta_key] = sanitize_text_field((string) $value);
+            continue;
+        }
+
         if ($meta_key === 'recording_ipa') {
             $clean_ipa = function_exists('ll_tools_word_grid_sanitize_ipa')
                 ? ll_tools_word_grid_sanitize_ipa((string) $value, $transcription_mode)
@@ -5218,6 +5223,9 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
         if (array_key_exists('recording_text', $update) || array_key_exists('text', $update)) {
             $fields['recording_text'] = (string) ($update['recording_text'] ?? $update['text']);
         }
+        if (array_key_exists('recording_translation', $update) || array_key_exists('translation', $update)) {
+            $fields['recording_translation'] = (string) ($update['recording_translation'] ?? $update['translation']);
+        }
         if (array_key_exists('recording_ipa', $update) || array_key_exists('ipa', $update)) {
             $fields['recording_ipa'] = (string) ($update['recording_ipa'] ?? $update['ipa']);
         }
@@ -5258,10 +5266,13 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
 
         if (!$dry_run) {
             if (!empty($prepared_fields)) {
+                $cache_sensitive_fields = array_intersect_key($prepared_fields, array_flip(['recording_text', 'recording_ipa']));
                 if (function_exists('ll_tools_ipa_keyboard_update_recording_fields')) {
-                    ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, $prepared_fields);
-                } else {
-                    foreach ($prepared_fields as $meta_key => $value) {
+                    if (!empty($cache_sensitive_fields)) {
+                        ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, $cache_sensitive_fields);
+                    }
+                } elseif (!empty($cache_sensitive_fields)) {
+                    foreach ($cache_sensitive_fields as $meta_key => $value) {
                         $value = sanitize_text_field($value);
                         if ($value === '') {
                             delete_post_meta($recording_id, $meta_key);
@@ -5269,6 +5280,15 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
                             update_post_meta($recording_id, $meta_key, $value);
                         }
                     }
+                }
+                if (array_key_exists('recording_translation', $prepared_fields)) {
+                    $recording_translation = sanitize_text_field((string) $prepared_fields['recording_translation']);
+                    if ($recording_translation === '') {
+                        delete_post_meta($recording_id, 'recording_translation');
+                    } else {
+                        update_post_meta($recording_id, 'recording_translation', $recording_translation);
+                    }
+                    clean_post_cache($recording_id);
                 }
             }
             if ($has_review_state) {

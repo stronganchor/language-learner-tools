@@ -1162,15 +1162,16 @@ after canonical readback is clean and you have reviewed any warnings.
 
 ### `POST /wordsets/{wordset}/transcriptions`
 
-Updates `word_audio` recording text, IPA, and review state for recordings that
-belong to one wordset. Send `dry_run=true` first when applying corrections from
-an external transcript review.
+Updates `word_audio` recording text, recording translation, IPA, and review
+state for recordings that belong to one wordset. Send `dry_run=true` first when
+applying corrections from an external transcript review.
 
 Body fields:
 
 - `updates` optional array; omitted arrays treat the request body as one update
 - `recording_id` or `word_audio_id` required per update
 - `recording_text` or `text` optional
+- `recording_translation` or `translation` optional
 - `recording_ipa` or `ipa` optional
 - `needs_review` optional boolean
 - `review_fields` optional list, or `review_field` for one targeted field
@@ -1266,7 +1267,8 @@ transcription review flags, review notes, and recording media references. When
 
 - `recording.id` / `recording.slug` / `recording.types`
 - `word.id`, title, slug, translation fields, and category rows
-- `values.recording_text`, `values.recording_ipa`, review flags, and review note
+- `values.recording_text`, `values.recording_translation`,
+  `values.recording_ipa`, review flags, and review note
 - `media.audio.path`, `media.audio.url`, `media.audio.mime_type`, and
   `media.audio.has_local_file`
 
@@ -1292,8 +1294,9 @@ records include:
   entry, part of speech, grammar fields, and missing-metadata flags
 - all assigned `word-category` rows
 - linked/effective `word_images` media when `include_media=true`
-- word audio summaries and recording rows with recording types, transcription
-  values, review state, and audio media when `include_media=true`
+- word audio summaries and recording rows with recording types, recording text,
+  recording translation, IPA values, review state, and audio media when
+  `include_media=true`
 - `wordset_metadata` with wordset settings, category rows, category ordering,
   manual order, prerequisite map, and prerequisite level information
 

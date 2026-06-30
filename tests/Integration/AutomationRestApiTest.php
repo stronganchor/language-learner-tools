@@ -2216,6 +2216,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'post_title' => 'REST Review Sync Recording',
         ]);
         update_post_meta($recording_id, 'recording_text', 'old text');
+        update_post_meta($recording_id, 'recording_translation', 'old translation');
         update_post_meta($recording_id, 'recording_ipa', 'old.ipa');
 
         wp_set_current_user($admin_id);
@@ -2223,6 +2224,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $update_row = [
             'recording_id' => $recording_id,
             'recording_text' => 'new text',
+            'recording_translation' => 'new translation',
             'recording_ipa' => 'new.ipa',
             'review_fields' => [
                 'recording_text' => true,
@@ -2243,12 +2245,14 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($dry_run_data['updated_count'] ?? 0));
         $dry_run_after = (array) (($dry_run_data['updated'][0]['after'] ?? []));
         $this->assertSame('new text', (string) ($dry_run_after['recording_text'] ?? ''));
+        $this->assertSame('new translation', (string) ($dry_run_after['recording_translation'] ?? ''));
         $this->assertSame('new.ipa', (string) ($dry_run_after['recording_ipa'] ?? ''));
         $this->assertTrue((bool) ($dry_run_after['needs_review'] ?? false));
         $this->assertTrue((bool) (($dry_run_after['review_fields']['recording_text'] ?? false)));
         $this->assertTrue((bool) (($dry_run_after['review_fields']['recording_ipa'] ?? false)));
         $this->assertSame('Review both generated transcription fields.', (string) ($dry_run_after['review_note'] ?? ''));
         $this->assertSame('old text', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('old translation', (string) get_post_meta($recording_id, 'recording_translation', true));
         $this->assertSame('old.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
         $this->assertFalse(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
 
@@ -2262,6 +2266,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($real_data['updated_count'] ?? 0));
         $real_after = (array) (($real_data['updated'][0]['after'] ?? []));
         $this->assertSame('new text', (string) ($real_after['recording_text'] ?? ''));
+        $this->assertSame('new translation', (string) ($real_after['recording_translation'] ?? ''));
         $this->assertSame('new.ipa', (string) ($real_after['recording_ipa'] ?? ''));
         $this->assertTrue((bool) ($real_after['needs_review'] ?? false));
         $this->assertTrue((bool) (($real_after['review_fields']['recording_text'] ?? false)));
@@ -2294,6 +2299,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $snapshot_review_fields = array_values((array) ($snapshot_values['review_fields'] ?? []));
         sort($snapshot_review_fields);
         $this->assertSame('new text', (string) ($snapshot_values['recording_text'] ?? ''));
+        $this->assertSame('new translation', (string) ($snapshot_values['recording_translation'] ?? ''));
         $this->assertSame('new.ipa', (string) ($snapshot_values['recording_ipa'] ?? ''));
         $this->assertTrue((bool) ($snapshot_values['needs_review'] ?? false));
         $this->assertSame(['recording_ipa', 'recording_text'], $snapshot_review_fields);
@@ -2331,6 +2337,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         ]);
         update_post_meta($recording_id, 'audio_file_path', '/wp-content/uploads/metadata-snapshot.mp3');
         update_post_meta($recording_id, 'recording_text', 'Recorded text');
+        update_post_meta($recording_id, 'recording_translation', 'Recorded translation');
         update_post_meta($recording_id, 'recording_ipa', 'recorded.ipa');
         wp_set_post_terms($recording_id, [$recording_type_id], 'recording_type', false);
 
@@ -2398,6 +2405,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertCount(1, $audio_records);
         $this->assertSame($recording_id, (int) (($audio_records[0]['id'] ?? 0)));
         $this->assertSame('Recorded text', (string) (($audio_records[0]['values']['recording_text'] ?? '')));
+        $this->assertSame('Recorded translation', (string) (($audio_records[0]['values']['recording_translation'] ?? '')));
         $this->assertSame('recorded.ipa', (string) (($audio_records[0]['values']['recording_ipa'] ?? '')));
 
         $media = (array) ($record['media'] ?? []);

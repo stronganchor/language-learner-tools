@@ -34,7 +34,7 @@ function ll_tools_site_sync_normalize_surface(string $surface): string {
 }
 
 function ll_tools_site_sync_transcription_value_keys(): array {
-    return ['recording_text', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'];
+    return ['recording_text', 'recording_translation', 'recording_ipa', 'needs_review', 'review_fields', 'review_note'];
 }
 
 function ll_tools_site_sync_get_or_create_post_uuid(int $post_id, bool $ensure = true): string {
@@ -212,6 +212,20 @@ function ll_tools_site_sync_write_recording_text(int $recording_id, string $reco
     update_post_meta($recording_id, 'recording_text', $recording_text);
 }
 
+function ll_tools_site_sync_sanitize_recording_translation_for_sync(string $recording_translation): string {
+    return sanitize_text_field($recording_translation);
+}
+
+function ll_tools_site_sync_write_recording_translation(int $recording_id, string $recording_translation): void {
+    $recording_translation = ll_tools_site_sync_sanitize_recording_translation_for_sync($recording_translation);
+    if ($recording_translation === '') {
+        delete_post_meta($recording_id, 'recording_translation');
+        return;
+    }
+
+    update_post_meta($recording_id, 'recording_translation', $recording_translation);
+}
+
 function ll_tools_site_sync_record_values(int $recording_id, int $wordset_id): array {
     $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? (string) ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
@@ -220,6 +234,7 @@ function ll_tools_site_sync_record_values(int $recording_id, int $wordset_id): a
 
     return [
         'recording_text' => ll_tools_site_sync_sanitize_recording_text_for_sync((string) get_post_meta($recording_id, 'recording_text', true)),
+        'recording_translation' => ll_tools_site_sync_sanitize_recording_translation_for_sync((string) get_post_meta($recording_id, 'recording_translation', true)),
         'recording_ipa' => function_exists('ll_tools_word_grid_normalize_ipa_output')
             ? ll_tools_word_grid_normalize_ipa_output($recording_ipa, $transcription_mode)
             : $recording_ipa,
@@ -238,6 +253,7 @@ function ll_tools_site_sync_normalize_record_values(array $values): array {
 
     return [
         'recording_text' => ll_tools_site_sync_sanitize_recording_text_for_sync((string) ($values['recording_text'] ?? '')),
+        'recording_translation' => ll_tools_site_sync_sanitize_recording_translation_for_sync((string) ($values['recording_translation'] ?? '')),
         'recording_ipa' => (string) ($values['recording_ipa'] ?? ''),
         'needs_review' => $needs_review,
         'review_fields' => $review_fields,
@@ -1418,7 +1434,7 @@ function ll_tools_site_sync_build_push_plan(array $local_snapshot, array $remote
         if (!empty($push_fields)) {
             $update = ['recording_id' => (int) ($remote_record['recording']['id'] ?? 0)];
             foreach ($push_fields as $field => $value) {
-                if (in_array($field, ['recording_text', 'recording_ipa'], true)) {
+                if (in_array($field, ['recording_text', 'recording_translation', 'recording_ipa'], true)) {
                     $update[$field] = $value;
                 }
             }
@@ -1441,7 +1457,7 @@ function ll_tools_site_sync_build_push_plan(array $local_snapshot, array $remote
         foreach ($conflict_fields as $conflict) {
             $review_field = in_array((string) $conflict['field'], ['recording_text', 'recording_ipa'], true)
                 ? (string) $conflict['field']
-                : 'recording_ipa';
+                : ((string) $conflict['field'] === 'recording_translation' ? 'recording_text' : 'recording_ipa');
             $review_update = [
                 'recording_id' => (int) ($remote_record['recording']['id'] ?? 0),
                 'needs_review' => true,
@@ -2493,6 +2509,7 @@ function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_
     $values = ll_tools_site_sync_normalize_record_values($values);
     $field_updates = [];
     $desired_recording_text = null;
+    $desired_recording_translation = null;
     foreach (['recording_text', 'recording_ipa'] as $field) {
         if (array_key_exists($field, $values)) {
             $field_updates[$field] = (string) $values[$field];
@@ -2500,6 +2517,9 @@ function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_
                 $desired_recording_text = (string) $values[$field];
             }
         }
+    }
+    if (array_key_exists('recording_translation', $values)) {
+        $desired_recording_translation = (string) $values['recording_translation'];
     }
 
     if (!empty($field_updates)) {
@@ -2522,6 +2542,12 @@ function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_
     }
     if ($desired_recording_text !== null && (string) get_post_meta($recording_id, 'recording_text', true) !== $desired_recording_text) {
         ll_tools_site_sync_write_recording_text($recording_id, $desired_recording_text);
+    }
+    if ($desired_recording_translation !== null) {
+        $desired_recording_translation = ll_tools_site_sync_sanitize_recording_translation_for_sync($desired_recording_translation);
+    }
+    if ($desired_recording_translation !== null && (string) get_post_meta($recording_id, 'recording_translation', true) !== $desired_recording_translation) {
+        ll_tools_site_sync_write_recording_translation($recording_id, $desired_recording_translation);
     }
 
     if (array_key_exists('needs_review', $values)) {
