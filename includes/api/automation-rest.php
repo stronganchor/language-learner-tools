@@ -7674,7 +7674,6 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
         'word_overrides',
         'word_override_word_ids',
         'word_override_entry_ids',
-        'word_equivalents',
         'phrase_overrides',
         'optional_matches',
         'recording_type_punctuation',
@@ -7699,7 +7698,7 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
             }
         }
 
-        foreach (['word_overrides', 'word_override_word_ids', 'word_override_entry_ids', 'word_equivalents', 'phrase_overrides', 'optional_matches', 'recording_type_punctuation', 'sentence_case'] as $setting_key) {
+        foreach (['word_overrides', 'word_override_word_ids', 'word_override_entry_ids', 'phrase_overrides', 'optional_matches', 'recording_type_punctuation', 'sentence_case'] as $setting_key) {
             if ($request->has_param($setting_key)) {
                 $raw_settings[$setting_key] = $request->get_param($setting_key);
             }
@@ -7725,7 +7724,7 @@ function ll_tools_rest_automation_orthography_conversion(WP_REST_Request $reques
                         );
                     }
                 }
-                foreach (['word_equivalents', 'phrase_overrides', 'optional_matches'] as $setting_key) {
+                foreach (['phrase_overrides', 'optional_matches'] as $setting_key) {
                     if (array_key_exists($setting_key, $raw_settings)) {
                         $next_settings[$setting_key] = array_merge(
                             (array) ($next_settings[$setting_key] ?? []),

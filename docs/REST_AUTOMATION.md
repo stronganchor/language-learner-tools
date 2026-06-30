@@ -340,10 +340,9 @@ to a dictionary entry by sending each override as an object with
 `word_override_entry_ids` map keyed by source text, or include `word_id` on an
 override so the server can infer the linked dictionary entry. Bound lexical
 overrides and approved mismatch exceptions only apply while the word is linked
-to the same dictionary entry. Use `orthography_settings.word_equivalents` for
-word-level mismatch equivalences that should not rewrite conversion output; each
-entry accepts `from`/`to`, `source`/`target`, or `words: ["first", "second"]`
-and is matched as an exact normalized token pair within that wordset.
+to the same dictionary entry. Use `word_overrides` for word-level pronunciation
+or projection exceptions where a predicted token should be accepted as and
+rendered with a different orthographic token.
 
 Interlinear automation should use `GET /wordsets/{wordset}/interlinear` to list
 content/vocab lessons and current payload status. Add `lesson=<post ID, slug, or

@@ -527,9 +527,9 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
-    public function test_word_equivalent_setting_allows_exact_token_mismatch(): void
+    public function test_word_override_setting_allows_exact_token_mismatch(): void
     {
-        $wordset_id = $this->createWordset('Configurable Word Equivalence');
+        $wordset_id = $this->createWordset('Configurable Word Override Equivalence');
 
         $prediction = [
             'complete' => true,
@@ -546,11 +546,8 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($without_setting['matches'] ?? true));
 
         $this->setOrthographySettings($wordset_id, [
-            'word_equivalents' => [
-                [
-                    'from' => 'e',
-                    'to' => 'ez',
-                ],
+            'word_overrides' => [
+                'e' => 'ez',
             ],
         ]);
 
