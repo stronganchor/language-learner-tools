@@ -23,14 +23,15 @@
         ? transcribePollIntervalRaw
         : 1200;
     const transcribeProvider = String(cfg.transcribeProvider || '').trim();
-    const transcribeTargetField = String(cfg.transcribeTargetField || 'recording_text').trim() === 'recording_ipa'
-        ? 'recording_ipa'
-        : 'recording_text';
     const transcribeLocalEndpoint = String(cfg.transcribeLocalEndpoint || '').trim();
     const transcribeUsesLocalBrowser = !!cfg.transcribeUsesLocalBrowser && transcribeProvider === 'local_browser' && !!transcribeLocalEndpoint;
-    const secondaryTextMode = ['ipa', 'transliteration', 'transcription'].indexOf(String(cfg.secondaryTextMode || '').trim()) >= 0
+    const secondaryTextMode = ['disabled', 'ipa', 'transliteration', 'transcription'].indexOf(String(cfg.secondaryTextMode || '').trim()) >= 0
         ? String(cfg.secondaryTextMode || '').trim()
-        : 'ipa';
+        : 'disabled';
+    const secondaryTextEnabled = cfg.secondaryTextEnabled !== false && cfg.secondaryTextEnabled !== '0' && secondaryTextMode !== 'disabled';
+    const transcribeTargetField = String(cfg.transcribeTargetField || 'recording_text').trim() === 'recording_ipa' && secondaryTextEnabled
+        ? 'recording_ipa'
+        : 'recording_text';
     const secondaryTextDisplayFormat = String(cfg.secondaryTextDisplayFormat || (secondaryTextMode === 'ipa' ? 'brackets' : 'plain')).trim();
     const secondaryTextCommonChars = Array.isArray(cfg.secondaryTextCommonChars) ? cfg.secondaryTextCommonChars.slice() : [];
     const secondaryTextModifierChars = secondaryTextMode === 'ipa'
@@ -4019,16 +4020,19 @@
             if (!recId) { return; }
             const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
             const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
-            const ipa = normalizeIpaForStorage(($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString());
+            const $ipaInput = $rec.find('[data-ll-recording-input="ipa"]').first();
             const type = ($rec.find('[data-ll-recording-input="type"]').val() || $rec.attr('data-recording-type') || '').toString();
-            recordings.push({
+            const entry = {
                 id: recId,
                 recording_text: text,
                 recording_translation: translation,
-                recording_ipa: ipa,
                 recording_type: type,
                 review_fields: getRecordingReviewFields($rec)
-            });
+            };
+            if ($ipaInput.length) {
+                entry.recording_ipa = normalizeIpaForStorage(($ipaInput.val() || '').toString());
+            }
+            recordings.push(entry);
         });
         return recordings;
     }
@@ -4432,11 +4436,12 @@
                     fields.recording_ipa = true;
                 }
             });
-            return fields;
-        }
-        if (typeof value === 'object') {
+        } else if (typeof value === 'object') {
             fields.recording_text = !!(value.recording_text || value.text || value.orthography);
             fields.recording_ipa = !!(value.recording_ipa || value.ipa || value.transcription);
+        }
+        if (!secondaryTextEnabled) {
+            fields.recording_ipa = false;
         }
         return fields;
     }
@@ -4492,7 +4497,7 @@
     function getRecordingCaptionParts(text, translation, ipa, reviewFields) {
         const cleanText = (text || '').toString().trim();
         const cleanTranslation = (translation || '').toString().trim();
-        const cleanIpa = normalizeIpaOutput(ipa);
+        const cleanIpa = secondaryTextEnabled ? normalizeIpaOutput(ipa) : '';
         return {
             text: cleanText,
             translation: cleanTranslation,
@@ -9218,9 +9223,13 @@
                 if (!recId) { return; }
                 const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
                 const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
-                const ipa = normalizeIpaForStorage(($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString());
+                const $ipaInput = $rec.find('[data-ll-recording-input="ipa"]').first();
                 const type = ($rec.find('[data-ll-recording-input="type"]').val() || $rec.attr('data-recording-type') || '').toString();
-                recordings.push({ id: recId, text: text, translation: translation, ipa: ipa, recording_type: type, review_fields: getRecordingReviewFields($rec) });
+                const entry = { id: recId, text: text, translation: translation, recording_type: type, review_fields: getRecordingReviewFields($rec) };
+                if ($ipaInput.length) {
+                    entry.ipa = normalizeIpaForStorage(($ipaInput.val() || '').toString());
+                }
+                recordings.push(entry);
             });
 
             const $saveBtn = $(this);
@@ -9254,7 +9263,7 @@
                         id: entry.id,
                         recording_text: entry.text,
                         recording_translation: entry.translation,
-                        recording_ipa: normalizeIpaOutput(entry.ipa),
+                        recording_ipa: typeof entry.ipa === 'string' ? normalizeIpaOutput(entry.ipa) : '',
                         recording_type: entry.recording_type,
                         review_fields: entry.review_fields
                     };

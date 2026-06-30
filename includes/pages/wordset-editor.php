@@ -994,6 +994,13 @@ function ll_tools_wordset_editor_get_recording_transcription_label(int $wordset_
     return __('IPA', 'll-tools-text-domain');
 }
 
+function ll_tools_wordset_editor_recording_transcription_enabled(int $wordset_id): bool {
+    $mode = ll_tools_wordset_editor_get_recording_transcription_mode($wordset_id);
+    return function_exists('ll_tools_wordset_recording_transcription_mode_is_enabled')
+        ? ll_tools_wordset_recording_transcription_mode_is_enabled($mode)
+        : ($mode !== 'disabled');
+}
+
 function ll_tools_wordset_editor_expand_category_filter_ids_for_query(array $category_ids, int $wordset_id): array {
     $expanded = [];
     foreach (ll_tools_wordset_editor_normalize_word_ids($category_ids) as $category_id) {
@@ -1045,6 +1052,7 @@ function ll_tools_wordset_editor_get_recordings_for_word_ids(array $word_ids, in
     }
 
     $transcription_mode = ll_tools_wordset_editor_get_recording_transcription_mode($wordset_id);
+    $transcription_enabled = ll_tools_wordset_editor_recording_transcription_enabled($wordset_id);
 
     $recordings = get_posts([
         'post_type'      => 'word_audio',
@@ -1083,10 +1091,12 @@ function ll_tools_wordset_editor_get_recordings_for_word_ids(array $word_ids, in
         }
 
         $file_path = (string) get_post_meta((int) $recording->ID, 'audio_file_path', true);
-        $recording_ipa = ll_tools_wordset_editor_normalize_recording_ipa(
-            (string) get_post_meta((int) $recording->ID, 'recording_ipa', true),
-            $transcription_mode
-        );
+        $recording_ipa = $transcription_enabled
+            ? ll_tools_wordset_editor_normalize_recording_ipa(
+                (string) get_post_meta((int) $recording->ID, 'recording_ipa', true),
+                $transcription_mode
+            )
+            : '';
         $by_word[$word_id][] = [
             'id'                    => (int) $recording->ID,
             'title'                 => (string) $recording->post_title,
@@ -3165,6 +3175,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $page_word_ids = ll_tools_wordset_editor_normalize_word_ids(wp_list_pluck($page_rows, 'id'));
     $recordings_by_word_id = ll_tools_wordset_editor_get_recordings_for_word_ids($page_word_ids, $wordset_id);
     $recording_transcription_label = ll_tools_wordset_editor_get_recording_transcription_label($wordset_id);
+    $recording_transcription_enabled = ll_tools_wordset_editor_recording_transcription_enabled($wordset_id);
     $saved_filters = ll_tools_wordset_editor_get_saved_filters($wordset_id);
     $history_filters = ll_tools_wordset_editor_get_history_filters();
     $history_rows = ll_tools_wordset_editor_get_filtered_history($wordset_id, $history_filters);
@@ -3546,7 +3557,9 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                                 $recording_texts_html = '';
                                                 $recording_texts_html .= ll_tools_wordset_editor_render_recording_text_field('recording_text', __('Text', 'll-tools-text-domain'), (string) ($recording_row['recording_text'] ?? ''));
                                                 $recording_texts_html .= ll_tools_wordset_editor_render_recording_text_field('recording_translation', __('Translation', 'll-tools-text-domain'), (string) ($recording_row['recording_translation'] ?? ''));
-                                                $recording_texts_html .= ll_tools_wordset_editor_render_recording_text_field('recording_ipa', $recording_transcription_label, (string) ($recording_row['recording_ipa'] ?? ''));
+                                                if ($recording_transcription_enabled) {
+                                                    $recording_texts_html .= ll_tools_wordset_editor_render_recording_text_field('recording_ipa', $recording_transcription_label, (string) ($recording_row['recording_ipa'] ?? ''));
+                                                }
                                                 ?>
                                                 <?php if ($recording_texts_html !== '') : ?>
                                                     <dl class="ll-wordset-editor-recording-texts">

@@ -201,7 +201,7 @@ function ll_tools_ipa_keyboard_get_transcription_mode_for_wordset(int $wordset_i
     $mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? sanitize_key((string) ll_tools_get_wordset_recording_transcription_mode($wordset_id > 0 ? [$wordset_id] : [], true))
         : 'ipa';
-    $runtime_cache[$cache_key] = in_array($mode, ['ipa', 'transliteration', 'transcription'], true) ? $mode : 'ipa';
+    $runtime_cache[$cache_key] = in_array($mode, ['disabled', 'ipa', 'transliteration', 'transcription'], true) ? $mode : 'ipa';
     return $runtime_cache[$cache_key];
 }
 

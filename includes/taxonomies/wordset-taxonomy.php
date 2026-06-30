@@ -3120,12 +3120,13 @@ function ll_add_wordset_language_field($term) {
         'term-recording-transcription-mode-wrap',
         __('Recording pronunciation text', 'll-tools-text-domain'),
         '<select id="ll-wordset-recording-transcription-mode" name="ll_wordset_recording_transcription_mode">'
+            . '<option value="disabled" ' . selected($recording_transcription_mode, 'disabled', false) . '>' . esc_html__('Off (basic recording text only)', 'll-tools-text-domain') . '</option>'
             . '<option value="ipa" ' . selected($recording_transcription_mode, 'ipa', false) . '>' . esc_html__('IPA (phonetic)', 'll-tools-text-domain') . '</option>'
             . '<option value="transliteration" ' . selected($recording_transcription_mode, 'transliteration', false) . '>' . esc_html__('Transliteration (romanized text)', 'll-tools-text-domain') . '</option>'
             . '<option value="transcription" ' . selected($recording_transcription_mode, 'transcription', false) . '>' . esc_html__('Transcription (other notation)', 'll-tools-text-domain') . '</option>'
             . '</select>',
         'll-wordset-recording-transcription-mode',
-        __('Choose how the secondary recording text field should behave in this word set. IPA keeps phonetic formatting; transliteration removes IPA-specific formatting and is better for latinized Hebrew and similar systems.', 'll-tools-text-domain')
+        __('Keep this off for most word sets. Turn it on only when this word set needs IPA, transliteration, or another secondary transcription field.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(

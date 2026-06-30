@@ -1178,7 +1178,9 @@ function ll_tools_vocab_lesson_get_word_display_parts(int $word_id, array $audio
         $text = trim((string) get_the_title($word_id));
     }
 
-    $transcription = trim((string) ($audio_entry['recording_ipa'] ?? ''));
+    $transcription = $transcription_mode === 'disabled'
+        ? ''
+        : trim((string) ($audio_entry['recording_ipa'] ?? ''));
     if ($transcription !== '' && function_exists('ll_tools_word_grid_normalize_ipa_output')) {
         $transcription = ll_tools_word_grid_normalize_ipa_output($transcription, $transcription_mode);
     }
@@ -1407,8 +1409,11 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
             'uses_ipa_font' => true,
         ];
     $transcription_mode = (string) ($transcription_config['mode'] ?? 'ipa');
+    $transcription_enabled = function_exists('ll_tools_wordset_recording_transcription_mode_is_enabled')
+        ? ll_tools_wordset_recording_transcription_mode_is_enabled($transcription_mode)
+        : ($transcription_mode !== 'disabled');
     $transcription_format = (string) ($transcription_config['display_format'] ?? 'plain');
-    $transcription_uses_ipa_font = !empty($transcription_config['uses_ipa_font']);
+    $transcription_uses_ipa_font = $transcription_enabled && !empty($transcription_config['uses_ipa_font']);
     $can_manage_internal_notes = function_exists('ll_tools_current_user_can_manage_internal_review_notes')
         && function_exists('ll_tools_render_internal_review_note_field')
         && ll_tools_current_user_can_manage_internal_review_notes($wordset_id);
@@ -1419,6 +1424,7 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
         'class' => 'word-grid ll-word-grid',
         'data-ll-word-grid' => '',
         'data-ll-secondary-text-mode' => $transcription_mode,
+        'data-ll-secondary-text-enabled' => $transcription_enabled ? '1' : '0',
         'data-ll-secondary-text-format' => $transcription_format,
         'data-ll-secondary-text-uses-ipa-font' => $transcription_uses_ipa_font ? '1' : '0',
     ];
@@ -1481,12 +1487,14 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                     '_ll_prompt_card_prompt_text_translation',
                     'prompt_translation',
                 ]),
-                'transcription' => ll_tools_vocab_lesson_get_prompt_card_optional_meta($prompt_card_id, [
-                    '_ll_prompt_card_prompt_transcription',
-                    '_ll_prompt_card_prompt_ipa',
-                    'prompt_transcription',
-                    'recording_ipa',
-                ]),
+                'transcription' => $transcription_enabled
+                    ? ll_tools_vocab_lesson_get_prompt_card_optional_meta($prompt_card_id, [
+                        '_ll_prompt_card_prompt_transcription',
+                        '_ll_prompt_card_prompt_ipa',
+                        'prompt_transcription',
+                        'recording_ipa',
+                    ])
+                    : '',
             ];
             if ($prompt_parts['transcription'] !== '' && function_exists('ll_tools_word_grid_normalize_ipa_output')) {
                 $prompt_parts['transcription'] = ll_tools_word_grid_normalize_ipa_output((string) $prompt_parts['transcription'], $transcription_mode);

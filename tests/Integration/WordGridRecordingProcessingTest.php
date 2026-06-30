@@ -117,6 +117,65 @@ final class WordGridRecordingProcessingTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Check the first sound.', $staff_output);
     }
 
+    public function test_disabled_recording_transcription_mode_hides_ipa_control_and_preserves_stored_value(): void
+    {
+        $fixture = $this->createWordWithRecording('lesson-popup-disabled-transcription');
+        update_term_meta($fixture['wordset_id'], LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'disabled');
+        update_post_meta($fixture['recording_id'], 'recording_ipa', 'old.ipa');
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($fixture['recording_id'], 'recording_ipa', 'Keep this for later.');
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $ajax_filter = static function (): bool {
+            return true;
+        };
+        add_filter('wp_doing_ajax', $ajax_filter);
+        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+
+        try {
+            $output = do_shortcode('[word_grid category="lesson-popup-disabled-transcription-category" wordset="lesson-popup-disabled-transcription-wordset"]');
+        } finally {
+            remove_filter('wp_doing_ajax', $ajax_filter);
+            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+        }
+
+        $this->assertStringContainsString('data-ll-secondary-text-mode="disabled"', $output);
+        $this->assertStringContainsString('data-ll-recording-input="text"', $output);
+        $this->assertStringContainsString('data-ll-recording-input="translation"', $output);
+        $this->assertStringNotContainsString('data-ll-recording-input="ipa"', $output);
+        $this->assertStringNotContainsString('old.ipa', $output);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_grid_edit'),
+            'word_id' => (string) $fixture['word_id'],
+            'wordset_id' => (string) $fixture['wordset_id'],
+            'word_text' => 'Updated Disabled Word',
+            'word_translation' => 'Updated Translation',
+            'word_note' => '',
+            'recordings' => wp_json_encode([
+                [
+                    'id' => (int) $fixture['recording_id'],
+                    'recording_text' => 'Updated recording text',
+                    'recording_translation' => 'Updated recording translation',
+                    'review_fields' => ['recording_text' => true],
+                ],
+            ]),
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_grid_update_word_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+        $this->assertSame('Updated recording text', (string) get_post_meta((int) $fixture['recording_id'], 'recording_text', true));
+        $this->assertSame('Updated recording translation', (string) get_post_meta((int) $fixture['recording_id'], 'recording_translation', true));
+        $this->assertSame('old.ipa', (string) get_post_meta((int) $fixture['recording_id'], 'recording_ipa', true));
+        $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review((int) $fixture['recording_id'], 'recording_text'));
+        $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review((int) $fixture['recording_id'], 'recording_ipa'));
+    }
+
     public function test_lesson_grid_shows_sentence_recordings_and_marks_duplicate_manager_recordings(): void
     {
         $fixture = $this->createWordWithRecording('lesson-popup-all-recordings');
@@ -242,6 +301,7 @@ final class WordGridRecordingProcessingTest extends LL_Tools_TestCase
         $category_id = $this->ensureTerm('word-category', ucwords(str_replace('-', ' ', $prefix)) . ' Category', $prefix . '-category');
         $recording_type_id = $this->ensureTerm('recording_type', 'Isolation', 'isolation');
 
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY, '1');
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');

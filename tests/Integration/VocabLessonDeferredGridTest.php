@@ -515,6 +515,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $wordset = wp_insert_term('Deferred Prompt Card Wordset', 'wordset', ['slug' => 'deferred-prompt-card-wordset']);
         $this->assertIsArray($wordset);
         $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
 
         $prompt_category = wp_insert_term('Deferred Prompt Card Category', 'word-category', ['slug' => 'deferred-prompt-card-category']);
         $this->assertIsArray($prompt_category);

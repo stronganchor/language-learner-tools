@@ -2893,6 +2893,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $category_id = $this->ensure_term('word-category', 'REST Interlinear Grid Category', 'rest-interlinear-grid-category');
         $recording_type_id = $this->ensure_term('recording_type', 'Question', 'question');
         $second_recording_type_id = $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
 

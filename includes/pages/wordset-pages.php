@@ -7693,7 +7693,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
             : 'target';
         $recording_transcription_mode = isset($_POST['ll_wordset_recording_transcription_mode'])
             ? ll_tools_sanitize_wordset_recording_transcription_mode(wp_unslash((string) $_POST['ll_wordset_recording_transcription_mode']))
-            : 'ipa';
+            : ll_tools_get_default_wordset_recording_transcription_mode();
         $dictionary_close_match_groups = isset($_POST['ll_wordset_dictionary_close_match_groups'])
             ? ll_tools_sanitize_wordset_dictionary_close_match_groups(wp_unslash((string) $_POST['ll_wordset_dictionary_close_match_groups']))
             : [];
@@ -12375,8 +12375,8 @@ function ll_tools_wordset_page_render_settings_language_tool(WP_Term $wordset_te
         ? ll_tools_sanitize_wordset_title_language_role((string) ($settings['word_title_language_role'] ?? 'target'))
         : sanitize_key((string) ($settings['word_title_language_role'] ?? 'target'));
     $recording_transcription_mode = function_exists('ll_tools_sanitize_wordset_recording_transcription_mode')
-        ? ll_tools_sanitize_wordset_recording_transcription_mode((string) ($settings['recording_transcription_mode'] ?? 'ipa'))
-        : sanitize_key((string) ($settings['recording_transcription_mode'] ?? 'ipa'));
+        ? ll_tools_sanitize_wordset_recording_transcription_mode((string) ($settings['recording_transcription_mode'] ?? 'disabled'))
+        : sanitize_key((string) ($settings['recording_transcription_mode'] ?? 'disabled'));
     $dictionary_close_match_groups = is_array($settings['dictionary_close_match_groups'] ?? null)
         ? (array) $settings['dictionary_close_match_groups']
         : [];
@@ -12452,12 +12452,13 @@ function ll_tools_wordset_page_render_settings_language_tool(WP_Term $wordset_te
                             <label for="ll-wordset-settings-recording-transcription-mode">
                                 <span><?php echo esc_html__('Recording pronunciation text', 'll-tools-text-domain'); ?></span>
                                 <select id="ll-wordset-settings-recording-transcription-mode" name="ll_wordset_recording_transcription_mode" class="ll-tools-settings-select">
+                                    <option value="disabled" <?php selected($recording_transcription_mode, 'disabled'); ?>><?php echo esc_html__('Off (basic recording text only)', 'll-tools-text-domain'); ?></option>
                                     <option value="ipa" <?php selected($recording_transcription_mode, 'ipa'); ?>><?php echo esc_html__('IPA (phonetic)', 'll-tools-text-domain'); ?></option>
                                     <option value="transliteration" <?php selected($recording_transcription_mode, 'transliteration'); ?>><?php echo esc_html__('Transliteration (romanized text)', 'll-tools-text-domain'); ?></option>
                                     <option value="transcription" <?php selected($recording_transcription_mode, 'transcription'); ?>><?php echo esc_html__('Transcription (other notation)', 'll-tools-text-domain'); ?></option>
                                 </select>
                             </label>
-                            <p class="description"><?php echo esc_html__('Choose how the secondary recording text field behaves in this word set. Transliteration is better for romanized systems that do not need IPA formatting.', 'll-tools-text-domain'); ?></p>
+                            <p class="description"><?php echo esc_html__('Keep this off for most word sets. Turn it on only when this word set needs IPA, transliteration, or another secondary transcription field.', 'll-tools-text-domain'); ?></p>
                         </div>
                     </div>
                 </div>

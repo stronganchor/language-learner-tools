@@ -74,7 +74,20 @@ function ll_tools_sanitize_wordset_title_language_role($value): string {
 
 function ll_tools_sanitize_wordset_recording_transcription_mode($value): string {
     $value = sanitize_key((string) $value);
-    return in_array($value, ['ipa', 'transliteration', 'transcription'], true) ? $value : 'ipa';
+    if (in_array($value, ['disabled', 'none', 'off', '0'], true)) {
+        return 'disabled';
+    }
+
+    return in_array($value, ['ipa', 'transliteration', 'transcription'], true) ? $value : 'disabled';
+}
+
+function ll_tools_get_default_wordset_recording_transcription_mode(): string {
+    $mode = (string) apply_filters('ll_tools_default_wordset_recording_transcription_mode', 'disabled');
+    return ll_tools_sanitize_wordset_recording_transcription_mode($mode);
+}
+
+function ll_tools_wordset_recording_transcription_mode_is_enabled(string $mode): bool {
+    return in_array(ll_tools_sanitize_wordset_recording_transcription_mode($mode), ['ipa', 'transliteration', 'transcription'], true);
 }
 
 function ll_tools_sanitize_wordset_transcription_provider($value): string {
@@ -691,7 +704,11 @@ function ll_tools_get_wordset_recording_transcription_mode($wordset_ids = [], bo
         );
     }
 
-    return $fallback_to_default ? 'ipa' : '';
+    if (!$fallback_to_default) {
+        return '';
+    }
+
+    return empty($ids) ? ll_tools_get_default_wordset_recording_transcription_mode() : 'ipa';
 }
 
 function ll_tools_get_wordset_transcription_provider($wordset_ids = [], bool $fallback_to_default = true): string {
@@ -1284,6 +1301,12 @@ function ll_tools_is_wordset_recording_transcription_ipa($wordset_ids = [], bool
     return ll_tools_get_wordset_recording_transcription_mode($wordset_ids, $fallback_to_default) === 'ipa';
 }
 
+function ll_tools_is_wordset_recording_transcription_enabled($wordset_ids = [], bool $fallback_to_default = true): bool {
+    return ll_tools_wordset_recording_transcription_mode_is_enabled(
+        ll_tools_get_wordset_recording_transcription_mode($wordset_ids, $fallback_to_default)
+    );
+}
+
 function ll_tools_get_wordset_recording_transcription_config($wordset_ids = [], bool $fallback_to_default = true): array {
     $mode = ll_tools_get_wordset_recording_transcription_mode($wordset_ids, $fallback_to_default);
 
@@ -1365,10 +1388,39 @@ function ll_tools_get_wordset_recording_transcription_config($wordset_ids = [], 
             'map_add_symbols_placeholder' => __('Characters (e.g. special characters)', 'll-tools-text-domain'),
             'map_add_missing' => __('Enter letters and transcription characters to add.', 'll-tools-text-domain'),
         ],
+        'disabled' => [
+            'mode' => 'disabled',
+            'disabled' => true,
+            'enabled' => false,
+            'label' => __('Pronunciation', 'll-tools-text-domain'),
+            'label_with_colon' => __('Pronunciation', 'll-tools-text-domain') . ':',
+            'display_format' => 'plain',
+            'uses_ipa_font' => false,
+            'supports_superscript' => false,
+            'common_chars' => [],
+            'common_chars_label' => '',
+            'modifier_chars' => [],
+            'modifier_chars_label' => '',
+            'wordset_chars_label' => __('Wordset symbols', 'll-tools-text-domain'),
+            'special_chars_heading' => __('Pronunciation Characters', 'll-tools-text-domain'),
+            'special_chars_empty' => __('Pronunciation text is turned off for this word set.', 'll-tools-text-domain'),
+            'special_chars_add_label' => __('Add characters', 'll-tools-text-domain'),
+            'special_chars_add_placeholder' => '',
+            'special_chars_description' => __('Turn on an advanced transcription mode in word set settings before managing pronunciation characters.', 'll-tools-text-domain'),
+            'symbols_column_label' => __('Pronunciation', 'll-tools-text-domain'),
+            'suggestions_aria_label' => __('Pronunciation suggestions', 'll-tools-text-domain'),
+            'keyboard_aria_label' => __('Pronunciation characters', 'll-tools-text-domain'),
+            'map_heading' => __('Letter to Pronunciation Map', 'll-tools-text-domain'),
+            'map_description' => __('Turn on an advanced transcription mode in word set settings before managing pronunciation suggestions.', 'll-tools-text-domain'),
+            'map_sample_value_label' => __('Pronunciation', 'll-tools-text-domain') . ':',
+            'map_add_symbols_label' => __('Pronunciation characters', 'll-tools-text-domain'),
+            'map_add_symbols_placeholder' => '',
+            'map_add_missing' => __('Enter letters and pronunciation characters to add.', 'll-tools-text-domain'),
+        ],
     ];
 
     if (!isset($configs[$mode])) {
-        $mode = 'ipa';
+        $mode = 'disabled';
     }
 
     return $configs[$mode];
@@ -1615,6 +1667,65 @@ function ll_tools_auto_translate_categories_for_wordset(int $wordset_id): array 
     return $results;
 }
 
+function ll_tools_set_default_wordset_recording_transcription_mode($term_id): void {
+    $term_id = (int) $term_id;
+    if ($term_id <= 0 || metadata_exists('term', $term_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY)) {
+        return;
+    }
+
+    update_term_meta(
+        $term_id,
+        LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY,
+        ll_tools_get_default_wordset_recording_transcription_mode()
+    );
+}
+add_action('created_wordset', 'll_tools_set_default_wordset_recording_transcription_mode', 20, 1);
+
+function ll_tools_get_wordset_ids_using_recording_transcription(array $wordset_ids = []): array {
+    global $wpdb;
+
+    $wordset_ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    $params = [
+        'recording_ipa',
+        'words',
+        'wordset',
+        'word_audio',
+    ];
+    $wordset_filter_sql = '';
+    if (!empty($wordset_ids)) {
+        $wordset_filter_sql = ' AND tt.term_id IN (' . implode(',', array_fill(0, count($wordset_ids), '%d')) . ')';
+        $params = array_merge($params, $wordset_ids);
+    }
+
+    $sql = "
+        SELECT DISTINCT tt.term_id
+        FROM {$wpdb->posts} audio
+        INNER JOIN {$wpdb->postmeta} ipa_meta
+            ON ipa_meta.post_id = audio.ID
+            AND ipa_meta.meta_key = %s
+            AND TRIM(CAST(ipa_meta.meta_value AS CHAR)) <> ''
+        INNER JOIN {$wpdb->posts} words
+            ON words.ID = audio.post_parent
+            AND words.post_type = %s
+        INNER JOIN {$wpdb->term_relationships} tr
+            ON tr.object_id = words.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt
+            ON tt.term_taxonomy_id = tr.term_taxonomy_id
+            AND tt.taxonomy = %s
+        WHERE audio.post_type = %s
+            AND audio.post_status NOT IN ('trash', 'auto-draft')
+            {$wordset_filter_sql}
+    ";
+
+    $prepared = $wpdb->prepare($sql, $params); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    if (!is_string($prepared) || $prepared === '') {
+        return [];
+    }
+
+    $ids = $wpdb->get_col($prepared); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    return ll_tools_normalize_wordset_setting_ids($ids);
+}
+
 function ll_tools_migrate_legacy_language_settings_to_wordsets(): array {
     $wordset_ids = get_terms([
         'taxonomy' => 'wordset',
@@ -1642,7 +1753,14 @@ function ll_tools_migrate_legacy_language_settings_to_wordsets(): array {
         'category_translation_enabled' => 0,
         'category_translation_source' => 0,
         'title_language_role' => 0,
+        'recording_transcription_mode_enabled' => 0,
+        'recording_transcription_mode_disabled' => 0,
     ];
+
+    $wordsets_using_recording_transcription = array_fill_keys(
+        ll_tools_get_wordset_ids_using_recording_transcription(array_map('intval', $wordset_ids)),
+        true
+    );
 
     foreach ($wordset_ids as $wordset_id) {
         $wordset_id = (int) $wordset_id;
@@ -1673,6 +1791,16 @@ function ll_tools_migrate_legacy_language_settings_to_wordsets(): array {
         if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY)) {
             update_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, $legacy['title_language_role']);
             $migrated['title_language_role']++;
+        }
+
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY)) {
+            $recording_transcription_mode = isset($wordsets_using_recording_transcription[$wordset_id]) ? 'ipa' : 'disabled';
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, $recording_transcription_mode);
+            if ($recording_transcription_mode === 'ipa') {
+                $migrated['recording_transcription_mode_enabled']++;
+            } else {
+                $migrated['recording_transcription_mode_disabled']++;
+            }
         }
     }
 

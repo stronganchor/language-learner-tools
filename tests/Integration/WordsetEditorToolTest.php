@@ -1195,6 +1195,7 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $wordset = wp_insert_term(ucwords(str_replace('-', ' ', $prefix)) . ' Wordset', 'wordset', ['slug' => $prefix . '-wordset']);
         $this->assertFalse(is_wp_error($wordset));
         $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
 
         $category_a = wp_insert_term(ucwords(str_replace('-', ' ', $prefix)) . ' A', 'word-category', ['slug' => $prefix . '-a']);
         $category_b = wp_insert_term(ucwords(str_replace('-', ' ', $prefix)) . ' B', 'word-category', ['slug' => $prefix . '-b']);
