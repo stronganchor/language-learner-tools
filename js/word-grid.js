@@ -1119,7 +1119,7 @@
                 const mainEl = textWrap.querySelector('.ll-word-recording-text-main');
                 const translationEl = textWrap.querySelector('.ll-word-recording-text-translation');
                 const ipaEl = textWrap.querySelector('.ll-word-recording-ipa');
-                const mainText = mainEl ? (mainEl.textContent || '').trim() : '';
+                const mainText = mainEl ? ((mainEl.value || mainEl.textContent || '').trim()) : '';
                 const translationText = translationEl ? (translationEl.textContent || '').trim() : '';
                 const ipaText = ipaEl ? (ipaEl.textContent || '').trim() : '';
 
@@ -1824,6 +1824,7 @@
         waveformLoading: editI18n.waveformLoading || 'Loading waveform...',
         waveformUnavailable: editI18n.waveformUnavailable || 'Waveform unavailable.',
         recordings: editI18n.recordings || 'Recordings',
+        recordingText: editI18n.recordingText || 'Recording text',
         deletingWord: editI18n.deletingWord || 'Deleting word...',
         wordDeleted: editI18n.wordDeleted || 'Word moved to Trash.',
         deleteWordError: editI18n.deleteWordError || 'Unable to delete word.',
@@ -2882,8 +2883,13 @@
         if (open) {
             $grids.find('[data-ll-inline-word-editor].is-editing').each(function () {
                 const $inlineEditor = $(this);
-                const fieldName = ($inlineEditor.attr('data-ll-inline-word-editor') || '').toString();
-                closeInlineWordEditor($inlineEditor.closest('.word-item'), fieldName, true, false);
+                saveInlineWordEditor($inlineEditor, { shouldFocusTrigger: false, closeIfUnchanged: true });
+            });
+            $item.find('[data-ll-inline-recording-text-input]').each(function () {
+                closeInlineRecordingTextEditor($(this), {
+                    restoreValue: false,
+                    updateSource: true
+                });
             });
             $grids.find('.word-item').not($item).each(function () {
                 const $otherItem = $(this);
@@ -3216,6 +3222,91 @@
         }
     }
 
+    function saveInlineWordEditor($editor, options) {
+        const settings = Object.assign({
+            shouldFocusTrigger: true,
+            closeIfUnchanged: true
+        }, options || {});
+        const fieldName = ($editor.attr('data-ll-inline-word-editor') || '').toString();
+        if (!fieldName || $editor.hasClass('is-saving')) { return false; }
+
+        const $item = $editor.closest('.word-item');
+        const wordId = parseInt($item.data('word-id'), 10) || 0;
+        const $grid = $item.closest('[data-ll-word-grid]');
+        const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+        if (!wordId || !ajaxUrl || !editNonce) {
+            setWordSaveStatus($item, editMessages.error, 'error');
+            return false;
+        }
+
+        const editedValue = ($editor.find('[data-ll-inline-word-input]').first().val() || '').toString();
+        let wordText = getInlineWordSavedValue($item, 'word');
+        let wordTranslation = getInlineWordSavedValue($item, 'translation');
+        const savedValue = fieldName === 'translation' ? wordTranslation : wordText;
+
+        if (editedValue === savedValue) {
+            if (settings.closeIfUnchanged) {
+                closeInlineWordEditor($item, fieldName, false, !!settings.shouldFocusTrigger);
+            }
+            return false;
+        }
+
+        if (fieldName === 'translation') {
+            wordTranslation = editedValue;
+        } else {
+            wordText = editedValue;
+        }
+
+        setInlineWordEditorSaving($item, fieldName, true);
+        setWordSaveBusy($item, true);
+        setWordSaveStatus($item, editMessages.saving, 'pending');
+
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'll_tools_word_grid_update_word',
+                nonce: editNonce,
+                word_id: String(wordId),
+                word_text: wordText,
+                word_translation: wordTranslation,
+                wordset_id: String(wordsetId)
+            }
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                const message = readResponseErrorMessage(response, editMessages.error);
+                setWordSaveStatus($item, message, 'error');
+                return;
+            }
+
+            const data = (response.data && typeof response.data === 'object') ? response.data : {};
+            if (typeof data.word_text === 'string') {
+                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_text));
+                $item.find('[data-ll-word-input="word"]').val(data.word_text);
+                syncInlineWordEditorValue($item, 'word', data.word_text);
+            }
+            if (typeof data.word_translation === 'string') {
+                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_translation));
+                $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
+                syncInlineWordEditorValue($item, 'translation', data.word_translation);
+            }
+            updateGridLayouts();
+            updateOriginalInputs($item);
+            closeInlineWordEditor($item, fieldName, false, !!settings.shouldFocusTrigger);
+            setWordSaveStatus($item, editMessages.saved, 'success');
+            scheduleWordSaveStatusClear($item, 1800);
+        }).fail(function (jqXHR) {
+            const message = readAjaxErrorMessage(jqXHR, editMessages.error);
+            setWordSaveStatus($item, message, 'error');
+        }).always(function () {
+            setInlineWordEditorSaving($item, fieldName, false);
+            setWordSaveBusy($item, false);
+        });
+
+        return true;
+    }
+
     function openInlineWordEditor($item, fieldName) {
         const $editor = getInlineWordEditor($item, fieldName);
         if (!$editor.length || $item.hasClass('ll-word-save-pending') || $editor.hasClass('is-saving')) {
@@ -3225,8 +3316,7 @@
         $grids.find('[data-ll-inline-word-editor].is-editing').each(function () {
             const $openEditor = $(this);
             if ($openEditor.is($editor)) { return; }
-            const openField = ($openEditor.attr('data-ll-inline-word-editor') || '').toString();
-            closeInlineWordEditor($openEditor.closest('.word-item'), openField, true, false);
+            saveInlineWordEditor($openEditor, { shouldFocusTrigger: false, closeIfUnchanged: true });
         });
 
         setWordSaveStatus($item, '', '');
@@ -4516,6 +4606,134 @@
                 if (inputEl && typeof inputEl.select === 'function' && ($firstInput.is('input[type="text"]') || $firstInput.is('textarea'))) {
                     inputEl.select();
                 }
+            }
+        });
+    }
+
+    function hasActiveTextSelection() {
+        const selection = window.getSelection ? window.getSelection() : null;
+        return !!(selection && !selection.isCollapsed && (selection.toString() || '').trim() !== '');
+    }
+
+    function getInlineRecordingTextInput($target) {
+        if (!$target || !$target.length) { return $(); }
+        if ($target.is('[data-ll-inline-recording-text-input]')) {
+            return $target;
+        }
+        return $target.find('[data-ll-inline-recording-text-input]').first();
+    }
+
+    function closeInlineRecordingTextEditor($target, options) {
+        const settings = Object.assign({
+            restoreValue: true,
+            updateSource: false
+        }, options || {});
+        const $input = getInlineRecordingTextInput($target);
+        if (!$input.length) { return; }
+
+        const $row = $input.closest('.ll-word-recording-row');
+        const $item = $row.closest('.word-item');
+        const recId = parseInt($input.attr('data-recording-id'), 10)
+            || parseInt($row.attr('data-recording-id'), 10)
+            || 0;
+        const originalValue = ($input.data('llOriginalValue') || '').toString();
+        const nextValue = settings.restoreValue ? originalValue : (($input.val() || '').toString());
+
+        if (settings.updateSource && recId && $item.length) {
+            $item
+                .find('.ll-word-edit-recording[data-recording-id="' + recId + '"] [data-ll-recording-input="text"]')
+                .first()
+                .val(nextValue);
+        }
+
+        if ($item.length) {
+            applyRecordingCaptions($item, collectRecordingInputs($item));
+            updateGridLayouts();
+        }
+    }
+
+    function saveInlineRecordingTextEditor($target) {
+        const $input = getInlineRecordingTextInput($target);
+        if (!$input.length || !$input.closest(document.documentElement).length) { return false; }
+        if ($input.data('llInlineRecordingSavePending') === '1') { return true; }
+
+        const $row = $input.closest('.ll-word-recording-row');
+        const $item = $row.closest('.word-item');
+        const recId = parseInt($input.attr('data-recording-id'), 10)
+            || parseInt($row.attr('data-recording-id'), 10)
+            || 0;
+        const $sourceInput = recId && $item.length
+            ? $item.find('.ll-word-edit-recording[data-recording-id="' + recId + '"] [data-ll-recording-input="text"]').first()
+            : $();
+        const $saveButton = $item.find('[data-ll-word-edit-save]').first();
+
+        if (!$item.length || !recId || !$sourceInput.length || !$saveButton.length || !ajaxUrl || !editNonce) {
+            setWordSaveStatus($item, editMessages.error, 'error');
+            return false;
+        }
+
+        const originalValue = ($input.data('llOriginalValue') || '').toString();
+        const nextValue = ($input.val() || '').toString();
+        if (nextValue === originalValue) {
+            closeInlineRecordingTextEditor($input, {
+                restoreValue: true,
+                updateSource: false
+            });
+            return false;
+        }
+
+        $input.data('llInlineRecordingSavePending', '1');
+        $sourceInput.val(nextValue);
+        $saveButton.trigger('click');
+
+        return true;
+    }
+
+    function openInlineRecordingTextEditor($main) {
+        if (!$main || !$main.length || hasActiveTextSelection()) { return; }
+
+        const $row = $main.closest('.ll-word-recording-row');
+        const $item = $row.closest('.word-item');
+        const recId = parseInt($row.attr('data-recording-id'), 10) || 0;
+        if (!$row.hasClass('ll-word-recording-row--editable') || !$item.length || !recId || $item.hasClass('ll-word-save-pending')) {
+            return;
+        }
+
+        $grids.find('[data-ll-inline-recording-text-input]').each(function () {
+            saveInlineRecordingTextEditor($(this));
+        });
+
+        const $recording = $item.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]').first();
+        const $sourceInput = $recording.find('[data-ll-recording-input="text"]').first();
+        if (!$sourceInput.length || $main.closest(document.documentElement).length === 0) { return; }
+
+        const currentValue = ($sourceInput.val() || $main.text() || '').toString();
+        const inputWidth = Math.max(96, Math.ceil($main.outerWidth() || 0));
+        const $input = $('<input>', {
+            type: 'text',
+            class: 'll-word-recording-text-main ll-word-recording-inline-edit-input',
+            value: currentValue,
+            'data-ll-inline-recording-text-input': '1',
+            'data-recording-id': String(recId),
+            'aria-label': editMessages.recordingText || 'Recording text',
+            dir: 'auto',
+            autocomplete: 'off'
+        }).css('width', inputWidth + 'px');
+
+        if ($main.hasClass('ll-word-recording-text-main--needs-review')) {
+            $input.addClass('ll-word-recording-text-main--needs-review');
+        }
+        $input.data('llOriginalValue', currentValue);
+        $main.replaceWith($input);
+        $row.addClass('is-inline-recording-editing');
+        clearVisibleRecordingRowEditTriggers($item);
+
+        window.requestAnimationFrame(function () {
+            const inputEl = $input.get(0);
+            if (!inputEl) { return; }
+            $input.trigger('focus');
+            if (typeof inputEl.select === 'function') {
+                inputEl.select();
             }
         });
     }
@@ -6618,6 +6836,8 @@
                         'label',
                         'audio',
                         'canvas',
+                        '.ll-word-recording-text',
+                        '.ll-word-recording-text *',
                         '.ll-word-edit-open',
                         '.ll-word-edit-open *',
                         '[data-ll-word-edit-panel]',
@@ -8490,6 +8710,9 @@
             if ($(e.target).closest('[data-ll-recording-edit-trigger]').length) {
                 return;
             }
+            if ($(e.target).closest('.ll-word-recording-text-main').length || hasActiveTextSelection()) {
+                return;
+            }
             if ($(e.target).closest('.ll-study-recording-btn, .ll-word-recording-text').length) {
                 revealRecordingRowEditTrigger($row);
             }
@@ -8501,6 +8724,12 @@
 
             const $row = $(this).closest('.ll-word-recording-row');
             const $item = $row.closest('.word-item');
+            $item.find('[data-ll-inline-recording-text-input]').each(function () {
+                closeInlineRecordingTextEditor($(this), {
+                    restoreValue: false,
+                    updateSource: true
+                });
+            });
             const recId = parseInt($(this).attr('data-recording-id'), 10)
                 || parseInt($row.attr('data-recording-id'), 10)
                 || 0;
@@ -8513,6 +8742,50 @@
                 return;
             }
             clearVisibleRecordingRowEditTriggers();
+        });
+
+        $grids.on('click', '.ll-word-recording-row--editable .ll-word-recording-text-main', function (e) {
+            if ($(this).is('[data-ll-inline-recording-text-input]') || hasActiveTextSelection()) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            openInlineRecordingTextEditor($(this));
+        });
+
+        $grids.on('mousedown', '[data-ll-inline-recording-text-input]', function (e) {
+            e.stopPropagation();
+        });
+
+        $grids.on('keydown', '[data-ll-inline-recording-text-input]', function (event) {
+            const $input = $(this);
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setWordSaveStatus($input.closest('.word-item'), '', '');
+                closeInlineRecordingTextEditor($input, {
+                    restoreValue: true,
+                    updateSource: false
+                });
+                return;
+            }
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                saveInlineRecordingTextEditor($input);
+            }
+        });
+
+        $grids.on('focusout', '[data-ll-inline-recording-text-input]', function () {
+            const $input = $(this);
+            window.setTimeout(function () {
+                if (!$input.length || !$input.closest(document.documentElement).length) {
+                    return;
+                }
+                const activeEl = document.activeElement;
+                if (activeEl && $input.is(activeEl)) {
+                    return;
+                }
+                saveInlineRecordingTextEditor($input);
+            }, 0);
         });
 
         $grids.on('click', '[data-ll-inline-word-trigger]', function (e) {
@@ -8550,8 +8823,22 @@
 
             if (event.key === 'Enter') {
                 event.preventDefault();
-                $editor.find('[data-ll-inline-word-save]').first().trigger('click');
+                saveInlineWordEditor($editor, { shouldFocusTrigger: true, closeIfUnchanged: true });
             }
+        });
+
+        $grids.on('focusout', '[data-ll-inline-word-input]', function () {
+            const $editor = $(this).closest('[data-ll-inline-word-editor]');
+            window.setTimeout(function () {
+                if (!$editor.length || !$editor.hasClass('is-editing') || $editor.hasClass('is-saving')) {
+                    return;
+                }
+                const activeEl = document.activeElement;
+                if (activeEl && $editor.has(activeEl).length) {
+                    return;
+                }
+                saveInlineWordEditor($editor, { shouldFocusTrigger: false, closeIfUnchanged: true });
+            }, 0);
         });
 
         $grids.on('click', '[data-ll-internal-review-note-summary]', function () {
@@ -8576,75 +8863,9 @@
         $grids.on('click', '[data-ll-inline-word-save]', function (e) {
             e.preventDefault();
             e.stopPropagation();
-
-            const $editor = $(this).closest('[data-ll-inline-word-editor]');
-            const fieldName = ($editor.attr('data-ll-inline-word-editor') || '').toString();
-            if (!fieldName || $editor.hasClass('is-saving')) { return; }
-
-            const $item = $editor.closest('.word-item');
-            const wordId = parseInt($item.data('word-id'), 10) || 0;
-            const $grid = $item.closest('[data-ll-word-grid]');
-            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
-            if (!wordId || !ajaxUrl || !editNonce) {
-                setWordSaveStatus($item, editMessages.error, 'error');
-                return;
-            }
-
-            const editedValue = ($editor.find('[data-ll-inline-word-input]').first().val() || '').toString();
-            let wordText = getInlineWordSavedValue($item, 'word');
-            let wordTranslation = getInlineWordSavedValue($item, 'translation');
-
-            if (fieldName === 'translation') {
-                wordTranslation = editedValue;
-            } else {
-                wordText = editedValue;
-            }
-
-            setInlineWordEditorSaving($item, fieldName, true);
-            setWordSaveBusy($item, true);
-            setWordSaveStatus($item, editMessages.saving, 'pending');
-
-            $.ajax({
-                url: ajaxUrl,
-                type: 'POST',
-                dataType: 'json',
-                data: {
-                    action: 'll_tools_word_grid_update_word',
-                    nonce: editNonce,
-                    word_id: String(wordId),
-                    word_text: wordText,
-                    word_translation: wordTranslation,
-                    wordset_id: String(wordsetId)
-                }
-            }).done(function (response) {
-                if (!response || response.success !== true) {
-                    const message = readResponseErrorMessage(response, editMessages.error);
-                    setWordSaveStatus($item, message, 'error');
-                    return;
-                }
-
-                const data = (response.data && typeof response.data === 'object') ? response.data : {};
-                if (typeof data.word_text === 'string') {
-                    $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_text));
-                    $item.find('[data-ll-word-input="word"]').val(data.word_text);
-                    syncInlineWordEditorValue($item, 'word', data.word_text);
-                }
-                if (typeof data.word_translation === 'string') {
-                    $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_translation));
-                    $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
-                    syncInlineWordEditorValue($item, 'translation', data.word_translation);
-                }
-                updateGridLayouts();
-                updateOriginalInputs($item);
-                closeInlineWordEditor($item, fieldName, false, true);
-                setWordSaveStatus($item, editMessages.saved, 'success');
-                scheduleWordSaveStatusClear($item, 1800);
-            }).fail(function (jqXHR) {
-                const message = readAjaxErrorMessage(jqXHR, editMessages.error);
-                setWordSaveStatus($item, message, 'error');
-            }).always(function () {
-                setInlineWordEditorSaving($item, fieldName, false);
-                setWordSaveBusy($item, false);
+            saveInlineWordEditor($(this).closest('[data-ll-inline-word-editor]'), {
+                shouldFocusTrigger: true,
+                closeIfUnchanged: true
             });
         });
 

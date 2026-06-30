@@ -689,7 +689,7 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid .ll-word-inline-edit-actions {
-    display: inline-flex;
+    display: none !important;
     align-items: center;
     gap: 6px;
 }
@@ -3151,10 +3151,13 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     align-items: flex-start !important;
     justify-content: flex-start !important;
     gap: 2px 6px !important;
+    cursor: text;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-row--editable .ll-word-recording-text {
-    cursor: pointer;
+    cursor: text;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-text-main,
@@ -3163,6 +3166,36 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     overflow-wrap: normal;
     word-break: normal;
     hyphens: none;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-inline-edit-input {
+    display: inline-block !important;
+    max-width: 100% !important;
+    min-width: 96px !important;
+    padding: 0 0 2px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-bottom: 2px solid #0f766e !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #000000 !important;
+    font: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-inline-edit-input:focus {
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-text-translation {

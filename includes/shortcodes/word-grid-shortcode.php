@@ -3916,6 +3916,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'waveformLoading' => __('Loading waveform...', 'll-tools-text-domain'),
             'waveformUnavailable' => __('Waveform unavailable.', 'll-tools-text-domain'),
             'recordings' => __('Recordings', 'll-tools-text-domain'),
+            'recordingText' => __('Recording text', 'll-tools-text-domain'),
             'deletingWord' => __('Deleting word...', 'll-tools-text-domain'),
             'wordDeleted' => __('Word moved to Trash.', 'll-tools-text-domain'),
             'deleteWordError' => __('Unable to delete word.', 'll-tools-text-domain'),
