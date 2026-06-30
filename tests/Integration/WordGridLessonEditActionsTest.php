@@ -30,6 +30,7 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
     public function test_lesson_edit_popup_renders_word_and_recording_management_controls(): void
     {
         $fixture = $this->createFixture('lesson-edit-actions-render');
+        $this->ensureTerm('recording_type', 'Introduction', 'introduction');
         $this->loginEditor();
 
         $ajax_filter = static function (): bool {
@@ -54,7 +55,46 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-recording-move-confirm', $output);
         $this->assertStringContainsString('data-ll-word-image-copyright', $output);
         $this->assertStringContainsString('Copyright Info', $output);
+        $this->assertStringContainsString('data-ll-recording-input="type"', $output);
         $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $output);
+    }
+
+    public function test_lesson_editor_can_change_recording_type_from_word_modal_payload(): void
+    {
+        $fixture = $this->createFixture('lesson-edit-actions-recording-type');
+        $this->ensureTerm('recording_type', 'Introduction', 'introduction');
+        $this->loginEditor();
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_grid_edit'),
+            'word_id' => (string) $fixture['source_word_id'],
+            'wordset_id' => (string) $fixture['wordset_id'],
+            'word_text' => (string) get_the_title((int) $fixture['source_word_id']),
+            'word_translation' => 'Source Translation',
+            'recordings' => wp_json_encode([
+                [
+                    'id' => (int) $fixture['recording_id'],
+                    'text' => 'Recording text',
+                    'translation' => 'Recording translation',
+                    'ipa' => '',
+                    'recording_type' => 'introduction',
+                ],
+            ]),
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_grid_update_word_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+        $type_slugs = wp_get_post_terms((int) $fixture['recording_id'], 'recording_type', ['fields' => 'slugs']);
+        $this->assertSame(['introduction'], array_values((array) $type_slugs));
+
+        $recordings = (array) (($response['data'] ?? [])['recordings'] ?? []);
+        $this->assertCount(1, $recordings);
+        $this->assertSame('introduction', (string) ($recordings[0]['recording_type'] ?? ''));
+        $this->assertSame('Introduction', (string) ($recordings[0]['recording_type_label'] ?? ''));
     }
 
     public function test_detached_word_edit_modal_endpoint_returns_single_word_editor_grid(): void

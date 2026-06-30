@@ -4020,11 +4020,13 @@
             const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
             const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
             const ipa = normalizeIpaForStorage(($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString());
+            const type = ($rec.find('[data-ll-recording-input="type"]').val() || $rec.attr('data-recording-type') || '').toString();
             recordings.push({
                 id: recId,
                 recording_text: text,
                 recording_translation: translation,
                 recording_ipa: ipa,
+                recording_type: type,
                 review_fields: getRecordingReviewFields($rec)
             });
         });
@@ -4103,6 +4105,66 @@
         });
     }
 
+    function recordingTypeClassSuffix(recordingType) {
+        return (recordingType || '').toString().replace(/[^A-Za-z0-9_-]+/g, '-');
+    }
+
+    function setRecordingButtonType($button, recordingType, playLabel, editLabel) {
+        if (!$button || !$button.length) { return; }
+        const type = (recordingType || '').toString();
+        const classSuffix = recordingTypeClassSuffix(type);
+
+        $button.each(function () {
+            const $btn = $(this);
+            const classes = ($btn.attr('class') || '')
+                .toString()
+                .split(/\s+/)
+                .filter(function (className) {
+                    return className && className.indexOf('ll-study-recording-btn--') !== 0;
+                });
+            if (classSuffix) {
+                classes.push('ll-study-recording-btn--' + classSuffix);
+            }
+            $btn.attr('class', classes.join(' '));
+            $btn.attr('data-recording-type', type);
+            if (playLabel) {
+                $btn.attr({
+                    'aria-label': playLabel,
+                    title: playLabel
+                });
+            }
+            if (editLabel) {
+                $btn.attr('data-ll-recording-edit-label', editLabel);
+            }
+        });
+    }
+
+    function applyRecordingTypeDisplay($item, rec) {
+        if (!rec || !$item || !$item.length) { return; }
+        const recId = parseInt(rec.id || rec.recording_id, 10) || 0;
+        if (!recId) { return; }
+
+        const type = (rec.recording_type || rec.type || '').toString();
+        const label = (rec.recording_type_label || rec.label || type || '').toString();
+        const playLabel = (rec.play_label || '').toString();
+        const editLabel = (rec.edit_label || '').toString();
+        const selector = '[data-recording-id="' + recId + '"]';
+        const $recording = $item.find('.ll-word-edit-recording' + selector).first();
+
+        if ($recording.length) {
+            $recording.attr('data-recording-type', type);
+            $recording.find('[data-ll-recording-input="type"]').first().val(type);
+            if (label) {
+                $recording.find('.ll-word-edit-recording-name').first().text(label);
+            }
+        }
+
+        setRecordingButtonType($item.find('.ll-word-grid-recording-btn' + selector), type, playLabel, editLabel);
+        $item.find('.ll-word-recording-row' + selector).each(function () {
+            syncRecordingRowEditTrigger($(this));
+        });
+    }
+
     function updateLessonEditRecordingAudio($item, recordingId, data) {
         const recId = parseInt(recordingId, 10) || 0;
         if (!recId || !data || typeof data !== 'object') { return; }
@@ -4158,6 +4220,7 @@
             $item.find('.ll-word-grid-recording-btn' + selector).attr('data-audio-url', audioUrl);
             $item.find('.ll-word-grid-recording-btn[data-recording-id="' + recId + '"]').attr('data-audio-url', audioUrl);
         }
+        applyRecordingTypeDisplay($item, Object.assign({}, data, { id: recId }));
 
         if (currentAudioButton && parseInt($(currentAudioButton).attr('data-recording-id'), 10) === recId && currentAudio) {
             try { currentAudio.pause(); } catch (_) {}
@@ -8659,7 +8722,7 @@
             const $grid = $item.closest('[data-ll-word-grid]');
             const recordingId = parseInt($recording.attr('data-recording-id'), 10) || 0;
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
-            const recordingType = ($recording.attr('data-recording-type') || '').toString();
+            const recordingType = ($recording.find('[data-ll-recording-input="type"]').first().val() || $recording.attr('data-recording-type') || '').toString();
             if (!recordingId || !ajaxUrl || !editNonce || !window.FormData) {
                 setLessonEditProcessingStatus($recording, editMessages.processAudioError, 'error');
                 return;
@@ -9156,7 +9219,8 @@
                 const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
                 const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
                 const ipa = normalizeIpaForStorage(($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString());
-                recordings.push({ id: recId, text: text, translation: translation, ipa: ipa, review_fields: getRecordingReviewFields($rec) });
+                const type = ($rec.find('[data-ll-recording-input="type"]').val() || $rec.attr('data-recording-type') || '').toString();
+                recordings.push({ id: recId, text: text, translation: translation, ipa: ipa, recording_type: type, review_fields: getRecordingReviewFields($rec) });
             });
 
             const $saveBtn = $(this);
@@ -9191,6 +9255,7 @@
                         recording_text: entry.text,
                         recording_translation: entry.translation,
                         recording_ipa: normalizeIpaOutput(entry.ipa),
+                        recording_type: entry.recording_type,
                         review_fields: entry.review_fields
                     };
                 }));
@@ -9294,6 +9359,7 @@
                         if (typeof rec.recording_ipa === 'string') {
                             $rec.find('[data-ll-recording-input="ipa"]').val(rec.recording_ipa);
                         }
+                        applyRecordingTypeDisplay($item, rec);
                         if (rec.review_fields) {
                             applyRecordingReviewFields($rec, rec.review_fields, rec.review_note || '');
                         }

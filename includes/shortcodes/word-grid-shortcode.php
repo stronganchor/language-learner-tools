@@ -5640,6 +5640,8 @@ function ll_tools_word_grid_shortcode($atts) {
         'image_copyright_hint' => __('Edit or add any copyright or source info for this image.', 'll-tools-text-domain'),
         'wrong_answer_options' => __('Wrong answer options (one per line)', 'll-tools-text-domain'),
         'recordings'  => __('Recordings', 'll-tools-text-domain'),
+        'recording_type' => __('Recording type', 'll-tools-text-domain'),
+        'recording_type_unavailable' => __('No recording types available', 'll-tools-text-domain'),
         'text'        => ll_tools_word_grid_label_with_code(__('Text', 'll-tools-text-domain'), $target_lang_code),
         'ipa'         => ll_tools_word_grid_label_with_code($secondary_text_label, $target_lang_code),
         'mark_text_review' => __('Mark text for review', 'll-tools-text-domain'),
@@ -5675,6 +5677,7 @@ function ll_tools_word_grid_shortcode($atts) {
         'save'        => __('Save', 'll-tools-text-domain'),
         'cancel'      => __('Cancel', 'll-tools-text-domain'),
     ];
+    $recording_type_choices = ll_tools_word_grid_get_recording_type_choices();
     $show_stars = is_user_logged_in();
     $starred_ids = array_values(array_filter(array_map('intval', (array) ($user_study_state['starred_word_ids'] ?? []))));
     $show_lesson_recording_edit_triggers = $can_edit_words && ll_tools_word_grid_is_lesson_context($context);
@@ -6477,10 +6480,15 @@ function ll_tools_word_grid_shortcode($atts) {
                         $has_original_audio = !empty($recording['has_original_audio']);
                         $is_secondary_recording = !empty($recording['secondary']);
                         $recording_visibility_note = trim((string) ($recording['visibility_note'] ?? ''));
+                        $recording_type_options = $recording_type_choices;
+                        if ($recording_type !== '' && !isset($recording_type_options[$recording_type])) {
+                            $recording_type_options[$recording_type] = ll_tools_word_grid_get_recording_type_label($recording_type);
+                        }
                         $recording_panel_classes = 'll-word-edit-recording';
                         if ($is_secondary_recording) {
                             $recording_panel_classes .= ' ll-word-edit-recording--secondary';
                         }
+                        $recording_type_input_id = 'll-word-edit-recording-type-' . $recording_id;
                         $recording_text_id = 'll-word-edit-recording-text-' . $recording_id;
                         $recording_translation_id = 'll-word-edit-recording-translation-' . $recording_id;
                         $recording_ipa_id = 'll-word-edit-recording-ipa-' . $recording_id;
@@ -6543,6 +6551,24 @@ function ll_tools_word_grid_shortcode($atts) {
                         echo '<div class="ll-word-edit-recording-move-status" data-ll-recording-move-status aria-live="polite"></div>';
                         echo '</div>';
                         echo '<div class="ll-word-edit-recording-fields">';
+                        echo '<div class="ll-word-edit-field ll-word-edit-recording-type-field">';
+                        echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_type_input_id) . '">' . esc_html($edit_labels['recording_type']) . '</label>';
+                        if (!empty($recording_type_options)) {
+                            echo '<select class="ll-word-edit-input ll-word-edit-select" id="' . esc_attr($recording_type_input_id) . '" data-ll-recording-input="type" data-ll-recording-type-select>';
+                            foreach ($recording_type_options as $recording_type_slug => $recording_type_choice_label) {
+                                $recording_type_slug = sanitize_key((string) $recording_type_slug);
+                                if ($recording_type_slug === '') {
+                                    continue;
+                                }
+                                echo '<option value="' . esc_attr($recording_type_slug) . '"' . selected($recording_type_slug, $recording_type, false) . '>' . esc_html((string) $recording_type_choice_label) . '</option>';
+                            }
+                            echo '</select>';
+                        } else {
+                            echo '<select class="ll-word-edit-input ll-word-edit-select" id="' . esc_attr($recording_type_input_id) . '" disabled>';
+                            echo '<option value="">' . esc_html($edit_labels['recording_type_unavailable']) . '</option>';
+                            echo '</select>';
+                        }
+                        echo '</div>';
                         echo '<div class="ll-word-edit-review-field' . ($recording_text_needs_review ? ' is-needs-review' : '') . '" data-ll-recording-review-field="recording_text">';
                         echo '<div class="ll-word-edit-field-row">';
                         echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_text_id) . '">' . esc_html($edit_labels['text']) . '</label>';
@@ -6771,6 +6797,8 @@ function ll_tools_word_grid_parse_recordings_payload($raw, string $transcription
         $text_value = array_key_exists('text', $entry) ? $entry['text'] : ($entry['recording_text'] ?? '');
         $translation_value = array_key_exists('translation', $entry) ? $entry['translation'] : ($entry['recording_translation'] ?? '');
         $ipa_value = array_key_exists('ipa', $entry) ? $entry['ipa'] : ($entry['recording_ipa'] ?? '');
+        $recording_type_submitted = array_key_exists('type', $entry) || array_key_exists('recording_type', $entry);
+        $recording_type_value = array_key_exists('type', $entry) ? $entry['type'] : ($entry['recording_type'] ?? '');
         $review_fields = [];
         $review_fields_submitted = array_key_exists('review_fields', $entry);
         if ($review_fields_submitted) {
@@ -6792,6 +6820,8 @@ function ll_tools_word_grid_parse_recordings_payload($raw, string $transcription
             'text' => sanitize_text_field((string) $text_value),
             'translation' => sanitize_text_field((string) $translation_value),
             'ipa' => ll_tools_word_grid_sanitize_ipa((string) $ipa_value, $transcription_mode),
+            'recording_type' => sanitize_key((string) $recording_type_value),
+            'recording_type_submitted' => $recording_type_submitted,
             'review_fields' => array_values(array_unique($review_fields)),
             'review_fields_submitted' => $review_fields_submitted,
         ];
@@ -7266,6 +7296,39 @@ function ll_tools_word_grid_get_recording_type_label(string $recording_type): st
     return $labels[$recording_type] ?? ucwords(str_replace(['-', '_'], ' ', $recording_type));
 }
 
+function ll_tools_word_grid_get_recording_type_choices(): array {
+    $terms = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    usort($terms, static function ($left, $right): int {
+        $left_slug = ($left instanceof WP_Term) ? (string) $left->slug : '';
+        $right_slug = ($right instanceof WP_Term) ? (string) $right->slug : '';
+        if (function_exists('ll_compare_recording_type_slugs')) {
+            return (int) ll_compare_recording_type_slugs($left_slug, $right_slug);
+        }
+        return strnatcasecmp($left_slug, $right_slug);
+    });
+
+    $choices = [];
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            continue;
+        }
+        $slug = sanitize_key((string) $term->slug);
+        if ($slug === '') {
+            continue;
+        }
+        $choices[$slug] = ll_tools_word_grid_get_recording_type_label($slug);
+    }
+
+    return $choices;
+}
+
 function ll_tools_word_grid_get_recording_audio_url(int $recording_id): string {
     if ($recording_id <= 0) {
         return '';
@@ -7633,11 +7696,18 @@ function ll_tools_word_grid_process_recording_audio_handler() {
     ]);
 
     $payload = ll_tools_word_grid_get_recording_audio_payload($recording_id);
+    $updated_recording_type = ll_tools_word_grid_get_primary_recording_type_slug($recording_id);
+    $updated_recording_type_label = ll_tools_word_grid_get_recording_type_label($updated_recording_type);
     wp_send_json_success([
         'message' => __('Audio processed.', 'll-tools-text-domain'),
         'recording_id' => $recording_id,
         'word_id' => $parent_word_id,
-        'recording_type' => $recording_type,
+        'recording_type' => $updated_recording_type,
+        'recording_type_label' => $updated_recording_type_label,
+        'type' => $updated_recording_type,
+        'label' => $updated_recording_type_label,
+        'play_label' => sprintf(__('Play %s recording', 'll-tools-text-domain'), $updated_recording_type_label),
+        'edit_label' => sprintf(__('Edit %s recording', 'll-tools-text-domain'), $updated_recording_type_label),
         'audio_url' => (string) ($payload['audio_url'] ?? ''),
         'processing_source_audio_url' => (string) ($payload['processing_source_audio_url'] ?? ''),
         'uses_original_audio' => !empty($payload['uses_original_audio']),
@@ -7796,6 +7866,43 @@ function ll_tools_word_grid_update_word_handler() {
     $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
         : 'ipa';
+    $recordings_payload = ll_tools_word_grid_parse_recordings_payload($_POST['recordings'] ?? '', $transcription_mode);
+    $recording_type_terms_by_recording = [];
+    foreach ($recordings_payload as $recording) {
+        if (empty($recording['recording_type_submitted'])) {
+            continue;
+        }
+
+        $recording_id = (int) ($recording['id'] ?? 0);
+        if ($recording_id <= 0) {
+            continue;
+        }
+
+        $recording_post = get_post($recording_id);
+        if (!$recording_post || $recording_post->post_type !== 'word_audio' || (int) $recording_post->post_parent !== $word_id) {
+            continue;
+        }
+
+        $recording_type = sanitize_key((string) ($recording['recording_type'] ?? ''));
+        if ($recording_type === '') {
+            wp_send_json_error([
+                'message' => __('Choose a recording type.', 'll-tools-text-domain'),
+            ], 400);
+        }
+
+        $recording_type_term = get_term_by('slug', $recording_type, 'recording_type');
+        if (!($recording_type_term instanceof WP_Term) || is_wp_error($recording_type_term)) {
+            wp_send_json_error([
+                'message' => __('Invalid recording type.', 'll-tools-text-domain'),
+            ], 400);
+        }
+
+        $recording_type_terms_by_recording[$recording_id] = [
+            'term_id' => (int) $recording_type_term->term_id,
+            'slug' => (string) $recording_type_term->slug,
+            'label' => ll_tools_word_grid_get_recording_type_label((string) $recording_type_term->slug),
+        ];
+    }
 
     $category_update_result = null;
     $category_update_requested = array_key_exists('category_ids_submitted', $_POST);
@@ -8181,7 +8288,6 @@ function ll_tools_word_grid_update_word_handler() {
         $verb_mood_label = $verb_mood_value;
     }
 
-    $recordings_payload = ll_tools_word_grid_parse_recordings_payload($_POST['recordings'] ?? '', $transcription_mode);
     $recordings_out = [];
     foreach ($recordings_payload as $recording) {
         $recording_id = (int) ($recording['id'] ?? 0);
@@ -8200,6 +8306,14 @@ function ll_tools_word_grid_update_word_handler() {
         $recording_translation = (string) ($recording['translation'] ?? '');
         $recording_ipa = (string) ($recording['ipa'] ?? '');
         $review_fields = isset($recording['review_fields']) && is_array($recording['review_fields']) ? (array) $recording['review_fields'] : [];
+        $recording_type = ll_tools_word_grid_get_primary_recording_type_slug($recording_id);
+        $recording_type_label = ll_tools_word_grid_get_recording_type_label($recording_type);
+        if (isset($recording_type_terms_by_recording[$recording_id])) {
+            $recording_type_entry = $recording_type_terms_by_recording[$recording_id];
+            wp_set_object_terms($recording_id, [(int) $recording_type_entry['term_id']], 'recording_type', false);
+            $recording_type = (string) $recording_type_entry['slug'];
+            $recording_type_label = (string) $recording_type_entry['label'];
+        }
 
         if ($recording_text !== '') {
             update_post_meta($recording_id, 'recording_text', $recording_text);
@@ -8231,6 +8345,12 @@ function ll_tools_word_grid_update_word_handler() {
             'recording_text' => $recording_text,
             'recording_translation' => $recording_translation,
             'recording_ipa' => ll_tools_word_grid_normalize_ipa_output($recording_ipa, $transcription_mode),
+            'recording_type' => $recording_type,
+            'recording_type_label' => $recording_type_label,
+            'type' => $recording_type,
+            'label' => $recording_type_label,
+            'play_label' => sprintf(__('Play %s recording', 'll-tools-text-domain'), $recording_type_label),
+            'edit_label' => sprintf(__('Edit %s recording', 'll-tools-text-domain'), $recording_type_label),
             'review_fields' => $recording_review_fields,
             'needs_review' => !empty(array_filter($recording_review_fields)),
             'review_note' => function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
