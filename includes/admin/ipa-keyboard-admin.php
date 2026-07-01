@@ -2036,7 +2036,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 21;
+    return 22;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -3874,13 +3874,6 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
         'cinê' => 'cini',
         'ciniüê' => 'cinyê',
         'cinyyê' => 'cinyê',
-        'fıstıqû' => 'fistıqû',
-        'fıstıqûna' => 'fistıqûna',
-        'fıstûn' => 'fistûn',
-        'fıstûna' => 'fistûna',
-        'fıstûne' => 'fistûne',
-        'fıstûnê' => 'fistûnê',
-        'fıstıx' => 'fistix',
         'hindistên' => "h'indistên",
         'hindistûn' => "h'indistûn",
         'hindistûna' => "h'indistûna",

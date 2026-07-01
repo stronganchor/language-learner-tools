@@ -527,6 +527,30 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Ina', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
+    public function test_zazaki_pistachio_high_vowels_are_not_hidden_by_default_override(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Pistachio Dotless I');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        $settings = ll_tools_ipa_orthography_get_settings($wordset_id);
+        $this->assertArrayNotHasKey('fıstıx', (array) ($settings['word_overrides'] ?? []));
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('fɪstɪχ', $engine_rules, $wordset_id);
+
+        $this->assertTrue((bool) ($prediction['complete'] ?? false));
+        $this->assertSame('Fıstıx', (string) ($prediction['text'] ?? ''));
+
+        $word_id = $this->createWord($wordset_id, 'Pistachio', 'Fistix');
+        $recording_id = $this->createRecording($word_id, 'Fistix', 'fɪstɪχ');
+        ll_tools_ipa_keyboard_update_recording_validation($recording_id);
+        $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
+        $mismatch_issue = $this->findOrthographyMismatchIssue($validation);
+
+        $this->assertIsArray($mismatch_issue);
+        $this->assertSame('Fıstıx', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
+    }
+
     public function test_word_override_setting_allows_exact_token_mismatch(): void
     {
         $wordset_id = $this->createWordset('Configurable Word Override Equivalence');
@@ -1444,7 +1468,10 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertIsArray($term);
         $this->assertFalse(is_wp_error($term));
 
-        return (int) ($term['term_id'] ?? 0);
+        $wordset_id = (int) ($term['term_id'] ?? 0);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
+
+        return $wordset_id;
     }
 
     private function createWord(int $wordset_id, string $translation_label, string $word_text): int
