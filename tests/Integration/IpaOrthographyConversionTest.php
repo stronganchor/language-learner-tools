@@ -551,6 +551,26 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('Fıstıx', (string) ($mismatch_issue['orthography_mismatch']['suggested_text'] ?? ''));
     }
 
+    public function test_zazaki_profile_defaults_do_not_seed_lexical_overrides(): void
+    {
+        $wordset_id = $this->createWordset('Zazaki Profile Settings Boundary');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        $settings = ll_tools_ipa_orthography_get_settings($wordset_id);
+
+        $this->assertSame([], (array) ($settings['word_overrides'] ?? []));
+        $this->assertSame([], (array) ($settings['phrase_overrides'] ?? []));
+        $this->assertNotEmpty((array) ($settings['optional_matches'] ?? []));
+        $this->assertSame(
+            [
+                'introduction' => '.',
+                'question' => '?',
+            ],
+            (array) ($settings['recording_type_punctuation'] ?? [])
+        );
+        $this->assertTrue((bool) ($settings['sentence_case'] ?? false));
+    }
+
     public function test_word_override_setting_allows_exact_token_mismatch(): void
     {
         $wordset_id = $this->createWordset('Configurable Word Override Equivalence');
@@ -687,6 +707,19 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
             'sʲ' => ['any' => 's'],
             'ŋ' => ['any' => 'ng'],
+        ]);
+        $this->setOrthographySettings($wordset_id, [
+            'word_overrides' => [
+                'be' => "b\u{0131}",
+                'ye' => "y\u{0131}",
+                "\u{00e7}en" => "\u{00e7}end",
+                "mi\u{00e7}\u{0131}k\u{00fb}" => "mir\u{00e7}\u{0131}k\u{00fb}",
+                "mi\u{00e7}k\u{00fb}" => "mir\u{00e7}\u{0131}k\u{00fb}",
+                'mere' => 'merre',
+                'mwerik' => "mw\u{00ea}rik",
+                "\u{00e7}ate" => "\u{00e7}at\u{0131}",
+            ],
+            'sentence_case' => true,
         ]);
         $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
         $effective_manual_rules = ll_tools_ipa_orthography_get_effective_manual_rules($wordset_id);

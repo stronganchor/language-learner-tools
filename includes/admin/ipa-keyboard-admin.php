@@ -2036,7 +2036,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 22;
+    return 23;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -3868,71 +3868,6 @@ function ll_tools_ipa_orthography_get_profile_default_settings(int $wordset_id):
         return $settings;
     }
 
-    $settings['word_overrides'] = [
-        'be' => 'bı',
-        'ce' => 'cı',
-        'cinê' => 'cini',
-        'ciniüê' => 'cinyê',
-        'cinyyê' => 'cinyê',
-        'hindistên' => "h'indistên",
-        'hindistûn' => "h'indistûn",
-        'hindistûna' => "h'indistûna",
-        'hndistn' => "'hndistn",
-        'hndistna' => "'hndistna",
-        'hındistên' => "'hındistên",
-        'hındistûn' => "'hındistûn",
-        'hındistûna' => "'hındistûna",
-        'kwele' => 'kwelı',
-        'kye' => 'kiye',
-        'maze' => 'mazı',
-        'me' => 'mı',
-        'mwerik' => 'mwêrik',
-        'nyûne' => 'nyûnı',
-        'otobûs' => 'otobüs',
-        'otobûsa' => 'otobüsa',
-        'owe' => 'owı',
-        'qıncele' => 'qıncelı',
-        'rezıl' => 'rezil',
-        'rezıla' => 'rezila',
-        'te' => 'tı',
-        'tişort' => 'tişört',
-        'mers' => 'merz',
-        'miçık' => 'mirçık',
-        'miçk' => 'mirçık',
-        'miçıkû' => 'mirçıkû',
-        'miçkû' => 'mirçıkû',
-        'çân' => 'çând',
-        'çate' => 'çatı',
-        'kera' => 'kerra',
-        'kerawa' => 'kerrawa',
-        'kerawo' => 'kerrawo',
-        'kere' => 'kerre',
-        'mere' => 'merre',
-        'xwı' => 'xwe',
-        'kerê' => 'kerrê',
-        'kerêy' => 'kerrêy',
-        'kerayın' => 'kerrayin',
-        'kero' => 'kerro',
-        'kerû' => 'kerrû',
-        'perena' => 'perrena',
-        'zere' => 'zerre',
-        'zerê' => 'zerrê',
-        'çartele' => 'çartelı',
-        'sı' => 'se',
-        'şe' => 'şı',
-        'twı' => 'twe',
-        'pwıre' => 'pwırı',
-        'ye' => 'yı',
-        'çen' => 'çend',
-        "'ez" => 'ez',
-    ];
-    $settings['phrase_overrides'] = [
-        [
-            'from' => ['des', 'erzen'],
-            'from_key' => ['des', 'erzen'],
-            'to' => ['dest', 'erzen'],
-        ],
-    ];
     $settings['optional_matches'] = [
         [
             'ipa' => "ɨ\u{0306}",
