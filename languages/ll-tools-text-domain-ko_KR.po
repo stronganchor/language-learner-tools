@@ -4720,3 +4720,33 @@ msgstr "지금은 이 업로드 도구를 사용할 수 없습니다."
 msgid "%d activity queued"
 msgid_plural "%d activities queued"
 msgstr[0] "%d개 활동 대기 중"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:963
+msgid "LL Tools llms.txt"
+msgstr "LL Tools llms.txt"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:955
+msgid "%s LL Tools AI Index"
+msgstr "%s LL Tools AI 색인"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:962
+msgid "Site-level AI discovery file."
+msgstr "사이트 수준 AI 검색 파일."
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "Schema.org structured discovery graph for the generated public exports."
+msgstr "생성된 공개 내보내기를 위한 Schema.org 구조화 검색 그래프."
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:1103
+msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
+msgstr "AI 에이전트를 위한 생성된 제한형 익명 공개 LL Tools 검색 색인."
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:959
+msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
+msgstr "이 생성된 색인은 AI 에이전트를 간결한 공개 LL Tools 콘텐츠로 안내합니다. 의도적으로 읽기 전용이며 범위가 제한되어 있고, 연결된 HTML 페이지가 인용을 위한 표준 원본으로 남습니다."

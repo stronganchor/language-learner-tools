@@ -4742,3 +4742,33 @@ msgid "%d activity queued"
 msgid_plural "%d activities queued"
 msgstr[0] "%d गतिविधि कतार में है"
 msgstr[1] "%d गतिविधियाँ कतार में हैं"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:963
+msgid "LL Tools llms.txt"
+msgstr "LL Tools llms.txt"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:955
+msgid "%s LL Tools AI Index"
+msgstr "%s LL Tools AI इंडेक्स"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:962
+msgid "Site-level AI discovery file."
+msgstr "साइट-स्तर की AI खोज फ़ाइल।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "Schema.org structured discovery graph for the generated public exports."
+msgstr "जनरेट किए गए सार्वजनिक निर्यातों के लिए Schema.org संरचित खोज ग्राफ़।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:1103
+msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
+msgstr "AI एजेंटों के लिए जनरेट किया गया, सीमित, अनाम-सार्वजनिक LL Tools खोज इंडेक्स।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:959
+msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
+msgstr "यह जनरेट किया गया इंडेक्स AI एजेंटों को संक्षिप्त सार्वजनिक LL Tools सामग्री की ओर निर्देशित करता है। यह जानबूझकर केवल-पढ़ने योग्य और सीमित है; लिंक किए गए HTML पेज उद्धरण के लिए आधिकारिक स्रोत बने रहते हैं।"

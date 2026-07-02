@@ -27471,3 +27471,33 @@ msgstr "Beklenen sözlük girişi çevirisi canlı durumla eşleşmiyor."
 #: includes/api/word-metadata-plan-rest.php:1455
 msgid "Cannot canonicalize a word without target text."
 msgstr "Hedef metni olmayan bir kelime kanonikleştirilemez."
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:963
+msgid "LL Tools llms.txt"
+msgstr "LL Tools llms.txt"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:955
+msgid "%s LL Tools AI Index"
+msgstr "%s LL Tools yapay zeka dizini"
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:962
+msgid "Site-level AI discovery file."
+msgstr "Site düzeyinde yapay zeka keşif dosyası."
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "Schema.org structured discovery graph for the generated public exports."
+msgstr "Üretilen herkese açık dışa aktarımlar için Schema.org yapılandırılmış keşif grafiği."
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:1103
+msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
+msgstr "Yapay zeka aracıları için oluşturulmuş, sınırlı, anonim-herkese açık LL Tools keşif dizini."
+
+#. ll-tools-autonomous-upkeep: 2026-07-02 ai-discovery source-backed batch
+#: includes/lib/ai-crawler-support.php:959
+msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
+msgstr "Bu oluşturulmuş dizin, yapay zeka aracılarını kompakt herkese açık LL Tools içeriğine yönlendirir. Bilerek salt okunur ve sınırlıdır; bağlantılı HTML sayfaları alıntı için kanonik kaynak olmaya devam eder."
