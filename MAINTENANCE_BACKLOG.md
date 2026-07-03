@@ -1,11 +1,11 @@
 # Maintenance Backlog
 
-Updated June 26, 2026 after the weekly maintenance/performance audit follow-up
+Updated July 3, 2026 after the weekly maintenance/performance audit follow-up
 sequence. Recent closed passes include the June 19 public flashcard AJAX
-cache-stampede and WebP optimizer queue resource guards, plus the June 26 flat
+cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
-export cache/cheap HEAD guard, testing-doc inventory refresh, and Playwright
-flake-tracking closeout.
+export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
+flake-tracking closeout, and the July 3 audio credit grid cold-cache guard.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -19,6 +19,13 @@ performance work evidence-led and scoped to a measured growth dimension.
 
 ## Recently Closed
 
+- July 3 audio credit grid cold-cache guard:
+  `[audio_credit_grid]` now builds its public recording-ID cache in bounded
+  batches, uses an option-backed rebuild lock to avoid concurrent cold-cache
+  stampedes, falls back to the last good stale ID list while another request is
+  rebuilding, and rechecks public-credit metadata before rendering stale IDs.
+  `AudioCreditGridShortcodeTest` covers bounded query shape, stale fallback,
+  invalidation, pagination, and the existing no-`SQL_CALC_FOUND_ROWS` invariant.
 - June 26 Playwright flake-tracking follow-up:
   the two shard-1 audit flakes were rerun directly. A cold paired run reproduced
   one admin navigation timeout before `/wp-admin/tools.php?page=ll-import`

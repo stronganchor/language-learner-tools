@@ -69,6 +69,80 @@ final class AudioCreditGridShortcodeTest extends LL_Tools_TestCase
         $this->assertContains($beta['recording_id'], $after_delete_ids);
     }
 
+    public function test_recording_id_cache_builds_in_bounded_batches(): void
+    {
+        $fixtures = [];
+        foreach (range(1, 5) as $index) {
+            $fixtures[] = $this->createRecordingFixture('Batch Credit ' . $index, true);
+        }
+
+        ll_tools_bump_audio_credit_grid_cache_version();
+
+        $query_limits = [];
+        $capture_query = static function (WP_Query $query) use (&$query_limits): void {
+            if ($query->get('post_type') !== 'word_audio' || $query->get('fields') !== 'ids') {
+                return;
+            }
+
+            $query_limits[] = (int) $query->get('posts_per_page');
+        };
+        $batch_size = static function (): int {
+            return 2;
+        };
+
+        add_action('pre_get_posts', $capture_query);
+        add_filter('ll_tools_audio_credit_grid_build_batch_size', $batch_size);
+        try {
+            $recording_ids = ll_tools_get_audio_credit_grid_recording_ids();
+        } finally {
+            remove_filter('ll_tools_audio_credit_grid_build_batch_size', $batch_size);
+            remove_action('pre_get_posts', $capture_query);
+        }
+
+        foreach ($fixtures as $fixture) {
+            $this->assertContains($fixture['recording_id'], $recording_ids);
+        }
+
+        $this->assertNotEmpty($query_limits);
+        $this->assertNotContains(-1, $query_limits);
+        $this->assertLessThanOrEqual(2, max($query_limits));
+    }
+
+    public function test_recording_id_cache_returns_stale_ids_when_rebuild_lock_is_held(): void
+    {
+        $alpha = $this->createRecordingFixture('Alpha Stale Cache', true);
+
+        ll_tools_bump_audio_credit_grid_cache_version();
+        $initial_ids = ll_tools_get_audio_credit_grid_recording_ids();
+        $this->assertSame([$alpha['recording_id']], $initial_ids);
+
+        $beta = $this->createRecordingFixture('Beta Stale Cache', true);
+        $cache_key = ll_tools_get_audio_credit_grid_cache_key();
+        $lock_option = ll_tools_audio_credit_grid_rebuild_lock_option($cache_key);
+
+        delete_option($lock_option);
+        add_option($lock_option, (string) (time() + 30), '', false);
+
+        $word_audio_query_count = 0;
+        $capture_query = static function (WP_Query $query) use (&$word_audio_query_count): void {
+            if ($query->get('post_type') === 'word_audio' && $query->get('fields') === 'ids') {
+                $word_audio_query_count++;
+            }
+        };
+
+        add_action('pre_get_posts', $capture_query);
+        try {
+            $locked_ids = ll_tools_get_audio_credit_grid_recording_ids();
+        } finally {
+            remove_action('pre_get_posts', $capture_query);
+            delete_option($lock_option);
+        }
+
+        $this->assertSame($initial_ids, $locked_ids);
+        $this->assertNotContains($beta['recording_id'], $locked_ids);
+        $this->assertSame(0, $word_audio_query_count);
+    }
+
     /**
      * @return array{word_id:int, recording_id:int, word_title:string}
      */

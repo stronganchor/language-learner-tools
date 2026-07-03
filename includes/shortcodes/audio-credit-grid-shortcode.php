@@ -41,6 +41,10 @@ function ll_tools_get_audio_credit_grid_cache_key(int $version = 0): string {
     return 'recording_ids_v' . $version;
 }
 
+function ll_tools_get_audio_credit_grid_stale_cache_key(): string {
+    return 'recording_ids_stale';
+}
+
 function ll_tools_bump_audio_credit_grid_cache_version(): int {
     $current_version = ll_tools_get_audio_credit_grid_cache_version();
     $next_version = $current_version + 1;
@@ -50,6 +54,69 @@ function ll_tools_bump_audio_credit_grid_cache_version(): int {
     delete_transient(ll_tools_get_audio_credit_grid_cache_key($current_version));
 
     return $next_version;
+}
+
+function ll_tools_audio_credit_grid_normalize_recording_ids($recording_ids): array {
+    if (!is_array($recording_ids)) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map('intval', $recording_ids), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+}
+
+function ll_tools_audio_credit_grid_get_cached_recording_ids(string $cache_key): ?array {
+    $cached = wp_cache_get($cache_key, LL_TOOLS_AUDIO_CREDIT_GRID_CACHE_GROUP);
+    if (is_array($cached)) {
+        return ll_tools_audio_credit_grid_normalize_recording_ids($cached);
+    }
+
+    $cached = get_transient($cache_key);
+    if (is_array($cached)) {
+        $cached_ids = ll_tools_audio_credit_grid_normalize_recording_ids($cached);
+        wp_cache_set($cache_key, $cached_ids, LL_TOOLS_AUDIO_CREDIT_GRID_CACHE_GROUP, HOUR_IN_SECONDS);
+        return $cached_ids;
+    }
+
+    return null;
+}
+
+function ll_tools_audio_credit_grid_store_recording_ids(string $cache_key, array $recording_ids): void {
+    $recording_ids = ll_tools_audio_credit_grid_normalize_recording_ids($recording_ids);
+    wp_cache_set($cache_key, $recording_ids, LL_TOOLS_AUDIO_CREDIT_GRID_CACHE_GROUP, HOUR_IN_SECONDS);
+    set_transient($cache_key, $recording_ids, HOUR_IN_SECONDS);
+}
+
+function ll_tools_audio_credit_grid_rebuild_lock_option(string $cache_key): string {
+    return '_ll_tools_audio_credit_grid_lock_' . md5($cache_key);
+}
+
+function ll_tools_audio_credit_grid_rebuild_lock_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_audio_credit_grid_rebuild_lock_ttl', 30);
+    return max(5, min(300, $ttl));
+}
+
+function ll_tools_audio_credit_grid_acquire_rebuild_lock(string $cache_key): bool {
+    $option_name = ll_tools_audio_credit_grid_rebuild_lock_option($cache_key);
+    $now = time();
+    $expires_at = $now + ll_tools_audio_credit_grid_rebuild_lock_ttl();
+
+    if (add_option($option_name, (string) $expires_at, '', false)) {
+        return true;
+    }
+
+    $current_expires_at = (int) get_option($option_name, 0);
+    if ($current_expires_at > $now) {
+        return false;
+    }
+
+    delete_option($option_name);
+    return add_option($option_name, (string) $expires_at, '', false);
+}
+
+function ll_tools_audio_credit_grid_release_rebuild_lock(string $cache_key): void {
+    delete_option(ll_tools_audio_credit_grid_rebuild_lock_option($cache_key));
 }
 
 function ll_tools_audio_credit_grid_is_relevant_meta_key(string $meta_key): bool {
@@ -76,6 +143,49 @@ function ll_tools_audio_credit_grid_has_public_credit(int $audio_post_id): bool 
     return false;
 }
 
+function ll_tools_audio_credit_grid_build_batch_size(): int {
+    $batch_size = (int) apply_filters('ll_tools_audio_credit_grid_build_batch_size', 500);
+    return max(1, min(1000, $batch_size));
+}
+
+function ll_tools_build_audio_credit_grid_recording_ids(): array {
+    $matching_ids = [];
+    $batch_size = ll_tools_audio_credit_grid_build_batch_size();
+    $paged = 1;
+
+    do {
+        $candidate_ids = ll_tools_audio_credit_grid_normalize_recording_ids((array) get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => $batch_size,
+            'paged' => $paged,
+            'orderby' => 'title',
+            'order' => 'ASC',
+            'no_found_rows' => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'cache_results' => true,
+        ]));
+
+        if (empty($candidate_ids)) {
+            break;
+        }
+
+        update_meta_cache('post', $candidate_ids);
+
+        foreach ($candidate_ids as $audio_post_id) {
+            if (ll_tools_audio_credit_grid_has_public_credit($audio_post_id)) {
+                $matching_ids[] = $audio_post_id;
+            }
+        }
+
+        $paged++;
+    } while (count($candidate_ids) === $batch_size);
+
+    return $matching_ids;
+}
+
 /**
  * Build the ordered list of publishable audio posts that have both a real file
  * and at least one public attribution field. This intentionally avoids a wide
@@ -87,52 +197,25 @@ function ll_tools_audio_credit_grid_has_public_credit(int $audio_post_id): bool 
 function ll_tools_get_audio_credit_grid_recording_ids(): array {
     $cache_key = ll_tools_get_audio_credit_grid_cache_key();
 
-    $cached = wp_cache_get($cache_key, LL_TOOLS_AUDIO_CREDIT_GRID_CACHE_GROUP);
-    if (is_array($cached)) {
-        return array_values(array_map('intval', $cached));
-    }
-
-    $cached = get_transient($cache_key);
-    if (is_array($cached)) {
-        $cached_ids = array_values(array_map('intval', $cached));
-        wp_cache_set($cache_key, $cached_ids, LL_TOOLS_AUDIO_CREDIT_GRID_CACHE_GROUP, HOUR_IN_SECONDS);
+    $cached_ids = ll_tools_audio_credit_grid_get_cached_recording_ids($cache_key);
+    if (is_array($cached_ids)) {
         return $cached_ids;
     }
 
-    $candidate_ids = array_values(array_filter(array_map('intval', (array) get_posts([
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'fields' => 'ids',
-        'posts_per_page' => -1,
-        'orderby' => 'title',
-        'order' => 'ASC',
-        'no_found_rows' => true,
-        'update_post_meta_cache' => false,
-        'update_post_term_cache' => false,
-        'cache_results' => true,
-    ])), static function (int $post_id): bool {
-        return $post_id > 0;
-    }));
-
-    if (empty($candidate_ids)) {
-        wp_cache_set($cache_key, [], LL_TOOLS_AUDIO_CREDIT_GRID_CACHE_GROUP, HOUR_IN_SECONDS);
-        set_transient($cache_key, [], HOUR_IN_SECONDS);
-        return [];
+    if (!ll_tools_audio_credit_grid_acquire_rebuild_lock($cache_key)) {
+        $stale_ids = ll_tools_audio_credit_grid_get_cached_recording_ids(ll_tools_get_audio_credit_grid_stale_cache_key());
+        return is_array($stale_ids) ? $stale_ids : [];
     }
 
-    update_meta_cache('post', $candidate_ids);
+    try {
+        $matching_ids = ll_tools_build_audio_credit_grid_recording_ids();
+        ll_tools_audio_credit_grid_store_recording_ids($cache_key, $matching_ids);
+        ll_tools_audio_credit_grid_store_recording_ids(ll_tools_get_audio_credit_grid_stale_cache_key(), $matching_ids);
 
-    $matching_ids = [];
-    foreach ($candidate_ids as $audio_post_id) {
-        if (ll_tools_audio_credit_grid_has_public_credit($audio_post_id)) {
-            $matching_ids[] = $audio_post_id;
-        }
+        return $matching_ids;
+    } finally {
+        ll_tools_audio_credit_grid_release_rebuild_lock($cache_key);
     }
-
-    wp_cache_set($cache_key, $matching_ids, LL_TOOLS_AUDIO_CREDIT_GRID_CACHE_GROUP, HOUR_IN_SECONDS);
-    set_transient($cache_key, $matching_ids, HOUR_IN_SECONDS);
-
-    return $matching_ids;
 }
 
 function ll_tools_invalidate_audio_credit_grid_cache_for_post(int $post_id): void {
@@ -241,6 +324,10 @@ function ll_tools_audio_credit_grid_shortcode($atts) {
             }
 
             $audio_post_id = (int) $audio_post->ID;
+            if (!ll_tools_audio_credit_grid_has_public_credit($audio_post_id)) {
+                continue;
+            }
+
             $audio_attribution = function_exists('ll_tools_get_audio_attribution_meta')
                 ? ll_tools_get_audio_attribution_meta($audio_post_id)
                 : [];
