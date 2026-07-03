@@ -25,6 +25,33 @@ function ll_image_copyright_grid_get_page_number(): int {
     return max(1, $paged);
 }
 
+function ll_image_copyright_grid_posts_per_page_cap(): int {
+    $cap = (int) apply_filters('ll_image_copyright_grid_posts_per_page_cap', 48);
+    return max(1, min(100, $cap));
+}
+
+function ll_image_copyright_grid_should_enforce_vocab_access(): bool {
+    return function_exists('ll_tools_should_enforce_vocab_frontend_access')
+        ? ll_tools_should_enforce_vocab_frontend_access()
+        : false;
+}
+
+function ll_image_copyright_grid_user_can_view_term(WP_Term $term): bool {
+    if (!ll_image_copyright_grid_should_enforce_vocab_access()) {
+        return true;
+    }
+
+    if ($term->taxonomy === 'wordset' && function_exists('ll_tools_user_can_view_wordset')) {
+        return ll_tools_user_can_view_wordset($term);
+    }
+
+    if ($term->taxonomy === 'word-category' && function_exists('ll_tools_user_can_view_category')) {
+        return ll_tools_user_can_view_category($term);
+    }
+
+    return true;
+}
+
 function ll_image_copyright_grid_get_selected_term_id(string $param_name, string $taxonomy): int {
     $raw_value = isset($_GET[$param_name]) ? wp_unslash($_GET[$param_name]) : 0;
     $term_id = absint($raw_value);
@@ -34,6 +61,10 @@ function ll_image_copyright_grid_get_selected_term_id(string $param_name, string
 
     $term = get_term($term_id, $taxonomy);
     if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return 0;
+    }
+
+    if (!ll_image_copyright_grid_user_can_view_term($term)) {
         return 0;
     }
 
@@ -97,7 +128,7 @@ function ll_image_copyright_grid_get_wordset_terms(): array {
     }
 
     return array_values(array_filter($terms, static function ($term): bool {
-        return $term instanceof WP_Term;
+        return $term instanceof WP_Term && ll_image_copyright_grid_user_can_view_term($term);
     }));
 }
 
@@ -115,6 +146,10 @@ function ll_image_copyright_grid_get_category_terms(int $wordset_id): array {
 
     $terms = array_values(array_filter($terms, static function ($term) use ($wordset_id): bool {
         if (!($term instanceof WP_Term)) {
+            return false;
+        }
+
+        if (!ll_image_copyright_grid_user_can_view_term($term)) {
             return false;
         }
 
@@ -318,6 +353,135 @@ function ll_image_copyright_grid_search_posts_groupby(string $groupby, WP_Query 
 }
 add_filter('posts_groupby', 'll_image_copyright_grid_search_posts_groupby', 10, 2);
 
+function ll_image_copyright_grid_wordset_owner_meta_key(): string {
+    return defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')
+        ? LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY
+        : 'll_wordset_owner_id';
+}
+
+function ll_image_copyright_grid_get_visible_term_ids(string $taxonomy): array {
+    $taxonomy = sanitize_key($taxonomy);
+    if (!in_array($taxonomy, ['wordset', 'word-category'], true)) {
+        return [];
+    }
+
+    $term_ids = get_terms([
+        'taxonomy' => $taxonomy,
+        'hide_empty' => false,
+        'fields' => 'ids',
+        'suppress_filter' => true,
+    ]);
+    if (!is_array($term_ids)) {
+        return [];
+    }
+
+    $term_ids = array_values(array_filter(array_map('intval', $term_ids), static function (int $term_id): bool {
+        return $term_id > 0;
+    }));
+    if ($taxonomy === 'wordset' && function_exists('ll_tools_filter_viewable_wordset_ids')) {
+        return ll_tools_filter_viewable_wordset_ids($term_ids, (int) get_current_user_id());
+    }
+    if ($taxonomy === 'word-category' && function_exists('ll_tools_filter_category_ids_for_user')) {
+        return ll_tools_filter_category_ids_for_user($term_ids, (int) get_current_user_id());
+    }
+
+    return $term_ids;
+}
+
+function ll_image_copyright_grid_get_visible_wordset_ids(): array {
+    return ll_image_copyright_grid_get_visible_term_ids('wordset');
+}
+
+function ll_image_copyright_grid_get_vocab_access_tax_query(): array {
+    $wordset_clause = [
+        'relation' => 'OR',
+        [
+            'taxonomy' => 'wordset',
+            'operator' => 'NOT EXISTS',
+        ],
+    ];
+    $visible_wordset_ids = ll_image_copyright_grid_get_visible_term_ids('wordset');
+    if (!empty($visible_wordset_ids)) {
+        $wordset_clause[] = [
+            'taxonomy' => 'wordset',
+            'field' => 'term_id',
+            'terms' => $visible_wordset_ids,
+            'operator' => 'IN',
+        ];
+    }
+
+    $category_clause = [
+        'relation' => 'OR',
+        [
+            'taxonomy' => 'word-category',
+            'operator' => 'NOT EXISTS',
+        ],
+    ];
+    $visible_category_ids = ll_image_copyright_grid_get_visible_term_ids('word-category');
+    if (!empty($visible_category_ids)) {
+        $category_clause[] = [
+            'taxonomy' => 'word-category',
+            'field' => 'term_id',
+            'terms' => $visible_category_ids,
+            'operator' => 'IN',
+        ];
+    }
+
+    return [
+        'relation' => 'AND',
+        $wordset_clause,
+        $category_clause,
+    ];
+}
+
+function ll_image_copyright_grid_apply_vocab_access_query_args(array $args): array {
+    if (!ll_image_copyright_grid_should_enforce_vocab_access()) {
+        return $args;
+    }
+
+    $owner_meta_key = ll_image_copyright_grid_wordset_owner_meta_key();
+    $visible_wordset_ids = ll_image_copyright_grid_get_visible_wordset_ids();
+
+    $owner_meta_query = [
+        'relation' => 'OR',
+        [
+            'key' => $owner_meta_key,
+            'compare' => 'NOT EXISTS',
+        ],
+        [
+            'key' => $owner_meta_key,
+            'value' => 0,
+            'compare' => '=',
+            'type' => 'NUMERIC',
+        ],
+    ];
+    if (!empty($visible_wordset_ids)) {
+        $owner_meta_query[] = [
+            'key' => $owner_meta_key,
+            'value' => array_values(array_map('intval', $visible_wordset_ids)),
+            'compare' => 'IN',
+            'type' => 'NUMERIC',
+        ];
+    }
+
+    if (!isset($args['meta_query']) || !is_array($args['meta_query'])) {
+        $args['meta_query'] = [];
+    }
+    $args['meta_query'][] = $owner_meta_query;
+
+    $existing_tax_query = isset($args['tax_query']) && is_array($args['tax_query'])
+        ? $args['tax_query']
+        : [];
+    $combined_tax_query = ['relation' => 'AND'];
+    if (!empty($existing_tax_query)) {
+        $combined_tax_query[] = $existing_tax_query;
+    }
+    $combined_tax_query[] = ll_image_copyright_grid_get_vocab_access_tax_query();
+    $args['tax_query'] = $combined_tax_query;
+
+    return $args;
+}
+
 /**
  * Registers the [image_copyright_grid] shortcode.
  *
@@ -334,7 +498,7 @@ function ll_image_copyright_grid_shortcode($atts) {
     );
 
     $paged = ll_image_copyright_grid_get_page_number();
-    $posts_per_page = max(1, (int) $atts['posts_per_page']);
+    $posts_per_page = min(max(1, (int) $atts['posts_per_page']), ll_image_copyright_grid_posts_per_page_cap());
     $filters = ll_image_copyright_grid_get_filters();
 
     // Query only Word Images that have a non-empty copyright_info
@@ -358,7 +522,7 @@ function ll_image_copyright_grid_shortcode($atts) {
 
     if ((int) $filters['wordset_id'] > 0) {
         $args['meta_query'][] = [
-            'key' => defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY') ? LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY : 'll_wordset_owner_id',
+            'key' => ll_image_copyright_grid_wordset_owner_meta_key(),
             'value' => (int) $filters['wordset_id'],
             'compare' => '=',
             'type' => 'NUMERIC',
@@ -375,6 +539,8 @@ function ll_image_copyright_grid_shortcode($atts) {
             ],
         ];
     }
+
+    $args = ll_image_copyright_grid_apply_vocab_access_query_args($args);
 
     $query = new WP_Query($args);
 
