@@ -55,6 +55,95 @@ final class WordAudioShortcodeSelectionTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Custom Label', $output);
     }
 
+    public function test_shortcode_does_not_resolve_non_public_words_for_anonymous_title_lookup(): void
+    {
+        wp_set_current_user(0);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Hidden Shortcode Audio Word',
+        ]);
+        update_post_meta($word_id, 'word_english_meaning', 'Hidden meaning');
+        $this->createAudioRecording((int) $word_id, 'isolation', '/wp-content/uploads/hidden-shortcode-audio.mp3');
+
+        $output = do_shortcode('[word_audio]Hidden Shortcode Audio Word[/word_audio]');
+
+        $this->assertSame('Hidden Shortcode Audio Word', trim(wp_strip_all_tags($output)));
+        $this->assertStringNotContainsString('ll-word-audio__button', $output);
+        $this->assertStringNotContainsString('hidden-shortcode-audio.mp3', $output);
+        $this->assertStringNotContainsString('Hidden meaning', $output);
+    }
+
+    public function test_shortcode_does_not_resolve_non_public_words_for_logged_in_non_owner(): void
+    {
+        $owner_id = self::factory()->user->create(['role' => 'editor']);
+        $viewer_id = self::factory()->user->create(['role' => 'author']);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'private',
+            'post_author' => $owner_id,
+            'post_title' => 'Private Non Owner Audio Word',
+        ]);
+        update_post_meta($word_id, 'word_english_meaning', 'Non owner meaning');
+        $this->createAudioRecording((int) $word_id, 'isolation', '/wp-content/uploads/non-owner-shortcode-audio.mp3');
+
+        wp_set_current_user((int) $viewer_id);
+
+        $this->assertTrue(current_user_can('edit_posts'));
+        $this->assertFalse(current_user_can('edit_post', (int) $word_id));
+
+        $output = do_shortcode('[word_audio]Private Non Owner Audio Word[/word_audio]');
+
+        $this->assertSame('Private Non Owner Audio Word', trim(wp_strip_all_tags($output)));
+        $this->assertStringNotContainsString('ll-word-audio__button', $output);
+        $this->assertStringNotContainsString('non-owner-shortcode-audio.mp3', $output);
+        $this->assertStringNotContainsString('Non owner meaning', $output);
+    }
+
+    public function test_shortcode_does_not_render_exact_word_audio_id_for_non_public_parent_to_anonymous_user(): void
+    {
+        wp_set_current_user(0);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'private',
+            'post_title' => 'Private Parent Audio Word',
+        ]);
+        update_post_meta($word_id, 'word_english_meaning', 'Private parent meaning');
+        $audio_id = $this->createAudioRecording((int) $word_id, 'isolation', '/wp-content/uploads/private-parent-shortcode-audio.mp3');
+
+        $output = do_shortcode(sprintf(
+            '[word_audio word_audio_id="%d"]Public Label[/word_audio]',
+            $audio_id
+        ));
+
+        $this->assertSame('Public Label', trim(wp_strip_all_tags($output)));
+        $this->assertStringNotContainsString('ll-word-audio__button', $output);
+        $this->assertStringNotContainsString('private-parent-shortcode-audio.mp3', $output);
+        $this->assertStringNotContainsString('Private parent meaning', $output);
+    }
+
+    public function test_shortcode_allows_editors_to_preview_non_public_word_audio(): void
+    {
+        wp_set_current_user((int) self::factory()->user->create(['role' => 'administrator']));
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Editor Preview Audio Word',
+        ]);
+        update_post_meta($word_id, 'word_english_meaning', 'Preview meaning');
+        $this->createAudioRecording((int) $word_id, 'isolation', '/wp-content/uploads/editor-preview-shortcode-audio.mp3');
+
+        $output = do_shortcode('[word_audio]Editor Preview Audio Word[/word_audio]');
+
+        $this->assertStringContainsString('ll-word-audio__button', $output);
+        $this->assertStringContainsString('editor-preview-shortcode-audio.mp3', $output);
+        $this->assertStringContainsString('Preview meaning', $output);
+    }
+
     private function createAudioRecording(int $word_id, string $recording_type, string $audio_path): int
     {
         $this->ensureTerm('recording_type', ucwords(str_replace('-', ' ', $recording_type)), $recording_type);

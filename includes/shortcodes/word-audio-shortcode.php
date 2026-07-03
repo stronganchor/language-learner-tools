@@ -131,11 +131,17 @@ function ll_word_audio_extract_context($atts, $content) {
 
     $normalized_content = ll_normalize_case($without_parentheses);
 
+    $lookup_statuses = ll_word_audio_get_lookup_statuses();
+
     if (!empty($attributes['id'])) {
         $post_id = intval($attributes['id']); // Ensure the ID is an integer
         $word_post = get_post($post_id); // Retrieve the post by ID
     } else {
-        $word_post = ll_find_post_by_exact_title($normalized_content, 'words');
+        $word_post = ll_find_post_by_exact_title($normalized_content, 'words', $lookup_statuses);
+    }
+
+    if (!ll_word_audio_can_render_word_post($word_post)) {
+        $word_post = null;
     }
 
     if (
@@ -149,7 +155,7 @@ function ll_word_audio_extract_context($atts, $content) {
 
         if ($selected_audio_post instanceof WP_Post && (int) $selected_audio_post->post_parent > 0) {
             $parent_word_post = get_post((int) $selected_audio_post->post_parent);
-            if ($parent_word_post instanceof WP_Post && $parent_word_post->post_type === 'words') {
+            if (ll_word_audio_can_render_word_post($parent_word_post)) {
                 $word_post = $parent_word_post;
             }
         }
@@ -162,10 +168,6 @@ function ll_word_audio_extract_context($atts, $content) {
             'recording_type' => $attributes['recording_type'],
             'word_audio_id' => $attributes['word_audio_id'],
         ));
-    } elseif ($attributes['word_audio_id'] > 0 && function_exists('ll_get_word_audio_url')) {
-        $audio_file = ll_get_word_audio_url(0, array(
-            'word_audio_id' => $attributes['word_audio_id'],
-        ));
     }
 
     return array(
@@ -176,6 +178,26 @@ function ll_word_audio_extract_context($atts, $content) {
         'word_post' => $word_post,
         'audio_file' => $audio_file,
     );
+}
+
+function ll_word_audio_get_lookup_statuses(): array {
+    if (current_user_can('edit_posts') || current_user_can('manage_options')) {
+        return array('publish', 'draft', 'pending', 'private');
+    }
+
+    return array('publish');
+}
+
+function ll_word_audio_can_render_word_post($word_post): bool {
+    if (!($word_post instanceof WP_Post) || $word_post->post_type !== 'words') {
+        return false;
+    }
+
+    if ($word_post->post_status === 'publish') {
+        return true;
+    }
+
+    return current_user_can('edit_post', (int) $word_post->ID);
 }
 
 /**
@@ -323,12 +345,16 @@ function ll_strcmp($str1, $str2) {
  * @param string $post_type The post type to search within.
  * @return WP_Post|null The matched post or null if not found.
  */
-function ll_find_post_by_exact_title($title, $post_type = 'words') {
+function ll_find_post_by_exact_title($title, $post_type = 'words', $post_statuses = null) {
+    if ($post_statuses === null) {
+        // Include drafts/pending so admin recording and upload workflows can detect newly created words.
+        $post_statuses = array('publish', 'draft', 'pending', 'private');
+    }
+
     $query_args = array(
         'post_type' => $post_type,
         'posts_per_page' => -1, // Retrieve all matching posts
-        // Include drafts/pending so freshly created words from recordings are detected
-        'post_status' => array('publish', 'draft', 'pending', 'private'),
+        'post_status' => $post_statuses,
         'title' => sanitize_text_field($title),
         'exact' => true,
     );
