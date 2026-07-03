@@ -38,6 +38,9 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_cloudflare_static_cache_reset_purge_once_state')) {
             ll_tools_cloudflare_static_cache_reset_purge_once_state();
         }
+        if (function_exists('ll_tools_public_static_cache_delete_rebuild_locks')) {
+            ll_tools_public_static_cache_delete_rebuild_locks();
+        }
         parent::tearDown();
     }
 
@@ -195,6 +198,47 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertStringStartsWith('public, max-age=', ll_tools_public_static_cache_cache_control_value(true));
     }
 
+    public function test_public_static_cache_rebuild_lock_blocks_parallel_rebuilds_until_released(): void
+    {
+        $key = md5('public-static-cache-lock-test');
+        $option = ll_tools_public_static_cache_rebuild_lock_option($key);
+        delete_option($option);
+
+        try {
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+            $this->assertFalse(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+
+            ll_tools_public_static_cache_release_rebuild_lock($key);
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+
+            update_option($option, (string) (time() - 10), false);
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+        } finally {
+            delete_option($option);
+        }
+    }
+
+    public function test_public_static_cache_file_freshness_helpers_detect_stale_files(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-stale-helper-test.html';
+        file_put_contents($file, '<!doctype html><html><body>stale helper</body></html>');
+        touch($file, time() - 120);
+        clearstatcache(true, $file);
+
+        $this->assertFalse(ll_tools_public_static_cache_file_is_fresh($file, 60));
+        $this->assertTrue(ll_tools_public_static_cache_file_is_stale($file, 60));
+
+        touch($file, time());
+        clearstatcache(true, $file);
+
+        $this->assertTrue(ll_tools_public_static_cache_file_is_fresh($file, 60));
+        $this->assertFalse(ll_tools_public_static_cache_file_is_stale($file, 60));
+    }
+
     public function test_static_caches_do_not_cache_front_page_requests(): void
     {
         $old_show_on_front = get_option('show_on_front');
@@ -273,10 +317,16 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $file = trailingslashit($dir) . 'public-store-test.html';
         @unlink($file);
 
+        $key = md5('public-store-test');
+        $lock_option = ll_tools_public_static_cache_rebuild_lock_option($key);
+        delete_option($lock_option);
+        $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $buffer_level = ob_get_level();
         $GLOBALS['ll_tools_public_static_cache_request'] = [
             'active' => true,
+            'key' => $key,
             'file' => $file,
             'identity' => [
                 'type' => 'wordset_main',
@@ -284,6 +334,7 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
                 'path' => '/cached-wordset',
                 'wordset_id' => 17,
             ],
+            'lock_acquired' => true,
             'buffer_level' => $buffer_level,
         ];
 
@@ -300,6 +351,8 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
 
         $this->assertFileExists($file);
         $this->assertStringContainsString('public cache store test', (string) file_get_contents($file));
+        $this->assertFalse(get_option($lock_option, false));
+        delete_option($lock_option);
     }
 
     public function test_public_static_cache_store_skips_oversized_payloads(): void
@@ -363,15 +416,21 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
 
         $file = trailingslashit($dir) . 'public-test.html';
         $tmp = trailingslashit($dir) . 'public-test.html.tmp-abc';
+        $key = md5('public-static-cache-purge-lock-test');
+        $lock_option = ll_tools_public_static_cache_rebuild_lock_option($key);
         file_put_contents($file, '<!doctype html><html><body>cached</body></html>');
         file_put_contents($tmp, 'tmp');
+        delete_option($lock_option);
+        $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
         $this->assertFileExists($file);
         $this->assertFileExists($tmp);
+        $this->assertNotFalse(get_option($lock_option, false));
 
         ll_tools_purge_public_static_cache();
 
         $this->assertFileDoesNotExist($file);
         $this->assertFileDoesNotExist($tmp);
+        $this->assertFalse(get_option($lock_option, false));
     }
 
     public function test_static_cache_purge_helper_clears_dictionary_and_public_files(): void

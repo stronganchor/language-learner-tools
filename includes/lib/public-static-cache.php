@@ -21,6 +21,10 @@ if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_VOCAB_GRID_NONCE_PLACEHOLDER_PREFIX')
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_VOCAB_GRID_NONCE_PLACEHOLDER_PREFIX', '%%LL_TOOLS_VOCAB_LESSON_GRID_NONCE_');
 }
 
+if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX')) {
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX', '_ll_tools_public_static_cache_lock_');
+}
+
 /**
  * Return the anonymous public-page static-cache TTL.
  */
@@ -412,6 +416,78 @@ function ll_tools_public_static_cache_file_path(string $key): string {
     return trailingslashit($dir) . 'public-' . $key . '.html';
 }
 
+function ll_tools_public_static_cache_rebuild_lock_option(string $key): string {
+    $normalized_key = preg_replace('/[^a-f0-9]/', '', strtolower($key));
+    if (!is_string($normalized_key) || $normalized_key === '') {
+        $normalized_key = md5($key);
+    }
+
+    return LL_TOOLS_PUBLIC_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX . $normalized_key;
+}
+
+function ll_tools_public_static_cache_rebuild_lock_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_public_static_cache_rebuild_lock_ttl', 30);
+    return max(5, min(300, $ttl));
+}
+
+function ll_tools_public_static_cache_acquire_rebuild_lock(string $key): bool {
+    $option_name = ll_tools_public_static_cache_rebuild_lock_option($key);
+    $now = time();
+    $expires_at = $now + ll_tools_public_static_cache_rebuild_lock_ttl();
+
+    if (add_option($option_name, (string) $expires_at, '', false)) {
+        return true;
+    }
+
+    $current_expires_at = (int) get_option($option_name, 0);
+    if ($current_expires_at > $now) {
+        return false;
+    }
+
+    delete_option($option_name);
+    return add_option($option_name, (string) $expires_at, '', false);
+}
+
+function ll_tools_public_static_cache_release_rebuild_lock(string $key): void {
+    delete_option(ll_tools_public_static_cache_rebuild_lock_option($key));
+}
+
+function ll_tools_public_static_cache_delete_rebuild_locks(): void {
+    global $wpdb;
+
+    if (!isset($wpdb) || !is_object($wpdb) || empty($wpdb->options)) {
+        return;
+    }
+
+    $like = $wpdb->esc_like(LL_TOOLS_PUBLIC_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX) . '%';
+    $option_names = $wpdb->get_col($wpdb->prepare(
+        "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+        $like
+    ));
+
+    foreach ((array) $option_names as $option_name) {
+        delete_option((string) $option_name);
+    }
+}
+
+function ll_tools_public_static_cache_file_is_fresh(string $file, int $ttl): bool {
+    if ($file === '' || !is_readable($file)) {
+        return false;
+    }
+
+    $mtime = filemtime($file);
+    return $mtime !== false && (time() - (int) $mtime) < $ttl;
+}
+
+function ll_tools_public_static_cache_file_is_stale(string $file, int $ttl): bool {
+    if ($file === '' || !is_readable($file)) {
+        return false;
+    }
+
+    $mtime = filemtime($file);
+    return $mtime !== false && (time() - (int) $mtime) >= $ttl;
+}
+
 function ll_tools_public_static_cache_meta_file_path(string $file): string {
     $file = trim($file);
     if ($file === '' || !preg_match('/^(.+)\.html$/', $file, $matches)) {
@@ -615,6 +691,31 @@ function ll_tools_public_static_cache_prepare_html_for_output(string $html, ?arr
     return $html;
 }
 
+function ll_tools_public_static_cache_read_prepared_file(string $file, ?array $identity = null): ?string {
+    if ($file === '' || !is_readable($file)) {
+        return null;
+    }
+
+    $html = file_get_contents($file);
+    if (!is_string($html)) {
+        return null;
+    }
+
+    return ll_tools_public_static_cache_prepare_html_for_output($html, $identity);
+}
+
+function ll_tools_public_static_cache_send_prepared_file_response(string $output_html, string $cache_status, string $reason, bool $public_cache, string $method): void {
+    ll_tools_public_static_cache_send_headers($cache_status, $reason, $public_cache);
+    header('Content-Type: text/html; charset=' . get_bloginfo('charset'));
+    header('Content-Length: ' . strlen($output_html));
+    if ($method === 'HEAD') {
+        exit;
+    }
+
+    echo $output_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    exit;
+}
+
 /**
  * Return the nonce placeholder for one vocab lesson grid AJAX action.
  */
@@ -667,22 +768,30 @@ function ll_tools_serve_public_static_cache(): void {
     $ttl = ll_tools_public_static_cache_ttl();
     $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
 
-    if ($file !== '' && is_readable($file) && filemtime($file) !== false && (time() - (int) filemtime($file)) < $ttl) {
-        $html = file_get_contents($file);
-        if (is_string($html)) {
-            $output_html = ll_tools_public_static_cache_prepare_html_for_output($html, $identity);
-            ll_tools_public_static_cache_send_headers('HIT', 'fresh');
+    if (ll_tools_public_static_cache_file_is_fresh($file, $ttl)) {
+        $output_html = ll_tools_public_static_cache_read_prepared_file($file, $identity);
+        if (is_string($output_html)) {
             ll_tools_public_static_cache_debug_log('hit', [
                 'key' => $key,
                 'file' => basename($file),
             ]);
-            header('Content-Type: text/html; charset=' . get_bloginfo('charset'));
-            header('Content-Length: ' . strlen($output_html));
-            if ($method === 'HEAD') {
-                exit;
+            ll_tools_public_static_cache_send_prepared_file_response($output_html, 'HIT', 'fresh', true, $method);
+        }
+    }
+
+    $lock_acquired = false;
+    if ($file !== '') {
+        $lock_acquired = ll_tools_public_static_cache_acquire_rebuild_lock($key);
+        if (!$lock_acquired && ll_tools_public_static_cache_file_is_stale($file, $ttl)) {
+            $output_html = ll_tools_public_static_cache_read_prepared_file($file, $identity);
+            if (is_string($output_html)) {
+                ll_tools_public_static_cache_debug_log('stale', [
+                    'key' => $key,
+                    'reason' => 'rebuild_lock',
+                    'file' => basename($file),
+                ]);
+                ll_tools_public_static_cache_send_prepared_file_response($output_html, 'STALE', 'rebuild-lock', false, $method);
             }
-            echo $output_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-            exit;
         }
     }
 
@@ -692,9 +801,10 @@ function ll_tools_serve_public_static_cache(): void {
         'key' => $key,
         'reason' => $miss_reason,
         'file' => $file !== '' ? basename($file) : '',
+        'lock_acquired' => $lock_acquired ? 1 : 0,
     ]);
 
-    if ($file === '') {
+    if ($file === '' || !$lock_acquired) {
         return;
     }
 
@@ -703,6 +813,7 @@ function ll_tools_serve_public_static_cache(): void {
         'key' => $key,
         'file' => $file,
         'identity' => $identity,
+        'lock_acquired' => true,
         'buffer_level' => ob_get_level(),
     ];
 
@@ -745,34 +856,36 @@ function ll_tools_store_public_static_cache(): void {
         return;
     }
 
-    $status = ll_tools_public_static_cache_current_status_code();
-    if ($status < 200 || $status >= 300) {
-        ll_tools_public_static_cache_debug_log('skip_status', [
-            'status' => $status,
-        ]);
-        return;
-    }
+    $buffer_level = max(0, (int) ($context['buffer_level'] ?? 0));
+    $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
-    $headers = function_exists('headers_list') ? headers_list() : [];
-    foreach ($headers as $header) {
-        if (stripos((string) $header, 'Location:') === 0) {
-            ll_tools_public_static_cache_debug_log('skip_redirect', [
-                'header' => 'Location',
+    try {
+        $status = ll_tools_public_static_cache_current_status_code();
+        if ($status < 200 || $status >= 300) {
+            ll_tools_public_static_cache_debug_log('skip_status', [
+                'status' => $status,
             ]);
             return;
         }
-    }
 
-    $buffer_level = max(0, (int) ($context['buffer_level'] ?? 0));
-    if (ob_get_level() <= $buffer_level) {
-        ll_tools_public_static_cache_debug_log('skip_buffer_closed', [
-            'buffer_level' => $buffer_level,
-            'current_level' => ob_get_level(),
-        ]);
-        return;
-    }
+        $headers = function_exists('headers_list') ? headers_list() : [];
+        foreach ($headers as $header) {
+            if (stripos((string) $header, 'Location:') === 0) {
+                ll_tools_public_static_cache_debug_log('skip_redirect', [
+                    'header' => 'Location',
+                ]);
+                return;
+            }
+        }
 
-    try {
+        if (ob_get_level() <= $buffer_level) {
+            ll_tools_public_static_cache_debug_log('skip_buffer_closed', [
+                'buffer_level' => $buffer_level,
+                'current_level' => ob_get_level(),
+            ]);
+            return;
+        }
+
         $html = ob_get_contents();
         if (!is_string($html) || !ll_tools_public_static_cache_html_is_cacheable($html)) {
             ll_tools_public_static_cache_debug_log('skip_uncacheable_html', [
@@ -837,6 +950,9 @@ function ll_tools_store_public_static_cache(): void {
         if ($method === 'HEAD' && ob_get_level() > $buffer_level) {
             ob_clean();
         }
+        if ($release_lock) {
+            ll_tools_public_static_cache_release_rebuild_lock((string) $context['key']);
+        }
     }
 }
 add_action('shutdown', 'll_tools_store_public_static_cache', 0);
@@ -889,6 +1005,10 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
                 @unlink($tmp_file);
             }
         }
+    }
+
+    if (empty($criteria)) {
+        ll_tools_public_static_cache_delete_rebuild_locks();
     }
 
     if (

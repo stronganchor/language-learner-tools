@@ -13,6 +13,7 @@
 - Static-cache purge helpers can optionally purge Cloudflare edge HTML when `LL_TOOLS_CLOUDFLARE_ZONE_ID` and `LL_TOOLS_CLOUDFLARE_API_TOKEN` are configured, or when equivalent filters provide those values. The default edge purge discovers the configured public dictionary page and purges that exact URL; sites can add more URLs with `ll_tools_cloudflare_static_cache_purge_urls`.
 - Locale-switch links remain signed GET bootstrap URLs for accessibility, but the rendered links now use `rel="nofollow"` and unsigned or expired public `ll_locale` GET/HEAD requests redirect to the clean URL without saving a locale. This reduces stale crawler work on nonce-bearing URLs while preserving normal signed language switching.
 - Dictionary canonicalization now strips `ll_wordset_back` along with auth/nonce/tracking noise, and the redirect pass runs on dictionary front pages even when those front pages are intentionally excluded from static HTML caching. This keeps crawler-discovered dictionary detail URLs from multiplying through internal wordset return-state parameters.
+- Dictionary and public static-cache files now use a short per-key rebuild lock when an anonymous request finds an expired file. The rebuild owner refreshes the file while concurrent anonymous requests can receive the stale copy with `no-cache, must-revalidate`, protecting the origin without extending stale browser or edge caching.
 - Both values remain configurable through constants and filters:
   - `LL_TOOLS_DICTIONARY_STATIC_CACHE_TTL`
   - `ll_tools_dictionary_static_cache_ttl`
@@ -27,7 +28,6 @@
 ## Future Work
 
 - Add bounded prewarming after explicit cache purges or dictionary content changes. Start with canonical dictionary landing and letter pages, not arbitrary search/result combinations.
-- Add stale-while-revalidate behavior for anonymous dictionary/public static-cache hits, guarded by a per-key lock so one request refreshes an expired file while other anonymous requests can temporarily receive the stale copy.
 - Add LL-owned static caching for public blog/article pages that contain LL shortcodes. These pages are intentionally excluded from generic page caches today, but a plugin-owned cache could safely refresh LL nonce placeholders while avoiding full PHP renders for mostly static article content.
 - Add an admin cache diagnostic panel that shows current LL cache status, page-cache bypass reason, cache directory size, and last purge/prewarm time.
 - Continue making public language-switcher links more cache-safe on generic pages by avoiding nonce-bearing URLs in cacheable markup entirely, or by resolving the switch action dynamically from a small uncached endpoint.

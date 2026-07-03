@@ -43,6 +43,16 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 delete_option((string) $option_name);
             }
         }
+        if (defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX')) {
+            $static_cache_lock_like = $wpdb->esc_like(LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX) . '%';
+            $static_cache_lock_option_names = $wpdb->get_col($wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $static_cache_lock_like
+            ));
+            foreach ((array) $static_cache_lock_option_names as $option_name) {
+                delete_option((string) $option_name);
+            }
+        }
         if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
             ll_tools_dictionary_import_clear_active_job_id();
         }
@@ -570,6 +580,65 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_dictionary_static_cache_rebuild_lock_blocks_parallel_rebuilds_until_released(): void
+    {
+        $key = md5('dictionary-static-cache-lock-test');
+        $option = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
+        delete_option($option);
+
+        try {
+            $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+            $this->assertFalse(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+
+            ll_tools_dictionary_static_cache_release_rebuild_lock($key);
+            $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+
+            update_option($option, (string) (time() - 10), false);
+            $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+        } finally {
+            delete_option($option);
+        }
+    }
+
+    public function test_dictionary_static_cache_file_freshness_helpers_detect_stale_files(): void
+    {
+        $dir = ll_tools_dictionary_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'dictionary-stale-helper-test.html';
+        file_put_contents($file, '<!doctype html><html><body>stale helper</body></html>');
+        touch($file, time() - 120);
+        clearstatcache(true, $file);
+
+        $this->assertFalse(ll_tools_dictionary_static_cache_file_is_fresh($file, 60));
+        $this->assertTrue(ll_tools_dictionary_static_cache_file_is_stale($file, 60));
+
+        touch($file, time());
+        clearstatcache(true, $file);
+
+        $this->assertTrue(ll_tools_dictionary_static_cache_file_is_fresh($file, 60));
+        $this->assertFalse(ll_tools_dictionary_static_cache_file_is_stale($file, 60));
+    }
+
+    public function test_dictionary_static_cache_purge_clears_rebuild_locks(): void
+    {
+        $dir = ll_tools_dictionary_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $key = md5('dictionary-static-cache-purge-lock-test');
+        $option = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
+        delete_option($option);
+
+        $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+        $this->assertNotFalse(get_option($option, false));
+
+        ll_tools_purge_dictionary_static_cache();
+
+        $this->assertFalse(get_option($option, false));
+    }
+
     public function test_dictionary_static_cache_locale_strategy_allows_only_site_default_locale(): void
     {
         if (function_exists('ll_tools_get_plugin_locales') && !in_array('tr_TR', ll_tools_get_plugin_locales(), true)) {
@@ -660,11 +729,18 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $file = trailingslashit($dir) . 'dictionary-store-test.html';
         @unlink($file);
 
+        $key = md5('dictionary-store-test');
+        $lock_option = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
+        delete_option($lock_option);
+        $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $buffer_level = ob_get_level();
         $GLOBALS['ll_tools_dictionary_static_cache_request'] = [
             'active' => true,
+            'key' => $key,
             'file' => $file,
+            'lock_acquired' => true,
             'buffer_level' => $buffer_level,
         ];
 
@@ -681,6 +757,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertFileExists($file);
         $this->assertStringContainsString('dictionary cache store test', (string) file_get_contents($file));
+        $this->assertFalse(get_option($lock_option, false));
+        delete_option($lock_option);
     }
 
     public function test_dictionary_public_navigation_drops_nonce_auth_and_tracking_noise(): void
