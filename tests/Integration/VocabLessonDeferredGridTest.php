@@ -62,9 +62,101 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $cached_html = ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id);
         $this->assertIsString($cached_html);
         $this->assertStringContainsString('Nehir', $cached_html);
+        $cache_key = ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id);
+        $this->assertFalse(get_option(ll_tools_vocab_lesson_grid_public_cache_lock_option($cache_key), false));
 
         ll_tools_bump_category_cache_version([$category_id]);
         $this->assertNull(ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id));
+    }
+
+    public function test_lesson_grid_ajax_returns_retryable_error_when_public_cache_rebuild_lock_is_held(): void
+    {
+        wp_set_current_user(0);
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.21';
+
+        $fixture = $this->createDeferredGridFixture('Locked Public Grid');
+        $cache_key = ll_tools_vocab_lesson_grid_public_cache_key(
+            $fixture['lesson_id'],
+            $fixture['wordset_id'],
+            $fixture['category_id']
+        );
+        $lock_option = ll_tools_vocab_lesson_grid_public_cache_lock_option($cache_key);
+
+        wp_cache_delete($cache_key, 'll_tools_vocab_lesson');
+        delete_transient($cache_key);
+        delete_option($lock_option);
+        add_option($lock_option, (string) (time() + 30), '', false);
+
+        $word_query_count = 0;
+        $capture_query = static function (WP_Query $query) use (&$word_query_count): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? $post_type : [$post_type];
+            if (in_array('words', array_map('strval', $post_types), true)) {
+                $word_query_count++;
+            }
+        };
+        $no_wait = static function (): int {
+            return 0;
+        };
+
+        add_action('pre_get_posts', $capture_query);
+        add_filter('ll_tools_vocab_lesson_grid_public_cache_build_wait_ms', $no_wait);
+        try {
+            $response = $this->postVocabLessonGridAjax($fixture['lesson_id']);
+        } finally {
+            remove_filter('ll_tools_vocab_lesson_grid_public_cache_build_wait_ms', $no_wait);
+            remove_action('pre_get_posts', $capture_query);
+            delete_option($lock_option);
+            unset($_SERVER['REMOTE_ADDR']);
+        }
+
+        $this->assertFalse($response['success']);
+        $this->assertSame('cache_warming', (string) (($response['data'] ?? [])['code'] ?? ''));
+        $this->assertSame(0, $word_query_count);
+    }
+
+    public function test_lesson_grid_public_cache_hits_bypass_miss_throttle(): void
+    {
+        wp_set_current_user(0);
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.22';
+
+        $fixture = $this->createDeferredGridFixture('Throttle Public Grid');
+        $lesson_id = (int) $fixture['lesson_id'];
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+        $cached_grid_html = '<div data-ll-word-grid>Cached throttle grid</div>';
+
+        ll_tools_vocab_lesson_grid_public_cache_set($lesson_id, $wordset_id, $category_id, $cached_grid_html);
+
+        $config = ll_tools_vocab_lesson_grid_public_cache_miss_throttle_config();
+        $window = (int) ($config['window'] ?? MINUTE_IN_SECONDS);
+        set_transient(
+            ll_tools_vocab_lesson_grid_public_cache_miss_throttle_key('lesson', (string) $lesson_id),
+            (int) ($config['lesson_limit'] ?? 60),
+            $window
+        );
+        set_transient(
+            ll_tools_vocab_lesson_grid_public_cache_miss_throttle_key('ip', '203.0.113.22'),
+            (int) ($config['ip_limit'] ?? 180),
+            $window
+        );
+
+        try {
+            $hit_response = $this->postVocabLessonGridAjax($lesson_id);
+            $this->assertTrue($hit_response['success']);
+            $this->assertSame($cached_grid_html, (string) (($hit_response['data'] ?? [])['html'] ?? ''));
+
+            $cache_key = ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id);
+            wp_cache_delete($cache_key, 'll_tools_vocab_lesson');
+            delete_transient($cache_key);
+
+            $miss_response = $this->postVocabLessonGridAjax($lesson_id);
+        } finally {
+            unset($_SERVER['REMOTE_ADDR']);
+        }
+
+        $this->assertFalse($miss_response['success']);
+        $this->assertSame('rate_limited', (string) (($miss_response['data'] ?? [])['code'] ?? ''));
     }
 
     public function test_title_backed_audio_translation_lesson_grid_uses_category_labels(): void
@@ -1343,6 +1435,72 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertIsInt($position_ten);
         $this->assertLessThan($position_nine, $position_two);
         $this->assertLessThan($position_ten, $position_nine);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function postVocabLessonGridAjax(int $lesson_id): array
+    {
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            return $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+    }
+
+    /**
+     * @return array{wordset_id:int, category_id:int, word_id:int, lesson_id:int}
+     */
+    private function createDeferredGridFixture(string $prefix): array
+    {
+        $slug = sanitize_title($prefix);
+
+        $wordset = wp_insert_term($prefix . ' Wordset', 'wordset', ['slug' => $slug . '-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term($prefix . ' Category', 'word-category', ['slug' => $slug . '-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $prefix . ' Word',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', $prefix . ' Translation');
+        $this->createAudioRecording($word_id, 'isolation', $slug . '.mp3');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => $prefix . ' Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        return [
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'word_id' => (int) $word_id,
+            'lesson_id' => (int) $lesson_id,
+        ];
     }
 
     /**

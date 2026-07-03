@@ -5,7 +5,8 @@ sequence. Recent closed passes include the June 19 public flashcard AJAX
 cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
 export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
-flake-tracking closeout, and the July 3 audio credit grid cold-cache guard.
+flake-tracking closeout, and the July 3 audio credit grid and vocab lesson grid
+cold-cache guards.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -26,6 +27,13 @@ performance work evidence-led and scoped to a measured growth dimension.
   rebuilding, and rechecks public-credit metadata before rendering stale IDs.
   `AudioCreditGridShortcodeTest` covers bounded query shape, stale fallback,
   invalidation, pagination, and the existing no-`SQL_CALC_FOUND_ROWS` invariant.
+- July 3 vocab lesson grid AJAX cold-cache guard:
+  anonymous `ll_tools_get_vocab_lesson_grid` cache misses now use a per-grid
+  build lock, a short wait-for-cache path for concurrent requests, per-lesson
+  and per-IP miss throttles, and cache empty HTML as a legitimate result.
+  `VocabLessonDeferredGridTest` covers successful lock release/cache writes,
+  locked cold misses avoiding heavy render work, and cache hits bypassing the
+  miss throttle.
 - June 26 Playwright flake-tracking follow-up:
   the two shard-1 audit flakes were rerun directly. A cold paired run reproduced
   one admin navigation timeout before `/wp-admin/tools.php?page=ll-import`
