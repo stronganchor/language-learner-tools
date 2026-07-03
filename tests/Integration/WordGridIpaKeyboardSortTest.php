@@ -171,7 +171,11 @@ final class WordGridIpaKeyboardSortTest extends LL_Tools_TestCase
         $this->assertIsArray($term);
         $this->assertFalse(is_wp_error($term));
 
-        return (int) ($term['term_id'] ?? 0);
+        $wordset_id = (int) ($term['term_id'] ?? 0);
+        $this->assertGreaterThan(0, $wordset_id);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
+
+        return $wordset_id;
     }
 
     private function createWord(int $wordset_id, string $title): int

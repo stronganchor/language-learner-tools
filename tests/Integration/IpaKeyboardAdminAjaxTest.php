@@ -744,7 +744,11 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $wordset = wp_insert_term($name, 'wordset');
         $this->assertIsArray($wordset);
 
-        return (int) ($wordset['term_id'] ?? 0);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $this->assertGreaterThan(0, $wordset_id);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
+
+        return $wordset_id;
     }
 
     /**

@@ -112,6 +112,7 @@ final class WordGridIpaLanguageCasingTest extends LL_Tools_TestCase
         $wordset_id = (int) ($term['term_id'] ?? 0);
         $this->assertGreaterThan(0, $wordset_id);
         update_term_meta($wordset_id, 'll_language', $language_code);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
 
         return $wordset_id;
     }
