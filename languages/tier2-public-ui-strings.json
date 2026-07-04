@@ -366,16 +366,16 @@
                 "includes/lib/interlinear.php:1663",
                 "includes/lib/interlinear.php:1667",
                 "includes/pages/wordset-pages.php:15727",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:320",
+                "includes/shortcodes/audio-credit-grid-shortcode.php:407",
                 "includes/shortcodes/dictionary-shortcode.php:2454",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:424"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:590"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1663",
                 "includes/lib/interlinear.php:1667",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:320",
+                "includes/shortcodes/audio-credit-grid-shortcode.php:407",
                 "includes/shortcodes/dictionary-shortcode.php:2454",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:424"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:590"
             ]
         },
         {
@@ -409,19 +409,19 @@
                 "includes/pages/wordset-pages.php:15741",
                 "includes/pages/wordset-pages.php:20205",
                 "includes/pages/wordset-pages.php:20334",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:321",
+                "includes/shortcodes/audio-credit-grid-shortcode.php:408",
                 "includes/shortcodes/dictionary-shortcode.php:2477",
                 "includes/shortcodes/flashcard-widget.php:537",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:425"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:591"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1679",
                 "includes/lib/interlinear.php:1683",
                 "includes/pages/wordset-pages.php:11329",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:321",
+                "includes/shortcodes/audio-credit-grid-shortcode.php:408",
                 "includes/shortcodes/dictionary-shortcode.php:2477",
                 "includes/shortcodes/flashcard-widget.php:537",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:425"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:591"
             ]
         },
         {
@@ -1287,10 +1287,10 @@
             "msgid": "Clear LL cache",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1519"
+                "includes/lib/public-static-cache.php:1639"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1519"
+                "includes/lib/public-static-cache.php:1639"
             ]
         },
         {
@@ -1299,10 +1299,10 @@
             "msgid": "LL cache cleared (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1524"
+                "includes/lib/public-static-cache.php:1644"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1524"
+                "includes/lib/public-static-cache.php:1644"
             ]
         },
         {
@@ -1311,10 +1311,10 @@
             "msgid": "You are not allowed to clear LL Tools caches.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1543"
+                "includes/lib/public-static-cache.php:1663"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1543"
+                "includes/lib/public-static-cache.php:1663"
             ]
         },
         {
@@ -1323,10 +1323,10 @@
             "msgid": "Cleared LL Tools static caches. %d cache file was removed.",
             "msgid_plural": "Cleared LL Tools static caches. %d cache files were removed.",
             "references": [
-                "includes/lib/public-static-cache.php:1579"
+                "includes/lib/public-static-cache.php:1699"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1579"
+                "includes/lib/public-static-cache.php:1699"
             ]
         },
         {
@@ -5171,12 +5171,12 @@
                 "includes/admin/ipa-keyboard-admin.php:460",
                 "includes/pages/wordset-pages.php:18366",
                 "includes/post-types/prompt-card-post-type.php:945",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:204",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:239",
                 "templates/vocab-lesson-template.php:536"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:18366",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:204"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:239"
             ]
         },
         {
@@ -5445,7 +5445,7 @@
                 "includes/shortcodes/audio-recording-shortcode.php:1630",
                 "includes/shortcodes/editor-hub-shortcode.php:1077",
                 "includes/shortcodes/editor-hub-shortcode.php:1109",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:187",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:222",
                 "includes/taxonomies/wordset-taxonomy.php:2416",
                 "templates/vocab-lesson-template.php:904"
             ],
@@ -5454,7 +5454,7 @@
                 "includes/pages/wordset-pages.php:18670",
                 "includes/pages/wordset-pages.php:18751",
                 "includes/pages/wordset-pages.php:18759",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:187"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:222"
             ]
         },
         {
@@ -5693,14 +5693,14 @@
                 "includes/pages/wordset-pages.php:18410",
                 "includes/shortcodes/flashcard-widget.php:505",
                 "includes/shortcodes/flashcard-widget.php:510",
-                "includes/shortcodes/word-audio-shortcode.php:188",
+                "includes/shortcodes/word-audio-shortcode.php:210",
                 "includes/taxonomies/word-category-taxonomy.php:1162"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:18410",
                 "includes/shortcodes/flashcard-widget.php:505",
                 "includes/shortcodes/flashcard-widget.php:510",
-                "includes/shortcodes/word-audio-shortcode.php:188"
+                "includes/shortcodes/word-audio-shortcode.php:210"
             ]
         },
         {
@@ -6678,10 +6678,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/post-types/word-audio-post-type.php:115",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:286"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:373"
             ],
             "public_references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:286"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:373"
             ]
         },
         {
@@ -6690,10 +6690,10 @@
             "msgid": "Credit",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:287"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:374"
             ],
             "public_references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:287"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:374"
             ]
         },
         {
@@ -6706,12 +6706,12 @@
                 "includes/admin/export-import.php:3256",
                 "includes/admin/export-import.php:3791",
                 "includes/lib/dictionary-browser.php:5975",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:294",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:222"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:381",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:257"
             ],
             "public_references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:294",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:222"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:381",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:257"
             ]
         },
         {
@@ -6721,10 +6721,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/post-types/word-audio-post-type.php:72",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:302"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:389"
             ],
             "public_references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:302"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:389"
             ]
         },
         {
@@ -6734,10 +6734,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/post-types/word-audio-post-type.php:84",
-                "includes/shortcodes/audio-credit-grid-shortcode.php:305"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:392"
             ],
             "public_references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:305"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:392"
             ]
         },
         {
@@ -6746,10 +6746,10 @@
             "msgid": "No audio recordings found with public credit information.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:327"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:414"
             ],
             "public_references": [
-                "includes/shortcodes/audio-credit-grid-shortcode.php:327"
+                "includes/shortcodes/audio-credit-grid-shortcode.php:414"
             ]
         },
         {
@@ -7185,11 +7185,11 @@
                 "includes/admin/ipa-keyboard-admin.php:571",
                 "includes/admin/ipa-keyboard-admin.php:594",
                 "includes/shortcodes/dictionary-shortcode.php:3713",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:196"
             ],
             "public_references": [
                 "includes/shortcodes/dictionary-shortcode.php:3713",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:161"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:196"
             ]
         },
         {
@@ -7593,11 +7593,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/shortcodes/flashcard-widget.php:513",
-                "includes/shortcodes/word-audio-shortcode.php:189"
+                "includes/shortcodes/word-audio-shortcode.php:211"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:513",
-                "includes/shortcodes/word-audio-shortcode.php:189"
+                "includes/shortcodes/word-audio-shortcode.php:211"
             ]
         },
         {
@@ -8101,10 +8101,10 @@
             "msgid": "Image, credit, source",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:168"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:203"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:168"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:203"
             ]
         },
         {
@@ -8124,14 +8124,14 @@
                 "includes/privacy.php:480",
                 "includes/privacy.php:562",
                 "includes/shortcodes/audio-recording-shortcode.php:1528",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:172",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:207",
                 "templates/content-lesson-template.php:123",
                 "templates/content-lesson-template.php:129",
                 "templates/vocab-lesson-template.php:458",
                 "templates/vocab-lesson-template.php:464"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:172",
+                "includes/shortcodes/image-copyright-grid-shortcode.php:207",
                 "templates/content-lesson-template.php:123"
             ]
         },
@@ -8142,10 +8142,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/user-progress-report.php:742",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:178"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:213"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:178"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:213"
             ]
         },
         {
@@ -8156,10 +8156,10 @@
             "references": [
                 "includes/admin/export-import.php:3600",
                 "includes/admin/image-webp-optimizer-admin.php:1741",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:193"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:228"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:193"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:228"
             ]
         },
         {
@@ -8172,10 +8172,10 @@
                 "includes/admin/orphan-media-admin.php:1789",
                 "includes/admin/user-progress-report.php:749",
                 "includes/pages/wordset-editor.php:3290",
-                "includes/shortcodes/image-copyright-grid-shortcode.php:202"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:237"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:202"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:237"
             ]
         },
         {
@@ -8184,10 +8184,10 @@
             "msgid": "Source %d",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:217"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:252"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:217"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:252"
             ]
         },
         {
@@ -8196,10 +8196,10 @@
             "msgid": "No Image",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:401"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:567"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:401"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:567"
             ]
         },
         {
@@ -8208,10 +8208,10 @@
             "msgid": "No word images found with matching copyright info.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:435"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:601"
             ],
             "public_references": [
-                "includes/shortcodes/image-copyright-grid-shortcode.php:435"
+                "includes/shortcodes/image-copyright-grid-shortcode.php:601"
             ]
         },
         {
@@ -8486,10 +8486,10 @@
                 "includes/pages/vocab-lesson-pages.php:3559",
                 "includes/pages/vocab-lesson-pages.php:3739",
                 "includes/pages/vocab-lesson-pages.php:3885",
-                "includes/pages/vocab-lesson-pages.php:4616",
-                "includes/pages/vocab-lesson-pages.php:4625",
-                "includes/pages/vocab-lesson-pages.php:4628",
-                "includes/pages/vocab-lesson-pages.php:4631",
+                "includes/pages/vocab-lesson-pages.php:4766",
+                "includes/pages/vocab-lesson-pages.php:4775",
+                "includes/pages/vocab-lesson-pages.php:4778",
+                "includes/pages/vocab-lesson-pages.php:4781",
                 "templates/content-lesson-template.php:32",
                 "templates/content-lesson-template.php:40",
                 "templates/vocab-lesson-print-template.php:107",

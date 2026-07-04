@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-02T04:38:33+00:00\n"
+"POT-Creation-Date: 2026-07-04T04:42:37+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -1432,7 +1432,7 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:1630
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
-#: includes/shortcodes/image-copyright-grid-shortcode.php:187
+#: includes/shortcodes/image-copyright-grid-shortcode.php:222
 #: includes/taxonomies/wordset-taxonomy.php:2416
 #: templates/vocab-lesson-template.php:904
 msgid "Category"
@@ -1464,7 +1464,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:571
 #: includes/admin/ipa-keyboard-admin.php:594
 #: includes/shortcodes/dictionary-shortcode.php:3713
-#: includes/shortcodes/image-copyright-grid-shortcode.php:161
+#: includes/shortcodes/image-copyright-grid-shortcode.php:196
 msgid "Search"
 msgstr ""
 
@@ -1492,7 +1492,7 @@ msgstr ""
 #: includes/admin/orphan-media-admin.php:1789
 #: includes/admin/user-progress-report.php:749
 #: includes/pages/wordset-editor.php:3290
-#: includes/shortcodes/image-copyright-grid-shortcode.php:202
+#: includes/shortcodes/image-copyright-grid-shortcode.php:237
 msgid "Filter"
 msgstr ""
 
@@ -1559,7 +1559,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:460
 #: includes/pages/wordset-pages.php:18366
 #: includes/post-types/prompt-card-post-type.php:945
-#: includes/shortcodes/image-copyright-grid-shortcode.php:204
+#: includes/shortcodes/image-copyright-grid-shortcode.php:239
 #: templates/vocab-lesson-template.php:536
 msgid "Clear"
 msgstr ""
@@ -2017,8 +2017,8 @@ msgstr ""
 #: includes/admin/export-import.php:3256
 #: includes/admin/export-import.php:3791
 #: includes/lib/dictionary-browser.php:5975
-#: includes/shortcodes/audio-credit-grid-shortcode.php:294
-#: includes/shortcodes/image-copyright-grid-shortcode.php:222
+#: includes/shortcodes/audio-credit-grid-shortcode.php:381
+#: includes/shortcodes/image-copyright-grid-shortcode.php:257
 msgid "Source"
 msgstr ""
 
@@ -3698,7 +3698,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3600
 #: includes/admin/image-webp-optimizer-admin.php:1741
-#: includes/shortcodes/image-copyright-grid-shortcode.php:193
+#: includes/shortcodes/image-copyright-grid-shortcode.php:228
 msgid "All categories"
 msgstr ""
 
@@ -3820,7 +3820,7 @@ msgstr ""
 #: includes/privacy.php:480
 #: includes/privacy.php:562
 #: includes/shortcodes/audio-recording-shortcode.php:1528
-#: includes/shortcodes/image-copyright-grid-shortcode.php:172
+#: includes/shortcodes/image-copyright-grid-shortcode.php:207
 #: templates/content-lesson-template.php:123
 #: templates/content-lesson-template.php:129
 #: templates/vocab-lesson-template.php:458
@@ -5779,9 +5779,9 @@ msgstr ""
 #: includes/lib/interlinear.php:1663
 #: includes/lib/interlinear.php:1667
 #: includes/pages/wordset-pages.php:15727
-#: includes/shortcodes/audio-credit-grid-shortcode.php:320
+#: includes/shortcodes/audio-credit-grid-shortcode.php:407
 #: includes/shortcodes/dictionary-shortcode.php:2454
-#: includes/shortcodes/image-copyright-grid-shortcode.php:424
+#: includes/shortcodes/image-copyright-grid-shortcode.php:590
 msgid "Previous"
 msgstr ""
 
@@ -5797,10 +5797,10 @@ msgstr ""
 #: includes/pages/wordset-pages.php:15741
 #: includes/pages/wordset-pages.php:20205
 #: includes/pages/wordset-pages.php:20334
-#: includes/shortcodes/audio-credit-grid-shortcode.php:321
+#: includes/shortcodes/audio-credit-grid-shortcode.php:408
 #: includes/shortcodes/dictionary-shortcode.php:2477
 #: includes/shortcodes/flashcard-widget.php:537
-#: includes/shortcodes/image-copyright-grid-shortcode.php:425
+#: includes/shortcodes/image-copyright-grid-shortcode.php:591
 msgid "Next"
 msgstr ""
 
@@ -6087,7 +6087,7 @@ msgid "Blocked mappings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:336
-#: includes/pages/vocab-lesson-pages.php:4770
+#: includes/pages/vocab-lesson-pages.php:4967
 #: includes/pages/wordset-editor.php:3684
 #: templates/vocab-lesson-template.php:593
 msgid "Undo"
@@ -10607,7 +10607,7 @@ msgid "Search by username, display name, or email"
 msgstr ""
 
 #: includes/admin/user-progress-report.php:742
-#: includes/shortcodes/image-copyright-grid-shortcode.php:178
+#: includes/shortcodes/image-copyright-grid-shortcode.php:213
 msgid "All word sets"
 msgstr ""
 
@@ -13256,22 +13256,22 @@ msgstr ""
 msgid "You cannot edit internal review notes for this lesson."
 msgstr ""
 
-#: includes/lib/public-static-cache.php:1519
+#: includes/lib/public-static-cache.php:1639
 msgid "Clear LL cache"
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:1524
+#: includes/lib/public-static-cache.php:1644
 #, php-format
 msgid "LL cache cleared (%d)"
 msgstr ""
 
-#: includes/lib/public-static-cache.php:1543
+#: includes/lib/public-static-cache.php:1663
 msgid "You are not allowed to clear LL Tools caches."
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:1579
+#: includes/lib/public-static-cache.php:1699
 #, php-format
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
@@ -14979,7 +14979,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:18410
 #: includes/shortcodes/flashcard-widget.php:505
 #: includes/shortcodes/flashcard-widget.php:510
-#: includes/shortcodes/word-audio-shortcode.php:188
+#: includes/shortcodes/word-audio-shortcode.php:210
 #: includes/taxonomies/word-category-taxonomy.php:1162
 msgid "Play audio"
 msgstr ""
@@ -15046,10 +15046,10 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:3559
 #: includes/pages/vocab-lesson-pages.php:3739
 #: includes/pages/vocab-lesson-pages.php:3885
-#: includes/pages/vocab-lesson-pages.php:4616
-#: includes/pages/vocab-lesson-pages.php:4625
-#: includes/pages/vocab-lesson-pages.php:4628
-#: includes/pages/vocab-lesson-pages.php:4631
+#: includes/pages/vocab-lesson-pages.php:4766
+#: includes/pages/vocab-lesson-pages.php:4775
+#: includes/pages/vocab-lesson-pages.php:4778
+#: includes/pages/vocab-lesson-pages.php:4781
 #: templates/content-lesson-template.php:32
 #: templates/content-lesson-template.php:40
 #: templates/vocab-lesson-print-template.php:107
@@ -15107,13 +15107,13 @@ msgid "Restore one or more words to print this lesson."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:3726
-#: includes/pages/vocab-lesson-pages.php:4608
+#: includes/pages/vocab-lesson-pages.php:4758
 msgid "Missing lesson."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:3732
 #: includes/pages/vocab-lesson-pages.php:3863
-#: includes/pages/vocab-lesson-pages.php:4611
+#: includes/pages/vocab-lesson-pages.php:4761
 #: includes/shortcodes/dictionary-shortcode.php:3088
 msgid "Invalid request."
 msgstr ""
@@ -15154,17 +15154,25 @@ msgstr ""
 msgid "Changes saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4622
+#: includes/pages/vocab-lesson-pages.php:4772
 msgid "Lesson metadata is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4637
+#: includes/pages/vocab-lesson-pages.php:4787
 #: includes/shortcodes/word-grid-shortcode.php:7763
 #: includes/shortcodes/word-grid-shortcode.php:7775
 msgid "Lesson terms are missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4723
+#: includes/pages/vocab-lesson-pages.php:4808
+msgid "Too many lesson grid requests. Please wait a few minutes and try again."
+msgstr ""
+
+#: includes/pages/vocab-lesson-pages.php:4829
+msgid "Lesson words are still being prepared. Please try again in a moment."
+msgstr ""
+
+#: includes/pages/vocab-lesson-pages.php:4920
 #, php-format
 msgid "%d vocab lesson page was restored."
 msgid_plural "%d vocab lesson pages were restored."
@@ -15172,69 +15180,69 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: restored lesson page count, 2: failed lesson page count
-#: includes/pages/vocab-lesson-pages.php:4734
+#: includes/pages/vocab-lesson-pages.php:4931
 #, php-format
 msgid "Restored %1$d vocab lesson pages. %2$d could not be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4739
+#: includes/pages/vocab-lesson-pages.php:4936
 msgid "No trashed vocab lesson pages were waiting to be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4741
+#: includes/pages/vocab-lesson-pages.php:4938
 msgid "Vocab lesson pages could not be restored right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4772
+#: includes/pages/vocab-lesson-pages.php:4969
 msgid "View Trash"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4777
+#: includes/pages/vocab-lesson-pages.php:4974
 msgid "Dismiss"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4787
+#: includes/pages/vocab-lesson-pages.php:4984
 msgid "You do not have permission to restore vocab lesson pages."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4854
+#: includes/pages/vocab-lesson-pages.php:5051
 msgid "You do not have permission to dismiss vocab lesson page notices."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4946
+#: includes/pages/vocab-lesson-pages.php:5143
 msgid "You do not have permission to update vocab lesson settings."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4950
+#: includes/pages/vocab-lesson-pages.php:5147
 msgid "Invalid vocab lesson settings request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4996
+#: includes/pages/vocab-lesson-pages.php:5193
 #, php-format
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5011
+#: includes/pages/vocab-lesson-pages.php:5208
 msgid "Vocab Lesson Settings"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5012
+#: includes/pages/vocab-lesson-pages.php:5209
 msgid "Choose which word sets should get vocab lesson pages at /{wordset}/{category} (and a wordset landing page at /{wordset}). Saving will sync pages automatically."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5027
+#: includes/pages/vocab-lesson-pages.php:5224
 msgid "No word sets found yet."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5031
+#: includes/pages/vocab-lesson-pages.php:5228
 msgid "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5035
+#: includes/pages/vocab-lesson-pages.php:5232
 msgid "Save Settings & Sync"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5036
+#: includes/pages/vocab-lesson-pages.php:5233
 msgid "Sync Now"
 msgstr ""
 
@@ -20425,7 +20433,7 @@ msgid "Link to the original source page for this audio when available."
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:72
-#: includes/shortcodes/audio-credit-grid-shortcode.php:302
+#: includes/shortcodes/audio-credit-grid-shortcode.php:389
 msgid "License"
 msgstr ""
 
@@ -20442,7 +20450,7 @@ msgid "Link to the license terms when available."
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:84
-#: includes/shortcodes/audio-credit-grid-shortcode.php:305
+#: includes/shortcodes/audio-credit-grid-shortcode.php:392
 msgid "Changes made"
 msgstr ""
 
@@ -20451,7 +20459,7 @@ msgid "Describe any edits you made to the sourced recording before publishing it
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:115
-#: includes/shortcodes/audio-credit-grid-shortcode.php:286
+#: includes/shortcodes/audio-credit-grid-shortcode.php:373
 msgid "Speaker"
 msgstr ""
 
@@ -21010,11 +21018,11 @@ msgstr ""
 msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, and let site administrators review learner progress when needed for site operations. Detailed activity log entries are kept for %d days. Summary progress data remains until your account is deleted or the site erases your LL Tools personal data. You can request an export or erasure of this data through the site’s privacy request tools."
 msgstr ""
 
-#: includes/shortcodes/audio-credit-grid-shortcode.php:287
+#: includes/shortcodes/audio-credit-grid-shortcode.php:374
 msgid "Credit"
 msgstr ""
 
-#: includes/shortcodes/audio-credit-grid-shortcode.php:327
+#: includes/shortcodes/audio-credit-grid-shortcode.php:414
 msgid "No audio recordings found with public credit information."
 msgstr ""
 
@@ -22329,7 +22337,7 @@ msgid "Play option audio"
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:513
-#: includes/shortcodes/word-audio-shortcode.php:189
+#: includes/shortcodes/word-audio-shortcode.php:211
 msgid "Pause audio"
 msgstr ""
 
@@ -22456,21 +22464,21 @@ msgstr ""
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr ""
 
-#: includes/shortcodes/image-copyright-grid-shortcode.php:168
+#: includes/shortcodes/image-copyright-grid-shortcode.php:203
 msgid "Image, credit, source"
 msgstr ""
 
 #. translators: %d is the source link number.
-#: includes/shortcodes/image-copyright-grid-shortcode.php:217
+#: includes/shortcodes/image-copyright-grid-shortcode.php:252
 #, php-format
 msgid "Source %d"
 msgstr ""
 
-#: includes/shortcodes/image-copyright-grid-shortcode.php:401
+#: includes/shortcodes/image-copyright-grid-shortcode.php:567
 msgid "No Image"
 msgstr ""
 
-#: includes/shortcodes/image-copyright-grid-shortcode.php:435
+#: includes/shortcodes/image-copyright-grid-shortcode.php:601
 msgid "No word images found with matching copyright info."
 msgstr ""
 

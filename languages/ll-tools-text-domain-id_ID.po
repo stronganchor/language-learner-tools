@@ -4772,3 +4772,33 @@ msgstr "Indeks penemuan LL Tools yang dihasilkan, terbatas, dan publik anonim un
 #: includes/lib/ai-crawler-support.php:959
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "Indeks yang dihasilkan ini mengarahkan agen AI ke konten publik LL Tools yang ringkas. Indeks ini sengaja hanya-baca dan terbatas; halaman HTML tertaut tetap menjadi sumber kanonis untuk sitasi."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:467
+msgid "Review queued recordings, clean audio, and publish approved files."
+msgstr "Tinjau rekaman yang mengantre, bersihkan audio, dan terbitkan file yang disetujui."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:476
+msgid "Match uploaded audio and images to the correct words and categories."
+msgstr "Cocokkan audio dan gambar yang diunggah dengan kata dan kategori yang benar."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:485
+msgid "Find words without audio and resolve gaps in recording coverage."
+msgstr "Temukan kata tanpa audio dan selesaikan celah cakupan rekaman."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:494
+msgid "Create many draft word posts at once from pasted text."
+msgstr "Buat banyak draf pos kata sekaligus dari teks yang ditempel."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:503
+msgid "Import TSV dictionaries or export and restore whole-site dictionary snapshots."
+msgstr "Impor kamus TSV atau ekspor dan pulihkan snapshot kamus seluruh situs."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:512
+msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
+msgstr "Kelola label sumber yang dapat digunakan kembali, teks atribusi, URL halaman sumber, dan dialek default yang digunakan oleh entri kamus."

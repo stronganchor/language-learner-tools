@@ -4772,3 +4772,33 @@ msgstr "AI एजेंटों के लिए जनरेट किया �
 #: includes/lib/ai-crawler-support.php:959
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "यह जनरेट किया गया इंडेक्स AI एजेंटों को संक्षिप्त सार्वजनिक LL Tools सामग्री की ओर निर्देशित करता है। यह जानबूझकर केवल-पढ़ने योग्य और सीमित है; लिंक किए गए HTML पेज उद्धरण के लिए आधिकारिक स्रोत बने रहते हैं।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:467
+msgid "Review queued recordings, clean audio, and publish approved files."
+msgstr "कतारबद्ध रिकॉर्डिंग की समीक्षा करें, ऑडियो साफ़ करें, और स्वीकृत फ़ाइलें प्रकाशित करें।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:476
+msgid "Match uploaded audio and images to the correct words and categories."
+msgstr "अपलोड किए गए ऑडियो और चित्रों को सही शब्दों और श्रेणियों से मिलाएँ।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:485
+msgid "Find words without audio and resolve gaps in recording coverage."
+msgstr "बिना ऑडियो वाले शब्द खोजें और रिकॉर्डिंग कवरेज की कमियाँ दूर करें।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:494
+msgid "Create many draft word posts at once from pasted text."
+msgstr "चिपकाए गए पाठ से एक साथ कई ड्राफ़्ट शब्द पोस्ट बनाएँ।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:503
+msgid "Import TSV dictionaries or export and restore whole-site dictionary snapshots."
+msgstr "TSV शब्दकोश आयात करें या पूरी साइट के शब्दकोश स्नैपशॉट निर्यात और पुनर्स्थापित करें।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:512
+msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
+msgstr "शब्दकोश प्रविष्टियों में उपयोग किए जाने वाले पुन: प्रयोज्य स्रोत लेबल, श्रेय पाठ, स्रोत-पृष्ठ URL, और डिफ़ॉल्ट बोलियाँ बनाए रखें।"

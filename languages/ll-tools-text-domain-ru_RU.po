@@ -4809,3 +4809,33 @@ msgstr "Созданный, ограниченный, анонимно-публ�
 #: includes/lib/ai-crawler-support.php:959
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "Этот созданный индекс направляет ИИ-агентов к компактному публичному содержимому LL Tools. Он намеренно доступен только для чтения и ограничен; связанные HTML-страницы остаются каноническим источником для цитирования."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:467
+msgid "Review queued recordings, clean audio, and publish approved files."
+msgstr "Проверяйте записи в очереди, очищайте аудио и публикуйте одобренные файлы."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:476
+msgid "Match uploaded audio and images to the correct words and categories."
+msgstr "Сопоставляйте загруженные аудио и изображения с правильными словами и категориями."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:485
+msgid "Find words without audio and resolve gaps in recording coverage."
+msgstr "Находите слова без аудио и устраняйте пробелы в покрытии записей."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:494
+msgid "Create many draft word posts at once from pasted text."
+msgstr "Создавайте сразу много черновиков записей слов из вставленного текста."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:503
+msgid "Import TSV dictionaries or export and restore whole-site dictionary snapshots."
+msgstr "Импортируйте TSV-словари или экспортируйте и восстанавливайте снимки словаря всего сайта."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:512
+msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
+msgstr "Поддерживайте многоразовые метки источников, текст атрибуции, URL страниц источников и диалекты по умолчанию, используемые в словарных статьях."

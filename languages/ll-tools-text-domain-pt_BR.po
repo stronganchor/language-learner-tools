@@ -4772,3 +4772,33 @@ msgstr "Índice de descoberta do LL Tools gerado, limitado e público anônimo p
 #: includes/lib/ai-crawler-support.php:959
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "Este índice gerado direciona agentes de IA para conteúdo público compacto do LL Tools. Ele é intencionalmente somente leitura e limitado; as páginas HTML vinculadas continuam sendo a fonte canônica para citação."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:467
+msgid "Review queued recordings, clean audio, and publish approved files."
+msgstr "Revise gravações na fila, limpe o áudio e publique arquivos aprovados."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:476
+msgid "Match uploaded audio and images to the correct words and categories."
+msgstr "Associe áudios e imagens enviados às palavras e categorias corretas."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:485
+msgid "Find words without audio and resolve gaps in recording coverage."
+msgstr "Encontre palavras sem áudio e corrija lacunas na cobertura de gravações."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:494
+msgid "Create many draft word posts at once from pasted text."
+msgstr "Crie muitos rascunhos de posts de palavras de uma vez a partir de texto colado."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:503
+msgid "Import TSV dictionaries or export and restore whole-site dictionary snapshots."
+msgstr "Importe dicionários TSV ou exporte e restaure snapshots de dicionário de todo o site."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:512
+msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
+msgstr "Mantenha rótulos de fonte reutilizáveis, texto de atribuição, URLs de páginas de fonte e dialetos padrão usados por entradas de dicionário."

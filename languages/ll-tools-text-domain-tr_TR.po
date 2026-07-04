@@ -27501,3 +27501,33 @@ msgstr "Yapay zeka aracıları için oluşturulmuş, sınırlı, anonim-herkese 
 #: includes/lib/ai-crawler-support.php:959
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "Bu oluşturulmuş dizin, yapay zeka aracılarını kompakt herkese açık LL Tools içeriğine yönlendirir. Bilerek salt okunur ve sınırlıdır; bağlantılı HTML sayfaları alıntı için kanonik kaynak olmaya devam eder."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/lib/ai-crawler-support.php:929
+msgid "This file lists anonymous, read-only public content. Use canonical HTML URLs for citation and the Markdown exports for compact context. Admin screens, editor workflows, recording tools, REST mutation endpoints, and private wordsets are not public crawl targets."
+msgstr "Bu dosya anonim, salt okunur herkese açık içeriği listeler. Alıntı için kanonik HTML URL'lerini, kompakt bağlam için Markdown dışa aktarımlarını kullan. Yönetici ekranları, editör iş akışları, kayıt araçları, REST değişiklik uç noktaları ve özel kelime setleri herkese açık tarama hedefleri değildir."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/lib/ai-crawler-support.php:1017 includes/lib/ai-crawler-support.php:936 includes/lib/ai-crawler-support.php:967
+msgid "Dictionary Markdown"
+msgstr "Sözlük Markdown'ı"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/lib/ai-crawler-support.php:936
+msgid "Bounded public dictionary entries with definitions, sources, and canonical detail links."
+msgstr "Tanımlar, kaynaklar ve kanonik ayrıntı bağlantıları içeren sınırlı herkese açık sözlük girişleri."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/lib/ai-crawler-support.php:1023 includes/lib/ai-crawler-support.php:937 includes/lib/ai-crawler-support.php:968
+msgid "Wordsets Markdown"
+msgstr "Kelime setleri Markdown'ı"
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/lib/ai-crawler-support.php:937
+msgid "Public wordset hubs and public vocab lessons."
+msgstr "Herkese açık kelime seti merkezleri ve herkese açık kelime dersleri."
+
+#. ll-tools-autonomous-upkeep: 2026-07-04 source-backed batch
+#: includes/lib/ai-crawler-support.php:1029 includes/lib/ai-crawler-support.php:938 includes/lib/ai-crawler-support.php:969
+msgid "Content Lessons Markdown"
+msgstr "İçerik dersleri Markdown'ı"
