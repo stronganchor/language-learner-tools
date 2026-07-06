@@ -131,14 +131,35 @@ function getAllowedAdminAjaxActions(networkConfig) {
   const configured = normalizeList(networkConfig.allowedAdminAjaxActions);
   const allowed = new Set([
     'll_get_words_by_category',
-    'll_tools_wordset_page_lazy_cards'
+    'll_tools_wordset_page_lazy_cards',
+    'll_tools_wordset_page_category_search',
+    'll_tools_get_vocab_lesson_grid'
   ]);
   configured.forEach((action) => allowed.add(action));
   return allowed;
 }
 
+function getAllowedSameOriginNonGetPaths(networkConfig) {
+  const allowed = new Set([
+    '/cdn-cgi/rum'
+  ]);
+
+  normalizeList(networkConfig.allowedSameOriginNonGetPaths).forEach((rawPath) => {
+    const pathname = String(rawPath || '').trim().split('?')[0];
+    if (pathname.startsWith('/')) {
+      allowed.add(pathname);
+    }
+  });
+
+  return allowed;
+}
+
 function isAllowedSameOriginNonGetRequest(details, networkConfig) {
   if (!details || details.method === 'GET') {
+    return true;
+  }
+
+  if (getAllowedSameOriginNonGetPaths(networkConfig).has(details.pathname || '')) {
     return true;
   }
 

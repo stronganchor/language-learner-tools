@@ -31,14 +31,17 @@ Expanded after the 2026-06-29 deeper live pass.
   local site list is not the one being used. In the first pass, a PowerShell
   `LL_LIVE_SITES_FILE` override did not isolate the run, so all five local live
   entries ran once.
-- [ ] Update the live-smoke same-origin non-GET allowlist or per-site config for
+- [x] Update the live-smoke same-origin non-GET allowlist or per-site config for
   read-style wordset requests observed on Starter English:
   `ll_tools_wordset_page_category_search`,
   `ll_tools_wordset_page_lazy_cards`,
   `ll_get_words_by_category`, and `ll_tools_get_vocab_lesson_grid`.
-- [ ] Decide how live smoke should treat Cloudflare browser RUM POSTs to
+- [x] Decide how live smoke should treat Cloudflare browser RUM POSTs to
   `/cdn-cgi/rum`. They are same-origin non-GET requests and currently fail a
   strict zero-unexpected-POST policy even though they are not LL Tools writes.
+  As of 2026-07-06, the smoke runner treats exact `/cdn-cgi/rum` requests as
+  infrastructure telemetry while continuing to fail other unexpected same-origin
+  non-GET requests.
 - [ ] Consider adding a lightweight public smoke mode that records unexpected
   non-GET requests as warnings first, then fails only for unknown WordPress
   write actions or same-origin server errors.
@@ -54,8 +57,9 @@ Expanded after the 2026-06-29 deeper live pass.
 - [ ] Investigate Cloudflare RUM on `starterenglish.com`. The first pass saw a
   `/cdn-cgi/rum` `404` with `location: "https:://starterenglish.com/"`; the
   deeper pass saw additional same-origin `/cdn-cgi/rum` `404` responses and
-  aborted RUM requests. Either fix the Cloudflare/RUM setup or explicitly
-  exclude these beacons from application write-safety checks.
+  aborted RUM requests. The smoke runner now excludes these beacons from
+  application write-safety checks, but the server-side RUM 404/setup remains a
+  configuration follow-up.
 - [ ] Confirm the intended production admin access route. Both `/wp-admin/` and
   `/wp-login.php` resolved to the public site/404 in this pass, even after the
   Chrome saved-login flow signed in as `mike`.
