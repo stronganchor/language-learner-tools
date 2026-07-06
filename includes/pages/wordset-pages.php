@@ -5428,7 +5428,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                         <?php endfor; ?>
                     <?php endif; ?>
                 </div>
-        <?php if (($is_public || $can_link_inactive) && $cat_url !== '') : ?>
+        <?php if (($is_public && $cat_url !== '') || $can_link_inactive) : ?>
             </a>
         <?php else : ?>
             </div>

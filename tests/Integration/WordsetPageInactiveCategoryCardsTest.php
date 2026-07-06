@@ -40,6 +40,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-trigger', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__heading--inactive-link', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__lesson-link--inactive-link', $inactive_card);
+        $this->assertSame(substr_count($inactive_card, '<a '), substr_count($inactive_card, '</a>'));
         $this->assertStringContainsString('ll_wordset_inactive_category_action=preview', $inactive_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_id=', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $inactive_card);
@@ -58,6 +59,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-card="true"', $image_card);
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-trigger', $image_card);
         $this->assertStringContainsString('ll-wordset-card__lesson-link--inactive-link', $image_card);
+        $this->assertSame(substr_count($image_card, '<a '), substr_count($image_card, '</a>'));
         $this->assertStringContainsString('ll_wordset_inactive_category_action=preview', $image_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $image_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $image_card);
