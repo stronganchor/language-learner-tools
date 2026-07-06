@@ -259,6 +259,48 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame((int) $word_id, (int) $existing_word_id);
     }
 
+    public function test_recorder_image_request_uses_posted_matching_word_id(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Posted Word WS', 'rec-posted-word-ws');
+        $other_wordset_id = $this->ensure_term('wordset', 'Recorder Posted Word Other WS', 'rec-posted-word-other-ws');
+        $attachment_id = $this->create_image_attachment('recorder-posted-word-image.png');
+
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Posted Word Image',
+        ]);
+        set_post_thumbnail($word_image_id, $attachment_id);
+
+        $matching_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Posted Matching Word',
+        ]);
+        set_post_thumbnail($matching_word_id, $attachment_id);
+        wp_set_post_terms($matching_word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($matching_word_id, '_ll_autopicked_image_id', $word_image_id);
+
+        $out_of_scope_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Posted Out Of Scope Word',
+        ]);
+        set_post_thumbnail($out_of_scope_word_id, $attachment_id);
+        wp_set_post_terms($out_of_scope_word_id, [$other_wordset_id], 'wordset', false);
+
+        $this->assertTrue(ll_tools_recorder_word_matches_image_request((int) $matching_word_id, (int) $word_image_id, [$wordset_id]));
+        $this->assertFalse(ll_tools_recorder_word_matches_image_request((int) $out_of_scope_word_id, (int) $word_image_id, [$wordset_id]));
+
+        $resolved_word_id = ll_tools_resolve_recorder_word_for_image_request(
+            (int) $word_image_id,
+            get_post($word_image_id),
+            (int) $matching_word_id,
+            [$wordset_id]
+        );
+        $this->assertSame((int) $matching_word_id, (int) $resolved_word_id);
+    }
+
     public function test_existing_recording_type_helpers_return_unique_types_with_user_scope(): void
     {
         $type_isolation = $this->ensure_term('recording_type', 'Isolation', 'isolation');
@@ -518,6 +560,46 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($first_page['pagination']['has_more'] ?? false));
         $this->assertFalse((bool) ($second_page['pagination']['has_more'] ?? true));
         $this->assertSame(2, (int) ($first_page['pagination']['per_page'] ?? 0));
+    }
+
+    public function test_recording_category_queue_page_does_not_fetch_prompt_cards_when_word_page_is_full(): void
+    {
+        if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {
+            $this->markTestSkipped('Prompt card support is not loaded.');
+        }
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Full Word Page', 'recorder-full-word-page');
+        $category_id = $this->ensure_term('word-category', 'Recorder Full Word Category', 'recorder-full-word-category');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+
+        foreach (['Alpha', 'Bravo'] as $title) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Full Page ' . $title,
+            ]);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        }
+
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Full Page Prompt Card',
+        ]);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($prompt_card_id, [$category_id], 'word-category', false);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, 'Record this prompt later.');
+
+        $page = ll_tools_get_recording_category_queue_page('recorder-full-word-category', [$wordset_id], '', '', 1, 2, 0);
+        $items = (array) ($page['items'] ?? []);
+
+        $this->assertCount(2, $items);
+        foreach ($items as $item) {
+            $this->assertSame(0, (int) ($item['prompt_card_id'] ?? 0));
+            $this->assertGreaterThan(0, (int) ($item['word_id'] ?? 0));
+        }
     }
 
     public function test_recorder_category_resolver_remaps_isolated_slug_to_requested_wordset(): void

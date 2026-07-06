@@ -14954,8 +14954,10 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
         ];
     }
 
-    $target_count = ($page * $per_page) + 1;
-    $matches = [];
+    $start = ($page - 1) * $per_page;
+    $target_page_count = $per_page + 1;
+    $valid_seen = 0;
+    $page_matches = [];
     $hidden_lookup = ($recorder_user_id > 0 && function_exists('ll_tools_get_hidden_recording_word_lookup'))
         ? ll_tools_get_hidden_recording_word_lookup($recorder_user_id)
         : [];
@@ -14963,7 +14965,7 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
     $chunk_size = max($per_page + 1, min(500, max(40, $chunk_size)));
 
     $word_offset = 0;
-    while (count($matches) < $target_count) {
+    while (count($page_matches) < $target_page_count) {
         $raw_word_ids = ll_tools_wordset_page_get_recorder_queue_raw_word_candidate_ids($wordset_id, $category_slug, $category_term_id, $chunk_size, $word_offset);
         if (empty($raw_word_ids)) {
             break;
@@ -14985,11 +14987,14 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
                 continue;
             }
 
-            $matches[] = [
-                'type' => 'word',
-                'id' => $word_id,
-            ];
-            if (count($matches) >= $target_count) {
+            if ($valid_seen >= $start && count($page_matches) < $target_page_count) {
+                $page_matches[] = [
+                    'type' => 'word',
+                    'id' => $word_id,
+                ];
+            }
+            $valid_seen++;
+            if (count($page_matches) >= $target_page_count) {
                 break;
             }
         }
@@ -15001,7 +15006,7 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
     }
 
     $image_offset = 0;
-    while (count($matches) < $target_count) {
+    while (count($page_matches) < $target_page_count) {
         $raw_image_ids = ll_tools_wordset_page_get_recorder_queue_raw_image_candidate_ids($wordset_id, $category_slug, $category_term_id, $chunk_size, $image_offset);
         if (empty($raw_image_ids)) {
             break;
@@ -15016,11 +15021,14 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
                 continue;
             }
 
-            $matches[] = [
-                'type' => 'image',
-                'id' => $image_id,
-            ];
-            if (count($matches) >= $target_count) {
+            if ($valid_seen >= $start && count($page_matches) < $target_page_count) {
+                $page_matches[] = [
+                    'type' => 'image',
+                    'id' => $image_id,
+                ];
+            }
+            $valid_seen++;
+            if (count($page_matches) >= $target_page_count) {
                 break;
             }
         }
@@ -15031,8 +15039,8 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
         }
     }
 
-    $start = ($page - 1) * $per_page;
-    $page_matches = array_slice($matches, $start, $per_page);
+    $has_more = count($page_matches) > $per_page;
+    $page_matches = array_slice($page_matches, 0, $per_page);
     $word_ids = [];
     $image_ids = [];
     foreach ($page_matches as $match) {
@@ -15047,7 +15055,6 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
     }
     $word_ids = array_values(array_filter($word_ids));
     $image_ids = array_values(array_filter($image_ids));
-    $has_more = count($matches) > ($start + $per_page);
 
     return [
         'ids' => $word_ids,
@@ -15056,7 +15063,7 @@ function ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(i
         'page' => $page,
         'per_page' => $per_page,
         'has_more' => $has_more,
-        'count' => $has_more ? ($start + $per_page + 1) : count($matches),
+        'count' => $has_more ? ($start + $per_page + 1) : $valid_seen,
         'count_is_lower_bound' => $has_more,
     ];
 }
