@@ -573,6 +573,14 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'default' => $dry_run ? 50 : 10,
             'max' => $dry_run ? 100 : 25,
         ],
+        'transcription_updates' => [
+            'default' => $dry_run ? 50 : 10,
+            'max' => $dry_run ? 100 : 25,
+        ],
+        'word_audio_speaker_updates' => [
+            'default' => $dry_run ? 50 : 10,
+            'max' => $dry_run ? 100 : 25,
+        ],
         'word_category_updates' => [
             'default' => $dry_run ? 10 : 5,
             'max' => $dry_run ? 25 : 10,
@@ -631,6 +639,24 @@ function ll_tools_rest_automation_resolve_batch_limit(WP_REST_Request $request, 
         'max' => (int) $settings['max'],
         'clamped' => $clamped,
     ];
+}
+
+function ll_tools_rest_automation_update_rows_from_request(WP_REST_Request $request): array {
+    $raw_updates = $request->get_param('updates');
+    if (!is_array($raw_updates)) {
+        $raw_updates = [$request->get_json_params()];
+    }
+    if (count($raw_updates) === 1 && empty($raw_updates[0])) {
+        $raw_updates = [$request->get_params()];
+    }
+
+    if (empty($raw_updates)) {
+        return [];
+    }
+
+    return ll_tools_rest_automation_array_is_list($raw_updates)
+        ? array_values($raw_updates)
+        : [$raw_updates];
 }
 
 function ll_tools_rest_automation_transcription_validation_limits(WP_REST_Request $request, bool $dry_run): array {
@@ -1211,6 +1237,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs',
                 '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}/process',
                 '/ll-tools/v1/wordsets/{wordset}/transcriptions',
+                '/ll-tools/v1/wordsets/{wordset}/word-audio-speakers',
                 '/ll-tools/v1/wordsets/{wordset}/transcription-validations',
                 '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
                 '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
@@ -1243,6 +1270,18 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
                 'max_write_limit' => ll_tools_rest_automation_batch_limit('word_helper_updates', false)['max'],
                 'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_helper_updates', true)['default'],
                 'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_helper_updates', true)['max'],
+            ],
+            'transcription_updates_batch' => [
+                'default_write_limit' => ll_tools_rest_automation_batch_limit('transcription_updates', false)['default'],
+                'max_write_limit' => ll_tools_rest_automation_batch_limit('transcription_updates', false)['max'],
+                'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('transcription_updates', true)['default'],
+                'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('transcription_updates', true)['max'],
+            ],
+            'word_audio_speaker_updates_batch' => [
+                'default_write_limit' => ll_tools_rest_automation_batch_limit('word_audio_speaker_updates', false)['default'],
+                'max_write_limit' => ll_tools_rest_automation_batch_limit('word_audio_speaker_updates', false)['max'],
+                'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_audio_speaker_updates', true)['default'],
+                'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('word_audio_speaker_updates', true)['max'],
             ],
             'legacy_translation_cleanup_batch' => [
                 'default_write_limit' => ll_tools_rest_automation_batch_limit('legacy_translation_cleanup', false)['default'],
@@ -5180,13 +5219,9 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
 
     $wordset_id = (int) $wordset_term->term_id;
     $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
-    $raw_updates = $request->get_param('updates');
-    if (!is_array($raw_updates)) {
-        $raw_updates = [$request->get_json_params()];
-    }
-    if (count($raw_updates) === 1 && empty($raw_updates[0])) {
-        $raw_updates = [$request->get_params()];
-    }
+    $raw_updates = ll_tools_rest_automation_update_rows_from_request($request);
+    $batch_settings = ll_tools_rest_automation_batch_limit('transcription_updates', $dry_run);
+    $max_updates = (int) $batch_settings['max'];
 
     $summary = [
         'generated_at_gmt' => gmdate('c'),
@@ -5196,11 +5231,31 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
             'slug' => (string) $wordset_term->slug,
             'name' => (string) $wordset_term->name,
         ],
+        'batch_mode' => 'transcription_updates',
+        'input_count' => count($raw_updates),
+        'max_updates' => $max_updates,
+        'batch' => [
+            'default_limit' => (int) $batch_settings['default'],
+            'max_limit' => (int) $batch_settings['max'],
+            'effective_limit' => $max_updates,
+        ],
         'matched_count' => 0,
         'updated_count' => 0,
         'updated' => [],
         'errors' => [],
     ];
+
+    if (count($raw_updates) > $max_updates) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_too_many_transcription_updates',
+            sprintf(
+                /* translators: %d: maximum update count */
+                __('Too many transcription updates in one request. Maximum is %d.', 'll-tools-text-domain'),
+                $max_updates
+            ),
+            ['status' => 400, 'summary' => $summary]
+        ), 400);
+    }
 
     foreach ((array) $raw_updates as $index => $update) {
         if (!is_array($update)) {
@@ -5368,13 +5423,9 @@ function ll_tools_rest_automation_update_word_audio_speakers(WP_REST_Request $re
     $dry_run = $request->has_param('dry_run')
         ? rest_sanitize_boolean($request->get_param('dry_run'))
         : true;
-    $raw_updates = $request->get_param('updates');
-    if (!is_array($raw_updates)) {
-        $raw_updates = [$request->get_json_params()];
-    }
-    if (count($raw_updates) === 1 && empty($raw_updates[0])) {
-        $raw_updates = [$request->get_params()];
-    }
+    $raw_updates = ll_tools_rest_automation_update_rows_from_request($request);
+    $batch_settings = ll_tools_rest_automation_batch_limit('word_audio_speaker_updates', $dry_run);
+    $max_updates = (int) $batch_settings['max'];
 
     $summary = [
         'generated_at_gmt' => gmdate('c'),
@@ -5384,11 +5435,31 @@ function ll_tools_rest_automation_update_word_audio_speakers(WP_REST_Request $re
             'slug' => (string) $wordset_term->slug,
             'name' => (string) $wordset_term->name,
         ],
+        'batch_mode' => 'word_audio_speaker_updates',
+        'input_count' => count($raw_updates),
+        'max_updates' => $max_updates,
+        'batch' => [
+            'default_limit' => (int) $batch_settings['default'],
+            'max_limit' => (int) $batch_settings['max'],
+            'effective_limit' => $max_updates,
+        ],
         'matched_count' => 0,
         'updated_count' => 0,
         'updated' => [],
         'errors' => [],
     ];
+
+    if (count($raw_updates) > $max_updates) {
+        return ll_tools_rest_automation_with_status(new WP_Error(
+            'll_tools_rest_too_many_word_audio_speaker_updates',
+            sprintf(
+                /* translators: %d: maximum update count */
+                __('Too many word audio speaker updates in one request. Maximum is %d.', 'll-tools-text-domain'),
+                $max_updates
+            ),
+            ['status' => 400, 'summary' => $summary]
+        ), 400);
+    }
 
     foreach ((array) $raw_updates as $index => $update) {
         if (!is_array($update)) {

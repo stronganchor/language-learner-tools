@@ -1181,7 +1181,11 @@ Body fields:
 
 The response includes `matched_count`, `updated_count`, per-record `before` and
 `after` payloads, and structured `errors` for recordings outside the requested
-wordset.
+wordset. Synchronous arrays are capped by
+`resource_guard.transcription_updates_batch` in `GET /automation/status` (writes
+max 25 by default, dry-runs max 100); split larger arrays or route them through a
+cursor-backed job/source snapshot workflow. Responses include `input_count`,
+`max_updates`, and `batch` metadata.
 
 ### `POST /wordsets/{wordset}/word-audio-speakers`
 
@@ -1201,7 +1205,11 @@ Body fields:
 The response includes `matched_count`, `updated_count`, per-record `before` and
 `after` payloads, and structured `errors` for recordings outside the requested
 wordset or rows that fail the expected-value guards. Dry-run first, then submit
-the same payload with `dry_run=false`.
+the same payload with `dry_run=false`. Synchronous arrays are capped by
+`resource_guard.word_audio_speaker_updates_batch` in `GET /automation/status`
+(writes max 25 by default, dry-runs max 100); split larger arrays or route them
+through a cursor-backed job/source snapshot workflow. Responses include
+`input_count`, `max_updates`, and `batch` metadata.
 
 ### `POST /wordsets/{wordset}/transcription-validations`
 

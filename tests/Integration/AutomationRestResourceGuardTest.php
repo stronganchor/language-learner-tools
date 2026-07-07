@@ -41,6 +41,7 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/job-123/process' => 'll_tools_word_metadata_plan_process',
             '/ll-tools/v1/wordsets/spanish/word-metadata-plan-jobs/job-123/discard' => 'll_tools_word_metadata_plan_discard',
             '/ll-tools/v1/wordsets/spanish/transcriptions' => 'll_tools_transcriptions',
+            '/ll-tools/v1/wordsets/spanish/word-audio-speakers' => 'll_tools_word-audio-speakers',
             '/ll-tools/v1/wordsets/spanish/transcription-validations' => 'll_tools_transcription-validations',
             '/ll-tools/v1/wordsets/spanish/word-option-rules' => 'll_tools_word-option-rules',
             '/ll-tools/v1/wordsets/spanish/orthography-conversion' => 'll_tools_orthography-conversion',
@@ -156,6 +157,8 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-helper-updates', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/transcriptions', $automationRoutes);
+        $this->assertContains('/ll-tools/v1/wordsets/{wordset}/word-audio-speakers', $automationRoutes);
         $this->assertContains('/ll-tools/v1/wordsets/{wordset}/translations', $automationRoutes);
         $this->assertContains('/ll-tools/v1/imports/{job_id}/process', $automationRoutes);
         $this->assertContains('/ll-tools/v1/corpus-texts/import', $automationRoutes);
@@ -171,6 +174,22 @@ final class AutomationRestResourceGuardTest extends LL_Tools_TestCase
             : [];
         $this->assertSame(10, (int) ($helperBatch['default_write_limit'] ?? 0));
         $this->assertSame(25, (int) ($helperBatch['max_write_limit'] ?? 0));
+
+        $transcriptionBatch = is_array($resourceGuard['transcription_updates_batch'] ?? null)
+            ? $resourceGuard['transcription_updates_batch']
+            : [];
+        $this->assertSame(10, (int) ($transcriptionBatch['default_write_limit'] ?? 0));
+        $this->assertSame(25, (int) ($transcriptionBatch['max_write_limit'] ?? 0));
+        $this->assertSame(50, (int) ($transcriptionBatch['default_dry_run_limit'] ?? 0));
+        $this->assertSame(100, (int) ($transcriptionBatch['max_dry_run_limit'] ?? 0));
+
+        $speakerBatch = is_array($resourceGuard['word_audio_speaker_updates_batch'] ?? null)
+            ? $resourceGuard['word_audio_speaker_updates_batch']
+            : [];
+        $this->assertSame(10, (int) ($speakerBatch['default_write_limit'] ?? 0));
+        $this->assertSame(25, (int) ($speakerBatch['max_write_limit'] ?? 0));
+        $this->assertSame(50, (int) ($speakerBatch['default_dry_run_limit'] ?? 0));
+        $this->assertSame(100, (int) ($speakerBatch['max_dry_run_limit'] ?? 0));
 
         $validationBatch = is_array($resourceGuard['transcription_validations_batch'] ?? null)
             ? $resourceGuard['transcription_validations_batch']

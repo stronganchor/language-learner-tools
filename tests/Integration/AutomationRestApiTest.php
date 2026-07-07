@@ -1889,6 +1889,59 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
     }
 
+    public function test_transcriptions_route_rejects_batches_above_cap_before_mutation(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Transcription Cap Wordset', 'rest-transcription-cap-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Transcription Cap Category', 'rest-transcription-cap-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Transcription Cap Word', 'Translation');
+
+        $updates = [];
+        $recording_ids = [];
+        for ($index = 0; $index < 3; $index++) {
+            $recording_id = $this->create_recording($word_id, 'old text ' . $index, 'old ipa ' . $index);
+            $recording_ids[] = $recording_id;
+            $updates[] = [
+                'recording_id' => $recording_id,
+                'recording_text' => 'new text ' . $index,
+            ];
+        }
+
+        wp_set_current_user($admin_id);
+
+        $max_filter = static function (int $max, string $context, bool $dry_run): int {
+            if ($context === 'transcription_updates') {
+                return 2;
+            }
+
+            return $max;
+        };
+        add_filter('ll_tools_rest_automation_max_batch_limit', $max_filter, 10, 3);
+        try {
+            $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-transcription-cap-wordset/transcriptions', [
+                'updates' => $updates,
+            ]);
+        } finally {
+            remove_filter('ll_tools_rest_automation_max_batch_limit', $max_filter, 10);
+        }
+
+        $data = $response->get_data();
+        $summary = (array) ($data['data']['summary'] ?? []);
+
+        $this->assertSame(400, $response->get_status());
+        $this->assertIsArray($data);
+        $this->assertSame('ll_tools_rest_too_many_transcription_updates', (string) ($data['code'] ?? ''));
+        $this->assertSame('transcription_updates', (string) ($summary['batch_mode'] ?? ''));
+        $this->assertSame(3, (int) ($summary['input_count'] ?? 0));
+        $this->assertSame(2, (int) ($summary['max_updates'] ?? 0));
+        $this->assertSame(2, (int) ($summary['batch']['max_limit'] ?? 0));
+        $this->assertSame(0, (int) ($summary['updated_count'] ?? -1));
+
+        foreach ($recording_ids as $index => $recording_id) {
+            $this->assertSame('old text ' . $index, (string) get_post_meta($recording_id, 'recording_text', true));
+        }
+    }
+
     public function test_word_audio_speakers_route_updates_speaker_meta_and_post_author_with_guards(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -1956,6 +2009,71 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) ($guarded_data['updated_count'] ?? 0));
         $this->assertNotEmpty((array) ($guarded_data['errors'] ?? []));
         $this->assertSame($target_speaker_id, (int) get_post_meta($recording_id, 'speaker_user_id', true));
+    }
+
+    public function test_word_audio_speakers_route_rejects_batches_above_cap_before_mutation(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $old_speaker_id = self::factory()->user->create(['role' => 'author']);
+        $target_speaker_id = self::factory()->user->create(['role' => 'author']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Audio Speaker Cap Wordset', 'rest-audio-speaker-cap-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Audio Speaker Cap Category', 'rest-audio-speaker-cap-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Audio Speaker Cap Word', 'Translation');
+
+        $updates = [];
+        $recording_ids = [];
+        for ($index = 0; $index < 3; $index++) {
+            $recording_id = $this->create_recording($word_id, 'speaker old text ' . $index, 'speaker old ipa ' . $index);
+            wp_update_post([
+                'ID' => $recording_id,
+                'post_author' => $old_speaker_id,
+            ]);
+            update_post_meta($recording_id, 'speaker_user_id', $old_speaker_id);
+
+            $recording_ids[] = $recording_id;
+            $updates[] = [
+                'recording_id' => $recording_id,
+                'speaker_user_id' => $target_speaker_id,
+                'expected_speaker_user_id' => $old_speaker_id,
+                'expected_post_author' => $old_speaker_id,
+            ];
+        }
+
+        wp_set_current_user($admin_id);
+
+        $max_filter = static function (int $max, string $context, bool $dry_run): int {
+            if ($context === 'word_audio_speaker_updates') {
+                return 2;
+            }
+
+            return $max;
+        };
+        add_filter('ll_tools_rest_automation_max_batch_limit', $max_filter, 10, 3);
+        try {
+            $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-audio-speaker-cap-wordset/word-audio-speakers', [
+                'dry_run' => false,
+                'updates' => $updates,
+            ]);
+        } finally {
+            remove_filter('ll_tools_rest_automation_max_batch_limit', $max_filter, 10);
+        }
+
+        $data = $response->get_data();
+        $summary = (array) ($data['data']['summary'] ?? []);
+
+        $this->assertSame(400, $response->get_status());
+        $this->assertIsArray($data);
+        $this->assertSame('ll_tools_rest_too_many_word_audio_speaker_updates', (string) ($data['code'] ?? ''));
+        $this->assertSame('word_audio_speaker_updates', (string) ($summary['batch_mode'] ?? ''));
+        $this->assertSame(3, (int) ($summary['input_count'] ?? 0));
+        $this->assertSame(2, (int) ($summary['max_updates'] ?? 0));
+        $this->assertSame(2, (int) ($summary['batch']['max_limit'] ?? 0));
+        $this->assertSame(0, (int) ($summary['updated_count'] ?? -1));
+
+        foreach ($recording_ids as $recording_id) {
+            $this->assertSame($old_speaker_id, (int) get_post_meta($recording_id, 'speaker_user_id', true));
+            $this->assertSame($old_speaker_id, (int) get_post_field('post_author', $recording_id));
+        }
     }
 
     public function test_transcription_validation_job_refreshes_stale_rows_in_chunks(): void
