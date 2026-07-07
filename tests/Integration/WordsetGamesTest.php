@@ -2893,6 +2893,195 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame('right', (string) ($response['data']['bucket'] ?? ''));
     }
 
+    public function test_speaking_score_endpoint_returns_429_for_reference_stt_when_rate_limited(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordsetId = $this->createServerSideSpeakingRateLimitWordset('Speaking Score Limit Wordset');
+        $category = wp_insert_term('Speaking Score Limit Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $categoryId = (int) $category['term_id'];
+        $this->setCategoryEnabledGames($categoryId);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'reference_stt');
+
+        $wordId = $this->createWordWithGameMedia(
+            'Speaking Score Limit Word',
+            'Speaking Score Limit Prompt',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['isolation' => 'cat']
+        );
+        $ip = '198.51.100.61';
+        $oldRemoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+
+        $userLimitFilter = static function (): int {
+            return 1;
+        };
+        $userWindowFilter = static function (): int {
+            return 5 * MINUTE_IN_SECONDS;
+        };
+        $userDailyLimitFilter = static function (): int {
+            return 20;
+        };
+        $userWeeklyLimitFilter = static function (): int {
+            return 40;
+        };
+        $ipLimitFilter = static function (): int {
+            return 50;
+        };
+        $ipDailyLimitFilter = static function (): int {
+            return 500;
+        };
+        $ipWeeklyLimitFilter = static function (): int {
+            return 1000;
+        };
+
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
+
+        try {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userId, $ip);
+            wp_set_current_user($userId);
+            $_SERVER['REMOTE_ADDR'] = $ip;
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_user_study'),
+                'wordset_id' => $wordsetId,
+                'word_id' => $wordId,
+                'target_field' => 'reference_stt',
+                'transcript' => 'cat',
+            ];
+            $_REQUEST = $_POST;
+
+            $httpRequests = [];
+            $httpFilter = static function ($preempt, $args, $url) use (&$httpRequests) {
+                $httpRequests[] = [
+                    'url' => (string) $url,
+                    'args' => $args,
+                ];
+
+                return new WP_Error('unexpected_http', 'External HTTP call should not run for rate-limited speaking score requests.');
+            };
+            add_filter('pre_http_request', $httpFilter, 10, 3);
+
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_wordset_games_score_attempt_ajax();
+                });
+            } finally {
+                remove_filter('pre_http_request', $httpFilter, 10);
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertSame('rate_limited', (string) (($response['data']['code'] ?? '')));
+            $this->assertSame('user', (string) (($response['data']['scope'] ?? '')));
+            $this->assertGreaterThan(0, (int) (($response['data']['retry_after'] ?? 0)));
+            $this->assertSame([], $httpRequests);
+        } finally {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
+            if ($oldRemoteAddr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $oldRemoteAddr;
+            }
+        }
+    }
+
+    public function test_speaking_match_endpoint_rejects_oversized_candidate_list_before_scoring(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordsetId = $this->createServerSideSpeakingRateLimitWordset('Speaking Match Limit Wordset');
+        $category = wp_insert_term('Speaking Match Limit Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $categoryId = (int) $category['term_id'];
+        $this->setCategoryEnabledGames($categoryId);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'reference_stt');
+
+        $wordIds = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $wordIds[] = $this->createWordWithGameMedia(
+                'Speaking Match Limit Word ' . $index,
+                'Speaking Match Limit Prompt ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'cat ' . $index]
+            );
+        }
+
+        $candidateCapFilter = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_wordset_games_speaking_match_candidate_cap', $candidateCapFilter);
+
+        $ip = '198.51.100.62';
+        $oldRemoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $httpRequests = [];
+        $httpFilter = static function ($preempt, $args, $url) use (&$httpRequests) {
+            $httpRequests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'External HTTP call should not run for oversized speaking match requests.');
+        };
+        add_filter('pre_http_request', $httpFilter, 10, 3);
+
+        try {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+            wp_set_current_user($userId);
+            $_SERVER['REMOTE_ADDR'] = $ip;
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_user_study'),
+                'wordset_id' => $wordsetId,
+                'target_field' => 'reference_stt',
+                'transcript' => 'cat',
+                'word_ids' => $wordIds,
+            ];
+            $_REQUEST = $_POST;
+
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_games_match_attempt_ajax();
+            });
+
+            $status = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userId, $ip);
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertSame('too_many_candidates', (string) (($response['data']['code'] ?? '')));
+            $this->assertSame(3, (int) (($response['data']['candidate_count'] ?? 0)));
+            $this->assertSame(2, (int) (($response['data']['max_candidates'] ?? 0)));
+            $this->assertSame(0, (int) ($status['user']['windows']['short']['attempts'] ?? -1));
+            $this->assertSame([], $httpRequests);
+        } finally {
+            remove_filter('pre_http_request', $httpFilter, 10);
+            remove_filter('ll_tools_wordset_games_speaking_match_candidate_cap', $candidateCapFilter);
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+            $_POST = [];
+            $_REQUEST = [];
+            if ($oldRemoteAddr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $oldRemoteAddr;
+            }
+        }
+    }
+
     public function test_speaking_transcribe_endpoint_returns_429_after_user_rate_limit_is_reached(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
