@@ -41,6 +41,48 @@ final class ImageUploadFormScopeTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('name="ll_multi_wordset_ids[]"', $html);
     }
 
+    public function test_image_upload_access_denies_audio_recorder_without_managed_wordset(): void
+    {
+        if (function_exists('ll_tools_register_or_refresh_audio_recorder_role')) {
+            ll_tools_register_or_refresh_audio_recorder_role();
+        }
+
+        wp_set_current_user(0);
+        $denied_wordset_id = $this->ensureTerm('wordset', 'Recorder Denied Upload Scope', 'recorder-denied-upload-scope');
+        delete_term_meta($denied_wordset_id, 'manager_user_id');
+        if (defined('LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY')) {
+            delete_term_meta($denied_wordset_id, LL_TOOLS_WORDSET_MANAGER_USER_IDS_META_KEY);
+        }
+
+        $user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('upload_files');
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        $this->assertTrue(current_user_can('upload_files'));
+        $this->assertTrue(current_user_can('view_ll_tools'));
+        $this->assertFalse(current_user_can('manage_options'));
+        $this->assertFalse(current_user_can('manage_categories'));
+        $this->assertFalse(ll_image_upload_current_user_can_manage_upload_scope());
+        $this->assertFalse(ll_image_upload_user_can_access_admin_tool());
+
+        $html = ll_image_upload_form_shortcode();
+        $this->assertStringContainsString('You do not have permission to upload files.', $html);
+        $this->assertStringNotContainsString('<form', $html);
+
+        $_POST = [
+            'll_image_upload_nonce' => wp_create_nonce('ll_process_image_files'),
+            'll_wordset_scope_mode' => 'single',
+            'll_single_wordset_id' => (string) $denied_wordset_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $this->assertSame([], ll_image_upload_get_requested_wordset_ids_from_request());
+    }
+
     public function test_image_upload_form_dedupes_isolated_categories_into_one_logical_option(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
@@ -122,6 +164,24 @@ final class ImageUploadFormScopeTest extends LL_Tools_TestCase
 
         $this->assertIsInt($created_category_id);
         $this->assertSame($wordset_id, ll_tools_get_category_wordset_owner_id((int) $created_category_id));
+    }
+
+    public function test_category_scope_validator_rejects_category_owned_by_other_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset_id = $this->ensureTerm('wordset', 'Image Upload Category Scope Allowed', 'image-upload-category-scope-allowed');
+        $other_wordset_id = $this->ensureTerm('wordset', 'Image Upload Category Scope Other', 'image-upload-category-scope-other');
+        $category_id = $this->ensureTerm('word-category', 'Allowed Upload Category Scope', 'allowed-upload-category-scope');
+        $other_category_id = $this->ensureTerm('word-category', 'Other Upload Category Scope', 'other-upload-category-scope');
+
+        if (function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+            ll_tools_set_category_wordset_owner($other_category_id, $other_wordset_id, $other_category_id);
+        }
+
+        $this->assertTrue(ll_image_upload_category_ids_are_available_for_wordsets([$category_id], [$wordset_id]));
+        $this->assertFalse(ll_image_upload_category_ids_are_available_for_wordsets([$other_category_id], [$wordset_id]));
     }
 
     public function test_create_category_from_request_uses_shared_logical_root_for_multiple_scope(): void

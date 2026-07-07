@@ -423,7 +423,7 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('<form', $output);
     }
 
-    public function test_image_upload_shortcode_renders_for_view_ll_tools_user_with_upload_access(): void
+    public function test_image_upload_shortcode_hides_form_from_view_ll_tools_upload_user_without_managed_scope(): void
     {
         $user_id = self::factory()->user->create(['role' => 'author']);
         $user = get_user_by('id', $user_id);
@@ -434,8 +434,9 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
 
         $output = ll_image_upload_form_shortcode();
 
-        $this->assertStringContainsString('<form', $output);
-        $this->assertStringContainsString('process_image_files', $output);
+        $this->assertStringContainsString('You do not have permission to upload files.', $output);
+        $this->assertStringNotContainsString('<form', $output);
+        $this->assertStringNotContainsString('process_image_files', $output);
     }
 
     private function runEndpointExpectWpDie(callable $callback): string
