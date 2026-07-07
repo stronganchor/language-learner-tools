@@ -676,6 +676,141 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_transcription_audio_resolver_rejects_private_remote_url_before_http_request(): void
+    {
+        $allow_filter = static function (): bool {
+            return true;
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'Remote transcription audio guard should run before HTTP.');
+        };
+        add_filter('ll_tools_allow_remote_transcription_audio_download', $allow_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_resolve_audio_file_for_transcription('http://169.254.169.254/latest/meta-data');
+        } finally {
+            remove_filter('ll_tools_allow_remote_transcription_audio_download', $allow_filter);
+            remove_filter('pre_http_request', $http_filter, 10);
+        }
+
+        $this->assertSame('', (string) ($result['path'] ?? ''));
+        $this->assertFalse((bool) ($result['is_temp'] ?? true));
+        $this->assertSame([], $http_requests);
+    }
+
+    public function test_transcription_audio_resolver_rejects_common_private_remote_hosts(): void
+    {
+        $allow_filter = static function (): bool {
+            return true;
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'Remote transcription audio guard should run before HTTP.');
+        };
+        add_filter('ll_tools_allow_remote_transcription_audio_download', $allow_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $blocked_urls = [
+                'http://127.0.0.1/audio.wav',
+                'http://localhost/audio.wav',
+                'http://10.2.3.4/audio.wav',
+                'http://192.168.1.25/audio.wav',
+            ];
+
+            foreach ($blocked_urls as $blocked_url) {
+                $result = ll_tools_resolve_audio_file_for_transcription($blocked_url);
+                $this->assertSame('', (string) ($result['path'] ?? ''), $blocked_url);
+                $this->assertFalse((bool) ($result['is_temp'] ?? true), $blocked_url);
+            }
+        } finally {
+            remove_filter('ll_tools_allow_remote_transcription_audio_download', $allow_filter);
+            remove_filter('pre_http_request', $http_filter, 10);
+        }
+
+        $this->assertSame([], $http_requests);
+    }
+
+    public function test_transcription_audio_resolver_rejects_public_hostname_that_resolves_private(): void
+    {
+        $allow_filter = static function (): bool {
+            return true;
+        };
+        $resolve_filter = static function ($ips, string $host) {
+            if ($host === 'example.com') {
+                return ['10.0.0.8'];
+            }
+
+            return $ips;
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'Remote transcription audio guard should run before HTTP.');
+        };
+        add_filter('ll_tools_allow_remote_transcription_audio_download', $allow_filter);
+        add_filter('ll_tools_hosted_stt_endpoint_resolved_ips', $resolve_filter, 10, 2);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_resolve_audio_file_for_transcription('https://example.com/audio.wav');
+        } finally {
+            remove_filter('ll_tools_allow_remote_transcription_audio_download', $allow_filter);
+            remove_filter('ll_tools_hosted_stt_endpoint_resolved_ips', $resolve_filter, 10);
+            remove_filter('pre_http_request', $http_filter, 10);
+        }
+
+        $this->assertSame('', (string) ($result['path'] ?? ''));
+        $this->assertFalse((bool) ($result['is_temp'] ?? true));
+        $this->assertSame([], $http_requests);
+    }
+
+    public function test_transcription_audio_resolver_keeps_same_site_upload_url_local(): void
+    {
+        $relative = '/wp-content/uploads/ll-tools-transcription-local.wav';
+        $local_path = ABSPATH . ltrim($relative, '/');
+        wp_mkdir_p(dirname($local_path));
+        file_put_contents($local_path, 'audio-bytes');
+
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'Same-site upload URL should resolve locally.');
+        };
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_resolve_audio_file_for_transcription(home_url($relative));
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            @unlink($local_path);
+        }
+
+        $this->assertSame($local_path, (string) ($result['path'] ?? ''));
+        $this->assertFalse((bool) ($result['is_temp'] ?? true));
+        $this->assertSame([], $http_requests);
+    }
+
     public function test_speaking_game_public_endpoint_payload_only_exposes_local_browser_endpoints(): void
     {
         $this->assertSame('', ll_tools_wordset_games_public_local_endpoint('hosted_api', 'https://stt.example.test/transcribe'));

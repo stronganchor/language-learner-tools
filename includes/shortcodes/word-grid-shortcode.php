@@ -6857,7 +6857,11 @@ function ll_tools_resolve_audio_file_for_transcription(string $audio_path): arra
         ];
     }
 
-    if (strpos($audio_path, 'http') === 0) {
+    if (strpos($audio_path, '//') === 0) {
+        $audio_path = (is_ssl() ? 'https:' : 'http:') . $audio_path;
+    }
+
+    if (preg_match('#^https?://#i', $audio_path)) {
         $parsed = wp_parse_url($audio_path);
         $home = wp_parse_url(home_url('/'));
         if (!empty($parsed['path']) && (!empty($home['host']) && (empty($parsed['host']) || $parsed['host'] === $home['host']))) {
@@ -6870,11 +6874,18 @@ function ll_tools_resolve_audio_file_for_transcription(string $audio_path): arra
             }
         }
 
+        if (!ll_tools_word_grid_remote_transcription_audio_url_is_allowed($audio_path)) {
+            return [
+                'path' => '',
+                'is_temp' => false,
+            ];
+        }
+
         if (!function_exists('download_url') && file_exists(ABSPATH . 'wp-admin/includes/file.php')) {
             require_once ABSPATH . 'wp-admin/includes/file.php';
         }
         if (function_exists('download_url')) {
-            $temp = download_url($audio_path);
+            $temp = download_url($audio_path, 60);
             if (!is_wp_error($temp) && is_string($temp) && $temp !== '') {
                 return [
                     'path' => $temp,
@@ -6908,6 +6919,51 @@ function ll_tools_resolve_audio_file_for_transcription(string $audio_path): arra
         'path' => '',
         'is_temp' => false,
     ];
+}
+
+function ll_tools_word_grid_remote_transcription_audio_url_is_allowed(string $url): bool {
+    $url = trim($url);
+    if ($url === '') {
+        return false;
+    }
+
+    if (function_exists('wp_http_validate_url') && !wp_http_validate_url($url)) {
+        return false;
+    }
+
+    $parts = wp_parse_url($url);
+    if (!is_array($parts)) {
+        return false;
+    }
+
+    $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+    $host = (string) ($parts['host'] ?? '');
+    if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+        return false;
+    }
+
+    if (!empty($parts['user']) || !empty($parts['pass'])) {
+        return false;
+    }
+
+    $allow_remote_download = (bool) apply_filters('ll_tools_allow_remote_transcription_audio_download', false, $url, $parts);
+    if (!$allow_remote_download) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_remote_stt_host_is_restricted') && ll_tools_remote_stt_host_is_restricted($host)) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_remote_stt_host_resolves_to_restricted_ip') && ll_tools_remote_stt_host_resolves_to_restricted_ip($host)) {
+        return false;
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP) && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+        return false;
+    }
+
+    return true;
 }
 
 function ll_tools_get_lesson_word_ids_for_statuses(int $wordset_id, int $category_id, array $post_statuses): array {
