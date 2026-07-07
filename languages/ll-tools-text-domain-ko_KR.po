@@ -4780,3 +4780,23 @@ msgstr "TSV 사전을 가져오거나 사이트 전체 사전 스냅샷을 내�
 #: includes/admin/admin-dashboard-menu.php:512
 msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
 msgstr "사전 항목에서 사용하는 재사용 가능한 출처 라벨, 저작자 표시 텍스트, 출처 페이지 URL, 기본 방언을 관리합니다."
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/pages/wordset-pages.php:16365
+msgid "Find an existing user by username or email, add the Audio Recorder role, and assign them to this word set in one step."
+msgstr "사용자 이름 또는 이메일로 기존 사용자를 찾고, 오디오 녹음자 역할을 추가한 다음 한 단계로 이 단어 세트에 배정하세요."
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "AI index JSON-LD"
+msgstr "AI 인덱스 JSON-LD"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:944 includes/lib/ai-crawler-support.php:972
+msgid "AI crawler notes"
+msgstr "AI 크롤러 참고 사항"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
+msgid "Root llms.txt"
+msgstr "루트 llms.txt"

@@ -4802,3 +4802,23 @@ msgstr "Importa diccionarios TSV o exporta y restaura instantáneas del dicciona
 #: includes/admin/admin-dashboard-menu.php:512
 msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
 msgstr "Mantén etiquetas de fuente reutilizables, texto de atribución, URL de páginas fuente y dialectos predeterminados usados por las entradas del diccionario."
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/pages/wordset-pages.php:16365
+msgid "Find an existing user by username or email, add the Audio Recorder role, and assign them to this word set in one step."
+msgstr "Busca un usuario existente por nombre de usuario o correo electrónico, añade el rol de grabador de audio y asígnalo a este conjunto de palabras en un solo paso."
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "AI index JSON-LD"
+msgstr "Índice de IA JSON-LD"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:944 includes/lib/ai-crawler-support.php:972
+msgid "AI crawler notes"
+msgstr "Notas para rastreadores de IA"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
+msgid "Root llms.txt"
+msgstr "llms.txt raíz"

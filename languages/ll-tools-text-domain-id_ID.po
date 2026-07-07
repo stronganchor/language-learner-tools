@@ -4802,3 +4802,23 @@ msgstr "Impor kamus TSV atau ekspor dan pulihkan snapshot kamus seluruh situs."
 #: includes/admin/admin-dashboard-menu.php:512
 msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
 msgstr "Kelola label sumber yang dapat digunakan kembali, teks atribusi, URL halaman sumber, dan dialek default yang digunakan oleh entri kamus."
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/pages/wordset-pages.php:16365
+msgid "Find an existing user by username or email, add the Audio Recorder role, and assign them to this word set in one step."
+msgstr "Cari pengguna yang sudah ada berdasarkan nama pengguna atau email, tambahkan peran Perekam Audio, lalu tetapkan ke kumpulan kata ini dalam satu langkah."
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "AI index JSON-LD"
+msgstr "Indeks AI JSON-LD"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:944 includes/lib/ai-crawler-support.php:972
+msgid "AI crawler notes"
+msgstr "Catatan crawler AI"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
+msgid "Root llms.txt"
+msgstr "Root llms.txt"

@@ -18314,7 +18314,7 @@ msgstr "Bestehenden Benutzer aktualisieren"
 msgid ""
 "Find an existing user by username or email, add the Audio Recorder role, and"
 " assign them to this word set in one step."
-msgstr "weise die Rolle „Audio-Recorder“ zu"
+msgstr "Finde einen bestehenden Benutzer anhand des Benutzernamens oder der E-Mail-Adresse, füge die Rolle \"Audio Recorder\" hinzu und weise ihn diesem Vokabelset in einem Schritt zu."
 
 #: includes/pages/wordset-pages.php:13736
 msgid "Enable Recorder Access"
@@ -27697,3 +27697,18 @@ msgstr "Öffentliche Vokabelset-Hubs und öffentliche Vokabellektionen."
 #: includes/lib/ai-crawler-support.php:1029 includes/lib/ai-crawler-support.php:938 includes/lib/ai-crawler-support.php:969
 msgid "Content Lessons Markdown"
 msgstr "Inhaltslektionen-Markdown"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "AI index JSON-LD"
+msgstr "AI-Index JSON-LD"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:944 includes/lib/ai-crawler-support.php:972
+msgid "AI crawler notes"
+msgstr "AI-Crawler-Notizen"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
+msgid "Root llms.txt"
+msgstr "Root-llms.txt"

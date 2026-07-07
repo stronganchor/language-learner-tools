@@ -19241,9 +19241,7 @@ msgstr "Mevcut Kullanıcıyı Yükselt"
 msgid ""
 "Find an existing user by username or email, add the Audio Recorder role, and"
 " assign them to this word set in one step."
-msgstr ""
-"Mevcut bir kullanıcıyı kullanıcı adı veya e-posta adresiyle bulun, Ses "
-"Kaydedici rolünü ekleyin ve tek adımda bu kelime setine atayın."
+msgstr "Mevcut bir kullanıcıyı kullanıcı adı veya e-posta ile bul, Ses Kaydedici rolünü ekle ve tek adımda bu kelime setine ata."
 
 #: includes/pages/wordset-pages.php:11349
 msgid "Enable Recorder Access"
@@ -27531,3 +27529,18 @@ msgstr "Herkese açık kelime seti merkezleri ve herkese açık kelime dersleri.
 #: includes/lib/ai-crawler-support.php:1029 includes/lib/ai-crawler-support.php:938 includes/lib/ai-crawler-support.php:969
 msgid "Content Lessons Markdown"
 msgstr "İçerik dersleri Markdown'ı"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "AI index JSON-LD"
+msgstr "AI dizini JSON-LD"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:944 includes/lib/ai-crawler-support.php:972
+msgid "AI crawler notes"
+msgstr "AI tarayıcı notları"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
+msgid "Root llms.txt"
+msgstr "Kök llms.txt"

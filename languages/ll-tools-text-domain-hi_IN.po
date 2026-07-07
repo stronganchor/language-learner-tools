@@ -4802,3 +4802,23 @@ msgstr "TSV शब्दकोश आयात करें या पूरी 
 #: includes/admin/admin-dashboard-menu.php:512
 msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
 msgstr "शब्दकोश प्रविष्टियों में उपयोग किए जाने वाले पुन: प्रयोज्य स्रोत लेबल, श्रेय पाठ, स्रोत-पृष्ठ URL, और डिफ़ॉल्ट बोलियाँ बनाए रखें।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/pages/wordset-pages.php:16365
+msgid "Find an existing user by username or email, add the Audio Recorder role, and assign them to this word set in one step."
+msgstr "किसी मौजूदा उपयोगकर्ता को उपयोगकर्ता नाम या ईमेल से खोजें, Audio Recorder भूमिका जोड़ें, और उन्हें एक ही चरण में इस शब्द समूह को असाइन करें।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:941 includes/lib/ai-crawler-support.php:964
+msgid "AI index JSON-LD"
+msgstr "AI इंडेक्स JSON-LD"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:944 includes/lib/ai-crawler-support.php:972
+msgid "AI crawler notes"
+msgstr "AI क्रॉलर नोट्स"
+
+#. ll-tools-autonomous-upkeep: 2026-07-07 source-backed batch
+#: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
+msgid "Root llms.txt"
+msgstr "रूट llms.txt"
