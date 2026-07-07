@@ -301,6 +301,57 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame((int) $matching_word_id, (int) $resolved_word_id);
     }
 
+    public function test_recorder_category_context_rejects_word_ids_outside_requested_wordset(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Context WS', 'rec-context-ws');
+        $other_wordset_id = $this->ensure_term('wordset', 'Recorder Context Other WS', 'rec-context-other-ws');
+        $category_id = $this->ensure_term('word-category', 'Recorder Context Category', 'rec-context-category');
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+
+        $in_scope_uncategorized_word = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Context In Scope',
+        ]);
+        wp_set_post_terms($in_scope_uncategorized_word, [$wordset_id], 'wordset', false);
+
+        $foreign_uncategorized_word = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Context Foreign',
+        ]);
+        wp_set_post_terms($foreign_uncategorized_word, [$other_wordset_id], 'wordset', false);
+
+        $foreign_categorized_word = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Context Foreign Categorized',
+        ]);
+        wp_set_post_terms($foreign_categorized_word, [$other_wordset_id], 'wordset', false);
+        wp_set_post_terms($foreign_categorized_word, [$category_id], 'word-category', false);
+
+        $in_scope_context = ll_tools_recorder_resolve_accessible_category_context(
+            (int) $in_scope_uncategorized_word,
+            0,
+            (int) $recorder_id,
+            [$wordset_id]
+        );
+
+        $this->assertSame('uncategorized', (string) ($in_scope_context['slug'] ?? ''));
+        $this->assertSame([], ll_tools_recorder_resolve_accessible_category_context(
+            (int) $foreign_uncategorized_word,
+            0,
+            (int) $recorder_id,
+            [$wordset_id]
+        ));
+        $this->assertSame([], ll_tools_recorder_resolve_accessible_category_context(
+            (int) $foreign_categorized_word,
+            0,
+            (int) $recorder_id,
+            [$wordset_id]
+        ));
+    }
+
     public function test_existing_recording_type_helpers_return_unique_types_with_user_scope(): void
     {
         $type_isolation = $this->ensure_term('recording_type', 'Isolation', 'isolation');

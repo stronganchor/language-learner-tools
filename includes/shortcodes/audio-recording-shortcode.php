@@ -2612,6 +2612,10 @@ function ll_tools_recorder_resolve_accessible_category_context(int $word_id = 0,
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
     $normalized_wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
 
+    if ($word_id > 0 && !ll_tools_recorder_word_is_in_wordset_scope($word_id, $normalized_wordset_ids)) {
+        return [];
+    }
+
     $term_sets = [];
     if ($word_id > 0) {
         $word_terms = wp_get_post_terms($word_id, 'word-category', [
