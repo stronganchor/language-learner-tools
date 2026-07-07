@@ -485,8 +485,6 @@
     width: 100%;
   }
 }
-  overflow-wrap: anywhere;
-}
 
 .ll-tools-export-import .ll-tools-import-preview-table {
   margin-top: 8px;
