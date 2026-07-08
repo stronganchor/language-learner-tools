@@ -394,9 +394,39 @@ function ll_tools_render_content_lesson_cards(array $lessons, array $args = []):
     return (string) ob_get_clean();
 }
 
+function ll_tools_corpus_text_grid_default_limit(): int {
+    $limit = (int) apply_filters('ll_tools_corpus_text_grid_default_limit', 24);
+
+    return max(1, $limit);
+}
+
+function ll_tools_normalize_corpus_text_grid_limit($raw_limit): int {
+    if (is_string($raw_limit) && strtolower(trim($raw_limit)) === 'all') {
+        return -1;
+    }
+
+    $limit = (int) $raw_limit;
+    if ($limit < 0) {
+        return -1;
+    }
+    if ($limit === 0) {
+        return ll_tools_corpus_text_grid_default_limit();
+    }
+
+    return $limit;
+}
+
 function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
-    $limit = isset($args['limit']) ? (int) $args['limit'] : -1;
-    $limit = $limit > 0 ? $limit : -1;
+    $result = ll_tools_get_corpus_text_grid_query_result($args);
+
+    return (array) ($result['lessons'] ?? []);
+}
+
+function ll_tools_get_corpus_text_grid_query_result(array $args = []): array {
+    $limit = ll_tools_normalize_corpus_text_grid_limit(
+        array_key_exists('limit', $args) ? $args['limit'] : ll_tools_corpus_text_grid_default_limit()
+    );
+    $page = $limit > 0 ? max(1, (int) ($args['page'] ?? 1)) : 1;
     $collection = isset($args['collection']) ? sanitize_title((string) $args['collection']) : '';
     $source_author = isset($args['source_author']) ? sanitize_text_field((string) $args['source_author']) : '';
     $ids = [];
@@ -447,7 +477,8 @@ function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
         'posts_per_page' => $limit,
         'orderby' => $orderby,
         'order' => (isset($args['order']) && strtoupper((string) $args['order']) === 'DESC') ? 'DESC' : 'ASC',
-        'no_found_rows' => true,
+        'paged' => $page,
+        'no_found_rows' => $limit < 0,
         'meta_query' => $meta_query,
     ];
     if (!empty($ids)) {
@@ -458,7 +489,8 @@ function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
         $query_args['orderby'] = 'post_name__in';
     }
 
-    $posts = get_posts($query_args);
+    $query = new WP_Query($query_args);
+    $posts = $query->posts;
     $lessons = [];
     foreach ((array) $posts as $post) {
         if ($post instanceof WP_Post) {
@@ -466,7 +498,18 @@ function ll_tools_get_corpus_text_grid_lessons(array $args = []): array {
         }
     }
 
-    return $lessons;
+    $total = $limit > 0 ? (int) $query->found_posts : count($lessons);
+    $total_pages = $limit > 0 ? max(1, (int) ceil($total / $limit)) : 1;
+
+    return [
+        'lessons' => $lessons,
+        'limit' => $limit,
+        'page' => $page,
+        'total' => $total,
+        'total_pages' => $total_pages,
+        'has_previous_page' => $limit > 0 && $page > 1,
+        'has_next_page' => $limit > 0 && $page < $total_pages,
+    ];
 }
 
 function ll_tools_corpus_text_grid_inline_styles(): string {
@@ -490,8 +533,99 @@ function ll_tools_corpus_text_grid_inline_styles(): string {
         . '.ll-corpus-text-grid .ll-content-lesson-card__actions{margin-top:auto;padding-top:4px;}'
         . '.ll-corpus-text-grid .ll-study-btn{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 11px;border:1px solid var(--ll-cl-border);border-radius:999px;background:#fff;color:var(--ll-cl-text);font-size:13px;font-weight:700;text-decoration:none!important;}'
         . '.ll-corpus-text-grid .ll-study-btn:hover,.ll-corpus-text-grid .ll-study-btn:focus-visible{border-color:var(--ll-cl-accent);color:var(--ll-cl-accent);outline:none;text-decoration:none!important;}'
+        . '.ll-corpus-text-grid__pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin:22px 0 0;font-size:14px;}'
+        . '.ll-corpus-text-grid__page-status{color:var(--ll-cl-muted);font-weight:700;}'
+        . '.ll-corpus-text-grid__page-link{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;border:1px solid var(--ll-cl-border);border-radius:999px;background:#fff;color:var(--ll-cl-text);font-weight:700;text-decoration:none!important;}'
+        . '.ll-corpus-text-grid__page-link:hover,.ll-corpus-text-grid__page-link:focus-visible{border-color:var(--ll-cl-accent);color:var(--ll-cl-accent);outline:none;text-decoration:none!important;}'
         . '@media(max-width:820px){.ll-corpus-text-grid .ll-content-lessons-grid{grid-template-columns:1fr;}}'
         . '</style>';
+}
+
+function ll_tools_corpus_text_grid_page_param(array $atts): string {
+    $page_param = isset($atts['page_param']) ? sanitize_key((string) $atts['page_param']) : 'll_corpus_text_page';
+
+    return $page_param !== '' ? $page_param : 'll_corpus_text_page';
+}
+
+function ll_tools_corpus_text_grid_requested_page(array $atts): int {
+    if (isset($atts['page']) && trim((string) $atts['page']) !== '') {
+        return max(1, (int) $atts['page']);
+    }
+
+    $page_param = ll_tools_corpus_text_grid_page_param($atts);
+    if (isset($_GET[$page_param]) && is_scalar($_GET[$page_param])) {
+        return max(1, absint(wp_unslash((string) $_GET[$page_param])));
+    }
+
+    return 1;
+}
+
+function ll_tools_corpus_text_grid_current_url(): string {
+    $permalink = get_permalink();
+    if (is_string($permalink) && $permalink !== '') {
+        return $permalink;
+    }
+
+    if (isset($_SERVER['REQUEST_URI']) && is_string($_SERVER['REQUEST_URI'])) {
+        $request_uri = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI']));
+        if ($request_uri !== '') {
+            return home_url($request_uri);
+        }
+    }
+
+    return home_url('/');
+}
+
+function ll_tools_corpus_text_grid_page_url(string $base_url, string $page_param, int $target_page): string {
+    if ($target_page <= 1) {
+        return (string) remove_query_arg($page_param, $base_url);
+    }
+
+    return (string) add_query_arg($page_param, (string) $target_page, $base_url);
+}
+
+function ll_tools_render_corpus_text_grid_pagination(array $query_result, array $atts): string {
+    $total_pages = max(1, (int) ($query_result['total_pages'] ?? 1));
+    if ($total_pages <= 1) {
+        return '';
+    }
+
+    $page = max(1, (int) ($query_result['page'] ?? 1));
+    $page_param = ll_tools_corpus_text_grid_page_param($atts);
+    $base_url = ll_tools_corpus_text_grid_current_url();
+    $previous_label = isset($atts['previous_label']) && trim((string) $atts['previous_label']) !== ''
+        ? (string) $atts['previous_label']
+        : __('Previous', 'll-tools-text-domain');
+    $next_label = isset($atts['next_label']) && trim((string) $atts['next_label']) !== ''
+        ? (string) $atts['next_label']
+        : __('Next', 'll-tools-text-domain');
+
+    ob_start();
+    ?>
+    <nav class="ll-corpus-text-grid__pagination" aria-label="<?php echo esc_attr__('Text pages', 'll-tools-text-domain'); ?>">
+        <?php if ($page > 1) : ?>
+            <a class="ll-corpus-text-grid__page-link ll-corpus-text-grid__page-link--previous" href="<?php echo esc_url(ll_tools_corpus_text_grid_page_url($base_url, $page_param, $page - 1)); ?>">
+                <?php echo esc_html($previous_label); ?>
+            </a>
+        <?php endif; ?>
+        <span class="ll-corpus-text-grid__page-status">
+            <?php
+            echo esc_html(sprintf(
+                __('Page %1$d of %2$d', 'll-tools-text-domain'),
+                $page,
+                $total_pages
+            ));
+            ?>
+        </span>
+        <?php if ($page < $total_pages) : ?>
+            <a class="ll-corpus-text-grid__page-link ll-corpus-text-grid__page-link--next" href="<?php echo esc_url(ll_tools_corpus_text_grid_page_url($base_url, $page_param, $page + 1)); ?>">
+                <?php echo esc_html($next_label); ?>
+            </a>
+        <?php endif; ?>
+    </nav>
+    <?php
+
+    return (string) ob_get_clean();
 }
 
 function ll_tools_corpus_text_grid_shortcode($atts = []): string {
@@ -500,7 +634,9 @@ function ll_tools_corpus_text_grid_shortcode($atts = []): string {
         'source_author' => '',
         'ids' => '',
         'slugs' => '',
-        'limit' => '-1',
+        'limit' => (string) ll_tools_corpus_text_grid_default_limit(),
+        'page' => '',
+        'page_param' => 'll_corpus_text_page',
         'orderby' => 'menu_order title',
         'order' => 'ASC',
         'title' => __('Texts', 'll-tools-text-domain'),
@@ -515,13 +651,17 @@ function ll_tools_corpus_text_grid_shortcode($atts = []): string {
         'open_label_tr' => '',
         'open_label_en' => '',
         'open_label_de' => '',
+        'previous_label' => __('Previous', 'll-tools-text-domain'),
+        'next_label' => __('Next', 'll-tools-text-domain'),
     ], is_array($atts) ? $atts : [], 'll_corpus_text_grid');
 
     if (function_exists('ll_enqueue_asset_by_timestamp')) {
         ll_enqueue_asset_by_timestamp('/css/content-lesson-pages.css', 'll-tools-content-lesson-pages', ['ll-tools-style']);
     }
 
-    $lessons = ll_tools_get_corpus_text_grid_lessons($atts);
+    $atts['page'] = (string) ll_tools_corpus_text_grid_requested_page($atts);
+    $query_result = ll_tools_get_corpus_text_grid_query_result($atts);
+    $lessons = (array) ($query_result['lessons'] ?? []);
     if (empty($lessons)) {
         return '';
     }
@@ -534,6 +674,7 @@ function ll_tools_corpus_text_grid_shortcode($atts = []): string {
             'context' => 'corpus-text-grid',
             'open_label' => ll_tools_content_lesson_shortcode_localized_attribute($atts, 'open_label', (string) $atts['open_label']),
         ])
+        . ll_tools_render_corpus_text_grid_pagination($query_result, $atts)
         . '</div>';
 }
 

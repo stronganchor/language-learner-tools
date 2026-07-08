@@ -208,6 +208,53 @@ TSV;
         $this->assertStringNotContainsString('Second Corpus Text', $filtered_grid_html);
     }
 
+    public function test_corpus_text_grid_defaults_to_bounded_page_and_supports_paged_results(): void
+    {
+        $collection = 'bounded-grid-' . strtolower(wp_generate_password(6, false));
+        $limit_filter = static function (): int {
+            return 2;
+        };
+
+        add_filter('ll_tools_corpus_text_grid_default_limit', $limit_filter);
+        try {
+            for ($index = 1; $index <= 5; $index++) {
+                $this->createPublishedCorpusText(
+                    'Corpus Grid Text ' . $index,
+                    $collection,
+                    $index
+                );
+            }
+
+            $grid_html = do_shortcode('[ll_corpus_text_grid collection="' . esc_attr($collection) . '" title=""]');
+            $this->assertSame(2, substr_count($grid_html, '<article class="ll-content-lesson-card'));
+            $this->assertStringContainsString('Corpus Grid Text 1', $grid_html);
+            $this->assertStringContainsString('Corpus Grid Text 2', $grid_html);
+            $this->assertStringNotContainsString('Corpus Grid Text 3', $grid_html);
+            $this->assertStringContainsString('ll-corpus-text-grid__pagination', $grid_html);
+
+            $second_page = ll_tools_get_corpus_text_grid_query_result([
+                'collection' => $collection,
+                'page' => 2,
+            ]);
+            $this->assertSame(5, (int) ($second_page['total'] ?? 0));
+            $this->assertSame(3, (int) ($second_page['total_pages'] ?? 0));
+            $this->assertTrue((bool) ($second_page['has_previous_page'] ?? false));
+            $this->assertTrue((bool) ($second_page['has_next_page'] ?? false));
+            $this->assertSame(
+                ['Corpus Grid Text 3', 'Corpus Grid Text 4'],
+                array_column((array) ($second_page['lessons'] ?? []), 'title')
+            );
+
+            $all_results = ll_tools_get_corpus_text_grid_query_result([
+                'collection' => $collection,
+                'limit' => '-1',
+            ]);
+            $this->assertCount(5, (array) ($all_results['lessons'] ?? []));
+        } finally {
+            remove_filter('ll_tools_corpus_text_grid_default_limit', $limit_filter);
+        }
+    }
+
     public function test_content_lesson_category_rows_scope_to_selected_wordset(): void
     {
         $fixture = $this->createScopedCategoryFixture();
@@ -650,6 +697,23 @@ TSV;
                 array_values(array_map('intval', (array) $args['prereq_lesson_ids']))
             );
         }
+
+        return $lesson_id;
+    }
+
+    private function createPublishedCorpusText(string $title, string $collection, int $menu_order): int
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => $title,
+            'post_excerpt' => $title . ' excerpt.',
+            'menu_order' => $menu_order,
+        ]);
+
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_COLLECTION_META, $collection);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_CORPUS_SOURCE_AUTHOR_META, 'Regression Author');
 
         return $lesson_id;
     }
