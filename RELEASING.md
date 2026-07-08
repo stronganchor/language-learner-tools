@@ -95,4 +95,4 @@ If you need to rebuild a release zip manually from a specific git ref or tag, us
   curl -k -s -o /dev/null -w 'flashcard main.js http=%{http_code} time=%{time_total}\n' "https://example.com/wp-content/plugins/$PLUGIN/js/flashcard-widget/main.js"
   ```
 
-If a stable GitHub release is published without a matching plugin zip asset, `Main` channel sites will not receive an update. That failure mode is intentional so production installs never fall back to shipping the raw repository archive.
+If a stable GitHub release is published without a matching plugin zip asset, `Main` channel sites will not receive an update. That failure mode is intentional so production installs never fall back to shipping the raw repository archive. When replacing an existing stable asset, `release-plugin.ps1` uploads and verifies a temporary replacement before deleting the previous final-named zip.

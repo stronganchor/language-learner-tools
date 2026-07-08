@@ -514,25 +514,33 @@ function Get-OrCreateRelease {
     }
 }
 
-function Remove-ExistingReleaseAsset {
+function Get-ReleaseAssetByName {
     param(
         [Parameter(Mandatory = $true)]
         [object]$Release,
         [Parameter(Mandatory = $true)]
-        [string]$AssetName,
+        [string]$AssetName
+    )
+
+    $assets = @($Release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1)
+    if ($assets.Count -eq 0) {
+        return $null
+    }
+
+    return $assets[0]
+}
+
+function Remove-ReleaseAssetById {
+    param(
         [Parameter(Mandatory = $true)]
         [string]$RepoSlug,
         [Parameter(Mandatory = $true)]
-        [hashtable]$Headers
+        [hashtable]$Headers,
+        [Parameter(Mandatory = $true)]
+        [object]$AssetId
     )
 
-    $existingAsset = @($Release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1)
-    if ($existingAsset.Count -eq 0) {
-        return
-    }
-
-    $assetId = $existingAsset[0].id
-    Invoke-GitHubJson -Method 'DELETE' -Uri "$gitHubApiBase/repos/$RepoSlug/releases/assets/$assetId" -Headers $Headers | Out-Null
+    Invoke-GitHubJson -Method 'DELETE' -Uri "$gitHubApiBase/repos/$RepoSlug/releases/assets/$AssetId" -Headers $Headers | Out-Null
 }
 
 function Upload-ReleaseAsset {
@@ -542,13 +550,92 @@ function Upload-ReleaseAsset {
         [Parameter(Mandatory = $true)]
         [string]$ZipPath,
         [Parameter(Mandatory = $true)]
+        [hashtable]$Headers,
+        [string]$AssetName = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($AssetName)) {
+        $AssetName = [System.IO.Path]::GetFileName($ZipPath)
+    }
+    $uploadUrl = ($Release.upload_url -replace '\{.*$', '') + '?name=' + [System.Uri]::EscapeDataString($AssetName)
+
+    return Invoke-RestMethod -Method 'POST' -Uri $uploadUrl -Headers $Headers -InFile $ZipPath -ContentType 'application/zip'
+}
+
+function Rename-ReleaseAsset {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoSlug,
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Headers,
+        [Parameter(Mandatory = $true)]
+        [object]$AssetId,
+        [Parameter(Mandatory = $true)]
+        [string]$AssetName
+    )
+
+    return Invoke-GitHubJson -Method 'PATCH' -Uri "$gitHubApiBase/repos/$RepoSlug/releases/assets/$AssetId" -Headers $Headers -Body @{
+        name = $AssetName
+    }
+}
+
+function Assert-UploadedReleaseAssetMatchesArchive {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Asset,
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedName,
+        [Parameter(Mandatory = $true)]
+        [string]$ZipPath
+    )
+
+    if ($null -eq $Asset) {
+        throw "GitHub did not return release asset details for $ExpectedName."
+    }
+
+    if (([string]$Asset.name) -ne $ExpectedName) {
+        throw "Uploaded release asset has unexpected name '$($Asset.name)'. Expected '$ExpectedName'."
+    }
+
+    $expectedSize = (Get-Item -LiteralPath $ZipPath).Length
+    if (([int64]$Asset.size) -ne $expectedSize) {
+        throw "Uploaded release asset $ExpectedName has size $($Asset.size), expected $expectedSize."
+    }
+}
+
+function Publish-ReleaseAsset {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Release,
+        [Parameter(Mandatory = $true)]
+        [string]$ZipPath,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoSlug,
+        [Parameter(Mandatory = $true)]
         [hashtable]$Headers
     )
 
     $assetName = [System.IO.Path]::GetFileName($ZipPath)
-    $uploadUrl = ($Release.upload_url -replace '\{.*$', '') + '?name=' + [System.Uri]::EscapeDataString($assetName)
+    $existingAsset = Get-ReleaseAssetByName -Release $Release -AssetName $assetName
+    if ($null -eq $existingAsset) {
+        $uploadedAsset = Upload-ReleaseAsset -Release $Release -ZipPath $ZipPath -Headers $Headers -AssetName $assetName
+        Assert-UploadedReleaseAssetMatchesArchive -Asset $uploadedAsset -ExpectedName $assetName -ZipPath $ZipPath
+        return $uploadedAsset
+    }
 
-    Invoke-RestMethod -Method 'POST' -Uri $uploadUrl -Headers $Headers -InFile $ZipPath -ContentType 'application/zip' | Out-Null
+    $temporaryAssetName = "$assetName.replacement-$([guid]::NewGuid().ToString('N'))"
+    $temporaryAsset = Upload-ReleaseAsset -Release $Release -ZipPath $ZipPath -Headers $Headers -AssetName $temporaryAssetName
+    Assert-UploadedReleaseAssetMatchesArchive -Asset $temporaryAsset -ExpectedName $temporaryAssetName -ZipPath $ZipPath
+
+    try {
+        Remove-ReleaseAssetById -RepoSlug $RepoSlug -Headers $Headers -AssetId $existingAsset.id
+        $renamedAsset = Rename-ReleaseAsset -RepoSlug $RepoSlug -Headers $Headers -AssetId $temporaryAsset.id -AssetName $assetName
+        Assert-UploadedReleaseAssetMatchesArchive -Asset $renamedAsset -ExpectedName $assetName -ZipPath $ZipPath
+        return $renamedAsset
+    }
+    catch {
+        throw "Replacement asset $temporaryAssetName was uploaded, but final replacement failed after verification. Check the GitHub release before retrying. $($_.Exception.Message)"
+    }
 }
 
 function Test-LocalTagExists {
@@ -702,11 +789,7 @@ function Invoke-PublishWorkflow {
     Invoke-Git -Arguments @('push', 'origin', $tagName) | Out-Null
 
     $release = Get-OrCreateRelease -RepoSlug $repoSlug -TagName $tagName -VersionToPublish $versionToPublish -Headers $headers
-    $assetName = [System.IO.Path]::GetFileName($zipPath)
-    Remove-ExistingReleaseAsset -Release $release -AssetName $assetName -RepoSlug $repoSlug -Headers $headers
-
-    $release = Get-OrCreateRelease -RepoSlug $repoSlug -TagName $tagName -VersionToPublish $versionToPublish -Headers $headers
-    Upload-ReleaseAsset -Release $release -ZipPath $zipPath -Headers $headers
+    Publish-ReleaseAsset -Release $release -ZipPath $zipPath -RepoSlug $repoSlug -Headers $headers | Out-Null
 
     Write-Host ''
     Write-Host 'Stable publish completed successfully.'
