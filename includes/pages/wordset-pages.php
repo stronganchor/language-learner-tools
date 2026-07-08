@@ -1987,17 +1987,16 @@ function ll_tools_wordset_page_build_inactive_category_preview_action_url(array 
         return '';
     }
 
-    return add_query_arg([
-        'll_wordset_inactive_category_action' => 'preview',
-        'll_wordset_inactive_category_wordset_id' => $wordset_id,
-        'll_wordset_inactive_category_id' => $category_id,
-        'll_wordset_inactive_category_nonce' => $nonce,
-    ], remove_query_arg([
+    return remove_query_arg([
+        'll_wordset_inactive_category_action',
+        'll_wordset_inactive_category_wordset_id',
+        'll_wordset_inactive_category_id',
+        'll_wordset_inactive_category_nonce',
         'll_wordset_inactive_category',
         'll_wordset_inactive_category_result',
         'll_wordset_inactive_category_error',
         'll_wordset_inactive_category_message',
-    ], $action_url));
+    ], $action_url);
 }
 
 function ll_tools_wordset_page_ensure_inactive_category_preview_url(array $cat): array {
@@ -2224,17 +2223,17 @@ function ll_tools_wordset_page_handle_inactive_category_action(): void {
     if (!in_array($method, ['GET', 'POST'], true)) {
         return;
     }
+    if ($method === 'GET') {
+        return;
+    }
     if (!ll_tools_is_wordset_page_context()) {
         return;
     }
 
-    $request = ($method === 'GET') ? $_GET : $_POST;
+    $request = $_POST;
     $action = isset($request['ll_wordset_inactive_category_action'])
         ? sanitize_key(wp_unslash((string) $request['ll_wordset_inactive_category_action']))
         : '';
-    if ($method === 'GET' && $action !== 'preview') {
-        return;
-    }
     if (!in_array($action, ['hide', 'delete', 'preview'], true)) {
         return;
     }

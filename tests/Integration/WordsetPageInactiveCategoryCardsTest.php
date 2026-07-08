@@ -41,8 +41,9 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-card__heading--inactive-link', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__lesson-link--inactive-link', $inactive_card);
         $this->assertSame(substr_count($inactive_card, '<a '), substr_count($inactive_card, '</a>'));
-        $this->assertStringContainsString('ll_wordset_inactive_category_action=preview', $inactive_card);
-        $this->assertStringContainsString('ll_wordset_inactive_category_id=', $inactive_card);
+        $this->assertStringNotContainsString('ll_wordset_inactive_category_action=preview', $inactive_card);
+        $this->assertStringNotContainsString('ll_wordset_inactive_category_nonce=', $inactive_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_id" value=', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $inactive_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $inactive_card);
         $this->assertStringNotContainsString('ll-wordset-card__staff-actions', $inactive_card);
@@ -60,7 +61,8 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-trigger', $image_card);
         $this->assertStringContainsString('ll-wordset-card__lesson-link--inactive-link', $image_card);
         $this->assertSame(substr_count($image_card, '<a '), substr_count($image_card, '</a>'));
-        $this->assertStringContainsString('ll_wordset_inactive_category_action=preview', $image_card);
+        $this->assertStringNotContainsString('ll_wordset_inactive_category_action=preview', $image_card);
+        $this->assertStringNotContainsString('ll_wordset_inactive_category_nonce=', $image_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $image_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $image_card);
         $this->assertStringNotContainsString('ll-wordset-card__staff-actions', $image_card);
@@ -184,6 +186,52 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $lesson_id);
         $this->assertSame('publish', get_post_status($lesson_id));
         $this->assertTrue(ll_tools_vocab_lesson_is_preview_only($lesson_id));
+    }
+
+    public function test_get_preview_action_is_read_only_and_does_not_prepare_words(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['image_only_category_id'];
+        $image_id = (int) $fixture['image_id'];
+        $wordset = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $server_backup = $_SERVER;
+        $get_backup = $_GET;
+        $previous_query_var = get_query_var('ll_wordset_page');
+
+        try {
+            set_query_var('ll_wordset_page', $wordset->slug);
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_GET = [
+                'll_wordset_page' => $wordset->slug,
+                'll_wordset_inactive_category_action' => 'preview',
+                'll_wordset_inactive_category_wordset_id' => (string) $wordset_id,
+                'll_wordset_inactive_category_id' => (string) $category_id,
+                'll_wordset_inactive_category_nonce' => wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id),
+            ];
+
+            ll_tools_wordset_page_handle_inactive_category_action();
+
+            $prepared_words = get_posts([
+                'post_type' => 'words',
+                'post_status' => 'any',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'meta_key' => '_ll_autopicked_image_id',
+                'meta_value' => (string) $image_id,
+            ]);
+
+            $this->assertSame([], array_values(array_map('intval', (array) $prepared_words)));
+        } finally {
+            $_SERVER = $server_backup;
+            $_GET = $get_backup;
+            set_query_var('ll_wordset_page', $previous_query_var);
+        }
     }
 
     public function test_inactive_card_backfills_action_icons_when_action_state_is_missing(): void
