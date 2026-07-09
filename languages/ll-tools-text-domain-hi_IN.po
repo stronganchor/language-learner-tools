@@ -4822,3 +4822,28 @@ msgstr "AI क्रॉलर नोट्स"
 #: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
 msgid "Root llms.txt"
 msgstr "रूट llms.txt"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:809
+msgid "Please choose at least one managed word set for this upload."
+msgstr "इस अपलोड के लिए कम से कम एक प्रबंधित शब्द सेट चुनें।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:832
+msgid "The selected category is not available for the chosen word set scope."
+msgstr "चुनी गई श्रेणी चुने गए शब्द सेट दायरे के लिए उपलब्ध नहीं है।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5253
+msgid "Too many transcription updates in one request. Maximum is %d."
+msgstr "एक अनुरोध में बहुत ज़्यादा ट्रांसक्रिप्शन अपडेट हैं। अधिकतम %d है।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5457
+msgid "Too many word audio speaker updates in one request. Maximum is %d."
+msgstr "एक अनुरोध में बहुत ज़्यादा शब्द ऑडियो वक्ता अपडेट हैं। अधिकतम %d है।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
+msgid "Too many active words were provided. Maximum is %d."
+msgstr "बहुत ज़्यादा सक्रिय शब्द दिए गए हैं। अधिकतम %d है।"

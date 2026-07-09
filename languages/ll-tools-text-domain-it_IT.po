@@ -4822,3 +4822,28 @@ msgstr "Note per crawler IA"
 #: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
 msgid "Root llms.txt"
 msgstr "llms.txt radice"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:809
+msgid "Please choose at least one managed word set for this upload."
+msgstr "Scegli almeno un set di parole gestito per questo caricamento."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:832
+msgid "The selected category is not available for the chosen word set scope."
+msgstr "La categoria selezionata non è disponibile per l’ambito del set di parole scelto."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5253
+msgid "Too many transcription updates in one request. Maximum is %d."
+msgstr "Troppi aggiornamenti di trascrizione in una sola richiesta. Il massimo è %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5457
+msgid "Too many word audio speaker updates in one request. Maximum is %d."
+msgstr "Troppi aggiornamenti del parlante per l’audio delle parole in una sola richiesta. Il massimo è %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
+msgid "Too many active words were provided. Maximum is %d."
+msgstr "Sono state fornite troppe parole attive. Il massimo è %d."

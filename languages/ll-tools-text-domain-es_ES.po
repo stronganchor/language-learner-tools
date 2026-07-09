@@ -4822,3 +4822,28 @@ msgstr "Notas para rastreadores de IA"
 #: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
 msgid "Root llms.txt"
 msgstr "llms.txt raíz"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:809
+msgid "Please choose at least one managed word set for this upload."
+msgstr "Elige al menos un conjunto de palabras gestionado para esta carga."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:832
+msgid "The selected category is not available for the chosen word set scope."
+msgstr "La categoría seleccionada no está disponible para el alcance de conjunto de palabras elegido."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5253
+msgid "Too many transcription updates in one request. Maximum is %d."
+msgstr "Demasiadas actualizaciones de transcripción en una sola solicitud. El máximo es %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5457
+msgid "Too many word audio speaker updates in one request. Maximum is %d."
+msgstr "Demasiadas actualizaciones de voz para audio de palabras en una sola solicitud. El máximo es %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
+msgid "Too many active words were provided. Maximum is %d."
+msgstr "Se proporcionaron demasiadas palabras activas. El máximo es %d."

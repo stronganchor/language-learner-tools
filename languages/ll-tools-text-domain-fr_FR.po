@@ -4822,3 +4822,28 @@ msgstr "Notes pour robot d’exploration IA"
 #: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
 msgid "Root llms.txt"
 msgstr "llms.txt racine"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:809
+msgid "Please choose at least one managed word set for this upload."
+msgstr "Choisis au moins un ensemble de mots géré pour cet import."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:832
+msgid "The selected category is not available for the chosen word set scope."
+msgstr "La catégorie sélectionnée n’est pas disponible pour la portée d’ensemble de mots choisie."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5253
+msgid "Too many transcription updates in one request. Maximum is %d."
+msgstr "Trop de mises à jour de transcription dans une seule requête. Le maximum est %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5457
+msgid "Too many word audio speaker updates in one request. Maximum is %d."
+msgstr "Trop de mises à jour du locuteur des audios de mots dans une seule requête. Le maximum est %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
+msgid "Too many active words were provided. Maximum is %d."
+msgstr "Trop de mots actifs ont été fournis. Le maximum est %d."

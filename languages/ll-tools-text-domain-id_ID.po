@@ -4822,3 +4822,28 @@ msgstr "Catatan crawler AI"
 #: includes/lib/ai-crawler-support.php:1005 includes/lib/ai-crawler-support.php:962
 msgid "Root llms.txt"
 msgstr "Root llms.txt"
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:809
+msgid "Please choose at least one managed word set for this upload."
+msgstr "Pilih minimal satu set kata terkelola untuk unggahan ini."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/admin/uploads/image-upload-form.php:832
+msgid "The selected category is not available for the chosen word set scope."
+msgstr "Kategori yang dipilih tidak tersedia untuk cakupan set kata yang dipilih."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5253
+msgid "Too many transcription updates in one request. Maximum is %d."
+msgstr "Terlalu banyak pembaruan transkripsi dalam satu permintaan. Maksimum %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/api/automation-rest.php:5457
+msgid "Too many word audio speaker updates in one request. Maximum is %d."
+msgstr "Terlalu banyak pembaruan pembicara audio kata dalam satu permintaan. Maksimum %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-09 source-backed batch
+#: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
+msgid "Too many active words were provided. Maximum is %d."
+msgstr "Terlalu banyak kata aktif yang diberikan. Maksimum %d."
