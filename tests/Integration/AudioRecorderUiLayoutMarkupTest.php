@@ -138,6 +138,72 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertLessThan($first_position, $start_position);
     }
 
+    public function test_default_recorder_bootstrap_localizes_only_bounded_initial_category_page(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $wordsetId = $this->ensure_term('wordset', 'Recorder Bounded Bootstrap', 'recorder-bounded-bootstrap');
+        $wordset = get_term($wordsetId, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $isolationId = $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        $this->assertGreaterThan(0, $isolationId);
+
+        $categoryIds = [
+            $this->ensure_term('word-category', 'Alpha Recorder Category', 'alpha-recorder-category'),
+            $this->ensure_term('word-category', 'Beta Recorder Category', 'beta-recorder-category'),
+        ];
+        foreach ($categoryIds as $categoryId) {
+            update_term_meta($categoryId, 'll_desired_recording_types', ['isolation']);
+            for ($index = 1; $index <= 35; $index++) {
+                $wordId = self::factory()->post->create([
+                    'post_type' => 'words',
+                    'post_status' => 'publish',
+                    'post_title' => 'Recorder Bootstrap ' . $categoryId . '-' . $index,
+                ]);
+                wp_set_object_terms($wordId, [$wordsetId], 'wordset', false);
+                wp_set_object_terms($wordId, [$categoryId], 'word-category', false);
+            }
+        }
+
+        $pageSizeFilter = static function (): int {
+            return 10;
+        };
+        $wordQueries = [];
+        $captureWordQueries = static function (WP_Query $query) use (&$wordQueries): void {
+            if ((string) $query->get('post_type') === 'words') {
+                $wordQueries[] = $query->query_vars;
+            }
+        };
+        add_filter('ll_tools_recorder_category_switch_page_size', $pageSizeFilter);
+        add_action('pre_get_posts', $captureWordQueries);
+        try {
+            do_shortcode('[audio_recording_interface wordset="' . $wordset->slug . '" allow_new_words="1"]');
+        } finally {
+            remove_filter('ll_tools_recorder_category_switch_page_size', $pageSizeFilter);
+            remove_action('pre_get_posts', $captureWordQueries);
+        }
+
+        $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
+        $this->assertIsString($localized);
+        $matches = [];
+        $matchCount = preg_match_all('/var ll_recorder_data = (\{[^\r\n]+\});/', $localized, $matches);
+        $this->assertGreaterThanOrEqual(1, $matchCount);
+        $payload = json_decode((string) end($matches[1]), true);
+        $this->assertIsArray($payload);
+        $this->assertCount(10, (array) ($payload['images'] ?? []));
+        $this->assertTrue((bool) ($payload['category_queue']['has_more'] ?? false));
+        $availableCategories = (array) ($payload['available_categories'] ?? []);
+        $this->assertCount(2, $availableCategories);
+        $categoryLabels = implode(' ', array_map('strval', array_values($availableCategories)));
+        $this->assertStringContainsString('Alpha Recorder Category', $categoryLabels);
+        $this->assertStringContainsString('Beta Recorder Category', $categoryLabels);
+        foreach ($wordQueries as $queryVars) {
+            $this->assertNotSame(-1, (int) ($queryVars['posts_per_page'] ?? 0));
+        }
+    }
+
     public function test_new_word_category_select_is_scoped_to_selected_wordset(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);

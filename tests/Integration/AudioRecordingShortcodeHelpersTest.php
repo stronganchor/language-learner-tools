@@ -107,6 +107,17 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_recording_category_dropdown_labels_leave_unknown_counts_unlabeled(): void
+    {
+        $labels = ll_tools_get_recording_category_dropdown_labels(
+            ['animals' => 'Animals', 'food' => 'Food'],
+            ['animals' => 3, 'food' => -1]
+        );
+
+        $this->assertSame(ll_tools_format_recording_category_dropdown_label('Animals', 3), $labels['animals']);
+        $this->assertSame('Food', $labels['food']);
+    }
+
     public function test_recording_category_dropdown_label_falls_back_when_translation_template_is_malformed(): void
     {
         $broken_template_filter = static function ($translation, $text, $domain) {
