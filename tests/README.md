@@ -169,6 +169,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
+- Legacy Word Images fixer batching, durable cursor readback, and scan-free page rendering.
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
 - Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, public flashcard AJAX and vocab lesson grid cache/throttle/build-lock guards, audio credit grid cache batching/stale-lock fallback, image copyright grid privacy/resource guards, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
 
