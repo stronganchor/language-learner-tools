@@ -636,6 +636,269 @@ function ll_tools_get_content_lesson_category_option_rows(int $wordset_id = 0): 
     return array_values($normalized);
 }
 
+function ll_tools_content_lesson_filter_category_candidates_for_wordset(int $wordset_id, array $category_ids, bool $require_quizzable = false): array {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    $category_ids = ll_tools_content_lesson_normalize_category_ids($category_ids);
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return ($wordset_id <= 0 && !$require_quizzable) ? $category_ids : [];
+    }
+
+    $id_placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
+    $status_placeholders = implode(',', array_fill(0, 1, '%s'));
+    $sql = "
+        SELECT DISTINCT tt_cat.term_id
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_cat
+            ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+           AND tt_cat.taxonomy = 'word-category'
+        INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_ws
+            ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+           AND tt_ws.taxonomy = 'wordset'
+           AND tt_ws.term_id = %d
+        WHERE p.post_type = 'words'
+          AND p.post_status IN ({$status_placeholders})
+          AND tt_cat.term_id IN ({$id_placeholders})
+    ";
+    $params = array_merge([$wordset_id, 'publish'], $category_ids);
+    $allowed_ids = array_values(array_unique(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+
+    if ($require_quizzable && !empty($allowed_ids) && function_exists('ll_tools_user_study_filter_quizzable_category_ids')) {
+        $allowed_ids = ll_tools_content_lesson_normalize_category_ids(
+            ll_tools_user_study_filter_quizzable_category_ids($allowed_ids, $wordset_id)
+        );
+    }
+
+    $allowed_lookup = array_fill_keys($allowed_ids, true);
+    return array_values(array_filter($category_ids, static function (int $category_id) use ($allowed_lookup): bool {
+        return isset($allowed_lookup[$category_id]);
+    }));
+}
+
+function ll_tools_content_lesson_category_rows_for_ids(array $category_ids, int $wordset_id = 0, bool $require_quizzable = false): array {
+    $category_ids = ll_tools_content_lesson_normalize_category_ids($category_ids);
+    if ($wordset_id > 0) {
+        $category_ids = ll_tools_content_lesson_filter_category_candidates_for_wordset(
+            $wordset_id,
+            $category_ids,
+            $require_quizzable
+        );
+    }
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $terms = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'include' => $category_ids,
+    ]);
+    if (is_wp_error($terms)) {
+        return [];
+    }
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $terms = ll_tools_filter_category_terms_for_user((array) $terms);
+    }
+
+    $rows = [];
+    foreach ((array) $terms as $term) {
+        if (!($term instanceof WP_Term) || is_wp_error($term) || (string) $term->slug === 'uncategorized') {
+            continue;
+        }
+        $label = function_exists('ll_tools_get_category_display_name')
+            ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => $wordset_id > 0 ? [$wordset_id] : []])
+            : (string) $term->name;
+        $source_id = function_exists('ll_tools_get_category_isolation_source_id')
+            ? (int) ll_tools_get_category_isolation_source_id((int) $term->term_id)
+            : (int) $term->term_id;
+        $rows[(int) $term->term_id] = [
+            'id' => (int) $term->term_id,
+            'label' => $label !== '' ? $label : (string) $term->name,
+            'source_id' => $source_id > 0 ? $source_id : (int) $term->term_id,
+        ];
+    }
+
+    $ordered = [];
+    foreach ($category_ids as $category_id) {
+        if (isset($rows[$category_id])) {
+            $ordered[] = $rows[$category_id];
+        }
+    }
+    return $ordered;
+}
+
+function ll_tools_content_lesson_option_lesson_label(WP_Post $post): string {
+    $label = trim((string) get_the_title($post));
+    if ($label === '') {
+        $label = __('(no title)', 'll-tools-text-domain');
+    }
+
+    if ((string) $post->post_status !== 'publish') {
+        $status_object = get_post_status_object((string) $post->post_status);
+        $status_label = ($status_object && !empty($status_object->label))
+            ? wp_strip_all_tags((string) $status_object->label)
+            : '';
+        if ($status_label !== '') {
+            $label = sprintf(
+                __('%1$s (%2$s)', 'll-tools-text-domain'),
+                $label,
+                $status_label
+            );
+        }
+    }
+
+    return $label;
+}
+
+function ll_tools_content_lesson_option_page(string $kind, int $wordset_id = 0, array $args = []): array {
+    global $wpdb;
+
+    $kind = sanitize_key($kind);
+    $allowed_kinds = ['categories', 'prereq_categories', 'prereq_lessons'];
+    if (!in_array($kind, $allowed_kinds, true)) {
+        return ['rows' => [], 'has_more' => false, 'next_offset' => 0];
+    }
+
+    $wordset_id = max(0, $wordset_id);
+    $requested_limit = isset($args['limit']) ? (int) $args['limit'] : 40;
+    $limit = max(1, min(75, (int) apply_filters('ll_tools_content_lesson_option_page_size', $requested_limit, $kind)));
+    $offset = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
+    $search = isset($args['search']) ? sanitize_text_field((string) $args['search']) : '';
+    $selected_ids = isset($args['selected_ids']) ? (array) $args['selected_ids'] : [];
+    $exclude_lesson_id = isset($args['exclude_lesson_id']) ? max(0, (int) $args['exclude_lesson_id']) : 0;
+    $rows = [];
+    $has_more = false;
+    $next_offset = $offset;
+
+    if ($kind === 'prereq_lessons') {
+        if ($wordset_id <= 0) {
+            return ['rows' => [], 'has_more' => false, 'next_offset' => 0];
+        }
+
+        $query_args = [
+            'post_type' => 'll_content_lesson',
+            'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
+            'posts_per_page' => $limit + 1,
+            'offset' => $offset,
+            'orderby' => 'menu_order title',
+            'order' => 'ASC',
+            'no_found_rows' => true,
+            'post__not_in' => $exclude_lesson_id > 0 ? [$exclude_lesson_id] : [],
+            'meta_query' => [[
+                'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ]],
+        ];
+        if ($search !== '') {
+            $query_args['s'] = $search;
+        }
+        $posts = get_posts($query_args);
+        $has_more = count($posts) > $limit;
+        $posts = array_slice($posts, 0, $limit);
+        $next_offset = $offset + count($posts);
+
+        foreach ($posts as $post) {
+            if (!($post instanceof WP_Post)) {
+                continue;
+            }
+            $rows[(int) $post->ID] = [
+                'id' => (int) $post->ID,
+                'label' => ll_tools_content_lesson_option_lesson_label($post),
+            ];
+        }
+
+        $selected_ids = ll_tools_filter_content_lesson_prereq_lesson_ids_for_wordset(
+            $wordset_id,
+            $selected_ids,
+            $exclude_lesson_id
+        );
+        if (!empty($selected_ids)) {
+            $selected_posts = get_posts([
+                'post_type' => 'll_content_lesson',
+                'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
+                'posts_per_page' => count($selected_ids),
+                'post__in' => $selected_ids,
+                'orderby' => 'post__in',
+                'no_found_rows' => true,
+            ]);
+            foreach ($selected_posts as $post) {
+                if (!($post instanceof WP_Post)) {
+                    continue;
+                }
+                $rows[(int) $post->ID] = [
+                    'id' => (int) $post->ID,
+                    'label' => ll_tools_content_lesson_option_lesson_label($post),
+                ];
+            }
+        }
+    } else {
+        $query_params = [];
+        $where = ["tt_cat.taxonomy = 'word-category'", "t.slug <> 'uncategorized'"];
+        $joins = '';
+        if ($wordset_id > 0) {
+            $joins = "
+                INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.term_taxonomy_id = tt_cat.term_taxonomy_id
+                INNER JOIN {$wpdb->posts} p ON p.ID = tr_cat.object_id
+                INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+                INNER JOIN {$wpdb->term_taxonomy} tt_ws
+                    ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+                   AND tt_ws.taxonomy = 'wordset'
+            ";
+            $where[] = "p.post_type = 'words'";
+            $where[] = "p.post_status = 'publish'";
+            $where[] = 'tt_ws.term_id = %d';
+            $query_params[] = $wordset_id;
+        }
+        if ($search !== '') {
+            $where[] = 't.name LIKE %s';
+            $query_params[] = '%' . $wpdb->esc_like($search) . '%';
+        }
+        $query_params[] = $limit + 1;
+        $query_params[] = $offset;
+        $sql = "
+            SELECT DISTINCT t.term_id, t.name
+            FROM {$wpdb->terms} t
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_id = t.term_id
+            {$joins}
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY t.name ASC, t.term_id ASC
+            LIMIT %d OFFSET %d
+        ";
+        $raw_rows = (array) $wpdb->get_results($wpdb->prepare($sql, $query_params));
+        $has_more = count($raw_rows) > $limit;
+        $raw_rows = array_slice($raw_rows, 0, $limit);
+        $next_offset = $offset + count($raw_rows);
+        $candidate_ids = array_values(array_filter(array_map(static function ($row): int {
+            return isset($row->term_id) ? (int) $row->term_id : 0;
+        }, $raw_rows)));
+
+        if ($kind === 'prereq_categories' && $wordset_id > 0) {
+            $candidate_ids = ll_tools_content_lesson_filter_category_candidates_for_wordset($wordset_id, $candidate_ids, true);
+        }
+        foreach (ll_tools_content_lesson_category_rows_for_ids($candidate_ids, $wordset_id, $kind === 'prereq_categories') as $row) {
+            $rows[(int) $row['id']] = $row;
+        }
+
+        $selected_ids = ll_tools_content_lesson_normalize_category_ids($selected_ids);
+        if ($wordset_id > 0 && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+            $selected_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($selected_ids, $wordset_id, false);
+        }
+        foreach (ll_tools_content_lesson_category_rows_for_ids($selected_ids, $wordset_id, $kind === 'prereq_categories') as $row) {
+            $rows[(int) $row['id']] = $row;
+        }
+    }
+
+    return [
+        'rows' => array_values($rows),
+        'has_more' => $has_more,
+        'next_offset' => $next_offset,
+        'limit' => $limit,
+    ];
+}
+
 function ll_tools_filter_content_lesson_category_ids_for_wordset(int $wordset_id = 0, array $category_ids = []): array {
     $wordset_id = max(0, $wordset_id);
     $category_ids = ll_tools_content_lesson_normalize_category_ids($category_ids);
@@ -648,21 +911,7 @@ function ll_tools_filter_content_lesson_category_ids_for_wordset(int $wordset_id
         $category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, false);
     }
 
-    $allowed_category_ids = [];
-    foreach (ll_tools_get_content_lesson_category_option_rows($wordset_id) as $category_row) {
-        $allowed_category_id = isset($category_row['id']) ? (int) $category_row['id'] : 0;
-        if ($allowed_category_id > 0) {
-            $allowed_category_ids[$allowed_category_id] = true;
-        }
-    }
-
-    if (empty($allowed_category_ids)) {
-        return [];
-    }
-
-    return array_values(array_filter($category_ids, static function (int $category_id) use ($allowed_category_ids): bool {
-        return !empty($allowed_category_ids[$category_id]);
-    }));
+    return ll_tools_content_lesson_filter_category_candidates_for_wordset($wordset_id, $category_ids, false);
 }
 
 function ll_tools_get_content_lesson_prereq_option_rows(int $wordset_id = 0): array {
@@ -774,21 +1023,7 @@ function ll_tools_filter_content_lesson_prereq_category_ids_for_wordset(int $wor
         $category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, false);
     }
 
-    $allowed_category_ids = [];
-    foreach (ll_tools_get_content_lesson_prereq_option_rows($wordset_id) as $row) {
-        $allowed_category_id = isset($row['id']) ? (int) $row['id'] : 0;
-        if ($allowed_category_id > 0) {
-            $allowed_category_ids[$allowed_category_id] = true;
-        }
-    }
-
-    if (empty($allowed_category_ids)) {
-        return [];
-    }
-
-    return array_values(array_filter($category_ids, static function (int $category_id) use ($allowed_category_ids): bool {
-        return !empty($allowed_category_ids[$category_id]);
-    }));
+    return ll_tools_content_lesson_filter_category_candidates_for_wordset($wordset_id, $category_ids, true);
 }
 
 function ll_tools_filter_content_lesson_prereq_lesson_ids_for_wordset(int $wordset_id = 0, array $lesson_ids = [], int $exclude_lesson_id = 0): array {
@@ -1082,34 +1317,7 @@ function ll_tools_enqueue_content_lesson_admin_assets($hook): void {
     }
 
     ll_enqueue_asset_by_timestamp('/js/content-lesson-admin.js', 'll-tools-content-lesson-admin', ['jquery'], true);
-
-    $rows_by_wordset = [
-        '0' => ll_tools_get_content_lesson_selectable_category_rows(0),
-    ];
-    $prereq_rows_by_wordset = [
-        '0' => [],
-    ];
-    $prereq_lesson_rows_by_wordset = [
-        '0' => [],
-    ];
-
-    $wordsets = get_terms([
-        'taxonomy' => 'wordset',
-        'hide_empty' => false,
-        'orderby' => 'name',
-        'order' => 'ASC',
-    ]);
-    if (!is_wp_error($wordsets)) {
-        foreach ($wordsets as $wordset) {
-            if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
-                continue;
-            }
-
-            $rows_by_wordset[(string) $wordset->term_id] = ll_tools_get_content_lesson_selectable_category_rows((int) $wordset->term_id);
-            $prereq_rows_by_wordset[(string) $wordset->term_id] = ll_tools_get_content_lesson_selectable_prereq_rows((int) $wordset->term_id);
-            $prereq_lesson_rows_by_wordset[(string) $wordset->term_id] = ll_tools_get_content_lesson_selectable_prereq_lesson_rows((int) $wordset->term_id);
-        }
-    }
+    ll_enqueue_asset_by_timestamp('/css/content-lesson-admin.css', 'll-tools-content-lesson-admin', [], false);
 
     $current_lesson_id = 0;
     if (isset($_GET['post'])) {
@@ -1121,14 +1329,92 @@ function ll_tools_enqueue_content_lesson_admin_assets($hook): void {
         $current_lesson_id = 0;
     }
 
+    $current_wordset_id = $current_lesson_id > 0
+        ? ll_tools_get_content_lesson_wordset_id($current_lesson_id)
+        : 0;
+    $current_category_ids = $current_lesson_id > 0
+        ? ll_tools_get_content_lesson_related_category_ids($current_lesson_id)
+        : [];
+    $current_prereq_category_ids = $current_lesson_id > 0
+        ? ll_tools_get_content_lesson_prereq_category_ids($current_lesson_id)
+        : [];
+    $current_prereq_lesson_ids = $current_lesson_id > 0
+        ? ll_tools_get_content_lesson_prereq_lesson_ids($current_lesson_id)
+        : [];
+
+    $category_page = ll_tools_content_lesson_option_page('categories', $current_wordset_id, [
+        'selected_ids' => $current_category_ids,
+    ]);
+    $prereq_page = ll_tools_content_lesson_option_page('prereq_categories', $current_wordset_id, [
+        'selected_ids' => $current_prereq_category_ids,
+    ]);
+    $prereq_lesson_page = ll_tools_content_lesson_option_page('prereq_lessons', $current_wordset_id, [
+        'selected_ids' => $current_prereq_lesson_ids,
+        'exclude_lesson_id' => $current_lesson_id,
+    ]);
+    $wordset_key = (string) $current_wordset_id;
+
     wp_localize_script('ll-tools-content-lesson-admin', 'llContentLessonAdminData', [
-        'rowsByWordset' => $rows_by_wordset,
-        'prereqRowsByWordset' => $prereq_rows_by_wordset,
-        'prereqLessonRowsByWordset' => $prereq_lesson_rows_by_wordset,
+        'rowsByWordset' => [$wordset_key => (array) $category_page['rows']],
+        'prereqRowsByWordset' => [$wordset_key => (array) $prereq_page['rows']],
+        'prereqLessonRowsByWordset' => [$wordset_key => (array) $prereq_lesson_page['rows']],
+        'pageStateByKind' => [
+            'categories' => [$wordset_key => [
+                'has_more' => (bool) $category_page['has_more'],
+                'next_offset' => (int) $category_page['next_offset'],
+                'limit' => (int) $category_page['limit'],
+            ]],
+            'prereq_categories' => [$wordset_key => [
+                'has_more' => (bool) $prereq_page['has_more'],
+                'next_offset' => (int) $prereq_page['next_offset'],
+                'limit' => (int) $prereq_page['limit'],
+            ]],
+            'prereq_lessons' => [$wordset_key => [
+                'has_more' => (bool) $prereq_lesson_page['has_more'],
+                'next_offset' => (int) $prereq_lesson_page['next_offset'],
+                'limit' => (int) $prereq_lesson_page['limit'],
+            ]],
+        ],
         'currentLessonId' => $current_lesson_id,
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('ll_tools_content_lesson_options'),
+        'strings' => [
+            'search' => __('Search', 'll-tools-text-domain'),
+            'loadMore' => __('Load more', 'll-tools-text-domain'),
+            'loading' => __('Loading...', 'll-tools-text-domain'),
+            'loadFailed' => __('Options could not be loaded.', 'll-tools-text-domain'),
+        ],
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_content_lesson_admin_assets');
+
+function ll_tools_ajax_content_lesson_options(): void {
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(['message' => __('You are not allowed to edit content lessons.', 'll-tools-text-domain')], 403);
+    }
+    check_ajax_referer('ll_tools_content_lesson_options', 'nonce');
+
+    $kind = isset($_POST['kind']) ? sanitize_key((string) wp_unslash($_POST['kind'])) : '';
+    $wordset_id = isset($_POST['wordset_id']) ? absint(wp_unslash((string) $_POST['wordset_id'])) : 0;
+    if ($wordset_id > 0) {
+        $wordset = get_term($wordset_id, 'wordset');
+        if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+            wp_send_json_error(['message' => __('Select a valid word set.', 'll-tools-text-domain')], 400);
+        }
+    }
+
+    $selected_ids = isset($_POST['selected_ids']) ? (array) wp_unslash($_POST['selected_ids']) : [];
+    $selected_ids = array_slice(array_values($selected_ids), 0, 200);
+    $page = ll_tools_content_lesson_option_page($kind, $wordset_id, [
+        'search' => isset($_POST['search']) ? wp_unslash((string) $_POST['search']) : '',
+        'offset' => isset($_POST['offset']) ? absint(wp_unslash((string) $_POST['offset'])) : 0,
+        'selected_ids' => $selected_ids,
+        'exclude_lesson_id' => isset($_POST['exclude_lesson_id']) ? absint(wp_unslash((string) $_POST['exclude_lesson_id'])) : 0,
+    ]);
+
+    wp_send_json_success($page);
+}
+add_action('wp_ajax_ll_tools_content_lesson_options', 'll_tools_ajax_content_lesson_options');
 
 function ll_tools_add_content_lesson_metabox(): void {
     add_meta_box(
@@ -1167,9 +1453,16 @@ function ll_tools_render_content_lesson_metabox($post): void {
     $prereq_lesson_ids = ll_tools_get_content_lesson_prereq_lesson_ids((int) $post->ID);
     $cue_count = count(ll_tools_get_content_lesson_cues((int) $post->ID));
     $parse_error = ll_tools_get_content_lesson_parse_error((int) $post->ID);
-    $category_rows = ll_tools_get_content_lesson_selectable_category_rows($wordset_id, $category_ids);
-    $prereq_rows = ll_tools_get_content_lesson_selectable_prereq_rows($wordset_id, $prereq_category_ids);
-    $prereq_lesson_rows = ll_tools_get_content_lesson_selectable_prereq_lesson_rows($wordset_id, $prereq_lesson_ids, (int) $post->ID);
+    $category_rows = (array) ll_tools_content_lesson_option_page('categories', $wordset_id, [
+        'selected_ids' => $category_ids,
+    ])['rows'];
+    $prereq_rows = (array) ll_tools_content_lesson_option_page('prereq_categories', $wordset_id, [
+        'selected_ids' => $prereq_category_ids,
+    ])['rows'];
+    $prereq_lesson_rows = (array) ll_tools_content_lesson_option_page('prereq_lessons', $wordset_id, [
+        'selected_ids' => $prereq_lesson_ids,
+        'exclude_lesson_id' => (int) $post->ID,
+    ])['rows'];
     $wordsets = get_terms([
         'taxonomy' => 'wordset',
         'hide_empty' => false,
@@ -1359,6 +1652,7 @@ function ll_tools_render_content_lesson_metabox($post): void {
                         <?php foreach ($prereq_rows as $prereq_row) : ?>
                             <option
                                 value="<?php echo esc_attr((string) $prereq_row['id']); ?>"
+                                data-ll-category-source-id="<?php echo esc_attr((string) ($prereq_row['source_id'] ?? $prereq_row['id'])); ?>"
                                 <?php selected(in_array((int) $prereq_row['id'], $prereq_category_ids, true), true); ?>>
                                 <?php echo esc_html((string) $prereq_row['label']); ?>
                             </option>

@@ -6,15 +6,20 @@ final class ContentLessonCueParsingTest extends LL_Tools_TestCase
     /** @var array<string,mixed> */
     private $postBackup = [];
 
+    /** @var array<string,mixed> */
+    private $getBackup = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->postBackup = $_POST;
+        $this->getBackup = $_GET;
     }
 
     protected function tearDown(): void
     {
         $_POST = $this->postBackup;
+        $_GET = $this->getBackup;
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
 
         parent::tearDown();
@@ -329,6 +334,137 @@ TSV;
 
         $this->assertContains((int) $fixture['isolated_one_id'], $row_ids);
         $this->assertNotContains((int) $fixture['isolated_two_id'], $row_ids);
+    }
+
+    public function test_content_lesson_admin_option_pages_are_bounded_and_keep_selected_rows(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensureTerm(
+            'wordset',
+            'Paged Lesson Options ' . wp_generate_password(5, false),
+            'paged-lesson-options-' . wp_generate_password(5, false)
+        );
+        $category_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $category_id = $this->ensureTerm(
+                'word-category',
+                sprintf('Paged Lesson Category %02d', $index),
+                'paged-lesson-category-' . $index . '-' . wp_generate_password(4, false)
+            );
+            $this->createWordInScope('Paged Lesson Word ' . $index, $wordset_id, $category_id);
+            $category_ids[] = $category_id;
+        }
+
+        $first_category_page = ll_tools_content_lesson_option_page('categories', $wordset_id, ['limit' => 2]);
+        $this->assertCount(2, (array) $first_category_page['rows']);
+        $this->assertTrue((bool) $first_category_page['has_more']);
+        $this->assertSame(2, (int) $first_category_page['next_offset']);
+
+        $second_category_page = ll_tools_content_lesson_option_page('categories', $wordset_id, [
+            'limit' => 2,
+            'offset' => 2,
+        ]);
+        $this->assertCount(2, (array) $second_category_page['rows']);
+        $this->assertNotSame(
+            wp_list_pluck((array) $first_category_page['rows'], 'id'),
+            wp_list_pluck((array) $second_category_page['rows'], 'id')
+        );
+
+        $selected_category_page = ll_tools_content_lesson_option_page('categories', $wordset_id, [
+            'limit' => 2,
+            'selected_ids' => [$category_ids[4]],
+        ]);
+        $this->assertContains($category_ids[4], array_map('intval', wp_list_pluck((array) $selected_category_page['rows'], 'id')));
+        $this->assertLessThanOrEqual(3, count((array) $selected_category_page['rows']));
+
+        $lesson_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $lesson_ids[] = $this->createPublishedContentLesson(
+                $wordset_id,
+                sprintf('Paged Prerequisite Lesson %02d', $index),
+                []
+            );
+        }
+
+        $query_limits = [];
+        $watch_queries = static function (WP_Query $query) use (&$query_limits): void {
+            if ($query->get('post_type') === 'll_content_lesson') {
+                $query_limits[] = (int) $query->get('posts_per_page');
+            }
+        };
+        add_action('pre_get_posts', $watch_queries);
+        try {
+            $lesson_page = ll_tools_content_lesson_option_page('prereq_lessons', $wordset_id, [
+                'limit' => 2,
+                'selected_ids' => [$lesson_ids[4]],
+                'exclude_lesson_id' => $lesson_ids[0],
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $watch_queries);
+        }
+
+        $this->assertTrue((bool) $lesson_page['has_more']);
+        $this->assertContains($lesson_ids[4], array_map('intval', wp_list_pluck((array) $lesson_page['rows'], 'id')));
+        $this->assertNotContains(-1, $query_limits);
+        $this->assertLessThanOrEqual(3, max($query_limits));
+    }
+
+    public function test_content_lesson_admin_localizes_only_the_active_wordset_page(): void
+    {
+        global $typenow;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $this->setCurrentUserWithViewCapability();
+        $active_wordset_id = $this->ensureTerm(
+            'wordset',
+            'Active Admin Lesson ' . wp_generate_password(5, false),
+            'active-admin-lesson-' . wp_generate_password(5, false)
+        );
+        $other_wordset_id = $this->ensureTerm(
+            'wordset',
+            'Other Admin Lesson ' . wp_generate_password(5, false),
+            'other-admin-lesson-' . wp_generate_password(5, false)
+        );
+        $active_category_id = $this->ensureTerm(
+            'word-category',
+            'Active Admin Category ' . wp_generate_password(5, false),
+            'active-admin-category-' . wp_generate_password(5, false)
+        );
+        $other_category_id = $this->ensureTerm(
+            'word-category',
+            'Other Admin Category ' . wp_generate_password(5, false),
+            'other-admin-category-' . wp_generate_password(5, false)
+        );
+        $this->createWordInScope('Active Admin Word', $active_wordset_id, $active_category_id);
+        $this->createWordInScope('Other Admin Word', $other_wordset_id, $other_category_id);
+
+        $lesson_id = $this->createPublishedContentLesson(
+            $active_wordset_id,
+            'Active Admin Content Lesson',
+            [$active_category_id]
+        );
+        $previous_typenow = $typenow;
+        $typenow = 'll_content_lesson';
+        $_GET['post'] = (string) $lesson_id;
+        wp_dequeue_script('ll-tools-content-lesson-admin');
+        wp_deregister_script('ll-tools-content-lesson-admin');
+
+        try {
+            ll_tools_enqueue_content_lesson_admin_assets('post.php');
+            $localized = (string) wp_scripts()->get_data('ll-tools-content-lesson-admin', 'data');
+        } finally {
+            $typenow = $previous_typenow;
+        }
+
+        $this->assertMatchesRegularExpression('/var llContentLessonAdminData = \{.*\};/s', $localized);
+        preg_match('/var llContentLessonAdminData = (\{.*\});/s', $localized, $matches);
+        $payload = json_decode((string) ($matches[1] ?? ''), true);
+        $this->assertIsArray($payload);
+        $this->assertSame([$active_wordset_id], array_keys((array) ($payload['rowsByWordset'] ?? [])));
+        $this->assertSame([$active_wordset_id], array_keys((array) ($payload['prereqRowsByWordset'] ?? [])));
+        $this->assertSame([$active_wordset_id], array_keys((array) ($payload['prereqLessonRowsByWordset'] ?? [])));
+        $this->assertArrayNotHasKey((string) $other_wordset_id, (array) ($payload['rowsByWordset'] ?? []));
+        $this->assertLessThanOrEqual(40, count((array) ($payload['rowsByWordset'][(string) $active_wordset_id] ?? [])));
     }
 
     public function test_content_lesson_save_remaps_selected_categories_into_current_wordset_sandbox(): void
