@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 vocab-lesson prompt-card shell guard:
+  initial public lesson rendering now detects prompt-card mode through an
+  ID-only query capped at three, without hydrating every prompt card or priming
+  its metadata and terms. Full card rendering stays deferred, and the focused
+  shell regression covers a category containing more cards than the cap.
 - July 10 dictionary result linked-word count batching:
   visible dictionary result entries now receive linked-word counts from one
   bounded aggregate query instead of one `WP_Query` per card. Direct detail and

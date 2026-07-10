@@ -176,16 +176,19 @@ if (have_posts()) {
         : [];
     $lesson_learning_supported = !array_key_exists('learning_supported', $lesson_quiz_config) || !empty($lesson_quiz_config['learning_supported']);
     $lesson_self_check_supported = !array_key_exists('self_check_supported', $lesson_quiz_config) || !empty($lesson_quiz_config['self_check_supported']);
-    $lesson_prompt_card_posts = [];
+    $lesson_prompt_card_summary = [
+        'has_cards' => false,
+        'shell_count' => 0,
+    ];
     if (
         $wordset_id > 0
         && $category instanceof WP_Term
         && !is_wp_error($category)
-        && function_exists('ll_tools_get_vocab_lesson_prompt_card_posts')
+        && function_exists('ll_tools_get_vocab_lesson_prompt_card_summary')
     ) {
-        $lesson_prompt_card_posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
+        $lesson_prompt_card_summary = ll_tools_get_vocab_lesson_prompt_card_summary($wordset_id, $category, 3);
     }
-    $lesson_uses_prompt_cards = !empty($lesson_prompt_card_posts);
+    $lesson_uses_prompt_cards = !empty($lesson_prompt_card_summary['has_cards']);
     $lesson_uses_standard_prompt_card_word_grid = $lesson_uses_prompt_cards
         && function_exists('ll_tools_vocab_lesson_prompt_cards_use_standard_word_grid')
         && ll_tools_vocab_lesson_prompt_cards_use_standard_word_grid($wordset_id, $category);
@@ -401,7 +404,7 @@ if (have_posts()) {
         if ($defer_grid) {
             $grid_shell_spec = ll_tools_word_grid_get_shell_spec($grid_context);
             if ($lesson_uses_prompt_cards) {
-                $prompt_shell_count = max(1, min(3, count($lesson_prompt_card_posts)));
+                $prompt_shell_count = max(1, min(3, (int) ($lesson_prompt_card_summary['shell_count'] ?? 0)));
                 $grid_shell_spec['cards'] = array_fill(0, $prompt_shell_count, [
                     'media_aspect_ratio' => '4 / 3',
                     'title_width' => '72%',

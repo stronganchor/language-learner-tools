@@ -900,14 +900,16 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         wp_set_post_terms($correct_word_id, [$wordset_id], 'wordset', false);
         wp_set_post_terms($wrong_word_id, [$wordset_id], 'wordset', false);
 
-        $this->createPromptCard($prompt_category_id, $wordset_id, [
-            'title' => 'Shell Prompt Card',
-            'prompt_text' => 'Is this a hippo or a camel?',
-            'prompt_audio_url' => 'https://example.com/shell-question.mp3',
-            'prompt_image_word_id' => $image_word_id,
-            'correct_answer_word_id' => $correct_word_id,
-            'wrong_answer_word_ids' => [$wrong_word_id],
-        ]);
+        for ($card_index = 1; $card_index <= 7; $card_index++) {
+            $this->createPromptCard($prompt_category_id, $wordset_id, [
+                'title' => 'Shell Prompt Card ' . $card_index,
+                'prompt_text' => 'Is this a hippo or a camel?',
+                'prompt_audio_url' => 'https://example.com/shell-question.mp3',
+                'prompt_image_word_id' => $image_word_id,
+                'correct_answer_word_id' => $correct_word_id,
+                'wrong_answer_word_ids' => [$wrong_word_id],
+            ]);
+        }
 
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',
@@ -920,9 +922,27 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
         $this->assertTrue(is_singular('ll_vocab_lesson'));
 
-        ob_start();
-        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
-        $html = (string) ob_get_clean();
+        $captured_prompt_card_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_prompt_card_queries): void {
+            if ($query->get('post_type') === LL_TOOLS_PROMPT_CARD_POST_TYPE) {
+                $captured_prompt_card_queries[] = $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $capture, 10, 1);
+        try {
+            ob_start();
+            include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+            $html = (string) ob_get_clean();
+        } finally {
+            remove_action('pre_get_posts', $capture, 10);
+        }
+
+        $summary_queries = array_values(array_filter($captured_prompt_card_queries, static function (array $query_vars): bool {
+            return ($query_vars['fields'] ?? '') === 'ids' && (int) ($query_vars['posts_per_page'] ?? 0) === 3;
+        }));
+        $this->assertNotEmpty($summary_queries);
+        $this->assertFalse((bool) ($summary_queries[0]['update_post_meta_cache'] ?? true));
+        $this->assertFalse((bool) ($summary_queries[0]['update_post_term_cache'] ?? true));
 
         $this->assertStringContainsString('ll-vocab-lesson-grid-shell--prompt-cards', $html);
         $this->assertStringContainsString('ll-vocab-prompt-card-grid--skeleton', $html);
@@ -930,6 +950,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-vocab-lesson-skeleton-card--prompt-card', $html);
         $this->assertStringContainsString('ll-vocab-lesson-skeleton-prompt-box', $html);
         $this->assertStringContainsString('ll-vocab-lesson-skeleton-answer-list', $html);
+        $this->assertSame(3, substr_count($html, 'll-vocab-lesson-skeleton-card--prompt-card'));
     }
 
     public function test_sign_language_image_choice_lesson_shell_uses_image_choice_loading_cards(): void

@@ -254,12 +254,16 @@ function ll_tools_get_prompt_card_posts_for_category_context(array $category_con
     }));
 }
 
-function ll_tools_get_prompt_card_ids_for_category_context(array $category_context, array $wordset_terms = []): array {
-    $args = ll_tools_get_prompt_card_query_args_for_category_context($category_context, $wordset_terms, [
+function ll_tools_get_prompt_card_ids_for_category_context(array $category_context, array $wordset_terms = [], int $limit = -1): array {
+    $overrides = [
         'fields'                 => 'ids',
         'update_post_meta_cache' => false,
         'update_post_term_cache' => false,
-    ]);
+    ];
+    if ($limit > 0) {
+        $overrides['posts_per_page'] = $limit;
+    }
+    $args = ll_tools_get_prompt_card_query_args_for_category_context($category_context, $wordset_terms, $overrides);
 
     return array_values(array_filter(array_map('intval', (array) get_posts($args)), static function (int $post_id): bool {
         return $post_id > 0;

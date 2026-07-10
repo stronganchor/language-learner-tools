@@ -621,6 +621,7 @@ wordset can opt into it.
 - Wordset scope is strict: learn/practice/listening flows must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
 - Wordset isolation is canonical: when code crosses from wordsets to categories, resolve through the effective wordset/category helpers instead of assuming legacy global category ids still apply.
 - Wordset-page activity launches and recommendations must enforce a hard minimum pool of 5 available words (after applying session/category filters); do not launch or suggest an activity below that threshold.
+- Vocab-lesson prompt-card mode detection must use the capped ID-only summary path; full prompt-card rows belong in the deferred grid request, not the initial lesson template render.
 - Wordset-page chunking must preserve full coverage of the filtered word pool and distribute words across chunks without dropping leftovers (use balanced chunk sizes instead of creating tiny tail chunks that strand words).
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
 - Learning-mode bootstrap should introduce a non-conflicting initial pair when possible so the first round remains distinguishable.

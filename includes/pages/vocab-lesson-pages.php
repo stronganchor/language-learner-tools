@@ -823,12 +823,8 @@ function ll_tools_vocab_lesson_category_requires_images($category, int $wordset_
         : (($prompt_type === 'image') || ($option_type === 'image'));
 }
 
-function ll_tools_get_vocab_lesson_prompt_card_posts(int $wordset_id, $category, bool $deepest_only = true): array {
-    if (
-        $wordset_id <= 0
-        || !function_exists('ll_tools_get_prompt_card_posts_for_category_context')
-        || !function_exists('ll_tools_get_prompt_card_data')
-    ) {
+function ll_tools_get_vocab_lesson_prompt_card_category_context(int $wordset_id, $category): array {
+    if ($wordset_id <= 0) {
         return [];
     }
 
@@ -868,12 +864,51 @@ function ll_tools_get_vocab_lesson_prompt_card_posts(int $wordset_id, $category,
         'query_terms' => $category_ids,
     ];
 
+    return $category_context;
+}
+
+function ll_tools_get_vocab_lesson_prompt_card_summary(int $wordset_id, $category, int $shell_limit = 3): array {
+    $summary = [
+        'has_cards' => false,
+        'shell_count' => 0,
+    ];
+    if (!function_exists('ll_tools_get_prompt_card_ids_for_category_context')) {
+        return $summary;
+    }
+
+    $category_context = ll_tools_get_vocab_lesson_prompt_card_category_context($wordset_id, $category);
+    if (empty($category_context)) {
+        return $summary;
+    }
+
+    $shell_limit = max(1, min(3, $shell_limit));
+    $ids = ll_tools_get_prompt_card_ids_for_category_context($category_context, [$wordset_id], $shell_limit);
+
+    return [
+        'has_cards' => !empty($ids),
+        'shell_count' => count($ids),
+    ];
+}
+
+function ll_tools_get_vocab_lesson_prompt_card_posts(int $wordset_id, $category, bool $deepest_only = true): array {
+    if (
+        !function_exists('ll_tools_get_prompt_card_posts_for_category_context')
+        || !function_exists('ll_tools_get_prompt_card_data')
+    ) {
+        return [];
+    }
+
+    $category_context = ll_tools_get_vocab_lesson_prompt_card_category_context($wordset_id, $category);
+    if (empty($category_context)) {
+        return [];
+    }
+
     $posts = ll_tools_get_prompt_card_posts_for_category_context($category_context, [$wordset_id]);
     if (!$deepest_only || empty($posts) || !function_exists('ll_get_deepest_categories')) {
         return $posts;
     }
 
-    $category_lookup = array_fill_keys($category_ids, true);
+    $category_lookup = array_fill_keys((array) ($category_context['query_terms'] ?? []), true);
     return array_values(array_filter($posts, static function ($post) use ($category_lookup): bool {
         if (!($post instanceof WP_Post) || empty($post->ID)) {
             return false;
