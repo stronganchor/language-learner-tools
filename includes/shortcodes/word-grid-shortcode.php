@@ -7217,6 +7217,123 @@ function ll_tools_lesson_recording_belongs_to(int $recording_id, int $wordset_id
     return true;
 }
 
+function ll_tools_word_grid_recording_batch_size(): int {
+    return max(1, min(50, (int) apply_filters('ll_tools_word_grid_recording_batch_size', 25)));
+}
+
+/**
+ * Return one stable recording-ID page for a lesson without hydrating the full lesson.
+ *
+ * @return array{ids:int[],next_after_id:int,has_more:bool,scanned:int}
+ */
+function ll_tools_get_lesson_recording_ids_batch(
+    int $wordset_id,
+    int $category_id,
+    int $after_id = 0,
+    int $limit = 0,
+    string $target_meta_key = '',
+    string $meta_mode = 'all'
+): array {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    $category_id = max(0, $category_id);
+    $after_id = max(0, $after_id);
+    $limit = $limit > 0 ? min(50, $limit) : ll_tools_word_grid_recording_batch_size();
+    $target_meta_key = in_array($target_meta_key, ['recording_text', 'recording_ipa'], true)
+        ? $target_meta_key
+        : '';
+    $meta_mode = in_array($meta_mode, ['all', 'missing', 'present'], true) ? $meta_mode : 'all';
+
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        return [
+            'ids' => [],
+            'next_after_id' => $after_id,
+            'has_more' => false,
+            'scanned' => 0,
+        ];
+    }
+
+    $meta_condition = '';
+    if ($target_meta_key !== '' && $meta_mode !== 'all') {
+        $exists_sql = $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->postmeta} target_meta
+             WHERE target_meta.post_id = recording.ID
+               AND target_meta.meta_key = %s
+               AND TRIM(target_meta.meta_value) <> ''",
+            $target_meta_key
+        );
+        $meta_condition = $meta_mode === 'present'
+            ? " AND EXISTS ({$exists_sql})"
+            : " AND NOT EXISTS ({$exists_sql})";
+    }
+
+    $sql = $wpdb->prepare(
+        "SELECT DISTINCT recording.ID AS recording_id, word.ID AS word_id
+         FROM {$wpdb->posts} recording
+         INNER JOIN {$wpdb->posts} word
+            ON word.ID = recording.post_parent
+           AND word.post_type = 'words'
+           AND word.post_status = 'publish'
+         INNER JOIN {$wpdb->term_relationships} wordset_relationship
+            ON wordset_relationship.object_id = word.ID
+         INNER JOIN {$wpdb->term_taxonomy} wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationship.term_taxonomy_id
+           AND wordset_taxonomy.taxonomy = 'wordset'
+           AND wordset_taxonomy.term_id = %d
+         INNER JOIN {$wpdb->term_relationships} category_relationship
+            ON category_relationship.object_id = word.ID
+         INNER JOIN {$wpdb->term_taxonomy} category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationship.term_taxonomy_id
+           AND category_taxonomy.taxonomy = 'word-category'
+           AND category_taxonomy.term_id = %d
+         WHERE recording.post_type = 'word_audio'
+           AND recording.post_status = 'publish'
+           AND recording.ID > %d
+           {$meta_condition}
+         ORDER BY recording.ID ASC
+         LIMIT %d",
+        $wordset_id,
+        $category_id,
+        $after_id,
+        $limit + 1
+    );
+    $rows = $wpdb->get_results($sql, ARRAY_A);
+    $rows = is_array($rows) ? $rows : [];
+    $has_more = count($rows) > $limit;
+    $rows = array_slice($rows, 0, $limit);
+    $next_after_id = !empty($rows) ? max(array_map(static function (array $row): int {
+        return (int) ($row['recording_id'] ?? 0);
+    }, $rows)) : $after_id;
+
+    $word_ids = array_values(array_unique(array_filter(array_map(static function (array $row): int {
+        return (int) ($row['word_id'] ?? 0);
+    }, $rows))));
+    if (!empty($word_ids) && function_exists('ll_tools_word_grid_filter_word_ids_to_deepest_category')) {
+        $word_ids = ll_tools_word_grid_filter_word_ids_to_deepest_category($word_ids, $category_id);
+    }
+    if (!empty($word_ids) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+        $word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($word_ids);
+    }
+    $allowed_word_lookup = array_fill_keys(array_map('intval', $word_ids), true);
+
+    $recording_ids = [];
+    foreach ($rows as $row) {
+        $recording_id = (int) ($row['recording_id'] ?? 0);
+        $word_id = (int) ($row['word_id'] ?? 0);
+        if ($recording_id > 0 && isset($allowed_word_lookup[$word_id])) {
+            $recording_ids[] = $recording_id;
+        }
+    }
+
+    return [
+        'ids' => $recording_ids,
+        'next_after_id' => $next_after_id,
+        'has_more' => $has_more,
+        'scanned' => count($rows),
+    ];
+}
+
 function ll_tools_word_grid_user_can_manage_wordset_scope(int $wordset_id): bool {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
@@ -10322,23 +10439,20 @@ function ll_tools_get_lesson_transcribe_queue_handler() {
         ? 'recording_ipa'
         : 'recording_text';
     $uses_local_browser = !empty($transcription_service['uses_local_browser']);
-
-    $word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
-    if (empty($word_ids)) {
-        wp_send_json_success([
-            'queue' => [],
-            'total' => 0,
-        ]);
+    $after_id = max(0, (int) ($_POST['after_id'] ?? 0));
+    $recording_batch = ll_tools_get_lesson_recording_ids_batch(
+        $wordset_id,
+        $category_id,
+        $after_id,
+        0,
+        $target_meta_key,
+        $include_existing ? 'all' : 'missing'
+    );
+    $recording_ids = array_values(array_map('intval', (array) ($recording_batch['ids'] ?? [])));
+    if (!empty($recording_ids)) {
+        update_meta_cache('post', $recording_ids);
+        _prime_post_caches($recording_ids, false, false);
     }
-
-    $recording_ids = get_posts([
-        'post_type'      => 'word_audio',
-        'post_status'    => 'publish',
-        'post_parent__in'=> $word_ids,
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ]);
 
     $queue = [];
     foreach ($recording_ids as $recording_id) {
@@ -10346,14 +10460,6 @@ function ll_tools_get_lesson_transcribe_queue_handler() {
         if ($recording_id <= 0) {
             continue;
         }
-        $current_value = trim((string) get_post_meta($recording_id, $target_meta_key, true));
-        if (!$include_existing && $current_value !== '') {
-            continue;
-        }
-        if (!ll_tools_lesson_recording_belongs_to($recording_id, $wordset_id, $category_id)) {
-            continue;
-        }
-
         $queue_item = [
             'recording_id' => $recording_id,
         ];
@@ -10376,6 +10482,8 @@ function ll_tools_get_lesson_transcribe_queue_handler() {
     wp_send_json_success([
         'queue' => $queue,
         'total' => count($queue),
+        'next_after_id' => (int) ($recording_batch['next_after_id'] ?? $after_id),
+        'has_more' => !empty($recording_batch['has_more']),
     ]);
 }
 
@@ -10401,31 +10509,21 @@ function ll_tools_clear_lesson_transcriptions_handler() {
         wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
     $target_meta_key = ll_tools_word_grid_get_transcription_target_meta_key($wordset_id);
-
-    $word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
-    if (empty($word_ids)) {
-        wp_send_json_success([
-            'cleared' => [],
-            'total' => 0,
-        ]);
-    }
-
-    $recording_ids = get_posts([
-        'post_type'      => 'word_audio',
-        'post_status'    => 'publish',
-        'post_parent__in'=> $word_ids,
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ]);
+    $after_id = max(0, (int) ($_POST['after_id'] ?? 0));
+    $recording_batch = ll_tools_get_lesson_recording_ids_batch(
+        $wordset_id,
+        $category_id,
+        $after_id,
+        0,
+        '',
+        'all'
+    );
+    $recording_ids = array_values(array_map('intval', (array) ($recording_batch['ids'] ?? [])));
 
     $cleared = [];
     foreach ($recording_ids as $recording_id) {
         $recording_id = (int) $recording_id;
         if ($recording_id <= 0) {
-            continue;
-        }
-        if (!ll_tools_lesson_recording_belongs_to($recording_id, $wordset_id, $category_id)) {
             continue;
         }
         if ($target_meta_key === 'recording_ipa') {
@@ -10437,7 +10535,7 @@ function ll_tools_clear_lesson_transcriptions_handler() {
         $cleared[] = $recording_id;
     }
 
-    if ($target_meta_key === 'recording_ipa') {
+    if ($target_meta_key === 'recording_ipa' && empty($recording_batch['has_more'])) {
         if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
             ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
         }
@@ -10449,6 +10547,8 @@ function ll_tools_clear_lesson_transcriptions_handler() {
     wp_send_json_success([
         'cleared' => $cleared,
         'total' => count($cleared),
+        'next_after_id' => (int) ($recording_batch['next_after_id'] ?? $after_id),
+        'has_more' => !empty($recording_batch['has_more']),
     ]);
 }
 

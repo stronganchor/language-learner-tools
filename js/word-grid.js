@@ -9774,14 +9774,16 @@
                         return;
                     }
 
-                    state.request = $.post(ajaxUrl, {
+                    const saveRequest = $.post(ajaxUrl, {
                         action: 'll_tools_transcribe_recording_by_id',
                         nonce: editNonce,
                         lesson_id: lessonId,
                         recording_id: recordingId,
                         force: state.force ? 1 : 0,
                         local_transcript: localTranscript
-                    }).done(function (res) {
+                    });
+                    state.request = saveRequest;
+                    saveRequest.done(function (res) {
                         if (state.cancelled) {
                             finishTranscribe($wrap, transcribeMessages.cancelled, false);
                             return;
@@ -9810,7 +9812,9 @@
                         state.hadError = true;
                         processNext();
                     }).always(function () {
-                        state.request = null;
+                        if (state.request === saveRequest) {
+                            state.request = null;
+                        }
                     });
                 })
                 .catch(function (err) {
@@ -9856,132 +9860,177 @@
             $wrap.attr('aria-busy', 'true');
             setTranscribeStatus($wrap, transcribeMessages.working, false);
 
-            state.request = $.post(ajaxUrl, {
-                action: 'll_tools_get_lesson_transcribe_queue',
-                nonce: editNonce,
-                lesson_id: lessonId,
-                mode: mode
-            }).done(function (response) {
+            let nextAfterId = 0;
+            let hasMore = true;
+            let foundAny = false;
+            let processNext;
+
+            const finishCurrentRun = function () {
+                if (!foundAny) {
+                    finishTranscribe($wrap, transcribeMessages.none, false);
+                    return;
+                }
+                const message = state.hadError ? transcribeMessages.error : transcribeMessages.done;
+                finishTranscribe($wrap, message, state.hadError);
+            };
+
+            const fetchNextBatch = function () {
                 if (state.cancelled) {
                     finishTranscribe($wrap, transcribeMessages.cancelled, false);
                     return;
                 }
-                if (!response || response.success !== true) {
-                    finishTranscribe($wrap, transcribeMessages.error, true);
-                    return;
-                }
-                const data = response.data || {};
-                const queue = Array.isArray(data.queue) ? data.queue.slice() : [];
-                const total = parseInt(data.total, 10) || queue.length;
-                if (!queue.length) {
-                    finishTranscribe($wrap, transcribeMessages.none, false);
-                    return;
-                }
-
-                state.queue = queue;
-                state.total = total;
-                state.completed = 0;
-
-                const processNext = function () {
+                const requestedAfterId = nextAfterId;
+                const queueRequest = $.post(ajaxUrl, {
+                    action: 'll_tools_get_lesson_transcribe_queue',
+                    nonce: editNonce,
+                    lesson_id: lessonId,
+                    mode: mode,
+                    after_id: requestedAfterId
+                });
+                state.request = queueRequest;
+                queueRequest.done(function (response) {
+                    if (state.request === queueRequest) {
+                        state.request = null;
+                    }
                     if (state.cancelled) {
                         finishTranscribe($wrap, transcribeMessages.cancelled, false);
                         return;
                     }
-                    if (!state.queue.length) {
-                        const message = state.hadError ? transcribeMessages.error : transcribeMessages.done;
-                        finishTranscribe($wrap, message, state.hadError);
+                    if (!response || response.success !== true) {
+                        finishTranscribe($wrap, transcribeMessages.error, true);
                         return;
                     }
-
-                    const next = state.queue.shift();
-                    const recordingId = parseInt(next.recording_id, 10) || 0;
-                    if (!recordingId) {
-                        processNext();
+                    const data = response.data || {};
+                    const queue = Array.isArray(data.queue) ? data.queue.slice() : [];
+                    const responseAfterId = parseInt(data.next_after_id, 10) || requestedAfterId;
+                    hasMore = !!data.has_more;
+                    if (hasMore && responseAfterId <= requestedAfterId) {
+                        finishTranscribe($wrap, transcribeMessages.error, true);
                         return;
                     }
-
-                    state.completed += 1;
-                    setTranscribeStatus(
-                        $wrap,
-                        formatTranscribeProgress(transcribeMessages.progress, state.completed, state.total),
-                        false
-                    );
-
-                    const requestTranscription = function (transcriptId, attempt) {
-                        const payload = {
-                            action: 'll_tools_transcribe_recording_by_id',
-                            nonce: editNonce,
-                            lesson_id: lessonId,
-                            recording_id: recordingId,
-                            force: state.force ? 1 : 0
-                        };
-                        if (transcriptId) {
-                            payload.transcript_id = transcriptId;
-                        }
-
-                        state.request = $.post(ajaxUrl, payload).done(function (res) {
-                            if (state.cancelled) {
-                                finishTranscribe($wrap, transcribeMessages.cancelled, false);
-                                return;
-                            }
-                            if (!res || res.success !== true) {
-                                state.hadError = true;
-                                processNext();
-                                return;
-                            }
-
-                            const data = res.data || {};
-                            if (data.pending) {
-                                const nextTranscriptId = typeof data.transcript_id === 'string' ? data.transcript_id : '';
-                                if (!nextTranscriptId || (attempt + 1) >= transcribePollAttempts) {
-                                    state.hadError = true;
-                                    processNext();
-                                    return;
-                                }
-                                state.pollTimer = window.setTimeout(function () {
-                                    state.pollTimer = null;
-                                    requestTranscription(nextTranscriptId, attempt + 1);
-                                }, transcribePollIntervalMs);
-                                return;
-                            }
-
-                            const rec = data.recording ? data.recording : null;
-                            if (rec) {
-                                applyRecordingUpdate(rec);
-                            }
-                            const word = data.word ? data.word : null;
-                            if (word) {
-                                applyWordUpdate(word);
-                            }
-                            processNext();
-                        }).fail(function () {
-                            if (state.cancelled) {
-                                finishTranscribe($wrap, transcribeMessages.cancelled, false);
-                                return;
-                            }
-                            state.hadError = true;
-                            processNext();
-                        }).always(function () {
-                            state.request = null;
-                        });
-                    };
-
-                    if (transcribeUsesLocalBrowser) {
-                        processLocalTranscription($wrap, lessonId, state, next, recordingId, processNext);
+                    nextAfterId = responseAfterId;
+                    state.queue = queue;
+                    state.total += queue.length;
+                    if (queue.length) {
+                        foundAny = true;
+                    }
+                    if (hasMore && state.total <= state.completed) {
+                        state.total = state.completed + 1;
+                    }
+                    processNext();
+                }).fail(function () {
+                    if (state.request === queueRequest) {
+                        state.request = null;
+                    }
+                    if (state.cancelled) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
                         return;
                     }
+                    finishTranscribe($wrap, transcribeMessages.error, true);
+                });
+            };
 
-                    requestTranscription('', 0);
-                };
-
-                processNext();
-            }).fail(function () {
+            processNext = function () {
                 if (state.cancelled) {
                     finishTranscribe($wrap, transcribeMessages.cancelled, false);
                     return;
                 }
-                finishTranscribe($wrap, transcribeMessages.error, true);
-            });
+                if (!state.queue.length) {
+                    if (hasMore) {
+                        fetchNextBatch();
+                    } else {
+                        finishCurrentRun();
+                    }
+                    return;
+                }
+
+                const next = state.queue.shift();
+                const recordingId = parseInt(next.recording_id, 10) || 0;
+                if (!recordingId) {
+                    processNext();
+                    return;
+                }
+
+                state.completed += 1;
+                const visibleTotal = Math.max(state.total, state.completed + (hasMore ? 1 : 0));
+                setTranscribeStatus(
+                    $wrap,
+                    formatTranscribeProgress(transcribeMessages.progress, state.completed, visibleTotal),
+                    false
+                );
+
+                const requestTranscription = function (transcriptId, attempt) {
+                    const payload = {
+                        action: 'll_tools_transcribe_recording_by_id',
+                        nonce: editNonce,
+                        lesson_id: lessonId,
+                        recording_id: recordingId,
+                        force: state.force ? 1 : 0
+                    };
+                    if (transcriptId) {
+                        payload.transcript_id = transcriptId;
+                    }
+
+                    const transcriptionRequest = $.post(ajaxUrl, payload);
+                    state.request = transcriptionRequest;
+                    transcriptionRequest.done(function (res) {
+                        if (state.cancelled) {
+                            finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                            return;
+                        }
+                        if (!res || res.success !== true) {
+                            state.hadError = true;
+                            processNext();
+                            return;
+                        }
+
+                        const data = res.data || {};
+                        if (data.pending) {
+                            const nextTranscriptId = typeof data.transcript_id === 'string' ? data.transcript_id : '';
+                            if (!nextTranscriptId || (attempt + 1) >= transcribePollAttempts) {
+                                state.hadError = true;
+                                processNext();
+                                return;
+                            }
+                            state.pollTimer = window.setTimeout(function () {
+                                state.pollTimer = null;
+                                requestTranscription(nextTranscriptId, attempt + 1);
+                            }, transcribePollIntervalMs);
+                            return;
+                        }
+
+                        const rec = data.recording ? data.recording : null;
+                        if (rec) {
+                            applyRecordingUpdate(rec);
+                        }
+                        const word = data.word ? data.word : null;
+                        if (word) {
+                            applyWordUpdate(word);
+                        }
+                        processNext();
+                    }).fail(function () {
+                        if (state.cancelled) {
+                            finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                            return;
+                        }
+                        state.hadError = true;
+                        processNext();
+                    }).always(function () {
+                        if (state.request === transcriptionRequest) {
+                            state.request = null;
+                        }
+                    });
+                };
+
+                if (transcribeUsesLocalBrowser) {
+                    processLocalTranscription($wrap, lessonId, state, next, recordingId, processNext);
+                    return;
+                }
+
+                requestTranscription('', 0);
+            };
+
+            fetchNextBatch();
         }
 
         function runClearCaptions($wrap, lessonId) {
@@ -9998,34 +10047,64 @@
             $wrap.attr('aria-busy', 'true');
             setTranscribeStatus($wrap, transcribeMessages.clearing, false);
 
-            state.request = $.post(ajaxUrl, {
-                action: 'll_tools_clear_lesson_transcriptions',
-                nonce: editNonce,
-                lesson_id: lessonId
-            }).done(function (response) {
-                if (state.cancelled) {
-                    finishTranscribe($wrap, transcribeMessages.cancelled, false);
-                    return;
-                }
-                if (!response || response.success !== true) {
+            let nextAfterId = 0;
+            let clearedAny = false;
+            const clearNextBatch = function () {
+                const requestedAfterId = nextAfterId;
+                const clearRequest = $.post(ajaxUrl, {
+                    action: 'll_tools_clear_lesson_transcriptions',
+                    nonce: editNonce,
+                    lesson_id: lessonId,
+                    after_id: requestedAfterId
+                });
+                state.request = clearRequest;
+                clearRequest.done(function (response) {
+                    if (state.request === clearRequest) {
+                        state.request = null;
+                    }
+                    if (state.cancelled) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                        return;
+                    }
+                    if (!response || response.success !== true) {
+                        finishTranscribe($wrap, transcribeMessages.error, true);
+                        return;
+                    }
+                    const data = response.data || {};
+                    const cleared = Array.isArray(data.cleared) ? data.cleared : [];
+                    if (cleared.length) {
+                        clearedAny = true;
+                        applyClearedRecordings(cleared);
+                    }
+                    const hasMore = !!data.has_more;
+                    const responseAfterId = parseInt(data.next_after_id, 10) || requestedAfterId;
+                    if (hasMore) {
+                        if (responseAfterId <= requestedAfterId) {
+                            finishTranscribe($wrap, transcribeMessages.error, true);
+                            return;
+                        }
+                        nextAfterId = responseAfterId;
+                        clearNextBatch();
+                        return;
+                    }
+                    finishTranscribe(
+                        $wrap,
+                        clearedAny ? transcribeMessages.cleared : transcribeMessages.none,
+                        false
+                    );
+                }).fail(function () {
+                    if (state.request === clearRequest) {
+                        state.request = null;
+                    }
+                    if (state.cancelled) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                        return;
+                    }
                     finishTranscribe($wrap, transcribeMessages.error, true);
-                    return;
-                }
-                const data = response.data || {};
-                const cleared = Array.isArray(data.cleared) ? data.cleared : [];
-                if (cleared.length) {
-                    applyClearedRecordings(cleared);
-                    finishTranscribe($wrap, transcribeMessages.cleared, false);
-                } else {
-                    finishTranscribe($wrap, transcribeMessages.none, false);
-                }
-            }).fail(function () {
-                if (state.cancelled) {
-                    finishTranscribe($wrap, transcribeMessages.cancelled, false);
-                    return;
-                }
-                finishTranscribe($wrap, transcribeMessages.error, true);
-            });
+                });
+            };
+
+            clearNextBatch();
         }
 
         function cancelLessonTranscription($wrap) {
