@@ -2188,6 +2188,41 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) (($create_data['job']['total'] ?? 0)));
     }
 
+    public function test_transcription_validation_candidate_query_is_capped_and_wordset_scoped(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'REST Validation Query Wordset', 'rest-validation-query-wordset');
+        $other_wordset_id = $this->ensure_term('wordset', 'REST Validation Query Other Wordset', 'rest-validation-query-other-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Validation Query Category', 'rest-validation-query-category');
+
+        $first_word_id = $this->create_word($wordset_id, [$category_id], 'REST Validation Query First', 'First');
+        $second_word_id = $this->create_word($wordset_id, [$category_id], 'REST Validation Query Second', 'Second');
+        $third_word_id = $this->create_word($wordset_id, [$category_id], 'REST Validation Query Third', 'Third');
+        $other_word_id = $this->create_word($other_wordset_id, [$category_id], 'REST Validation Query Other', 'Other');
+
+        $first_recording_id = $this->create_recording($first_word_id, 'ma', 'ma');
+        $second_recording_id = $this->create_recording($second_word_id, 'ma', 'ma');
+        $third_recording_id = $this->create_recording($third_word_id, 'ma', 'ma');
+        $other_recording_id = $this->create_recording($other_word_id, 'ma', 'ma');
+
+        update_post_meta($first_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+        update_post_meta($second_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+        delete_post_meta($third_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key());
+        update_post_meta($other_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        $this->assertSame(
+            [$first_recording_id],
+            ll_tools_rest_automation_transcription_validation_query_recording_ids($wordset_id, 1, 'issues')
+        );
+        $this->assertSame(
+            [$first_recording_id, $second_recording_id],
+            ll_tools_rest_automation_transcription_validation_query_recording_ids($wordset_id, 10, 'issues')
+        );
+        $this->assertSame(
+            [$first_recording_id, $second_recording_id, $third_recording_id],
+            ll_tools_rest_automation_transcription_validation_query_recording_ids($wordset_id, 10, 'all')
+        );
+    }
+
     public function test_transcription_validation_job_updates_only_target_wordset_state(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

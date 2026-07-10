@@ -7,7 +7,8 @@ category regression alignment, dictionary detail linked-word cap, AI crawler
 export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
 flake-tracking closeout, and the July 3 audio credit grid, vocab lesson grid,
 image copyright grid public-surface guards, plus the July 10 Turkish i18n,
-testing-doc drift cleanup, and dictionary toolbar AJAX cold-miss guard.
+testing-doc drift cleanup, dictionary toolbar AJAX cold-miss guard, and
+transcription-validation candidate query cap.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -21,6 +22,13 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 transcription-validation candidate query cap:
+  transcription validation refreshes and validation-job creation now select
+  candidate `word_audio` IDs with a capped SQL query joined through the parent
+  word's `wordset` term instead of first materializing every word ID in the
+  wordset. Existing per-recording membership and stale-state checks remain as
+  a second safety layer. `AutomationRestApiTest` covers cap behavior, wordset
+  scoping, and issue-only versus all-recording candidate scopes.
 - July 10 dictionary toolbar AJAX cold-miss guard:
   anonymous `ll_tools_dictionary_toolbar_bootstrap` cache misses now use a
   short option-backed build lock keyed to the same normalized AJAX cache key.

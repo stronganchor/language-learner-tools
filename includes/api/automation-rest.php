@@ -5566,39 +5566,11 @@ function ll_tools_rest_automation_refresh_transcription_validations(WP_REST_Requ
         ? rest_sanitize_boolean($request->get_param('stale_only'))
         : true;
 
-    $word_ids = get_objects_in_term($wordset_id, 'wordset');
-    if (is_wp_error($word_ids)) {
-        return ll_tools_rest_automation_error(
-            'll_tools_rest_validation_wordset_lookup_failed',
-            $word_ids->get_error_message(),
-            500
-        );
-    }
-    $word_ids = array_values(array_unique(array_filter(array_map('intval', (array) $word_ids))));
-    $candidate_ids = [];
-    if (!empty($word_ids)) {
-        $candidate_ids = get_posts([
-            'post_type' => 'word_audio',
-            'post_status' => 'publish',
-            'post_parent__in' => $word_ids,
-            'posts_per_page' => $scan_limit,
-            'orderby' => 'ID',
-            'order' => 'ASC',
-            'fields' => 'ids',
-            'no_found_rows' => true,
-            'update_post_meta_cache' => true,
-            'update_post_term_cache' => false,
-            'meta_query' => [
-                [
-                    'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
-                    'value' => 0,
-                    'compare' => '>',
-                    'type' => 'NUMERIC',
-                ],
-            ],
-        ]);
-    }
-    $candidate_ids = array_values(array_map('intval', (array) $candidate_ids));
+    $candidate_ids = ll_tools_rest_automation_transcription_validation_query_recording_ids(
+        $wordset_id,
+        $scan_limit,
+        'issues'
+    );
 
     $summary = [
         'generated_at_gmt' => gmdate('c'),
@@ -5939,44 +5911,67 @@ function ll_tools_rest_automation_transcription_validation_candidate_scope(WP_RE
     return in_array($scope, ['issues', 'all'], true) ? $scope : 'issues';
 }
 
+function ll_tools_rest_automation_transcription_validation_query_recording_ids(int $wordset_id, int $max_candidates, string $candidate_scope = 'issues'): array {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    $max_candidates = max(1, $max_candidates);
+    $candidate_scope = in_array($candidate_scope, ['issues', 'all'], true) ? $candidate_scope : 'issues';
+    if ($wordset_id <= 0 || !isset($wpdb) || !is_object($wpdb)) {
+        return [];
+    }
+
+    $joins = [
+        "INNER JOIN {$wpdb->posts} parent_word
+                ON parent_word.ID = audio.post_parent
+               AND parent_word.post_type = 'words'",
+        "INNER JOIN {$wpdb->term_relationships} wordset_rel
+                ON wordset_rel.object_id = parent_word.ID",
+        "INNER JOIN {$wpdb->term_taxonomy} wordset_tt
+                ON wordset_tt.term_taxonomy_id = wordset_rel.term_taxonomy_id
+               AND wordset_tt.taxonomy = 'wordset'
+               AND wordset_tt.term_id = %d",
+    ];
+    $params = [$wordset_id];
+
+    if ($candidate_scope === 'issues') {
+        $joins[] = "INNER JOIN {$wpdb->postmeta} issue_meta
+                ON issue_meta.post_id = audio.ID
+               AND issue_meta.meta_key = %s
+               AND CAST(issue_meta.meta_value AS SIGNED) > 0";
+        $params[] = ll_tools_ipa_keyboard_validation_issue_count_meta_key();
+    }
+
+    $params[] = $max_candidates;
+    $sql = "
+        SELECT DISTINCT audio.ID
+        FROM {$wpdb->posts} audio
+        " . implode("\n", $joins) . "
+        WHERE audio.post_type = 'word_audio'
+          AND audio.post_status = 'publish'
+        ORDER BY audio.ID ASC
+        LIMIT %d
+    ";
+
+    $recording_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+    if (!empty($recording_ids)) {
+        if (function_exists('_prime_post_caches')) {
+            _prime_post_caches($recording_ids, false, false);
+        }
+        update_postmeta_cache($recording_ids);
+    }
+
+    return $recording_ids;
+}
+
 function ll_tools_rest_automation_transcription_validation_candidate_ids(int $wordset_id, int $max_candidates, bool $stale_only, string $candidate_scope = 'issues'): array {
     ll_tools_rest_automation_load_orthography_helpers();
 
-    $word_ids = get_objects_in_term($wordset_id, 'wordset');
-    if (is_wp_error($word_ids)) {
-        return [];
-    }
-
-    $word_ids = array_values(array_unique(array_filter(array_map('intval', (array) $word_ids))));
-    if (empty($word_ids)) {
-        return [];
-    }
-
-    $query_args = [
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'post_parent__in' => $word_ids,
-        'posts_per_page' => max(1, $max_candidates),
-        'orderby' => 'ID',
-        'order' => 'ASC',
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'update_post_meta_cache' => true,
-        'update_post_term_cache' => false,
-    ];
-
-    if ($candidate_scope === 'issues') {
-        $query_args['meta_query'] = [
-            [
-                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
-                'value' => 0,
-                'compare' => '>',
-                'type' => 'NUMERIC',
-            ],
-        ];
-    }
-
-    $recording_ids = get_posts($query_args);
+    $recording_ids = ll_tools_rest_automation_transcription_validation_query_recording_ids(
+        $wordset_id,
+        max(1, $max_candidates),
+        $candidate_scope
+    );
 
     $candidate_ids = [];
     foreach (array_map('intval', (array) $recording_ids) as $recording_id) {
