@@ -796,17 +796,30 @@ function ll_tools_filter_content_lesson_prereq_lesson_ids_for_wordset(int $words
     $exclude_lesson_id = max(0, $exclude_lesson_id);
     $lesson_ids = ll_tools_content_lesson_normalize_lesson_ids($lesson_ids);
 
-    if ($wordset_id <= 0) {
+    if ($wordset_id <= 0 || empty($lesson_ids)) {
         return [];
     }
 
-    $allowed_lesson_ids = [];
-    foreach (ll_tools_get_content_lesson_prereq_lesson_option_rows($wordset_id, $exclude_lesson_id) as $row) {
-        $allowed_lesson_id = isset($row['id']) ? (int) $row['id'] : 0;
-        if ($allowed_lesson_id > 0) {
-            $allowed_lesson_ids[$allowed_lesson_id] = true;
-        }
-    }
+    $allowed_lesson_ids = get_posts([
+        'post_type' => 'll_content_lesson',
+        'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page' => count($lesson_ids),
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'orderby' => 'post__in',
+        'post__in' => $lesson_ids,
+        'post__not_in' => $exclude_lesson_id > 0 ? [$exclude_lesson_id] : [],
+        'cache_results' => false,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_query' => [
+            [
+                'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ],
+        ],
+    ]);
+    $allowed_lesson_ids = array_fill_keys(array_map('intval', (array) $allowed_lesson_ids), true);
 
     if (empty($allowed_lesson_ids)) {
         return [];

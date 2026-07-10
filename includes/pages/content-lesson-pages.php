@@ -238,18 +238,63 @@ function ll_tools_get_content_lessons_for_wordset(int $wordset_id): array {
 }
 
 function ll_tools_get_content_lessons_for_vocab_lesson(int $wordset_id, int $category_id): array {
-    $lessons = ll_tools_get_content_lessons_for_wordset($wordset_id);
-    if ($category_id <= 0 || empty($lessons)) {
+    $wordset_id = max(0, $wordset_id);
+    $category_id = max(0, $category_id);
+    if ($wordset_id <= 0 || $category_id <= 0) {
         return [];
     }
 
+    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_id)) {
+        return [];
+    }
+
+    $limit = (int) apply_filters('ll_tools_vocab_lesson_related_content_lesson_limit', 6, $wordset_id, $category_id);
+    $limit = max(1, min(12, $limit));
+    $posts = get_posts([
+        'post_type' => 'll_content_lesson',
+        'post_status' => 'publish',
+        'posts_per_page' => $limit,
+        'orderby' => 'menu_order title',
+        'order' => 'ASC',
+        'no_found_rows' => true,
+        'meta_query' => [
+            'relation' => 'AND',
+            [
+                'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ],
+            [
+                'relation' => 'OR',
+                [
+                    'key' => LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META,
+                    'value' => 'i:' . $category_id . ';',
+                    'compare' => 'LIKE',
+                ],
+                [
+                    'key' => LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META,
+                    'value' => '"' . $category_id . '"',
+                    'compare' => 'LIKE',
+                ],
+            ],
+            [
+                'relation' => 'OR',
+                [
+                    'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
+                    'compare' => 'NOT EXISTS',
+                ],
+                [
+                    'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
+                    'value' => 'corpus_text',
+                    'compare' => '!=',
+                ],
+            ],
+        ],
+    ]);
+
     $matches = [];
-    foreach ($lessons as $lesson) {
-        $category_ids = isset($lesson['category_ids']) && is_array($lesson['category_ids'])
-            ? array_map('intval', $lesson['category_ids'])
-            : [];
-        if (in_array($category_id, $category_ids, true)) {
-            $matches[] = $lesson;
+    foreach ((array) $posts as $post) {
+        if ($post instanceof WP_Post) {
+            $matches[] = ll_tools_get_content_lesson_card_data($post);
         }
     }
 

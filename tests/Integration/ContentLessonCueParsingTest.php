@@ -114,6 +114,65 @@ TSV;
         $this->assertNotSame('', (string) $related_vocab_items[0]['url']);
     }
 
+    public function test_vocab_lesson_related_content_query_is_category_targeted_and_bounded(): void
+    {
+        $wordset = wp_insert_term('Targeted Lesson Wordset', 'wordset', ['slug' => 'targeted-lesson-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $target_category = wp_insert_term('Targeted Lesson Category', 'word-category', ['slug' => 'targeted-lesson-category']);
+        $other_category = wp_insert_term('Unrelated Lesson Category', 'word-category', ['slug' => 'unrelated-lesson-category']);
+        $this->assertIsArray($target_category);
+        $this->assertIsArray($other_category);
+        $target_category_id = (int) $target_category['term_id'];
+        $other_category_id = (int) $other_category['term_id'];
+
+        for ($index = 1; $index <= 15; $index++) {
+            $lesson_id = self::factory()->post->create([
+                'post_type' => 'll_content_lesson',
+                'post_status' => 'publish',
+                'post_title' => 'Unrelated Content Lesson ' . $index,
+            ]);
+            update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+            update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, [$other_category_id]);
+        }
+
+        $matching_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Matching Content Lesson',
+        ]);
+        update_post_meta($matching_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($matching_lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, [$target_category_id]);
+
+        $query_limits = [];
+        $query_meta = [];
+        $query_watcher = static function (WP_Query $query) use (&$query_limits, &$query_meta): void {
+            if ($query->get('post_type') !== 'll_content_lesson') {
+                return;
+            }
+
+            $meta_query = $query->get('meta_query');
+            $query_limits[] = (int) $query->get('posts_per_page');
+            if (strpos((string) wp_json_encode($meta_query), LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META) !== false) {
+                $query_meta[] = $meta_query;
+            }
+        };
+        add_action('pre_get_posts', $query_watcher);
+        try {
+            $related_lessons = ll_tools_get_content_lessons_for_vocab_lesson($wordset_id, $target_category_id);
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+        }
+
+        $this->assertCount(1, $related_lessons);
+        $this->assertSame($matching_lesson_id, (int) $related_lessons[0]['id']);
+        $this->assertSame([6], $query_limits);
+        $this->assertNotContains(-1, $query_limits);
+        $this->assertStringContainsString(LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, wp_json_encode($query_meta));
+        $this->assertStringContainsString('i:' . $target_category_id . ';', wp_json_encode($query_meta));
+    }
+
     public function test_orphan_published_content_lesson_is_404_on_frontend(): void
     {
         $lesson_id = self::factory()->post->create([
