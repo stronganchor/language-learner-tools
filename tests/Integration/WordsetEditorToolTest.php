@@ -681,12 +681,12 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         );
     }
 
-    public function test_all_filtered_bulk_selection_still_includes_words_beyond_visible_page(): void
+    public function test_all_filtered_bulk_selection_is_capped_to_the_visible_page_limit(): void
     {
         $this->loginEditor();
         $fixture = $this->createFixture('wordset-editor-all-filtered-large');
         $wordset_id = (int) $fixture['wordset_id'];
-        $this->createPagedWords('All Filtered Large', $wordset_id, (int) $fixture['category_a_id'], 80);
+        $paged_word_ids = $this->createPagedWords('All Filtered Large', $wordset_id, (int) $fixture['category_a_id'], 80);
         $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
             ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
             : [];
@@ -698,10 +698,106 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         ];
 
         $selected_ids = ll_tools_wordset_editor_get_selected_word_ids_from_post($wordset_id, $category_rows);
+        $all_word_ids = array_merge([
+            (int) $fixture['alpha_word_id'],
+            (int) $fixture['beta_word_id'],
+        ], $paged_word_ids);
 
-        $this->assertCount(82, $selected_ids);
-        $this->assertContains((int) $fixture['alpha_word_id'], $selected_ids);
-        $this->assertContains((int) $fixture['beta_word_id'], $selected_ids);
+        $this->assertCount(75, $selected_ids);
+        $this->assertSame([], array_values(array_diff($selected_ids, $all_word_ids)));
+        $this->assertCount(7, array_diff($all_word_ids, $selected_ids));
+    }
+
+    public function test_large_all_filtered_bulk_action_uses_resumable_bounded_job_batches(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-bulk-job');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $paged_word_ids = $this->createPagedWords('Bulk Job Candidate', $wordset_id, (int) $fixture['category_a_id'], 80);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'draft',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_all_filtered' => '1',
+            'll_editor_sort' => 'word',
+            'll_editor_dir' => 'asc',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $queued_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+        $queued_query = $this->parseRedirectQuery($queued_redirect);
+        $job_id = sanitize_key((string) ($queued_query['ll_wordset_editor_bulk_job'] ?? ''));
+        $this->assertSame('bulk_queued', (string) ($queued_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertNotSame('', $job_id);
+        $job = ll_tools_wordset_editor_get_bulk_job($job_id);
+        $this->assertIsArray($job);
+        $this->assertSame(82, (int) ($job['total'] ?? 0));
+        $this->assertSame(0, (int) ($job['processed'] ?? -1));
+        $this->assertSame('publish', get_post_status((int) $fixture['alpha_word_id']));
+        foreach ($paged_word_ids as $word_id) {
+            $this->assertSame('publish', get_post_status($word_id));
+        }
+
+        $batch_count = 0;
+        do {
+            $_POST = [
+                'll_wordset_manager_editor_action' => 'process_bulk_job',
+                'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+                'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+                'll_wordset_editor_bulk_job_id' => $job_id,
+                'll_wordset_tool' => 'editor',
+            ];
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $this->captureRedirect(static function (): void {
+                ll_tools_wordset_page_handle_manager_editor_action();
+            });
+            $batch_count++;
+            $job = ll_tools_wordset_editor_get_bulk_job($job_id);
+            $this->assertIsArray($job);
+            $this->assertLessThanOrEqual($batch_count * ll_tools_wordset_editor_bulk_job_batch_size(), (int) ($job['processed'] ?? 0));
+            if ($batch_count === 1) {
+                $this->assertSame(25, (int) ($job['processed'] ?? 0));
+                $this->assertLessThan(80, count(array_filter($paged_word_ids, static function (int $word_id): bool {
+                    return get_post_status($word_id) === 'draft';
+                })));
+            }
+        } while ((string) ($job['status'] ?? '') !== 'complete' && $batch_count < 10);
+
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+        $this->assertSame(82, (int) ($job['processed'] ?? 0));
+        $this->assertSame(4, $batch_count);
+        $this->assertSame('draft', get_post_status((int) $fixture['alpha_word_id']));
+        foreach ($paged_word_ids as $word_id) {
+            $this->assertSame('draft', get_post_status($word_id));
+        }
+
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_wordset_editor_bulk_job' => $job_id,
+        ];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $html = ll_tools_wordset_page_render_settings_editor_tool(
+            $wordset_term,
+            $wordset_id,
+            '',
+            ll_tools_word_grid_get_category_editor_rows($wordset_id)
+        );
+        $this->assertStringContainsString('Bulk action progress', $html);
+        $this->assertStringContainsString('Processed 82 of 82', $html);
+        $this->assertStringContainsString('Batch complete.', $html);
+
+        delete_option(ll_tools_wordset_editor_bulk_job_option_key($job_id));
     }
 
     public function test_quick_update_changes_word_fields_and_is_undoable(): void

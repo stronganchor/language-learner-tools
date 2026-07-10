@@ -27568,3 +27568,104 @@ msgstr "Tek istekte çok fazla kelime ses kaydı konuşmacısı güncellemesi va
 #: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
 msgid "Too many active words were provided. Maximum is %d."
 msgstr "Çok fazla etkin kelime sağlandı. En fazla %d."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Continue legacy meta migration"
+msgstr "Eski meta taşımasına devam et"
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "%d values migrated so far. Continue with the next bounded batch."
+msgstr "Şimdiye kadar %d değer taşındı. Sonraki sınırlı toplu işlemle devam et."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Copies legacy values where the new meta is empty in bounded batches."
+msgstr "Yeni meta boş olduğunda eski değerleri sınırlı toplu işlemlerle kopyalar."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Bulk word import is limited to %s of pasted text per request."
+msgstr "Toplu kelime içe aktarma, istek başına %s yapıştırılmış metinle sınırlıdır."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Bulk word import is limited to %d row per request. Split the list and submit the remaining rows separately."
+msgid_plural "Bulk word import is limited to %d rows per request. Split the list and submit the remaining rows separately."
+msgstr[0] "Toplu kelime içe aktarma istek başına %d satırla sınırlıdır. Listeyi böl ve kalan satırları ayrı olarak gönder."
+msgstr[1] "Toplu kelime içe aktarma istek başına %d satırla sınırlıdır. Listeyi böl ve kalan satırları ayrı olarak gönder."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Showing the first %1$d of %2$d imported categories."
+msgstr "İçe aktarılan %2$d kategorinin ilk %1$d tanesi gösteriliyor."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Import job created. Processing will continue on the import page."
+msgstr "İçe aktarma görevi oluşturuldu. İşlem içe aktarma sayfasında devam edecek."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Import failed: selected zip file is missing."
+msgstr "İçe aktarma başarısız oldu: seçilen zip dosyası eksik."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "You do not have permission to export offline app bundles."
+msgstr "Çevrimdışı uygulama paketlerini dışa aktarma iznin yok."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Select a valid word set."
+msgstr "Geçerli bir kelime seti seç."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Categories could not be loaded. Select the word set again to retry."
+msgstr "Kategoriler yüklenemedi. Yeniden denemek için kelime setini tekrar seç."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Prompt audio import is limited to %s of pasted text per request."
+msgstr "İstem ses kaydı içe aktarma, istek başına %s yapıştırılmış metinle sınırlıdır."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Prompt audio import is limited to %d row per request. Split the list and submit the remaining rows separately."
+msgid_plural "Prompt audio import is limited to %d rows per request. Split the list and submit the remaining rows separately."
+msgstr[0] "İstem ses kaydı içe aktarma istek başına %d satırla sınırlıdır. Listeyi böl ve kalan satırları ayrı olarak gönder."
+msgstr[1] "İstem ses kaydı içe aktarma istek başına %d satırla sınırlıdır. Listeyi böl ve kalan satırları ayrı olarak gönder."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Unable to resolve the requested word category."
+msgstr "İstenen kelime kategorisi çözümlenemedi."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Prepared a batch job for %d word."
+msgid_plural "Prepared a batch job for %d words."
+msgstr[0] "%d kelime için toplu işlem görevi hazırlandı."
+msgstr[1] "%d kelime için toplu işlem görevi hazırlandı."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Completed the batch job with %d change."
+msgid_plural "Completed the batch job with %d changes."
+msgstr[0] "Toplu işlem görevi %d değişiklikle tamamlandı."
+msgstr[1] "Toplu işlem görevi %d değişiklikle tamamlandı."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Bulk action progress"
+msgstr "Toplu işlem ilerlemesi"
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+#, php-format
+msgid "Processed %1$d of %2$d. %3$d changed, %4$d skipped."
+msgstr "%2$d öğenin %1$d tanesi işlendi. %3$d değiştirildi, %4$d atlandı."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Continue batch"
+msgstr "Toplu işleme devam et"
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "Batch complete."
+msgstr "Toplu işlem tamamlandı."
+
+#. ll-tools-maintenance: 2026-07-10 bounded workflow batch
+msgid "No accessible recording word set was selected."
+msgstr "Ses kaydı için erişilebilir bir kelime seti seçilmedi."

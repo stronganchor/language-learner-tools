@@ -9,6 +9,10 @@ if (!defined('LL_TOOLS_WORDSET_EDITOR_SAVED_FILTERS_META')) {
     define('LL_TOOLS_WORDSET_EDITOR_SAVED_FILTERS_META', 'll_tools_wordset_editor_saved_filters');
 }
 
+if (!defined('LL_TOOLS_WORDSET_EDITOR_BULK_JOB_OPTION_PREFIX')) {
+    define('LL_TOOLS_WORDSET_EDITOR_BULK_JOB_OPTION_PREFIX', 'll_tools_wordset_editor_bulk_job_');
+}
+
 function ll_tools_wordset_editor_history_limit(): int {
     return 300;
 }
@@ -590,19 +594,199 @@ function ll_tools_wordset_editor_word_belongs_to_wordset(int $word_id, int $word
         && has_term($wordset_id, 'wordset', $word_id);
 }
 
+function ll_tools_wordset_editor_bulk_sync_limit(): int {
+    return max(1, min(75, (int) apply_filters('ll_tools_wordset_editor_bulk_sync_limit', 75)));
+}
+
+function ll_tools_wordset_editor_bulk_job_batch_size(): int {
+    return max(1, min(50, (int) apply_filters('ll_tools_wordset_editor_bulk_job_batch_size', 25)));
+}
+
+function ll_tools_wordset_editor_bulk_job_option_key(string $job_id): string {
+    $job_id = sanitize_key($job_id);
+    return $job_id !== '' ? LL_TOOLS_WORDSET_EDITOR_BULK_JOB_OPTION_PREFIX . $job_id : '';
+}
+
+function ll_tools_wordset_editor_get_bulk_job(string $job_id): ?array {
+    $option_key = ll_tools_wordset_editor_bulk_job_option_key($job_id);
+    if ($option_key === '') {
+        return null;
+    }
+
+    $job = get_option($option_key, null);
+    if (!is_array($job)) {
+        return null;
+    }
+    $updated_at = max(0, (int) ($job['updated_at'] ?? 0));
+    if ($updated_at > 0 && $updated_at < (time() - (7 * DAY_IN_SECONDS))) {
+        delete_option($option_key);
+        delete_option($option_key . '_lock');
+        return null;
+    }
+
+    return $job;
+}
+
+function ll_tools_wordset_editor_save_bulk_job(array $job): bool {
+    $job_id = sanitize_key((string) ($job['id'] ?? ''));
+    $option_key = ll_tools_wordset_editor_bulk_job_option_key($job_id);
+    if ($option_key === '') {
+        return false;
+    }
+
+    $job['id'] = $job_id;
+    $job['updated_at'] = time();
+    return update_option($option_key, $job, false);
+}
+
+function ll_tools_wordset_editor_bulk_job_is_accessible(array $job, int $wordset_id): bool {
+    return (int) ($job['wordset_id'] ?? 0) === $wordset_id
+        && (int) ($job['user_id'] ?? 0) === get_current_user_id()
+        && in_array(sanitize_key((string) ($job['status'] ?? '')), ['pending', 'running', 'complete'], true);
+}
+
+function ll_tools_wordset_editor_acquire_bulk_job_lock(string $job_id): bool {
+    $option_key = ll_tools_wordset_editor_bulk_job_option_key($job_id);
+    if ($option_key === '') {
+        return false;
+    }
+
+    $lock_key = $option_key . '_lock';
+    if (add_option($lock_key, time(), '', false)) {
+        return true;
+    }
+
+    $locked_at = max(0, (int) get_option($lock_key, 0));
+    if ($locked_at > 0 && $locked_at >= (time() - (2 * MINUTE_IN_SECONDS))) {
+        return false;
+    }
+
+    delete_option($lock_key);
+    return add_option($lock_key, time(), '', false);
+}
+
+function ll_tools_wordset_editor_release_bulk_job_lock(string $job_id): void {
+    $option_key = ll_tools_wordset_editor_bulk_job_option_key($job_id);
+    if ($option_key !== '') {
+        delete_option($option_key . '_lock');
+    }
+}
+
+function ll_tools_wordset_editor_create_bulk_job(int $wordset_id, string $action, array $filters, array $payload, int $total): array {
+    $job_id = sanitize_key(function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('ll-we-job-', true));
+    $now = time();
+    $job = [
+        'id'         => $job_id,
+        'wordset_id' => $wordset_id,
+        'user_id'    => get_current_user_id(),
+        'action'     => sanitize_key($action),
+        'filters'    => ll_tools_wordset_editor_get_filters_from_source(ll_tools_wordset_editor_filter_query_args_from_filters($filters)),
+        'payload'    => $payload,
+        'status'     => 'pending',
+        'cursor'     => 0,
+        'total'      => max(0, $total),
+        'processed'  => 0,
+        'changed'    => 0,
+        'blocked'    => 0,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ];
+    ll_tools_wordset_editor_save_bulk_job($job);
+
+    return $job;
+}
+
+function ll_tools_wordset_editor_query_bulk_job_batch(array $job, array $category_rows): array {
+    global $wpdb;
+
+    $wordset_id = (int) ($job['wordset_id'] ?? 0);
+    $filters = is_array($job['filters'] ?? null) ? (array) $job['filters'] : [];
+    $parts = ll_tools_wordset_editor_filtered_sql_parts($wordset_id, $category_rows, $filters);
+    $base_sql = (string) ($parts['sql'] ?? '');
+    $params = (array) ($parts['params'] ?? []);
+    if ($base_sql === '') {
+        return [
+            'ids'      => [],
+            'has_more' => false,
+        ];
+    }
+
+    $cursor = max(0, (int) ($job['cursor'] ?? 0));
+    $batch_size = ll_tools_wordset_editor_bulk_job_batch_size();
+    $sql = "SELECT DISTINCT p.ID {$base_sql} AND p.ID > %d ORDER BY p.ID ASC LIMIT %d";
+    $ids = ll_tools_wordset_editor_normalize_word_ids((array) $wpdb->get_col($wpdb->prepare(
+        $sql,
+        array_merge($params, [$cursor, $batch_size + 1])
+    )));
+    $has_more = count($ids) > $batch_size;
+
+    return [
+        'ids'      => array_slice($ids, 0, $batch_size),
+        'has_more' => $has_more,
+    ];
+}
+
+function ll_tools_wordset_editor_finish_bulk_job_batch(string $job_id, array $word_ids, int $changed, int $blocked, bool $has_more): void {
+    if ($job_id === '') {
+        return;
+    }
+
+    $job = ll_tools_wordset_editor_get_bulk_job($job_id);
+    if (!$job) {
+        return;
+    }
+
+    $word_ids = ll_tools_wordset_editor_normalize_word_ids($word_ids);
+    if (!empty($word_ids)) {
+        $job['cursor'] = max((int) ($job['cursor'] ?? 0), max($word_ids));
+    }
+    $job['processed'] = max(0, (int) ($job['processed'] ?? 0)) + count($word_ids);
+    $job['changed'] = max(0, (int) ($job['changed'] ?? 0)) + max(0, $changed);
+    $job['blocked'] = max(0, (int) ($job['blocked'] ?? 0)) + max(0, $blocked);
+    $job['status'] = $has_more ? 'running' : 'complete';
+    ll_tools_wordset_editor_save_bulk_job($job);
+    ll_tools_wordset_editor_release_bulk_job_lock($job_id);
+}
+
+function ll_tools_wordset_editor_update_bulk_job_target(string $job_id, int $target_category_id): void {
+    if ($job_id === '' || $target_category_id <= 0) {
+        return;
+    }
+
+    $job = ll_tools_wordset_editor_get_bulk_job($job_id);
+    if (!$job) {
+        return;
+    }
+
+    $payload = is_array($job['payload'] ?? null) ? (array) $job['payload'] : [];
+    $payload['target_category_id'] = $target_category_id;
+    $payload['new_category_name'] = '';
+    $payload['copy_category_settings'] = false;
+    $job['payload'] = $payload;
+    ll_tools_wordset_editor_save_bulk_job($job);
+}
+
+function ll_tools_wordset_editor_get_visible_bulk_job(int $wordset_id): ?array {
+    $job_id = isset($_GET['ll_wordset_editor_bulk_job'])
+        ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_editor_bulk_job']))
+        : '';
+    $job = $job_id !== '' ? ll_tools_wordset_editor_get_bulk_job($job_id) : null;
+    return $job && ll_tools_wordset_editor_bulk_job_is_accessible($job, $wordset_id) ? $job : null;
+}
+
 function ll_tools_wordset_editor_get_selected_word_ids_from_post(int $wordset_id, array $category_rows = []): array {
     if (!empty($_POST['ll_wordset_editor_all_filtered'])) {
         $filters = ll_tools_wordset_editor_get_filters_from_source($_POST);
         $filters['paged'] = 1;
-        $data = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, $filters, [
-            'hydrate_details' => false,
-            'hydrate_images'  => false,
+        $query = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, $filters, [
+            'posts_per_page' => ll_tools_wordset_editor_bulk_sync_limit(),
+            'paged'          => 1,
         ]);
-        $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
-        return ll_tools_wordset_editor_normalize_word_ids(wp_list_pluck($rows, 'id'));
+        return ll_tools_wordset_editor_normalize_word_ids((array) ($query['ids'] ?? []));
     }
 
     $ids = ll_tools_wordset_editor_normalize_word_ids($_POST['ll_wordset_editor_word_ids'] ?? []);
+    $ids = array_slice($ids, 0, ll_tools_wordset_editor_bulk_sync_limit());
     return array_values(array_filter($ids, static function (int $word_id) use ($wordset_id): bool {
         return ll_tools_wordset_editor_word_belongs_to_wordset($word_id, $wordset_id);
     }));
@@ -2504,12 +2688,20 @@ function ll_tools_wordset_editor_redirect_with_notice(WP_Term $wordset_term, str
         $filter_args = ll_tools_wordset_editor_filter_query_args_from_source($_GET);
     }
 
-    wp_safe_redirect(add_query_arg(array_merge($filter_args, [
+    $notice_args = [
         'll_wordset_manager_editor'         => $status,
         'll_wordset_manager_editor_result'  => sanitize_key($result),
         'll_wordset_manager_editor_count'   => max(0, $count),
         'll_wordset_manager_editor_blocked' => max(0, $blocked),
-    ]), $url));
+    ];
+    $bulk_job_id = isset($_POST['ll_wordset_editor_bulk_job_id'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_editor_bulk_job_id']))
+        : '';
+    if ($bulk_job_id !== '') {
+        $notice_args['ll_wordset_editor_bulk_job'] = $bulk_job_id;
+    }
+
+    wp_safe_redirect(add_query_arg(array_merge($filter_args, $notice_args), $url));
     exit;
 }
 
@@ -2531,7 +2723,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
     $action = isset($_POST['ll_wordset_manager_editor_action'])
         ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_manager_editor_action']))
         : '';
-    if (!in_array($action, ['publish', 'draft', 'add_category', 'remove_category', 'move_category', 'split_category', 'missing_audio_review', 'missing_image_review', 'trash', 'undo', 'delete_recording', 'move_recording', 'quick_update', 'save_filter', 'delete_filter'], true)) {
+    if (!in_array($action, ['publish', 'draft', 'add_category', 'remove_category', 'move_category', 'split_category', 'missing_audio_review', 'missing_image_review', 'trash', 'undo', 'delete_recording', 'move_recording', 'quick_update', 'save_filter', 'delete_filter', 'process_bulk_job'], true)) {
         return;
     }
 
@@ -2550,8 +2742,10 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
     $nonce = isset($_POST['ll_wordset_manager_editor_nonce'])
         ? wp_unslash((string) $_POST['ll_wordset_manager_editor_nonce'])
         : '';
+    $bulk_job_id = '';
 
-    $redirect_error = static function (string $error) use ($wordset_term, $back_url): void {
+    $redirect_error = static function (string $error) use ($wordset_term, $back_url, &$bulk_job_id): void {
+        ll_tools_wordset_editor_release_bulk_job_lock($bulk_job_id);
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'error', $error);
     };
 
@@ -2601,6 +2795,83 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
         : [];
     $available_category_ids = ll_tools_wordset_editor_get_available_category_ids($category_rows);
+    $bulk_actions = ['publish', 'draft', 'add_category', 'remove_category', 'move_category', 'split_category', 'missing_audio_review', 'missing_image_review', 'trash'];
+    $bulk_job_has_more = false;
+
+    if ($action === 'process_bulk_job') {
+        $bulk_job_id = isset($_POST['ll_wordset_editor_bulk_job_id'])
+            ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_editor_bulk_job_id']))
+            : '';
+        $bulk_job = $bulk_job_id !== '' ? ll_tools_wordset_editor_get_bulk_job($bulk_job_id) : null;
+        if (!$bulk_job || !ll_tools_wordset_editor_bulk_job_is_accessible($bulk_job, $wordset_id)) {
+            $redirect_error('bulk_job');
+        }
+        if (!ll_tools_wordset_editor_acquire_bulk_job_lock($bulk_job_id)) {
+            $redirect_error('bulk_job_busy');
+        }
+
+        $batch = ll_tools_wordset_editor_query_bulk_job_batch($bulk_job, $category_rows);
+        $batch_ids = ll_tools_wordset_editor_normalize_word_ids((array) ($batch['ids'] ?? []));
+        if (empty($batch_ids)) {
+            $bulk_job['status'] = 'complete';
+            ll_tools_wordset_editor_save_bulk_job($bulk_job);
+            ll_tools_wordset_editor_release_bulk_job_lock($bulk_job_id);
+            ll_tools_wordset_editor_redirect_with_notice(
+                $wordset_term,
+                $back_url,
+                'ok',
+                'bulk_complete',
+                (int) ($bulk_job['changed'] ?? 0),
+                (int) ($bulk_job['blocked'] ?? 0)
+            );
+        }
+
+        $action = sanitize_key((string) ($bulk_job['action'] ?? ''));
+        if (!in_array($action, $bulk_actions, true)) {
+            $redirect_error('bulk_job');
+        }
+        $bulk_job_has_more = !empty($batch['has_more']);
+        $bulk_job['status'] = 'running';
+        ll_tools_wordset_editor_save_bulk_job($bulk_job);
+
+        foreach (array_keys($_POST) as $post_key) {
+            if (strpos((string) $post_key, 'll_editor_') === 0) {
+                unset($_POST[$post_key]);
+            }
+        }
+        foreach (ll_tools_wordset_editor_filter_query_args_from_filters((array) ($bulk_job['filters'] ?? [])) as $filter_key => $filter_value) {
+            $_POST[$filter_key] = $filter_value;
+        }
+        $payload = is_array($bulk_job['payload'] ?? null) ? (array) $bulk_job['payload'] : [];
+        $_POST['ll_wordset_manager_editor_action'] = $action;
+        $_POST['ll_wordset_editor_word_ids'] = $batch_ids;
+        $_POST['ll_wordset_editor_target_category'] = (string) max(0, (int) ($payload['target_category_id'] ?? 0));
+        $_POST['ll_wordset_editor_new_category_name'] = (string) ($payload['new_category_name'] ?? '');
+        $_POST['ll_wordset_back'] = (string) ($payload['back_url'] ?? '');
+        if (!empty($payload['copy_category_settings'])) {
+            $_POST['ll_wordset_editor_copy_category_settings'] = '1';
+        } else {
+            unset($_POST['ll_wordset_editor_copy_category_settings']);
+        }
+        unset($_POST['ll_wordset_editor_all_filtered']);
+    } elseif (!empty($_POST['ll_wordset_editor_all_filtered']) && in_array($action, $bulk_actions, true)) {
+        $filters = ll_tools_wordset_editor_get_filters_from_source($_POST);
+        $count_query = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, $filters, [
+            'posts_per_page' => 1,
+            'paged'          => 1,
+        ]);
+        $total = max(0, (int) ($count_query['total'] ?? 0));
+        if ($total > ll_tools_wordset_editor_bulk_sync_limit()) {
+            $job = ll_tools_wordset_editor_create_bulk_job($wordset_id, $action, $filters, [
+                'target_category_id'     => isset($_POST['ll_wordset_editor_target_category']) ? absint(wp_unslash((string) $_POST['ll_wordset_editor_target_category'])) : 0,
+                'new_category_name'      => isset($_POST['ll_wordset_editor_new_category_name']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_wordset_editor_new_category_name']))) : '',
+                'copy_category_settings' => !empty($_POST['ll_wordset_editor_copy_category_settings']),
+                'back_url'               => $back_url,
+            ], $total);
+            $_POST['ll_wordset_editor_bulk_job_id'] = (string) ($job['id'] ?? '');
+            ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'bulk_queued', $total);
+        }
+    }
 
     if ($action === 'quick_update') {
         $word_id = isset($_POST['ll_wordset_editor_word_id'])
@@ -2747,6 +3018,12 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'move_recording', 1);
     }
 
+    if (empty($_POST['ll_wordset_editor_all_filtered'])) {
+        $submitted_ids = ll_tools_wordset_editor_normalize_word_ids($_POST['ll_wordset_editor_word_ids'] ?? []);
+        if (count($submitted_ids) > ll_tools_wordset_editor_bulk_sync_limit()) {
+            $redirect_error('selection');
+        }
+    }
     $selected_word_ids = ll_tools_wordset_editor_get_selected_word_ids_from_post($wordset_id, $category_rows);
     if (empty($selected_word_ids)) {
         $redirect_error('selection');
@@ -2804,6 +3081,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
                 ['words' => $history_words, 'new_status' => $new_status]
             );
         }
+        ll_tools_wordset_editor_finish_bulk_job_batch($bulk_job_id, $selected_word_ids, $changed, $blocked, $bulk_job_has_more);
         ll_tools_wordset_editor_invalidate_wordset($wordset_id);
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', $action, $changed, $blocked);
     }
@@ -2820,6 +3098,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
             if ($target_category_id > 0 && !in_array($target_category_id, $available_category_ids, true)) {
                 $available_category_ids[] = $target_category_id;
             }
+            ll_tools_wordset_editor_update_bulk_job_target($bulk_job_id, $target_category_id);
         }
 
         if ($target_category_id <= 0 || !in_array($target_category_id, $available_category_ids, true) || !function_exists('ll_tools_word_grid_get_selected_category_ids_for_editor') || !function_exists('ll_tools_word_grid_update_word_categories_for_wordset')) {
@@ -2863,6 +3142,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
                 ]
             );
         }
+        ll_tools_wordset_editor_finish_bulk_job_batch($bulk_job_id, $selected_word_ids, $changed, $blocked, $bulk_job_has_more);
         ll_tools_wordset_editor_invalidate_wordset($wordset_id);
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', $action, $changed, $blocked);
     }
@@ -2894,6 +3174,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
             if ($created_target_category && !empty($_POST['ll_wordset_editor_copy_category_settings'])) {
                 ll_tools_wordset_editor_copy_category_settings($source_category_id, $target_category_id);
             }
+            ll_tools_wordset_editor_update_bulk_job_target($bulk_job_id, $target_category_id);
         }
 
         if ($target_category_id <= 0 || !in_array($target_category_id, $available_category_ids, true) || $target_category_id === $source_category_id) {
@@ -2941,6 +3222,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
                 ]
             );
         }
+        ll_tools_wordset_editor_finish_bulk_job_batch($bulk_job_id, $selected_word_ids, $changed, $blocked, $bulk_job_has_more);
         ll_tools_wordset_editor_invalidate_wordset($wordset_id);
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'split_category', $changed, $blocked);
     }
@@ -2983,6 +3265,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
                 ['words' => $history_words]
             );
         }
+        ll_tools_wordset_editor_finish_bulk_job_batch($bulk_job_id, $selected_word_ids, $changed, $blocked, $bulk_job_has_more);
         ll_tools_wordset_editor_invalidate_wordset($wordset_id);
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'missing_audio_review', $changed, $blocked);
     }
@@ -3027,6 +3310,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
                 ['words' => $history_words]
             );
         }
+        ll_tools_wordset_editor_finish_bulk_job_batch($bulk_job_id, $selected_word_ids, $changed, $blocked, $bulk_job_has_more);
         ll_tools_wordset_editor_invalidate_wordset($wordset_id);
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'missing_image_review', $changed, $blocked);
     }
@@ -3053,6 +3337,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
                 ['words' => $history_words]
             );
         }
+        ll_tools_wordset_editor_finish_bulk_job_batch($bulk_job_id, $selected_word_ids, $changed, $blocked, $bulk_job_has_more);
         ll_tools_wordset_editor_invalidate_wordset($wordset_id);
         ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'trash', $changed, $blocked);
     }
@@ -3109,6 +3394,10 @@ function ll_tools_wordset_page_manager_editor_notice(): ?array {
         $message = __('Saved editor view.', 'll-tools-text-domain');
     } elseif ($result === 'delete_filter') {
         $message = __('Deleted editor view.', 'll-tools-text-domain');
+    } elseif ($result === 'bulk_queued') {
+        $message = sprintf(_n('Prepared a batch job for %d word.', 'Prepared a batch job for %d words.', $count, 'll-tools-text-domain'), $count);
+    } elseif ($result === 'bulk_complete') {
+        $message = sprintf(_n('Completed the batch job with %d change.', 'Completed the batch job with %d changes.', $count, 'll-tools-text-domain'), $count);
     }
 
     if ($blocked > 0) {
@@ -3482,6 +3771,52 @@ function ll_tools_wordset_editor_render_split_panel(
     return (string) ob_get_clean();
 }
 
+function ll_tools_wordset_editor_render_bulk_job_panel(array $job, int $wordset_id, string $action_url, string $back_url): string {
+    if (!ll_tools_wordset_editor_bulk_job_is_accessible($job, $wordset_id)) {
+        return '';
+    }
+
+    $status = sanitize_key((string) ($job['status'] ?? 'pending'));
+    $total = max(0, (int) ($job['total'] ?? 0));
+    $processed = min($total, max(0, (int) ($job['processed'] ?? 0)));
+    $changed = max(0, (int) ($job['changed'] ?? 0));
+    $blocked = max(0, (int) ($job['blocked'] ?? 0));
+    $progress_max = max(1, $total);
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-card ll-wordset-editor-bulk-job" aria-label="<?php echo esc_attr__('Bulk action progress', 'll-tools-text-domain'); ?>">
+        <div class="ll-wordset-editor-panel-head">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Bulk action progress', 'll-tools-text-domain'); ?></h2>
+            <span class="ll-wordset-editor-history__hint">
+                <?php echo esc_html(sprintf(__('Processed %1$d of %2$d. %3$d changed, %4$d skipped.', 'll-tools-text-domain'), $processed, $total, $changed, $blocked)); ?>
+            </span>
+        </div>
+        <progress value="<?php echo esc_attr((string) $processed); ?>" max="<?php echo esc_attr((string) $progress_max); ?>">
+            <?php echo esc_html(sprintf(__('%1$d of %2$d', 'll-tools-text-domain'), $processed, $total)); ?>
+        </progress>
+        <?php if ($status !== 'complete') : ?>
+            <form method="post" action="<?php echo esc_url($action_url); ?>">
+                <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
+                <input type="hidden" name="ll_wordset_manager_editor_action" value="process_bulk_job" />
+                <input type="hidden" name="ll_wordset_editor_bulk_job_id" value="<?php echo esc_attr((string) ($job['id'] ?? '')); ?>" />
+                <input type="hidden" name="ll_wordset_tool" value="editor" />
+                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary">
+                    <?php echo ll_tools_wordset_editor_icon('check'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <span><?php echo esc_html__('Continue batch', 'll-tools-text-domain'); ?></span>
+                </button>
+            </form>
+        <?php else : ?>
+            <p class="ll-wordset-settings-empty"><?php echo esc_html__('Batch complete.', 'll-tools-text-domain'); ?></p>
+        <?php endif; ?>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $category_rows): string {
     $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor', $back_url);
     $filters = ll_tools_wordset_editor_get_filters();
@@ -3564,6 +3899,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $saved_filters = ll_tools_wordset_editor_get_saved_filters($wordset_id);
     $history_filters = ll_tools_wordset_editor_get_history_filters();
     $history_rows = ll_tools_wordset_editor_get_filtered_history($wordset_id, $history_filters);
+    $bulk_job = ll_tools_wordset_editor_get_visible_bulk_job($wordset_id);
     $history_per_page = 20;
     $history_paged = max(1, (int) ($history_filters['paged'] ?? 1));
     $history_total_pages = max(1, (int) ceil(count($history_rows) / $history_per_page));
@@ -3732,6 +4068,10 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 </div>
             <?php endif; ?>
         </section>
+
+        <?php if ($bulk_job) : ?>
+            <?php echo ll_tools_wordset_editor_render_bulk_job_panel($bulk_job, $wordset_id, $action_url, $back_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <?php endif; ?>
 
         <?php echo ll_tools_wordset_editor_render_split_panel($wordset_id, $filters, $category_rows, $available_category_ids, $action_url, $back_url, $total_filtered); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 
