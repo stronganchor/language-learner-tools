@@ -219,6 +219,8 @@ Representative E2E coverage areas:
   - Verifies the WebP optimizer and orphaned-media admin pages load their review controls without unrelated maintenance scans breaking the page.
 - `tests/e2e/specs/audio-image-matcher-pagination.spec.js`
   - Verifies the Audio/Image Matcher appends bounded candidate-image pages, sends the continuation offset, and hides Load more after the final page.
+- `tests/e2e/specs/image-aspect-normalizer-worklist-pagination.spec.js`
+  - Verifies Image Aspect Normalizer worklist status refresh advances only through explicit bounded pages.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
 - `tests/e2e/specs/flashcard-gender-support-normalization.spec.js`

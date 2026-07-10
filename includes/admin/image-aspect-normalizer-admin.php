@@ -8,6 +8,9 @@ if (!defined('LL_TOOLS_ASPECT_NORMALIZER_PAGE_SLUG')) {
 if (!defined('LL_TOOLS_ASPECT_NORMALIZER_NONCE_ACTION')) {
     define('LL_TOOLS_ASPECT_NORMALIZER_NONCE_ACTION', 'll_tools_aspect_normalizer');
 }
+if (!defined('LL_TOOLS_CATEGORY_ASPECT_STATUS_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_ASPECT_STATUS_META_KEY', 'll_category_aspect_normalization_status');
+}
 
 function ll_tools_get_aspect_normalizer_page_slug(): string {
     return (string) LL_TOOLS_ASPECT_NORMALIZER_PAGE_SLUG;
@@ -79,6 +82,8 @@ function ll_tools_enqueue_image_aspect_normalizer_admin_assets($hook): void {
             'emptyWorklist' => __('No categories currently need image aspect normalization.', 'll-tools-text-domain'),
             'worklistOffending' => __('%1$d of %2$d images need fixes', 'll-tools-text-domain'),
             'worklistRatios' => __('%d aspect ratios detected', 'll-tools-text-domain'),
+            'worklistLoadMore' => __('Load more', 'll-tools-text-domain'),
+            'worklistLoadingMore' => __('Loading more...', 'll-tools-text-domain'),
             'loadingCategory' => __('Loading category details...', 'll-tools-text-domain'),
             'chooseCategory' => __('Select a category from the left to preview crops and white-padding updates.', 'll-tools-text-domain'),
             'categorySummary' => __('%1$d images need fixes out of %2$d tracked images.', 'll-tools-text-domain'),
@@ -128,6 +133,9 @@ function ll_tools_render_image_aspect_normalizer_admin_page(): void {
                 <div class="ll-aspect-normalizer__worklist-body" data-ll-aspect-worklist>
                     <?php echo esc_html__('Loading categories...', 'll-tools-text-domain'); ?>
                 </div>
+                <button type="button" class="button ll-aspect-normalizer__worklist-more" data-ll-aspect-worklist-more hidden>
+                    <?php echo esc_html__('Load more', 'll-tools-text-domain'); ?>
+                </button>
             </aside>
 
             <section class="ll-aspect-normalizer__detail">
@@ -304,6 +312,7 @@ function ll_tools_aspect_normalizer_build_category_payload($category_id, $canoni
     }
 
     $canonical_ratio_key = ll_tools_aspect_normalizer_normalize_ratio_key($canonical_ratio_key);
+    $refresh_status_index = ($canonical_ratio_key === '');
     $stats_args = [
         'post_statuses' => ll_tools_aspect_normalizer_post_statuses(),
         'include_word_images' => true,
@@ -312,6 +321,9 @@ function ll_tools_aspect_normalizer_build_category_payload($category_id, $canoni
         $stats_args['canonical_ratio_key'] = $canonical_ratio_key;
     }
     $stats = ll_tools_get_category_image_aspect_stats($category_id, $stats_args);
+    if ($refresh_status_index) {
+        ll_tools_aspect_normalizer_store_category_status($category_id, $stats);
+    }
 
     $canonical_key = ll_tools_aspect_normalizer_normalize_ratio_key((string) ($stats['canonical']['key'] ?? ''));
     if ($canonical_key === '' && $canonical_ratio_key !== '') {
@@ -732,17 +744,108 @@ function ll_tools_aspect_normalizer_verify_ajax_request(): void {
     check_ajax_referer(LL_TOOLS_ASPECT_NORMALIZER_NONCE_ACTION, 'nonce');
 }
 
+function ll_tools_aspect_normalizer_worklist_page_size(): int {
+    $page_size = (int) apply_filters('ll_tools_aspect_normalizer_worklist_page_size', 8);
+    return max(1, min(20, $page_size));
+}
+
+function ll_tools_aspect_normalizer_status_from_stats(int $category_id, array $stats): array {
+    $ratio_count = count((array) ($stats['ratios'] ?? []));
+    $offending_count = max(0, (int) ($stats['offending_count'] ?? 0));
+    $needs_fix = ll_tools_category_requires_image_answer_aspect_normalization($category_id)
+        && $ratio_count > 1
+        && $offending_count > 0;
+
+    return [
+        'cache_version' => ll_tools_get_category_aspect_cache_version($category_id),
+        'needs_fix' => $needs_fix ? 1 : 0,
+        'offending_count' => $offending_count,
+        'total_attachments' => max(0, (int) ($stats['total_attachments'] ?? 0)),
+        'ratio_count' => $ratio_count,
+        'canonical_ratio_key' => (string) ($stats['canonical']['key'] ?? ''),
+        'canonical_ratio_label' => (string) ($stats['canonical']['label'] ?? ''),
+        'updated_at' => time(),
+    ];
+}
+
+function ll_tools_aspect_normalizer_store_category_status(int $category_id, array $stats): array {
+    $status = ll_tools_aspect_normalizer_status_from_stats($category_id, $stats);
+    update_term_meta($category_id, LL_TOOLS_CATEGORY_ASPECT_STATUS_META_KEY, $status);
+    return $status;
+}
+
+function ll_tools_aspect_normalizer_get_cached_category_status(int $category_id): array {
+    $status = get_term_meta($category_id, LL_TOOLS_CATEGORY_ASPECT_STATUS_META_KEY, true);
+    if (!is_array($status)) {
+        return [];
+    }
+    if ((int) ($status['cache_version'] ?? 0) !== ll_tools_get_category_aspect_cache_version($category_id)) {
+        return [];
+    }
+    return $status;
+}
+
+function ll_tools_aspect_normalizer_refresh_category_status(int $category_id): array {
+    if (!ll_tools_category_requires_image_answer_aspect_normalization($category_id)) {
+        return ll_tools_aspect_normalizer_store_category_status($category_id, [
+            'ratios' => [],
+            'offending_count' => 0,
+            'total_attachments' => 0,
+            'canonical' => [],
+        ]);
+    }
+
+    $stats = ll_tools_get_category_image_aspect_stats($category_id, [
+        'post_statuses' => ll_tools_aspect_normalizer_post_statuses(),
+        'include_word_images' => true,
+    ]);
+    return ll_tools_aspect_normalizer_store_category_status($category_id, $stats);
+}
+
+function ll_tools_aspect_normalizer_status_row(int $category_id, array $status): array {
+    $term = get_term($category_id, 'word-category');
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return [];
+    }
+    return [
+        'id' => $category_id,
+        'label' => ll_tools_aspect_normalizer_category_label($category_id),
+        'raw_name' => html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8'),
+        'offending_count' => max(0, (int) ($status['offending_count'] ?? 0)),
+        'total_attachments' => max(0, (int) ($status['total_attachments'] ?? 0)),
+        'ratio_count' => max(0, (int) ($status['ratio_count'] ?? 0)),
+        'canonical_ratio_key' => (string) ($status['canonical_ratio_key'] ?? ''),
+        'canonical_ratio_label' => (string) ($status['canonical_ratio_label'] ?? ''),
+    ];
+}
+
 function ll_tools_aspect_normalizer_worklist_ajax(): void {
     ll_tools_aspect_normalizer_verify_ajax_request();
 
+    $offset = isset($_POST['offset']) ? max(0, min(100000, (int) wp_unslash($_POST['offset']))) : 0;
+    $preferred_category_id = isset($_POST['preferred_category_id']) ? max(0, (int) wp_unslash($_POST['preferred_category_id'])) : 0;
+    $page_size = ll_tools_aspect_normalizer_worklist_page_size();
     $rows = [];
     $category_ids = get_terms([
         'taxonomy' => 'word-category',
         'hide_empty' => false,
         'fields' => 'ids',
+        'number' => $page_size + 1,
+        'offset' => $offset,
+        'orderby' => 'term_id',
+        'order' => 'ASC',
     ]);
     if (is_wp_error($category_ids)) {
-        wp_send_json_success(['categories' => []]);
+        wp_send_json_success(['categories' => [], 'has_more' => false, 'next_offset' => $offset, 'page_size' => $page_size]);
+    }
+    $has_more = count((array) $category_ids) > $page_size;
+    $category_ids = array_slice(array_map('intval', (array) $category_ids), 0, $page_size);
+    $page_category_count = count($category_ids);
+    if ($preferred_category_id > 0 && !in_array($preferred_category_id, $category_ids, true)) {
+        $preferred_term = get_term($preferred_category_id, 'word-category');
+        if ($preferred_term instanceof WP_Term && !is_wp_error($preferred_term)) {
+            array_unshift($category_ids, $preferred_category_id);
+        }
     }
 
     foreach ((array) $category_ids as $category_id_raw) {
@@ -750,31 +853,14 @@ function ll_tools_aspect_normalizer_worklist_ajax(): void {
         if ($category_id <= 0) {
             continue;
         }
-        if (!ll_tools_category_needs_aspect_normalization($category_id, [
-            'post_statuses' => ll_tools_aspect_normalizer_post_statuses(),
-            'include_word_images' => true,
-        ])) {
+        $status = ll_tools_aspect_normalizer_refresh_category_status($category_id);
+        if (empty($status['needs_fix'])) {
             continue;
         }
-        $term = get_term($category_id, 'word-category');
-        if (!$term || is_wp_error($term)) {
-            continue;
+        $row = ll_tools_aspect_normalizer_status_row($category_id, $status);
+        if (!empty($row)) {
+            $rows[] = $row;
         }
-
-        $stats = ll_tools_get_category_image_aspect_stats($category_id, [
-            'post_statuses' => ll_tools_aspect_normalizer_post_statuses(),
-            'include_word_images' => true,
-        ]);
-        $rows[] = [
-            'id' => $category_id,
-            'label' => ll_tools_aspect_normalizer_category_label($category_id),
-            'raw_name' => html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8'),
-            'offending_count' => max(0, (int) ($stats['offending_count'] ?? 0)),
-            'total_attachments' => max(0, (int) ($stats['total_attachments'] ?? 0)),
-            'ratio_count' => count((array) ($stats['ratios'] ?? [])),
-            'canonical_ratio_key' => (string) ($stats['canonical']['key'] ?? ''),
-            'canonical_ratio_label' => (string) ($stats['canonical']['label'] ?? ''),
-        ];
     }
 
     usort($rows, static function ($left, $right) {
@@ -791,7 +877,12 @@ function ll_tools_aspect_normalizer_worklist_ajax(): void {
         return strnatcasecmp($left_label, $right_label);
     });
 
-    wp_send_json_success(['categories' => $rows]);
+    wp_send_json_success([
+        'categories' => $rows,
+        'has_more' => $has_more,
+        'next_offset' => $offset + $page_category_count,
+        'page_size' => $page_size,
+    ]);
 }
 add_action('wp_ajax_ll_tools_aspect_normalizer_worklist', 'll_tools_aspect_normalizer_worklist_ajax');
 
@@ -1002,24 +1093,19 @@ function ll_tools_get_aspect_normalization_needs_lookup(): array {
     }
 
     $lookup = [];
-    $category_ids = get_terms([
-        'taxonomy' => 'word-category',
-        'hide_empty' => false,
-        'fields' => 'ids',
-    ]);
-    if (is_wp_error($category_ids)) {
-        return $lookup;
-    }
+    global $wpdb;
+    $category_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT term_id FROM {$wpdb->termmeta} WHERE meta_key = %s ORDER BY term_id ASC",
+        LL_TOOLS_CATEGORY_ASPECT_STATUS_META_KEY
+    ));
 
     foreach ((array) $category_ids as $category_id_raw) {
         $category_id = (int) $category_id_raw;
         if ($category_id <= 0) {
             continue;
         }
-        if (ll_tools_category_needs_aspect_normalization($category_id, [
-            'post_statuses' => ll_tools_aspect_normalizer_post_statuses(),
-            'include_word_images' => true,
-        ])) {
+        $status = ll_tools_aspect_normalizer_get_cached_category_status($category_id);
+        if (!empty($status['needs_fix'])) {
             $lookup[$category_id] = true;
         }
     }
@@ -1035,8 +1121,8 @@ function ll_tools_add_word_category_aspect_row_action($actions, $term) {
         return $actions;
     }
 
-    $needs_lookup = ll_tools_get_aspect_normalization_needs_lookup();
-    if (empty($needs_lookup[(int) $term->term_id])) {
+    $status = ll_tools_aspect_normalizer_get_cached_category_status((int) $term->term_id);
+    if (empty($status['needs_fix'])) {
         return $actions;
     }
 

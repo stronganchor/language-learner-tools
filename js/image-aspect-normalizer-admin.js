@@ -16,6 +16,7 @@
     }
 
     const $worklist = $root.find('[data-ll-aspect-worklist]');
+    const $worklistMore = $root.find('[data-ll-aspect-worklist-more]');
     const $status = $root.find('[data-ll-aspect-status]');
     const $errors = $root.find('[data-ll-aspect-errors]');
     const $title = $root.find('[data-ll-aspect-category-title]');
@@ -29,6 +30,9 @@
     const $offenders = $root.find('[data-ll-aspect-offenders]');
 
     let worklist = [];
+    let worklistOffset = 0;
+    let worklistHasMore = false;
+    let worklistLoading = false;
     let activeCategoryId = 0;
     let activePayload = null;
     let editorsByAttachment = {};
@@ -242,27 +246,72 @@
         setWarnings([]);
     }
 
-    function loadWorklist(preferredCategoryId) {
-        setStatus(i18n.loading || 'Loading categories...', 'loading');
-        return request('worklist', {}).done(function (res) {
+    function updateWorklistMoreButton() {
+        $worklistMore.prop('hidden', !worklistHasMore).toggle(worklistHasMore);
+        if (!worklistLoading) {
+            $worklistMore.prop('disabled', false).text(i18n.worklistLoadMore || 'Load more');
+        }
+    }
+
+    function loadWorklist(preferredCategoryId, append) {
+        const shouldAppend = !!append;
+        if (worklistLoading) {
+            return $.Deferred().resolve().promise();
+        }
+        if (!shouldAppend) {
+            worklist = [];
+            worklistOffset = 0;
+            worklistHasMore = false;
+        } else if (!worklistHasMore) {
+            return $.Deferred().resolve().promise();
+        }
+
+        worklistLoading = true;
+        if (shouldAppend) {
+            $worklistMore.prop('disabled', true).text(i18n.worklistLoadingMore || 'Loading more...');
+        }
+        setStatus(shouldAppend ? (i18n.worklistLoadingMore || 'Loading more...') : (i18n.loading || 'Loading categories...'), 'loading');
+        return request('worklist', {
+            offset: worklistOffset,
+            preferred_category_id: shouldAppend ? 0 : (parseInt(preferredCategoryId, 10) || 0)
+        }).done(function (res) {
             if (!res || !res.success || !res.data || !Array.isArray(res.data.categories)) {
                 setStatus(i18n.applyError || 'Unable to load categories.', 'error');
                 return;
             }
-            worklist = res.data.categories.slice();
+            const existingIds = {};
+            worklist.forEach(function (row) {
+                const rowId = parseInt(row && row.id, 10) || 0;
+                if (rowId > 0) existingIds[rowId] = true;
+            });
+            res.data.categories.forEach(function (row) {
+                const rowId = parseInt(row && row.id, 10) || 0;
+                if (rowId > 0 && !existingIds[rowId]) {
+                    worklist.push(row);
+                    existingIds[rowId] = true;
+                }
+            });
+            worklistOffset = Math.max(worklistOffset, parseInt(res.data.next_offset, 10) || worklistOffset);
+            worklistHasMore = !!res.data.has_more;
+            renderWorklist();
+            if (shouldAppend) {
+                setStatus('', '');
+                return;
+            }
             const nextCategoryId = pickNextCategoryId(preferredCategoryId);
             if (!nextCategoryId) {
                 activeCategoryId = 0;
-                renderWorklist();
                 resetCategoryView();
                 setStatus('', '');
                 return;
             }
             activeCategoryId = nextCategoryId;
-            renderWorklist();
             loadCategory(activeCategoryId, '');
         }).fail(function () {
             setStatus(i18n.applyError || 'Unable to load categories.', 'error');
+        }).always(function () {
+            worklistLoading = false;
+            updateWorklistMoreButton();
         });
     }
 
@@ -876,6 +925,10 @@
     }
 
     function bindEvents() {
+        $worklistMore.on('click', function () {
+            loadWorklist(activeCategoryId, true);
+        });
+
         $worklist.on('click', '[data-ll-aspect-worklist-item]', function () {
             const categoryId = parseInt($(this).attr('data-ll-aspect-worklist-item'), 10) || 0;
             if (!categoryId || categoryId === activeCategoryId) {
