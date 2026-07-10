@@ -88,6 +88,9 @@ function ll_aim_enqueue_admin_assets($hook) {
             'savingMatch' => __('Saving match…', 'll-tools-text-domain'),
             'saveError' => __('Error saving match.', 'll-tools-text-domain'),
             'selectCategoryPrompt' => __('Please select a category.', 'll-tools-text-domain'),
+            'loadMoreImages' => __('Load more', 'll-tools-text-domain'),
+            'loadingMoreImages' => __('Loading more...', 'll-tools-text-domain'),
+            'imageLoadError' => __('Something went wrong', 'll-tools-text-domain'),
             'selectOption' => __('— Select —', 'll-tools-text-domain'),
         ],
     ]);
@@ -316,7 +319,75 @@ function ll_aim_current_user_can_access_image(int $image_id): bool {
     return true;
 }
 
-// AJAX: Fetch candidate images for a category (word_images posts)
+function ll_aim_image_page_size(): int {
+    $page_size = (int) apply_filters('ll_aim_image_page_size', 48);
+    return max(6, min(96, $page_size));
+}
+
+function ll_aim_get_image_candidate_ids(int $term_id, bool $hide_used, int $offset, int $limit): array {
+    global $wpdb;
+
+    $term_id = max(0, $term_id);
+    $offset = max(0, min(100000, $offset));
+    $limit = max(1, min(97, $limit));
+    if ($term_id <= 0) {
+        return [];
+    }
+
+    $unused_sql = '';
+    if ($hide_used) {
+        $unused_sql = "
+            AND NOT EXISTS (
+                SELECT 1
+                FROM {$wpdb->postmeta} linked_pm
+                INNER JOIN {$wpdb->posts} linked_word
+                    ON linked_word.ID = linked_pm.post_id
+                   AND linked_word.post_type = 'words'
+                   AND linked_word.post_status = 'publish'
+                WHERE linked_pm.meta_key = '_ll_autopicked_image_id'
+                  AND CAST(linked_pm.meta_value AS UNSIGNED) = image_post.ID
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM {$wpdb->postmeta} used_thumb_pm
+                INNER JOIN {$wpdb->posts} used_thumb_word
+                    ON used_thumb_word.ID = used_thumb_pm.post_id
+                   AND used_thumb_word.post_type = 'words'
+                   AND used_thumb_word.post_status = 'publish'
+                WHERE used_thumb_pm.meta_key = '_thumbnail_id'
+                  AND CAST(image_thumb_pm.meta_value AS UNSIGNED) > 0
+                  AND CAST(used_thumb_pm.meta_value AS UNSIGNED) = CAST(image_thumb_pm.meta_value AS UNSIGNED)
+            )
+        ";
+    }
+
+    $sql = "
+        SELECT DISTINCT image_post.ID
+        FROM {$wpdb->posts} image_post
+        INNER JOIN {$wpdb->term_relationships} image_rel
+            ON image_rel.object_id = image_post.ID
+        INNER JOIN {$wpdb->term_taxonomy} image_tt
+            ON image_tt.term_taxonomy_id = image_rel.term_taxonomy_id
+           AND image_tt.taxonomy = 'word-category'
+           AND image_tt.term_id = %d
+        LEFT JOIN {$wpdb->postmeta} image_thumb_pm
+            ON image_thumb_pm.post_id = image_post.ID
+           AND image_thumb_pm.meta_key = '_thumbnail_id'
+        WHERE image_post.post_type = 'word_images'
+          AND image_post.post_status = 'publish'
+          {$unused_sql}
+        ORDER BY image_post.post_title ASC, image_post.ID ASC
+        LIMIT %d OFFSET %d
+    ";
+
+    return array_values(array_filter(array_map('intval', (array) $wpdb->get_col(
+        $wpdb->prepare($sql, $term_id, $limit, $offset)
+    )), static function (int $image_id): bool {
+        return $image_id > 0;
+    }));
+}
+
+// AJAX: Fetch a bounded candidate-image page for a category.
 function ll_aim_get_images_handler() {
     ll_aim_verify_ajax_request();
 
@@ -329,6 +400,7 @@ function ll_aim_get_images_handler() {
         ll_aim_send_wordset_forbidden();
     }
     $hide_used = isset($_GET['hide_used']) ? (intval($_GET['hide_used']) === 1) : false;
+    $offset = isset($_GET['offset']) ? max(0, min(100000, intval($_GET['offset']))) : 0;
     if ($term_id > 0 && $wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
         $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, true);
         if ($effective_category_id > 0) {
@@ -336,20 +408,20 @@ function ll_aim_get_images_handler() {
         }
     }
     if (!$term_id) {
-        wp_send_json_success(['images' => []]);
+        wp_send_json_success(['images' => [], 'has_more' => false, 'next_offset' => 0, 'page_size' => ll_aim_image_page_size()]);
     }
 
-    $images = get_posts([
+    $page_size = ll_aim_image_page_size();
+    $candidate_ids = ll_aim_get_image_candidate_ids($term_id, $hide_used, $offset, $page_size + 1);
+    $has_more = count($candidate_ids) > $page_size;
+    $page_ids = array_slice($candidate_ids, 0, $page_size);
+    $images = empty($page_ids) ? [] : get_posts([
         'post_type'      => 'word_images',
-        'posts_per_page' => -1,
+        'posts_per_page' => count($page_ids),
         'post_status'    => 'publish',
-        'tax_query'      => [[
-            'taxonomy' => 'word-category',
-            'field'    => 'term_id',
-            'terms'    => [$term_id],
-        ]],
-        'orderby' => 'title',
-        'order'   => 'ASC',
+        'post__in'       => $page_ids,
+        'orderby'        => 'post__in',
+        'no_found_rows'  => true,
     ]);
 
     $thumb_ids = [];
@@ -426,10 +498,6 @@ function ll_aim_get_images_handler() {
         $used_count = $thumb_id ? (int) ($used_count_by_thumb_id[$thumb_id] ?? 0) : 0;
         $used_count += (int) ($used_count_by_image_id[$image_id] ?? 0);
 
-        if ($hide_used && $used_count > 0) {
-            continue;
-        }
-
         $out[] = [
             'id'         => $img_post->ID,
             'title'      => $img_post->post_title,
@@ -437,7 +505,12 @@ function ll_aim_get_images_handler() {
             'used_count' => $used_count,
         ];
     }
-    wp_send_json_success(['images' => $out]);
+    wp_send_json_success([
+        'images' => $out,
+        'has_more' => $has_more,
+        'next_offset' => $offset + count($page_ids),
+        'page_size' => $page_size,
+    ]);
 }
 add_action('wp_ajax_ll_aim_get_images', 'll_aim_get_images_handler');
 add_action('wp_ajax_ll_aim_get_category_options', 'll_aim_get_category_options_handler');

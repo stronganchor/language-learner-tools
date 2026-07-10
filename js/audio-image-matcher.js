@@ -21,11 +21,16 @@
     const $currentImg = $('#ll-aim-current-thumb img');
     const $currentCap = $('#ll-aim-current-thumb .ll-aim-cap');
     const $hideUsed = $('#ll-aim-hide-used');
+    const $loadMoreImages = $('#ll-aim-load-more-images');
+    const $imagePageStatus = $('#ll-aim-image-page-status');
 
     let termId = 0;
     let wordsetId = 0;
     let excludeIds = [];
     let cachedImages = [];
+    let imageOffset = 0;
+    let imagesHaveMore = false;
+    let imagePageLoading = false;
     let currentWord = null;
     const categoryOptionsCache = {};
     const pendingCategoryOptionsRequests = {};
@@ -121,20 +126,71 @@
         }
     }
 
-    async function fetchImagesOnce() {
-        if (cachedImages.length) return;
-        uiLoading(t('loadingImages', 'Loading images…'));
+    function updateImagePageControls() {
+        $loadMoreImages.prop('hidden', !imagesHaveMore).toggle(imagesHaveMore);
+        if (!imagePageLoading) {
+            $loadMoreImages.prop('disabled', false).text(t('loadMoreImages', 'Load more'));
+        }
+    }
+
+    function resetImagePages() {
+        cachedImages = [];
+        imageOffset = 0;
+        imagesHaveMore = false;
+        imagePageLoading = false;
+        $imagePageStatus.text('');
+        updateImagePageControls();
+    }
+
+    async function fetchImagePage(reset) {
+        if (imagePageLoading) return;
+        if (reset) {
+            resetImagePages();
+            uiLoading(t('loadingImages', 'Loading images…'));
+        } else if (!imagesHaveMore) {
+            return;
+        }
+
+        imagePageLoading = true;
+        if (!reset) {
+            $loadMoreImages.prop('disabled', true).text(t('loadingMoreImages', 'Loading more...'));
+            $imagePageStatus.text(t('loadingMoreImages', 'Loading more...'));
+        }
         const u = new URL(getAjaxBase());
         u.searchParams.set('action', 'll_aim_get_images');
         u.searchParams.set('term_id', termId);
         u.searchParams.set('hide_used', $hideUsed.is(':checked') ? '1' : '0');
+        u.searchParams.set('offset', String(imageOffset));
         if (wordsetId > 0) u.searchParams.set('wordset_id', String(wordsetId));
         if (window.llAimData && window.llAimData.nonce) {
             u.searchParams.set('nonce', window.llAimData.nonce);
         }
-        const res = await fetch(u.toString(), { credentials: 'same-origin' });
-        const json = await res.json();
-        cachedImages = (json && json.data && json.data.images) ? json.data.images : [];
+        try {
+            const res = await fetch(u.toString(), { credentials: 'same-origin' });
+            const json = await res.json();
+            const page = (json && json.success && json.data && Array.isArray(json.data.images)) ? json.data.images : [];
+            const seen = new Set(cachedImages.map(img => parseInt(img && img.id ? img.id : 0, 10) || 0));
+            page.forEach(img => {
+                const imageId = parseInt(img && img.id ? img.id : 0, 10) || 0;
+                if (imageId && !seen.has(imageId)) {
+                    cachedImages.push(img);
+                    seen.add(imageId);
+                }
+            });
+            imagesHaveMore = !!(json && json.data && json.data.has_more);
+            imageOffset = Math.max(imageOffset, parseInt(json && json.data && json.data.next_offset, 10) || imageOffset);
+            $imagePageStatus.text('');
+        } catch (e) {
+            $imagePageStatus.text(t('imageLoadError', 'Something went wrong'));
+        } finally {
+            imagePageLoading = false;
+            updateImagePageControls();
+        }
+    }
+
+    async function fetchImagesOnce() {
+        if (cachedImages.length) return;
+        await fetchImagePage(true);
     }
 
     async function fetchNext() {
@@ -309,7 +365,7 @@
         wordsetId = parseInt((($wsSel.val() || '0')), 10) || 0;
 
         excludeIds = [];
-        cachedImages = [];
+        resetImagePages();
         uiIdle();
 
         if (!termId) {
@@ -328,15 +384,20 @@
         await fetchNext();
     });
 
+    $loadMoreImages.on('click', async () => {
+        await fetchImagePage(false);
+        buildImageGrid();
+    });
+
     $catSel.on('change', () => {
-        cachedImages = [];
+        resetImagePages();
         excludeIds = [];
         uiIdle();
     });
 
     $wsSel.on('change', () => {
         renderCategoryOptions().catch(() => {});
-        cachedImages = [];
+        resetImagePages();
         excludeIds = [];
         uiIdle();
     });
@@ -351,7 +412,7 @@
     });
 
     $hideUsed.on('change', async () => {
-        cachedImages = [];
+        resetImagePages();
         await fetchImagesOnce();
         buildImageGrid();
     });

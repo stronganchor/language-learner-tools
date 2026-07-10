@@ -63,6 +63,10 @@ if (!defined('WPINC')) { die; }
             </div>
         </div>
         <div id="ll-aim-images"></div>
+        <div id="ll-aim-image-page-controls">
+            <button class="button" id="ll-aim-load-more-images" type="button" hidden><?php esc_html_e('Load more', 'll-tools-text-domain'); ?></button>
+            <span id="ll-aim-image-page-status" role="status" aria-live="polite"></span>
+        </div>
         <div id="ll-aim-status" style="margin-top:8px; color:#666;"></div>
     </div>
 </div>

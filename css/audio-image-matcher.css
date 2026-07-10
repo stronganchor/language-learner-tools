@@ -7,6 +7,22 @@
     gap: 12px;
 }
 
+#ll-aim-image-page-controls {
+    display: flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+#ll-aim-load-more-images[hidden] {
+    display: none !important;
+}
+
+#ll-aim-image-page-status {
+    color: #555;
+}
+
 /* The image container - reuses flashcard classes for exact quiz appearance */
 .ll-aim-card .ll-aim-image-wrapper {
     position: relative;

@@ -124,6 +124,80 @@ final class AudioImageMatcherLazyLoadTest extends LL_Tools_TestCase
         $this->assertSame([], $hidden_images);
     }
 
+    public function test_image_ajax_pages_candidates_and_bounds_visible_usage_queries(): void
+    {
+        $category_id = $this->ensureTerm('word-category', 'AIM Paged Category', 'aim-paged-category');
+        $image_ids = [];
+        for ($index = 1; $index <= 8; $index++) {
+            $image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => sprintf('AIM Paged Image %02d', $index),
+            ]);
+            wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+            $image_ids[] = (int) $image_id;
+        }
+
+        $this->setCurrentUserWithViewCapability();
+        $page_size_filter = static function (): int {
+            return 6;
+        };
+        add_filter('ll_aim_image_page_size', $page_size_filter);
+
+        $query_limits = [];
+        $usage_queries = [];
+        $post_query_watcher = static function (WP_Query $query) use (&$query_limits): void {
+            if ($query->get('post_type') === 'word_images') {
+                $query_limits[] = (int) $query->get('posts_per_page');
+            }
+        };
+        $sql_watcher = static function (string $sql) use (&$usage_queries): string {
+            if (strpos($sql, "meta_key = '_ll_autopicked_image_id'") !== false) {
+                $usage_queries[] = $sql;
+            }
+            return $sql;
+        };
+        add_action('pre_get_posts', $post_query_watcher);
+        add_filter('query', $sql_watcher);
+
+        try {
+            $_GET = [
+                'nonce' => wp_create_nonce('ll_aim_admin'),
+                'term_id' => (string) $category_id,
+                'wordset_id' => '0',
+                'hide_used' => '0',
+                'offset' => '0',
+            ];
+            $_REQUEST = $_GET;
+            $first_response = $this->runJsonEndpoint('ll_aim_get_images_handler');
+
+            $first_data = is_array($first_response['data'] ?? null) ? $first_response['data'] : [];
+            $this->assertCount(6, (array) ($first_data['images'] ?? []));
+            $this->assertTrue((bool) ($first_data['has_more'] ?? false));
+            $this->assertSame(6, (int) ($first_data['next_offset'] ?? 0));
+            $this->assertSame(6, (int) ($first_data['page_size'] ?? 0));
+            $this->assertSame(array_slice($image_ids, 0, 6), array_map('intval', array_column($first_data['images'], 'id')));
+
+            $_GET['offset'] = '6';
+            $_REQUEST = $_GET;
+            $second_response = $this->runJsonEndpoint('ll_aim_get_images_handler');
+            $second_data = is_array($second_response['data'] ?? null) ? $second_response['data'] : [];
+            $this->assertCount(2, (array) ($second_data['images'] ?? []));
+            $this->assertFalse((bool) ($second_data['has_more'] ?? true));
+            $this->assertSame(8, (int) ($second_data['next_offset'] ?? 0));
+        } finally {
+            remove_filter('query', $sql_watcher);
+            remove_action('pre_get_posts', $post_query_watcher);
+            remove_filter('ll_aim_image_page_size', $page_size_filter);
+        }
+
+        $this->assertSame([6, 2], $query_limits);
+        $this->assertNotContains(-1, $query_limits);
+        $this->assertNotEmpty($usage_queries);
+        $this->assertStringContainsString((string) $image_ids[0], $usage_queries[0]);
+        $this->assertStringNotContainsString((string) $image_ids[6], $usage_queries[0]);
+    }
+
     public function test_next_word_skips_linked_only_effective_images_without_rematch(): void
     {
         $wordset_id = $this->ensureTerm('wordset', 'AIM Next Linked Wordset', 'aim-next-linked-wordset');
