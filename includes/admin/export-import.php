@@ -91,6 +91,7 @@ add_action('admin_post_ll_tools_import_preview_media', 'll_tools_handle_import_p
 add_action('admin_post_ll_tools_import_bundle', 'll_tools_handle_import_bundle');
 add_action('admin_post_ll_tools_preview_metadata_updates', 'll_tools_handle_preview_metadata_updates');
 add_action('admin_post_ll_tools_import_metadata_updates', 'll_tools_handle_import_metadata_updates');
+add_action('admin_post_ll_tools_continue_metadata_updates', 'll_tools_handle_continue_metadata_updates');
 add_action('admin_post_ll_tools_undo_import', 'll_tools_handle_undo_import');
 add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wordset_csv');
 add_action('admin_post_ll_tools_export_stt_training_bundle', 'll_tools_handle_export_stt_training_bundle');
@@ -4040,6 +4041,8 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
     $import_preview = null;
     $metadata_preview_token = '';
     $metadata_preview = null;
+    $metadata_update_job_token = '';
+    $metadata_update_job = null;
     if ($show_import) {
         $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
         if ($import_preview_token !== '') {
@@ -4063,6 +4066,16 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 echo '<div class="notice notice-warning is-dismissible"><p>';
                 esc_html_e('Metadata update preview expired. Generate a new preview and try again.', 'll-tools-text-domain');
                 echo '</p></div>';
+            }
+        }
+
+        $metadata_update_job_token = isset($_GET['ll_metadata_job'])
+            ? ll_tools_metadata_update_job_token((string) wp_unslash($_GET['ll_metadata_job']))
+            : '';
+        if ($metadata_update_job_token !== '') {
+            $loaded_metadata_job = ll_tools_metadata_update_job_load($metadata_update_job_token);
+            if (is_array($loaded_metadata_job)) {
+                $metadata_update_job = $loaded_metadata_job;
             }
         }
     }
@@ -4733,6 +4746,27 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             <p><button type="submit" class="button button-primary"><?php esc_html_e('Preview Metadata Updates', 'll-tools-text-domain'); ?></button></p>
         </form>
 
+        <?php if (is_array($metadata_update_job) && (string) ($metadata_update_job['status'] ?? '') === 'running') : ?>
+            <div id="ll-tools-metadata-job" class="notice notice-info inline">
+                <p><strong><?php esc_html_e('Metadata updates are in progress.', 'll-tools-text-domain'); ?></strong></p>
+                <p>
+                    <?php
+                    echo esc_html(sprintf(
+                        /* translators: %d processed metadata rows */
+                        __('Processed %d metadata rows.', 'll-tools-text-domain'),
+                        max(0, (int) ($metadata_update_job['processed_rows'] ?? 0))
+                    ));
+                    ?>
+                </p>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="ll_tools_continue_metadata_updates">
+                    <input type="hidden" name="ll_metadata_job_token" value="<?php echo esc_attr($metadata_update_job_token); ?>">
+                    <?php wp_nonce_field(ll_tools_metadata_update_job_nonce_action($metadata_update_job_token)); ?>
+                    <button type="submit" class="button button-primary"><?php esc_html_e('Continue Metadata Updates', 'll-tools-text-domain'); ?></button>
+                </form>
+            </div>
+        <?php endif; ?>
+
         <?php if (is_array($metadata_preview)) : ?>
             <?php
             $metadata_preview_stats = isset($metadata_preview['stats']) && is_array($metadata_preview['stats']) ? $metadata_preview['stats'] : [];
@@ -4783,7 +4817,12 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 <?php endif; ?>
 
                 <ul>
-                    <li><?php echo esc_html(sprintf(__('Rows found: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_rows_total'] ?? 0))); ?></li>
+                    <li><?php echo esc_html(sprintf(
+                        !empty($metadata_preview['partial_preview'])
+                            ? __('Rows sampled: %d', 'll-tools-text-domain')
+                            : __('Rows found: %d', 'll-tools-text-domain'),
+                        (int) ($metadata_preview_stats['metadata_rows_total'] ?? 0)
+                    )); ?></li>
                     <li><?php echo esc_html(sprintf(__('Rows with changes: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_rows_applied'] ?? 0))); ?></li>
                     <li><?php echo esc_html(sprintf(__('Rows skipped: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_rows_skipped'] ?? 0))); ?></li>
                     <li><?php echo esc_html(sprintf(__('Words to update: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['words_updated'] ?? 0))); ?></li>
@@ -8269,6 +8308,193 @@ function ll_tools_parse_metadata_updates_file(string $file_path, string $source_
     return $rows;
 }
 
+function ll_tools_metadata_update_stream_batch_size(): int {
+    $limit = (int) apply_filters('ll_tools_metadata_update_stream_batch_size', 25);
+    return max(1, min(100, $limit));
+}
+
+function ll_tools_metadata_update_preview_sample_size(): int {
+    $limit = (int) apply_filters('ll_tools_metadata_update_preview_sample_size', 25);
+    return max(1, min(100, $limit));
+}
+
+function ll_tools_metadata_update_stream_file_limits(): array {
+    return [
+        'stream_bytes' => max(MB_IN_BYTES, min(256 * MB_IN_BYTES, (int) apply_filters('ll_tools_metadata_update_stream_max_file_bytes', 64 * MB_IN_BYTES))),
+        'json_bytes' => max(256 * KB_IN_BYTES, min(8 * MB_IN_BYTES, (int) apply_filters('ll_tools_metadata_update_json_max_file_bytes', 2 * MB_IN_BYTES))),
+        'json_rows' => max(1, min(5000, (int) apply_filters('ll_tools_metadata_update_json_max_rows', 500))),
+        'jsonl_line_bytes' => max(64 * KB_IN_BYTES, min(4 * MB_IN_BYTES, (int) apply_filters('ll_tools_metadata_update_jsonl_max_line_bytes', MB_IN_BYTES))),
+    ];
+}
+
+/**
+ * Read one bounded page of normalized metadata update rows.
+ *
+ * CSV and JSONL/NDJSON use durable byte offsets. JSON arrays are intentionally
+ * limited to a small file/row ceiling; large jobs should use CSV or JSONL.
+ *
+ * @return array|WP_Error
+ */
+function ll_tools_parse_metadata_updates_file_page(
+    string $file_path,
+    string $source_name = '',
+    array $state = [],
+    int $limit = 0
+) {
+    if ($file_path === '' || !is_file($file_path)) {
+        return new WP_Error('ll_tools_metadata_updates_missing_file', __('Metadata update import failed: the source file is missing.', 'll-tools-text-domain'));
+    }
+
+    $limits = ll_tools_metadata_update_stream_file_limits();
+    $file_size = max(0, (int) @filesize($file_path));
+    $extension = strtolower((string) pathinfo($source_name !== '' ? $source_name : $file_path, PATHINFO_EXTENSION));
+    if ($extension === '') {
+        $extension = strtolower((string) pathinfo($file_path, PATHINFO_EXTENSION));
+    }
+    if (!in_array($extension, ['csv', 'json', 'jsonl', 'ndjson'], true)) {
+        return new WP_Error('ll_tools_metadata_updates_unsupported_file', __('Metadata update import failed: use CSV, JSON, JSONL, or NDJSON.', 'll-tools-text-domain'));
+    }
+    if ($file_size > $limits['stream_bytes']) {
+        return new WP_Error('ll_tools_metadata_updates_file_too_large', __('Metadata update import failed: the source file is larger than the streaming job limit.', 'll-tools-text-domain'));
+    }
+
+    $limit = $limit > 0 ? max(1, min(100, $limit)) : ll_tools_metadata_update_stream_batch_size();
+    if ($extension === 'json') {
+        if ($file_size > $limits['json_bytes']) {
+            return new WP_Error('ll_tools_metadata_updates_json_too_large', __('Metadata update import failed: large JSON arrays are not streamable. Use CSV or JSONL instead.', 'll-tools-text-domain'));
+        }
+        $rows = ll_tools_parse_metadata_updates_file($file_path, $source_name);
+        if (is_wp_error($rows)) {
+            return $rows;
+        }
+        if (count($rows) > $limits['json_rows']) {
+            return new WP_Error('ll_tools_metadata_updates_json_too_many_rows', __('Metadata update import failed: the JSON array has too many rows. Use CSV or JSONL instead.', 'll-tools-text-domain'));
+        }
+        $index = max(0, (int) ($state['index'] ?? 0));
+        $batch = array_slice($rows, $index, $limit);
+        $next_index = $index + count($batch);
+        return [
+            'rows' => $batch,
+            'state' => [
+                'extension' => 'json',
+                'index' => $next_index,
+            ],
+            'has_more' => $next_index < count($rows),
+            'scanned' => count($batch),
+        ];
+    }
+
+    $handle = @fopen($file_path, 'rb');
+    if ($handle === false) {
+        return new WP_Error('ll_tools_metadata_updates_read_failed', __('Metadata update import failed: the source file could not be read.', 'll-tools-text-domain'));
+    }
+
+    $rows = [];
+    $scanned = 0;
+    $scan_limit = max($limit, min(500, $limit * 5));
+    $offset = max(0, (int) ($state['offset'] ?? 0));
+    $row_number = max(0, (int) ($state['row_number'] ?? 0));
+    try {
+        if ($extension === 'csv') {
+            $first_line = fgets($handle);
+            if ($first_line === false) {
+                return [
+                    'rows' => [],
+                    'state' => ['extension' => 'csv', 'offset' => 0, 'row_number' => 0],
+                    'has_more' => false,
+                    'scanned' => 0,
+                ];
+            }
+            $delimiter = ll_tools_import_detect_external_csv_delimiter((string) $first_line);
+            rewind($handle);
+            $header_row = fgetcsv($handle, 0, $delimiter, '"', '\\');
+            if (!is_array($header_row) || empty($header_row)) {
+                return new WP_Error('ll_tools_metadata_updates_csv_header', __('Metadata update import failed: the CSV header row could not be read.', 'll-tools-text-domain'));
+            }
+            $headers = [];
+            foreach ($header_row as $index => $header_raw) {
+                $headers[(int) $index] = ll_tools_import_normalize_external_csv_header($header_raw);
+            }
+            $header_offset = max(0, (int) ftell($handle));
+            if ($offset < $header_offset) {
+                $offset = $header_offset;
+                $row_number = 1;
+            }
+            if (fseek($handle, $offset, SEEK_SET) !== 0) {
+                return new WP_Error('ll_tools_metadata_updates_resume_failed', __('Metadata update import failed: the CSV cursor could not be resumed.', 'll-tools-text-domain'));
+            }
+
+            while ($scanned < $scan_limit && count($rows) < $limit) {
+                $row = fgetcsv($handle, 0, $delimiter, '"', '\\');
+                if ($row === false) {
+                    break;
+                }
+                $scanned++;
+                $row_number++;
+                $offset = max($offset, (int) ftell($handle));
+                $assoc = [];
+                foreach ($headers as $index => $header_name) {
+                    if ($header_name !== '') {
+                        $assoc[$header_name] = ll_tools_import_get_external_csv_cell($row, (int) $index);
+                    }
+                }
+                $normalized = ll_tools_metadata_update_normalize_input_row($assoc, $row_number);
+                if (!ll_tools_metadata_update_row_is_blank($normalized)) {
+                    $rows[] = $normalized;
+                }
+            }
+        } else {
+            if ($offset > 0 && fseek($handle, $offset, SEEK_SET) !== 0) {
+                return new WP_Error('ll_tools_metadata_updates_resume_failed', __('Metadata update import failed: the JSONL cursor could not be resumed.', 'll-tools-text-domain'));
+            }
+            while ($scanned < $scan_limit && count($rows) < $limit) {
+                $line = fgets($handle, $limits['jsonl_line_bytes'] + 1);
+                if ($line === false) {
+                    break;
+                }
+                if (strlen($line) > $limits['jsonl_line_bytes']) {
+                    return new WP_Error('ll_tools_metadata_updates_jsonl_line_too_large', __('Metadata update import failed: one JSONL row is too large.', 'll-tools-text-domain'));
+                }
+                $scanned++;
+                $row_number++;
+                $offset = max($offset, (int) ftell($handle));
+                $line = trim((string) $line);
+                if ($line === '') {
+                    continue;
+                }
+                $decoded = json_decode($line, true);
+                if (!is_array($decoded)) {
+                    return new WP_Error(
+                        'll_tools_metadata_updates_invalid_jsonl',
+                        sprintf(
+                            /* translators: %d JSONL line number */
+                            __('Metadata update import failed: JSONL line %d is not valid JSON.', 'll-tools-text-domain'),
+                            $row_number
+                        )
+                    );
+                }
+                $normalized = ll_tools_metadata_update_normalize_input_row($decoded, $row_number);
+                if (!ll_tools_metadata_update_row_is_blank($normalized)) {
+                    $rows[] = $normalized;
+                }
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'state' => [
+                'extension' => $extension,
+                'offset' => $offset,
+                'row_number' => $row_number,
+            ],
+            'has_more' => !feof($handle),
+            'scanned' => $scanned,
+        ];
+    } finally {
+        fclose($handle);
+    }
+}
+
 function ll_tools_metadata_update_sanitize_field_value(string $field_key, string $value): string {
     $supported = ll_tools_get_metadata_update_supported_fields();
     if (!isset($supported[$field_key])) {
@@ -8674,7 +8900,11 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
         ],
     ];
 
-    $rows = ll_tools_parse_metadata_updates_file($file_path, $source_name);
+    $has_prepared_rows = array_key_exists('prepared_rows', $options) && is_array($options['prepared_rows']);
+    $is_partial_preview = !empty($options['partial_preview']);
+    $rows = $has_prepared_rows
+        ? array_values($options['prepared_rows'])
+        : ll_tools_parse_metadata_updates_file($file_path, $source_name);
     if (is_wp_error($rows)) {
         $preview['message'] = $rows->get_error_message();
         $preview['errors'][] = $rows->get_error_message();
@@ -8948,6 +9178,11 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
         );
     }
 
+    if ($is_partial_preview) {
+        $preview['partial_preview'] = true;
+        $preview['warnings'][] = __('This is a bounded sample of the file. Confirmation processes every row in resumable batches.', 'll-tools-text-domain');
+    }
+
     $preview['warnings'] = array_values(array_filter(array_unique(array_map('strval', $preview['warnings'])), static function (string $warning): bool {
         return trim($warning) !== '';
     }));
@@ -8960,6 +9195,8 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
         $preview['message'] = __('Metadata update preview found no changes.', 'll-tools-text-domain');
     } elseif (!$preview['ok']) {
         $preview['message'] = __('Metadata update preview found some errors.', 'll-tools-text-domain');
+    } elseif ($is_partial_preview) {
+        $preview['message'] = __('Metadata update sample preview is ready.', 'll-tools-text-domain');
     } elseif (!empty($preview['warnings'])) {
         $preview['message'] = __('Metadata update preview is ready with warnings.', 'll-tools-text-domain');
     } else {
@@ -8970,7 +9207,7 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
 }
 
 function ll_tools_process_metadata_updates_file(string $file_path, string $source_name = '', array $options = []): array {
-    $result = [
+    $default_result = [
         'ok' => false,
         'message' => '',
         'errors' => [],
@@ -8979,6 +9216,19 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
         'undo' => ll_tools_import_default_undo_payload(),
         'history_context' => ll_tools_import_default_history_context(),
     ];
+    $result = isset($options['initial_result']) && is_array($options['initial_result'])
+        ? array_merge($default_result, $options['initial_result'])
+        : $default_result;
+    $result['stats'] = array_merge(
+        ll_tools_import_default_stats(),
+        isset($result['stats']) && is_array($result['stats']) ? $result['stats'] : []
+    );
+    $result['errors'] = isset($result['errors']) && is_array($result['errors']) ? $result['errors'] : [];
+    $result['warnings'] = isset($result['warnings']) && is_array($result['warnings']) ? $result['warnings'] : [];
+    $result['undo'] = isset($result['undo']) && is_array($result['undo']) ? $result['undo'] : ll_tools_import_default_undo_payload();
+    $result['history_context'] = isset($result['history_context']) && is_array($result['history_context'])
+        ? $result['history_context']
+        : ll_tools_import_default_history_context();
 
     $defer_category_maintenance = function_exists('ll_tools_begin_deferred_category_maintenance')
         && function_exists('ll_tools_end_deferred_category_maintenance');
@@ -8987,18 +9237,24 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
     }
 
     try {
-        $rows = ll_tools_parse_metadata_updates_file($file_path, $source_name);
+        $has_prepared_rows = array_key_exists('prepared_rows', $options) && is_array($options['prepared_rows']);
+        $rows = $has_prepared_rows
+            ? array_values($options['prepared_rows'])
+            : ll_tools_parse_metadata_updates_file($file_path, $source_name);
         if (is_wp_error($rows)) {
             $result['message'] = $rows->get_error_message();
             return $result;
         }
 
+        if (empty($rows) && $has_prepared_rows) {
+            return $result;
+        }
         if (empty($rows)) {
             $result['message'] = __('Metadata update import found no non-empty update rows.', 'll-tools-text-domain');
             return $result;
         }
 
-        $result['stats']['metadata_files_processed'] = 1;
+        $result['stats']['metadata_files_processed'] = max(1, (int) ($result['stats']['metadata_files_processed'] ?? 0));
         $supported_fields = ll_tools_get_metadata_update_supported_fields();
         $mark_imported_ipa_review = !array_key_exists('mark_imported_ipa_review', $options)
             ? true
@@ -9006,8 +9262,10 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
         $max_messages = 50;
         $error_overflow = 0;
         $warning_overflow = 0;
-        $changed_word_ids = [];
-        $changed_recording_ids = [];
+        $metadata_state = isset($result['metadata_state']) && is_array($result['metadata_state']) ? $result['metadata_state'] : [];
+        $changed_word_ids = array_fill_keys(array_map('intval', (array) ($metadata_state['changed_word_ids'] ?? [])), true);
+        $changed_recording_ids = array_fill_keys(array_map('intval', (array) ($metadata_state['changed_recording_ids'] ?? [])), true);
+        $all_touched_category_ids = array_fill_keys(array_map('intval', (array) ($metadata_state['touched_category_ids'] ?? [])), true);
         $touched_category_ids = [];
 
         $add_error = static function (string $message) use (&$result, &$error_overflow, $max_messages): void {
@@ -9193,6 +9451,7 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                     }
                     foreach (ll_tools_metadata_update_get_word_category_ids($resolved_word_id) as $category_id) {
                         $touched_category_ids[$category_id] = true;
+                        $all_touched_category_ids[$category_id] = true;
                     }
                     $row_changed = true;
                 }
@@ -9352,6 +9611,7 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                     if ($resolved_word_id > 0) {
                         foreach (ll_tools_metadata_update_get_word_category_ids($resolved_word_id) as $category_id) {
                             $touched_category_ids[$category_id] = true;
+                            $all_touched_category_ids[$category_id] = true;
                         }
                     }
                     $row_changed = true;
@@ -9426,10 +9686,229 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
             $result['message'] = __('Metadata updates complete.', 'll-tools-text-domain');
         }
 
+        if ($has_prepared_rows || array_key_exists('initial_result', $options)) {
+            $result['metadata_state'] = [
+                'changed_word_ids' => array_values(array_filter(array_map('intval', array_keys($changed_word_ids)))),
+                'changed_recording_ids' => array_values(array_filter(array_map('intval', array_keys($changed_recording_ids)))),
+                'touched_category_ids' => array_values(array_filter(array_map('intval', array_keys($all_touched_category_ids)))),
+            ];
+        } else {
+            unset($result['metadata_state']);
+        }
+
         return $result;
     } finally {
         if ($defer_category_maintenance) {
             ll_tools_end_deferred_category_maintenance(true);
+        }
+    }
+}
+
+function ll_tools_metadata_update_job_token(string $token): string {
+    return preg_replace('/[^a-zA-Z0-9_-]/', '', $token);
+}
+
+function ll_tools_metadata_update_job_nonce_action(string $token): string {
+    return 'll_tools_continue_metadata_updates_' . ll_tools_metadata_update_job_token($token);
+}
+
+function ll_tools_metadata_update_job_manifest_path(string $token): string {
+    $token = ll_tools_metadata_update_job_token($token);
+    return trailingslashit(ll_tools_import_job_get_dir('metadata-' . $token)) . 'manifest.json';
+}
+
+function ll_tools_metadata_update_job_load(string $token) {
+    $token = ll_tools_metadata_update_job_token($token);
+    if ($token === '') {
+        return new WP_Error('ll_tools_metadata_update_job_missing', __('Metadata update job is missing.', 'll-tools-text-domain'));
+    }
+    $job = ll_tools_import_job_read_json_file(ll_tools_metadata_update_job_manifest_path($token));
+    if (is_wp_error($job)) {
+        return $job;
+    }
+    if ((int) ($job['created_by'] ?? 0) !== (int) get_current_user_id()) {
+        return new WP_Error('ll_tools_metadata_update_job_forbidden', __('You do not have permission to continue this metadata update job.', 'll-tools-text-domain'));
+    }
+    return $job;
+}
+
+function ll_tools_metadata_update_job_save(array $job) {
+    $token = ll_tools_metadata_update_job_token((string) ($job['token'] ?? ''));
+    if ($token === '') {
+        return new WP_Error('ll_tools_metadata_update_job_missing', __('Metadata update job is missing.', 'll-tools-text-domain'));
+    }
+    $job['token'] = $token;
+    $job['updated_at'] = time();
+    return ll_tools_import_job_write_json_file(ll_tools_metadata_update_job_manifest_path($token), $job);
+}
+
+function ll_tools_metadata_update_job_create(
+    string $file_path,
+    string $source_name,
+    bool $cleanup_file,
+    string $preview_token,
+    array $options = []
+) {
+    if ($file_path === '' || !is_file($file_path)) {
+        return new WP_Error('ll_tools_metadata_updates_missing_file', __('Metadata update import failed: the source file is missing.', 'll-tools-text-domain'));
+    }
+    $token = wp_generate_password(20, false, false);
+    $job = [
+        'token' => $token,
+        'status' => 'running',
+        'created_by' => (int) get_current_user_id(),
+        'created_at' => time(),
+        'updated_at' => time(),
+        'file_path' => $file_path,
+        'source_name' => $source_name !== '' ? sanitize_file_name($source_name) : basename($file_path),
+        'cleanup_file' => $cleanup_file,
+        'preview_token' => ll_tools_metadata_update_job_token($preview_token),
+        'options' => [
+            'mark_imported_ipa_review' => !array_key_exists('mark_imported_ipa_review', $options)
+                ? true
+                : !empty($options['mark_imported_ipa_review']),
+        ],
+        'source_size' => max(0, (int) @filesize($file_path)),
+        'source_mtime' => max(0, (int) @filemtime($file_path)),
+        'stream_state' => [],
+        'processed_rows' => 0,
+        'result' => [
+            'ok' => false,
+            'message' => '',
+            'errors' => [],
+            'warnings' => [],
+            'stats' => ll_tools_import_default_stats(),
+            'undo' => ll_tools_import_default_undo_payload(),
+            'history_context' => ll_tools_import_default_history_context(),
+        ],
+        'history_appended' => false,
+    ];
+    $saved = ll_tools_metadata_update_job_save($job);
+    return is_wp_error($saved) ? $saved : $job;
+}
+
+function ll_tools_metadata_update_job_fail(array $job, string $message): array {
+    $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : [];
+    $result['ok'] = false;
+    $result['message'] = $message;
+    $result['errors'] = isset($result['errors']) && is_array($result['errors']) ? $result['errors'] : [];
+    $result['errors'][] = $message;
+    $result['errors'] = array_values(array_unique(array_filter(array_map('strval', $result['errors']))));
+    unset($result['metadata_state']);
+    $job['result'] = $result;
+    $job['status'] = 'failed';
+    ll_tools_metadata_update_job_save($job);
+    return $job;
+}
+
+function ll_tools_metadata_update_job_finalize(array $job): array {
+    $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : [];
+    unset($result['metadata_state']);
+    if ((int) ($result['stats']['metadata_rows_total'] ?? 0) <= 0 && empty($result['errors'])) {
+        $result['ok'] = true;
+        $result['message'] = __('Metadata update import found no non-empty update rows.', 'll-tools-text-domain');
+    }
+
+    if (empty($job['history_appended'])) {
+        ll_tools_import_append_history_entry([
+            'id' => wp_generate_uuid4(),
+            'finished_at' => time(),
+            'user_id' => get_current_user_id(),
+            'ok' => !empty($result['ok']),
+            'message' => isset($result['message']) ? (string) $result['message'] : '',
+            'errors_count' => isset($result['errors']) && is_array($result['errors']) ? count($result['errors']) : 0,
+            'stats' => isset($result['stats']) && is_array($result['stats']) ? $result['stats'] : [],
+            'source_type' => 'uploaded',
+            'source_zip' => (string) ($job['source_name'] ?? ''),
+            'undo' => isset($result['undo']) && is_array($result['undo']) ? $result['undo'] : ll_tools_import_default_undo_payload(),
+            'history_context' => isset($result['history_context']) && is_array($result['history_context'])
+                ? $result['history_context']
+                : ll_tools_import_default_history_context(),
+            'undone_at' => 0,
+        ]);
+        $job['history_appended'] = true;
+    }
+
+    $file_path = (string) ($job['file_path'] ?? '');
+    if (!empty($job['cleanup_file']) && $file_path !== '' && is_file($file_path)) {
+        @unlink($file_path);
+    }
+    $preview_token = ll_tools_metadata_update_job_token((string) ($job['preview_token'] ?? ''));
+    if ($preview_token !== '') {
+        delete_transient(ll_tools_metadata_update_preview_transient_key($preview_token));
+    }
+    $job['result'] = $result;
+    $job['status'] = 'completed';
+    ll_tools_metadata_update_job_save($job);
+    return $job;
+}
+
+function ll_tools_metadata_update_job_process(array $job) {
+    if ((string) ($job['status'] ?? '') !== 'running') {
+        return $job;
+    }
+    $file_path = (string) ($job['file_path'] ?? '');
+    if (
+        $file_path === ''
+        || !is_file($file_path)
+        || max(0, (int) @filesize($file_path)) !== (int) ($job['source_size'] ?? -1)
+        || max(0, (int) @filemtime($file_path)) !== (int) ($job['source_mtime'] ?? -1)
+    ) {
+        return ll_tools_metadata_update_job_fail($job, __('Metadata update import stopped because the source file changed or disappeared.', 'll-tools-text-domain'));
+    }
+
+    $token = ll_tools_metadata_update_job_token((string) ($job['token'] ?? ''));
+    $lock_name = 'll_tools_meta_job_lock_' . strtolower($token);
+    $lock_token = wp_generate_password(16, false, false);
+    $lock_payload = [
+        'token' => $lock_token,
+        'expires_at' => time() + 2 * MINUTE_IN_SECONDS,
+    ];
+    if (!add_option($lock_name, $lock_payload, '', false)) {
+        $existing_lock = get_option($lock_name, []);
+        if (is_array($existing_lock) && (int) ($existing_lock['expires_at'] ?? 0) < time()) {
+            delete_option($lock_name);
+        }
+        if (!add_option($lock_name, $lock_payload, '', false)) {
+            return new WP_Error('ll_tools_metadata_update_job_busy', __('Metadata update job is already processing. Try again shortly.', 'll-tools-text-domain'));
+        }
+    }
+
+    try {
+        $page = ll_tools_parse_metadata_updates_file_page(
+            $file_path,
+            (string) ($job['source_name'] ?? ''),
+            isset($job['stream_state']) && is_array($job['stream_state']) ? $job['stream_state'] : [],
+            ll_tools_metadata_update_stream_batch_size()
+        );
+        if (is_wp_error($page)) {
+            return ll_tools_metadata_update_job_fail($job, $page->get_error_message());
+        }
+
+        $rows = isset($page['rows']) && is_array($page['rows']) ? array_values($page['rows']) : [];
+        if (!empty($rows)) {
+            $job['result'] = ll_tools_process_metadata_updates_file(
+                $file_path,
+                (string) ($job['source_name'] ?? ''),
+                [
+                    'mark_imported_ipa_review' => !empty($job['options']['mark_imported_ipa_review']),
+                    'prepared_rows' => $rows,
+                    'initial_result' => isset($job['result']) && is_array($job['result']) ? $job['result'] : [],
+                ]
+            );
+        }
+        $job['stream_state'] = isset($page['state']) && is_array($page['state']) ? $page['state'] : [];
+        $job['processed_rows'] = (int) ($job['result']['stats']['metadata_rows_total'] ?? $job['processed_rows'] ?? 0);
+        if (empty($page['has_more'])) {
+            return ll_tools_metadata_update_job_finalize($job);
+        }
+
+        $saved = ll_tools_metadata_update_job_save($job);
+        return is_wp_error($saved) ? $saved : $job;
+    } finally {
+        $existing_lock = get_option($lock_name, []);
+        if (is_array($existing_lock) && hash_equals((string) ($existing_lock['token'] ?? ''), $lock_token)) {
+            delete_option($lock_name);
         }
     }
 }
@@ -9458,9 +9937,32 @@ function ll_tools_handle_preview_metadata_updates(): void {
     $mark_imported_ipa_review = isset($_POST['ll_import_metadata_mark_ipa_review'])
         && sanitize_text_field(wp_unslash((string) $_POST['ll_import_metadata_mark_ipa_review'])) === '1';
 
-    $preview = ll_tools_build_metadata_update_preview_data($file_path, $source_name, [
-        'mark_imported_ipa_review' => $mark_imported_ipa_review,
-    ]);
+    $preview_page = ll_tools_parse_metadata_updates_file_page(
+        $file_path,
+        $source_name,
+        [],
+        ll_tools_metadata_update_preview_sample_size()
+    );
+    if (is_wp_error($preview_page)) {
+        $preview = [
+            'ok' => false,
+            'message' => $preview_page->get_error_message(),
+            'errors' => [$preview_page->get_error_message()],
+            'warnings' => [],
+            'stats' => ll_tools_import_default_stats(),
+            'sample_changes' => [],
+            'source_name' => $source_name,
+            'options' => [
+                'mark_imported_ipa_review' => $mark_imported_ipa_review,
+            ],
+        ];
+    } else {
+        $preview = ll_tools_build_metadata_update_preview_data($file_path, $source_name, [
+            'mark_imported_ipa_review' => $mark_imported_ipa_review,
+            'prepared_rows' => (array) ($preview_page['rows'] ?? []),
+            'partial_preview' => !empty($preview_page['has_more']),
+        ]);
+    }
 
     if (($preview['message'] ?? '') === '' && !$preview['ok']) {
         $preview['message'] = __('Metadata update preview failed.', 'll-tools-text-domain');
@@ -9532,35 +10034,51 @@ function ll_tools_handle_import_metadata_updates(): void {
     $mark_imported_ipa_review = array_key_exists('ll_import_metadata_mark_ipa_review', $_POST)
         ? sanitize_text_field(wp_unslash((string) $_POST['ll_import_metadata_mark_ipa_review'])) === '1'
         : !empty($preview_defaults['mark_imported_ipa_review']);
-    $processed = ll_tools_process_metadata_updates_file($file_path, $source_name, [
+    $job = ll_tools_metadata_update_job_create($file_path, $source_name, $cleanup_file, $preview_token, [
         'mark_imported_ipa_review' => $mark_imported_ipa_review,
     ]);
-
-    if ($cleanup_file && $file_path !== '' && is_file($file_path)) {
-        @unlink($file_path);
+    if (is_wp_error($job)) {
+        if ($cleanup_file && $file_path !== '' && is_file($file_path)) {
+            @unlink($file_path);
+        }
+        $result['message'] = $job->get_error_message();
+        $result['errors'][] = $job->get_error_message();
+        ll_tools_store_import_result_and_redirect($result);
     }
-    if ($preview_token !== '') {
-        delete_transient(ll_tools_metadata_update_preview_transient_key($preview_token));
+
+    wp_safe_redirect(ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug(), [
+        'll_metadata_job' => (string) ($job['token'] ?? ''),
+    ]) . '#ll-tools-metadata-job');
+    exit;
+}
+
+function ll_tools_handle_continue_metadata_updates(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_die(__('You do not have permission to import LL Tools metadata updates.', 'll-tools-text-domain'));
+    }
+    $token = isset($_POST['ll_metadata_job_token'])
+        ? ll_tools_metadata_update_job_token((string) wp_unslash($_POST['ll_metadata_job_token']))
+        : '';
+    if ($token === '') {
+        wp_die(__('Metadata update job is missing.', 'll-tools-text-domain'));
+    }
+    check_admin_referer(ll_tools_metadata_update_job_nonce_action($token));
+    $job = ll_tools_metadata_update_job_load($token);
+    if (is_wp_error($job)) {
+        wp_die($job->get_error_message());
+    }
+    $job = ll_tools_metadata_update_job_process($job);
+    if (is_wp_error($job)) {
+        wp_die($job->get_error_message());
+    }
+    if (in_array((string) ($job['status'] ?? ''), ['completed', 'failed'], true)) {
+        ll_tools_store_import_result_and_redirect(isset($job['result']) && is_array($job['result']) ? $job['result'] : []);
     }
 
-    ll_tools_import_append_history_entry([
-        'id' => wp_generate_uuid4(),
-        'finished_at' => time(),
-        'user_id' => get_current_user_id(),
-        'ok' => !empty($processed['ok']),
-        'message' => isset($processed['message']) ? (string) $processed['message'] : '',
-        'errors_count' => isset($processed['errors']) && is_array($processed['errors']) ? count($processed['errors']) : 0,
-        'stats' => isset($processed['stats']) && is_array($processed['stats']) ? $processed['stats'] : [],
-        'source_type' => 'uploaded',
-        'source_zip' => $source_name,
-        'undo' => isset($processed['undo']) && is_array($processed['undo']) ? $processed['undo'] : ll_tools_import_default_undo_payload(),
-        'history_context' => isset($processed['history_context']) && is_array($processed['history_context'])
-            ? $processed['history_context']
-            : ll_tools_import_default_history_context(),
-        'undone_at' => 0,
-    ]);
-
-    ll_tools_store_import_result_and_redirect($processed);
+    wp_safe_redirect(ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug(), [
+        'll_metadata_job' => $token,
+    ]) . '#ll-tools-metadata-job');
+    exit;
 }
 
 function ll_tools_import_snapshot_values_equal(array $left, array $right): bool {
