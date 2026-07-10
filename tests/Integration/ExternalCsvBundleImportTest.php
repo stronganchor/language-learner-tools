@@ -229,6 +229,61 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_preview_rejects_external_csv_rows_before_payload_hydration(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is required for this test.');
+        }
+
+        $csv = "quiz,prompt_text,correct_answer\n";
+        for ($index = 1; $index <= 5; $index++) {
+            $csv .= "Guarded Category,Prompt {$index},Answer {$index}\n";
+        }
+        $zip_path = $this->createExternalZip(['external.csv' => $csv]);
+        $row_limit = static function (): int {
+            return 3;
+        };
+        add_filter('ll_tools_import_external_preview_max_csv_rows', $row_limit);
+
+        try {
+            $preview = ll_tools_read_import_preview_from_zip($zip_path);
+            $this->assertWPError($preview);
+            $this->assertSame('ll_tools_import_external_preview_too_many_rows', $preview->get_error_code());
+        } finally {
+            remove_filter('ll_tools_import_external_preview_max_csv_rows', $row_limit);
+            @unlink($zip_path);
+        }
+    }
+
+    public function test_preview_rejects_external_media_count_before_extraction(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is required for this test.');
+        }
+
+        $png = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($png);
+        $zip_path = $this->createExternalZip([
+            'external.csv' => "quiz,image,correct answer\nGuarded Category,one.png,One\n",
+            'images/one.png' => $png,
+            'images/two.png' => $png,
+            'images/three.png' => $png,
+        ]);
+        $media_limit = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_import_external_preview_max_media_files', $media_limit);
+
+        try {
+            $preview = ll_tools_read_import_preview_from_zip($zip_path);
+            $this->assertWPError($preview);
+            $this->assertSame('ll_tools_import_external_preview_too_many_media_files', $preview->get_error_code());
+        } finally {
+            remove_filter('ll_tools_import_external_preview_max_media_files', $media_limit);
+            @unlink($zip_path);
+        }
+    }
+
     public function test_import_processes_external_csv_images_bundle_and_maps_wrong_answers(): void
     {
         if (!class_exists('ZipArchive')) {

@@ -7287,6 +7287,118 @@ function ll_tools_import_read_payload_from_extract_dir($extract_dir) {
     return ll_tools_import_build_payload_from_external_csv_bundle($extract_dir);
 }
 
+function ll_tools_import_external_preview_limits(): array {
+    return [
+        'csv_files' => max(1, min(256, (int) apply_filters('ll_tools_import_external_preview_max_csv_files', 32))),
+        'csv_rows' => max(1, min(50000, (int) apply_filters('ll_tools_import_external_preview_max_csv_rows', 5000))),
+        'csv_bytes' => max(MB_IN_BYTES, min(128 * MB_IN_BYTES, (int) apply_filters('ll_tools_import_external_preview_max_csv_bytes', 16 * MB_IN_BYTES))),
+        'csv_line_bytes' => max(64 * KB_IN_BYTES, min(4 * MB_IN_BYTES, (int) apply_filters('ll_tools_import_external_preview_max_csv_line_bytes', MB_IN_BYTES))),
+        'media_files' => max(1, min(5000, (int) apply_filters('ll_tools_import_external_preview_max_media_files', 2000))),
+        'media_bytes' => max(MB_IN_BYTES, min(2 * GB_IN_BYTES, (int) apply_filters('ll_tools_import_external_preview_max_media_bytes', 512 * MB_IN_BYTES))),
+    ];
+}
+
+/**
+ * Reject oversized external CSV/media previews before extraction or payload hydration.
+ * Native LL Tools bundles keep their existing data.json validation path.
+ *
+ * @return array|WP_Error
+ */
+function ll_tools_import_validate_external_preview_manifest(ZipArchive $zip) {
+    $manifest = ll_tools_import_job_collect_zip_manifest($zip);
+    if (is_wp_error($manifest)) {
+        return $manifest;
+    }
+
+    $entries = array_values((array) ($manifest['entries'] ?? []));
+    foreach ($entries as $entry) {
+        if (!empty($entry['is_dir'])) {
+            continue;
+        }
+        if ((string) ($entry['relative_path'] ?? '') === 'data.json') {
+            return [
+                'format' => 'native',
+                'entry_count' => (int) ($manifest['entry_count'] ?? 0),
+            ];
+        }
+    }
+
+    $limits = ll_tools_import_external_preview_limits();
+    $csv_entries = [];
+    $csv_bytes = 0;
+    $media_files = 0;
+    $media_bytes = 0;
+    foreach ($entries as $entry) {
+        if (!is_array($entry) || !empty($entry['is_dir'])) {
+            continue;
+        }
+        $relative_path = (string) ($entry['relative_path'] ?? '');
+        $size = max(0, (int) ($entry['size'] ?? 0));
+        $is_top_level_csv = strpos($relative_path, '/') === false
+            && strtolower((string) pathinfo($relative_path, PATHINFO_EXTENSION)) === 'csv';
+        if ($is_top_level_csv) {
+            $csv_entries[] = $entry;
+            $csv_bytes += $size;
+            continue;
+        }
+        $media_files++;
+        $media_bytes += $size;
+    }
+
+    if (empty($csv_entries)) {
+        return new WP_Error('ll_tools_import_external_preview_missing_csv', __('Import failed: external bundle has no top-level CSV files.', 'll-tools-text-domain'));
+    }
+    if (count($csv_entries) > $limits['csv_files']) {
+        return new WP_Error('ll_tools_import_external_preview_too_many_csv_files', __('Import failed: external bundle contains too many CSV files for a safe preview.', 'll-tools-text-domain'));
+    }
+    if ($csv_bytes > $limits['csv_bytes']) {
+        return new WP_Error('ll_tools_import_external_preview_csv_too_large', __('Import failed: external CSV data is too large for a safe preview.', 'll-tools-text-domain'));
+    }
+    if ($media_files > $limits['media_files']) {
+        return new WP_Error('ll_tools_import_external_preview_too_many_media_files', __('Import failed: external bundle contains too many media files for a safe preview.', 'll-tools-text-domain'));
+    }
+    if ($media_bytes > $limits['media_bytes']) {
+        return new WP_Error('ll_tools_import_external_preview_media_too_large', __('Import failed: external media is too large for a safe preview.', 'll-tools-text-domain'));
+    }
+
+    $row_count = 0;
+    foreach ($csv_entries as $entry) {
+        $stream = $zip->getStream((string) ($entry['entry_name'] ?? ''));
+        if ($stream === false) {
+            return new WP_Error('ll_tools_import_external_preview_csv_read_failed', __('Import failed: an external CSV file could not be read.', 'll-tools-text-domain'));
+        }
+        $saw_header = false;
+        while (($line = fgets($stream, $limits['csv_line_bytes'] + 1)) !== false) {
+            if (strlen($line) > $limits['csv_line_bytes']) {
+                fclose($stream);
+                return new WP_Error('ll_tools_import_external_preview_csv_line_too_large', __('Import failed: an external CSV row is too large for a safe preview.', 'll-tools-text-domain'));
+            }
+            if (trim($line) === '') {
+                continue;
+            }
+            if (!$saw_header) {
+                $saw_header = true;
+                continue;
+            }
+            $row_count++;
+            if ($row_count > $limits['csv_rows']) {
+                fclose($stream);
+                return new WP_Error('ll_tools_import_external_preview_too_many_rows', __('Import failed: external CSV data contains too many rows for a safe preview.', 'll-tools-text-domain'));
+            }
+        }
+        fclose($stream);
+    }
+
+    return [
+        'format' => 'external_csv',
+        'csv_files' => count($csv_entries),
+        'csv_rows' => $row_count,
+        'csv_bytes' => $csv_bytes,
+        'media_files' => $media_files,
+        'media_bytes' => $media_bytes,
+    ];
+}
+
 /**
  * Read and validate bundle payload from a zip for preview purposes.
  *
@@ -7301,6 +7413,12 @@ function ll_tools_read_import_preview_from_zip($zip_path) {
     $zip = new ZipArchive();
     if ($zip->open($zip_path) !== true) {
         return new WP_Error('ll_tools_import_open_failed', __('Import failed: could not open zip file.', 'll-tools-text-domain'));
+    }
+
+    $preview_manifest = ll_tools_import_validate_external_preview_manifest($zip);
+    if (is_wp_error($preview_manifest)) {
+        $zip->close();
+        return $preview_manifest;
     }
 
     $upload_dir = wp_upload_dir();
