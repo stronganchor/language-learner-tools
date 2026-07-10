@@ -687,6 +687,159 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_offline_app_export_job_starts_cheap_and_caps_every_phase(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset = wp_insert_term('Offline Job Wordset ' . wp_generate_password(6, false, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_ids = [];
+        foreach (range(1, 3) as $category_index) {
+            $category = wp_insert_term('Offline Job Category ' . $category_index . ' ' . wp_generate_password(4, false, false), 'word-category');
+            $this->assertIsArray($category);
+            $category_id = (int) $category['term_id'];
+            $effective_category_id = 0;
+            foreach (range(1, 5) as $word_index) {
+                $word_id = $this->createPublishedOfflineTextWord(
+                    'Offline Job Word ' . $category_index . '-' . $word_index,
+                    'Offline Job Translation ' . $category_index . '-' . $word_index,
+                    $category_id,
+                    $wordset_id
+                );
+                if ($effective_category_id <= 0) {
+                    $effective_category_id = $this->getOfflineWordCategoryId($word_id);
+                }
+            }
+            $effective_category_id = $effective_category_id > 0 ? $effective_category_id : $category_id;
+            $category_ids[] = $this->applyOfflineWordsetCategoryConfig(
+                $effective_category_id,
+                $wordset_id,
+                'text_title',
+                'text_translation'
+            );
+        }
+
+        $full_builder_started = false;
+        $full_builder_listener = static function () use (&$full_builder_started): void {
+            $full_builder_started = true;
+        };
+        $minimum_filter = static function (): int {
+            return 1;
+        };
+        $category_batch_filter = static function (): int {
+            return 2;
+        };
+        $word_batch_filter = static function (): int {
+            return 3;
+        };
+        $media_batch_filter = static function (): int {
+            return 7;
+        };
+        $data_batch_filter = static function (): int {
+            return 4;
+        };
+        $zip_batch_filter = static function (): int {
+            return 8;
+        };
+        $word_candidate_queries = [];
+        $query_filter = static function (string $query) use (&$word_candidate_queries): string {
+            if (stripos($query, 'SELECT DISTINCT p.ID') !== false && stripos($query, 'AND p.ID >') !== false) {
+                $word_candidate_queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_action('ll_tools_offline_app_full_builder_started', $full_builder_listener);
+        add_filter('ll_tools_quiz_min_words', $minimum_filter);
+        add_filter('ll_tools_offline_app_export_category_batch_size', $category_batch_filter);
+        add_filter('ll_tools_offline_app_export_word_batch_size', $word_batch_filter);
+        add_filter('ll_tools_offline_app_export_media_batch_size', $media_batch_filter);
+        add_filter('ll_tools_offline_app_export_data_batch_size', $data_batch_filter);
+        add_filter('ll_tools_offline_app_export_zip_batch_size', $zip_batch_filter);
+        add_filter('query', $query_filter);
+
+        $token = '';
+        try {
+            $start = ll_tools_offline_app_export_prepare_job([
+                'll_offline_wordset_id' => $wordset_id,
+                'll_offline_category_scope' => 'custom',
+                'll_offline_category_ids' => $category_ids,
+                'll_offline_app_name' => 'Offline Bounded Job',
+                'll_offline_version_name' => '1.0.0',
+                'll_offline_version_code' => 1,
+                'll_offline_app_id_suffix' => 'tests.offline.job',
+            ]);
+            $this->assertIsArray($start, is_wp_error($start) ? $start->get_error_message() : '');
+            $this->assertFalse($full_builder_started, 'Starting a resumable export must not invoke the full bundle builder.');
+            $this->assertSame('categories', (string) ($start['phase'] ?? ''));
+            $token = (string) ($start['token'] ?? '');
+            $this->assertNotSame('', $token);
+
+            $phase_batches = [];
+            $response = $start;
+            for ($iteration = 0; $iteration < 160; $iteration++) {
+                $response = ll_tools_offline_app_export_run_step($token);
+                $this->assertIsArray($response, is_wp_error($response) ? $response->get_error_message() : '');
+                $batch = (array) ($response['batch'] ?? []);
+                $batch_phase = (string) ($batch['phase'] ?? '');
+                if ($batch_phase !== '') {
+                    $phase_batches[$batch_phase][] = $batch;
+                }
+                $this->assertLessThanOrEqual(2, (int) ($batch['categories'] ?? 0));
+                $this->assertLessThanOrEqual(3, (int) ($batch['words'] ?? 0));
+                $this->assertLessThanOrEqual(7, (int) ($batch['media'] ?? 0));
+                $this->assertLessThanOrEqual(4, (int) ($batch['data'] ?? 0));
+                $this->assertLessThanOrEqual(8, (int) ($batch['zip'] ?? 0));
+                if ((string) ($response['status'] ?? '') === 'completed') {
+                    break;
+                }
+            }
+
+            $this->assertSame('completed', (string) ($response['status'] ?? ''), wp_json_encode($response));
+            $this->assertFalse($full_builder_started, 'Resumable export steps must not invoke the full bundle builder.');
+            foreach (['categories', 'words', 'media', 'data', 'zip'] as $phase) {
+                $this->assertArrayHasKey($phase, $phase_batches, 'Expected at least one bounded ' . $phase . ' batch.');
+            }
+            $this->assertNotEmpty($word_candidate_queries);
+            foreach ($word_candidate_queries as $candidate_query) {
+                $this->assertMatchesRegularExpression('/LIMIT\s+4\s*$/i', trim($candidate_query));
+            }
+
+            $job = ll_tools_offline_app_export_load_job($token);
+            $this->assertIsArray($job);
+            $zip_path = (string) ($job['zip_path'] ?? '');
+            $this->assertFileExists($zip_path);
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($zip_path) === true);
+            $offline_data = $zip->getFromName('www/data/offline-data.js');
+            $this->assertIsString($offline_data);
+            $this->assertStringContainsString('Offline Job Translation 1-1', $offline_data);
+            $this->assertStringContainsString('Offline Job Translation 3-5', $offline_data);
+            $payload_json = preg_replace('/^window\.llToolsOfflineData\s*=\s*/', '', trim($offline_data));
+            $payload_json = is_string($payload_json) ? preg_replace('/;$/', '', $payload_json) : '';
+            $this->assertIsString($payload_json);
+            $payload = json_decode($payload_json, true);
+            $this->assertIsArray($payload, json_last_error_msg());
+            $this->assertCount(5, (array) (($payload['flashcards'] ?? [])['firstCategoryData'] ?? []));
+            $this->assertCount(3, (array) (($payload['flashcards'] ?? [])['offlineCategoryData'] ?? []));
+            $zip->close();
+        } finally {
+            remove_action('ll_tools_offline_app_full_builder_started', $full_builder_listener);
+            remove_filter('ll_tools_quiz_min_words', $minimum_filter);
+            remove_filter('ll_tools_offline_app_export_category_batch_size', $category_batch_filter);
+            remove_filter('ll_tools_offline_app_export_word_batch_size', $word_batch_filter);
+            remove_filter('ll_tools_offline_app_export_media_batch_size', $media_batch_filter);
+            remove_filter('ll_tools_offline_app_export_data_batch_size', $data_batch_filter);
+            remove_filter('ll_tools_offline_app_export_zip_batch_size', $zip_batch_filter);
+            remove_filter('query', $query_filter);
+            if ($token !== '') {
+                ll_tools_offline_app_export_delete_job($token);
+            }
+        }
+    }
+
     private function create_image_attachment(string $filename): int
     {
         $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
