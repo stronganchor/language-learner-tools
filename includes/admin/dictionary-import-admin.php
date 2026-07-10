@@ -29,6 +29,50 @@ if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS')) {
     define('LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS', 25);
 }
 
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_BYTES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_BYTES', 128 * MB_IN_BYTES);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_ROWS')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_ROWS', 250000);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_ROW_BYTES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_ROW_BYTES', 512 * KB_IN_BYTES);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_PREPARED_ROW_BYTES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_PREPARED_ROW_BYTES', MB_IN_BYTES);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_SPOOL_BUCKET_COUNT')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_SPOOL_BUCKET_COUNT', 64);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_BUCKET_BYTES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_BUCKET_BYTES', 16 * MB_IN_BYTES);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_SPOOL_BYTES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_SPOOL_BYTES', 512 * MB_IN_BYTES);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_GROUP_ROWS')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_GROUP_ROWS', 10000);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_GROUP_BYTES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_GROUP_BYTES', 4 * MB_IN_BYTES);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_CHUNK_BYTES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_CHUNK_BYTES', 4 * MB_IN_BYTES);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_SOURCE_UPDATES')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_SOURCE_UPDATES', 1000);
+}
+
 /**
  * Capability required for dictionary import tools.
  */
@@ -72,14 +116,57 @@ function ll_tools_dictionary_import_get_wordsets(): array {
 }
 
 /**
- * Parse a TSV file into import rows.
+ * Resolve bounded resource limits for TSV job preparation.
  *
- * @return array<int,array<string,string>>|WP_Error
+ * Filters may lower limits for constrained environments, but cannot raise the
+ * hard production ceilings.
+ *
+ * @param array<string,mixed> $options
+ * @return array<string,int>
  */
-function ll_tools_dictionary_parse_tsv_file(string $file_path): array|WP_Error {
+function ll_tools_dictionary_import_get_resource_limits(array $options = []): array {
+    $hard_limits = [
+        'max_file_bytes' => LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_BYTES,
+        'max_rows' => LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_ROWS,
+        'max_row_bytes' => LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_ROW_BYTES,
+        'max_prepared_row_bytes' => LL_TOOLS_DICTIONARY_IMPORT_MAX_PREPARED_ROW_BYTES,
+        'bucket_count' => LL_TOOLS_DICTIONARY_IMPORT_SPOOL_BUCKET_COUNT,
+        'max_bucket_bytes' => LL_TOOLS_DICTIONARY_IMPORT_MAX_BUCKET_BYTES,
+        'max_spool_bytes' => LL_TOOLS_DICTIONARY_IMPORT_MAX_SPOOL_BYTES,
+        'max_group_rows' => LL_TOOLS_DICTIONARY_IMPORT_MAX_GROUP_ROWS,
+        'max_group_bytes' => LL_TOOLS_DICTIONARY_IMPORT_MAX_GROUP_BYTES,
+        'max_chunk_bytes' => LL_TOOLS_DICTIONARY_IMPORT_MAX_CHUNK_BYTES,
+        'max_source_updates' => LL_TOOLS_DICTIONARY_IMPORT_MAX_SOURCE_UPDATES,
+    ];
+    $requested = apply_filters('ll_tools_dictionary_import_resource_limits', $hard_limits, $options);
+    $requested = is_array($requested) ? $requested : [];
+    $limits = [];
+
+    foreach ($hard_limits as $key => $hard_limit) {
+        $limits[$key] = max(1, min($hard_limit, (int) ($requested[$key] ?? $hard_limit)));
+    }
+
+    return $limits;
+}
+
+/**
+ * Stream parsed TSV rows to a callback without retaining the complete upload.
+ *
+ * @param callable(array<string,string>,int):mixed $consume_row
+ * @param array<string,mixed>                      $options
+ * @return array{rows_total:int,file_bytes:int}|WP_Error
+ */
+function ll_tools_dictionary_import_stream_tsv_file(string $file_path, callable $consume_row, array $options = []) {
     $file_path = trim($file_path);
     if ($file_path === '' || !is_readable($file_path)) {
         return new WP_Error('ll_tools_dictionary_file_unreadable', __('Could not read the uploaded TSV file.', 'll-tools-text-domain'));
+    }
+
+    $limits = ll_tools_dictionary_import_get_resource_limits($options);
+    clearstatcache(true, $file_path);
+    $file_size = filesize($file_path);
+    if ($file_size !== false && $file_size > $limits['max_file_bytes']) {
+        return new WP_Error('ll_tools_dictionary_file_too_large', __('The uploaded TSV file exceeds the allowed size.', 'll-tools-text-domain'));
     }
 
     $handle = fopen($file_path, 'r');
@@ -87,11 +174,31 @@ function ll_tools_dictionary_parse_tsv_file(string $file_path): array|WP_Error {
         return new WP_Error('ll_tools_dictionary_file_open_failed', __('Could not open the uploaded TSV file.', 'll-tools-text-domain'));
     }
 
-    $rows = [];
     $line_number = 0;
+    $rows_total = 0;
+    $bytes_read = 0;
     $header = [];
 
-    while (($data = fgetcsv($handle, 0, "\t", '"', '\\')) !== false) {
+    while (true) {
+        $record_start = ftell($handle);
+        $data = fgetcsv($handle, $limits['max_row_bytes'] + 1, "\t", '"', '\\');
+        if ($data === false) {
+            break;
+        }
+
+        $record_end = ftell($handle);
+        if ($record_end !== false) {
+            $bytes_read = max($bytes_read, $record_end);
+            if ($bytes_read > $limits['max_file_bytes']) {
+                fclose($handle);
+                return new WP_Error('ll_tools_dictionary_file_too_large', __('The uploaded TSV file exceeds the allowed size.', 'll-tools-text-domain'));
+            }
+            if ($record_start !== false && ($record_end - $record_start) > $limits['max_row_bytes']) {
+                fclose($handle);
+                return new WP_Error('ll_tools_dictionary_row_too_large', __('A TSV row exceeds the allowed size.', 'll-tools-text-domain'));
+            }
+        }
+
         $line_number++;
         if (!is_array($data)) {
             continue;
@@ -145,22 +252,58 @@ function ll_tools_dictionary_parse_tsv_file(string $file_path): array|WP_Error {
                 }
                 $row[$column_name] = (string) ($data[$index] ?? '');
             }
-            $rows[] = $row;
-            continue;
+        } else {
+            $row = [
+                'entry' => (string) ($data[0] ?? ''),
+                'definition' => (string) ($data[1] ?? ''),
+                'gender_number' => (string) ($data[2] ?? ''),
+                'entry_type' => (string) ($data[3] ?? ''),
+                'parent' => (string) ($data[4] ?? ''),
+                'needs_review' => (string) ($data[5] ?? ''),
+                'page_number' => (string) ($data[6] ?? ''),
+            ];
         }
 
-        $rows[] = [
-            'entry' => (string) ($data[0] ?? ''),
-            'definition' => (string) ($data[1] ?? ''),
-            'gender_number' => (string) ($data[2] ?? ''),
-            'entry_type' => (string) ($data[3] ?? ''),
-            'parent' => (string) ($data[4] ?? ''),
-            'needs_review' => (string) ($data[5] ?? ''),
-            'page_number' => (string) ($data[6] ?? ''),
-        ];
+        $rows_total++;
+        if ($rows_total > $limits['max_rows']) {
+            fclose($handle);
+            return new WP_Error('ll_tools_dictionary_too_many_rows', __('The uploaded TSV file contains too many rows.', 'll-tools-text-domain'));
+        }
+
+        $consume_result = $consume_row($row, $rows_total);
+        if (is_wp_error($consume_result)) {
+            fclose($handle);
+            return $consume_result;
+        }
     }
 
     fclose($handle);
+
+    return [
+        'rows_total' => $rows_total,
+        'file_bytes' => $file_size !== false ? (int) $file_size : $bytes_read,
+    ];
+}
+
+/**
+ * Parse a TSV file into import rows for compatibility with direct callers.
+ *
+ * Resumable upload jobs use ll_tools_dictionary_import_stream_tsv_file()
+ * directly so large files are never accumulated in one PHP array.
+ *
+ * @return array<int,array<string,string>>|WP_Error
+ */
+function ll_tools_dictionary_parse_tsv_file(string $file_path): array|WP_Error {
+    $rows = [];
+    $stream_result = ll_tools_dictionary_import_stream_tsv_file(
+        $file_path,
+        static function (array $row) use (&$rows): void {
+            $rows[] = $row;
+        }
+    );
+    if (is_wp_error($stream_result)) {
+        return $stream_result;
+    }
 
     return $rows;
 }
@@ -634,24 +777,395 @@ function ll_tools_dictionary_import_write_chunks(array $items, string $job_id, i
 }
 
 /**
- * @param array<int,array<int,array<string,mixed>>> $grouped_rows
- * @return array<string,mixed>|WP_Error
+ * Write one bounded prepared-group chunk.
+ *
+ * @param array<int,array<int,array<string,mixed>>> $chunk_groups
+ * @return string|WP_Error
  */
-function ll_tools_dictionary_import_write_group_chunks(array $grouped_rows, string $job_id, int $chunk_size = 25) {
-    $chunk_result = ll_tools_dictionary_import_write_chunks($grouped_rows, $job_id, $chunk_size, 'chunk');
-    if (is_wp_error($chunk_result)) {
-        return $chunk_result;
+function ll_tools_dictionary_import_write_group_chunk_file(array $chunk_groups, string $job_dir, int $chunk_index, int $max_chunk_bytes) {
+    $filename = sprintf('chunk-%05d.json', $chunk_index);
+    $path = trailingslashit($job_dir) . $filename;
+    $payload = wp_json_encode($chunk_groups, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (!is_string($payload) || $payload === '') {
+        return new WP_Error('ll_tools_dictionary_import_chunk_encode_failed', __('Could not prepare the import chunks.', 'll-tools-text-domain'));
+    }
+    if (strlen($payload) > $max_chunk_bytes) {
+        return new WP_Error('ll_tools_dictionary_import_chunk_too_large', __('A prepared import chunk exceeds the allowed size.', 'll-tools-text-domain'));
     }
 
+    $written = file_put_contents($path, $payload, LOCK_EX);
+    if ($written === false || $written !== strlen($payload)) {
+        @unlink($path);
+        return new WP_Error('ll_tools_dictionary_import_chunk_write_failed', __('Could not write the import chunk file.', 'll-tools-text-domain'));
+    }
+
+    return $filename;
+}
+
+/**
+ * @param array<int,array<int,array<string,mixed>>> $grouped_rows
+ * @param array<string,mixed>                       $options
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_dictionary_import_write_group_chunks(array $grouped_rows, string $job_id, int $chunk_size = 25, array $options = []) {
+    $chunk_size = max(1, min(200, $chunk_size));
+    $limits = ll_tools_dictionary_import_get_resource_limits($options);
+    $job_dir = ll_tools_dictionary_import_get_job_dir($job_id);
+    if (!is_dir($job_dir) && !wp_mkdir_p($job_dir)) {
+        return new WP_Error('ll_tools_dictionary_import_job_dir_failed', __('Could not create the temporary import directory.', 'll-tools-text-domain'));
+    }
+
+    $chunk_files = [];
+    $chunk_groups = [];
+    $chunk_payload_bytes = 2;
     $total_rows = 0;
+    $chunk_index = 0;
+
     foreach ($grouped_rows as $group_rows) {
-        $total_rows += is_array($group_rows) ? count($group_rows) : 0;
+        if (!is_array($group_rows) || empty($group_rows)) {
+            continue;
+        }
+        if (count($group_rows) > $limits['max_group_rows']) {
+            ll_tools_dictionary_import_delete_path($job_dir);
+            return new WP_Error('ll_tools_dictionary_import_group_too_many_rows', __('One dictionary headword contains too many TSV rows.', 'll-tools-text-domain'));
+        }
+
+        $group_payload = wp_json_encode($group_rows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($group_payload) || $group_payload === '') {
+            ll_tools_dictionary_import_delete_path($job_dir);
+            return new WP_Error('ll_tools_dictionary_import_chunk_encode_failed', __('Could not prepare the import chunks.', 'll-tools-text-domain'));
+        }
+        $group_payload_bytes = strlen($group_payload);
+        if ($group_payload_bytes > $limits['max_group_bytes'] || ($group_payload_bytes + 2) > $limits['max_chunk_bytes']) {
+            ll_tools_dictionary_import_delete_path($job_dir);
+            return new WP_Error('ll_tools_dictionary_import_group_too_large', __('One dictionary headword exceeds the allowed prepared size.', 'll-tools-text-domain'));
+        }
+
+        $separator_bytes = empty($chunk_groups) ? 0 : 1;
+        if (
+            !empty($chunk_groups)
+            && (
+                count($chunk_groups) >= $chunk_size
+                || ($chunk_payload_bytes + $separator_bytes + $group_payload_bytes) > $limits['max_chunk_bytes']
+            )
+        ) {
+            $chunk_index++;
+            $filename = ll_tools_dictionary_import_write_group_chunk_file($chunk_groups, $job_dir, $chunk_index, $limits['max_chunk_bytes']);
+            if (is_wp_error($filename)) {
+                ll_tools_dictionary_import_delete_path($job_dir);
+                return $filename;
+            }
+            $chunk_files[] = $filename;
+            $chunk_groups = [];
+            $chunk_payload_bytes = 2;
+            $separator_bytes = 0;
+        }
+
+        $chunk_groups[] = $group_rows;
+        $chunk_payload_bytes += $separator_bytes + $group_payload_bytes;
+        $total_rows += count($group_rows);
+    }
+
+    if (!empty($chunk_groups)) {
+        $chunk_index++;
+        $filename = ll_tools_dictionary_import_write_group_chunk_file($chunk_groups, $job_dir, $chunk_index, $limits['max_chunk_bytes']);
+        if (is_wp_error($filename)) {
+            ll_tools_dictionary_import_delete_path($job_dir);
+            return $filename;
+        }
+        $chunk_files[] = $filename;
     }
 
     return [
-        'job_dir' => (string) ($chunk_result['job_dir'] ?? ''),
-        'chunk_files' => array_values(array_map('strval', (array) ($chunk_result['chunk_files'] ?? []))),
+        'job_dir' => $job_dir,
+        'chunk_files' => $chunk_files,
         'processable_rows' => $total_rows,
+    ];
+}
+
+/**
+ * Return the stable grouping key used by both in-memory and streamed imports.
+ *
+ * @param array<string,mixed> $prepared
+ * @param array<string,mixed> $options
+ */
+function ll_tools_dictionary_import_get_group_key(array $prepared, array $options): string {
+    return max(0, (int) ($options['wordset_id'] ?? 0))
+        . '|'
+        . ll_tools_dictionary_entry_normalize_lookup_value((string) ($prepared['entry'] ?? ''));
+}
+
+/**
+ * Write all bytes to an open spool handle.
+ *
+ * @param resource $handle
+ */
+function ll_tools_dictionary_import_write_all($handle, string $payload): bool {
+    $offset = 0;
+    $length = strlen($payload);
+    while ($offset < $length) {
+        $written = fwrite($handle, substr($payload, $offset));
+        if ($written === false || $written === 0) {
+            return false;
+        }
+        $offset += $written;
+    }
+
+    return true;
+}
+
+/**
+ * Stream, prepare, and group a TSV into bounded on-disk job chunks.
+ *
+ * @param array<string,mixed> $options
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_dictionary_import_stream_tsv_to_group_chunks(string $file_path, string $job_id, array $options) {
+    if (
+        !function_exists('ll_tools_dictionary_prepare_import_row')
+        || !function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+    ) {
+        return new WP_Error('ll_tools_dictionary_import_grouping_unavailable', __('Dictionary TSV grouping is unavailable.', 'll-tools-text-domain'));
+    }
+
+    $limits = ll_tools_dictionary_import_get_resource_limits($options);
+    $job_dir = ll_tools_dictionary_import_get_job_dir($job_id);
+    $spool_dir = trailingslashit($job_dir) . 'spool';
+    if ((!is_dir($job_dir) && !wp_mkdir_p($job_dir)) || (!is_dir($spool_dir) && !wp_mkdir_p($spool_dir))) {
+        ll_tools_dictionary_import_delete_path($job_dir);
+        return new WP_Error('ll_tools_dictionary_import_job_dir_failed', __('Could not create the temporary import directory.', 'll-tools-text-domain'));
+    }
+
+    $defaults = [
+        'entry_lang' => trim(sanitize_text_field((string) ($options['entry_lang'] ?? ''))),
+        'def_lang' => trim(sanitize_text_field((string) ($options['def_lang'] ?? ''))),
+    ];
+    $summary = ll_tools_dictionary_import_default_summary();
+    $source_registry_updates = [];
+    $bucket_handles = [];
+    $bucket_bytes = array_fill(0, $limits['bucket_count'], 0);
+    $spool_bytes = 0;
+    $processable_rows = 0;
+
+    try {
+        $stream_result = ll_tools_dictionary_import_stream_tsv_file(
+            $file_path,
+            static function (array $row) use (
+                &$summary,
+                &$source_registry_updates,
+                &$bucket_handles,
+                &$bucket_bytes,
+                &$spool_bytes,
+                &$processable_rows,
+                $defaults,
+                $options,
+                $limits,
+                $spool_dir
+            ) {
+                $prepared = ll_tools_dictionary_prepare_import_row($row, $defaults);
+                if (trim((string) ($prepared['entry'] ?? '')) === '') {
+                    $summary['rows_skipped_empty']++;
+                    return null;
+                }
+
+                if (function_exists('ll_tools_dictionary_collect_import_source_registry_update')) {
+                    $source_update = ll_tools_dictionary_collect_import_source_registry_update($row, $prepared);
+                    if (is_array($source_update)) {
+                        $source_id = function_exists('ll_tools_dictionary_normalize_source_id')
+                            ? ll_tools_dictionary_normalize_source_id((string) ($source_update['id'] ?? ''))
+                            : sanitize_key((string) ($source_update['id'] ?? ''));
+                        if (
+                            $source_id !== ''
+                            && !isset($source_registry_updates[$source_id])
+                            && count($source_registry_updates) >= $limits['max_source_updates']
+                        ) {
+                            return new WP_Error('ll_tools_dictionary_import_too_many_sources', __('The uploaded TSV file contains too many dictionary source definitions.', 'll-tools-text-domain'));
+                        }
+                        ll_tools_dictionary_merge_import_source_registry_update($source_registry_updates, $source_update);
+                    }
+                }
+
+                $prepared_payload = wp_json_encode($prepared, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                if (!is_string($prepared_payload) || $prepared_payload === '') {
+                    return new WP_Error('ll_tools_dictionary_import_spool_encode_failed', __('Could not prepare a TSV row for the resumable import.', 'll-tools-text-domain'));
+                }
+                if (strlen($prepared_payload) > $limits['max_prepared_row_bytes']) {
+                    return new WP_Error('ll_tools_dictionary_import_prepared_row_too_large', __('A prepared TSV row exceeds the allowed size.', 'll-tools-text-domain'));
+                }
+
+                $group_key = ll_tools_dictionary_import_get_group_key($prepared, $options);
+                $hash_prefix = unpack('nvalue', substr(hash('sha256', $group_key, true), 0, 2));
+                $bucket_index = ((int) ($hash_prefix['value'] ?? 0)) % $limits['bucket_count'];
+                $spool_line = $prepared_payload . "\n";
+                $line_bytes = strlen($spool_line);
+                if (($bucket_bytes[$bucket_index] + $line_bytes) > $limits['max_bucket_bytes']) {
+                    return new WP_Error('ll_tools_dictionary_import_bucket_too_large', __('A TSV grouping bucket exceeds the allowed size.', 'll-tools-text-domain'));
+                }
+                if (($spool_bytes + $line_bytes) > $limits['max_spool_bytes']) {
+                    return new WP_Error('ll_tools_dictionary_import_spool_too_large', __('The prepared TSV import exceeds the allowed temporary storage size.', 'll-tools-text-domain'));
+                }
+
+                if (!isset($bucket_handles[$bucket_index])) {
+                    $bucket_path = trailingslashit($spool_dir) . sprintf('bucket-%03d.jsonl', $bucket_index);
+                    $bucket_handles[$bucket_index] = fopen($bucket_path, 'ab');
+                    if ($bucket_handles[$bucket_index] === false) {
+                        unset($bucket_handles[$bucket_index]);
+                        return new WP_Error('ll_tools_dictionary_import_spool_open_failed', __('Could not open a temporary TSV grouping file.', 'll-tools-text-domain'));
+                    }
+                }
+                if (!ll_tools_dictionary_import_write_all($bucket_handles[$bucket_index], $spool_line)) {
+                    return new WP_Error('ll_tools_dictionary_import_spool_write_failed', __('Could not write a temporary TSV grouping file.', 'll-tools-text-domain'));
+                }
+
+                $bucket_bytes[$bucket_index] += $line_bytes;
+                $spool_bytes += $line_bytes;
+                $processable_rows++;
+
+                return null;
+            },
+            $options
+        );
+    } finally {
+        foreach ($bucket_handles as $bucket_handle) {
+            if (is_resource($bucket_handle)) {
+                fclose($bucket_handle);
+            }
+        }
+    }
+
+    if (is_wp_error($stream_result)) {
+        ll_tools_dictionary_import_delete_path($job_dir);
+        return $stream_result;
+    }
+
+    $summary['rows_total'] = (int) ($stream_result['rows_total'] ?? 0);
+    $chunk_size = ll_tools_dictionary_import_get_chunk_size('tsv', $options);
+    $chunk_files = [];
+    $chunk_groups = [];
+    $chunk_payload_bytes = 2;
+    $chunk_index = 0;
+    $group_count = 0;
+
+    for ($bucket_index = 0; $bucket_index < $limits['bucket_count']; $bucket_index++) {
+        $bucket_path = trailingslashit($spool_dir) . sprintf('bucket-%03d.jsonl', $bucket_index);
+        if (!is_file($bucket_path)) {
+            continue;
+        }
+
+        clearstatcache(true, $bucket_path);
+        $current_bucket_size = filesize($bucket_path);
+        if ($current_bucket_size === false || $current_bucket_size > $limits['max_bucket_bytes']) {
+            ll_tools_dictionary_import_delete_path($job_dir);
+            return new WP_Error('ll_tools_dictionary_import_bucket_too_large', __('A TSV grouping bucket exceeds the allowed size.', 'll-tools-text-domain'));
+        }
+
+        $bucket_handle = fopen($bucket_path, 'rb');
+        if ($bucket_handle === false) {
+            ll_tools_dictionary_import_delete_path($job_dir);
+            return new WP_Error('ll_tools_dictionary_import_spool_read_failed', __('Could not read a temporary TSV grouping file.', 'll-tools-text-domain'));
+        }
+
+        $grouped_rows = [];
+        $grouped_bytes = [];
+        while (($line = fgets($bucket_handle, $limits['max_prepared_row_bytes'] + 2)) !== false) {
+            if (strlen($line) > ($limits['max_prepared_row_bytes'] + 1)) {
+                fclose($bucket_handle);
+                ll_tools_dictionary_import_delete_path($job_dir);
+                return new WP_Error('ll_tools_dictionary_import_prepared_row_too_large', __('A prepared TSV row exceeds the allowed size.', 'll-tools-text-domain'));
+            }
+
+            $prepared = json_decode(trim($line), true);
+            if (!is_array($prepared)) {
+                fclose($bucket_handle);
+                ll_tools_dictionary_import_delete_path($job_dir);
+                return new WP_Error('ll_tools_dictionary_import_spool_decode_failed', __('A temporary TSV grouping file is invalid.', 'll-tools-text-domain'));
+            }
+
+            $group_key = ll_tools_dictionary_import_get_group_key($prepared, $options);
+            if (!isset($grouped_rows[$group_key])) {
+                $grouped_rows[$group_key] = [];
+                $grouped_bytes[$group_key] = 0;
+            }
+            if (count($grouped_rows[$group_key]) >= $limits['max_group_rows']) {
+                fclose($bucket_handle);
+                ll_tools_dictionary_import_delete_path($job_dir);
+                return new WP_Error('ll_tools_dictionary_import_group_too_many_rows', __('One dictionary headword contains too many TSV rows.', 'll-tools-text-domain'));
+            }
+
+            $grouped_bytes[$group_key] += strlen($line);
+            if ($grouped_bytes[$group_key] > $limits['max_group_bytes']) {
+                fclose($bucket_handle);
+                ll_tools_dictionary_import_delete_path($job_dir);
+                return new WP_Error('ll_tools_dictionary_import_group_too_large', __('One dictionary headword exceeds the allowed prepared size.', 'll-tools-text-domain'));
+            }
+            $grouped_rows[$group_key][] = $prepared;
+        }
+        fclose($bucket_handle);
+        @unlink($bucket_path);
+
+        foreach ($grouped_rows as $group_rows) {
+            $group_payload = wp_json_encode($group_rows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if (!is_string($group_payload) || $group_payload === '') {
+                ll_tools_dictionary_import_delete_path($job_dir);
+                return new WP_Error('ll_tools_dictionary_import_chunk_encode_failed', __('Could not prepare the import chunks.', 'll-tools-text-domain'));
+            }
+            $group_payload_bytes = strlen($group_payload);
+            if ($group_payload_bytes > $limits['max_group_bytes'] || ($group_payload_bytes + 2) > $limits['max_chunk_bytes']) {
+                ll_tools_dictionary_import_delete_path($job_dir);
+                return new WP_Error('ll_tools_dictionary_import_group_too_large', __('One dictionary headword exceeds the allowed prepared size.', 'll-tools-text-domain'));
+            }
+
+            $separator_bytes = empty($chunk_groups) ? 0 : 1;
+            if (
+                !empty($chunk_groups)
+                && (
+                    count($chunk_groups) >= $chunk_size
+                    || ($chunk_payload_bytes + $separator_bytes + $group_payload_bytes) > $limits['max_chunk_bytes']
+                )
+            ) {
+                $chunk_index++;
+                $filename = ll_tools_dictionary_import_write_group_chunk_file($chunk_groups, $job_dir, $chunk_index, $limits['max_chunk_bytes']);
+                if (is_wp_error($filename)) {
+                    ll_tools_dictionary_import_delete_path($job_dir);
+                    return $filename;
+                }
+                $chunk_files[] = $filename;
+                $chunk_groups = [];
+                $chunk_payload_bytes = 2;
+                $separator_bytes = 0;
+            }
+
+            $chunk_groups[] = $group_rows;
+            $chunk_payload_bytes += $separator_bytes + $group_payload_bytes;
+            $group_count++;
+        }
+    }
+
+    if (!empty($chunk_groups)) {
+        $chunk_index++;
+        $filename = ll_tools_dictionary_import_write_group_chunk_file($chunk_groups, $job_dir, $chunk_index, $limits['max_chunk_bytes']);
+        if (is_wp_error($filename)) {
+            ll_tools_dictionary_import_delete_path($job_dir);
+            return $filename;
+        }
+        $chunk_files[] = $filename;
+    }
+
+    ll_tools_dictionary_import_delete_path($spool_dir);
+    $summary['rows_grouped'] = $group_count;
+    if (function_exists('ll_tools_dictionary_apply_import_source_registry_updates')) {
+        $summary = array_merge(
+            $summary,
+            ll_tools_dictionary_apply_import_source_registry_updates($source_registry_updates)
+        );
+    }
+
+    return [
+        'job_dir' => $job_dir,
+        'chunk_files' => $chunk_files,
+        'processable_rows' => $processable_rows,
+        'summary' => $summary,
+        'spool_bytes' => $spool_bytes,
     ];
 }
 
@@ -928,33 +1442,29 @@ function ll_tools_dictionary_import_create_undo_job(string $history_id) {
 }
 
 /**
+ * Persist one resumable TSV job after its prepared chunks are on disk.
+ *
+ * @param array<string,mixed> $chunk_result
+ * @param array<string,mixed> $summary
  * @param array<string,mixed> $options
- * @return array<string,mixed>|WP_Error
+ * @return array<string,mixed>
  */
-function ll_tools_dictionary_import_create_tsv_job_from_rows(array $rows, array $options, string $original_filename = '') {
-    $grouping = function_exists('ll_tools_dictionary_group_import_rows')
-        ? ll_tools_dictionary_group_import_rows($rows, $options)
-        : ['grouped_rows' => [], 'summary' => ll_tools_dictionary_import_default_summary(count($rows))];
-
-    $grouped_rows = isset($grouping['grouped_rows']) && is_array($grouping['grouped_rows']) ? $grouping['grouped_rows'] : [];
-    $summary = isset($grouping['summary']) && is_array($grouping['summary']) ? $grouping['summary'] : ll_tools_dictionary_import_default_summary(count($rows));
-
-    $job_id = ll_tools_dictionary_import_generate_job_id();
-    $chunk_result = ll_tools_dictionary_import_write_group_chunks(
-        $grouped_rows,
-        $job_id,
-        ll_tools_dictionary_import_get_chunk_size('tsv', $options)
-    );
-    if (is_wp_error($chunk_result)) {
-        return $chunk_result;
-    }
-
+function ll_tools_dictionary_import_create_tsv_job_from_chunks(
+    string $job_id,
+    array $chunk_result,
+    array $summary,
+    array $options,
+    string $original_filename = ''
+): array {
+    $chunk_files = array_values(array_map('strval', (array) ($chunk_result['chunk_files'] ?? [])));
+    $summary = ll_tools_dictionary_import_normalize_summary($summary);
+    $is_complete = empty($chunk_files);
     $user_id = get_current_user_id();
     $user = $user_id > 0 ? get_userdata($user_id) : null;
     $job = [
         'id' => $job_id,
         'type' => 'tsv',
-        'status' => empty($grouped_rows) ? 'completed' : 'running',
+        'status' => $is_complete ? 'completed' : 'running',
         'created_at' => time(),
         'updated_at' => time(),
         'user_id' => $user_id,
@@ -963,17 +1473,17 @@ function ll_tools_dictionary_import_create_tsv_job_from_rows(array $rows, array 
         'options' => $options,
         'summary' => $summary,
         'job_dir' => (string) ($chunk_result['job_dir'] ?? ''),
-        'chunk_files' => array_values(array_map('strval', (array) ($chunk_result['chunk_files'] ?? []))),
+        'chunk_files' => $chunk_files,
         'current_index' => 0,
-        'total_chunks' => count((array) ($chunk_result['chunk_files'] ?? [])),
+        'total_chunks' => count($chunk_files),
         'total_groups' => (int) ($summary['rows_grouped'] ?? 0),
-        'processed_groups' => empty($grouped_rows) ? (int) ($summary['rows_grouped'] ?? 0) : 0,
+        'processed_groups' => $is_complete ? (int) ($summary['rows_grouped'] ?? 0) : 0,
         'processable_rows' => (int) ($chunk_result['processable_rows'] ?? 0),
-        'processed_rows' => empty($grouped_rows) ? (int) ($chunk_result['processable_rows'] ?? 0) : 0,
+        'processed_rows' => $is_complete ? (int) ($chunk_result['processable_rows'] ?? 0) : 0,
         'error_message' => '',
     ];
 
-    if ($job['status'] === 'completed') {
+    if ($is_complete) {
         ll_tools_dictionary_import_delete_path((string) $job['job_dir']);
     } else {
         ll_tools_dictionary_import_set_active_job_id($job_id);
@@ -992,16 +1502,77 @@ function ll_tools_dictionary_import_create_tsv_job_from_rows(array $rows, array 
  * @param array<string,mixed> $options
  * @return array<string,mixed>|WP_Error
  */
-function ll_tools_dictionary_import_create_tsv_job_from_upload(array $options) {
-    $tmp_name = isset($_FILES['ll_dictionary_tsv']['tmp_name']) ? (string) $_FILES['ll_dictionary_tsv']['tmp_name'] : '';
-    $rows = ll_tools_dictionary_parse_tsv_file($tmp_name);
-    if (is_wp_error($rows)) {
-        return $rows;
+function ll_tools_dictionary_import_create_tsv_job_from_rows(array $rows, array $options, string $original_filename = '') {
+    $grouping = function_exists('ll_tools_dictionary_group_import_rows')
+        ? ll_tools_dictionary_group_import_rows($rows, $options)
+        : ['grouped_rows' => [], 'summary' => ll_tools_dictionary_import_default_summary(count($rows))];
+
+    $grouped_rows = isset($grouping['grouped_rows']) && is_array($grouping['grouped_rows']) ? $grouping['grouped_rows'] : [];
+    $summary = isset($grouping['summary']) && is_array($grouping['summary']) ? $grouping['summary'] : ll_tools_dictionary_import_default_summary(count($rows));
+
+    $job_id = ll_tools_dictionary_import_generate_job_id();
+    $chunk_result = ll_tools_dictionary_import_write_group_chunks(
+        $grouped_rows,
+        $job_id,
+        ll_tools_dictionary_import_get_chunk_size('tsv', $options),
+        $options
+    );
+    if (is_wp_error($chunk_result)) {
+        return $chunk_result;
     }
 
-    $filename = isset($_FILES['ll_dictionary_tsv']['name']) ? sanitize_file_name(wp_unslash((string) $_FILES['ll_dictionary_tsv']['name'])) : '';
+    return ll_tools_dictionary_import_create_tsv_job_from_chunks(
+        $job_id,
+        $chunk_result,
+        $summary,
+        $options,
+        $original_filename
+    );
+}
 
-    return ll_tools_dictionary_import_create_tsv_job_from_rows($rows, $options, $filename);
+/**
+ * Create a resumable TSV job without hydrating the complete file.
+ *
+ * @param array<string,mixed> $options
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_dictionary_import_create_tsv_job_from_file(string $file_path, array $options, string $original_filename = '') {
+    $job_id = ll_tools_dictionary_import_generate_job_id();
+    $chunk_result = ll_tools_dictionary_import_stream_tsv_to_group_chunks($file_path, $job_id, $options);
+    if (is_wp_error($chunk_result)) {
+        return $chunk_result;
+    }
+
+    $summary = isset($chunk_result['summary']) && is_array($chunk_result['summary'])
+        ? $chunk_result['summary']
+        : ll_tools_dictionary_import_default_summary();
+
+    return ll_tools_dictionary_import_create_tsv_job_from_chunks(
+        $job_id,
+        $chunk_result,
+        $summary,
+        $options,
+        $original_filename
+    );
+}
+
+/**
+ * @param array<string,mixed> $options
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_dictionary_import_create_tsv_job_from_upload(array $options) {
+    $upload = isset($_FILES['ll_dictionary_tsv']) && is_array($_FILES['ll_dictionary_tsv'])
+        ? $_FILES['ll_dictionary_tsv']
+        : [];
+    $upload_error = isset($upload['error']) ? (int) $upload['error'] : UPLOAD_ERR_OK;
+    if ($upload_error !== UPLOAD_ERR_OK) {
+        return new WP_Error('ll_tools_dictionary_upload_failed', __('The dictionary TSV upload did not complete successfully.', 'll-tools-text-domain'));
+    }
+
+    $tmp_name = isset($upload['tmp_name']) ? (string) $upload['tmp_name'] : '';
+    $filename = isset($upload['name']) ? sanitize_file_name(wp_unslash((string) $upload['name'])) : '';
+
+    return ll_tools_dictionary_import_create_tsv_job_from_file($tmp_name, $options, $filename);
 }
 
 /**
@@ -1762,6 +2333,7 @@ function ll_tools_render_dictionary_import_page(): void {
     $summary = null;
     $summary_heading = '';
     $errors = [];
+    $fallback_job = null;
 
     if ($selected_wordset_id > 0) {
         if ($entry_lang === '' && function_exists('ll_tools_get_wordset_target_language')) {
@@ -1784,13 +2356,21 @@ function ll_tools_render_dictionary_import_page(): void {
         ];
 
         if ($action === 'import_tsv') {
-            $tmp_name = isset($_FILES['ll_dictionary_tsv']['tmp_name']) ? (string) $_FILES['ll_dictionary_tsv']['tmp_name'] : '';
-            $rows = ll_tools_dictionary_parse_tsv_file($tmp_name);
-            if (is_wp_error($rows)) {
-                $errors[] = $rows->get_error_message();
+            $running_job = ll_tools_dictionary_import_get_running_job();
+            if (is_array($running_job)) {
+                $fallback_job = $running_job;
+                $errors[] = __('Another dictionary import is already running. Resume or finish it before starting a new one.', 'll-tools-text-domain');
             } else {
-                $summary = ll_tools_dictionary_import_rows($rows, $import_options);
-                $summary_heading = __('Dictionary TSV import completed.', 'll-tools-text-domain');
+                $fallback_job = ll_tools_dictionary_import_create_tsv_job_from_upload($import_options);
+                if (is_wp_error($fallback_job)) {
+                    $errors[] = $fallback_job->get_error_message();
+                    $fallback_job = null;
+                } elseif (sanitize_key((string) ($fallback_job['status'] ?? '')) !== 'running') {
+                    $fallback_job = ll_tools_dictionary_import_finalize_job_history($fallback_job);
+                    $fallback_job = ll_tools_dictionary_import_save_job((string) ($fallback_job['id'] ?? ''), $fallback_job);
+                    $summary = is_array($fallback_job['summary'] ?? null) ? $fallback_job['summary'] : null;
+                    $summary_heading = ll_tools_dictionary_import_get_job_heading($fallback_job);
+                }
             }
         }
     }
@@ -1868,6 +2448,14 @@ function ll_tools_render_dictionary_import_page(): void {
 
             <?php if (is_array($summary)) : ?>
                 <?php ll_tools_render_dictionary_import_summary($summary, $summary_heading); ?>
+            <?php endif; ?>
+
+            <?php if (is_array($fallback_job) && sanitize_key((string) ($fallback_job['status'] ?? '')) === 'running') : ?>
+                <noscript>
+                    <div class="notice notice-info">
+                        <p><?php esc_html_e('A resumable dictionary import job is ready. JavaScript is required to advance its saved batches.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                </noscript>
             <?php endif; ?>
         </div>
 

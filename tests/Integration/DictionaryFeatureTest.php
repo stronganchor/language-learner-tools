@@ -2666,6 +2666,226 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Ava', 0));
     }
 
+    public function test_dictionary_tsv_job_streams_bounded_chunks_and_keeps_headword_rows_together(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $seed_summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Ava',
+                'definition' => 'old definition',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertSame(1, (int) ($seed_summary['entries_created'] ?? 0));
+
+        $temp_file = tempnam(sys_get_temp_dir(), 'llts_');
+        $this->assertNotFalse($temp_file);
+        $tsv = implode("\n", [
+            "entry\tdefinition\tentry_type\tsource_id\tsource_dictionary\tsource_attribution_text\tsource_default_dialects",
+            "Ava\twater\tnoun\tstream-source\tStream Source\tUsed with permission.\tPalu",
+            "Dar\ttree\tnoun\t\t\t\t",
+            "Roc\tsun\tnoun\t\t\t\t",
+            "Veng\tvoice\tnoun\t\t\t\t",
+            "Hewr\tcloud\tnoun\t\t\t\t",
+            "Ruec\tday\tnoun\t\t\t\t",
+            "Zon\tlanguage\tnoun\t\t\t\t",
+            "Ava\tspring\tnoun\tstream-source\tStream Source\t\t",
+            "\tempty headword\tnoun\t\t\t\t",
+        ]);
+        $this->assertNotFalse(file_put_contents($temp_file, $tsv));
+
+        $resource_filter = static function (array $limits): array {
+            $limits['bucket_count'] = 4;
+            $limits['max_bucket_bytes'] = 64 * KB_IN_BYTES;
+            $limits['max_group_bytes'] = 3 * KB_IN_BYTES;
+            $limits['max_chunk_bytes'] = 4 * KB_IN_BYTES;
+            return $limits;
+        };
+        add_filter('ll_tools_dictionary_import_resource_limits', $resource_filter);
+
+        try {
+            $job = ll_tools_dictionary_import_create_tsv_job_from_file($temp_file, [
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+                'replace_existing_senses' => true,
+                'skip_backup_snapshot' => true,
+                'chunk_size' => 5,
+            ], 'streamed.tsv');
+
+            $this->assertIsArray($job);
+            $this->assertSame('running', $job['status']);
+            $this->assertSame(9, (int) ($job['summary']['rows_total'] ?? 0));
+            $this->assertSame(7, (int) ($job['summary']['rows_grouped'] ?? 0));
+            $this->assertSame(1, (int) ($job['summary']['rows_skipped_empty'] ?? 0));
+            $this->assertSame(1, (int) ($job['summary']['sources_updated'] ?? 0));
+            $this->assertSame(8, (int) ($job['processable_rows'] ?? 0));
+            $this->assertArrayNotHasKey('rows', $job);
+            $this->assertDirectoryDoesNotExist(trailingslashit((string) $job['job_dir']) . 'spool');
+            $this->assertGreaterThan(1, count((array) ($job['chunk_files'] ?? [])));
+
+            foreach ((array) ($job['chunk_files'] ?? []) as $chunk_file) {
+                $chunk_path = trailingslashit((string) $job['job_dir']) . (string) $chunk_file;
+                $this->assertFileExists($chunk_path);
+                $this->assertLessThanOrEqual(4 * KB_IN_BYTES, (int) filesize($chunk_path));
+            }
+
+            while ((string) ($job['status'] ?? '') === 'running') {
+                $processed_job = ll_tools_dictionary_import_process_job($job);
+                $this->assertIsArray($processed_job);
+                $job = ll_tools_dictionary_import_save_job((string) $processed_job['id'], $processed_job);
+            }
+        } finally {
+            remove_filter('ll_tools_dictionary_import_resource_limits', $resource_filter);
+            @unlink($temp_file);
+        }
+
+        $this->assertSame('completed', $job['status']);
+        $this->assertSame(6, (int) ($job['summary']['entries_created'] ?? 0));
+        $this->assertSame(1, (int) ($job['summary']['entries_updated'] ?? 0));
+
+        $source_registry = ll_tools_get_dictionary_source_registry();
+        $this->assertSame('Used with permission.', $source_registry['stream-source']['attribution_text'] ?? '');
+        $this->assertSame(['Palu'], $source_registry['stream-source']['default_dialects'] ?? []);
+
+        $ava_id = ll_tools_dictionary_find_entry_by_title('Ava', 0);
+        $this->assertGreaterThan(0, $ava_id);
+        $ava_definitions = array_values(array_map(
+            static fn (array $sense): string => (string) ($sense['definition'] ?? ''),
+            ll_tools_get_dictionary_entry_senses($ava_id)
+        ));
+        $this->assertSame(['water', 'spring'], $ava_definitions);
+    }
+
+    public function test_dictionary_tsv_stream_enforces_hard_file_row_and_record_limits(): void
+    {
+        $temp_file = tempnam(sys_get_temp_dir(), 'lltl_');
+        $this->assertNotFalse($temp_file);
+        $overrides = [];
+        $resource_filter = static function (array $limits) use (&$overrides): array {
+            return array_merge($limits, $overrides);
+        };
+        add_filter('ll_tools_dictionary_import_resource_limits', $resource_filter);
+
+        try {
+            $overrides = ['max_rows' => 2];
+            $this->assertNotFalse(file_put_contents($temp_file, "entry\tdefinition\nA\tone\nB\ttwo\nC\tthree\n"));
+            $result = ll_tools_dictionary_import_create_tsv_job_from_file($temp_file, ['skip_backup_snapshot' => true]);
+            $this->assertWPError($result);
+            $this->assertSame('ll_tools_dictionary_too_many_rows', $result->get_error_code());
+
+            $overrides = ['max_file_bytes' => 16];
+            $result = ll_tools_dictionary_import_create_tsv_job_from_file($temp_file, ['skip_backup_snapshot' => true]);
+            $this->assertWPError($result);
+            $this->assertSame('ll_tools_dictionary_file_too_large', $result->get_error_code());
+
+            $overrides = [
+                'max_file_bytes' => 1024,
+                'max_row_bytes' => 20,
+            ];
+            $this->assertNotFalse(file_put_contents(
+                $temp_file,
+                "entry\tdefinition\nA\tthis definition is longer than twenty bytes\n"
+            ));
+            $result = ll_tools_dictionary_import_create_tsv_job_from_file($temp_file, ['skip_backup_snapshot' => true]);
+            $this->assertWPError($result);
+            $this->assertSame('ll_tools_dictionary_row_too_large', $result->get_error_code());
+
+            $raising_filter = static function (array $limits): array {
+                foreach ($limits as $key => $value) {
+                    $limits[$key] = PHP_INT_MAX;
+                }
+                return $limits;
+            };
+            add_filter('ll_tools_dictionary_import_resource_limits', $raising_filter, 20);
+            try {
+                $limits = ll_tools_dictionary_import_get_resource_limits();
+            } finally {
+                remove_filter('ll_tools_dictionary_import_resource_limits', $raising_filter, 20);
+            }
+            $this->assertSame(LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_BYTES, $limits['max_file_bytes']);
+            $this->assertSame(LL_TOOLS_DICTIONARY_IMPORT_MAX_TSV_ROWS, $limits['max_rows']);
+            $this->assertSame(LL_TOOLS_DICTIONARY_IMPORT_MAX_CHUNK_BYTES, $limits['max_chunk_bytes']);
+        } finally {
+            remove_filter('ll_tools_dictionary_import_resource_limits', $resource_filter);
+            @unlink($temp_file);
+        }
+    }
+
+    public function test_dictionary_tsv_direct_post_fallback_creates_resumable_job_without_importing_synchronously(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $temp_file = tempnam(sys_get_temp_dir(), 'lltf_');
+        $this->assertNotFalse($temp_file);
+        $this->assertNotFalse(file_put_contents(
+            $temp_file,
+            "entry\tdefinition\nPalu\tcity\nPalu\tplace\n"
+        ));
+
+        $previous_request_method = $_SERVER['REQUEST_METHOD'] ?? null;
+        $previous_request = $_REQUEST;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_dictionary_import_nonce' => wp_create_nonce('ll_tools_dictionary_import'),
+            'll_dictionary_action' => 'import_tsv',
+            'll_dictionary_entry_lang' => 'Zazaki',
+            'll_dictionary_def_lang' => 'English',
+            'll_dictionary_replace_existing_senses' => '1',
+        ];
+        $_REQUEST = $_POST;
+        $_FILES = [
+            'll_dictionary_tsv' => [
+                'name' => 'fallback.tsv',
+                'tmp_name' => $temp_file,
+                'error' => UPLOAD_ERR_OK,
+                'size' => filesize($temp_file),
+                'type' => 'text/tab-separated-values',
+            ],
+        ];
+
+        $output_buffer_level = ob_get_level();
+        try {
+            ob_start();
+            ll_tools_render_dictionary_import_page();
+            $html = (string) ob_get_clean();
+
+            $job = ll_tools_dictionary_import_get_running_job();
+            $this->assertIsArray($job);
+            $this->assertSame('running', $job['status']);
+            $this->assertSame(0, ll_tools_dictionary_find_entry_by_title('Palu', 0));
+            $this->assertStringContainsString('resumable dictionary import job is ready', $html);
+
+            while ((string) ($job['status'] ?? '') === 'running') {
+                $processed_job = ll_tools_dictionary_import_process_job($job);
+                $this->assertIsArray($processed_job);
+                $job = ll_tools_dictionary_import_save_job((string) $processed_job['id'], $processed_job);
+            }
+        } finally {
+            while (ob_get_level() > $output_buffer_level) {
+                ob_end_clean();
+            }
+            if ($previous_request_method === null) {
+                unset($_SERVER['REQUEST_METHOD']);
+            } else {
+                $_SERVER['REQUEST_METHOD'] = $previous_request_method;
+            }
+            $_REQUEST = $previous_request;
+            @unlink($temp_file);
+        }
+
+        $this->assertSame('completed', $job['status']);
+        $palu_id = ll_tools_dictionary_find_entry_by_title('Palu', 0);
+        $this->assertGreaterThan(0, $palu_id);
+        $this->assertCount(2, ll_tools_get_dictionary_entry_senses($palu_id));
+    }
+
     public function test_dictionary_import_job_can_skip_backup_snapshot_when_requested(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
