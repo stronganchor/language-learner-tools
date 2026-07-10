@@ -34,6 +34,15 @@ if (!defined('LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY')) {
     define('LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY', 'll_wordset_profile_blurb');
 }
+if (!defined('LL_TOOLS_WORDSET_GRAMMAR_REWRITE_HOOK')) {
+    define('LL_TOOLS_WORDSET_GRAMMAR_REWRITE_HOOK', 'll_tools_wordset_grammar_rewrite');
+}
+if (!defined('LL_TOOLS_WORDSET_GRAMMAR_REWRITE_STATE_OPTION')) {
+    define('LL_TOOLS_WORDSET_GRAMMAR_REWRITE_STATE_OPTION', 'll_tools_wordset_grammar_rewrite_states');
+}
+if (!defined('LL_TOOLS_WORDSET_GRAMMAR_REWRITE_LOCK')) {
+    define('LL_TOOLS_WORDSET_GRAMMAR_REWRITE_LOCK', 'll_tools_wordset_grammar_rewrite_lock');
+}
 
 function ll_tools_normalize_wordset_visibility($value): string {
     $visibility = sanitize_key((string) $value);
@@ -4439,37 +4448,339 @@ function ll_tools_wordset_build_gender_update_map(array $old_options, array $new
     return $map;
 }
 
-function ll_tools_wordset_get_word_ids_with_meta_in_wordset(int $wordset_id, string $meta_key): array {
-    $wordset_id = (int) $wordset_id;
-    $meta_key = trim($meta_key);
-    if ($wordset_id <= 0 || $meta_key === '') {
-        return [];
-    }
-
-    $word_ids = get_posts([
-        'post_type'         => 'words',
-        'post_status'       => 'any',
-        'posts_per_page'    => -1,
-        'fields'            => 'ids',
-        'no_found_rows'     => true,
-        'suppress_filters'  => true,
-        'tax_query'         => [[
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [$wordset_id],
-        ]],
-        'meta_query'        => [[
-            'key'     => $meta_key,
-            'compare' => 'EXISTS',
-        ]],
-    ]);
-
-    if (!is_array($word_ids) || empty($word_ids)) {
-        return [];
-    }
-
-    return array_values(array_filter(array_map('intval', $word_ids)));
+function ll_tools_wordset_get_grammar_rewrite_states(): array {
+    $states = get_option(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_STATE_OPTION, []);
+    return is_array($states) ? $states : [];
 }
+
+function ll_tools_wordset_get_grammar_rewrite_state(int $wordset_id): array {
+    $states = ll_tools_wordset_get_grammar_rewrite_states();
+    return isset($states[$wordset_id]) && is_array($states[$wordset_id]) ? $states[$wordset_id] : [];
+}
+
+function ll_tools_wordset_schedule_grammar_rewrite(): void {
+    if (!wp_next_scheduled(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_HOOK)) {
+        wp_schedule_single_event(time() + 1, LL_TOOLS_WORDSET_GRAMMAR_REWRITE_HOOK);
+    }
+}
+
+function ll_tools_wordset_queue_grammar_rewrite(
+    int $wordset_id,
+    string $meta_key,
+    array $map,
+    bool $strip_variation_selectors = false
+): array {
+    $allowed_meta_keys = [
+        'll_grammatical_gender',
+        'll_grammatical_plurality',
+        'll_verb_tense',
+        'll_verb_mood',
+    ];
+    if ($wordset_id <= 0 || !in_array($meta_key, $allowed_meta_keys, true)) {
+        return [];
+    }
+
+    $normalized_map = [];
+    foreach ($map as $old_value => $new_value) {
+        $old_value = strtolower(trim((string) $old_value));
+        if ($old_value !== '') {
+            $normalized_map[$old_value] = (string) $new_value;
+        }
+    }
+    if (empty($normalized_map)) {
+        return [];
+    }
+
+    $now = time();
+    $states = ll_tools_wordset_get_grammar_rewrite_states();
+    foreach ($states as $state_wordset_id => $state) {
+        if (!is_array($state)) {
+            unset($states[$state_wordset_id]);
+            continue;
+        }
+        $completed_at = (int) ($state['completed_at'] ?? 0);
+        if ($completed_at > 0 && $completed_at < ($now - 7 * DAY_IN_SECONDS)) {
+            unset($states[$state_wordset_id]);
+        }
+    }
+
+    $state = isset($states[$wordset_id]) && is_array($states[$wordset_id]) ? $states[$wordset_id] : [];
+    if (empty($state) || in_array((string) ($state['status'] ?? ''), ['completed', 'failed'], true)) {
+        $state = [
+            'status' => 'queued',
+            'tasks' => [],
+            'processed' => 0,
+            'updated' => 0,
+            'queued_at' => $now,
+            'updated_at' => $now,
+            'completed_at' => 0,
+            'message' => '',
+        ];
+    }
+
+    $state['tasks'][] = [
+        'task_id' => wp_generate_uuid4(),
+        'meta_key' => $meta_key,
+        'map' => $normalized_map,
+        'strip_variation_selectors' => $strip_variation_selectors,
+        'cursor' => 0,
+        'processed' => 0,
+        'updated' => 0,
+        'status' => 'queued',
+    ];
+    $state['status'] = 'queued';
+    $state['updated_at'] = $now;
+    $state['completed_at'] = 0;
+    $state['message'] = '';
+    $states[$wordset_id] = $state;
+    update_option(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_STATE_OPTION, $states, false);
+    ll_tools_wordset_schedule_grammar_rewrite();
+
+    return $state;
+}
+
+function ll_tools_wordset_grammar_rewrite_category_ids(array $word_ids): array {
+    global $wpdb;
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids))));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($word_ids), '%d'));
+    $params = array_merge(['word-category'], $word_ids);
+    $sql = $wpdb->prepare(
+        "SELECT DISTINCT tt.term_id
+         FROM {$wpdb->term_relationships} tr
+         INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
+         WHERE tt.taxonomy = %s
+           AND tr.object_id IN ({$placeholders})",
+        $params
+    );
+
+    return array_values(array_filter(array_map('intval', (array) $wpdb->get_col($sql))));
+}
+
+function ll_tools_wordset_run_grammar_rewrite_batch(): array {
+    global $wpdb;
+
+    if (get_transient(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_LOCK)) {
+        return [];
+    }
+    set_transient(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_LOCK, 1, 5 * MINUTE_IN_SECONDS);
+
+    $states = ll_tools_wordset_get_grammar_rewrite_states();
+    $active_wordset_id = 0;
+    foreach ($states as $wordset_id => $candidate) {
+        if (is_array($candidate) && in_array((string) ($candidate['status'] ?? ''), ['queued', 'running'], true)) {
+            $active_wordset_id = (int) $wordset_id;
+            break;
+        }
+    }
+    if ($active_wordset_id <= 0) {
+        delete_transient(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_LOCK);
+        return [];
+    }
+
+    $state = $states[$active_wordset_id];
+    $state['status'] = 'running';
+    $state['message'] = '';
+    $state['updated_at'] = time();
+    $states[$active_wordset_id] = $state;
+    update_option(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_STATE_OPTION, $states, false);
+
+    try {
+        $task_index = null;
+        foreach ((array) ($state['tasks'] ?? []) as $index => $task) {
+            if (is_array($task) && (string) ($task['status'] ?? '') !== 'completed') {
+                $task_index = (int) $index;
+                break;
+            }
+        }
+        if ($task_index === null) {
+            $state['status'] = 'completed';
+            $state['completed_at'] = time();
+        } else {
+            $task = $state['tasks'][$task_index];
+            $batch_size = (int) apply_filters('ll_tools_wordset_grammar_rewrite_batch_size', 100, $active_wordset_id, $task);
+            $batch_size = max(1, min(250, $batch_size));
+            $word_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+                "SELECT DISTINCT p.ID
+                 FROM {$wpdb->posts} p
+                 INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
+                 INNER JOIN {$wpdb->term_taxonomy} tt
+                    ON tt.term_taxonomy_id = tr.term_taxonomy_id
+                   AND tt.taxonomy = 'wordset'
+                   AND tt.term_id = %d
+                 INNER JOIN {$wpdb->postmeta} pm
+                    ON pm.post_id = p.ID
+                   AND pm.meta_key = %s
+                 WHERE p.post_type = 'words'
+                   AND p.ID > %d
+                 ORDER BY p.ID ASC
+                 LIMIT %d",
+                $active_wordset_id,
+                (string) $task['meta_key'],
+                (int) ($task['cursor'] ?? 0),
+                $batch_size + 1
+            )))));
+            $has_more = count($word_ids) > $batch_size;
+            $batch_ids = array_slice($word_ids, 0, $batch_size);
+            $changed_word_ids = [];
+            foreach ($batch_ids as $word_id) {
+                $current = trim((string) get_post_meta($word_id, (string) $task['meta_key'], true));
+                if ($current === '') {
+                    continue;
+                }
+                $lookup_value = !empty($task['strip_variation_selectors'])
+                    ? ll_tools_wordset_strip_variation_selectors($current)
+                    : $current;
+                $lookup_key = strtolower($lookup_value);
+                $map = (array) ($task['map'] ?? []);
+                if (!array_key_exists($lookup_key, $map)) {
+                    continue;
+                }
+                $new_value = (string) $map[$lookup_key];
+                if ($new_value === '') {
+                    delete_post_meta($word_id, (string) $task['meta_key']);
+                    $changed_word_ids[] = $word_id;
+                } elseif ($new_value !== $current) {
+                    update_post_meta($word_id, (string) $task['meta_key'], $new_value);
+                    $changed_word_ids[] = $word_id;
+                }
+            }
+
+            if (!empty($changed_word_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+                $category_ids = ll_tools_wordset_grammar_rewrite_category_ids($changed_word_ids);
+                if (!empty($category_ids)) {
+                    ll_tools_bump_category_cache_version($category_ids);
+                }
+            }
+
+            $processed_count = count($batch_ids);
+            $updated_count = count($changed_word_ids);
+            if (!empty($batch_ids)) {
+                $task['cursor'] = (int) end($batch_ids);
+            }
+            $task['processed'] = (int) ($task['processed'] ?? 0) + $processed_count;
+            $task['updated'] = (int) ($task['updated'] ?? 0) + $updated_count;
+            $state['processed'] = (int) ($state['processed'] ?? 0) + $processed_count;
+            $state['updated'] = (int) ($state['updated'] ?? 0) + $updated_count;
+            if ($has_more) {
+                $task['status'] = 'queued';
+                $state['status'] = 'queued';
+            } else {
+                $task['status'] = 'completed';
+                $has_pending_tasks = false;
+                foreach ((array) $state['tasks'] as $index => $pending_task) {
+                    if ((int) $index !== $task_index && (string) ($pending_task['status'] ?? '') !== 'completed') {
+                        $has_pending_tasks = true;
+                        break;
+                    }
+                }
+                $state['status'] = $has_pending_tasks ? 'queued' : 'completed';
+                if (!$has_pending_tasks) {
+                    $state['completed_at'] = time();
+                }
+            }
+            $state['tasks'][$task_index] = $task;
+        }
+    } catch (Throwable $error) {
+        $state['status'] = 'failed';
+        $state['completed_at'] = time();
+        $state['message'] = sanitize_text_field($error->getMessage());
+    } finally {
+        delete_transient(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_LOCK);
+    }
+
+    $latest_states = ll_tools_wordset_get_grammar_rewrite_states();
+    $latest_state = isset($latest_states[$active_wordset_id]) && is_array($latest_states[$active_wordset_id])
+        ? $latest_states[$active_wordset_id]
+        : [];
+    $known_task_ids = [];
+    foreach ((array) ($state['tasks'] ?? []) as $known_task) {
+        $task_id = (string) ($known_task['task_id'] ?? '');
+        if ($task_id !== '') {
+            $known_task_ids[$task_id] = true;
+        }
+    }
+    foreach ((array) ($latest_state['tasks'] ?? []) as $latest_task) {
+        $task_id = (string) ($latest_task['task_id'] ?? '');
+        if ($task_id !== '' && !isset($known_task_ids[$task_id])) {
+            $state['tasks'][] = $latest_task;
+            $state['status'] = 'queued';
+            $state['completed_at'] = 0;
+            $known_task_ids[$task_id] = true;
+        }
+    }
+
+    $state['updated_at'] = time();
+    $states = $latest_states;
+    $states[$active_wordset_id] = $state;
+    update_option(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_STATE_OPTION, $states, false);
+    if ($state['status'] === 'queued') {
+        ll_tools_wordset_schedule_grammar_rewrite();
+    } else {
+        foreach ($states as $candidate) {
+            if (is_array($candidate) && in_array((string) ($candidate['status'] ?? ''), ['queued', 'running'], true)) {
+                ll_tools_wordset_schedule_grammar_rewrite();
+                break;
+            }
+        }
+    }
+
+    return $state;
+}
+add_action(LL_TOOLS_WORDSET_GRAMMAR_REWRITE_HOOK, 'll_tools_wordset_run_grammar_rewrite_batch');
+
+function ll_tools_wordset_render_grammar_rewrite_notice(): void {
+    if (!current_user_can('view_ll_tools') || !function_exists('get_current_screen')) {
+        return;
+    }
+    $screen = get_current_screen();
+    if (!$screen || (string) ($screen->taxonomy ?? '') !== 'wordset') {
+        return;
+    }
+
+    $now = time();
+    foreach (ll_tools_wordset_get_grammar_rewrite_states() as $wordset_id => $state) {
+        if (!is_array($state)) {
+            continue;
+        }
+        $status = (string) ($state['status'] ?? '');
+        $completed_at = (int) ($state['completed_at'] ?? 0);
+        if (!in_array($status, ['queued', 'running', 'failed'], true)
+            && !($status === 'completed' && $completed_at >= ($now - DAY_IN_SECONDS))) {
+            continue;
+        }
+
+        $class = $status === 'failed' ? 'notice notice-error' : 'notice notice-info';
+        if ($status === 'completed') {
+            $message = sprintf(
+                __('Grammar label update completed for wordset #%1$d: %2$d words checked, %3$d updated.', 'll-tools-text-domain'),
+                (int) $wordset_id,
+                (int) ($state['processed'] ?? 0),
+                (int) ($state['updated'] ?? 0)
+            );
+        } elseif ($status === 'failed') {
+            $message = sprintf(
+                __('Grammar label update failed for wordset #%1$d after checking %2$d words: %3$s', 'll-tools-text-domain'),
+                (int) $wordset_id,
+                (int) ($state['processed'] ?? 0),
+                (string) ($state['message'] ?? '')
+            );
+        } else {
+            $message = sprintf(
+                __('Grammar label update is queued or running for wordset #%1$d: %2$d words checked, %3$d updated.', 'll-tools-text-domain'),
+                (int) $wordset_id,
+                (int) ($state['processed'] ?? 0),
+                (int) ($state['updated'] ?? 0)
+            );
+        }
+        echo '<div class="' . esc_attr($class) . '"><p>' . esc_html($message) . '</p></div>';
+    }
+}
+add_action('admin_notices', 'll_tools_wordset_render_grammar_rewrite_notice');
 
 function ll_tools_wordset_sync_gender_values(int $wordset_id, array $old_options, array $new_options, array $legacy_options = []): void {
     $wordset_id = (int) $wordset_id;
@@ -4496,51 +4807,12 @@ function ll_tools_wordset_sync_gender_values(int $wordset_id, array $old_options
         return;
     }
 
-    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_grammatical_gender');
-    if (empty($word_ids)) {
-        return;
-    }
-
-    $touched_categories = [];
-    foreach ($word_ids as $word_id) {
-        $word_id = (int) $word_id;
-        if ($word_id <= 0) {
-            continue;
-        }
-        $current = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
-        if ($current === '') {
-            continue;
-        }
-        $key = strtolower(ll_tools_wordset_strip_variation_selectors($current));
-        if (!array_key_exists($key, $map)) {
-            continue;
-        }
-        $new_value = $map[$key];
-        $changed = false;
-        if ($new_value === '') {
-            delete_post_meta($word_id, 'll_grammatical_gender');
-            $changed = true;
-        } elseif ($new_value !== $current) {
-            update_post_meta($word_id, 'll_grammatical_gender', $new_value);
-            $changed = true;
-        }
-
-        if ($changed) {
-            $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-            if (!is_wp_error($term_ids)) {
-                foreach ($term_ids as $term_id) {
-                    $term_id = (int) $term_id;
-                    if ($term_id > 0) {
-                        $touched_categories[$term_id] = true;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!empty($touched_categories) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version(array_keys($touched_categories));
-    }
+    ll_tools_wordset_queue_grammar_rewrite(
+        $wordset_id,
+        'll_grammatical_gender',
+        $map,
+        true
+    );
 }
 
 function ll_tools_wordset_has_grammatical_gender(int $wordset_id): bool {
@@ -4809,51 +5081,7 @@ function ll_tools_wordset_sync_plurality_values(int $wordset_id, array $old_opti
         return;
     }
 
-    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_grammatical_plurality');
-    if (empty($word_ids)) {
-        return;
-    }
-
-    $touched_categories = [];
-    foreach ($word_ids as $word_id) {
-        $word_id = (int) $word_id;
-        if ($word_id <= 0) {
-            continue;
-        }
-        $current = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
-        if ($current === '') {
-            continue;
-        }
-        $key = strtolower($current);
-        if (!array_key_exists($key, $map)) {
-            continue;
-        }
-        $new_value = $map[$key];
-        $changed = false;
-        if ($new_value === '') {
-            delete_post_meta($word_id, 'll_grammatical_plurality');
-            $changed = true;
-        } elseif ($new_value !== $current) {
-            update_post_meta($word_id, 'll_grammatical_plurality', $new_value);
-            $changed = true;
-        }
-
-        if ($changed) {
-            $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-            if (!is_wp_error($term_ids)) {
-                foreach ($term_ids as $term_id) {
-                    $term_id = (int) $term_id;
-                    if ($term_id > 0) {
-                        $touched_categories[$term_id] = true;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!empty($touched_categories) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version(array_keys($touched_categories));
-    }
+    ll_tools_wordset_queue_grammar_rewrite($wordset_id, 'll_grammatical_plurality', $map);
 }
 
 function ll_tools_wordset_has_plurality(int $wordset_id): bool {
@@ -4920,51 +5148,7 @@ function ll_tools_wordset_sync_verb_tense_values(int $wordset_id, array $old_opt
         return;
     }
 
-    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_verb_tense');
-    if (empty($word_ids)) {
-        return;
-    }
-
-    $touched_categories = [];
-    foreach ($word_ids as $word_id) {
-        $word_id = (int) $word_id;
-        if ($word_id <= 0) {
-            continue;
-        }
-        $current = trim((string) get_post_meta($word_id, 'll_verb_tense', true));
-        if ($current === '') {
-            continue;
-        }
-        $key = strtolower($current);
-        if (!array_key_exists($key, $map)) {
-            continue;
-        }
-        $new_value = $map[$key];
-        $changed = false;
-        if ($new_value === '') {
-            delete_post_meta($word_id, 'll_verb_tense');
-            $changed = true;
-        } elseif ($new_value !== $current) {
-            update_post_meta($word_id, 'll_verb_tense', $new_value);
-            $changed = true;
-        }
-
-        if ($changed) {
-            $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-            if (!is_wp_error($term_ids)) {
-                foreach ($term_ids as $term_id) {
-                    $term_id = (int) $term_id;
-                    if ($term_id > 0) {
-                        $touched_categories[$term_id] = true;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!empty($touched_categories) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version(array_keys($touched_categories));
-    }
+    ll_tools_wordset_queue_grammar_rewrite($wordset_id, 'll_verb_tense', $map);
 }
 
 function ll_tools_wordset_has_verb_tense(int $wordset_id): bool {
@@ -5031,51 +5215,7 @@ function ll_tools_wordset_sync_verb_mood_values(int $wordset_id, array $old_opti
         return;
     }
 
-    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_verb_mood');
-    if (empty($word_ids)) {
-        return;
-    }
-
-    $touched_categories = [];
-    foreach ($word_ids as $word_id) {
-        $word_id = (int) $word_id;
-        if ($word_id <= 0) {
-            continue;
-        }
-        $current = trim((string) get_post_meta($word_id, 'll_verb_mood', true));
-        if ($current === '') {
-            continue;
-        }
-        $key = strtolower($current);
-        if (!array_key_exists($key, $map)) {
-            continue;
-        }
-        $new_value = $map[$key];
-        $changed = false;
-        if ($new_value === '') {
-            delete_post_meta($word_id, 'll_verb_mood');
-            $changed = true;
-        } elseif ($new_value !== $current) {
-            update_post_meta($word_id, 'll_verb_mood', $new_value);
-            $changed = true;
-        }
-
-        if ($changed) {
-            $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-            if (!is_wp_error($term_ids)) {
-                foreach ($term_ids as $term_id) {
-                    $term_id = (int) $term_id;
-                    if ($term_id > 0) {
-                        $touched_categories[$term_id] = true;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!empty($touched_categories) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version(array_keys($touched_categories));
-    }
+    ll_tools_wordset_queue_grammar_rewrite($wordset_id, 'll_verb_mood', $map);
 }
 
 function ll_tools_wordset_has_verb_mood(int $wordset_id): bool {
