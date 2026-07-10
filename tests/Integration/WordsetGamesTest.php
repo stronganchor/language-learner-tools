@@ -303,6 +303,54 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll_tools_teacher_assign_class_student', $classesHtml);
     }
 
+    public function test_teacher_classes_view_pages_student_progress_rows(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $term = wp_insert_term('Paged Class Progress ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $this->setValidWordsetRewriteRules((string) $wordset->slug);
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-paged-progress@example.org',
+        ]);
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Paged Progress Class', (int) $wordset->term_id);
+        $this->assertIsInt($class_id);
+
+        $learner_emails = [];
+        for ($index = 1; $index <= 26; $index++) {
+            $email = sprintf('paged-progress-%02d@example.org', $index);
+            $learner_id = self::factory()->user->create([
+                'role' => 'll_tools_learner',
+                'user_email' => $email,
+            ]);
+            $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
+            $learner_emails[] = $email;
+        }
+
+        wp_set_current_user($teacher_id);
+        $_GET['class_id'] = (string) $class_id;
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset, 'classes'));
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', 'classes');
+
+        $first_page_html = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $this->assertStringContainsString($learner_emails[0], $first_page_html);
+        $this->assertStringNotContainsString($learner_emails[25], $first_page_html);
+        $this->assertStringContainsString('ll_tools_student_page=2', $first_page_html);
+
+        $_GET['ll_tools_student_page'] = '2';
+        $second_page_html = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $this->assertStringNotContainsString($learner_emails[0], $second_page_html);
+        $this->assertStringContainsString($learner_emails[25], $second_page_html);
+        $this->assertStringContainsString('Page 2', $second_page_html);
+    }
+
     public function test_teacher_classes_view_renders_direct_assignment_controls_for_admins(): void
     {
         ll_tools_register_or_refresh_teacher_role();

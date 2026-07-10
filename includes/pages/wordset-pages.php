@@ -10638,13 +10638,28 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
     $selected_class_id = isset($_GET['class_id'])
         ? max(0, (int) wp_unslash((string) $_GET['class_id']))
         : 0;
-    $available_wordsets = function_exists('ll_tools_teacher_class_get_available_wordsets')
+    $available_wordsets = $can_manage_classes && function_exists('ll_tools_teacher_class_get_available_wordsets')
         ? ll_tools_teacher_class_get_available_wordsets()
         : [];
 
+    $class_page = isset($_GET['ll_tools_class_page'])
+        ? max(1, (int) wp_unslash((string) $_GET['ll_tools_class_page']))
+        : 1;
+    $class_search = isset($_GET['ll_tools_class_search'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_tools_class_search']))
+        : '';
+    $class_page_size = 20;
     $classes = $can_manage_classes && function_exists('ll_tools_teacher_classes_for_user')
-        ? ll_tools_teacher_classes_for_user($current_user_id, $current_wordset_id)
+        ? ll_tools_teacher_classes_for_user($current_user_id, $current_wordset_id, [
+            'number' => $class_page_size + 1,
+            'offset' => ($class_page - 1) * $class_page_size,
+            'search' => $class_search,
+        ])
         : [];
+    $classes_have_more = count($classes) > $class_page_size;
+    if ($classes_have_more) {
+        $classes = array_slice($classes, 0, $class_page_size);
+    }
     if ($selected_class_id <= 0 && !empty($classes) && ($classes[0] instanceof WP_Post)) {
         $selected_class_id = (int) $classes[0]->ID;
     }
@@ -10670,6 +10685,13 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
     $student_ids = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_student_ids'))
         ? ll_tools_teacher_class_get_student_ids((int) $selected_class->ID)
         : [];
+    $student_page = isset($_GET['ll_tools_student_page'])
+        ? max(1, (int) wp_unslash((string) $_GET['ll_tools_student_page']))
+        : 1;
+    $student_page_size = 25;
+    $student_total = count($student_ids);
+    $student_ids = array_slice($student_ids, ($student_page - 1) * $student_page_size, $student_page_size);
+    $student_progress_has_more = ($student_page * $student_page_size) < $student_total;
     $student_rows = function_exists('ll_tools_teacher_class_student_progress_rows')
         ? ll_tools_teacher_class_student_progress_rows($student_ids, $selected_class_wordset_id)
         : [];
@@ -10682,19 +10704,59 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
             'mastered_words' => 0,
             'hard_words' => 0,
         ];
+    $summary['students'] = $student_total;
     $selected_teacher_user = ($selected_class instanceof WP_Post)
         ? get_userdata((int) $selected_class->post_author)
         : null;
     $signup_url = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_signup_invite_url'))
         ? ll_tools_teacher_class_get_signup_invite_url((int) $selected_class->ID)
         : '';
+    $account_page = isset($_GET['ll_tools_account_page'])
+        ? max(1, (int) wp_unslash((string) $_GET['ll_tools_account_page']))
+        : 1;
+    $account_search = isset($_GET['ll_tools_account_search'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_tools_account_search']))
+        : '';
+    $account_page_size = 25;
+    $account_query_args = [
+        'number' => $account_page_size + 1,
+        'offset' => ($account_page - 1) * $account_page_size,
+        'search' => $account_search,
+    ];
     $assignable_teachers = $is_admin_user && function_exists('ll_tools_teacher_class_get_assignable_teachers')
-        ? ll_tools_teacher_class_get_assignable_teachers()
+        ? ll_tools_teacher_class_get_assignable_teachers($account_query_args)
         : [];
+    $teachers_have_more = count($assignable_teachers) > $account_page_size;
+    if ($teachers_have_more) {
+        $assignable_teachers = array_slice($assignable_teachers, 0, $account_page_size);
+    }
     $can_directly_assign_students = $is_admin_user;
     $assignable_students = ($selected_class instanceof WP_Post && $can_directly_assign_students && function_exists('ll_tools_teacher_class_get_assignable_students'))
-        ? ll_tools_teacher_class_get_assignable_students((int) $selected_class->ID)
+        ? ll_tools_teacher_class_get_assignable_students((int) $selected_class->ID, $account_query_args)
         : [];
+    $students_have_more = count($assignable_students) > $account_page_size;
+    if ($students_have_more) {
+        $assignable_students = array_slice($assignable_students, 0, $account_page_size);
+    }
+
+    if ($is_admin_user) {
+        $required_teacher_ids = array_values(array_unique(array_filter([
+            $current_user_id,
+            ($selected_class instanceof WP_Post) ? (int) $selected_class->post_author : 0,
+        ])));
+        $listed_teacher_ids = array_map(static function ($user): int {
+            return ($user instanceof WP_User) ? (int) $user->ID : 0;
+        }, $assignable_teachers);
+        foreach ($required_teacher_ids as $required_teacher_id) {
+            if (in_array($required_teacher_id, $listed_teacher_ids, true)) {
+                continue;
+            }
+            $required_teacher = get_userdata($required_teacher_id);
+            if ($required_teacher instanceof WP_User && ll_tools_teacher_class_user_can_be_teacher($required_teacher)) {
+                $assignable_teachers[] = $required_teacher;
+            }
+        }
+    }
     $signup_input_id = 'll-teacher-class-signup-link-' . (int) (($selected_class instanceof WP_Post) ? $selected_class->ID : 0);
     $redirect_to = function_exists('ll_tools_get_current_request_url')
         ? ll_tools_get_current_request_url()
@@ -10702,6 +10764,31 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
     $redirect_to = ($redirect_to !== '') ? $redirect_to : $selected_classes_url;
     $create_wordset_id = $current_wordset_id;
     $create_wordset_name = (string) $wordset_term->name;
+    $class_navigation_args = array_filter([
+        'class_id' => ($selected_class instanceof WP_Post) ? (int) $selected_class->ID : 0,
+        'll_tools_class_search' => $class_search,
+        'll_tools_account_page' => ($account_page > 1) ? $account_page : 0,
+        'll_tools_account_search' => $account_search,
+    ], static function ($value): bool {
+        return $value !== '' && $value !== 0;
+    });
+    $account_navigation_args = array_filter([
+        'class_id' => ($selected_class instanceof WP_Post) ? (int) $selected_class->ID : 0,
+        'll_tools_class_page' => ($class_page > 1) ? $class_page : 0,
+        'll_tools_class_search' => $class_search,
+        'll_tools_account_search' => $account_search,
+    ], static function ($value): bool {
+        return $value !== '' && $value !== 0;
+    });
+    $student_navigation_args = array_filter([
+        'class_id' => ($selected_class instanceof WP_Post) ? (int) $selected_class->ID : 0,
+        'll_tools_class_page' => ($class_page > 1) ? $class_page : 0,
+        'll_tools_class_search' => $class_search,
+        'll_tools_account_page' => ($account_page > 1) ? $account_page : 0,
+        'll_tools_account_search' => $account_search,
+    ], static function ($value): bool {
+        return $value !== '' && $value !== 0;
+    });
 
     ob_start();
     ?>
@@ -10736,6 +10823,35 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
     <?php else : ?>
         <section class="ll-teacher-classes" data-ll-teacher-classes>
             <div class="ll-teacher-classes__sidebar">
+                <?php if ($is_admin_user) : ?>
+                    <section class="ll-teacher-classes__panel">
+                        <form class="ll-teacher-classes__form" method="get" action="<?php echo esc_url($selected_classes_url); ?>">
+                            <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                            <input type="hidden" name="ll_wordset_view" value="classes" />
+                            <?php if ($selected_class instanceof WP_Post) : ?>
+                                <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                            <?php endif; ?>
+                            <label class="ll-teacher-classes__field">
+                                <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Find account', 'll-tools-text-domain'); ?></span>
+                                <input class="ll-teacher-classes__input" type="search" name="ll_tools_account_search" value="<?php echo esc_attr($account_search); ?>" />
+                            </label>
+                            <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button">
+                                <?php echo esc_html__('Search', 'll-tools-text-domain'); ?>
+                            </button>
+                        </form>
+                        <?php if ($account_page > 1 || $teachers_have_more || $students_have_more) : ?>
+                            <nav class="ll-teacher-classes__pager" aria-label="<?php echo esc_attr__('Account results', 'll-tools-text-domain'); ?>">
+                                <?php if ($account_page > 1) : ?>
+                                    <a class="ll-teacher-classes__ghost-button" href="<?php echo esc_url(add_query_arg(array_merge($account_navigation_args, ['ll_tools_account_page' => $account_page - 1]), $classes_url)); ?>"><?php echo esc_html__('Previous', 'll-tools-text-domain'); ?></a>
+                                <?php endif; ?>
+                                <span><?php echo esc_html(sprintf(__('Page %d', 'll-tools-text-domain'), $account_page)); ?></span>
+                                <?php if ($teachers_have_more || $students_have_more) : ?>
+                                    <a class="ll-teacher-classes__ghost-button" href="<?php echo esc_url(add_query_arg(array_merge($account_navigation_args, ['ll_tools_account_page' => $account_page + 1]), $classes_url)); ?>"><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></a>
+                                <?php endif; ?>
+                            </nav>
+                        <?php endif; ?>
+                    </section>
+                <?php endif; ?>
                 <section class="ll-teacher-classes__panel ll-teacher-classes__panel--create">
                     <div class="ll-teacher-classes__panel-head">
                         <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html__('New class', 'll-tools-text-domain'); ?></h2>
@@ -10791,8 +10907,20 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                 <section class="ll-teacher-classes__panel">
                     <div class="ll-teacher-classes__panel-head">
                         <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html($is_admin_user ? __('Classes', 'll-tools-text-domain') : __('Your classes', 'll-tools-text-domain')); ?></h2>
-                        <span class="ll-teacher-classes__panel-count"><?php echo esc_html((string) count($classes)); ?></span>
+                        <span class="ll-teacher-classes__panel-count"><?php echo esc_html((string) count($classes) . ($classes_have_more ? '+' : '')); ?></span>
                     </div>
+
+                    <form class="ll-teacher-classes__form ll-teacher-classes__search" method="get" action="<?php echo esc_url($classes_url); ?>">
+                        <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                        <input type="hidden" name="ll_wordset_view" value="classes" />
+                        <label class="ll-teacher-classes__field">
+                            <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Find class', 'll-tools-text-domain'); ?></span>
+                            <input class="ll-teacher-classes__input" type="search" name="ll_tools_class_search" value="<?php echo esc_attr($class_search); ?>" />
+                        </label>
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button ll-teacher-classes__button--small">
+                            <?php echo esc_html__('Search', 'll-tools-text-domain'); ?>
+                        </button>
+                    </form>
 
                     <?php if (empty($classes)) : ?>
                         <div class="ll-teacher-classes__empty">
@@ -10841,6 +10969,18 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
+
+                    <?php if ($class_page > 1 || $classes_have_more) : ?>
+                        <nav class="ll-teacher-classes__pager" aria-label="<?php echo esc_attr__('Class results', 'll-tools-text-domain'); ?>">
+                            <?php if ($class_page > 1) : ?>
+                                <a class="ll-teacher-classes__ghost-button" href="<?php echo esc_url(add_query_arg(array_merge($class_navigation_args, ['ll_tools_class_page' => $class_page - 1]), $classes_url)); ?>"><?php echo esc_html__('Previous', 'll-tools-text-domain'); ?></a>
+                            <?php endif; ?>
+                            <span><?php echo esc_html(sprintf(__('Page %d', 'll-tools-text-domain'), $class_page)); ?></span>
+                            <?php if ($classes_have_more) : ?>
+                                <a class="ll-teacher-classes__ghost-button" href="<?php echo esc_url(add_query_arg(array_merge($class_navigation_args, ['ll_tools_class_page' => $class_page + 1]), $classes_url)); ?>"><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></a>
+                            <?php endif; ?>
+                        </nav>
+                    <?php endif; ?>
                 </section>
             </div>
 
@@ -10872,19 +11012,19 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                             </div>
                             <div class="ll-teacher-classes__stat">
                                 <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['rounds_30d'] ?? 0)); ?></span>
-                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('30d rounds', 'll-tools-text-domain'); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page 30d rounds', 'll-tools-text-domain') : __('30d rounds', 'll-tools-text-domain')); ?></span>
                             </div>
                             <div class="ll-teacher-classes__stat">
                                 <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['studied_words'] ?? 0)); ?></span>
-                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Studied', 'll-tools-text-domain'); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page studied', 'll-tools-text-domain') : __('Studied', 'll-tools-text-domain')); ?></span>
                             </div>
                             <div class="ll-teacher-classes__stat">
                                 <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['mastered_words'] ?? 0)); ?></span>
-                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Mastered', 'll-tools-text-domain'); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page mastered', 'll-tools-text-domain') : __('Mastered', 'll-tools-text-domain')); ?></span>
                             </div>
                             <div class="ll-teacher-classes__stat">
                                 <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['hard_words'] ?? 0)); ?></span>
-                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Hard', 'll-tools-text-domain'); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page hard', 'll-tools-text-domain') : __('Hard', 'll-tools-text-domain')); ?></span>
                             </div>
                         </div>
                     </section>
@@ -10980,7 +11120,7 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                         </div>
                         <?php if (empty($student_rows)) : ?>
                             <div class="ll-teacher-classes__empty">
-                                <?php echo esc_html__('No learners have joined this class yet.', 'll-tools-text-domain'); ?>
+                                <?php echo esc_html($student_total > 0 ? __('No learners are available on this page.', 'll-tools-text-domain') : __('No learners have joined this class yet.', 'll-tools-text-domain')); ?>
                             </div>
                         <?php else : ?>
                             <div class="ll-teacher-classes__table-wrap">
@@ -11073,6 +11213,17 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                                     </tbody>
                                 </table>
                             </div>
+                        <?php endif; ?>
+                        <?php if ($student_page > 1 || $student_progress_has_more) : ?>
+                            <nav class="ll-teacher-classes__pager" aria-label="<?php echo esc_attr__('Learner progress', 'll-tools-text-domain'); ?>">
+                                <?php if ($student_page > 1) : ?>
+                                    <a class="ll-teacher-classes__ghost-button" href="<?php echo esc_url(add_query_arg(array_merge($student_navigation_args, ['ll_tools_student_page' => $student_page - 1]), $classes_url)); ?>"><?php echo esc_html__('Previous', 'll-tools-text-domain'); ?></a>
+                                <?php endif; ?>
+                                <span><?php echo esc_html(sprintf(__('Page %d', 'll-tools-text-domain'), $student_page)); ?></span>
+                                <?php if ($student_progress_has_more) : ?>
+                                    <a class="ll-teacher-classes__ghost-button" href="<?php echo esc_url(add_query_arg(array_merge($student_navigation_args, ['ll_tools_student_page' => $student_page + 1]), $classes_url)); ?>"><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></a>
+                                <?php endif; ?>
+                            </nav>
                         <?php endif; ?>
                     </section>
                 <?php endif; ?>

@@ -10448,6 +10448,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 12px;
 }
 
+.ll-teacher-classes__search {
+    margin-bottom: 14px;
+}
+
+.ll-teacher-classes__pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 13px;
+}
+
 .ll-teacher-classes__list-card {
     display: grid;
     gap: 12px;

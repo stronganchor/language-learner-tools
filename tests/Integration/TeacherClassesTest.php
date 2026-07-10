@@ -317,6 +317,66 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertNotContains((int) $teacher_two_scoped_class_id, $teacher_one_scoped_class_ids);
     }
 
+    public function test_teacher_class_and_learner_queries_support_bounded_pages_and_search(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-paged@example.org',
+        ]);
+        foreach (['Alpha', 'Bravo', 'Charlie', 'Delta'] as $suffix) {
+            $class_id = ll_tools_teacher_class_create(
+                $teacher_id,
+                'Paged Class ' . $suffix,
+                $this->default_wordset_id
+            );
+            $this->assertIsInt($class_id);
+        }
+
+        $class_page = ll_tools_teacher_classes_for_user($teacher_id, $this->default_wordset_id, [
+            'number' => 2,
+            'offset' => 1,
+        ]);
+        $this->assertSame(
+            ['Paged Class Bravo', 'Paged Class Charlie'],
+            wp_list_pluck($class_page, 'post_title')
+        );
+
+        $class_search = ll_tools_teacher_classes_for_user($teacher_id, $this->default_wordset_id, [
+            'number' => 2,
+            'search' => 'Delta',
+        ]);
+        $this->assertSame(['Paged Class Delta'], wp_list_pluck($class_search, 'post_title'));
+
+        foreach (['Alpha', 'Bravo', 'Charlie', 'Delta'] as $suffix) {
+            self::factory()->user->create([
+                'role' => 'll_tools_learner',
+                'display_name' => 'Paged Learner ' . $suffix,
+                'user_email' => strtolower($suffix) . '-paged-learner@example.org',
+            ]);
+        }
+
+        $learner_page = ll_tools_teacher_class_get_assignable_students(0, [
+            'number' => 2,
+            'offset' => 1,
+        ]);
+        $this->assertSame(
+            ['Paged Learner Bravo', 'Paged Learner Charlie'],
+            array_map(static function (WP_User $user): string {
+                return (string) $user->display_name;
+            }, $learner_page)
+        );
+
+        $learner_search = ll_tools_teacher_class_get_assignable_students(0, [
+            'number' => 2,
+            'search' => 'delta-paged-learner',
+        ]);
+        $this->assertCount(1, $learner_search);
+        $this->assertSame('delta-paged-learner@example.org', (string) $learner_search[0]->user_email);
+    }
+
     public function test_existing_learner_invite_rejects_different_logged_in_user(): void
     {
         ll_tools_register_or_refresh_teacher_role();

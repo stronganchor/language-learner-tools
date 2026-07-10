@@ -422,24 +422,57 @@ if (!function_exists('ll_tools_teacher_class_assign_teacher')) {
 }
 
 if (!function_exists('ll_tools_teacher_classes_for_user')) {
-    function ll_tools_teacher_classes_for_user(int $user_id = 0, int $wordset_id = 0): array {
+    function ll_tools_teacher_classes_for_user(int $user_id = 0, int $wordset_id = 0, array $args = []): array {
         $uid = (int) ($user_id ?: get_current_user_id());
         if ($uid <= 0) {
             return [];
         }
+
+        $number = isset($args['number']) ? max(0, min(101, (int) $args['number'])) : 0;
+        $offset = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
+        $search = isset($args['search']) ? sanitize_text_field((string) $args['search']) : '';
 
         $query_args = [
             'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
             'post_status' => 'publish',
             'orderby' => 'title',
             'order' => 'ASC',
-            'posts_per_page' => -1,
+            'posts_per_page' => ($number > 0) ? $number : -1,
             'no_found_rows' => true,
             'suppress_filters' => false,
         ];
 
+        if ($offset > 0) {
+            $query_args['offset'] = $offset;
+        }
+        if ($search !== '') {
+            $query_args['s'] = $search;
+        }
+
         if (!user_can($uid, 'manage_options')) {
             $query_args['author'] = $uid;
+        }
+
+        if ($wordset_id > 0) {
+            $wordset_meta_query = [
+                'key' => LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META,
+                'value' => $wordset_id,
+                'compare' => '=',
+                'type' => 'NUMERIC',
+            ];
+
+            if (ll_tools_teacher_class_get_single_wordset_id() === $wordset_id) {
+                $wordset_meta_query = [
+                    'relation' => 'OR',
+                    $wordset_meta_query,
+                    [
+                        'key' => LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META,
+                        'compare' => 'NOT EXISTS',
+                    ],
+                ];
+            }
+
+            $query_args['meta_query'] = [$wordset_meta_query];
         }
 
         $posts = get_posts($query_args);
@@ -460,12 +493,26 @@ if (!function_exists('ll_tools_teacher_classes_for_user')) {
 }
 
 if (!function_exists('ll_tools_teacher_class_get_assignable_teachers')) {
-    function ll_tools_teacher_class_get_assignable_teachers(): array {
-        $users = get_users([
+    function ll_tools_teacher_class_get_assignable_teachers(array $args = []): array {
+        $query_args = [
             'orderby' => 'display_name',
             'order' => 'ASC',
             'fields' => 'all_with_meta',
-        ]);
+        ];
+
+        $number = isset($args['number']) ? max(0, min(101, (int) $args['number'])) : 0;
+        if ($number > 0) {
+            $query_args['number'] = $number;
+            $query_args['offset'] = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
+        }
+
+        $search = isset($args['search']) ? sanitize_text_field((string) $args['search']) : '';
+        if ($search !== '') {
+            $query_args['search'] = '*' . $search . '*';
+            $query_args['search_columns'] = ['user_login', 'user_email', 'display_name'];
+        }
+
+        $users = get_users($query_args);
 
         if (!is_array($users)) {
             return [];
@@ -616,12 +663,28 @@ if (!function_exists('ll_tools_teacher_class_delete')) {
 }
 
 if (!function_exists('ll_tools_teacher_class_get_assignable_students')) {
-    function ll_tools_teacher_class_get_assignable_students(int $class_id = 0): array {
+    function ll_tools_teacher_class_get_assignable_students(int $class_id = 0, array $args = []): array {
         $query_args = [
             'orderby' => 'display_name',
             'order' => 'ASC',
             'fields' => 'all_with_meta',
         ];
+
+        if (!has_filter('ll_tools_teacher_class_user_can_be_student')) {
+            $query_args['role__in'] = ['ll_tools_learner'];
+        }
+
+        $number = isset($args['number']) ? max(0, min(101, (int) $args['number'])) : 0;
+        if ($number > 0) {
+            $query_args['number'] = $number;
+            $query_args['offset'] = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
+        }
+
+        $search = isset($args['search']) ? sanitize_text_field((string) $args['search']) : '';
+        if ($search !== '') {
+            $query_args['search'] = '*' . $search . '*';
+            $query_args['search_columns'] = ['user_login', 'user_email', 'display_name'];
+        }
 
         if ($class_id > 0) {
             $assigned_student_ids = ll_tools_teacher_class_get_student_ids($class_id);
