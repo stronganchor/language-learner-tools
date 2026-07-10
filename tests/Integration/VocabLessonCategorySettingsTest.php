@@ -46,7 +46,8 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_vocab_lesson_category_settings_action" value="save"', $html);
         $this->assertStringContainsString('name="ll_vocab_lesson_quiz_prompt_type"', $html);
         $this->assertStringContainsString('name="ll_vocab_lesson_category_enabled_games[]"', $html);
-        $this->assertStringContainsString('name="ll_vocab_lesson_category_lineup_word_ids"', $html);
+        $this->assertStringContainsString('data-ll-category-lineup-ordering', $html);
+        $this->assertStringNotContainsString('name="ll_vocab_lesson_category_lineup_word_ids"', $html);
         $this->assertStringContainsString('data-ll-category-settings-status', $html);
         $this->assertStringContainsString('data-ll-category-settings-delete', $html);
         $this->assertStringContainsString('Delete Category', $html);
@@ -122,6 +123,7 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
             'll_vocab_lesson_category_enabled_games' => ['line-up', 'unscramble'],
             'll_vocab_lesson_desired_recording_types' => ['isolation', 'question'],
             'll_vocab_lesson_category_lineup_submitted' => '1',
+            'll_vocab_lesson_category_lineup_replace' => '1',
             'll_vocab_lesson_category_lineup_direction' => 'rtl',
             'll_vocab_lesson_category_lineup_word_ids' => (string) $fixture['word_b_id'] . ',' . (string) $fixture['word_a_id'],
         ];
@@ -144,6 +146,56 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertSame(
             [(int) $fixture['word_b_id'], (int) $fixture['word_a_id']],
             array_map('intval', (array) get_term_meta((int) $fixture['category_id'], LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, true))
+        );
+    }
+
+    public function test_category_settings_autosave_preserves_paged_sequence_while_saving_direction(): void
+    {
+        $manager_id = $this->createManagerUser();
+        wp_set_current_user($manager_id);
+        $fixture = $this->createManagedLessonFixture($manager_id);
+        $stored_order = [(int) $fixture['word_b_id'], (int) $fixture['word_a_id']];
+        update_term_meta(
+            (int) $fixture['category_id'],
+            LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+            $stored_order
+        );
+        update_term_meta(
+            (int) $fixture['category_id'],
+            LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY,
+            'rtl'
+        );
+
+        $result = ll_tools_save_vocab_lesson_category_settings_from_request([
+            'll_vocab_lesson_category_settings_action' => 'save',
+            'll_vocab_lesson_category_settings_lesson_id' => (string) $fixture['lesson_id'],
+            'll_vocab_lesson_category_settings_wordset_id' => (string) $fixture['wordset_id'],
+            'll_vocab_lesson_category_settings_category_id' => (string) $fixture['category_id'],
+            'll_vocab_lesson_category_settings_nonce' => wp_create_nonce('ll_vocab_lesson_category_settings_' . $fixture['lesson_id']),
+            'll_vocab_lesson_category_lineup_submitted' => '1',
+            'll_vocab_lesson_category_lineup_direction' => 'ltr',
+            'll_vocab_lesson_category_lineup_word_ids' => (string) $fixture['word_a_id'],
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertSame(
+            $stored_order,
+            array_map(
+                'intval',
+                (array) get_term_meta(
+                    (int) $fixture['category_id'],
+                    LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+                    true
+                )
+            )
+        );
+        $this->assertSame(
+            'ltr',
+            (string) get_term_meta(
+                (int) $fixture['category_id'],
+                LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY,
+                true
+            )
         );
     }
 

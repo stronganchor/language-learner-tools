@@ -11,8 +11,16 @@ const vocabLessonCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
   'utf8'
 );
+const categoryLineupCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/category-lineup-manager.css'),
+  'utf8'
+);
 const vocabLessonJsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/vocab-lesson-page.js'),
+  'utf8'
+);
+const categoryLineupJsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/category-lineup-manager.js'),
   'utf8'
 );
 
@@ -77,6 +85,10 @@ function buildCategorySettingsMarkup(options = {}) {
                 <span class="ll-vocab-lesson-category-settings-trigger-label">Category</span>
               </button>
               <form class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel ll-vocab-lesson-tool-modal" role="dialog" aria-modal="true" aria-labelledby="ll-test-category-settings-title" aria-hidden="true">
+                <input type="hidden" name="ll_vocab_lesson_category_settings_lesson_id" value="91" />
+                <input type="hidden" name="ll_vocab_lesson_category_settings_wordset_id" value="11" />
+                <input type="hidden" name="ll_vocab_lesson_category_settings_category_id" value="21" />
+                <input type="hidden" name="ll_vocab_lesson_category_settings_nonce" value="test-lineup-nonce" />
                 <div class="ll-vocab-lesson-category-settings-panel__title-row">
                   <div class="ll-vocab-lesson-category-settings-panel__title" id="ll-test-category-settings-title">Category settings</div>
                   <button type="button" class="ll-vocab-lesson-tool-modal__close" data-ll-category-settings-close aria-label="Close category settings">
@@ -178,11 +190,13 @@ function buildCategorySettingsMarkup(options = {}) {
 }
 
 async function mountCategorySettingsHarness(page, viewport, options = {}) {
+  const lineupCount = Number.isFinite(options.lineupCount) ? Math.max(1, options.lineupCount) : 3;
   await page.setViewportSize(viewport);
   await page.goto('about:blank');
   await page.setContent(buildCategorySettingsMarkup(options));
   await page.addStyleTag({ content: flashcardBaseCssSource });
   await page.addStyleTag({ content: vocabLessonCssSource });
+  await page.addStyleTag({ content: categoryLineupCssSource });
   await page.addStyleTag({ content: hostileThemeCss });
   if (options.includeOverlapShell) {
     await page.addStyleTag({
@@ -231,26 +245,122 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
           }
         }
       };
+      window.llToolsCategoryLineupManagerData = {
+        ajaxUrl: '/wp-admin/admin-ajax.php',
+        fetchAction: 'll_tools_get_category_lineup_candidates',
+        updateAction: 'll_tools_update_category_lineup_sequence',
+        pageSize: 5,
+        i18n: {}
+      };
 
       window.__llCategorySettingsSaves = [];
+      window.__llLineupRequests = [];
+      window.__llLineupSequence = Array.from({ length: ${lineupCount} }, (_, index) => 41 + index);
+      window.__llLineupCandidates = Array.from({ length: ${lineupCount} }, (_, index) => ({
+        id: 41 + index,
+        title: 'Word ' + (index + 1)
+      }));
+
       jQuery.ajax = function (options) {
-        const entries = options && options.data && typeof options.data.entries === 'function'
-          ? Array.from(options.data.entries()).reduce((acc, item) => {
-              const key = String(item[0]);
-              const value = String(item[1]);
-              if (!acc[key]) {
-                acc[key] = [];
-              }
-              acc[key].push(value);
-              return acc;
-            }, {})
-          : {};
-        window.__llCategorySettingsSaves.push({
-          url: String(options && options.url ? options.url : ''),
-          entries
-        });
+        const data = options && options.data ? options.data : {};
+        const pairs = typeof data.entries === 'function'
+          ? Array.from(data.entries())
+          : Object.keys(data).map((key) => [key, data[key]]);
+        const entries = pairs.reduce((acc, item) => {
+          const key = String(item[0]);
+          const value = String(item[1]);
+          if (!acc[key]) {
+            acc[key] = [];
+          }
+          acc[key].push(value);
+          return acc;
+        }, {});
+        const value = (key, fallback = '') => entries[key] && entries[key].length
+          ? entries[key][0]
+          : fallback;
+        const action = value('action');
         const deferred = jQuery.Deferred();
+
         window.setTimeout(function () {
+          if (action === 'll_tools_get_category_lineup_candidates') {
+            const view = value('view', 'candidates');
+            const pageNumber = Math.max(1, Number.parseInt(value('page', '1'), 10) || 1);
+            const perPage = Math.max(1, Number.parseInt(value('per_page', '5'), 10) || 5);
+            const search = value('search').trim().toLowerCase();
+            let source = [];
+            if (view === 'sequence') {
+              source = window.__llLineupSequence.map((id, index) => {
+                const candidate = window.__llLineupCandidates.find((item) => item.id === id);
+                return {
+                  id,
+                  title: candidate ? candidate.title : 'Unavailable word #' + id,
+                  selected: true,
+                  missing: !candidate,
+                  position: index + 1
+                };
+              });
+            } else {
+              source = window.__llLineupCandidates
+                .filter((item) => !search || item.title.toLowerCase().includes(search))
+                .map((item) => ({
+                  ...item,
+                  selected: window.__llLineupSequence.includes(item.id),
+                  missing: false,
+                  position: 0
+                }));
+            }
+            const total = source.length;
+            const totalPages = Math.max(1, Math.ceil(total / perPage));
+            const effectivePage = Math.min(pageNumber, totalPages);
+            const offset = (effectivePage - 1) * perPage;
+            window.__llLineupRequests.push({ action, view, page: pageNumber, perPage, search });
+            deferred.resolve({
+              success: true,
+              data: {
+                view,
+                items: source.slice(offset, offset + perPage),
+                page: effectivePage,
+                per_page: perPage,
+                total,
+                total_pages: totalPages,
+                search
+              }
+            });
+            return;
+          }
+
+          if (action === 'll_tools_update_category_lineup_sequence') {
+            const mutation = value('mutation');
+            const wordId = Number.parseInt(value('word_id', '0'), 10) || 0;
+            const currentIndex = window.__llLineupSequence.indexOf(wordId);
+            if (mutation === 'add' && currentIndex === -1) {
+              window.__llLineupSequence.push(wordId);
+            } else if (mutation === 'reset' && currentIndex !== -1) {
+              window.__llLineupSequence.splice(currentIndex, 1);
+            } else if (mutation === 'move_up' && currentIndex > 0) {
+              const previous = window.__llLineupSequence[currentIndex - 1];
+              window.__llLineupSequence[currentIndex - 1] = wordId;
+              window.__llLineupSequence[currentIndex] = previous;
+            } else if (mutation === 'move_down' && currentIndex >= 0 && currentIndex < window.__llLineupSequence.length - 1) {
+              const next = window.__llLineupSequence[currentIndex + 1];
+              window.__llLineupSequence[currentIndex + 1] = wordId;
+              window.__llLineupSequence[currentIndex] = next;
+            }
+            window.__llLineupRequests.push({ action, mutation, wordId });
+            deferred.resolve({
+              success: true,
+              data: {
+                message: 'Sequence updated.',
+                sequence_count: window.__llLineupSequence.length
+              }
+            });
+            return;
+          }
+
+          window.__llCategorySettingsSaves.push({
+            url: String(options && options.url ? options.url : ''),
+            entries
+          });
           deferred.resolve({
             success: true,
             data: {
@@ -262,6 +372,7 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
       };
     `
   });
+  await page.addScriptTag({ content: categoryLineupJsSource });
   await page.addScriptTag({ content: vocabLessonJsSource });
 }
 
@@ -270,18 +381,19 @@ test('lesson category settings panel opens, reorders Line-Up, and closes cleanly
 
   const trigger = page.locator('.ll-vocab-lesson-category-settings-trigger');
   const panel = page.locator('.ll-vocab-lesson-category-settings-panel');
-  const orderInput = page.locator('[data-ll-category-lineup-order-input]');
+  const sequenceItems = page.locator('[data-ll-lineup-sequence-item]');
 
   await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   await expect(panel).toHaveAttribute('aria-hidden', 'false');
-  await expect(orderInput).toHaveValue('41,42,43');
+  await expect(sequenceItems).toHaveCount(3);
+  await expect(page.locator('[data-ll-category-lineup-order-input]')).toHaveCount(0);
 
-  await page.locator('[data-word-id="42"] [data-ll-category-lineup-move="up"]').click();
-  await expect(orderInput).toHaveValue('42,41,43');
+  await page.locator('[data-ll-lineup-sequence-item][data-word-id="42"] [data-ll-lineup-mutation="move_up"]').click();
+  await expect.poll(() => page.evaluate(() => window.__llLineupSequence.slice())).toEqual([42, 41, 43]);
 
-  await page.locator('[data-word-id="41"] [data-ll-category-lineup-move="down"]').click();
-  await expect(orderInput).toHaveValue('42,43,41');
+  await page.locator('[data-ll-lineup-sequence-item][data-word-id="41"] [data-ll-lineup-mutation="move_down"]').click();
+  await expect.poll(() => page.evaluate(() => window.__llLineupSequence.slice())).toEqual([42, 43, 41]);
 
   await page.keyboard.press('Escape');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
@@ -291,6 +403,32 @@ test('lesson category settings panel opens, reorders Line-Up, and closes cleanly
   await page.locator('[data-ll-category-settings-close]').click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(panel).toHaveAttribute('aria-hidden', 'true');
+});
+
+test('Line-Up manager pages stored order and searches bounded candidate pages', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1366, height: 900 }, { lineupCount: 14 });
+
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+  await expect(page.locator('[data-ll-lineup-sequence-item]')).toHaveCount(5);
+  await expect(page.locator('[data-ll-lineup-sequence-item]').first()).toHaveAttribute('data-word-id', '41');
+
+  await page.locator('[data-ll-lineup-page-view="sequence"][data-ll-lineup-page="2"]').click();
+  await expect(page.locator('[data-ll-lineup-sequence-item]').first()).toHaveAttribute('data-word-id', '46');
+
+  await page.locator('[data-ll-lineup-search-input]').fill('Word 12');
+  await page.locator('[data-ll-lineup-search]').click();
+  await expect(page.locator('[data-ll-lineup-candidate-item]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-lineup-candidate-item]')).toHaveAttribute('data-word-id', '52');
+
+  const fetchRequests = await page.evaluate(() => (
+    window.__llLineupRequests.filter((request) => request.action === 'll_tools_get_category_lineup_candidates')
+  ));
+  expect(fetchRequests.length).toBeGreaterThanOrEqual(4);
+  fetchRequests.forEach((request) => {
+    expect(request.perPage).toBe(5);
+  });
+  expect(fetchRequests.some((request) => request.view === 'sequence' && request.page === 2)).toBe(true);
+  expect(fetchRequests.some((request) => request.view === 'candidates' && request.search === 'word 12')).toBe(true);
 });
 
 test('lesson category settings panel clamps to the mobile viewport and keeps autosave status reachable', async ({ page }) => {
@@ -308,7 +446,7 @@ test('lesson category settings panel clamps to the mobile viewport and keeps aut
     const panelEl = document.querySelector('.ll-vocab-lesson-category-settings-panel');
     const statusEl = document.querySelector('[data-ll-category-settings-status]');
     const directionSelect = document.querySelector('[data-ll-category-lineup-direction]');
-    const lineupActions = Array.from(document.querySelectorAll('.ll-vocab-lesson-category-lineup-move')).map((button) => {
+    const lineupActions = Array.from(document.querySelectorAll('.ll-category-lineup-manager__icon-button')).map((button) => {
       const rect = button.getBoundingClientRect();
       return {
         left: Math.round(rect.left),
@@ -345,7 +483,7 @@ test('lesson category settings panel clamps to the mobile viewport and keeps aut
   metrics.lineupActions.forEach((actionMetric) => {
     expect(actionMetric.left).toBeGreaterThanOrEqual(0);
     expect(actionMetric.right).toBeLessThanOrEqual(metrics.viewportWidth + 1);
-    expect(actionMetric.width).toBeGreaterThanOrEqual(40);
+    expect(actionMetric.width).toBeGreaterThanOrEqual(30);
   });
 
   await expect(page.locator('[data-ll-category-settings-status]')).toBeInViewport();
@@ -366,7 +504,7 @@ test('lesson category settings keeps autosave feedback above overlapping lesson 
 
   await trigger.click();
   await expect(panel).toHaveAttribute('aria-hidden', 'false');
-  await page.locator('[data-word-id="42"] [data-ll-category-lineup-move="up"]').click();
+  await page.locator('select[name="ll_vocab_lesson_grid_text_visibility"]').selectOption('hide');
   await expect(status).toHaveAttribute('data-state', 'saved');
   await expect(status).toBeInViewport();
 
@@ -405,4 +543,6 @@ test('lesson category settings keeps autosave feedback above overlapping lesson 
   await expect.poll(async () => (
     page.evaluate(() => window.__llCategorySettingsSaves.length)
   )).toBeGreaterThan(0);
+  const lastSave = await page.evaluate(() => window.__llCategorySettingsSaves.at(-1));
+  expect(lastSave.entries.ll_vocab_lesson_category_lineup_word_ids).toBeUndefined();
 });
