@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 legacy translation migration cursor:
+  the explicit maintenance action now selects at most 101 eligible IDs, writes
+  at most 100 translations, and returns a keyset cursor with batch/cumulative
+  counts for nonce-backed continuation. Tests cover a forced 2/2/1 sequence and
+  the existing per-post capability boundary.
 - July 10 pasted admin import limits:
   bulk word and prompt-audio submissions now reject more than 200 actionable
   rows or 256 KB before creating categories or posts. Prompt duplicate checks

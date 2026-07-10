@@ -217,6 +217,60 @@ final class BulkTranslationAjaxSecurityTest extends LL_Tools_TestCase
         $this->assertSame('', (string) get_post_meta($other_word_id, 'word_translation', true));
     }
 
+    public function test_migrate_pages_legacy_rows_with_a_resumable_cursor(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $word_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_author' => $admin_id,
+                'post_title' => 'Paged Legacy Word ' . $index,
+            ]);
+            update_post_meta($word_id, 'word_english_meaning', 'Legacy value ' . $index);
+            delete_post_meta($word_id, 'word_translation');
+            $word_ids[] = (int) $word_id;
+        }
+
+        $batch_size = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_bulk_translations_migration_batch_size', $batch_size);
+        try {
+            $cursor = 0;
+            $migrated_total = 0;
+            for ($batch = 1; $batch <= 3; $batch++) {
+                $_POST = [
+                    '_wpnonce' => wp_create_nonce('ll-bulk-translations'),
+                    'll_migration_cursor' => (string) $cursor,
+                    'll_migration_total' => (string) $migrated_total,
+                ];
+                $_REQUEST = $_POST;
+
+                $redirect = $this->captureRedirect(static function (): void {
+                    ll_handle_bulk_translations_migrate();
+                });
+                $query = $this->parseRedirectQuery($redirect);
+                $migrated_total = (int) ($query['migrated_total'] ?? 0);
+                $cursor = (int) ($query['migration_cursor'] ?? 0);
+
+                $expected_total = min(5, $batch * 2);
+                $this->assertSame($expected_total, $migrated_total);
+                $this->assertSame($batch < 3 ? '1' : '0', (string) ($query['migration_has_more'] ?? '0'));
+                $this->assertSame($batch < 3 ? 2 : 1, (int) ($query['migrated'] ?? 0));
+            }
+        } finally {
+            remove_filter('ll_tools_bulk_translations_migration_batch_size', $batch_size);
+        }
+
+        foreach ($word_ids as $index => $word_id) {
+            $this->assertSame('Legacy value ' . ($index + 1), (string) get_post_meta($word_id, 'word_translation', true));
+        }
+    }
+
     public function test_save_rejects_missing_nonce(): void
     {
         $editor_id = self::factory()->user->create(['role' => 'author']);

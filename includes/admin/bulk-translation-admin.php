@@ -75,11 +75,34 @@ function ll_render_bulk_translations_page() {
         <?php endif; ?>
 
         <!-- Migration button -->
+        <?php
+            $migration_cursor = isset($_GET['migration_cursor']) ? max(0, (int) $_GET['migration_cursor']) : 0;
+            $migration_total = isset($_GET['migrated_total']) ? max(0, (int) $_GET['migrated_total']) : 0;
+            $migration_has_more = !empty($_GET['migration_has_more']);
+        ?>
         <form id="ll-migrate-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:10px 0 20px">
             <input type="hidden" name="action" value="ll_bulk_translations_migrate">
             <input type="hidden" name="_wpnonce" value="<?php echo esc_attr($nonce); ?>">
-            <?php submit_button(__('Migrate legacy meta (word_english_meaning to word_translation)', 'll-tools-text-domain'), 'secondary', '', false); ?>
-            <span class="description" style="margin-left:8px"><?php esc_html_e('Copies legacy values where the new meta is empty.', 'll-tools-text-domain'); ?></span>
+            <input type="hidden" name="ll_migration_cursor" value="<?php echo esc_attr((string) $migration_cursor); ?>">
+            <input type="hidden" name="ll_migration_total" value="<?php echo esc_attr((string) $migration_total); ?>">
+            <?php
+                $migration_button_label = $migration_has_more
+                    ? __('Continue legacy meta migration', 'll-tools-text-domain')
+                    : __('Migrate legacy meta (word_english_meaning to word_translation)', 'll-tools-text-domain');
+                submit_button($migration_button_label, 'secondary', '', false);
+            ?>
+            <span class="description" style="margin-left:8px">
+                <?php
+                if ($migration_has_more) {
+                    printf(
+                        esc_html__('%d values migrated so far. Continue with the next bounded batch.', 'll-tools-text-domain'),
+                        $migration_total
+                    );
+                } else {
+                    esc_html_e('Copies legacy values where the new meta is empty in bounded batches.', 'll-tools-text-domain');
+                }
+                ?>
+            </span>
         </form>
 
         <!-- Filters -->
@@ -916,27 +939,58 @@ function ll_ajax_bulk_translations_save() {
 
 /** Admin-post: migrate legacy meta */
 add_action('admin_post_ll_bulk_translations_migrate', 'll_handle_bulk_translations_migrate');
+
+function ll_tools_bulk_translations_migration_batch_size(): int {
+    return max(1, min(250, (int) apply_filters('ll_tools_bulk_translations_migration_batch_size', 100)));
+}
+
+function ll_tools_bulk_translations_get_legacy_migration_page(int $after_id = 0, int $limit = 0): array {
+    global $wpdb;
+
+    $after_id = max(0, $after_id);
+    $limit = $limit > 0 ? min(250, $limit) : ll_tools_bulk_translations_migration_batch_size();
+    $query_limit = $limit + 1;
+    $sql = $wpdb->prepare(
+        "SELECT p.ID
+         FROM {$wpdb->posts} p
+         INNER JOIN {$wpdb->postmeta} legacy
+            ON legacy.post_id = p.ID AND legacy.meta_key = 'word_english_meaning'
+         LEFT JOIN {$wpdb->postmeta} canonical
+            ON canonical.post_id = p.ID AND canonical.meta_key = 'word_translation'
+         WHERE p.post_type = 'words'
+           AND p.post_status = 'publish'
+           AND p.ID > %d
+           AND canonical.post_id IS NULL
+         GROUP BY p.ID
+         ORDER BY p.ID ASC
+         LIMIT %d",
+        $after_id,
+        $query_limit
+    );
+    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($sql))));
+    $has_more = count($ids) > $limit;
+    if ($has_more) {
+        $ids = array_slice($ids, 0, $limit);
+    }
+
+    return [
+        'ids' => $ids,
+        'has_more' => $has_more,
+        'next_cursor' => !empty($ids) ? (int) end($ids) : $after_id,
+        'limit' => $limit,
+    ];
+}
+
 function ll_handle_bulk_translations_migrate() {
     if (!current_user_can('view_ll_tools')) {
         wp_die(__('You do not have permission.', 'll-tools-text-domain'), 403);
     }
     check_admin_referer('ll-bulk-translations');
 
-    $ids = get_posts([
-        'post_type'      => 'words',
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'meta_query'     => [
-            [
-                'key'     => 'word_english_meaning',
-                'compare' => 'EXISTS',
-            ],
-            [
-                'key'     => 'word_translation',
-                'compare' => 'NOT EXISTS',
-            ],
-        ],
-    ]);
+    $cursor = isset($_POST['ll_migration_cursor']) ? max(0, (int) wp_unslash($_POST['ll_migration_cursor'])) : 0;
+    $migrated_total = isset($_POST['ll_migration_total']) ? max(0, (int) wp_unslash($_POST['ll_migration_total'])) : 0;
+    $page = ll_tools_bulk_translations_get_legacy_migration_page($cursor);
+    $ids = (array) ($page['ids'] ?? []);
 
     $migrated = 0;
     foreach ($ids as $id) {
@@ -957,6 +1011,9 @@ function ll_handle_bulk_translations_migrate() {
     $redirect = add_query_arg([
         'page'     => 'll-bulk-translations',
         'migrated' => $migrated,
+        'migrated_total' => $migrated_total + $migrated,
+        'migration_cursor' => !empty($page['has_more']) ? (int) ($page['next_cursor'] ?? $cursor) : 0,
+        'migration_has_more' => !empty($page['has_more']) ? 1 : 0,
     ], admin_url('tools.php'));
 
     wp_safe_redirect($redirect);
