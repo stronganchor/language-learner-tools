@@ -863,11 +863,16 @@ Query params:
 - `category` optional category slug or name
 - `fields` optional comma-separated list or repeated array
 - `limit` optional, default 100 and capped at 250 unless the site customizes it
-- `offset` optional
+- `scan_limit` optional candidate scan window, capped at 1000 by default
+- `offset` optional candidate offset returned as `batch.next_offset`
 
 Use this route before a metadata-editing session so Codex can see the exact
 remaining rows instead of inferring gaps from the UI. Large wordsets are paged:
-continue with `batch.next_offset` until `batch.has_more` is false.
+continue with `batch.next_offset` until `batch.has_more` is false. The route
+hydrates only the bounded candidate window, so sparse missing-field filters can
+return fewer than `limit` rows while still reporting `has_more=true`.
+`total_count` is populated only when the first scan reaches the end of the
+scope; check `total_count_exact` before treating it as a complete count.
 
 ### `POST /wordsets/{wordset}/bulk-update`
 
@@ -884,13 +889,16 @@ Body fields:
 - `where_pos` optional part-of-speech slug
 - `limit` optional, default 10 for writes and capped at 10 unless the site
   customizes it
+- `scan_limit` optional candidate scan window, capped at 1000 by default
 - `offset` optional
 - `dry_run` optional
 - `resume_state` optional object returned by a prior run
 
-Responses include `total_matched_count`, `matched_count`, `batch.has_more`, and
-the next `resume_state`. For writes, prefer resume-state pagination over a large
-`offset` so retries do not repeat rows that were already processed.
+Responses include `total_matched_count`, `total_matched_count_exact`,
+`matched_count`, `batch.has_more`, and the next `resume_state`. The resume state
+contains a durable `scan_after_id` cursor, so sparse filters progress without
+reloading the full wordset. For writes, prefer resume-state pagination over a
+large `offset` so retries do not repeat rows that were already processed.
 
 When `updates` is present, the route applies those distinct updates directly and
 does not use `set`, `category`, `limit`, `offset`, or `resume_state`. This mode is
@@ -1332,11 +1340,14 @@ Large wordsets should be read in pages. Paged responses include
 
 ### `GET /wordsets/{wordset}/report`
 
-Returns the full machine-readable wordset report with settings, coverage, and
-per-category counts.
+Returns a paged machine-readable wordset report with settings, coverage, and
+per-category counts for the current page. `limit` defaults to 100 and is capped
+at 250; continue with `pagination.next_offset` until `pagination.has_more` is
+false. `counts_scope=page` makes the page-local count semantics explicit.
 
-Use this route when you need the detailed missing-metadata and per-category
-breakdown. On large live wordsets it can be slower than the summary route.
+Use this route when you need detailed missing-metadata and per-category
+breakdowns without hydrating the whole wordset in one REST request. The WP-CLI
+report remains the intentional full-report surface.
 
 ### `GET /wordsets/{wordset}/report-summary`
 

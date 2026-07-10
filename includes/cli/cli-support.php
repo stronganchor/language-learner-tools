@@ -374,6 +374,142 @@ function ll_tools_cli_get_word_ids_for_scope(int $wordset_id, string $category_s
     }));
 }
 
+/**
+ * Query one bounded ID page for a wordset/category scope.
+ *
+ * @param array<string,int> $args Paging arguments.
+ * @return array{ids:int[],scanned_ids:int[],has_more:bool,scanned_count:int,last_scanned_id:int}|WP_Error
+ */
+function ll_tools_cli_get_word_id_page_for_scope(int $wordset_id, string $category_spec = '', string $word_spec = '', array $args = []) {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return new WP_Error('ll_tools_cli_missing_wordset_id', __('Missing word set ID.', 'll-tools-text-domain'));
+    }
+
+    $args = wp_parse_args($args, [
+        'limit' => 100,
+        'offset' => 0,
+        'after_id' => 0,
+    ]);
+    $limit = max(1, (int) $args['limit']);
+    $offset = max(0, (int) $args['offset']);
+    $after_id = max(0, (int) $args['after_id']);
+
+    $word_spec = trim($word_spec);
+    if ($word_spec !== '') {
+        $word_id = ll_tools_cli_resolve_word_id($wordset_id, $word_spec);
+        if (is_wp_error($word_id)) {
+            return $word_id;
+        }
+        $word_id = (int) $word_id;
+        $scanned_ids = ($word_id > $after_id && $offset === 0) ? [$word_id] : [];
+
+        return [
+            'ids' => $scanned_ids,
+            'scanned_ids' => $scanned_ids,
+            'has_more' => false,
+            'scanned_count' => count($scanned_ids),
+            'last_scanned_id' => !empty($scanned_ids) ? $word_id : $after_id,
+        ];
+    }
+
+    $category_slug = ll_tools_cli_resolve_category_slug($wordset_id, $category_spec);
+    if (is_wp_error($category_slug)) {
+        return $category_slug;
+    }
+
+    $joins = "
+        INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+    ";
+    $where = "
+        p.post_type = %s
+        AND p.post_status = %s
+        AND tt_ws.taxonomy = %s
+        AND tt_ws.term_id = %d
+        AND p.ID > %d
+    ";
+    $params = ['words', 'publish', 'wordset', $wordset_id, $after_id];
+
+    if ($category_slug !== '' && $category_slug !== 'uncategorized') {
+        $category_term = get_term_by('slug', (string) $category_slug, 'word-category');
+        if (!($category_term instanceof WP_Term) || is_wp_error($category_term)) {
+            return new WP_Error('ll_tools_cli_category_not_found', __('Unable to resolve the requested word category.', 'll-tools-text-domain'));
+        }
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($category_term)) {
+            return [
+                'ids' => [],
+                'scanned_ids' => [],
+                'has_more' => false,
+                'scanned_count' => 0,
+                'last_scanned_id' => $after_id,
+            ];
+        }
+
+        $joins .= "
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+        ";
+        $where .= "
+            AND tt_cat.taxonomy = %s
+            AND tt_cat.term_id = %d
+        ";
+        $params[] = 'word-category';
+        $params[] = (int) $category_term->term_id;
+    }
+
+    $sql = "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        {$joins}
+        WHERE {$where}
+        ORDER BY p.ID ASC
+        LIMIT %d OFFSET %d
+    ";
+    $params[] = $limit + 1;
+    $params[] = $offset;
+    $raw_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params))), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    $has_more = count($raw_ids) > $limit;
+    $scanned_ids = array_slice($raw_ids, 0, $limit);
+    $word_ids = $scanned_ids;
+
+    if (!empty($word_ids) && function_exists('ll_tools_user_can_view_category')) {
+        $terms = wp_get_object_terms($word_ids, 'word-category', ['fields' => 'all_with_object_id']);
+        if (!is_wp_error($terms) && !empty($terms)) {
+            $accessible_by_word = [];
+            $has_terms_by_word = [];
+            foreach ((array) $terms as $term) {
+                if (!($term instanceof WP_Term) || is_wp_error($term)) {
+                    continue;
+                }
+                $object_id = isset($term->object_id) ? (int) $term->object_id : 0;
+                if ($object_id <= 0) {
+                    continue;
+                }
+                $has_terms_by_word[$object_id] = true;
+                if (ll_tools_user_can_view_category($term)) {
+                    $accessible_by_word[$object_id] = true;
+                }
+            }
+            $word_ids = array_values(array_filter($word_ids, static function (int $word_id) use ($accessible_by_word, $has_terms_by_word): bool {
+                return !empty($accessible_by_word[$word_id]) || empty($has_terms_by_word[$word_id]);
+            }));
+        }
+    }
+
+    return [
+        'ids' => $word_ids,
+        'scanned_ids' => $scanned_ids,
+        'has_more' => $has_more,
+        'scanned_count' => count($scanned_ids),
+        'last_scanned_id' => !empty($scanned_ids) ? (int) end($scanned_ids) : $after_id,
+    ];
+}
+
 function ll_tools_cli_build_word_row(int $wordset_id, int $word_id, array $ui_options, array $pos_by_word): array {
     $item = function_exists('ll_tools_editor_hub_build_item')
         ? ll_tools_editor_hub_build_item($word_id, $wordset_id, $ui_options, $pos_by_word, [])
@@ -918,13 +1054,19 @@ function ll_tools_cli_apply_word_field_update(int $wordset_id, int $word_id, str
     ];
 }
 
-function ll_tools_cli_build_wordset_report(int $wordset_id, string $category_spec = ''): array {
+function ll_tools_cli_build_wordset_report(int $wordset_id, string $category_spec = '', ?array $word_ids_override = null): array {
     $wordset_id = (int) $wordset_id;
-    $word_ids = ll_tools_cli_get_word_ids_for_scope($wordset_id, $category_spec, '');
-    if (is_wp_error($word_ids)) {
-        return [
-            'error' => $word_ids->get_error_message(),
-        ];
+    if ($word_ids_override === null) {
+        $word_ids = ll_tools_cli_get_word_ids_for_scope($wordset_id, $category_spec, '');
+        if (is_wp_error($word_ids)) {
+            return [
+                'error' => $word_ids->get_error_message(),
+            ];
+        }
+    } else {
+        $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids_override), static function (int $word_id): bool {
+            return $word_id > 0;
+        })));
     }
 
     $wordset_term = get_term($wordset_id, 'wordset');

@@ -528,6 +528,7 @@ function ll_tools_rest_automation_normalize_resume_state($raw_resume_state): arr
         return [
             'version' => 1,
             'processed_ids' => [],
+            'scan_after_id' => 0,
         ];
     }
 
@@ -538,6 +539,7 @@ function ll_tools_rest_automation_normalize_resume_state($raw_resume_state): arr
     return [
         'version' => 1,
         'processed_ids' => $processed_ids,
+        'scan_after_id' => max(0, (int) ($raw_resume_state['scan_after_id'] ?? 0)),
     ];
 }
 
@@ -557,6 +559,70 @@ function ll_tools_rest_automation_resume_mark_processed(array &$resume_state, in
         return $id > 0;
     })));
     $resume_state['updated_at_gmt'] = gmdate('c');
+}
+
+function ll_tools_rest_automation_word_scan_limit(WP_REST_Request $request, int $row_limit): array {
+    $default = max(100, $row_limit * 4);
+    $max = max(1, (int) apply_filters('ll_tools_rest_automation_max_word_scan_limit', 1000, $request));
+    $default = min($max, $default);
+    $raw = $request->get_param('scan_limit');
+    $requested = ($raw === null || $raw === '') ? $default : max(1, (int) $raw);
+    $effective = min($max, $requested);
+
+    return [
+        'requested' => $requested,
+        'effective' => $effective,
+        'max' => $max,
+        'clamped' => $requested !== $effective,
+    ];
+}
+
+function ll_tools_rest_automation_order_word_rows(array $rows, array $word_ids): array {
+    $by_id = [];
+    foreach ($rows as $row) {
+        $word_id = (int) ($row['word_id'] ?? 0);
+        if ($word_id > 0) {
+            $by_id[$word_id] = $row;
+        }
+    }
+
+    $ordered = [];
+    foreach ($word_ids as $word_id) {
+        $word_id = (int) $word_id;
+        if (isset($by_id[$word_id])) {
+            $ordered[] = $by_id[$word_id];
+        }
+    }
+
+    return $ordered;
+}
+
+function ll_tools_rest_automation_scan_word_rows(
+    int $wordset_id,
+    string $category_spec,
+    string $word_spec,
+    array $query_args,
+    array $filters = []
+) {
+    $page = ll_tools_cli_get_word_id_page_for_scope($wordset_id, $category_spec, $word_spec, $query_args);
+    if (is_wp_error($page)) {
+        return $page;
+    }
+
+    $candidate_ids = array_values(array_map('intval', (array) ($page['ids'] ?? [])));
+    $rows = ll_tools_cli_get_word_rows($wordset_id, $candidate_ids);
+    $rows = ll_tools_rest_automation_order_word_rows($rows, $candidate_ids);
+    if (!empty($filters['require_any_missing'])) {
+        $rows = array_values(array_filter($rows, static function (array $row): bool {
+            return !empty($row['has_missing']);
+        }));
+    }
+    $rows = ll_tools_cli_filter_word_rows($rows, $filters);
+
+    return [
+        'rows' => $rows,
+        'page' => $page,
+    ];
 }
 
 function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): array {
@@ -602,6 +668,10 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'max' => $dry_run ? 500 : 100,
         ],
         'missing_meta' => [
+            'default' => 100,
+            'max' => 250,
+        ],
+        'report' => [
             'default' => 100,
             'max' => 250,
         ],
@@ -2484,33 +2554,49 @@ function ll_tools_rest_automation_wordset_missing_meta(WP_REST_Request $request)
     }
 
     $category_spec = ll_tools_rest_automation_request_string($request, 'category');
-    $word_ids = ll_tools_cli_get_word_ids_for_scope((int) $wordset_term->term_id, $category_spec, '');
-    if (is_wp_error($word_ids)) {
-        return ll_tools_rest_automation_with_status($word_ids, 400);
-    }
-
-    $rows = ll_tools_cli_get_word_rows((int) $wordset_term->term_id, $word_ids);
-    $rows = array_values(array_filter($rows, static function (array $row): bool {
-        return !empty($row['has_missing']);
-    }));
-
     $missing_fields = ll_tools_rest_automation_request_string_list($request, 'fields', ll_tools_cli_supported_missing_fields());
     if (is_wp_error($missing_fields)) {
         return ll_tools_rest_automation_with_status($missing_fields, 400);
     }
 
-    if (!empty($missing_fields)) {
-        $rows = ll_tools_cli_filter_word_rows($rows, [
-            'missing_fields' => $missing_fields,
-        ]);
-    }
-
-    $total_count = count($rows);
     $offset = max(0, (int) $request->get_param('offset'));
     $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'missing_meta', false);
     $limit = (int) $limit_info['effective'];
-    $rows = array_slice($rows, $offset, $limit);
-    $next_offset = $offset + count($rows);
+    $scan_limit_info = ll_tools_rest_automation_word_scan_limit($request, $limit);
+    $scan = ll_tools_rest_automation_scan_word_rows(
+        (int) $wordset_term->term_id,
+        $category_spec,
+        '',
+        [
+            'limit' => (int) $scan_limit_info['effective'],
+            'offset' => $offset,
+        ],
+        [
+            'require_any_missing' => true,
+            'missing_fields' => $missing_fields,
+        ]
+    );
+    if (is_wp_error($scan)) {
+        return ll_tools_rest_automation_with_status($scan, 400);
+    }
+
+    $matched_rows = array_values((array) ($scan['rows'] ?? []));
+    $page = (array) ($scan['page'] ?? []);
+    $rows = array_slice($matched_rows, 0, $limit);
+    $has_extra_matches = count($matched_rows) > $limit;
+    $has_more = $has_extra_matches || !empty($page['has_more']);
+    $scanned_ids = array_values(array_map('intval', (array) ($page['scanned_ids'] ?? [])));
+    $consumed_count = count($scanned_ids);
+    if ($has_extra_matches && !empty($rows)) {
+        $last_row_id = (int) ($rows[count($rows) - 1]['word_id'] ?? 0);
+        $position = array_search($last_row_id, $scanned_ids, true);
+        if ($position !== false) {
+            $consumed_count = (int) $position + 1;
+        }
+    }
+    $next_offset = $has_more ? $offset + $consumed_count : null;
+    $total_count_exact = ($offset === 0 && empty($page['has_more']));
+    $total_count = $total_count_exact ? count($matched_rows) : null;
 
     return rest_ensure_response([
         'generated_at_gmt' => gmdate('c'),
@@ -2524,17 +2610,24 @@ function ll_tools_rest_automation_wordset_missing_meta(WP_REST_Request $request)
             'fields' => $missing_fields,
             'limit' => $limit,
             'offset' => $offset,
+            'scan_limit' => (int) $scan_limit_info['effective'],
         ],
         'batch' => [
             'requested_limit' => (int) $limit_info['requested'],
             'effective_limit' => $limit,
             'max_limit' => (int) $limit_info['max'],
             'limit_clamped' => (bool) $limit_info['clamped'],
-            'has_more' => $next_offset < $total_count,
-            'next_offset' => $next_offset < $total_count ? $next_offset : null,
+            'scan_requested_limit' => (int) $scan_limit_info['requested'],
+            'scan_effective_limit' => (int) $scan_limit_info['effective'],
+            'scan_max_limit' => (int) $scan_limit_info['max'],
+            'scan_limit_clamped' => (bool) $scan_limit_info['clamped'],
+            'scanned_count' => (int) ($page['scanned_count'] ?? 0),
+            'has_more' => $has_more,
+            'next_offset' => $next_offset,
         ],
         'count' => count($rows),
         'total_count' => $total_count,
+        'total_count_exact' => $total_count_exact,
         'rows' => ll_tools_cli_prepare_word_rows_for_output($rows),
     ]);
 }
@@ -2557,37 +2650,63 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
 
     $category_spec = ll_tools_rest_automation_request_string($request, 'category');
     $word_spec = ll_tools_rest_automation_request_string($request, 'word');
-    $word_ids = ll_tools_cli_get_word_ids_for_scope((int) $wordset_term->term_id, $category_spec, $word_spec);
-    if (is_wp_error($word_ids)) {
-        return ll_tools_rest_automation_with_status($word_ids, 400);
-    }
-
-    $rows = ll_tools_cli_get_word_rows((int) $wordset_term->term_id, $word_ids);
-
     $missing_fields = ll_tools_rest_automation_request_string_list($request, 'where_missing', ll_tools_cli_supported_missing_fields());
     if (is_wp_error($missing_fields)) {
         return ll_tools_rest_automation_with_status($missing_fields, 400);
     }
 
-    $rows = ll_tools_cli_filter_word_rows($rows, [
-        'missing_fields' => $missing_fields,
-        'part_of_speech' => ll_tools_rest_automation_request_string($request, 'where_pos'),
-    ]);
-
     $resume_state = ll_tools_rest_automation_normalize_resume_state($request->get_param('resume_state'));
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $offset = max(0, (int) $request->get_param('offset'));
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'bulk_update', $dry_run);
+    $limit = (int) $limit_info['effective'];
+    $scan_limit_info = ll_tools_rest_automation_word_scan_limit($request, $limit);
+    $scan = ll_tools_rest_automation_scan_word_rows(
+        (int) $wordset_term->term_id,
+        $category_spec,
+        $word_spec,
+        [
+            'limit' => (int) $scan_limit_info['effective'],
+            'offset' => empty($resume_state['scan_after_id']) ? $offset : 0,
+            'after_id' => (int) ($resume_state['scan_after_id'] ?? 0),
+        ],
+        [
+            'missing_fields' => $missing_fields,
+            'part_of_speech' => ll_tools_rest_automation_request_string($request, 'where_pos'),
+        ]
+    );
+    if (is_wp_error($scan)) {
+        return ll_tools_rest_automation_with_status($scan, 400);
+    }
+
+    $matched_rows = array_values((array) ($scan['rows'] ?? []));
     if (!empty($resume_state['processed_ids'])) {
-        $rows = array_values(array_filter($rows, static function (array $row) use ($resume_state): bool {
+        $matched_rows = array_values(array_filter($matched_rows, static function (array $row) use ($resume_state): bool {
             return !ll_tools_cli_resume_has_processed($resume_state, (int) ($row['word_id'] ?? 0));
         }));
     }
 
-    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
-    $total_matched_count = count($rows);
-    $offset = max(0, (int) $request->get_param('offset'));
-    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'bulk_update', $dry_run);
-    $limit = (int) $limit_info['effective'];
-    $rows = ll_tools_cli_slice_rows($rows, $offset, $limit);
-    $next_offset = $offset + count($rows);
+    $page = (array) ($scan['page'] ?? []);
+    $rows = array_slice($matched_rows, 0, $limit);
+    $has_extra_matches = count($matched_rows) > $limit;
+    $has_more = $has_extra_matches || !empty($page['has_more']);
+    $scan_after_id = (int) ($page['last_scanned_id'] ?? 0);
+    if ($has_extra_matches && !empty($rows)) {
+        $scan_after_id = (int) ($rows[count($rows) - 1]['word_id'] ?? $scan_after_id);
+    }
+    $resume_state['scan_after_id'] = max(0, $scan_after_id);
+    $total_matched_count_exact = empty($page['has_more']);
+    $total_matched_count = $total_matched_count_exact ? count($matched_rows) : null;
+    $scanned_ids = array_values(array_map('intval', (array) ($page['scanned_ids'] ?? [])));
+    $consumed_count = count($scanned_ids);
+    if ($has_extra_matches && !empty($rows)) {
+        $last_row_id = (int) ($rows[count($rows) - 1]['word_id'] ?? 0);
+        $position = array_search($last_row_id, $scanned_ids, true);
+        if ($position !== false) {
+            $consumed_count = (int) $position + 1;
+        }
+    }
+    $next_offset = $has_more ? $offset + $consumed_count : null;
 
     $summary = [
         'generated_at_gmt' => gmdate('c'),
@@ -2604,18 +2723,26 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
             'where_pos' => sanitize_title(ll_tools_rest_automation_request_string($request, 'where_pos')),
             'limit' => $limit,
             'offset' => $offset,
+            'scan_limit' => (int) $scan_limit_info['effective'],
         ],
         'batch' => [
             'requested_limit' => (int) $limit_info['requested'],
             'effective_limit' => $limit,
             'max_limit' => (int) $limit_info['max'],
             'limit_clamped' => (bool) $limit_info['clamped'],
-            'has_more' => $next_offset < $total_matched_count,
-            'next_offset' => $next_offset < $total_matched_count ? $next_offset : null,
+            'scan_requested_limit' => (int) $scan_limit_info['requested'],
+            'scan_effective_limit' => (int) $scan_limit_info['effective'],
+            'scan_max_limit' => (int) $scan_limit_info['max'],
+            'scan_limit_clamped' => (bool) $scan_limit_info['clamped'],
+            'scanned_count' => (int) ($page['scanned_count'] ?? 0),
+            'has_more' => $has_more,
+            'next_offset' => $next_offset,
+            'next_after_id' => $has_more ? (int) $resume_state['scan_after_id'] : null,
         ],
         'set' => $set_args,
         'matched_count' => count($rows),
         'total_matched_count' => $total_matched_count,
+        'total_matched_count_exact' => $total_matched_count_exact,
         'matched_rows' => ll_tools_cli_prepare_word_rows_for_output($rows),
         'updated_count' => 0,
         'updated' => [],
@@ -2641,6 +2768,8 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
         );
 
         if (is_wp_error($update_result)) {
+            $retry_after_id = max(0, $word_id - 1);
+            $resume_state['scan_after_id'] = min((int) $resume_state['scan_after_id'], $retry_after_id);
             $summary['errors'][] = [
                 'word_id' => $word_id,
                 'word_slug' => (string) ($row['word_slug'] ?? ''),
@@ -6375,7 +6504,24 @@ function ll_tools_rest_automation_wordset_report(WP_REST_Request $request) {
     }
 
     $category_spec = ll_tools_rest_automation_request_string($request, 'category');
-    $report = ll_tools_cli_build_wordset_report((int) $wordset_term->term_id, $category_spec);
+    $offset = max(0, (int) $request->get_param('offset'));
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'report', false);
+    $limit = (int) $limit_info['effective'];
+    $page = ll_tools_cli_get_word_id_page_for_scope(
+        (int) $wordset_term->term_id,
+        $category_spec,
+        '',
+        [
+            'limit' => $limit,
+            'offset' => $offset,
+        ]
+    );
+    if (is_wp_error($page)) {
+        return ll_tools_rest_automation_with_status($page, 400);
+    }
+
+    $word_ids = array_values(array_map('intval', (array) ($page['ids'] ?? [])));
+    $report = ll_tools_cli_build_wordset_report((int) $wordset_term->term_id, $category_spec, $word_ids);
     if (!empty($report['error'])) {
         return ll_tools_rest_automation_error(
             'll_tools_rest_report_failed',
@@ -6383,6 +6529,23 @@ function ll_tools_rest_automation_wordset_report(WP_REST_Request $request) {
             400
         );
     }
+
+    $has_more = !empty($page['has_more']);
+    $report['counts_scope'] = 'page';
+    $report['filters'] = [
+        'category' => $category_spec,
+        'limit' => $limit,
+        'offset' => $offset,
+    ];
+    $report['pagination'] = [
+        'requested_limit' => (int) $limit_info['requested'],
+        'effective_limit' => $limit,
+        'max_limit' => (int) $limit_info['max'],
+        'limit_clamped' => (bool) $limit_info['clamped'],
+        'records_returned' => count($word_ids),
+        'has_more' => $has_more,
+        'next_offset' => $has_more ? $offset + (int) ($page['scanned_count'] ?? 0) : null,
+    ];
 
     return rest_ensure_response($report);
 }

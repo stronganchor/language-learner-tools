@@ -2722,6 +2722,178 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_missing_meta_route_scans_bounded_candidate_pages(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Missing Meta Scan Wordset', 'rest-missing-meta-scan-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Missing Meta Scan Category', 'rest-missing-meta-scan-category');
+
+        $word_ids = [];
+        $expected_missing_ids = [];
+        for ($index = 1; $index <= 7; $index++) {
+            $word_id = $this->create_word($wordset_id, [$category_id], 'REST Missing Meta Scan Word ' . $index, 'Translation ' . $index);
+            $word_ids[] = $word_id;
+            if ($index % 2 === 0) {
+                $expected_missing_ids[] = $word_id;
+            } else {
+                update_post_meta($word_id, 'll_word_usage_note', 'Complete note ' . $index);
+            }
+        }
+
+        wp_set_current_user($admin_id);
+
+        $unbounded_word_queries = [];
+        $capture = static function (WP_Query $query) use (&$unbounded_word_queries): void {
+            if ($query->get('post_type') === 'words' && (int) $query->get('posts_per_page') === -1) {
+                $unbounded_word_queries[] = (array) $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $capture, 10, 1);
+        try {
+            $responses = [];
+            $offset = 0;
+            do {
+                $response = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-missing-meta-scan-wordset/missing-meta', [
+                    'fields' => ['word_note'],
+                    'limit' => 2,
+                    'scan_limit' => 3,
+                    'offset' => $offset,
+                ]);
+                $this->assertSame(200, $response->get_status());
+                $data = $response->get_data();
+                $this->assertIsArray($data);
+                $responses[] = $data;
+                $batch = (array) ($data['batch'] ?? []);
+                $has_more = !empty($batch['has_more']);
+                $offset = $has_more ? (int) ($batch['next_offset'] ?? 0) : 0;
+            } while ($has_more);
+        } finally {
+            remove_action('pre_get_posts', $capture, 10);
+        }
+
+        $returned_ids = [];
+        foreach ($responses as $data) {
+            foreach ((array) ($data['rows'] ?? []) as $row) {
+                $returned_ids[] = (int) ($row['word_id'] ?? 0);
+            }
+            $this->assertLessThanOrEqual(3, (int) (($data['batch']['scanned_count'] ?? 0)));
+        }
+
+        sort($returned_ids, SORT_NUMERIC);
+        sort($expected_missing_ids, SORT_NUMERIC);
+        $this->assertSame($expected_missing_ids, $returned_ids);
+        $this->assertFalse((bool) ($responses[0]['total_count_exact'] ?? true));
+        $this->assertNull($responses[0]['total_count'] ?? null);
+        $this->assertSame([], $unbounded_word_queries);
+        $this->assertCount(7, $word_ids);
+    }
+
+    public function test_bulk_update_route_resumes_across_bounded_scan_windows(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Bulk Scan Wordset', 'rest-bulk-scan-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Bulk Scan Category', 'rest-bulk-scan-category');
+        $this->ensure_term('part_of_speech', 'Noun', 'noun');
+
+        $word_ids = [];
+        for ($index = 1; $index <= 8; $index++) {
+            $word_ids[] = $this->create_word($wordset_id, [$category_id], 'REST Bulk Scan Word ' . $index, 'Translation ' . $index);
+        }
+
+        wp_set_current_user($admin_id);
+
+        $resume_state = [];
+        $updated_ids = [];
+        $batch_count = 0;
+        do {
+            $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-bulk-scan-wordset/bulk-update', [
+                'set' => [
+                    'field' => 'part_of_speech',
+                    'value' => 'noun',
+                ],
+                'where_missing' => ['part_of_speech'],
+                'scan_limit' => 3,
+                'resume_state' => $resume_state,
+            ]);
+            $this->assertSame(200, $response->get_status());
+            $data = $response->get_data();
+            $this->assertIsArray($data);
+            $batch_count++;
+            $this->assertLessThanOrEqual(3, (int) ($data['matched_count'] ?? 0));
+            $this->assertLessThanOrEqual(3, (int) (($data['batch']['scanned_count'] ?? 0)));
+            foreach ((array) ($data['updated'] ?? []) as $updated) {
+                $updated_ids[] = (int) ($updated['word_id'] ?? 0);
+            }
+            $resume_state = (array) ($data['resume_state'] ?? []);
+            $has_more = !empty($data['batch']['has_more']);
+            if ($has_more) {
+                $this->assertGreaterThan(0, (int) ($resume_state['scan_after_id'] ?? 0));
+            }
+        } while ($has_more);
+
+        sort($updated_ids, SORT_NUMERIC);
+        $expected_ids = $word_ids;
+        sort($expected_ids, SORT_NUMERIC);
+        $this->assertSame($expected_ids, $updated_ids);
+        $this->assertSame(3, $batch_count);
+        foreach ($word_ids as $word_id) {
+            $this->assertSame(['noun'], array_values(array_map('strval', wp_get_post_terms($word_id, 'part_of_speech', ['fields' => 'slugs']))));
+        }
+    }
+
+    public function test_wordset_report_route_pages_before_hydrating_report_rows(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Paged Report Wordset', 'rest-paged-report-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Paged Report Category', 'rest-paged-report-category');
+        for ($index = 1; $index <= 5; $index++) {
+            $this->create_word($wordset_id, [$category_id], 'REST Paged Report Word ' . $index, 'Translation ' . $index);
+        }
+
+        wp_set_current_user($admin_id);
+
+        $unbounded_word_queries = [];
+        $capture = static function (WP_Query $query) use (&$unbounded_word_queries): void {
+            if ($query->get('post_type') === 'words' && (int) $query->get('posts_per_page') === -1) {
+                $unbounded_word_queries[] = (array) $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $capture, 10, 1);
+        try {
+            $first = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-paged-report-wordset/report', [
+                'limit' => 2,
+                'offset' => 0,
+            ]);
+            $second = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-paged-report-wordset/report', [
+                'limit' => 2,
+                'offset' => 2,
+            ]);
+            $third = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-paged-report-wordset/report', [
+                'limit' => 2,
+                'offset' => 4,
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $capture, 10);
+        }
+
+        foreach ([$first, $second, $third] as $response) {
+            $this->assertSame(200, $response->get_status());
+            $data = $response->get_data();
+            $this->assertIsArray($data);
+            $this->assertSame('page', (string) ($data['counts_scope'] ?? ''));
+        }
+        $first_data = $first->get_data();
+        $second_data = $second->get_data();
+        $third_data = $third->get_data();
+        $this->assertSame(2, (int) ($first_data['counts']['words_total'] ?? 0));
+        $this->assertSame(2, (int) ($second_data['counts']['words_total'] ?? 0));
+        $this->assertSame(1, (int) ($third_data['counts']['words_total'] ?? 0));
+        $this->assertTrue((bool) ($first_data['pagination']['has_more'] ?? false));
+        $this->assertSame(2, (int) ($first_data['pagination']['next_offset'] ?? 0));
+        $this->assertFalse((bool) ($third_data['pagination']['has_more'] ?? true));
+        $this->assertSame([], $unbounded_word_queries);
+    }
+
     public function test_basic_auth_image_rest_writes_are_rate_limited(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

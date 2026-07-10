@@ -23,6 +23,14 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 REST word-row scan and report paging:
+  `missing-meta` and broad `bulk-update` now query bounded candidate ID windows
+  before hydrating editor rows. Sparse reads continue with candidate offsets;
+  writes persist `scan_after_id` in resume state and rewind safely on failures.
+  The REST full report now returns page-scoped counts with bounded ID paging,
+  while WP-CLI retains the intentional full report. `AutomationRestApiTest`
+  covers sparse scans, resumable writes, default cap compatibility, and report
+  pages without unbounded word queries.
 - July 10 REST category-scope query guard:
   `word-category-updates` and `word-category-terms` now resolve available
   category IDs through aggregate ownership and term-relationship queries
