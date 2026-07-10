@@ -13,6 +13,10 @@ if (!defined('LL_TOOLS_DICTIONARY_SNAPSHOT_FORMAT')) {
     define('LL_TOOLS_DICTIONARY_SNAPSHOT_FORMAT', 'll-tools-dictionary-snapshot');
 }
 
+if (!defined('LL_TOOLS_DICTIONARY_SNAPSHOT_MANIFEST_FORMAT')) {
+    define('LL_TOOLS_DICTIONARY_SNAPSHOT_MANIFEST_FORMAT', 'll-tools-dictionary-snapshot-manifest');
+}
+
 function ll_tools_dictionary_import_history_max_entries(): int {
     return max(5, (int) apply_filters('ll_tools_dictionary_import_history_max_entries', 25));
 }
@@ -172,9 +176,7 @@ function ll_tools_dictionary_snapshot_resolve_wordset_id($wordset): int {
  * @return int[]
  */
 function ll_tools_dictionary_get_exportable_entry_ids(array $args = []): array {
-    $statuses = isset($args['post_status']) && is_array($args['post_status'])
-        ? array_values(array_filter(array_map('sanitize_key', $args['post_status'])))
-        : ['publish', 'draft', 'pending', 'private', 'future'];
+    $statuses = ll_tools_dictionary_get_exportable_post_statuses($args);
 
     $entry_ids = get_posts([
         'post_type' => 'll_dictionary_entry',
@@ -190,6 +192,75 @@ function ll_tools_dictionary_get_exportable_entry_ids(array $args = []): array {
     return array_values(array_filter(array_map('intval', (array) $entry_ids), static function (int $entry_id): bool {
         return $entry_id > 0;
     }));
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_dictionary_get_exportable_post_statuses(array $args = []): array {
+    $statuses = isset($args['post_status']) && is_array($args['post_status'])
+        ? array_values(array_filter(array_map('sanitize_key', $args['post_status'])))
+        : ['publish', 'draft', 'pending', 'private', 'future'];
+
+    return !empty($statuses) ? $statuses : ['publish', 'draft', 'pending', 'private', 'future'];
+}
+
+/**
+ * Fetch one stable, bounded window for backup and cleanup jobs.
+ *
+ * @return array{entry_ids:int[],cursor:int,has_more:bool}
+ */
+function ll_tools_dictionary_get_exportable_entry_id_batch(int $cursor = 0, int $limit = 100, array $args = []): array {
+    global $wpdb;
+
+    $cursor = max(0, $cursor);
+    $limit = max(1, min(500, $limit));
+    $statuses = ll_tools_dictionary_get_exportable_post_statuses($args);
+    $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
+    $params = array_merge(
+        ['ll_dictionary_entry'],
+        $statuses,
+        [$cursor, $limit + 1]
+    );
+    $sql = "
+        SELECT ID
+        FROM {$wpdb->posts}
+        WHERE post_type = %s
+          AND post_status IN ({$status_placeholders})
+          AND ID > %d
+        ORDER BY ID ASC
+        LIMIT %d
+    ";
+    $entry_ids = array_values(array_filter(array_map(
+        'intval',
+        (array) $wpdb->get_col($wpdb->prepare($sql, $params))
+    )));
+    $has_more = count($entry_ids) > $limit;
+    if ($has_more) {
+        $entry_ids = array_slice($entry_ids, 0, $limit);
+    }
+
+    return [
+        'entry_ids' => $entry_ids,
+        'cursor' => !empty($entry_ids) ? (int) end($entry_ids) : $cursor,
+        'has_more' => $has_more,
+    ];
+}
+
+function ll_tools_dictionary_count_exportable_entries(array $args = []): int {
+    global $wpdb;
+
+    $statuses = ll_tools_dictionary_get_exportable_post_statuses($args);
+    $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
+    $params = array_merge(['ll_dictionary_entry'], $statuses);
+    $sql = "
+        SELECT COUNT(ID)
+        FROM {$wpdb->posts}
+        WHERE post_type = %s
+          AND post_status IN ({$status_placeholders})
+    ";
+
+    return max(0, (int) $wpdb->get_var($wpdb->prepare($sql, $params)));
 }
 
 /**
@@ -319,12 +390,75 @@ function ll_tools_dictionary_parse_snapshot_file(string $file_path) {
         return new WP_Error('ll_tools_dictionary_snapshot_unreadable', __('Could not read the uploaded dictionary snapshot.', 'll-tools-text-domain'));
     }
 
+    if (ll_tools_dictionary_snapshot_file_is_chunk_manifest($file_path)) {
+        return new WP_Error(
+            'll_tools_dictionary_snapshot_manifest_requires_job',
+            __('Chunked dictionary snapshots must be restored with the resumable dictionary importer.', 'll-tools-text-domain')
+        );
+    }
+
     $payload = file_get_contents($file_path);
     if (!is_string($payload) || $payload === '') {
         return new WP_Error('ll_tools_dictionary_snapshot_read_failed', __('Could not read the dictionary snapshot file.', 'll-tools-text-domain'));
     }
 
     return ll_tools_dictionary_parse_snapshot_payload($payload);
+}
+
+function ll_tools_dictionary_snapshot_file_is_chunk_manifest(string $file_path): bool {
+    $file_path = trim($file_path);
+    if ($file_path === '' || !is_readable($file_path)) {
+        return false;
+    }
+
+    $handle = @fopen($file_path, 'rb');
+    if ($handle === false) {
+        return false;
+    }
+
+    $prefix = fread($handle, 4096);
+    fclose($handle);
+
+    return is_string($prefix)
+        && strpos($prefix, '"format"') !== false
+        && strpos($prefix, LL_TOOLS_DICTIONARY_SNAPSHOT_MANIFEST_FORMAT) !== false;
+}
+
+/**
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_dictionary_read_chunked_snapshot_manifest_file(string $file_path, bool $require_complete = true) {
+    $file_path = trim($file_path);
+    if ($file_path === '' || !is_readable($file_path)) {
+        return new WP_Error('ll_tools_dictionary_snapshot_manifest_unreadable', __('Could not read the dictionary snapshot manifest.', 'll-tools-text-domain'));
+    }
+
+    $payload = file_get_contents($file_path);
+    if (!is_string($payload) || $payload === '') {
+        return new WP_Error('ll_tools_dictionary_snapshot_manifest_read_failed', __('Could not read the dictionary snapshot manifest.', 'll-tools-text-domain'));
+    }
+
+    $manifest = json_decode($payload, true);
+    if (!is_array($manifest) || (string) ($manifest['format'] ?? '') !== LL_TOOLS_DICTIONARY_SNAPSHOT_MANIFEST_FORMAT) {
+        return new WP_Error('ll_tools_dictionary_snapshot_manifest_invalid', __('The dictionary snapshot manifest is invalid.', 'll-tools-text-domain'));
+    }
+    if ($require_complete && empty($manifest['complete'])) {
+        return new WP_Error('ll_tools_dictionary_snapshot_manifest_incomplete', __('The dictionary snapshot backup did not finish and cannot be restored.', 'll-tools-text-domain'));
+    }
+
+    $chunk_prefix = sanitize_file_name((string) ($manifest['chunk_filename_prefix'] ?? 'snapshot'));
+    if ($chunk_prefix === '') {
+        $chunk_prefix = 'snapshot';
+    }
+
+    $manifest['version'] = max(1, (int) ($manifest['version'] ?? 1));
+    $manifest['entry_count'] = max(0, (int) ($manifest['entry_count'] ?? 0));
+    $manifest['source_count'] = max(0, (int) ($manifest['source_count'] ?? 0));
+    $manifest['chunk_count'] = max(0, (int) ($manifest['chunk_count'] ?? 0));
+    $manifest['chunk_filename_prefix'] = $chunk_prefix;
+    $manifest['sources'] = array_values(ll_tools_dictionary_sanitize_source_registry($manifest['sources'] ?? []));
+
+    return $manifest;
 }
 
 /**
@@ -670,17 +804,22 @@ function ll_tools_dictionary_delete_entries_missing_keys(array $import_keys): in
     }
 
     $deleted = 0;
-    foreach (ll_tools_dictionary_get_exportable_entry_ids() as $entry_id) {
-        $key = ll_tools_get_dictionary_entry_import_key((int) $entry_id, true);
-        if ($key !== '' && isset($allowed[$key])) {
-            continue;
-        }
+    $cursor = 0;
+    do {
+        $batch = ll_tools_dictionary_get_exportable_entry_id_batch($cursor, 200);
+        foreach ((array) ($batch['entry_ids'] ?? []) as $entry_id) {
+            $key = ll_tools_get_dictionary_entry_import_key((int) $entry_id, true);
+            if ($key !== '' && isset($allowed[$key])) {
+                continue;
+            }
 
-        $result = wp_delete_post((int) $entry_id, true);
-        if ($result) {
-            $deleted++;
+            $result = wp_delete_post((int) $entry_id, true);
+            if ($result) {
+                $deleted++;
+            }
         }
-    }
+        $cursor = max($cursor, (int) ($batch['cursor'] ?? $cursor));
+    } while (!empty($batch['has_more']));
 
     return $deleted;
 }
@@ -693,6 +832,45 @@ function ll_tools_dictionary_snapshot_get_dir(): string {
     }
 
     return $base_dir;
+}
+
+function ll_tools_dictionary_delete_snapshot_backup_artifact(string $path): void {
+    $path = trim($path);
+    if ($path === '' || !file_exists($path)) {
+        return;
+    }
+
+    if (!ll_tools_dictionary_snapshot_file_is_chunk_manifest($path)) {
+        if (is_file($path)) {
+            @unlink($path);
+        }
+        return;
+    }
+
+    $base_dir = realpath(ll_tools_dictionary_snapshot_get_dir());
+    $artifact_dir = realpath(dirname($path));
+    if ($base_dir === false || $artifact_dir === false) {
+        return;
+    }
+
+    $base_prefix = rtrim(wp_normalize_path($base_dir), '/') . '/';
+    $normalized_artifact_dir = rtrim(wp_normalize_path($artifact_dir), '/') . '/';
+    if (strpos($normalized_artifact_dir, $base_prefix) !== 0) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($artifact_dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $item) {
+        if ($item->isDir() && !$item->isLink()) {
+            @rmdir($item->getPathname());
+        } else {
+            @unlink($item->getPathname());
+        }
+    }
+    @rmdir($artifact_dir);
 }
 
 function ll_tools_dictionary_import_read_history(): array {
@@ -721,7 +899,7 @@ function ll_tools_dictionary_import_write_history(array $entries): void {
 
         $path = trim((string) ($entry['backup_snapshot_path'] ?? ''));
         if ($path !== '' && !isset($kept_paths[$path]) && file_exists($path)) {
-            @unlink($path);
+            ll_tools_dictionary_delete_snapshot_backup_artifact($path);
         }
     }
 

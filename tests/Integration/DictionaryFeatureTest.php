@@ -80,7 +80,11 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 }
                 $backup_path = (string) ($entry['backup_snapshot_path'] ?? '');
                 if ($backup_path !== '' && file_exists($backup_path)) {
-                    @unlink($backup_path);
+                    if (function_exists('ll_tools_dictionary_delete_snapshot_backup_artifact')) {
+                        ll_tools_dictionary_delete_snapshot_backup_artifact($backup_path);
+                    } else {
+                        @unlink($backup_path);
+                    }
                 }
             }
         }
@@ -2648,9 +2652,15 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $runningSnapshot = ll_tools_dictionary_import_get_job_snapshot($job);
         $this->assertSame('running', $runningSnapshot['status']);
+        $this->assertSame('backup', $runningSnapshot['phase']);
+        $this->assertSame('Backing Up', $runningSnapshot['status_label']);
         $this->assertStringContainsString('Keep', (string) $runningSnapshot['advice_title']);
 
-        $processedJob = ll_tools_dictionary_import_process_job($job);
+        $processedJob = $job;
+        while (is_array($processedJob) && (string) ($processedJob['status'] ?? '') === 'running') {
+            $processedJob = ll_tools_dictionary_import_process_job($processedJob);
+        }
+
         $this->assertIsArray($processedJob);
         $this->assertSame('completed', $processedJob['status']);
         $this->assertSame('', ll_tools_dictionary_import_get_active_job_id());
@@ -2913,6 +2923,197 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertIsArray($processedJob);
         $this->assertSame('completed', $processedJob['status']);
         $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Veng', 0));
+    }
+
+    public function test_dictionary_snapshot_start_defers_large_backup_to_bounded_cursor_batches(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->seedDictionaryEntriesDirectly(2000, 'Backup Resource Entry');
+
+        $unbounded_queries = 0;
+        $query_observer = static function (WP_Query $query) use (&$unbounded_queries): void {
+            $post_type = $query->get('post_type');
+            if (
+                ($post_type === 'll_dictionary_entry' || (is_array($post_type) && in_array('ll_dictionary_entry', $post_type, true)))
+                && (int) $query->get('posts_per_page') === -1
+            ) {
+                $unbounded_queries++;
+            }
+        };
+        $backup_batch_filter = static function (): int {
+            return 40;
+        };
+        add_action('pre_get_posts', $query_observer);
+        add_filter('ll_tools_dictionary_import_backup_chunk_size', $backup_batch_filter);
+
+        $job = null;
+        try {
+            $job = ll_tools_dictionary_import_create_snapshot_job_from_snapshot([
+                'sources' => [],
+                'entries' => [
+                    [
+                        'import_key' => 'resource:incoming',
+                        'title' => 'Incoming Resource Entry',
+                        'status' => 'publish',
+                        'translation' => 'incoming',
+                        'wordset' => null,
+                        'senses' => [],
+                    ],
+                ],
+            ], [
+                'snapshot_mode' => 'merge',
+            ], 'large-resource.json');
+
+            $this->assertIsArray($job);
+            $this->assertSame('running', $job['status']);
+            $this->assertSame('backup', $job['phase']);
+            $this->assertSame('', (string) ($job['backup_snapshot_path'] ?? ''));
+            $this->assertSame(0, (int) ($job['backup_processed_entries'] ?? -1));
+            $this->assertSame(0, (int) ($job['current_index'] ?? -1));
+            $this->assertSame(0, $unbounded_queries);
+            $this->assertSame(0, ll_tools_dictionary_find_entry_by_import_key('resource:incoming'));
+
+            $snapshot = ll_tools_dictionary_import_get_job_snapshot($job);
+            $this->assertSame('backup', $snapshot['phase']);
+            $this->assertSame('Backing Up', $snapshot['status_label']);
+
+            $job = ll_tools_dictionary_import_process_job($job);
+            $this->assertIsArray($job);
+            $this->assertSame('backup', $job['phase']);
+            $this->assertSame(40, (int) ($job['backup_processed_entries'] ?? 0));
+            $this->assertSame(2000, (int) ($job['backup_total_entries'] ?? 0));
+            $this->assertGreaterThan(0, (int) ($job['backup_cursor'] ?? 0));
+            $this->assertSame(0, (int) ($job['current_index'] ?? -1));
+            $this->assertSame(0, $unbounded_queries);
+            $this->assertSame(0, ll_tools_dictionary_find_entry_by_import_key('resource:incoming'));
+        } finally {
+            remove_action('pre_get_posts', $query_observer);
+            remove_filter('ll_tools_dictionary_import_backup_chunk_size', $backup_batch_filter);
+            if (is_array($job)) {
+                ll_tools_dictionary_import_delete_path((string) ($job['backup_snapshot_dir'] ?? ''));
+            }
+        }
+    }
+
+    public function test_dictionary_snapshot_override_cleanup_resumes_in_bounded_batches_and_protects_all_incoming_keys(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $protected_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Protected Resource Entry',
+        ]);
+        $failed_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Failed Resource Entry',
+        ]);
+        update_post_meta($protected_id, LL_TOOLS_DICTIONARY_ENTRY_IMPORT_KEY_META_KEY, 'resource:protected');
+        update_post_meta($failed_id, LL_TOOLS_DICTIONARY_ENTRY_IMPORT_KEY_META_KEY, 'resource:failed');
+
+        $missing_prefix = 'Cleanup Resource Missing';
+        $this->seedDictionaryEntriesDirectly(1000, $missing_prefix);
+        $count_missing = static function () use ($wpdb, $missing_prefix): int {
+            return (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(ID) FROM {$wpdb->posts} WHERE post_type = %s AND post_title LIKE %s",
+                'll_dictionary_entry',
+                $wpdb->esc_like($missing_prefix) . '%'
+            ));
+        };
+
+        $entries = [
+            [
+                'import_key' => 'resource:protected',
+                'title' => 'Protected Resource Entry',
+                'status' => 'publish',
+                'translation' => 'protected',
+                'wordset' => null,
+                'senses' => [],
+            ],
+        ];
+        for ($index = 1; $index <= 4; $index++) {
+            $entries[] = [
+                'import_key' => 'resource:new-' . $index,
+                'title' => 'New Resource Entry ' . $index,
+                'status' => 'publish',
+                'translation' => 'new ' . $index,
+                'wordset' => null,
+                'senses' => [],
+            ];
+        }
+        $entries[] = [
+            'import_key' => 'resource:failed',
+            'title' => '',
+            'status' => 'publish',
+            'translation' => 'must remain protected',
+            'wordset' => null,
+            'senses' => [],
+        ];
+
+        $job = ll_tools_dictionary_import_create_snapshot_job_from_snapshot([
+            'sources' => [],
+            'entries' => $entries,
+        ], [
+            'snapshot_mode' => 'override',
+            'skip_backup_snapshot' => true,
+            'chunk_size' => 5,
+            'cleanup_chunk_size' => 75,
+        ], 'large-override-resource.json');
+
+        $this->assertIsArray($job);
+        $this->assertSame('import', $job['phase']);
+        $this->assertSame(1000, $count_missing());
+
+        $job = ll_tools_dictionary_import_process_job($job);
+        $this->assertIsArray($job);
+        $this->assertSame('import', $job['phase']);
+        $this->assertSame(1, (int) ($job['current_index'] ?? 0));
+        $this->assertSame(1000, $count_missing());
+        $this->assertSame($failed_id, ll_tools_dictionary_find_entry_by_import_key('resource:failed'));
+
+        $job = ll_tools_dictionary_import_process_job($job);
+        $this->assertIsArray($job);
+        $this->assertSame('cleanup', $job['phase']);
+        $this->assertSame(1, (int) ($job['summary']['error_count'] ?? 0));
+        $this->assertSame(1000, $count_missing());
+
+        $snapshot = ll_tools_dictionary_import_get_job_snapshot($job);
+        $this->assertSame('cleanup', $snapshot['phase']);
+        $this->assertSame('Cleaning Up', $snapshot['status_label']);
+
+        $job = ll_tools_dictionary_import_process_job($job);
+        $this->assertIsArray($job);
+        $this->assertSame('cleanup', $job['phase']);
+        $this->assertSame(75, (int) ($job['cleanup_processed_entries'] ?? 0));
+        $first_cursor = (int) ($job['cleanup_cursor'] ?? 0);
+        $this->assertGreaterThan(0, $first_cursor);
+        $this->assertGreaterThan(900, $count_missing());
+
+        $job = ll_tools_dictionary_import_save_job((string) $job['id'], $job);
+        $job = ll_tools_dictionary_import_get_job((string) $job['id']);
+        $this->assertIsArray($job);
+        $job = ll_tools_dictionary_import_process_job($job);
+        $this->assertIsArray($job);
+        $this->assertSame(150, (int) ($job['cleanup_processed_entries'] ?? 0));
+        $this->assertGreaterThan($first_cursor, (int) ($job['cleanup_cursor'] ?? 0));
+
+        while (is_array($job) && (string) ($job['status'] ?? '') === 'running') {
+            $job = ll_tools_dictionary_import_process_job($job);
+        }
+
+        $this->assertIsArray($job);
+        $this->assertSame('completed', $job['status']);
+        $this->assertSame('complete', $job['phase']);
+        $this->assertSame(1000, (int) ($job['summary']['entries_deleted'] ?? 0));
+        $this->assertSame(0, $count_missing());
+        $this->assertSame($protected_id, ll_tools_dictionary_find_entry_by_import_key('resource:protected'));
+        $this->assertSame($failed_id, ll_tools_dictionary_find_entry_by_import_key('resource:failed'));
     }
 
     public function test_dictionary_import_save_job_trims_large_tracking_arrays(): void
@@ -4370,8 +4571,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], 'dictionary-site.json');
         $this->assertIsArray($job);
         $this->assertSame('running', $job['status']);
-        $this->assertNotSame('', (string) ($job['backup_snapshot_path'] ?? ''));
-        $this->assertFileExists((string) $job['backup_snapshot_path']);
+        $this->assertSame('backup', $job['phase']);
+        $this->assertSame('', (string) ($job['backup_snapshot_path'] ?? ''));
+        $this->assertFileExists((string) ($job['backup_snapshot_manifest_path'] ?? ''));
 
         while (is_array($job) && (string) ($job['status'] ?? '') === 'running') {
             $job = ll_tools_dictionary_import_process_job($job);
@@ -4382,6 +4584,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($job['summary']['entries_created'] ?? 0));
         $this->assertGreaterThanOrEqual(1, (int) ($job['summary']['entries_updated'] ?? 0));
         $this->assertSame(1, (int) ($job['summary']['entries_deleted'] ?? 0));
+        $this->assertFileExists((string) ($job['backup_snapshot_path'] ?? ''));
 
         $dar_entry_after_id = ll_tools_dictionary_find_entry_by_import_key($dar_import_key);
         $this->assertSame($dar_entry_id, $dar_entry_after_id);
@@ -4822,6 +5025,42 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('üniversite', $uumlaut_html);
         $this->assertStringNotContainsString('Lapik', $uumlaut_html);
         $this->assertStringContainsString('Showing 1-1 of 1', $uumlaut_html);
+    }
+
+    private function seedDictionaryEntriesDirectly(int $count, string $title_prefix): void
+    {
+        global $wpdb;
+
+        $timestamp = current_time('mysql');
+        $timestamp_gmt = current_time('mysql', true);
+        for ($index = 1; $index <= $count; $index++) {
+            $title = $title_prefix . ' ' . $index;
+            $inserted = $wpdb->insert($wpdb->posts, [
+                'post_author' => 0,
+                'post_date' => $timestamp,
+                'post_date_gmt' => $timestamp_gmt,
+                'post_content' => '',
+                'post_title' => $title,
+                'post_excerpt' => '',
+                'post_status' => 'publish',
+                'comment_status' => 'closed',
+                'ping_status' => 'closed',
+                'post_password' => '',
+                'post_name' => sanitize_title($title . '-' . $index),
+                'to_ping' => '',
+                'pinged' => '',
+                'post_modified' => $timestamp,
+                'post_modified_gmt' => $timestamp_gmt,
+                'post_content_filtered' => '',
+                'post_parent' => 0,
+                'guid' => '',
+                'menu_order' => 0,
+                'post_type' => 'll_dictionary_entry',
+                'post_mime_type' => '',
+                'comment_count' => 0,
+            ]);
+            $this->assertSame(1, $inserted);
+        }
     }
 
     private function createDictionaryLanguageEntry(
