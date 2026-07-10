@@ -878,6 +878,10 @@
                     return response.json();
                 })
                 .then((payload) => {
+                    if (payload && !payload.success && payload.data && payload.data.code === 'cache_warming') {
+                        throw new Error('cache_warming');
+                    }
+
                     if (!payload || !payload.success || !payload.data) {
                         throw new Error('invalid_payload');
                     }

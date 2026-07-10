@@ -6,8 +6,8 @@ cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
 export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
 flake-tracking closeout, and the July 3 audio credit grid, vocab lesson grid,
-image copyright grid public-surface guards, plus the July 10 Turkish i18n and
-testing-doc drift cleanup.
+image copyright grid public-surface guards, plus the July 10 Turkish i18n,
+testing-doc drift cleanup, and dictionary toolbar AJAX cold-miss guard.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -21,6 +21,13 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 dictionary toolbar AJAX cold-miss guard:
+  anonymous `ll_tools_dictionary_toolbar_bootstrap` cache misses now use a
+  short option-backed build lock keyed to the same normalized AJAX cache key.
+  The build owner renders and stores the toolbar payload while concurrent cold
+  misses receive a retryable `cache_warming` response and keep the existing
+  loading shell. `DictionaryFeatureTest` covers lock expiry/release and the
+  locked toolbar response.
 - July 10 Turkish i18n and testing-doc drift cleanup:
   the interlinear phrase-row header now renders through the existing translated
   `phrase` string, the tier-2 public source range covers that render path,

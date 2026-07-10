@@ -14,6 +14,7 @@
 - Locale-switch links remain signed GET bootstrap URLs for accessibility, but the rendered links now use `rel="nofollow"` and unsigned or expired public `ll_locale` GET/HEAD requests redirect to the clean URL without saving a locale. This reduces stale crawler work on nonce-bearing URLs while preserving normal signed language switching.
 - Dictionary canonicalization now strips `ll_wordset_back` along with auth/nonce/tracking noise, and the redirect pass runs on dictionary front pages even when those front pages are intentionally excluded from static HTML caching. This keeps crawler-discovered dictionary detail URLs from multiplying through internal wordset return-state parameters.
 - Dictionary and public static-cache files now use a short per-key rebuild lock when an anonymous request finds an expired file. The rebuild owner refreshes the file while concurrent anonymous requests can receive the stale copy with `no-cache, must-revalidate`, protecting the origin without extending stale browser or edge caching.
+- The anonymous dictionary toolbar bootstrap AJAX cache now uses a short per-key build lock on cold misses. The build owner renders and caches the toolbar; concurrent anonymous misses receive a retryable `cache_warming` response so the browser keeps the existing loading shell instead of triggering duplicate filter-index work.
 - Both values remain configurable through constants and filters:
   - `LL_TOOLS_DICTIONARY_STATIC_CACHE_TTL`
   - `ll_tools_dictionary_static_cache_ttl`

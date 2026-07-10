@@ -1,6 +1,10 @@
 <?php
 if (!defined('WPINC')) { die; }
 
+if (!defined('LL_TOOLS_DICTIONARY_AJAX_CACHE_BUILD_LOCK_OPTION_PREFIX')) {
+    define('LL_TOOLS_DICTIONARY_AJAX_CACHE_BUILD_LOCK_OPTION_PREFIX', '_ll_tools_dictionary_ajax_cache_lock_');
+}
+
 function ll_tools_dictionary_shortcode_query_keys(): array {
     return [
         'letter',
@@ -2663,6 +2667,64 @@ function ll_tools_dictionary_ajax_cache_args(array $args): array {
     return $args;
 }
 
+function ll_tools_dictionary_ajax_cache_build_lock_key(string $namespace, array $args): string {
+    if (
+        !ll_tools_dictionary_ajax_cache_enabled()
+        || !function_exists('ll_tools_dictionary_browser_build_cache_key')
+    ) {
+        return '';
+    }
+
+    return ll_tools_dictionary_browser_build_cache_key(
+        'ajax_' . sanitize_key($namespace),
+        ll_tools_dictionary_ajax_cache_args($args)
+    );
+}
+
+function ll_tools_dictionary_ajax_cache_build_lock_option(string $key): string {
+    $normalized_key = preg_replace('/[^a-f0-9]/', '', strtolower($key));
+    if (!is_string($normalized_key) || $normalized_key === '') {
+        $normalized_key = md5($key);
+    }
+
+    return LL_TOOLS_DICTIONARY_AJAX_CACHE_BUILD_LOCK_OPTION_PREFIX . $normalized_key;
+}
+
+function ll_tools_dictionary_ajax_cache_build_lock_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_dictionary_ajax_cache_build_lock_ttl', 15);
+    return max(5, min(300, $ttl));
+}
+
+function ll_tools_dictionary_ajax_cache_acquire_build_lock(string $key): bool {
+    if ($key === '') {
+        return true;
+    }
+
+    $option_name = ll_tools_dictionary_ajax_cache_build_lock_option($key);
+    $now = time();
+    $expires_at = $now + ll_tools_dictionary_ajax_cache_build_lock_ttl();
+
+    if (add_option($option_name, (string) $expires_at, '', false)) {
+        return true;
+    }
+
+    $current_expires_at = (int) get_option($option_name, 0);
+    if ($current_expires_at > $now) {
+        return false;
+    }
+
+    delete_option($option_name);
+    return add_option($option_name, (string) $expires_at, '', false);
+}
+
+function ll_tools_dictionary_ajax_cache_release_build_lock(string $key): void {
+    if ($key === '') {
+        return;
+    }
+
+    delete_option(ll_tools_dictionary_ajax_cache_build_lock_option($key));
+}
+
 function ll_tools_dictionary_ajax_cache_get(string $namespace, array $args) {
     static $request_cache = [];
 
@@ -3278,12 +3340,34 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
         wp_send_json_success($cached);
     }
 
-    $payload = [
-        'html' => ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect),
-    ];
-    ll_tools_dictionary_ajax_cache_set('toolbar_bootstrap', $cache_args, $payload);
-    ll_tools_dictionary_send_ajax_cache_header('MISS');
-    wp_send_json_success($payload);
+    $lock_key = ll_tools_dictionary_ajax_cache_build_lock_key('toolbar_bootstrap', $cache_args);
+    $lock_acquired = ll_tools_dictionary_ajax_cache_acquire_build_lock($lock_key);
+    if (!$lock_acquired) {
+        $cached = ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args);
+        if (is_array($cached)) {
+            ll_tools_dictionary_send_ajax_cache_header('HIT');
+            wp_send_json_success($cached);
+        }
+
+        ll_tools_dictionary_send_ajax_cache_header('WARMING');
+        wp_send_json_error([
+            'code' => 'cache_warming',
+            'retry_after' => min(5, ll_tools_dictionary_ajax_cache_build_lock_ttl()),
+        ], 202);
+    }
+
+    try {
+        $payload = [
+            'html' => ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect),
+        ];
+        ll_tools_dictionary_ajax_cache_set('toolbar_bootstrap', $cache_args, $payload);
+        ll_tools_dictionary_send_ajax_cache_header('MISS');
+        wp_send_json_success($payload);
+    } finally {
+        if ($lock_acquired) {
+            ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+        }
+    }
 }
 add_action('wp_ajax_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
 add_action('wp_ajax_nopriv_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');

@@ -53,6 +53,16 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 delete_option((string) $option_name);
             }
         }
+        if (defined('LL_TOOLS_DICTIONARY_AJAX_CACHE_BUILD_LOCK_OPTION_PREFIX')) {
+            $ajax_cache_lock_like = $wpdb->esc_like(LL_TOOLS_DICTIONARY_AJAX_CACHE_BUILD_LOCK_OPTION_PREFIX) . '%';
+            $ajax_cache_lock_option_names = $wpdb->get_col($wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $ajax_cache_lock_like
+            ));
+            foreach ((array) $ajax_cache_lock_option_names as $option_name) {
+                delete_option((string) $option_name);
+            }
+        }
         if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
             ll_tools_dictionary_import_clear_active_job_id();
         }
@@ -1021,6 +1031,97 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ll_tools_bump_dictionary_browser_cache_version();
 
         $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', $args));
+    }
+
+    public function test_dictionary_ajax_cache_build_lock_blocks_parallel_builds_until_released(): void
+    {
+        wp_set_current_user(0);
+
+        $args = [
+            'wordset_id' => 0,
+            'base_url' => 'https://example.com/sozluk/',
+        ];
+        $key = ll_tools_dictionary_ajax_cache_build_lock_key('toolbar_bootstrap', $args);
+        $option = ll_tools_dictionary_ajax_cache_build_lock_option($key);
+        delete_option($option);
+
+        try {
+            $this->assertNotSame('', $key);
+            $this->assertTrue(ll_tools_dictionary_ajax_cache_acquire_build_lock($key));
+            $this->assertFalse(ll_tools_dictionary_ajax_cache_acquire_build_lock($key));
+
+            ll_tools_dictionary_ajax_cache_release_build_lock($key);
+            $this->assertTrue(ll_tools_dictionary_ajax_cache_acquire_build_lock($key));
+
+            update_option($option, (string) (time() - 10), false);
+            $this->assertTrue(ll_tools_dictionary_ajax_cache_acquire_build_lock($key));
+        } finally {
+            delete_option($option);
+        }
+    }
+
+    public function test_dictionary_toolbar_bootstrap_returns_retryable_warming_response_while_locked(): void
+    {
+        wp_set_current_user(0);
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_toolbar_bootstrap',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'wordset_id' => 0,
+        ];
+        $_REQUEST = $_POST;
+
+        $cache_args = [
+            'wordset_id' => 0,
+            'base_url' => ll_tools_dictionary_resolve_live_base_url('https://example.com/sozluk/'),
+            'search_scopes' => ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_POST),
+            'letter' => '',
+            'pos_slug' => '',
+            'source_ids' => [],
+            'dialect' => '',
+            'title_language' => function_exists('ll_tools_dictionary_get_effective_title_language_code')
+                ? ll_tools_dictionary_get_effective_title_language_code(0)
+                : '',
+            'browse_letter_schema' => 7,
+        ];
+        $lock_key = ll_tools_dictionary_ajax_cache_build_lock_key('toolbar_bootstrap', $cache_args);
+        $this->assertTrue(ll_tools_dictionary_ajax_cache_acquire_build_lock($lock_key));
+
+        try {
+            $warming = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_toolbar_bootstrap();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+        }
+
+        $this->assertFalse((bool) ($warming['success'] ?? true));
+        $this->assertSame('cache_warming', (string) ($warming['data']['code'] ?? ''));
+        $this->assertSame(5, (int) ($warming['data']['retry_after'] ?? 0));
+        $this->assertNull(ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args));
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_toolbar_bootstrap',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'wordset_id' => 0,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $ready = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_toolbar_bootstrap();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($ready['success'] ?? false));
+        $this->assertIsArray(ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args));
     }
 
     public function test_dictionary_live_search_accepts_direct_one_character_ajax_search_without_filters(): void
