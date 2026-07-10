@@ -79,6 +79,15 @@ function ll_tools_wordset_games_lineup_min_sequence_length(): int {
     return max(2, (int) apply_filters('ll_tools_wordset_games_lineup_min_sequence_length', 3));
 }
 
+function ll_tools_wordset_games_lineup_launch_sequence_cap(): int {
+    return max(1, min(10, (int) apply_filters('ll_tools_wordset_games_lineup_launch_sequence_cap', 3)));
+}
+
+function ll_tools_wordset_games_lineup_launch_word_cap(): int {
+    $minimum = ll_tools_wordset_games_lineup_min_sequence_length();
+    return max($minimum, min(60, (int) apply_filters('ll_tools_wordset_games_lineup_launch_word_cap', 24)));
+}
+
 function ll_tools_wordset_games_unscramble_min_tile_count(): int {
     return max(2, (int) apply_filters('ll_tools_wordset_games_unscramble_min_tile_count', 3));
 }
@@ -1479,16 +1488,22 @@ function ll_tools_wordset_games_build_unscramble_pool(int $wordset_id, int $user
     ];
 }
 
-function ll_tools_wordset_games_build_lineup_sequence(int $wordset_id, WP_Term $category_term): ?array {
+function ll_tools_wordset_games_build_lineup_sequence(int $wordset_id, WP_Term $category_term, int $word_cap = 0): ?array {
     $ordered_word_ids = ll_tools_wordset_games_get_category_lineup_word_order((int) $category_term->term_id);
     $minimum_length = ll_tools_wordset_games_lineup_min_sequence_length();
     if (empty($ordered_word_ids)) {
         return null;
     }
+    $configured_word_count = count($ordered_word_ids);
+    if ($word_cap > 0) {
+        $word_cap = max($minimum_length, min(60, $word_cap));
+        $ordered_word_ids = array_slice($ordered_word_ids, 0, $word_cap);
+    }
 
     $config = [
         'prompt_type' => 'text_title',
         'option_type' => 'text_title',
+        '__candidate_word_ids' => $ordered_word_ids,
     ];
     $words = ll_get_words_by_category($category_term, 'text_title', [$wordset_id], $config);
     $category_label = function_exists('ll_tools_get_category_display_name')
@@ -1540,6 +1555,8 @@ function ll_tools_wordset_games_build_lineup_sequence(int $wordset_id, WP_Term $
             $wordset_id
         ),
         'word_count' => count($ordered_words),
+        'configured_word_count' => $configured_word_count,
+        'sequence_truncated' => count($ordered_words) < $configured_word_count,
         'words' => array_values($ordered_words),
     ];
 }
@@ -1553,30 +1570,51 @@ function ll_tools_wordset_games_build_lineup_pool(int $wordset_id, int $user_id 
     }, $visible_categories), static function (int $id): bool {
         return $id > 0;
     }));
+    $minimum_sequence_length = ll_tools_wordset_games_lineup_min_sequence_length();
+    $sequence_cap = ll_tools_wordset_games_lineup_launch_sequence_cap();
+    $sequence_word_cap = ll_tools_wordset_games_lineup_launch_word_cap();
     $sequences = [];
+    $available_sequence_count = 0;
+    $invalid_sequence_count = 0;
     foreach ($visible_category_ids as $category_id) {
-        $term = get_term($category_id, 'word-category');
-        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        $configured_word_ids = ll_tools_wordset_games_get_category_lineup_word_order((int) $category_id);
+        if (count($configured_word_ids) < $minimum_sequence_length) {
+            $invalid_sequence_count++;
+            continue;
+        }
+        $available_sequence_count++;
+        if (count($sequences) >= $sequence_cap) {
             continue;
         }
 
-        $sequence = ll_tools_wordset_games_build_lineup_sequence($wordset_id, $term);
+        $term = get_term($category_id, 'word-category');
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            $available_sequence_count--;
+            $invalid_sequence_count++;
+            continue;
+        }
+
+        $sequence = ll_tools_wordset_games_build_lineup_sequence($wordset_id, $term, $sequence_word_cap);
         if ($sequence !== null) {
             $sequences[] = $sequence;
+        } else {
+            $available_sequence_count--;
+            $invalid_sequence_count++;
         }
     }
-
-    $available_sequence_count = count($sequences);
 
     return [
         'minimum_word_count' => 1,
         'minimum_sequence_count' => 1,
-        'minimum_sequence_length' => ll_tools_wordset_games_lineup_min_sequence_length(),
+        'minimum_sequence_length' => $minimum_sequence_length,
         'pool_source' => 'lineup_sequences',
         'category_ids' => $visible_category_ids,
         'enabled_category_count' => count($visible_category_ids),
         'available_sequence_count' => $available_sequence_count,
-        'invalid_sequence_count' => max(0, count($visible_category_ids) - $available_sequence_count),
+        'invalid_sequence_count' => max($invalid_sequence_count, count($visible_category_ids) - $available_sequence_count),
+        'launch_sequence_cap' => $sequence_cap,
+        'launch_sequence_count' => count($sequences),
+        'sequence_word_cap' => $sequence_word_cap,
         'sequences' => array_values($sequences),
         'words' => [],
         'reason_code' => $available_sequence_count > 0 ? '' : 'lineup_not_configured',
@@ -3243,6 +3281,9 @@ function ll_tools_wordset_games_build_lineup_deferred_count_pool(int $wordset_id
         'enabled_category_count' => count($visible_category_ids),
         'available_sequence_count' => $available_sequence_count,
         'invalid_sequence_count' => max(0, count($visible_category_ids) - $available_sequence_count),
+        'launch_sequence_cap' => ll_tools_wordset_games_lineup_launch_sequence_cap(),
+        'launch_sequence_count' => min($available_sequence_count, ll_tools_wordset_games_lineup_launch_sequence_cap()),
+        'sequence_word_cap' => ll_tools_wordset_games_lineup_launch_word_cap(),
         'sequences' => [],
         'words' => [],
         'reason_code' => $available_sequence_count > 0 ? '' : 'lineup_not_configured',
@@ -4261,8 +4302,11 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0,
             'available_word_count' => $lineup_available_sequence_count,
             'available_sequence_count' => $lineup_available_sequence_count,
             'enabled_category_count' => $lineup_enabled_category_count,
-            'launch_word_cap' => $lineup_available_sequence_count,
-            'launch_word_count' => $lineup_available_sequence_count,
+            'launch_word_cap' => (int) ($lineup_pool['launch_sequence_cap'] ?? ll_tools_wordset_games_lineup_launch_sequence_cap()),
+            'launch_sequence_cap' => (int) ($lineup_pool['launch_sequence_cap'] ?? ll_tools_wordset_games_lineup_launch_sequence_cap()),
+            'launch_word_count' => (int) ($lineup_pool['launch_sequence_count'] ?? 0),
+            'launch_sequence_count' => (int) ($lineup_pool['launch_sequence_count'] ?? 0),
+            'sequence_word_cap' => (int) ($lineup_pool['sequence_word_cap'] ?? ll_tools_wordset_games_lineup_launch_word_cap()),
             'launchable' => $lineup_available_sequence_count > 0,
             'reason_code' => $lineup_available_sequence_count > 0
                 ? ''
@@ -6450,8 +6494,11 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             'available_word_count' => $available_sequence_count,
             'available_sequence_count' => $available_sequence_count,
             'enabled_category_count' => $enabled_category_count,
-            'launch_word_cap' => $available_sequence_count,
-            'launch_word_count' => $available_sequence_count,
+            'launch_word_cap' => (int) ($lineup_pool['launch_sequence_cap'] ?? ll_tools_wordset_games_lineup_launch_sequence_cap()),
+            'launch_sequence_cap' => (int) ($lineup_pool['launch_sequence_cap'] ?? ll_tools_wordset_games_lineup_launch_sequence_cap()),
+            'launch_word_count' => (int) ($lineup_pool['launch_sequence_count'] ?? 0),
+            'launch_sequence_count' => (int) ($lineup_pool['launch_sequence_count'] ?? 0),
+            'sequence_word_cap' => (int) ($lineup_pool['sequence_word_cap'] ?? ll_tools_wordset_games_lineup_launch_word_cap()),
             'launchable' => $available_sequence_count > 0,
             'reason_code' => $available_sequence_count > 0
                 ? ''

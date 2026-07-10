@@ -1711,6 +1711,84 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame('lineup_not_configured', (string) ($launch['reason_code'] ?? ''));
     }
 
+    public function test_lineup_large_launch_caps_sequence_and_word_payloads(): void
+    {
+        $fixture = $this->createLineupFixture('en', null, 8, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $userId = (int) $fixture['user_id'];
+        $baseCategoryId = $this->resolveEffectiveCategoryId((int) $fixture['category_id'], $wordsetId);
+        $this->setCategoryEnabledGames($baseCategoryId, ['line-up']);
+        update_term_meta($baseCategoryId, 'll_category_lineup_word_order', $fixture['word_ids']);
+
+        for ($categoryIndex = 2; $categoryIndex <= 6; $categoryIndex++) {
+            $term = wp_insert_term(
+                'Lineup Bounded Category ' . $categoryIndex . ' ' . wp_generate_password(5, false),
+                'word-category'
+            );
+            $this->assertIsArray($term);
+            $categoryId = (int) $term['term_id'];
+            update_term_meta($categoryId, 'll_quiz_prompt_type', 'text_title');
+            update_term_meta($categoryId, 'll_quiz_option_type', 'text_title');
+            $wordIds = [];
+            for ($wordIndex = 1; $wordIndex <= 8; $wordIndex++) {
+                $wordIds[] = $this->createWordWithGameMedia(
+                    'Lineup Bounded ' . $categoryIndex . '-' . $wordIndex,
+                    'Lineup Bounded Translation ' . $categoryIndex . '-' . $wordIndex,
+                    $categoryId,
+                    $wordsetId,
+                    false,
+                    []
+                );
+            }
+            $effectiveCategoryId = $this->resolveEffectiveCategoryId($categoryId, $wordsetId);
+            $this->setCategoryEnabledGames($effectiveCategoryId, ['line-up']);
+            update_term_meta($effectiveCategoryId, 'll_category_lineup_word_order', $wordIds);
+        }
+
+        $sequenceCapFilter = static function (): int {
+            return 2;
+        };
+        $wordCapFilter = static function (): int {
+            return 5;
+        };
+        $wordQueries = [];
+        $captureWordQueries = static function (WP_Query $query) use (&$wordQueries): void {
+            if ((string) $query->get('post_type') === 'words') {
+                $wordQueries[] = $query->query_vars;
+            }
+        };
+        wp_set_current_user($userId);
+        add_filter('ll_tools_wordset_games_lineup_launch_sequence_cap', $sequenceCapFilter);
+        add_filter('ll_tools_wordset_games_lineup_launch_word_cap', $wordCapFilter);
+        add_action('pre_get_posts', $captureWordQueries);
+        try {
+            $launch = ll_tools_wordset_games_build_launch_entry('line-up', $wordsetId, $userId);
+        } finally {
+            remove_filter('ll_tools_wordset_games_lineup_launch_sequence_cap', $sequenceCapFilter);
+            remove_filter('ll_tools_wordset_games_lineup_launch_word_cap', $wordCapFilter);
+            remove_action('pre_get_posts', $captureWordQueries);
+        }
+
+        $this->assertIsArray($launch);
+        $this->assertSame(6, (int) ($launch['available_sequence_count'] ?? 0));
+        $this->assertSame(2, (int) ($launch['launch_sequence_cap'] ?? 0));
+        $this->assertSame(2, (int) ($launch['launch_sequence_count'] ?? 0));
+        $this->assertCount(2, (array) ($launch['sequences'] ?? []));
+        foreach ((array) ($launch['sequences'] ?? []) as $sequence) {
+            $this->assertCount(5, (array) ($sequence['words'] ?? []));
+            $this->assertTrue((bool) ($sequence['sequence_truncated'] ?? false));
+        }
+        $candidateQueries = 0;
+        foreach ($wordQueries as $queryVars) {
+            $postIds = array_values(array_filter(array_map('intval', (array) ($queryVars['post__in'] ?? []))));
+            if (!empty($postIds)) {
+                $candidateQueries++;
+                $this->assertLessThanOrEqual(5, count($postIds));
+            }
+        }
+        $this->assertSame(2, $candidateQueries);
+    }
+
     public function test_unscramble_launch_uses_text_clues_when_available(): void
     {
         $fixture = $this->createUnscrambleFixture(false, 'Unscramble Clue', 5, ['unscramble']);
