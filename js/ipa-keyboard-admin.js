@@ -64,6 +64,9 @@
     let searchRulesExpanded = false;
     let letterMapRefreshTimer = null;
     let letterMapRefreshRequestId = 0;
+    let aggregateRebuildTimer = null;
+    let aggregateRebuildRequestId = 0;
+    let currentAggregateStatus = null;
     let pendingSearchReviewState = {};
     let pendingSearchEditorOpen = {};
     const searchReviewFields = ['recording_text', 'recording_ipa'];
@@ -1094,6 +1097,108 @@
         const data = response && response.data ? response.data : {};
         setCanEdit(!!data.can_edit);
         applyTranscriptionConfig(data.transcription || null);
+        if (data.aggregate_status && typeof data.aggregate_status === 'object') {
+            currentAggregateStatus = data.aggregate_status;
+        }
+    }
+
+    function getAggregateProgressText(status) {
+        const rebuild = status && status.rebuild && typeof status.rebuild === 'object' ? status.rebuild : {};
+        const processed = Math.max(0, parseInt(rebuild.processed, 10) || 0);
+        const total = Math.max(0, parseInt(rebuild.total, 10) || 0);
+        if (!total) {
+            return '';
+        }
+        return formatText(t('aggregateProgress', 'Processed %1$d of %2$d recordings.'), [processed, total]);
+    }
+
+    function buildAggregateNotice(status) {
+        if (!status || status.state === 'fresh') {
+            return null;
+        }
+        const rebuild = status.rebuild && typeof status.rebuild === 'object' ? status.rebuild : {};
+        const isRunning = status.state === 'rebuilding' || rebuild.state === 'running';
+        const $notice = $('<div>', {
+            class: 'll-ipa-aggregate-notice ' + (isRunning ? 'is-rebuilding' : 'is-stale'),
+            'data-aggregate-state': isRunning ? 'rebuilding' : 'stale'
+        });
+        const message = isRunning
+            ? t('aggregateRebuilding', 'Rebuilding counts and samples...')
+            : (status.can_rebuild
+                ? t('aggregateStale', 'Counts and samples need to be rebuilt.')
+                : t('aggregateStaleReadOnly', 'Counts and samples are stale. An editor must rebuild them.'));
+        $notice.append($('<span>', { class: 'll-ipa-aggregate-message', text: message }));
+        const progress = getAggregateProgressText(status);
+        if (progress) {
+            $notice.append($('<span>', { class: 'll-ipa-aggregate-progress', text: progress }));
+        }
+        if (status.can_rebuild) {
+            $notice.append($('<button>', {
+                type: 'button',
+                class: 'button ll-ipa-aggregate-rebuild',
+                text: isRunning ? t('aggregateContinue', 'Continue rebuild') : t('aggregateRebuild', 'Rebuild counts'),
+                'data-operation': isRunning ? 'step' : 'start'
+            }));
+        }
+        return $notice;
+    }
+
+    function prependAggregateNotice($container, status) {
+        $container.children('.ll-ipa-aggregate-notice').remove();
+        const $notice = buildAggregateNotice(status || currentAggregateStatus);
+        if ($notice) {
+            $container.prepend($notice);
+        }
+    }
+
+    function refreshVisibleAggregateNotice(status) {
+        currentAggregateStatus = status && typeof status === 'object' ? status : currentAggregateStatus;
+        if (currentTab === 'map') {
+            prependAggregateNotice($letterMap, currentAggregateStatus);
+        } else if (currentTab === 'symbols') {
+            prependAggregateNotice($symbols, currentAggregateStatus);
+        }
+    }
+
+    function requestAggregateRebuild(operation, requestId) {
+        const safeWordsetId = currentWordsetId;
+        if (!safeWordsetId || requestId !== aggregateRebuildRequestId) {
+            return;
+        }
+        $.post(ajaxUrl, {
+            action: 'll_tools_rebuild_ipa_keyboard_aggregates',
+            nonce: nonce,
+            wordset_id: safeWordsetId,
+            operation: operation
+        }).done(function (response) {
+            if (requestId !== aggregateRebuildRequestId || safeWordsetId !== currentWordsetId) {
+                return;
+            }
+            if (!response || response.success !== true) {
+                setStatus(t('aggregateFailed', 'The rebuild stopped. Start it again.'), true);
+                return;
+            }
+            const status = response.data && response.data.aggregate_status ? response.data.aggregate_status : null;
+            refreshVisibleAggregateNotice(status);
+            if (status && status.state === 'rebuilding') {
+                aggregateRebuildTimer = window.setTimeout(function () {
+                    aggregateRebuildTimer = null;
+                    requestAggregateRebuild('step', requestId);
+                }, 30);
+                return;
+            }
+            if (status && status.state === 'fresh') {
+                markTabsDirty(['map', 'symbols']);
+                setStatus(t('aggregateComplete', 'Counts and samples rebuilt.'), false);
+                loadActiveTab(true);
+                return;
+            }
+            setStatus(t('aggregateFailed', 'The rebuild stopped. Start it again.'), true);
+        }).fail(function () {
+            if (requestId === aggregateRebuildRequestId) {
+                setStatus(t('aggregateFailed', 'The rebuild stopped. Start it again.'), true);
+            }
+        });
     }
 
     function getSelectedWordsetId() {
@@ -1149,6 +1254,12 @@
     function selectWordset(wordsetId, options) {
         const settings = $.extend({ forceLoad: false }, options || {});
         const safeWordsetId = parseInt(wordsetId, 10) || 0;
+        aggregateRebuildRequestId += 1;
+        if (aggregateRebuildTimer) {
+            window.clearTimeout(aggregateRebuildTimer);
+            aggregateRebuildTimer = null;
+        }
+        currentAggregateStatus = null;
         hideIpaKeyboard();
         currentWordsetId = safeWordsetId;
         currentSearchPage = 1;
@@ -1574,8 +1685,14 @@
 
     function createSymbolDetails(symbol) {
         const $details = $('<details>', {
-            class: 'll-ipa-symbol',
+            class: 'll-ipa-symbol ll-ipa-lazy-recordings',
             'data-symbol': symbol,
+            'data-kind': 'symbol',
+            'data-value': symbol,
+            'data-mapping-symbol': '',
+            'data-loaded': '0',
+            'data-loading': '0',
+            'data-next-cursor': '0',
             'data-recording-count': 0,
             'data-occurrence-count': 0
         });
@@ -1587,16 +1704,135 @@
     }
 
     function buildSymbolsTableBody($details) {
-        const $body = $details.children('.ll-ipa-symbol-body').first();
+        const $body = $details.children('.ll-ipa-symbol-body, .ll-ipa-lazy-body').first();
         let $table = $body.children('.ll-ipa-recordings').first();
 
-        $body.children('.ll-ipa-empty').remove();
+        $body.children('.ll-ipa-empty, .ll-ipa-summary-samples, .ll-ipa-lazy-status, .ll-ipa-lazy-load-more').remove();
         if (!$table.length) {
             $table = buildRecordingsTable();
             $body.append($table);
         }
 
         return $table.children('tbody').first();
+    }
+
+    function buildSummarySamples(samples) {
+        const list = Array.isArray(samples) ? samples : [];
+        if (!list.length) {
+            return null;
+        }
+        const transcription = getTranscription();
+        const $wrap = $('<div>', { class: 'll-ipa-summary-samples' });
+        $wrap.append($('<div>', {
+            class: 'll-ipa-summary-samples-title',
+            text: t('summarySamplesLabel', 'Sample recordings')
+        }));
+        const $list = $('<div>', { class: 'll-ipa-summary-samples-list' });
+        list.forEach(function (sample) {
+            const $item = $('<div>', { class: 'll-ipa-summary-sample' });
+            const label = sample && sample.word_text ? sample.word_text : t('untitled', '(Untitled)');
+            if (sample && sample.word_edit_link) {
+                $item.append($('<a>', {
+                    href: sample.word_edit_link,
+                    target: '_blank',
+                    class: 'll-ipa-summary-sample-link',
+                    text: label
+                }));
+            } else {
+                $item.append($('<span>', { class: 'll-ipa-summary-sample-link', text: label }));
+            }
+            if (sample && sample.recording_text) {
+                $item.append($('<span>', { class: 'll-ipa-summary-sample-text', text: sample.recording_text }));
+            }
+            if (sample && sample.recording_ipa) {
+                $item.append($('<span>', {
+                    class: 'll-ipa-summary-sample-ipa',
+                    text: (transcription.map_sample_value_label || 'IPA:') + ' ' + sample.recording_ipa
+                }));
+            }
+            $list.append($item);
+        });
+        $wrap.append($list);
+        return $wrap;
+    }
+
+    function setLazySummaryBody($details, samples, emptyText) {
+        const $body = $details.children('.ll-ipa-symbol-body, .ll-ipa-lazy-body').first();
+        $body.empty();
+        const $samples = buildSummarySamples(samples);
+        if ($samples) {
+            $body.append($samples);
+        }
+        $body.append($('<div>', {
+            class: 'll-ipa-lazy-status',
+            text: emptyText || t('summaryLoadRecordings', 'Show recordings')
+        }));
+    }
+
+    function loadLazyRecordingRows($details, append) {
+        if (!$details.length || $details.attr('data-loading') === '1') {
+            return;
+        }
+        const safeWordsetId = currentWordsetId;
+        const cursor = append ? (parseInt($details.attr('data-next-cursor'), 10) || 0) : 0;
+        $details.attr('data-loading', '1');
+        $details.find('.ll-ipa-lazy-load-more').prop('disabled', true);
+        let $statusLine = $details.children('.ll-ipa-symbol-body, .ll-ipa-lazy-body').first().children('.ll-ipa-lazy-status').first();
+        if (!$statusLine.length) {
+            $statusLine = $('<div>', { class: 'll-ipa-lazy-status' });
+            $details.children('.ll-ipa-symbol-body, .ll-ipa-lazy-body').first().append($statusLine);
+        }
+        $statusLine.text(t('summaryLoadingRecordings', 'Loading recordings...'));
+
+        $.post(ajaxUrl, {
+            action: 'll_tools_get_ipa_keyboard_summary_recordings',
+            nonce: nonce,
+            wordset_id: safeWordsetId,
+            kind: $details.attr('data-kind') || '',
+            value: $details.attr('data-value') || '',
+            mapping_symbol: $details.attr('data-mapping-symbol') || '',
+            cursor: cursor
+        }).done(function (response) {
+            if (!$details.closest('html').length || safeWordsetId !== currentWordsetId) {
+                return;
+            }
+            if (!response || response.success !== true) {
+                $statusLine.text(t('error', 'Something went wrong. Please try again.'));
+                return;
+            }
+            const data = response.data || {};
+            const recordings = Array.isArray(data.recordings) ? data.recordings : [];
+            const $tbody = buildSymbolsTableBody($details);
+            if (!append) {
+                $tbody.empty();
+            }
+            recordings.forEach(function (recording) {
+                $tbody.append(buildRecordingRow(recording));
+            });
+            $details.attr('data-loaded', '1');
+            $details.attr('data-next-cursor', parseInt(data.next_cursor, 10) || cursor);
+            const $body = $details.children('.ll-ipa-symbol-body, .ll-ipa-lazy-body').first();
+            $body.children('.ll-ipa-lazy-status, .ll-ipa-lazy-load-more').remove();
+            if (!$tbody.children().length && !data.has_more) {
+                $body.children('.ll-ipa-recordings').remove();
+                $body.append($('<div>', {
+                    class: 'll-ipa-empty',
+                    text: t('noRecordings', 'No recordings use this character yet.')
+                }));
+            }
+            if (data.has_more) {
+                $body.append($('<button>', {
+                    type: 'button',
+                    class: 'button ll-ipa-lazy-load-more',
+                    text: t('summaryLoadMoreRecordings', 'Load more recordings')
+                }));
+            }
+        }).fail(function () {
+            $statusLine.text(t('error', 'Something went wrong. Please try again.'));
+        }).always(function () {
+            $details.attr('data-loading', '0');
+            $details.find('.ll-ipa-lazy-load-more').prop('disabled', false);
+        });
     }
 
     function findSymbolDetails(symbol) {
@@ -1624,6 +1860,8 @@
     function renderSymbols(payload) {
         const list = Array.isArray(payload.symbols) ? payload.symbols : [];
         $symbols.empty();
+        currentAggregateStatus = payload.aggregate_status || currentAggregateStatus;
+        prependAggregateNotice($symbols, currentAggregateStatus);
         $addInput.prop('disabled', !currentCanEdit);
         $addBtn.prop('disabled', !currentCanEdit);
 
@@ -1640,10 +1878,10 @@
         list.forEach(function (entry) {
             const symbol = entry && entry.symbol ? entry.symbol : '';
             const count = entry && typeof entry.count === 'number' ? entry.count : 0;
-            const recordings = entry && Array.isArray(entry.recordings) ? entry.recordings : [];
+            const samples = entry && Array.isArray(entry.samples) ? entry.samples : [];
             const recordingCount = entry && typeof entry.recording_count === 'number'
                 ? entry.recording_count
-                : recordings.length;
+                : 0;
 
             if (!symbol) {
                 return;
@@ -1652,14 +1890,7 @@
             const $details = createSymbolDetails(symbol);
             setSymbolSummaryCounts($details, recordingCount, count);
 
-            if (recordings.length) {
-                const $tbody = buildSymbolsTableBody($details);
-                recordings.forEach(function (rec) {
-                    $tbody.append(buildRecordingRow(rec));
-                });
-            } else {
-                ensureSymbolEmptyState($details);
-            }
+            setLazySummaryBody($details, samples, recordingCount > 0 ? '' : t('noRecordings', 'No recordings use this character yet.'));
 
             $symbols.append($details);
         });
@@ -1717,6 +1948,8 @@
         const list = Array.isArray(payload.letter_map) ? payload.letter_map : [];
         const transcription = getTranscription();
         $letterMap.empty();
+        currentAggregateStatus = payload.aggregate_status || currentAggregateStatus;
+        prependAggregateNotice($letterMap, currentAggregateStatus);
 
         const $add = $('<div>', { class: 'll-ipa-map-add' });
         $add.append($('<div>', { class: 'll-ipa-map-add-title', text: t('mapAddLabel', 'Add manual mapping') }));
@@ -1798,51 +2031,19 @@
                     $tokenRow.append($token, $blockBtn);
                     $tokenWrap.append($tokenRow);
 
-                    if (samples.length) {
-                        const $details = $('<details>', { class: 'll-ipa-map-samples' });
-                        $details.append($('<summary>', { text: t('mapSamplesLabel', 'Examples') + ' (' + samples.length + ')' }));
-                        const $list = $('<div>', { class: 'll-ipa-map-samples-list' });
-                        samples.forEach(function (sample) {
-                            const $item = $('<div>', { class: 'll-ipa-map-sample' });
-                            const $title = $('<div>', { class: 'll-ipa-map-sample-title' });
-                            if (sample.word_edit_link) {
-                                $title.append(
-                                    $('<a>', {
-                                        href: sample.word_edit_link,
-                                        text: sample.word_text || t('untitled', '(Untitled)'),
-                                        target: '_blank',
-                                        class: 'll-ipa-map-sample-link'
-                                    })
-                                );
-                            } else {
-                                $title.text(sample.word_text || t('untitled', '(Untitled)'));
-                            }
-                            if (sample.word_translation) {
-                                $title.append($('<span>', { class: 'll-ipa-translation', text: ' (' + sample.word_translation + ')' }));
-                            }
-                            $item.append($title);
-
-                            if (sample.recording_text || sample.recording_translation) {
-                                const $textRow = $('<div>', { class: 'll-ipa-map-sample-row' });
-                                $textRow.append($('<span>', { class: 'll-ipa-map-sample-label', text: t('mapSampleTextLabel', 'Text:') }));
-                                $textRow.append($('<span>', { class: 'll-ipa-map-sample-value', text: sample.recording_text || '-' }));
-                                if (sample.recording_translation) {
-                                    $textRow.append($('<span>', { class: 'll-ipa-translation', text: ' (' + sample.recording_translation + ')' }));
-                                }
-                                $item.append($textRow);
-                            }
-                            if (sample.recording_ipa) {
-                                const $ipaRow = $('<div>', { class: 'll-ipa-map-sample-row' });
-                                $ipaRow.append($('<span>', { class: 'll-ipa-map-sample-label', text: transcription.map_sample_value_label || 'IPA:' }));
-                                $ipaRow.append($('<span>', { class: 'll-ipa-map-sample-value ll-ipa-map-sample-ipa', text: sample.recording_ipa }));
-                                $item.append($ipaRow);
-                            }
-
-                            $list.append($item);
-                        });
-                        $details.append($list);
-                        $tokenWrap.append($details);
-                    }
+                    const $details = $('<details>', {
+                        class: 'll-ipa-map-samples ll-ipa-lazy-recordings',
+                        'data-kind': 'letter',
+                        'data-value': letter,
+                        'data-mapping-symbol': symbol,
+                        'data-loaded': '0',
+                        'data-loading': '0',
+                        'data-next-cursor': '0'
+                    });
+                    $details.append($('<summary>', { text: t('mapSamplesLabel', 'Examples') }));
+                    $details.append($('<div>', { class: 'll-ipa-lazy-body' }));
+                    setLazySummaryBody($details, samples, count > 0 ? '' : t('noRecordings', 'No recordings use this character yet.'));
+                    $tokenWrap.append($details);
 
                     $autoWrap.append($tokenWrap);
                 });
@@ -4044,8 +4245,12 @@
     function syncSavedRecording(data) {
         const recording = data && data.recording ? data.recording : {};
         const recordingId = parseInt(recording.recording_id || data.recording_id, 10) || 0;
-        const previousCounts = data && data.previous_symbol_counts ? data.previous_symbol_counts : {};
-        const nextCounts = data && data.symbol_counts ? data.symbol_counts : {};
+        const previousCounts = data && data.summary_previous_symbol_counts
+            ? data.summary_previous_symbol_counts
+            : (data && data.previous_symbol_counts ? data.previous_symbol_counts : {});
+        const nextCounts = data && data.summary_symbol_counts
+            ? data.summary_symbol_counts
+            : (data && data.symbol_counts ? data.symbol_counts : {});
 
         if (!recordingId) {
             return;
@@ -4061,13 +4266,14 @@
             let $details = findSymbolDetails(symbol);
             if (nextCount > 0 && !$details.length) {
                 $details = createSymbolDetails(symbol);
+                setLazySummaryBody($details, [], t('summaryLoadRecordings', 'Show recordings'));
                 $symbols.append($details);
             }
             if (!$details.length) {
                 return;
             }
 
-            if (nextCount > 0) {
+            if (nextCount > 0 && $details.attr('data-loaded') === '1') {
                 const $tbody = buildSymbolsTableBody($details);
                 const $existing = $tbody.children('tr').filter(function () {
                     return (parseInt($(this).attr('data-recording-id'), 10) || 0) === recordingId;
@@ -4078,7 +4284,7 @@
                 } else {
                     $tbody.append($row);
                 }
-            } else {
+            } else if (nextCount <= 0 && $details.attr('data-loaded') === '1') {
                 $details.find('tr[data-recording-id="' + recordingId + '"]').remove();
                 ensureSymbolEmptyState($details);
             }
@@ -5096,6 +5302,30 @@
     $wordset.on('change', function () {
         const wordsetId = getSelectedWordsetId();
         selectWordset(wordsetId, { forceLoad: true });
+    });
+
+    $symbols.add($letterMap).on('click', '.ll-ipa-lazy-recordings > summary', function () {
+        const $details = $(this).parent('.ll-ipa-lazy-recordings');
+        window.setTimeout(function () {
+            if ($details.prop('open') && $details.attr('data-loaded') !== '1') {
+                loadLazyRecordingRows($details, false);
+            }
+        }, 0);
+    });
+
+    $symbols.add($letterMap).on('click', '.ll-ipa-lazy-load-more', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        loadLazyRecordingRows($(this).closest('.ll-ipa-lazy-recordings'), true);
+    });
+
+    $symbols.add($letterMap).on('click', '.ll-ipa-aggregate-rebuild', function () {
+        if (aggregateRebuildTimer) {
+            window.clearTimeout(aggregateRebuildTimer);
+            aggregateRebuildTimer = null;
+        }
+        aggregateRebuildRequestId += 1;
+        requestAggregateRebuild(($(this).attr('data-operation') || 'start').toString(), aggregateRebuildRequestId);
     });
 
     $addBtn.on('click', function () {

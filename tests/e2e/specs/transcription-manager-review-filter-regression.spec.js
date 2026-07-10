@@ -59,6 +59,35 @@ function buildMarkup() {
   `;
 }
 
+function buildSummaryMarkup() {
+  return `
+    <div class="ll-ipa-admin" data-ll-initial-tab="symbols">
+      <select id="ll-ipa-wordset">
+        <option value="7" selected>Regression Wordset</option>
+      </select>
+      <div id="ll-ipa-admin-status" aria-live="polite"></div>
+
+      <button type="button" data-ll-tab-trigger="symbols" aria-selected="true">Symbols</button>
+      <button type="button" data-ll-tab-trigger="map" aria-selected="false">Map</button>
+
+      <section data-ll-tab-panel="symbols">
+        <h2 id="ll-ipa-symbols-heading">IPA Special Characters</h2>
+        <p id="ll-ipa-symbols-description"></p>
+        <label id="ll-ipa-add-label" for="ll-ipa-add-input">Add symbols</label>
+        <input id="ll-ipa-add-input" type="text" />
+        <button id="ll-ipa-add-btn" type="button">Add</button>
+        <div id="ll-ipa-symbols"></div>
+      </section>
+
+      <section data-ll-tab-panel="map" hidden>
+        <h2 id="ll-ipa-letter-map-heading">Letter to IPA Map</h2>
+        <p id="ll-ipa-letter-map-description"></p>
+        <div id="ll-ipa-letter-map"></div>
+      </section>
+    </div>
+  `;
+}
+
 async function getOrthographySuggestionLayout(page) {
   return page.evaluate(() => {
     function roundedRect(element) {
@@ -1362,6 +1391,292 @@ test('search results render a small first chunk and append later rows on demand'
   expect(searchCalls).toEqual([
     { search_page: 1, per_page: 2 },
     { search_page: 2, per_page: 2 }
+  ]);
+});
+
+test('symbol and letter summaries lazy-load bounded recording pages on expansion', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildSummaryMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+    window.localStorage.removeItem('llTranscriptionManagerLastTab');
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    function recording(id, word, text, ipa) {
+      return {
+        recording_id: id,
+        word_id: id + 1000,
+        word_text: word,
+        word_translation: '',
+        word_edit_link: '',
+        recording_text: text,
+        recording_translation: '',
+        recording_ipa: ipa,
+        recording_type: 'Isolation',
+        recording_type_slug: 'isolation',
+        recording_icon_type: 'isolation',
+        audio_url: '',
+        audio_label: 'Play recording',
+        review_fields: { recording_text: false, recording_ipa: false },
+        review_note: '',
+        image: {},
+        categories: []
+      };
+    }
+
+    const aggregateStatus = {
+      state: 'fresh',
+      symbols: 'fresh',
+      letter_map: 'fresh',
+      can_rebuild: true,
+      rebuild: { state: 'complete', processed: 4, total: 4, has_more: false }
+    };
+    const symbolRows = [
+      recording(11, 'Alpha', 'la', '\u026ca'),
+      recording(22, 'Beta', 'le', '\u026ce'),
+      recording(33, 'Gamma', 'li', '\u026ci')
+    ];
+    const letterRows = [recording(44, 'Delta', 'a', 'a')];
+
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'symbols',
+      initialSearch: {},
+      i18n: {}
+    };
+    window.__llSummaryLazyMock = { calls: [] };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const request = Object.assign({}, data);
+      window.__llSummaryLazyMock.calls.push(request);
+      window.setTimeout(function () {
+        const base = {
+          wordset: { id: 7, name: 'Regression Wordset' },
+          transcription: {
+            mode: 'ipa',
+            symbols_column_label: 'IPA',
+            map_sample_value_label: 'IPA:'
+          },
+          aggregate_status: aggregateStatus,
+          can_edit: true
+        };
+        if (request.action === 'll_tools_get_ipa_keyboard_symbols') {
+          deferred.resolve({
+            success: true,
+            data: Object.assign({}, base, {
+              symbols: [{
+                symbol: '\u026c',
+                count: 5,
+                recording_count: 3,
+                samples: symbolRows.slice(0, 2)
+              }]
+            })
+          });
+          return;
+        }
+        if (request.action === 'll_tools_get_ipa_keyboard_letter_map') {
+          deferred.resolve({
+            success: true,
+            data: Object.assign({}, base, {
+              letter_map: [{
+                letter: 'a',
+                auto: [{ symbol: 'a', count: 4, samples: letterRows.slice() }],
+                manual: [],
+                blocked: []
+              }]
+            })
+          });
+          return;
+        }
+        if (request.action === 'll_tools_get_ipa_keyboard_summary_recordings') {
+          if (request.kind === 'symbol') {
+            const cursor = Number(request.cursor || 0);
+            const rows = cursor ? symbolRows.slice(2) : symbolRows.slice(0, 2);
+            deferred.resolve({
+              success: true,
+              data: {
+                recordings: rows,
+                next_cursor: cursor ? 33 : 22,
+                has_more: !cursor,
+                per_page: 2,
+                aggregate_status: aggregateStatus,
+                can_edit: true
+              }
+            });
+            return;
+          }
+          deferred.resolve({
+            success: true,
+            data: {
+              recordings: letterRows.slice(),
+              next_cursor: 44,
+              has_more: false,
+              per_page: 2,
+              aggregate_status: aggregateStatus,
+              can_edit: true
+            }
+          });
+          return;
+        }
+        deferred.reject(new Error('Unexpected action: ' + String(request.action || '')));
+      }, 0);
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+
+  const symbolDetails = page.locator('#ll-ipa-symbols .ll-ipa-symbol');
+  await expect(symbolDetails).toHaveCount(1);
+  await expect(symbolDetails.locator('.ll-ipa-summary-sample')).toHaveCount(2);
+  await expect(symbolDetails.locator('.ll-ipa-recordings tbody tr')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__llSummaryLazyMock.calls.filter(call => call.action === 'll_tools_get_ipa_keyboard_summary_recordings').length)).toBe(0);
+
+  await symbolDetails.locator('summary').click();
+  await expect(symbolDetails.locator('.ll-ipa-recordings tbody tr')).toHaveCount(2);
+  await symbolDetails.locator('.ll-ipa-lazy-load-more').click();
+  await expect(symbolDetails.locator('.ll-ipa-recordings tbody tr')).toHaveCount(3);
+
+  await page.locator('[data-ll-tab-trigger="map"]').click();
+  const mapDetails = page.locator('#ll-ipa-letter-map .ll-ipa-map-samples');
+  await expect(mapDetails).toHaveCount(1);
+  await expect(mapDetails.locator('.ll-ipa-summary-sample')).toHaveCount(1);
+  await expect(mapDetails.locator('.ll-ipa-recordings tbody tr')).toHaveCount(0);
+  await mapDetails.locator('summary').click();
+  await expect(mapDetails.locator('.ll-ipa-recordings tbody tr')).toHaveCount(1);
+
+  const rowCalls = await page.evaluate(() => window.__llSummaryLazyMock.calls
+    .filter(call => call.action === 'll_tools_get_ipa_keyboard_summary_recordings')
+    .map(call => ({
+      kind: call.kind,
+      value: call.value,
+      mapping_symbol: call.mapping_symbol,
+      cursor: Number(call.cursor || 0)
+    })));
+  expect(rowCalls).toEqual([
+    { kind: 'symbol', value: '\u026c', mapping_symbol: '', cursor: 0 },
+    { kind: 'symbol', value: '\u026c', mapping_symbol: '', cursor: 22 },
+    { kind: 'letter', value: 'a', mapping_symbol: 'a', cursor: 0 }
+  ]);
+});
+
+test('stale aggregate notice advances the explicit rebuild one bounded step at a time', async ({ page }) => {
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildSummaryMarkup());
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.evaluate(() => {
+    window.localStorage.removeItem('llTranscriptionManagerLastWordsetId');
+    window.localStorage.removeItem('llTranscriptionManagerLastTab');
+  });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'test-nonce',
+      selectedWordsetId: 7,
+      initialTab: 'symbols',
+      initialSearch: {},
+      i18n: {}
+    };
+    window.__llAggregateRebuildMock = {
+      calls: [],
+      status: {
+        state: 'stale',
+        symbols: 'stale',
+        letter_map: 'stale',
+        can_rebuild: true,
+        rebuild: { state: 'idle', processed: 0, total: 5, has_more: false }
+      }
+    };
+
+    const $ = window.jQuery;
+    $.post = function (url, data) {
+      const deferred = $.Deferred();
+      const request = Object.assign({}, data);
+      const mock = window.__llAggregateRebuildMock;
+      mock.calls.push(request);
+      window.setTimeout(function () {
+        if (request.action === 'll_tools_get_ipa_keyboard_symbols') {
+          deferred.resolve({
+            success: true,
+            data: {
+              wordset: { id: 7, name: 'Regression Wordset' },
+              transcription: { mode: 'ipa', symbols_column_label: 'IPA' },
+              symbols: [],
+              aggregate_status: JSON.parse(JSON.stringify(mock.status)),
+              can_edit: true
+            }
+          });
+          return;
+        }
+        if (request.action === 'll_tools_rebuild_ipa_keyboard_aggregates') {
+          if (request.operation === 'start') {
+            mock.status = {
+              state: 'rebuilding',
+              symbols: 'stale',
+              letter_map: 'stale',
+              can_rebuild: true,
+              rebuild: { state: 'running', processed: 2, total: 5, has_more: true }
+            };
+          } else if (mock.status.rebuild.processed === 2) {
+            mock.status.rebuild.processed = 4;
+          } else {
+            mock.status = {
+              state: 'fresh',
+              symbols: 'fresh',
+              letter_map: 'fresh',
+              can_rebuild: true,
+              rebuild: { state: 'complete', processed: 5, total: 5, has_more: false }
+            };
+          }
+          deferred.resolve({
+            success: true,
+            data: { aggregate_status: JSON.parse(JSON.stringify(mock.status)) }
+          });
+          return;
+        }
+        deferred.reject(new Error('Unexpected action: ' + String(request.action || '')));
+      }, 0);
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+  await expect(page.locator('#ll-ipa-symbols .ll-ipa-aggregate-notice')).toContainText('Counts and samples need to be rebuilt.');
+  await page.locator('#ll-ipa-symbols .ll-ipa-aggregate-rebuild').click();
+  await expect(page.locator('#ll-ipa-symbols .ll-ipa-aggregate-notice')).toHaveCount(0);
+
+  const calls = await page.evaluate(() => window.__llAggregateRebuildMock.calls.map(call => ({
+    action: call.action,
+    operation: call.operation || ''
+  })));
+  expect(calls).toEqual([
+    { action: 'll_tools_get_ipa_keyboard_symbols', operation: '' },
+    { action: 'll_tools_rebuild_ipa_keyboard_aggregates', operation: 'start' },
+    { action: 'll_tools_rebuild_ipa_keyboard_aggregates', operation: 'step' },
+    { action: 'll_tools_rebuild_ipa_keyboard_aggregates', operation: 'step' },
+    { action: 'll_tools_get_ipa_keyboard_symbols', operation: '' }
   ]);
 });
 

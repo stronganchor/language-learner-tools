@@ -819,6 +819,153 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame(1, ll_tools_ipa_keyboard_get_flagged_validation_recording_count());
     }
 
+    public function test_symbol_and_letter_summaries_use_a_bounded_resumable_aggregate(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Bounded IPA Aggregate Wordset');
+        $fixture = $this->create_aggregate_fixture($wordset_id);
+        wp_set_current_user($user_id);
+
+        $batch_filter = static function (): int {
+            return 3;
+        };
+        add_filter('ll_tools_ipa_keyboard_aggregate_rebuild_batch_size', $batch_filter);
+        try {
+            $progress = [];
+            $operation = 'start';
+            do {
+                $_POST = [
+                    'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+                    'wordset_id' => $wordset_id,
+                    'operation' => $operation,
+                ];
+                $_REQUEST = $_POST;
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_rebuild_ipa_keyboard_aggregates_handler();
+                });
+                $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+                $status = (array) (($response['data'] ?? [])['aggregate_status'] ?? []);
+                $progress[] = (int) (($status['rebuild'] ?? [])['processed'] ?? 0);
+                $operation = 'step';
+            } while (($status['state'] ?? '') === 'rebuilding' && count($progress) < 10);
+
+            $this->assertSame([3, 6, 8], $progress);
+            $this->assertSame('fresh', (string) ($status['state'] ?? ''));
+            $this->assertSame(8, (int) (($status['rebuild'] ?? [])['total'] ?? 0));
+        } finally {
+            remove_filter('ll_tools_ipa_keyboard_aggregate_rebuild_batch_size', $batch_filter);
+        }
+
+        $summary = get_term_meta($wordset_id, ll_tools_ipa_keyboard_symbol_summary_meta_key(), true);
+        $this->assertIsArray($summary);
+        $this->assertSame(4, (int) (($summary['recording_counts']["\u{026C}"] ?? 0)));
+        $this->assertLessThanOrEqual(3, count((array) ($summary['sample_recording_ids']["\u{026C}"] ?? [])));
+        $this->assertNotContains($fixture['review_recording_id'], (array) ($summary['sample_recording_ids']["\u{026C}"] ?? []));
+
+        $unbounded_queries = [];
+        $query_guard = static function (WP_Query $query) use (&$unbounded_queries): void {
+            if (in_array($query->get('post_type'), ['words', 'word_audio'], true)
+                && (int) $query->get('posts_per_page') === -1) {
+                $unbounded_queries[] = (array) $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $query_guard);
+        try {
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+                'wordset_id' => $wordset_id,
+            ];
+            $_REQUEST = $_POST;
+            $symbols_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_get_ipa_keyboard_symbols_handler();
+            });
+            $letter_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_get_ipa_keyboard_letter_map_handler();
+            });
+        } finally {
+            remove_action('pre_get_posts', $query_guard);
+        }
+
+        $this->assertTrue((bool) ($symbols_response['success'] ?? false), wp_json_encode($symbols_response));
+        $this->assertTrue((bool) ($letter_response['success'] ?? false), wp_json_encode($letter_response));
+        $this->assertSame([], $unbounded_queries);
+        $symbol_entries = array_values((array) (($symbols_response['data'] ?? [])['symbols'] ?? []));
+        $special_entry = current(array_filter($symbol_entries, static function (array $entry): bool {
+            return (string) ($entry['symbol'] ?? '') === "\u{026C}";
+        }));
+        $this->assertIsArray($special_entry);
+        $this->assertArrayNotHasKey('recordings', $special_entry);
+        $this->assertLessThanOrEqual(2, count((array) ($special_entry['samples'] ?? [])));
+        $this->assertSame('fresh', (string) (($symbols_response['data']['aggregate_status']['state'] ?? '')));
+        $this->assertNotEmpty((array) (($letter_response['data'] ?? [])['letter_map'] ?? []));
+    }
+
+    public function test_expanded_symbol_rows_are_paged_and_keep_reviewed_only_semantics(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Paged IPA Symbol Rows Wordset');
+        $fixture = $this->create_aggregate_fixture($wordset_id);
+        wp_set_current_user($user_id);
+
+        ll_tools_ipa_keyboard_start_aggregate_rebuild($wordset_id);
+        while ((ll_tools_ipa_keyboard_get_aggregate_status_payload($wordset_id)['state'] ?? '') === 'rebuilding') {
+            ll_tools_ipa_keyboard_process_aggregate_rebuild($wordset_id);
+        }
+
+        $page_filter = static function (): int {
+            return 2;
+        };
+        $scan_filter = static function (): int {
+            return 8;
+        };
+        $unbounded_queries = [];
+        $query_guard = static function (WP_Query $query) use (&$unbounded_queries): void {
+            if (in_array($query->get('post_type'), ['words', 'word_audio'], true)
+                && (int) $query->get('posts_per_page') === -1) {
+                $unbounded_queries[] = (array) $query->query_vars;
+            }
+        };
+        add_filter('ll_tools_ipa_keyboard_recording_rows_per_page', $page_filter);
+        add_filter('ll_tools_ipa_keyboard_recording_row_scan_limit', $scan_filter);
+        add_action('pre_get_posts', $query_guard);
+        try {
+            $cursor = 0;
+            $returned_ids = [];
+            $page_sizes = [];
+            do {
+                $_POST = [
+                    'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+                    'wordset_id' => $wordset_id,
+                    'kind' => 'symbol',
+                    'value' => "\u{026C}",
+                    'cursor' => $cursor,
+                ];
+                $_REQUEST = $_POST;
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_get_ipa_keyboard_summary_recordings_handler();
+                });
+                $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+                $data = (array) ($response['data'] ?? []);
+                $rows = array_values((array) ($data['recordings'] ?? []));
+                $page_sizes[] = count($rows);
+                foreach ($rows as $row) {
+                    $returned_ids[] = (int) ($row['recording_id'] ?? 0);
+                }
+                $cursor = (int) ($data['next_cursor'] ?? $cursor);
+                $has_more = !empty($data['has_more']);
+            } while ($has_more && count($page_sizes) < 10);
+        } finally {
+            remove_filter('ll_tools_ipa_keyboard_recording_rows_per_page', $page_filter);
+            remove_filter('ll_tools_ipa_keyboard_recording_row_scan_limit', $scan_filter);
+            remove_action('pre_get_posts', $query_guard);
+        }
+
+        $this->assertSame([2, 2, 0], $page_sizes);
+        $this->assertCount(4, array_unique($returned_ids));
+        $this->assertNotContains($fixture['review_recording_id'], $returned_ids);
+        $this->assertSame([], $unbounded_queries);
+    }
+
     private function create_viewer_user(): int
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);
@@ -840,6 +987,38 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, 'ipa');
 
         return $wordset_id;
+    }
+
+    /**
+     * @return array{recording_ids:array<int,int>,review_recording_id:int}
+     */
+    private function create_aggregate_fixture(int $wordset_id): array
+    {
+        $recording_ids = [];
+        for ($index = 1; $index <= 8; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Aggregate Word ' . $index,
+            ]);
+            wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+            $recording_id = self::factory()->post->create([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => $word_id,
+                'post_title' => 'Aggregate Recording ' . $index,
+            ]);
+            update_post_meta($recording_id, 'recording_text', $index <= 5 ? 'la' : 'a');
+            update_post_meta($recording_id, 'recording_ipa', $index <= 5 ? "\u{026C}a" : 'a');
+            $recording_ids[] = $recording_id;
+        }
+        $review_recording_id = (int) $recording_ids[4];
+        ll_tools_ipa_keyboard_set_recording_review_state($review_recording_id, true, 'recording_ipa', 'Review this IPA value.');
+
+        return [
+            'recording_ids' => $recording_ids,
+            'review_recording_id' => $review_recording_id,
+        ];
     }
 
     /**

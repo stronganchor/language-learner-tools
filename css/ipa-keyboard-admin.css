@@ -133,6 +133,38 @@
     margin-top: 16px;
 }
 
+.ll-ipa-aggregate-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    background: #fffbeb;
+    color: #78350f;
+}
+
+.ll-ipa-aggregate-notice.is-rebuilding {
+    border-color: #38bdf8;
+    background: #f0f9ff;
+    color: #075985;
+}
+
+.ll-ipa-aggregate-message {
+    font-weight: 600;
+}
+
+.ll-ipa-aggregate-progress {
+    color: inherit;
+    font-size: 12px;
+}
+
+.ll-ipa-aggregate-rebuild {
+    margin-left: auto !important;
+}
+
 .ll-ipa-symbol {
     border: 1px solid var(--ll-ipa-border);
     border-radius: 10px;
@@ -206,6 +238,66 @@
 
 .ll-ipa-symbol-body {
     padding: 12px;
+}
+
+.ll-ipa-summary-samples {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 10px;
+}
+
+.ll-ipa-summary-samples-title {
+    color: var(--ll-ipa-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.ll-ipa-summary-samples-list {
+    display: grid;
+    gap: 6px;
+}
+
+.ll-ipa-summary-sample {
+    display: grid;
+    grid-template-columns: minmax(90px, auto) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+    padding: 7px 8px;
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 6px;
+    background: #ffffff;
+}
+
+.ll-ipa-summary-sample-link {
+    color: var(--ll-ipa-text);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.ll-ipa-summary-sample-text,
+.ll-ipa-summary-sample-ipa,
+.ll-ipa-lazy-status {
+    color: var(--ll-ipa-muted);
+    overflow-wrap: anywhere;
+}
+
+.ll-ipa-lazy-status {
+    font-size: 12px;
+}
+
+.ll-ipa-lazy-load-more {
+    margin-top: 10px !important;
+}
+
+.ll-ipa-map-samples .ll-ipa-lazy-body {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.ll-ipa-map-samples .ll-ipa-recordings {
+    min-width: 680px;
 }
 
 .ll-ipa-recordings th,
@@ -2157,6 +2249,15 @@ body.ll-ipa-keyboard-open {
 }
 
 @media (max-width: 640px) {
+    .ll-ipa-aggregate-rebuild {
+        width: 100%;
+        margin-left: 0 !important;
+    }
+
+    .ll-ipa-summary-sample {
+        grid-template-columns: 1fr;
+    }
+
     .ll-ipa-panel {
         padding: 14px;
     }
