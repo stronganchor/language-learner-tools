@@ -84,6 +84,7 @@ function ll_tools_prime_import_admin_title(): void {
 }
 
 add_action('admin_post_ll_tools_export_bundle', 'll_tools_handle_export_bundle');
+add_action('admin_post_ll_tools_continue_export_bundle', 'll_tools_handle_continue_export_bundle');
 add_action('admin_post_ll_tools_download_bundle', 'll_tools_handle_download_bundle');
 add_action('admin_post_ll_tools_preview_import_bundle', 'll_tools_handle_preview_import_bundle');
 add_action('admin_post_ll_tools_import_preview_media', 'll_tools_handle_import_preview_media');
@@ -1948,6 +1949,15 @@ function ll_tools_export_batch_payload_path(string $export_dir, string $token): 
     return trailingslashit($export_dir) . 'll-tools-export-data-' . $token . '.json';
 }
 
+function ll_tools_export_batch_attachment_manifest_path(string $export_dir, string $token): string {
+    $token = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $token);
+    return trailingslashit($export_dir) . 'll-tools-export-attachments-' . $token . '.jsonl';
+}
+
+function ll_tools_export_preparation_page_size(): int {
+    return max(5, min(100, (int) apply_filters('ll_tools_export_preparation_page_size', 25)));
+}
+
 function ll_tools_export_batch_max_files_per_request(): int {
     return max(1, (int) apply_filters('ll_tools_export_batch_max_files_per_request', 100));
 }
@@ -2024,7 +2034,7 @@ function ll_tools_export_build_download_url(string $token): string {
 
 function ll_tools_export_delete_batch_job_artifacts(array $job, bool $delete_zip = false): void {
     $paths = [];
-    foreach (['manifest_path', 'payload_path', 'csv_path', 'jsonl_path'] as $key) {
+    foreach (['manifest_path', 'payload_path', 'attachment_manifest_path', 'csv_path', 'jsonl_path'] as $key) {
         if (!empty($job[$key]) && is_string($job[$key])) {
             $paths[] = (string) $job[$key];
         }
@@ -2085,6 +2095,17 @@ function ll_tools_export_calculate_batch_progress(array $job): float {
         return 0.0;
     }
 
+    $phase = (string) ($job['phase'] ?? '');
+    if (strpos($phase, 'prepare_') === 0) {
+        if ($phase === 'prepare_words') {
+            return 0.15;
+        }
+        if ($phase === 'prepare_finalize') {
+            return 0.25;
+        }
+        return 0.05;
+    }
+
     $processed_bytes = isset($job['processed_bytes']) ? (int) $job['processed_bytes'] : 0;
     $total_bytes = isset($job['total_bytes']) ? (int) $job['total_bytes'] : 0;
     if ($total_bytes > 0) {
@@ -2111,6 +2132,15 @@ function ll_tools_export_build_batch_status_text(array $job, bool $is_complete =
             __('Checked %1$d recordings; added %2$d training samples.', 'll-tools-text-domain'),
             (int) ($job['checked_recordings'] ?? 0),
             (int) ($job['sample_count'] ?? 0)
+        );
+    }
+
+    if (strpos((string) ($job['phase'] ?? ''), 'prepare_') === 0) {
+        return sprintf(
+            /* translators: 1: prepared export record count, 2: discovered media file count. */
+            __('Prepared %1$d export records; found %2$d media files.', 'll-tools-text-domain'),
+            (int) ($job['prepared_records'] ?? 0),
+            (int) ($job['total_files'] ?? 0)
         );
     }
 
@@ -2184,29 +2214,6 @@ function ll_tools_export_prepare_batch_job(array $request) {
         return $export_request;
     }
 
-    @set_time_limit(0);
-    $export = ll_tools_build_export_payload($export_request['category_root_ids'], [
-        'include_full_bundle' => (!$export_request['export_template_bundle'] && $export_request['include_full_bundle']),
-        'full_wordset_id' => $export_request['full_wordset_id'],
-        'bundle_type' => $export_request['export_template_bundle'] ? 'wordset_template' : '',
-        'template_wordset_id' => $export_request['template_wordset_id'],
-    ]);
-    if (is_wp_error($export)) {
-        return $export;
-    }
-
-    $attachment_count = isset($export['stats']['attachment_count']) ? (int) $export['stats']['attachment_count'] : count((array) ($export['attachments'] ?? []));
-    $attachment_bytes = isset($export['stats']['attachment_bytes']) ? (int) $export['stats']['attachment_bytes'] : 0;
-    $is_multi_scope_full_bundle = (
-        !$export_request['export_template_bundle'] &&
-        $export_request['include_full_bundle'] &&
-        (count($export_request['category_root_ids']) > 1 || empty($export_request['category_root_ids']))
-    );
-    $preflight_warnings = ll_tools_export_get_preflight_warnings($attachment_count, $attachment_bytes, $is_multi_scope_full_bundle);
-    if (!empty($preflight_warnings) && !$export_request['allow_large_export']) {
-        return new WP_Error('ll_tools_export_batch_blocked', ll_tools_export_get_preflight_block_text($preflight_warnings));
-    }
-
     $export_dir = ll_tools_get_export_dir();
     if (!ll_tools_ensure_export_dir($export_dir)) {
         return new WP_Error('ll_tools_export_dir_failed', __('Could not create export storage directory.', 'll-tools-text-domain'));
@@ -2218,25 +2225,14 @@ function ll_tools_export_prepare_batch_job(array $request) {
     $token = wp_generate_password(20, false, false);
     $zip_path = trailingslashit($export_dir) . 'll-tools-export-' . $token . '.zip';
     $payload_path = ll_tools_export_batch_payload_path($export_dir, $token);
+    $attachment_manifest_path = ll_tools_export_batch_attachment_manifest_path($export_dir, $token);
     $manifest_path = ll_tools_export_batch_manifest_path($export_dir, $token);
-
-    $data_json = wp_json_encode((array) ($export['data'] ?? []));
-    if (!is_string($data_json) || $data_json === '') {
-        return new WP_Error('ll_tools_export_batch_data_json_failed', __('Could not encode export payload.', 'll-tools-text-domain'));
-    }
-
-    $payload_written = @file_put_contents($payload_path, $data_json, LOCK_EX);
-    if ($payload_written === false) {
-        return new WP_Error('ll_tools_export_batch_payload_write_failed', __('Could not stage export data for batched processing.', 'll-tools-text-domain'));
-    }
-
-    $attachments = ll_tools_export_prepare_batch_attachments((array) ($export['attachments'] ?? []));
-    $total_bytes = 0;
-    foreach ($attachments as $attachment) {
-        $total_bytes += isset($attachment['size']) ? (int) $attachment['size'] : 0;
+    if (@file_put_contents($attachment_manifest_path, '', LOCK_EX) === false) {
+        return new WP_Error('ll_tools_export_batch_attachment_manifest_failed', __('Could not prepare the export media manifest.', 'll-tools-text-domain'));
     }
 
     $job = [
+        'job_type' => 'bundle',
         'token' => $token,
         'created_by' => get_current_user_id(),
         'created_at' => time(),
@@ -2250,19 +2246,28 @@ function ll_tools_export_prepare_batch_job(array $request) {
             $export_request['export_template_bundle'] ? 'wordset_template' : ''
         ),
         'payload_path' => $payload_path,
+        'attachment_manifest_path' => $attachment_manifest_path,
         'payload_written' => false,
-        'attachments' => $attachments,
+        'phase' => $export_request['export_template_bundle'] ? 'prepare_template' : 'prepare_images',
+        'export_request' => $export_request,
+        'preparation_page' => 1,
+        'preparation_page_size' => ll_tools_export_preparation_page_size(),
+        'prepared_records' => 0,
+        'array_has_items' => false,
+        'attachment_seen' => [],
+        'attachments' => [],
         'cursor' => 0,
-        'total_files' => count($attachments),
-        'total_bytes' => (int) $total_bytes,
+        'attachment_cursor_offset' => 0,
+        'total_files' => 0,
+        'total_bytes' => 0,
         'processed_files' => 0,
         'processed_bytes' => 0,
-        'warnings' => $preflight_warnings,
+        'warnings' => [],
     ];
 
     $saved = ll_tools_export_write_batch_job_manifest($manifest_path, $job);
     if (is_wp_error($saved)) {
-        @unlink($payload_path);
+        @unlink($attachment_manifest_path);
         return $saved;
     }
 
@@ -2275,7 +2280,7 @@ function ll_tools_export_prepare_batch_job(array $request) {
         $ttl_seconds
     )) {
         @unlink($manifest_path);
-        @unlink($payload_path);
+        @unlink($attachment_manifest_path);
         return new WP_Error('ll_tools_export_batch_transient_failed', __('Could not prepare the export batch state. Please try again.', 'll-tools-text-domain'));
     }
 
@@ -2358,6 +2363,355 @@ function ll_tools_export_prepare_stt_training_job(array $request) {
     return ll_tools_export_build_batch_response($job, false);
 }
 
+function ll_tools_export_append_payload_items(string $payload_path, array $items, bool &$has_items) {
+    if ($payload_path === '' || !is_file($payload_path)) {
+        return new WP_Error('ll_tools_export_batch_payload_missing', __('Export payload preparation is missing. Start the export again.', 'll-tools-text-domain'));
+    }
+
+    $buffer = '';
+    foreach ($items as $item) {
+        $encoded = wp_json_encode($item);
+        if (!is_string($encoded) || $encoded === '') {
+            return new WP_Error('ll_tools_export_batch_data_json_failed', __('Could not encode export payload.', 'll-tools-text-domain'));
+        }
+        $buffer .= ($has_items ? ',' : '') . $encoded;
+        $has_items = true;
+    }
+    if ($buffer !== '' && @file_put_contents($payload_path, $buffer, FILE_APPEND | LOCK_EX) === false) {
+        return new WP_Error('ll_tools_export_batch_payload_write_failed', __('Could not stage export data for batched processing.', 'll-tools-text-domain'));
+    }
+
+    return true;
+}
+
+function ll_tools_export_append_attachment_manifest(array &$job, array $attachments) {
+    $manifest_path = (string) ($job['attachment_manifest_path'] ?? '');
+    if ($manifest_path === '' || !is_file($manifest_path)) {
+        return new WP_Error('ll_tools_export_batch_attachment_manifest_missing', __('Export media preparation is missing. Start the export again.', 'll-tools-text-domain'));
+    }
+
+    $seen = isset($job['attachment_seen']) && is_array($job['attachment_seen']) ? $job['attachment_seen'] : [];
+    $buffer = '';
+    foreach (ll_tools_export_prepare_batch_attachments($attachments) as $attachment) {
+        $target_path = (string) ($attachment['zip_path'] ?? '');
+        if ($target_path === '' || isset($seen[$target_path])) {
+            continue;
+        }
+        $encoded = wp_json_encode($attachment);
+        if (!is_string($encoded) || $encoded === '') {
+            return new WP_Error('ll_tools_export_batch_attachment_encode_failed', __('Could not encode the export media manifest.', 'll-tools-text-domain'));
+        }
+        $seen[$target_path] = true;
+        $buffer .= $encoded . "\n";
+        $job['total_files'] = (int) ($job['total_files'] ?? 0) + 1;
+        $job['total_bytes'] = (int) ($job['total_bytes'] ?? 0) + (int) ($attachment['size'] ?? 0);
+    }
+    if ($buffer !== '' && @file_put_contents($manifest_path, $buffer, FILE_APPEND | LOCK_EX) === false) {
+        return new WP_Error('ll_tools_export_batch_attachment_manifest_write_failed', __('Could not write the export media manifest.', 'll-tools-text-domain'));
+    }
+    $job['attachment_seen'] = $seen;
+
+    return true;
+}
+
+function ll_tools_export_initialize_streamed_payload(array &$job, array $data) {
+    $payload_path = (string) ($job['payload_path'] ?? '');
+    unset($data['word_images'], $data['words'], $data['media_estimate']);
+    $encoded = wp_json_encode($data);
+    if (!is_string($encoded) || $encoded === '' || substr($encoded, -1) !== '}') {
+        return new WP_Error('ll_tools_export_batch_data_json_failed', __('Could not encode export payload.', 'll-tools-text-domain'));
+    }
+    $prefix = substr($encoded, 0, -1) . ',"word_images":[';
+    if (@file_put_contents($payload_path, $prefix, LOCK_EX) === false) {
+        return new WP_Error('ll_tools_export_batch_payload_write_failed', __('Could not stage export data for batched processing.', 'll-tools-text-domain'));
+    }
+    $job['payload_initialized'] = true;
+    $job['array_has_items'] = false;
+
+    return true;
+}
+
+function ll_tools_export_finalize_preparation_job(array $job) {
+    if (empty($job['payload_complete'])) {
+        $payload_path = (string) ($job['payload_path'] ?? '');
+        $tail = '],"media_estimate":' . wp_json_encode([
+            'attachment_count' => (int) ($job['total_files'] ?? 0),
+            'attachment_bytes' => (int) ($job['total_bytes'] ?? 0),
+        ]) . '}';
+        if ($payload_path === '' || @file_put_contents($payload_path, $tail, FILE_APPEND | LOCK_EX) === false) {
+            return ll_tools_export_abort_batch_job(
+                $job,
+                'll_tools_export_batch_payload_finalize_failed',
+                __('Could not finalize the staged export data.', 'll-tools-text-domain')
+            );
+        }
+        $job['payload_complete'] = true;
+    }
+
+    $request = isset($job['export_request']) && is_array($job['export_request']) ? $job['export_request'] : [];
+    $is_multi_scope_full_bundle = empty($request['export_template_bundle'])
+        && !empty($request['include_full_bundle'])
+        && (count((array) ($request['category_root_ids'] ?? [])) > 1 || empty($request['category_root_ids']));
+    $warnings = ll_tools_export_get_preflight_warnings(
+        (int) ($job['total_files'] ?? 0),
+        (int) ($job['total_bytes'] ?? 0),
+        $is_multi_scope_full_bundle
+    );
+    if (!empty($warnings) && empty($request['allow_large_export'])) {
+        return ll_tools_export_abort_batch_job(
+            $job,
+            'll_tools_export_batch_blocked',
+            ll_tools_export_get_preflight_block_text($warnings)
+        );
+    }
+
+    $job['warnings'] = $warnings;
+    $job['phase'] = 'media';
+    $job['status'] = 'processing';
+    $job['preparation_page'] = 0;
+    $job['array_has_items'] = false;
+    unset($job['attachment_seen']);
+    $saved = ll_tools_export_write_batch_job_manifest((string) $job['manifest_path'], $job);
+    if (is_wp_error($saved)) {
+        return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_manifest_update_failed', $saved->get_error_message());
+    }
+
+    return ll_tools_export_build_batch_response($job, false);
+}
+
+function ll_tools_export_run_bundle_preparation_job(array $job) {
+    @set_time_limit(0);
+    $request = isset($job['export_request']) && is_array($job['export_request']) ? $job['export_request'] : [];
+    $phase = (string) ($job['phase'] ?? 'prepare_images');
+    $page = max(1, (int) ($job['preparation_page'] ?? 1));
+    $page_size = max(5, min(100, (int) ($job['preparation_page_size'] ?? ll_tools_export_preparation_page_size())));
+    $options = [
+        'include_full_bundle' => empty($request['export_template_bundle']) && !empty($request['include_full_bundle']),
+        'full_wordset_id' => (int) ($request['full_wordset_id'] ?? 0),
+        'bundle_type' => !empty($request['export_template_bundle']) ? 'wordset_template' : '',
+        'template_wordset_id' => (int) ($request['template_wordset_id'] ?? 0),
+    ];
+
+    if ($phase === 'prepare_template') {
+        $export = ll_tools_build_export_payload((array) ($request['category_root_ids'] ?? []), array_merge($options, [
+            'word_image_page' => $page,
+            'word_image_per_page' => $page_size,
+        ]));
+        if (is_wp_error($export)) {
+            return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_template_failed', $export->get_error_message());
+        }
+        $data = (array) ($export['data'] ?? []);
+        if (empty($job['payload_initialized'])) {
+            $initialized = ll_tools_export_initialize_streamed_payload($job, $data);
+            if (is_wp_error($initialized)) {
+                return ll_tools_export_abort_batch_job($job, $initialized->get_error_code(), $initialized->get_error_message());
+            }
+        }
+        $has_items = !empty($job['array_has_items']);
+        $append_result = ll_tools_export_append_payload_items((string) $job['payload_path'], (array) ($data['word_images'] ?? []), $has_items);
+        if (is_wp_error($append_result)) {
+            return ll_tools_export_abort_batch_job($job, $append_result->get_error_code(), $append_result->get_error_message());
+        }
+        $job['array_has_items'] = $has_items;
+        $job['prepared_records'] = (int) ($job['prepared_records'] ?? 0) + count((array) ($data['word_images'] ?? []));
+        $attachment_result = ll_tools_export_append_attachment_manifest($job, (array) ($export['attachments'] ?? []));
+        if (is_wp_error($attachment_result)) {
+            return ll_tools_export_abort_batch_job($job, $attachment_result->get_error_code(), $attachment_result->get_error_message());
+        }
+        if (!empty($export['stats']['has_more_word_images'])) {
+            $job['preparation_page'] = $page + 1;
+        } else {
+            if (@file_put_contents((string) $job['payload_path'], '],"words":[', FILE_APPEND | LOCK_EX) === false) {
+                return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_payload_write_failed', __('Could not stage export data for batched processing.', 'll-tools-text-domain'));
+            }
+            $job['array_has_items'] = false;
+            $job['phase'] = 'prepare_finalize';
+        }
+    } elseif ($phase === 'prepare_images') {
+        $export = ll_tools_build_export_payload((array) ($request['category_root_ids'] ?? []), array_merge($options, [
+            'include_word_images' => true,
+            'word_image_page' => $page,
+            'word_image_per_page' => $page_size,
+            'include_words' => false,
+        ]));
+        if (is_wp_error($export)) {
+            return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_prepare_failed', $export->get_error_message());
+        }
+        $data = (array) ($export['data'] ?? []);
+        if (empty($job['payload_initialized'])) {
+            $initialized = ll_tools_export_initialize_streamed_payload($job, $data);
+            if (is_wp_error($initialized)) {
+                return ll_tools_export_abort_batch_job($job, $initialized->get_error_code(), $initialized->get_error_message());
+            }
+        }
+        $has_items = !empty($job['array_has_items']);
+        $append_result = ll_tools_export_append_payload_items((string) $job['payload_path'], (array) ($data['word_images'] ?? []), $has_items);
+        if (is_wp_error($append_result)) {
+            return ll_tools_export_abort_batch_job($job, $append_result->get_error_code(), $append_result->get_error_message());
+        }
+        $job['array_has_items'] = $has_items;
+        $job['prepared_records'] = (int) ($job['prepared_records'] ?? 0) + count((array) ($data['word_images'] ?? []));
+        $attachment_result = ll_tools_export_append_attachment_manifest($job, (array) ($export['attachments'] ?? []));
+        if (is_wp_error($attachment_result)) {
+            return ll_tools_export_abort_batch_job($job, $attachment_result->get_error_code(), $attachment_result->get_error_message());
+        }
+        if (!empty($export['stats']['has_more_word_images'])) {
+            $job['preparation_page'] = $page + 1;
+        } else {
+            if (@file_put_contents((string) $job['payload_path'], '],"words":[', FILE_APPEND | LOCK_EX) === false) {
+                return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_payload_write_failed', __('Could not stage export data for batched processing.', 'll-tools-text-domain'));
+            }
+            $job['array_has_items'] = false;
+            $job['preparation_page'] = 1;
+            $job['phase'] = !empty($request['include_full_bundle']) ? 'prepare_words' : 'prepare_finalize';
+        }
+    } elseif ($phase === 'prepare_words') {
+        $export = ll_tools_build_export_payload((array) ($request['category_root_ids'] ?? []), array_merge($options, [
+            'include_word_images' => false,
+            'include_words' => true,
+            'word_page' => $page,
+            'word_per_page' => $page_size,
+        ]));
+        if (is_wp_error($export)) {
+            return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_prepare_failed', $export->get_error_message());
+        }
+        $data = (array) ($export['data'] ?? []);
+        $has_items = !empty($job['array_has_items']);
+        $append_result = ll_tools_export_append_payload_items((string) $job['payload_path'], (array) ($data['words'] ?? []), $has_items);
+        if (is_wp_error($append_result)) {
+            return ll_tools_export_abort_batch_job($job, $append_result->get_error_code(), $append_result->get_error_message());
+        }
+        $job['array_has_items'] = $has_items;
+        $job['prepared_records'] = (int) ($job['prepared_records'] ?? 0) + count((array) ($data['words'] ?? []));
+        $attachment_result = ll_tools_export_append_attachment_manifest($job, (array) ($export['attachments'] ?? []));
+        if (is_wp_error($attachment_result)) {
+            return ll_tools_export_abort_batch_job($job, $attachment_result->get_error_code(), $attachment_result->get_error_message());
+        }
+        if (!empty($export['stats']['has_more_words'])) {
+            $job['preparation_page'] = $page + 1;
+        } else {
+            $job['phase'] = 'prepare_finalize';
+        }
+    }
+
+    if ((string) ($job['phase'] ?? '') === 'prepare_finalize') {
+        return ll_tools_export_finalize_preparation_job($job);
+    }
+
+    $saved = ll_tools_export_write_batch_job_manifest((string) $job['manifest_path'], $job);
+    if (is_wp_error($saved)) {
+        return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_manifest_update_failed', $saved->get_error_message());
+    }
+    return ll_tools_export_build_batch_response($job, false);
+}
+
+function ll_tools_export_run_manifest_media_job(array $job) {
+    $zip = new ZipArchive();
+    $open_flags = ZipArchive::CREATE;
+    if (empty($job['payload_written']) && (int) ($job['cursor'] ?? 0) === 0) {
+        $open_flags |= ZipArchive::OVERWRITE;
+    }
+    if ($zip->open((string) $job['zip_path'], $open_flags) !== true) {
+        return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_zip_open_failed', __('Could not open the export zip for batched writing.', 'll-tools-text-domain'));
+    }
+
+    if (empty($job['payload_written'])) {
+        $payload_path = (string) ($job['payload_path'] ?? '');
+        if ($payload_path === '' || !is_file($payload_path) || !$zip->addFile($payload_path, 'data.json')) {
+            $zip->close();
+            return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_data_add_failed', __('Could not add export data to the batched zip file.', 'll-tools-text-domain'));
+        }
+        $job['payload_written'] = true;
+    }
+
+    $manifest_path = (string) ($job['attachment_manifest_path'] ?? '');
+    $manifest = $manifest_path !== '' ? @fopen($manifest_path, 'rb') : false;
+    if ($manifest === false) {
+        $zip->close();
+        return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_attachment_manifest_missing', __('Export media preparation is missing. Start the export again.', 'll-tools-text-domain'));
+    }
+    $manifest_offset = max(0, (int) ($job['attachment_cursor_offset'] ?? 0));
+    if ($manifest_offset > 0 && fseek($manifest, $manifest_offset) !== 0) {
+        fclose($manifest);
+        $zip->close();
+        return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_attachment_manifest_seek_failed', __('Could not resume the export media manifest.', 'll-tools-text-domain'));
+    }
+
+    $batch_started_at = microtime(true);
+    $max_files = ll_tools_export_batch_max_files_per_request();
+    $max_bytes = ll_tools_export_batch_max_bytes_per_request();
+    $max_seconds = ll_tools_export_batch_max_seconds_per_request();
+    $batch_files = 0;
+    $batch_records = 0;
+    $batch_bytes = 0;
+    while ((int) ($job['cursor'] ?? 0) < (int) ($job['total_files'] ?? 0)) {
+        if ($batch_records > 0 && (
+            ($max_files > 0 && $batch_records >= $max_files)
+            || ($max_seconds > 0 && (microtime(true) - $batch_started_at) >= $max_seconds)
+        )) {
+            break;
+        }
+
+        $line_offset = ftell($manifest);
+        $line = fgets($manifest, MB_IN_BYTES + 1);
+        if ($line === false) {
+            break;
+        }
+        $attachment = json_decode(trim($line), true);
+        if (!is_array($attachment)) {
+            fclose($manifest);
+            $zip->close();
+            return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_attachment_manifest_invalid', __('The export media manifest is invalid.', 'll-tools-text-domain'));
+        }
+        $size = max(0, (int) ($attachment['size'] ?? 0));
+        if ($batch_files > 0 && $max_bytes > 0 && ($batch_bytes + $size) > $max_bytes) {
+            if ($line_offset !== false) {
+                fseek($manifest, $line_offset, SEEK_SET);
+            }
+            break;
+        }
+
+        $job['cursor'] = (int) ($job['cursor'] ?? 0) + 1;
+        $batch_records++;
+        $source_path = (string) ($attachment['path'] ?? '');
+        $target_path = (string) ($attachment['zip_path'] ?? '');
+        if ($source_path === '' || $target_path === '' || !is_file($source_path)) {
+            continue;
+        }
+        if (!$zip->addFile($source_path, $target_path)) {
+            fclose($manifest);
+            $zip->close();
+            return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_add_file_failed', __('Could not add one or more media files to the batched export zip.', 'll-tools-text-domain'));
+        }
+        $batch_files++;
+        $batch_bytes += $size;
+        $job['processed_files'] = (int) ($job['processed_files'] ?? 0) + 1;
+        $job['processed_bytes'] = (int) ($job['processed_bytes'] ?? 0) + $size;
+    }
+    $job['attachment_cursor_offset'] = max(0, (int) ftell($manifest));
+    fclose($manifest);
+
+    if (!$zip->close()) {
+        return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_close_failed', __('Could not finalize the current export batch.', 'll-tools-text-domain'));
+    }
+
+    if ((int) ($job['cursor'] ?? 0) >= (int) ($job['total_files'] ?? 0)) {
+        $ttl_seconds = ll_tools_export_download_ttl_seconds();
+        if (!ll_tools_export_register_download_manifest((string) $job['token'], (string) $job['zip_path'], (string) $job['filename'], $ttl_seconds)) {
+            return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_download_manifest_failed', __('Could not prepare the export download link. Please try again.', 'll-tools-text-domain'));
+        }
+        $response = ll_tools_export_build_batch_response($job, true);
+        ll_tools_export_delete_batch_job_artifacts($job, false);
+        return $response;
+    }
+
+    $saved = ll_tools_export_write_batch_job_manifest((string) $job['manifest_path'], $job);
+    if (is_wp_error($saved)) {
+        return ll_tools_export_abort_batch_job($job, 'll_tools_export_batch_manifest_update_failed', $saved->get_error_message());
+    }
+    return ll_tools_export_build_batch_response($job, false);
+}
+
 function ll_tools_export_run_batch_job(string $token) {
     $job = ll_tools_export_load_batch_job($token);
     if (is_wp_error($job)) {
@@ -2366,6 +2720,13 @@ function ll_tools_export_run_batch_job(string $token) {
 
     if ((string) ($job['job_type'] ?? '') === 'stt_training') {
         return ll_tools_export_run_stt_training_job($job);
+    }
+
+    if (strpos((string) ($job['phase'] ?? ''), 'prepare_') === 0) {
+        return ll_tools_export_run_bundle_preparation_job($job);
+    }
+    if (!empty($job['attachment_manifest_path'])) {
+        return ll_tools_export_run_manifest_media_job($job);
     }
 
     @set_time_limit(0);
@@ -3706,6 +4067,17 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
         }
     }
     $recent_imports = $show_import ? ll_tools_import_get_recent_history_entries() : [];
+    $active_export_job = null;
+    $active_export_token = $show_export && isset($_GET['ll_export_token'])
+        ? preg_replace('/[^a-zA-Z0-9_-]/', '', (string) wp_unslash($_GET['ll_export_token']))
+        : '';
+    if ($active_export_token !== '') {
+        $loaded_export_job = ll_tools_export_load_batch_job($active_export_token);
+        if (is_array($loaded_export_job) && (string) ($loaded_export_job['job_type'] ?? '') === 'bundle') {
+            $active_export_job = $loaded_export_job;
+        }
+    }
+
     $active_stt_export_job = null;
     $active_stt_export_token = $show_export && isset($_GET['ll_stt_export_token'])
         ? preg_replace('/[^a-zA-Z0-9_-]/', '', (string) wp_unslash($_GET['ll_stt_export_token']))
@@ -3731,6 +4103,19 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
         <p><?php esc_html_e('Export LL Tools bundles as a zip. Image mode includes categories and word images; full mode also includes words, audio, and source word sets; template mode exports one word set\'s isolated categories, images, and template-safe settings for reuse on another site.', 'll-tools-text-domain'); ?></p>
         <p class="description"><?php esc_html_e('Tip: For large media libraries, export one category at a time or use small batches.', 'll-tools-text-domain'); ?></p>
         <p class="description"><?php esc_html_e('When JavaScript is available, bundle exports are prepared in multiple server requests before the final download starts.', 'll-tools-text-domain'); ?></p>
+
+        <?php if (is_array($active_export_job)) : ?>
+            <div class="notice notice-info inline ll-tools-export-resume">
+                <p><strong><?php esc_html_e('Export preparation is in progress.', 'll-tools-text-domain'); ?></strong></p>
+                <p><?php echo esc_html(ll_tools_export_build_batch_status_text($active_export_job, false)); ?></p>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="ll_tools_continue_export_bundle">
+                    <input type="hidden" name="ll_export_token" value="<?php echo esc_attr($active_export_token); ?>">
+                    <?php wp_nonce_field(ll_tools_export_batch_job_nonce_action($active_export_token)); ?>
+                    <button type="submit" class="button button-primary"><?php esc_html_e('Continue Export', 'll-tools-text-domain'); ?></button>
+                </form>
+            </div>
+        <?php endif; ?>
 
         <h2><?php esc_html_e('Export', 'll-tools-text-domain'); ?></h2>
         <form method="post" action="<?php echo esc_url($export_action); ?>">
@@ -4578,76 +4963,39 @@ function ll_tools_handle_export_bundle() {
     }
     check_admin_referer('ll_tools_export_bundle');
 
-    if (!class_exists('ZipArchive')) {
-        wp_die(__('ZipArchive is not available on this server.', 'll-tools-text-domain'));
+    $result = ll_tools_export_prepare_batch_job($_POST);
+    if (is_wp_error($result)) {
+        wp_die($result->get_error_message());
     }
 
-    $export_request = ll_tools_parse_export_bundle_request($_POST);
-    if (is_wp_error($export_request)) {
-        wp_die($export_request->get_error_message());
+    wp_safe_redirect(ll_tools_get_export_import_page_url(ll_tools_get_export_page_slug(), [
+        'll_export_token' => (string) ($result['token'] ?? ''),
+    ]));
+    exit;
+}
+
+function ll_tools_handle_continue_export_bundle(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_die(__('You do not have permission to export LL Tools data.', 'll-tools-text-domain'));
     }
-
-    $category_root_ids = (array) $export_request['category_root_ids'];
-    $include_full_bundle = !empty($export_request['include_full_bundle']);
-    $export_template_bundle = !empty($export_request['export_template_bundle']);
-    $allow_large_export = !empty($export_request['allow_large_export']);
-    $full_wordset_id = isset($export_request['full_wordset_id']) ? (int) $export_request['full_wordset_id'] : 0;
-    $template_wordset_id = isset($export_request['template_wordset_id']) ? (int) $export_request['template_wordset_id'] : 0;
-
-    @set_time_limit(0);
-    $export = ll_tools_build_export_payload($category_root_ids, [
-        'include_full_bundle' => (!$export_template_bundle && $include_full_bundle),
-        'full_wordset_id'     => $full_wordset_id,
-        'bundle_type'         => $export_template_bundle ? 'wordset_template' : '',
-        'template_wordset_id' => $template_wordset_id,
-    ]);
-    if (is_wp_error($export)) {
-        wp_die($export->get_error_message());
+    $token = isset($_POST['ll_export_token'])
+        ? preg_replace('/[^a-zA-Z0-9_-]/', '', (string) wp_unslash($_POST['ll_export_token']))
+        : '';
+    if ($token === '') {
+        wp_die(__('Export batch token is missing.', 'll-tools-text-domain'));
     }
-
-    $attachment_count = isset($export['stats']['attachment_count']) ? (int) $export['stats']['attachment_count'] : count((array) ($export['attachments'] ?? []));
-    $attachment_bytes = isset($export['stats']['attachment_bytes']) ? (int) $export['stats']['attachment_bytes'] : 0;
-    $is_multi_scope_full_bundle = (!$export_template_bundle && $include_full_bundle && (count($category_root_ids) > 1 || empty($category_root_ids)));
-    $preflight_warnings = ll_tools_export_get_preflight_warnings($attachment_count, $attachment_bytes, $is_multi_scope_full_bundle);
-    if (!empty($preflight_warnings) && !$allow_large_export) {
-        wp_die(ll_tools_export_get_preflight_block_message($preflight_warnings));
+    check_admin_referer(ll_tools_export_batch_job_nonce_action($token));
+    $result = ll_tools_export_run_batch_job($token);
+    if (is_wp_error($result)) {
+        wp_die($result->get_error_message());
     }
-
-    $export_dir = ll_tools_get_export_dir();
-    if (!ll_tools_ensure_export_dir($export_dir)) {
-        wp_die(__('Could not create export storage directory.', 'll-tools-text-domain'));
+    if ((string) ($result['status'] ?? '') === 'completed' && !empty($result['downloadUrl'])) {
+        wp_safe_redirect((string) $result['downloadUrl']);
+        exit;
     }
-
-    $ttl_seconds = ll_tools_export_download_ttl_seconds();
-    ll_tools_cleanup_stale_export_files($export_dir, $ttl_seconds);
-
-    $token = wp_generate_password(20, false, false);
-    $zip_path = trailingslashit($export_dir) . 'll-tools-export-' . $token . '.zip';
-    $zip_result = ll_tools_write_export_bundle_zip($zip_path, (array) $export['data'], (array) $export['attachments']);
-    if (is_wp_error($zip_result)) {
-        wp_die($zip_result->get_error_message());
-    }
-
-    $filename = ll_tools_build_export_zip_filename(
-        $include_full_bundle,
-        $category_root_ids,
-        $export_template_bundle ? $template_wordset_id : $full_wordset_id,
-        $export_template_bundle ? 'wordset_template' : ''
-    );
-    $download_manifest = [
-        'zip_path' => $zip_path,
-        'filename' => $filename,
-        'created_by' => get_current_user_id(),
-        'created_at' => time(),
-    ];
-    if (!set_transient(ll_tools_export_download_transient_key($token), $download_manifest, $ttl_seconds)) {
-        @unlink($zip_path);
-        wp_die(__('Could not prepare the export download link. Please try again.', 'll-tools-text-domain'));
-    }
-
-    $download_url = ll_tools_export_build_download_url($token);
-
-    wp_safe_redirect($download_url);
+    wp_safe_redirect(ll_tools_get_export_import_page_url(ll_tools_get_export_page_slug(), [
+        'll_export_token' => $token,
+    ]));
     exit;
 }
 
@@ -10721,7 +11069,7 @@ function ll_tools_export_get_wordset_template_prerequisite_slugs(int $wordset_id
     return $slug_map;
 }
 
-function ll_tools_build_wordset_template_export_payload(int $wordset_id) {
+function ll_tools_build_wordset_template_export_payload(int $wordset_id, array $options = []) {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return new WP_Error('ll_tools_export_missing_template_wordset', __('Select a word set when exporting a template bundle.', 'll-tools-text-domain'));
@@ -10797,8 +11145,21 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id) {
         $allowed_category_lookup[sanitize_title((string) $term->slug)] = true;
     }
 
+    $word_image_page = max(1, (int) ($options['word_image_page'] ?? 1));
+    $word_image_per_page = max(0, min(100, (int) ($options['word_image_per_page'] ?? 0)));
+    $template_word_image_ids = array_values(array_map('intval', ll_tools_get_wordset_template_word_image_ids($wordset_id)));
+    $has_more_word_images = false;
+    if ($word_image_per_page > 0) {
+        $offset = ($word_image_page - 1) * $word_image_per_page;
+        $template_word_image_ids = array_slice($template_word_image_ids, $offset, $word_image_per_page + 1);
+        $has_more_word_images = count($template_word_image_ids) > $word_image_per_page;
+        if ($has_more_word_images) {
+            array_pop($template_word_image_ids);
+        }
+    }
+
     $word_images = [];
-    foreach (ll_tools_get_wordset_template_word_image_ids($wordset_id) as $image_post_id) {
+    foreach ($template_word_image_ids as $image_post_id) {
         $image_post = get_post((int) $image_post_id);
         if (!($image_post instanceof WP_Post) || $image_post->post_type !== 'word_images') {
             continue;
@@ -10862,6 +11223,8 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id) {
         'stats' => [
             'attachment_count' => (int) $attachment_tracker['attachment_count'],
             'attachment_bytes' => (int) $attachment_tracker['attachment_bytes'],
+            'has_more_word_images' => $has_more_word_images,
+            'has_more_words' => false,
         ],
     ];
 }
@@ -10877,12 +11240,18 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
     $requested_bundle_type = isset($options['bundle_type']) ? sanitize_key((string) $options['bundle_type']) : '';
     $template_wordset_id = isset($options['template_wordset_id']) ? (int) $options['template_wordset_id'] : 0;
     if ($requested_bundle_type === 'wordset_template' || $template_wordset_id > 0) {
-        return ll_tools_build_wordset_template_export_payload($template_wordset_id);
+        return ll_tools_build_wordset_template_export_payload($template_wordset_id, $options);
     }
 
     $root_category_ids = ll_tools_export_normalize_category_root_ids($root_category_ids);
     $has_scoped_roots = !empty($root_category_ids);
     $include_full_bundle = !empty($options['include_full_bundle']);
+    $include_word_images = !array_key_exists('include_word_images', $options) || !empty($options['include_word_images']);
+    $include_words = !array_key_exists('include_words', $options) || !empty($options['include_words']);
+    $word_image_page = max(1, (int) ($options['word_image_page'] ?? 1));
+    $word_image_per_page = max(0, min(100, (int) ($options['word_image_per_page'] ?? 0)));
+    $word_page = max(1, (int) ($options['word_page'] ?? 1));
+    $word_per_page = max(0, min(100, (int) ($options['word_per_page'] ?? 0)));
     $full_wordset_id = isset($options['full_wordset_id']) ? (int) $options['full_wordset_id'] : 0;
     $full_wordset = null;
     if ($include_full_bundle) {
@@ -10932,10 +11301,14 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
     $query_args = [
         'post_type'      => 'word_images',
         'post_status'    => ['publish', 'draft', 'pending', 'private'],
-        'posts_per_page' => -1,
+        'posts_per_page' => $word_image_per_page > 0 ? $word_image_per_page : -1,
         'orderby'        => 'ID',
         'order'          => 'ASC',
     ];
+    if ($word_image_per_page > 0) {
+        $query_args['paged'] = $word_image_page;
+        $query_args['no_found_rows'] = false;
+    }
 
     if ($has_scoped_roots && !empty($term_ids)) {
         $query_args['tax_query'] = [[
@@ -10946,7 +11319,17 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
         ]];
     }
 
-    $posts = get_posts($query_args);
+    $posts = [];
+    $has_more_word_images = false;
+    if ($include_word_images) {
+        if ($word_image_per_page > 0) {
+            $word_image_query = new WP_Query($query_args);
+            $posts = (array) $word_image_query->posts;
+            $has_more_word_images = $word_image_page < (int) $word_image_query->max_num_pages;
+        } else {
+            $posts = get_posts($query_args);
+        }
+    }
     $word_images = [];
 
     foreach ($posts as $post) {
@@ -10970,19 +11353,29 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
     $wordsets = [];
     $words = [];
     if ($include_full_bundle) {
-        $full_payload = ll_tools_export_collect_full_words_payload(
-            $term_ids,
-            $allowed_category_lookup,
-            $attachments,
-            $attachment_tracker,
-            $root_category_ids,
-            $full_wordset_id
-        );
-        if (is_wp_error($full_payload)) {
-            return $full_payload;
+        if ($include_words) {
+            $full_payload = ll_tools_export_collect_full_words_payload(
+                $term_ids,
+                $allowed_category_lookup,
+                $attachments,
+                $attachment_tracker,
+                $root_category_ids,
+                $full_wordset_id,
+                $word_per_page,
+                $word_page
+            );
+            if (is_wp_error($full_payload)) {
+                return $full_payload;
+            }
+            $wordsets = $full_payload['wordsets'];
+            $words = $full_payload['words'];
+            $has_more_words = !empty($full_payload['has_more']);
+        } else {
+            $wordsets = ll_tools_export_collect_wordsets([$full_wordset_id]);
+            $has_more_words = false;
         }
-        $wordsets = $full_payload['wordsets'];
-        $words = $full_payload['words'];
+    } else {
+        $has_more_words = false;
     }
 
     return [
@@ -11010,6 +11403,8 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
         'stats' => [
             'attachment_count' => (int) $attachment_tracker['attachment_count'],
             'attachment_bytes' => (int) $attachment_tracker['attachment_bytes'],
+            'has_more_word_images' => $has_more_word_images,
+            'has_more_words' => $has_more_words,
         ],
     ];
 }
@@ -11151,7 +11546,16 @@ function ll_tools_export_collect_post_featured_image($post_id, $zip_dir, array &
  * @param int $full_wordset_id
  * @return array|WP_Error
  */
-function ll_tools_export_collect_full_words_payload(array $category_term_ids, array $allowed_category_lookup, array &$attachments, array &$tracker, array $root_category_ids = [], int $full_wordset_id = 0) {
+function ll_tools_export_collect_full_words_payload(
+    array $category_term_ids,
+    array $allowed_category_lookup,
+    array &$attachments,
+    array &$tracker,
+    array $root_category_ids = [],
+    int $full_wordset_id = 0,
+    int $per_page = 0,
+    int $page = 1
+) {
     $root_category_ids = ll_tools_import_normalize_id_list($root_category_ids);
     $has_scoped_roots = !empty($root_category_ids);
     $full_wordset_id = (int) $full_wordset_id;
@@ -11167,10 +11571,14 @@ function ll_tools_export_collect_full_words_payload(array $category_term_ids, ar
     $query_args = [
         'post_type'      => 'words',
         'post_status'    => ['publish', 'draft', 'pending', 'private', 'future'],
-        'posts_per_page' => -1,
+        'posts_per_page' => $per_page > 0 ? min(100, $per_page) : -1,
         'orderby'        => 'ID',
         'order'          => 'ASC',
     ];
+    if ($per_page > 0) {
+        $query_args['paged'] = max(1, $page);
+        $query_args['no_found_rows'] = false;
+    }
 
     $tax_query = [[
         'taxonomy' => 'wordset',
@@ -11192,7 +11600,14 @@ function ll_tools_export_collect_full_words_payload(array $category_term_ids, ar
 
     $words = [];
     $used_wordset_ids = [$full_wordset_id => true];
-    $word_posts = get_posts($query_args);
+    if ($per_page > 0) {
+        $word_query = new WP_Query($query_args);
+        $word_posts = (array) $word_query->posts;
+        $has_more = max(1, $page) < (int) $word_query->max_num_pages;
+    } else {
+        $word_posts = get_posts($query_args);
+        $has_more = false;
+    }
 
     foreach ($word_posts as $word_post) {
         $categories_for_word = ll_tools_export_get_scoped_category_slugs($word_post->ID, $allowed_category_lookup);
@@ -11234,6 +11649,7 @@ function ll_tools_export_collect_full_words_payload(array $category_term_ids, ar
     return [
         'wordsets' => $wordsets,
         'words'    => $words,
+        'has_more' => $has_more,
     ];
 }
 

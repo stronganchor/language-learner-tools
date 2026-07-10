@@ -219,6 +219,112 @@ final class ExportBundleRegressionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_export_start_defers_payload_and_preparation_pages_all_posts_without_skips(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is not available in this test environment.');
+        }
+
+        $fixture = $this->create_full_bundle_fixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+        $resolved_category_ids = ll_tools_export_resolve_wordset_scoped_category_root_ids([$category_id], $wordset_id);
+        $export_category_id = (int) ($resolved_category_ids[0] ?? $category_id);
+        for ($index = 2; $index <= 12; $index++) {
+            $word_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Paged Image %02d', $index),
+            ]);
+            wp_set_post_terms($word_image_id, [$export_category_id], 'word-category', false);
+
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Paged Word %02d', $index),
+            ]);
+            wp_set_post_terms($word_id, [$export_category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $query_pages = [
+            'word_images' => [],
+            'words' => [],
+        ];
+        $query_watcher = static function (WP_Query $query) use (&$query_pages): void {
+            $post_type = $query->get('post_type');
+            if (!isset($query_pages[$post_type])) {
+                return;
+            }
+            $query_pages[$post_type][] = [
+                'limit' => (int) $query->get('posts_per_page'),
+                'page' => (int) $query->get('paged'),
+            ];
+        };
+        $page_size = static function (): int {
+            return 5;
+        };
+        add_action('pre_get_posts', $query_watcher);
+        add_filter('ll_tools_export_preparation_page_size', $page_size);
+
+        $token = '';
+        $zip_path = '';
+        try {
+            $start = ll_tools_export_prepare_batch_job([
+                'll_word_category' => (string) $category_id,
+                'll_export_include_full' => '1',
+                'll_full_export_wordset_id' => (string) $wordset_id,
+                'll_allow_large_export' => '1',
+            ]);
+            $this->assertIsArray($start);
+            $this->assertSame([], $query_pages['word_images'], 'Starting the job must not build the image payload.');
+            $this->assertSame([], $query_pages['words'], 'Starting the job must not build the word payload.');
+
+            $token = (string) ($start['token'] ?? '');
+            $this->assertNotSame('', $token);
+            $job = ll_tools_export_load_batch_job($token);
+            $this->assertIsArray($job);
+            $this->assertSame('prepare_images', (string) ($job['phase'] ?? ''));
+            $this->assertFileDoesNotExist((string) ($job['payload_path'] ?? ''));
+
+            $result = $start;
+            for ($iteration = 0; $iteration < 20 && (string) ($result['status'] ?? '') !== 'completed'; $iteration++) {
+                $result = ll_tools_export_run_batch_job($token);
+                $this->assertIsArray($result);
+            }
+            $this->assertSame('completed', (string) ($result['status'] ?? ''));
+            $this->assertSame([1, 2, 3], array_column($query_pages['word_images'], 'page'));
+            $this->assertSame([1, 2, 3], array_column($query_pages['words'], 'page'));
+            foreach (array_merge($query_pages['word_images'], $query_pages['words']) as $query_page) {
+                $this->assertSame(5, (int) $query_page['limit']);
+            }
+
+            $download_manifest = get_transient(ll_tools_export_download_transient_key($token));
+            $this->assertIsArray($download_manifest);
+            $zip_path = (string) ($download_manifest['zip_path'] ?? '');
+            $this->assertFileExists($zip_path);
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($zip_path) === true);
+            $data_json = $zip->getFromName('data.json');
+            $zip->close();
+            $this->assertIsString($data_json);
+            $data = json_decode($data_json, true);
+            $this->assertIsArray($data);
+            $this->assertCount(11, (array) ($data['word_images'] ?? []));
+            $this->assertCount(12, (array) ($data['words'] ?? []));
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+            remove_filter('ll_tools_export_preparation_page_size', $page_size);
+            if ($token !== '') {
+                delete_transient(ll_tools_export_download_transient_key($token));
+                delete_transient(ll_tools_export_batch_job_transient_key($token));
+            }
+            if ($zip_path !== '' && is_file($zip_path)) {
+                @unlink($zip_path);
+            }
+        }
+    }
+
     /**
      * @return array{wordset_id:int,category_id:int}
      */
