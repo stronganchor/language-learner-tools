@@ -336,13 +336,16 @@ function ll_tools_context_pack_definitions(): array
             'invariants' => [
                 'REST should control, enqueue, and report status for heavy work rather than doing unbounded work inline.',
                 'Site-sync snapshots must be paged for large wordsets; use ensure_sync_ids=0 and include_media=0 for lightweight read-only inspection.',
+                'Category automation scope checks should use aggregate category-ID queries, not hydrate complete word or word-image collections.',
                 'Admin and REST mutation paths require capability and nonce/auth checks.',
             ],
             'sources' => [
                 'includes/api/automation-rest.php',
                 'includes/api/word-metadata-plan-rest.php',
                 'includes/lib/site-sync.php',
+                'includes/taxonomies/word-category-taxonomy.php',
                 'includes/admin/export-import.php',
+                'includes/admin/bulk-word-import-admin.php',
                 'includes/admin/site-sync-admin.php',
                 'includes/cli/*.php',
                 'bin/*.sh',
@@ -355,6 +358,7 @@ function ll_tools_context_pack_definitions(): array
             'tests' => [
                 'tests/Integration/AutomationRest*Test.php',
                 'tests/Integration/SiteSyncTest.php',
+                'tests/Integration/BulkWordImportAdminTest.php',
                 'tests/Integration/AdminImport*Test.php',
                 'tests/Integration/Import*Test.php',
                 'tests/e2e/specs/admin-import-preview-undo.spec.js',

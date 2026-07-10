@@ -3729,7 +3729,7 @@ function ll_tools_rest_automation_get_recording_review_fields(int $recording_id)
 
 function ll_tools_rest_automation_load_word_category_update_helpers() {
     $base_path = defined('LL_TOOLS_BASE_PATH') ? LL_TOOLS_BASE_PATH : dirname(__DIR__, 2) . '/';
-    if (!function_exists('ll_tools_word_grid_get_category_editor_rows')) {
+    if (!function_exists('ll_tools_word_grid_get_selected_category_ids_for_editor')) {
         $word_grid_path = trailingslashit($base_path) . 'includes/shortcodes/word-grid-shortcode.php';
         if (is_readable($word_grid_path)) {
             require_once $word_grid_path;
@@ -3743,7 +3743,6 @@ function ll_tools_rest_automation_load_word_category_update_helpers() {
     }
 
     foreach ([
-        'll_tools_word_grid_get_category_editor_rows',
         'll_tools_word_grid_get_selected_category_ids_for_editor',
         'll_tools_word_grid_update_word_categories_for_wordset',
         'll_tools_wordset_editor_sync_linked_word_image_categories',
@@ -3886,8 +3885,7 @@ function ll_tools_rest_automation_word_category_updates(WP_REST_Request $request
         return ll_tools_rest_automation_with_status($helpers_loaded, 500);
     }
 
-    $category_rows = ll_tools_word_grid_get_category_editor_rows($wordset_id);
-    $available_category_ids = ll_tools_rest_automation_prepare_id_list(wp_list_pluck($category_rows, 'id'));
+    $available_category_ids = ll_tools_rest_automation_word_category_term_ids_for_wordset($wordset_id);
     $requested_target_category_id = $target_category_id;
     if (!in_array($target_category_id, $available_category_ids, true) && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
         $effective_target_category_id = (int) ll_tools_get_effective_category_id_for_wordset($target_category_id, $wordset_id, false);
@@ -4071,12 +4069,48 @@ function ll_tools_rest_automation_word_category_updates(WP_REST_Request $request
 }
 
 function ll_tools_rest_automation_word_category_term_ids_for_wordset(int $wordset_id): array {
-    $helpers_loaded = ll_tools_rest_automation_load_word_category_update_helpers();
-    if (is_wp_error($helpers_loaded)) {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !function_exists('ll_tools_get_word_category_ids_for_wordset_scope')) {
         return [];
     }
 
-    return ll_tools_rest_automation_prepare_id_list(wp_list_pluck(ll_tools_word_grid_get_category_editor_rows($wordset_id), 'id'));
+    $category_ids = ll_tools_get_word_category_ids_for_wordset_scope($wordset_id);
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $terms = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'include' => $category_ids,
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $terms = ll_tools_filter_category_terms_for_user((array) $terms, get_current_user_id());
+    }
+
+    $scoped_ids = [];
+    foreach ((array) $terms as $term) {
+        if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+            continue;
+        }
+        if ((string) $term->slug === 'uncategorized') {
+            continue;
+        }
+
+        $owner_id = function_exists('ll_tools_get_category_wordset_owner_id')
+            ? (int) ll_tools_get_category_wordset_owner_id($term)
+            : 0;
+        if ($owner_id > 0 && $owner_id !== $wordset_id) {
+            continue;
+        }
+        $scoped_ids[] = (int) $term->term_id;
+    }
+
+    return ll_tools_rest_automation_prepare_id_list($scoped_ids);
 }
 
 function ll_tools_rest_automation_word_category_term_payload(int $term_id): array {

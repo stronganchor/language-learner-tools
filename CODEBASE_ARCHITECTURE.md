@@ -276,7 +276,7 @@ includes/
     content-lesson-post-type.php
     prompt-card-post-type.php
   taxonomies/
-    word-category-taxonomy.php
+    word-category-taxonomy.php # Category behavior plus aggregate wordset category-scope ID queries
     wordset-taxonomy.php
     language-taxonomy.php
     part-of-speech-taxonomy.php

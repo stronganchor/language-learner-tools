@@ -975,6 +975,9 @@ The response includes `matched_count`, `changed_count`, `updated_count`,
 per-word `before_category_ids` and `after_category_ids`, verification category
 IDs for writes, and cache invalidation details. The write cap is intentionally
 small; call `GET /automation/status` to see the current dry-run and write caps.
+Category scope validation uses aggregate term/relationship queries, including
+legacy categories used by words and categories on wordset-owned images, without
+loading every scoped word or image post.
 If the route returns `429 ll_tools_rest_resource_guard_wait`, wait the reported
 `Retry-After` interval and retry the same request rather than launching another
 parallel write.
@@ -1011,7 +1014,9 @@ Supported action shapes:
 The route resolves wordset-isolated effective category IDs, refuses categories
 outside the requested wordset, validates prerequisite IDs, rejects prerequisite
 cycles, and refuses to delete a category that still has word posts in the
-wordset. Dry-run first, then send `dry_run=false` for the same action list.
+wordset. Its scope resolver shares the same aggregate category-ID query used by
+`word-category-updates`; dry-run first, then send `dry_run=false` for the same
+action list.
 
 ### `POST /wordsets/{wordset}/word-image-category-ownership`
 

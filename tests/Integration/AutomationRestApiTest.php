@@ -1565,6 +1565,75 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_word_category_routes_resolve_legacy_scope_without_unbounded_post_queries(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Legacy Category Scope', 'rest-legacy-category-scope');
+        $other_wordset_id = $this->ensure_term('wordset', 'REST Other Category Scope', 'rest-other-category-scope');
+        $word_category_id = $this->ensure_term('word-category', 'REST Legacy Word Category', 'rest-legacy-word-category');
+        $image_category_id = $this->ensure_term('word-category', 'REST Legacy Image Category', 'rest-legacy-image-category');
+        $other_category_id = $this->ensure_term('word-category', 'REST Other Scoped Category', 'rest-other-scoped-category');
+
+        $word_id = $this->create_word($wordset_id, [$word_category_id], 'REST Legacy Scoped Word', 'Legacy translation');
+        $other_word_id = $this->create_word($other_wordset_id, [$other_category_id], 'REST Other Scoped Word', 'Other translation');
+        $image_id = $this->create_word_image([$image_category_id], 'REST Legacy Scoped Image');
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($image_id, $wordset_id);
+        } else {
+            update_post_meta($image_id, LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, $wordset_id);
+        }
+
+        $effective_word_category_id = $this->effective_category_id($word_category_id, $wordset_id);
+        $effective_image_category_id = $this->effective_category_id($image_category_id, $wordset_id);
+        $effective_other_category_id = $this->effective_category_id($other_category_id, $other_wordset_id);
+        delete_term_meta($effective_word_category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY);
+        delete_term_meta($effective_image_category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY);
+
+        wp_set_current_user($admin_id);
+
+        $unbounded_queries = [];
+        $capture = static function (WP_Query $query) use (&$unbounded_queries): void {
+            $post_types = array_map('strval', (array) $query->get('post_type'));
+            if (empty(array_intersect(['words', 'word_images'], $post_types))) {
+                return;
+            }
+            if ((int) $query->get('posts_per_page') === -1) {
+                $unbounded_queries[] = $post_types;
+            }
+        };
+        add_action('pre_get_posts', $capture, 10, 1);
+        try {
+            $scope_ids = ll_tools_rest_automation_word_category_term_ids_for_wordset($wordset_id);
+            $word_update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-legacy-category-scope/word-category-updates', [
+                'operation' => 'add_category',
+                'category_id' => $effective_image_category_id,
+                'word_ids' => [$word_id],
+                'dry_run' => true,
+            ]);
+            $term_update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-legacy-category-scope/word-category-terms', [
+                'actions' => [
+                    [
+                        'action' => 'rename_category',
+                        'category_id' => $effective_word_category_id,
+                        'expected_name' => (string) get_term($effective_word_category_id, 'word-category')->name,
+                        'new_name' => 'REST Legacy Word Category Renamed',
+                    ],
+                ],
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $capture, 10);
+        }
+
+        $this->assertContains($effective_word_category_id, $scope_ids);
+        $this->assertContains($effective_image_category_id, $scope_ids);
+        $this->assertNotContains($effective_other_category_id, $scope_ids);
+        $this->assertSame(200, $word_update->get_status());
+        $this->assertSame(200, $term_update->get_status());
+        $this->assertSame([], $unbounded_queries);
+        $this->assertSame([$effective_word_category_id], array_map('intval', wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids'])));
+        $this->assertSame([$effective_other_category_id], array_map('intval', wp_get_post_terms($other_word_id, 'word-category', ['fields' => 'ids'])));
+    }
+
     public function test_word_image_category_ownership_route_adopts_unowned_image_only_category(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

@@ -89,74 +89,9 @@ function ll_tools_bulk_word_import_get_selectable_categories(int $wordset_id): a
     $isolation_enabled = function_exists('ll_tools_is_wordset_isolation_enabled') && ll_tools_is_wordset_isolation_enabled();
 
     if ($wordset_id > 0 && $isolation_enabled) {
-        global $wpdb;
-
-        $category_ids = [];
-
-        $owned_category_ids = get_terms([
-            'taxonomy'   => 'word-category',
-            'hide_empty' => false,
-            'fields'     => 'ids',
-            'meta_query' => [
-                [
-                    'key'     => $owner_meta_key,
-                    'value'   => $wordset_id,
-                    'compare' => '=',
-                    'type'    => 'NUMERIC',
-                ],
-            ],
-        ]);
-        if (!is_wp_error($owned_category_ids)) {
-            $category_ids = array_merge($category_ids, array_map('intval', (array) $owned_category_ids));
-        }
-
-        $used_word_category_ids = $wpdb->get_col($wpdb->prepare("
-            SELECT DISTINCT tt_cat.term_id
-            FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
-            INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
-            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
-            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
-            WHERE p.post_type = %s
-              AND p.post_status IN (%s, %s, %s, %s, %s)
-              AND tt_ws.taxonomy = %s
-              AND tt_ws.term_id = %d
-              AND tt_cat.taxonomy = %s
-        ", 'words', 'publish', 'draft', 'pending', 'future', 'private', 'wordset', $wordset_id, 'word-category'));
-        $category_ids = array_merge($category_ids, array_map('intval', (array) $used_word_category_ids));
-
-        if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
-            $used_image_category_ids = $wpdb->get_col($wpdb->prepare("
-                SELECT DISTINCT tt_cat.term_id
-                FROM {$wpdb->posts} p
-                INNER JOIN {$wpdb->postmeta} pm_owner
-                    ON pm_owner.post_id = p.ID
-                   AND pm_owner.meta_key = %s
-                   AND CAST(pm_owner.meta_value AS UNSIGNED) = %d
-                INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
-                INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
-                WHERE p.post_type = %s
-                  AND p.post_status IN (%s, %s, %s, %s, %s)
-                  AND tt_cat.taxonomy = %s
-            ", LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, $wordset_id, 'word_images', 'publish', 'draft', 'pending', 'future', 'private', 'word-category'));
-            $category_ids = array_merge($category_ids, array_map('intval', (array) $used_image_category_ids));
-        }
-
-        $category_ids = ll_tools_bulk_word_import_normalize_category_ids($category_ids);
-        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-            $effective_category_ids = [];
-            foreach ($category_ids as $category_id) {
-                $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
-                if ($effective_category_id <= 0) {
-                    $effective_category_id = $category_id;
-                }
-                if ($effective_category_id > 0) {
-                    $effective_category_ids[$effective_category_id] = true;
-                }
-            }
-
-            $category_ids = array_values(array_map('intval', array_keys($effective_category_ids)));
-        }
+        $category_ids = function_exists('ll_tools_get_word_category_ids_for_wordset_scope')
+            ? ll_tools_get_word_category_ids_for_wordset_scope($wordset_id)
+            : [];
 
         if (empty($category_ids)) {
             return [];

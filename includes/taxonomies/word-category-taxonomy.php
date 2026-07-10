@@ -248,6 +248,106 @@ function ll_tools_get_word_category_ids_for_wordset_posts(
     return $ids;
 }
 
+/**
+ * Return category IDs that belong to a wordset without hydrating its posts.
+ *
+ * The scope includes explicitly owned categories, categories used by scoped
+ * word posts, and categories assigned to wordset-owned image posts.
+ *
+ * @param array<string,mixed> $args Scope options.
+ * @return int[]
+ */
+function ll_tools_get_word_category_ids_for_wordset_scope(int $wordset_id, array $args = []): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $args = wp_parse_args($args, [
+        'post_types' => ['words'],
+        'post_statuses' => ['publish', 'draft', 'pending', 'future', 'private'],
+        'include_owned' => true,
+        'include_word_images' => true,
+        'remap_effective' => true,
+    ]);
+    $post_types = array_values(array_unique(array_filter(array_map('strval', (array) $args['post_types']))));
+    $post_statuses = array_values(array_unique(array_filter(array_map('strval', (array) $args['post_statuses']))));
+    if (empty($post_types) || empty($post_statuses)) {
+        return [];
+    }
+
+    $category_ids = [];
+    $owner_meta_key = defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')
+        ? (string) LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+        : 'll_wordset_owner_id';
+
+    if (!empty($args['include_owned'])) {
+        $owned_ids = get_terms([
+            'taxonomy' => 'word-category',
+            'hide_empty' => false,
+            'fields' => 'ids',
+            'meta_query' => [
+                [
+                    'key' => $owner_meta_key,
+                    'value' => $wordset_id,
+                    'compare' => '=',
+                    'type' => 'NUMERIC',
+                ],
+            ],
+        ]);
+        if (!is_wp_error($owned_ids)) {
+            $category_ids = array_merge($category_ids, array_map('intval', (array) $owned_ids));
+        }
+    }
+
+    $category_ids = array_merge(
+        $category_ids,
+        ll_tools_get_word_category_ids_for_wordset_posts($wordset_id, $post_types, $post_statuses)
+    );
+
+    if (!empty($args['include_word_images']) && defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+        $status_placeholders = implode(',', array_fill(0, count($post_statuses), '%s'));
+        $sql = "
+            SELECT DISTINCT tt_cat.term_id
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm_owner
+                ON pm_owner.post_id = p.ID
+               AND pm_owner.meta_key = %s
+               AND CAST(pm_owner.meta_value AS UNSIGNED) = %d
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+            WHERE p.post_type = %s
+              AND p.post_status IN ({$status_placeholders})
+              AND tt_cat.taxonomy = %s
+        ";
+        $params = array_merge(
+            [(string) LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, $wordset_id, 'word_images'],
+            $post_statuses,
+            ['word-category']
+        );
+        $image_category_ids = $wpdb->get_col($wpdb->prepare($sql, $params));
+        $category_ids = array_merge($category_ids, array_map('intval', (array) $image_category_ids));
+    }
+
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+
+    if (!empty($args['remap_effective']) && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_ids = [];
+        foreach ($category_ids as $category_id) {
+            $effective_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
+            $effective_ids[] = $effective_id > 0 ? $effective_id : $category_id;
+        }
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $effective_ids))));
+    }
+
+    sort($category_ids, SORT_NUMERIC);
+    return $category_ids;
+}
+
 function ll_tools_get_word_category_selector_rows(int $wordset_id = 0, array $args = []): array {
     $args = wp_parse_args($args, [
         'post_types' => ['words'],

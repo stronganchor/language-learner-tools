@@ -1,14 +1,15 @@
 # Maintenance Backlog
 
-Updated July 10, 2026 after the weekly maintenance/performance audit and first
-follow-up pass. Recent closed passes include the June 19 public flashcard AJAX
+Updated July 10, 2026 after the weekly maintenance/performance audit and
+follow-up passes. Recent closed passes include the June 19 public flashcard AJAX
 cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
 export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
 flake-tracking closeout, and the July 3 audio credit grid, vocab lesson grid,
 image copyright grid public-surface guards, plus the July 10 Turkish i18n,
 testing-doc drift cleanup, dictionary toolbar AJAX cold-miss guard, and
-transcription-validation candidate query cap.
+transcription-validation candidate query cap, plus the REST category-scope
+query guard.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -22,6 +23,14 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 REST category-scope query guard:
+  `word-category-updates` and `word-category-terms` now resolve available
+  category IDs through aggregate ownership and term-relationship queries
+  instead of the Wordset Editor helper that could hydrate every word and owned
+  image. The shared taxonomy helper also replaces the duplicate aggregate SQL
+  in Bulk Word Import. `AutomationRestApiTest` covers legacy unowned word and
+  image categories, cross-wordset exclusion, and the absence of unbounded post
+  queries; the existing Bulk Word Import scope test covers shared-helper parity.
 - July 10 transcription-validation candidate query cap:
   transcription validation refreshes and validation-job creation now select
   candidate `word_audio` IDs with a capped SQL query joined through the parent
