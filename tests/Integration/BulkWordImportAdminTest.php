@@ -136,6 +136,38 @@ final class BulkWordImportAdminTest extends LL_Tools_TestCase
         $this->assertSame('hello, hi', (string) get_post_meta($csv_word_id, 'word_translation', true));
     }
 
+    public function test_bulk_word_import_rejects_over_limit_lists_before_creating_content(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $max_rows = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_bulk_word_import_max_rows', $max_rows);
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_POST = [
+                'll_bulk_word_import_nonce' => wp_create_nonce('ll_bulk_word_import'),
+                'll_word_list' => "Bounded Alpha\nBounded Bravo\nBounded Charlie",
+                'll_existing_wordset' => '0',
+                'll_existing_category' => '0',
+                'll_new_category' => 'Should Not Be Created',
+            ];
+            $_REQUEST = $_POST;
+
+            ob_start();
+            ll_tools_render_bulk_word_import_page();
+            $html = (string) ob_get_clean();
+        } finally {
+            remove_filter('ll_tools_bulk_word_import_max_rows', $max_rows);
+        }
+
+        $this->assertStringContainsString('limited to 2 rows per request', $html);
+        $this->assertSame(0, $this->findWordIdByTitle('Bounded Alpha'));
+        $this->assertEmpty(term_exists('should-not-be-created', 'word-category'));
+    }
+
     public function test_bulk_word_import_page_explains_supported_two_column_formats(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

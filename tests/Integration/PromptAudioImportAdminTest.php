@@ -124,6 +124,38 @@ final class PromptAudioImportAdminTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_prompt_audio_import_rejects_over_limit_lists_before_creating_content(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $max_rows = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_prompt_audio_import_max_rows', $max_rows);
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_POST = [
+                'll_prompt_audio_import_nonce' => wp_create_nonce('ll_prompt_audio_import'),
+                'll_prompt_audio_list' => "Bounded prompt one\nBounded prompt two",
+                'll_existing_wordset' => '0',
+                'll_existing_category' => '0',
+                'll_new_category' => 'Prompt Category Not Created',
+            ];
+            $_REQUEST = $_POST;
+
+            ob_start();
+            ll_tools_render_prompt_audio_import_page();
+            $html = (string) ob_get_clean();
+        } finally {
+            remove_filter('ll_tools_prompt_audio_import_max_rows', $max_rows);
+        }
+
+        $this->assertStringContainsString('limited to 1 row per request', $html);
+        $this->assertSame([], ll_tools_find_existing_prompt_card_ids_by_prompt_text_in_scope('Bounded prompt one'));
+        $this->assertEmpty(term_exists('prompt-category-not-created', 'word-category'));
+    }
+
     private function ensureTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = term_exists($slug, $taxonomy);

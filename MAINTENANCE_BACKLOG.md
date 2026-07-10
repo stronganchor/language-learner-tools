@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 pasted admin import limits:
+  bulk word and prompt-audio submissions now reject more than 200 actionable
+  rows or 256 KB before creating categories or posts. Prompt duplicate checks
+  fetch at most one matching ID, and focused tests prove over-limit submissions
+  are mutation-free while normal imports still work.
 - July 10 direct import fallback job routing:
   direct admin-post import confirmation now creates the same durable import job
   used by the AJAX progress UI and redirects back for automatic resume. It no

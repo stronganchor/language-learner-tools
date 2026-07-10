@@ -23,6 +23,14 @@ function ll_tools_current_user_can_bulk_word_import(): bool {
     return current_user_can(ll_tools_get_bulk_word_import_capability());
 }
 
+function ll_tools_bulk_word_import_max_rows(): int {
+    return max(1, min(1000, (int) apply_filters('ll_tools_bulk_word_import_max_rows', 200)));
+}
+
+function ll_tools_bulk_word_import_max_bytes(): int {
+    return max(1024, min(2 * 1024 * 1024, (int) apply_filters('ll_tools_bulk_word_import_max_bytes', 256 * 1024)));
+}
+
 function ll_tools_bulk_word_import_normalize_category_ids(array $category_ids): array {
     $normalized = [];
 
@@ -318,25 +326,48 @@ function ll_tools_render_bulk_word_import_page() {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ll_bulk_word_import_nonce'])) {
         check_admin_referer('ll_bulk_word_import', 'll_bulk_word_import_nonce');
 
-        $raw_list = isset($_POST['ll_word_list']) ? wp_unslash($_POST['ll_word_list']) : '';
-        $raw_lines = preg_split('/\r\n|\n|\r/', (string) $raw_list);
-        $parsed_rows = is_array($raw_lines)
-            ? array_map('ll_tools_bulk_word_import_parse_line', $raw_lines)
-            : [];
+        $raw_list = isset($_POST['ll_word_list']) ? (string) wp_unslash($_POST['ll_word_list']) : '';
+        $parsed_rows = [];
+        if (strlen($raw_list) > ll_tools_bulk_word_import_max_bytes()) {
+            $errors[] = sprintf(
+                __('Bulk word import is limited to %s of pasted text per request.', 'll-tools-text-domain'),
+                size_format(ll_tools_bulk_word_import_max_bytes())
+            );
+        } else {
+            $raw_lines = preg_split('/\r\n|\n|\r/', $raw_list);
+            $raw_lines = is_array($raw_lines) ? $raw_lines : [];
+            $actionable_lines = array_values(array_filter($raw_lines, static function ($line): bool {
+                return trim((string) $line) !== '';
+            }));
+            if (count($actionable_lines) > ll_tools_bulk_word_import_max_rows()) {
+                $max_rows = ll_tools_bulk_word_import_max_rows();
+                $errors[] = sprintf(
+                    _n(
+                        'Bulk word import is limited to %d row per request. Split the list and submit the remaining rows separately.',
+                        'Bulk word import is limited to %d rows per request. Split the list and submit the remaining rows separately.',
+                        $max_rows,
+                        'll-tools-text-domain'
+                    ),
+                    $max_rows
+                );
+            } else {
+                $parsed_rows = array_map('ll_tools_bulk_word_import_parse_line', $raw_lines);
+            }
+        }
 
         $selected_category = isset($_POST['ll_existing_category']) ? (int) wp_unslash($_POST['ll_existing_category']) : 0;
         $selected_wordset  = isset($_POST['ll_existing_wordset']) ? (int) wp_unslash($_POST['ll_existing_wordset']) : 0;
         $new_category_name = isset($_POST['ll_new_category']) ? sanitize_text_field(wp_unslash($_POST['ll_new_category'])) : '';
         $category_id = 0;
 
-        if ($selected_wordset > 0 && $selected_category > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        if (empty($errors) && $selected_wordset > 0 && $selected_category > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
             $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($selected_category, $selected_wordset, true);
             if ($effective_category_id > 0) {
                 $selected_category = $effective_category_id;
             }
         }
 
-        if ($new_category_name !== '') {
+        if (empty($errors) && $new_category_name !== '') {
             if (function_exists('ll_tools_create_or_get_wordset_category')) {
                 $result = ll_tools_create_or_get_wordset_category($new_category_name, $selected_wordset);
             } else {
