@@ -926,80 +926,88 @@ function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?ar
 
     $language_meta_key = LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY;
     $wordset_meta_key = LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY;
-    $sql = $wpdb->prepare(
-        "/* ll_tools_dictionary_direct_language_candidates */
-        SELECT candidate.raw_language,
-               COUNT(*) AS entry_count,
-               MIN(candidate.entry_id) AS first_entry_id,
-               SUM(candidate.language_meta_rows) AS language_meta_rows,
-               SUM(candidate.has_direct_language) AS direct_language_entries,
-               SUM(candidate.has_explicit_wordset) AS explicit_wordset_entries
-        FROM (
-            SELECT p.ID AS entry_id,
-                   MAX(
-                       CASE
-                           WHEN pm.meta_key = %s AND TRIM(pm.meta_value) <> '' THEN TRIM(pm.meta_value)
-                           ELSE ''
-                       END
-                   ) AS raw_language,
-                   SUM(CASE WHEN pm.meta_key = %s THEN 1 ELSE 0 END) AS language_meta_rows,
-                   MAX(CASE WHEN pm.meta_key = %s AND TRIM(pm.meta_value) <> '' THEN 1 ELSE 0 END) AS has_direct_language,
-                   MAX(
-                       CASE
-                           WHEN pm.meta_key = %s AND CAST(TRIM(pm.meta_value) AS UNSIGNED) > 0 THEN 1
-                           ELSE 0
-                       END
-                   ) AS has_explicit_wordset
-            FROM {$wpdb->posts} p
-            LEFT JOIN {$wpdb->postmeta} pm
-                   ON pm.post_id = p.ID
-                  AND pm.meta_key IN (%s, %s)
-            WHERE p.post_type = 'll_dictionary_entry'
-              AND p.post_status = 'publish'
-            GROUP BY p.ID
-        ) candidate
-        GROUP BY candidate.raw_language",
-        $language_meta_key,
-        $language_meta_key,
-        $language_meta_key,
+    $published_entry_count = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*)
+         FROM {$wpdb->posts}
+         WHERE post_type = %s
+           AND post_status = %s",
+        'll_dictionary_entry',
+        'publish'
+    ));
+    if ($wpdb->last_error !== '') {
+        return null;
+    }
+    if ($published_entry_count <= 0) {
+        return [];
+    }
+
+    $explicit_wordset_entry_id = $wpdb->get_var($wpdb->prepare(
+        "SELECT p.ID
+         FROM {$wpdb->postmeta} pm
+         INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+         WHERE pm.meta_key = %s
+           AND CAST(TRIM(pm.meta_value) AS UNSIGNED) > 0
+           AND p.post_type = %s
+           AND p.post_status = %s
+         LIMIT 1",
         $wordset_meta_key,
+        'll_dictionary_entry',
+        'publish'
+    ));
+    if ($wpdb->last_error !== '' || $explicit_wordset_entry_id !== null) {
+        return null;
+    }
+
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "/* ll_tools_dictionary_direct_language_candidates */
+        SELECT TRIM(pm.meta_value) AS raw_language,
+               COUNT(DISTINCT p.ID) AS entry_count,
+               COUNT(*) AS language_meta_rows,
+               MIN(p.ID) AS first_entry_id
+        FROM {$wpdb->postmeta} pm
+        INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+        WHERE pm.meta_key = %s
+          AND p.post_type = %s
+          AND p.post_status = %s
+        GROUP BY TRIM(pm.meta_value)",
         $language_meta_key,
-        $wordset_meta_key
-    );
-    $rows = $wpdb->get_results($sql, ARRAY_A);
+        'll_dictionary_entry',
+        'publish'
+    ), ARRAY_A);
     if (!is_array($rows) || $wpdb->last_error !== '') {
         return null;
     }
     if (empty($rows)) {
-        return [];
+        return null;
     }
 
-    $entry_total = 0;
-    $language_meta_row_total = 0;
     $direct_language_entry_total = 0;
-    $explicit_wordset_entry_total = 0;
+    $language_meta_row_total = 0;
+    $has_empty_language_group = false;
     $raw_counts = [];
     foreach ($rows as $row) {
         $raw_language = trim((string) ($row['raw_language'] ?? ''));
         $entry_count = max(0, (int) ($row['entry_count'] ?? 0));
-        $entry_total += $entry_count;
+        $direct_language_entry_total += $entry_count;
         $language_meta_row_total += max(0, (int) ($row['language_meta_rows'] ?? 0));
-        $direct_language_entry_total += max(0, (int) ($row['direct_language_entries'] ?? 0));
-        $explicit_wordset_entry_total += max(0, (int) ($row['explicit_wordset_entries'] ?? 0));
-        if ($raw_language !== '' && $entry_count > 0) {
-            $raw_counts[] = [
-                'language' => $raw_language,
-                'count' => $entry_count,
-                'first_entry_id' => max(0, (int) ($row['first_entry_id'] ?? 0)),
-            ];
+        if ($raw_language === '') {
+            $has_empty_language_group = true;
+            continue;
         }
+        if ($entry_count <= 0) {
+            continue;
+        }
+        $raw_counts[] = [
+            'language' => $raw_language,
+            'count' => $entry_count,
+            'first_entry_id' => max(0, (int) ($row['first_entry_id'] ?? 0)),
+        ];
     }
 
     if (
-        $entry_total <= 0
-        || $direct_language_entry_total !== $entry_total
-        || $language_meta_row_total !== $entry_total
-        || $explicit_wordset_entry_total > 0
+        $has_empty_language_group
+        || $direct_language_entry_total !== $published_entry_count
+        || $language_meta_row_total !== $published_entry_count
     ) {
         return null;
     }
