@@ -851,6 +851,12 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $fixture = $this->createMixedQuizzableFixture();
         $wordset_id = (int) $fixture['wordset_id'];
         $quizzable_category_id = (int) $fixture['quizzable_category_id'];
+        $renderable_cache_key = ll_tools_user_study_renderable_word_ids_cache_key(
+            [$quizzable_category_id],
+            $wordset_id,
+            (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)
+        );
+        delete_transient($renderable_cache_key);
 
         $payload = ll_tools_build_user_study_payload(
             $user_id,
@@ -863,7 +869,10 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         );
 
         $this->assertTrue((bool) ($payload['words_deferred'] ?? false));
+        $this->assertTrue((bool) ($payload['recommendation_refresh_deferred'] ?? false));
         $this->assertSame([], (array) ($payload['words_by_category'] ?? []));
+        $this->assertNull($payload['next_activity'] ?? null);
+        $this->assertFalse(get_transient($renderable_cache_key));
 
         $meta = (array) ($payload['words_by_category_meta'][$quizzable_category_id] ?? []);
         $this->assertSame($quizzable_category_id, (int) ($meta['category_id'] ?? 0));
@@ -874,6 +883,49 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($meta['fully_loaded'] ?? true));
         $this->assertFalse((bool) ($meta['complete'] ?? true));
         $this->assertTrue((bool) ($meta['has_more'] ?? false));
+    }
+
+    public function test_user_study_deferred_bootstrap_reuses_saved_recommendation_without_pool_refresh(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createMixedQuizzableFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['quizzable_category_id'];
+        $word_ids = array_values(array_map('intval', (array) $fixture['quizzable_word_ids']));
+        $saved_queue = ll_tools_save_user_recommendation_queue([[
+            'type' => 'review_chunk',
+            'reason_code' => 'saved_test',
+            'mode' => 'practice',
+            'category_ids' => [$category_id],
+            'session_word_ids' => $word_ids,
+        ]], $user_id, $wordset_id);
+        $this->assertCount(1, $saved_queue);
+
+        $renderable_cache_key = ll_tools_user_study_renderable_word_ids_cache_key(
+            [$category_id],
+            $wordset_id,
+            (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)
+        );
+        delete_transient($renderable_cache_key);
+
+        $payload = ll_tools_build_user_study_payload(
+            $user_id,
+            $wordset_id,
+            [$category_id],
+            [
+                'defer_words' => true,
+                'candidate_word_limit' => 2,
+            ]
+        );
+
+        $this->assertTrue((bool) ($payload['recommendation_refresh_deferred'] ?? false));
+        $this->assertSame(
+            (string) ($saved_queue[0]['queue_id'] ?? ''),
+            (string) ($payload['next_activity']['queue_id'] ?? '')
+        );
+        $this->assertFalse(get_transient($renderable_cache_key));
     }
 
     public function test_user_study_deferred_metadata_reports_complete_candidate_slice(): void
