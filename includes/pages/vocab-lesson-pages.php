@@ -4297,6 +4297,90 @@ function ll_tools_get_vocab_lesson_image_print_url(int $lesson_id): string {
     return add_query_arg('ll_print_images', '1', $url);
 }
 
+function ll_tools_vocab_lesson_synchronous_print_word_limit(int $wordset_id = 0, int $category_id = 0): int {
+    $limit = (int) apply_filters(
+        'll_tools_vocab_lesson_synchronous_print_word_limit',
+        200,
+        max(0, $wordset_id),
+        max(0, $category_id)
+    );
+
+    return max(1, min(500, $limit));
+}
+
+function ll_tools_vocab_lesson_print_category_id($category): int {
+    if ($category instanceof WP_Term) {
+        return (int) $category->term_id;
+    }
+
+    return is_scalar($category) ? max(0, (int) $category) : 0;
+}
+
+function ll_tools_vocab_lesson_print_candidate_count_capped(int $wordset_id, int $category_id, int $limit): int {
+    static $request_cache = [];
+
+    $wordset_id = max(0, $wordset_id);
+    $category_id = max(0, $category_id);
+    $limit = max(1, min(500, $limit));
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        return 0;
+    }
+
+    $cache_key = $wordset_id . ':' . $category_id . ':' . $limit;
+    if (isset($request_cache[$cache_key])) {
+        return (int) $request_cache[$cache_key];
+    }
+
+    $query = new WP_Query([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => $limit + 1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'cache_results' => false,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'tax_query' => [
+            'relation' => 'AND',
+            [
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+                'include_children' => false,
+            ],
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+            ],
+        ],
+    ]);
+
+    $request_cache[$cache_key] = min($limit + 1, count((array) $query->posts));
+
+    return (int) $request_cache[$cache_key];
+}
+
+function ll_tools_vocab_lesson_print_view_limit_exceeded(int $wordset_id, $category): bool {
+    $category_id = ll_tools_vocab_lesson_print_category_id($category);
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_resolve_vocab_lesson_category_for_wordset')) {
+        $resolved_category = ll_tools_resolve_vocab_lesson_category_for_wordset($category_id, $wordset_id);
+        if ($resolved_category instanceof WP_Term && !is_wp_error($resolved_category)) {
+            $category_id = (int) $resolved_category->term_id;
+        }
+    }
+
+    $limit = ll_tools_vocab_lesson_synchronous_print_word_limit($wordset_id, $category_id);
+
+    return ll_tools_vocab_lesson_print_candidate_count_capped($wordset_id, $category_id, $limit) > $limit;
+}
+
 function ll_tools_vocab_lesson_print_view_is_available(int $wordset_id, $category = null): bool {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
@@ -4311,6 +4395,10 @@ function ll_tools_vocab_lesson_print_view_is_available(int $wordset_id, $categor
         if (!ll_tools_user_can_view_category($category)) {
             return false;
         }
+    }
+
+    if ($category !== null && ll_tools_vocab_lesson_print_view_limit_exceeded($wordset_id, $category)) {
+        return false;
     }
 
     return true;
@@ -4376,11 +4464,12 @@ function ll_tools_get_vocab_lesson_print_posts(int $wordset_id, int $category_id
     if (!ll_tools_vocab_lesson_print_view_is_available($wordset_id, $category)) {
         return [];
     }
+    $print_word_limit = ll_tools_vocab_lesson_synchronous_print_word_limit($wordset_id, $category_id);
 
     $query = new WP_Query([
         'post_type'      => 'words',
         'post_status'    => 'publish',
-        'posts_per_page' => -1,
+        'posts_per_page' => $print_word_limit,
         'no_found_rows'  => true,
         'orderby'        => 'date',
         'order'          => 'ASC',

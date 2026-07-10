@@ -93,7 +93,18 @@ final class VocabLessonPrintImagesTest extends LL_Tools_TestCase
         $other_wordset_word_id = $this->createWordWithThumbnail('Lesson 4', $child_id, $other_wordset_id, 'print-items-other-wordset.png');
         wp_set_post_terms($other_wordset_word_id, [$parent_id, $child_id], 'word-category', false);
 
-        $items = ll_tools_get_vocab_lesson_print_items($wordset_id, $child_id);
+        $print_query_limits = [];
+        $query_watcher = static function (WP_Query $query) use (&$print_query_limits): void {
+            if ($query->get('post_type') === 'words') {
+                $print_query_limits[] = (int) $query->get('posts_per_page');
+            }
+        };
+        add_action('pre_get_posts', $query_watcher);
+        try {
+            $items = ll_tools_get_vocab_lesson_print_items($wordset_id, $child_id);
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+        }
         $labels = array_map(static function (array $item): string {
             return (string) ($item['label'] ?? '');
         }, $items);
@@ -103,6 +114,62 @@ final class VocabLessonPrintImagesTest extends LL_Tools_TestCase
 
         $this->assertSame(['Lesson 2', 'Lesson 10'], $labels);
         $this->assertSame([$second_child_word_id, $first_child_word_id], $word_ids);
+        $this->assertNotEmpty($print_query_limits);
+        $this->assertNotContains(-1, $print_query_limits);
+        foreach ($print_query_limits as $print_query_limit) {
+            $this->assertGreaterThan(0, $print_query_limit);
+            $this->assertLessThanOrEqual(201, $print_query_limit);
+        }
+    }
+
+    public function test_over_limit_print_scope_is_rejected_before_word_hydration(): void
+    {
+        $wordset = wp_insert_term('Bounded Print Wordset', 'wordset', ['slug' => 'bounded-print-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Bounded Print Category', 'word-category', ['slug' => 'bounded-print-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        $lesson_id = $this->createLesson('Bounded Print Lesson', $wordset_id, $category_id);
+
+        for ($index = 1; $index <= 4; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Bounded Print Word ' . $index,
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $limit_filter = static function (): int {
+            return 3;
+        };
+        $print_query_limits = [];
+        $query_watcher = static function (WP_Query $query) use (&$print_query_limits): void {
+            if ($query->get('post_type') === 'words') {
+                $print_query_limits[] = (int) $query->get('posts_per_page');
+            }
+        };
+
+        add_filter('ll_tools_vocab_lesson_synchronous_print_word_limit', $limit_filter);
+        add_action('pre_get_posts', $query_watcher);
+        $original_get = $_GET;
+        $_GET = ['ll_print' => '1'];
+        try {
+            $this->assertTrue(ll_tools_vocab_lesson_print_view_limit_exceeded($wordset_id, $category_id));
+            $this->assertFalse(ll_tools_vocab_lesson_print_view_is_available($wordset_id, $category_id));
+            $this->assertFalse(ll_tools_verify_vocab_lesson_image_print_request($lesson_id));
+            $this->assertSame([], ll_tools_get_vocab_lesson_print_posts($wordset_id, $category_id));
+        } finally {
+            $_GET = $original_get;
+            remove_action('pre_get_posts', $query_watcher);
+            remove_filter('ll_tools_vocab_lesson_synchronous_print_word_limit', $limit_filter);
+        }
+
+        $this->assertSame([4], $print_query_limits);
+        $this->assertNotContains(-1, $print_query_limits);
     }
 
     private function createLesson(string $title, int $wordset_id, int $category_id): int

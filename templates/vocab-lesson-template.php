@@ -40,6 +40,11 @@ if ($ll_vocab_lesson_print_requested) {
             'show_translations' => false,
             'auto_print' => false,
         ];
+    $print_limit_exceeded = !$ll_vocab_lesson_access_denied
+        && ($print_post instanceof WP_Post)
+        && $print_post->post_type === 'll_vocab_lesson'
+        && function_exists('ll_tools_vocab_lesson_print_view_limit_exceeded')
+        && ll_tools_vocab_lesson_print_view_limit_exceeded($print_wordset_id, $print_category);
     $print_allowed = !$ll_vocab_lesson_access_denied
         && ($print_post instanceof WP_Post)
         && $print_post->post_type === 'll_vocab_lesson'
@@ -52,7 +57,8 @@ if ($ll_vocab_lesson_print_requested) {
         ? ll_tools_get_vocab_lesson_print_items($print_wordset_id, $print_category_id)
         : [];
 
-    status_header($print_allowed ? 200 : 404);
+    $print_error_status = $print_limit_exceeded ? 413 : 404;
+    status_header($print_allowed ? 200 : $print_error_status);
     nocache_headers();
 
     ll_tools_render_template('vocab-lesson-print-template.php', [
@@ -66,7 +72,7 @@ if ($ll_vocab_lesson_print_requested) {
         'print_items'           => $print_items,
         'print_settings'        => $print_settings,
         'print_request_allowed' => $print_allowed,
-        'print_error_status'    => 404,
+        'print_error_status'    => $print_error_status,
         'auto_print'            => $print_allowed && !empty($print_items) && !empty($print_settings['auto_print']),
     ]);
     return;
