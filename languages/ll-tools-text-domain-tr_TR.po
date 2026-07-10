@@ -1197,7 +1197,7 @@ msgstr "Engellenen Çiftler"
 #: includes/admin/word-option-rules-admin.php:1720
 msgid "Blocked pairs will never appear as wrong answers for each other."
 msgstr ""
-"Engellenen çiftler asla birbirleri için yanlış cevap olarak görünmeyecektir."
+"Engellenen çiftler birbirleri için hiçbir zaman yanlış cevap olarak görünmez."
 
 #: includes/taxonomies/wordset-taxonomy.php:168
 msgid "Bold (700)"
@@ -3435,7 +3435,7 @@ msgid ""
 "that should never be wrong answers for each other."
 msgstr ""
 "Quiz seçenekleri olarak birlikte görünmesi gereken kelimeleri grupla ve "
-"birbirleri için asla yanlış cevap olmaması gereken çiftleri engelle."
+"birbirleri için hiçbir zaman yanlış cevap olmaması gereken çiftleri engelle."
 
 #: includes/admin/word-option-rules-admin.php:1605
 msgid ""
@@ -5166,7 +5166,7 @@ msgstr "Kayıt gerekiyor"
 #: includes/pages/wordset-pages.php:13222
 #: includes/pages/wordset-pages.php:13232
 msgid "Never"
-msgstr "Asla"
+msgstr "Hiç görülmemiş"
 
 #: includes/admin/export-import.php:4161
 #: includes/admin/user-progress-report.php:932
@@ -5803,7 +5803,7 @@ msgstr "Nesne önbelleği temizlendi:"
 
 #: includes/pages/wordset-pages.php:13221
 msgid "Older"
-msgstr "Daha yaşlı"
+msgstr "Daha eski"
 
 #: includes/taxonomies/wordset-taxonomy.php:2993
 msgid ""
