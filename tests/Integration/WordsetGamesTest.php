@@ -2042,6 +2042,52 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_unscramble_large_launch_hydrates_only_bounded_candidates(): void
+    {
+        $fixture = $this->createUnscrambleFixture(false, 'Bounded Clue', 80, ['unscramble']);
+        wp_set_current_user((int) $fixture['user_id']);
+        $capFilter = static function (): int {
+            return 5;
+        };
+        $wordQueries = [];
+        $captureWordQueries = static function (WP_Query $query) use (&$wordQueries): void {
+            if ((string) $query->get('post_type') === 'words') {
+                $wordQueries[] = $query->query_vars;
+            }
+        };
+
+        add_filter('ll_tools_wordset_games_unscramble_launch_word_cap', $capFilter);
+        add_action('pre_get_posts', $captureWordQueries);
+        try {
+            $launch = ll_tools_wordset_games_build_launch_entry(
+                'unscramble',
+                (int) $fixture['wordset_id'],
+                (int) $fixture['user_id']
+            );
+        } finally {
+            remove_filter('ll_tools_wordset_games_unscramble_launch_word_cap', $capFilter);
+            remove_action('pre_get_posts', $captureWordQueries);
+        }
+
+        $this->assertIsArray($launch);
+        $this->assertSame(80, (int) ($launch['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($launch['launch_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($launch['words'] ?? []));
+
+        $candidateCap = ll_tools_wordset_games_unscramble_candidate_word_cap(5);
+        $this->assertSame(15, $candidateCap);
+        $this->assertNotEmpty($wordQueries);
+        foreach ($wordQueries as $queryVars) {
+            $postIds = array_values(array_filter(array_map('intval', (array) ($queryVars['post__in'] ?? []))));
+            if ((int) ($queryVars['posts_per_page'] ?? 0) === -1) {
+                $this->assertNotEmpty($postIds, 'Unbounded Unscramble hydration must remain candidate-scoped.');
+            }
+            if (!empty($postIds)) {
+                $this->assertLessThanOrEqual($candidateCap, count($postIds));
+            }
+        }
+    }
+
     public function test_wordset_games_frontend_config_uses_three_cards_for_large_image_wordsets(): void
     {
         $wordset = wp_insert_term('Games Large Images ' . wp_generate_password(6, false), 'wordset');

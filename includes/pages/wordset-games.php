@@ -1171,6 +1171,186 @@ function ll_tools_wordset_games_build_unscramble_word_entry(array $word, int $wo
     return $word;
 }
 
+function ll_tools_wordset_games_unscramble_candidate_word_cap(int $launch_word_cap): int {
+    $minimum = ll_tools_wordset_games_min_word_count();
+    $default = max($minimum, $launch_word_cap * 3);
+    return max(
+        $minimum,
+        min(500, (int) apply_filters('ll_tools_wordset_games_unscramble_candidate_word_cap', $default, $launch_word_cap))
+    );
+}
+
+function ll_tools_wordset_games_count_wordset_category_words(int $wordset_id, array $category_ids): int {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return 0;
+    }
+
+    $category_placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
+    $sql = $wpdb->prepare(
+        "SELECT COUNT(DISTINCT words.ID)
+         FROM {$wpdb->posts} words
+         INNER JOIN {$wpdb->term_relationships} wordset_relationship
+            ON wordset_relationship.object_id = words.ID
+         INNER JOIN {$wpdb->term_taxonomy} wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationship.term_taxonomy_id
+           AND wordset_taxonomy.taxonomy = 'wordset'
+           AND wordset_taxonomy.term_id = %d
+         INNER JOIN {$wpdb->term_relationships} category_relationship
+            ON category_relationship.object_id = words.ID
+         INNER JOIN {$wpdb->term_taxonomy} category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationship.term_taxonomy_id
+           AND category_taxonomy.taxonomy = 'word-category'
+           AND category_taxonomy.term_id IN ({$category_placeholders})
+         WHERE words.post_type = 'words'
+           AND words.post_status = 'publish'",
+        array_merge([$wordset_id], $category_ids)
+    );
+
+    return max(0, (int) $wpdb->get_var($sql));
+}
+
+function ll_tools_wordset_games_collect_unscramble_candidate_rows(
+    array $word_ids,
+    int $user_id,
+    array $visible_category_ids
+): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    $visible_category_ids = array_values(array_filter(array_map('intval', $visible_category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    }));
+    if (empty($word_ids) || empty($visible_category_ids)) {
+        return [];
+    }
+
+    $visible_category_lookup = array_fill_keys($visible_category_ids, true);
+    $category_ids_by_word = function_exists('ll_tools_get_object_term_ids_map')
+        ? ll_tools_get_object_term_ids_map($word_ids, 'word-category')
+        : [];
+    $progress_rows = ($user_id > 0 && function_exists('ll_tools_get_user_word_progress_rows'))
+        ? ll_tools_get_user_word_progress_rows($user_id, $word_ids)
+        : [];
+
+    $rows = [];
+    foreach ($word_ids as $word_id) {
+        $word_category_ids = isset($category_ids_by_word[$word_id]) && is_array($category_ids_by_word[$word_id])
+            ? array_values(array_filter(array_map('intval', $category_ids_by_word[$word_id]), static function (int $category_id) use ($visible_category_lookup): bool {
+                return $category_id > 0 && !empty($visible_category_lookup[$category_id]);
+            }))
+            : [];
+        if (empty($word_category_ids)) {
+            continue;
+        }
+
+        $progress = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
+            ? $progress_rows[$word_id]
+            : [];
+        $rows[] = [
+            'id' => $word_id,
+            'category_id' => (int) reset($word_category_ids),
+            'category_ids' => $word_category_ids,
+            'progress_status' => function_exists('ll_tools_user_progress_word_status')
+                ? ll_tools_user_progress_word_status($progress)
+                : (!empty($progress) ? 'studied' : 'new'),
+        ];
+    }
+
+    return $rows;
+}
+
+function ll_tools_wordset_games_prepare_unscramble_candidates(
+    int $wordset_id,
+    int $user_id,
+    array $candidate_rows
+): array {
+    if (empty($candidate_rows)) {
+        return [];
+    }
+
+    $collected = ll_tools_wordset_games_collect_visible_speaking_words_for_candidate_pool(
+        $wordset_id,
+        $user_id,
+        'unscramble',
+        $candidate_rows
+    );
+    $prepared = [];
+    foreach ((array) ($collected['words'] ?? []) as $word) {
+        if (!is_array($word)) {
+            continue;
+        }
+        $entry = ll_tools_wordset_games_build_unscramble_word_entry($word, $wordset_id);
+        if (is_array($entry)) {
+            $prepared[] = $entry;
+        }
+    }
+
+    return $prepared;
+}
+
+function ll_tools_wordset_games_collect_unscramble_frontier_candidate_rows(
+    int $wordset_id,
+    int $user_id,
+    array $visible_categories,
+    array $visible_category_ids,
+    int $candidate_cap,
+    array $exclude_word_ids = []
+): array {
+    $frontier_category_ids = ll_tools_wordset_games_lowest_frontier_category_ids($wordset_id, $visible_categories);
+    $ordered_category_ids = array_values(array_unique(array_merge($frontier_category_ids, $visible_category_ids)));
+    $exclude_lookup = array_fill_keys(array_map('intval', $exclude_word_ids), true);
+    $candidate_ids = [];
+    $scan_cap = max($candidate_cap, min(1500, $candidate_cap * 3));
+    $scanned = 0;
+
+    foreach ($ordered_category_ids as $category_id) {
+        $offset = 0;
+        while (count($candidate_ids) < $candidate_cap && $scanned < $scan_cap) {
+            $batch_limit = min($candidate_cap, $scan_cap - $scanned);
+            $batch_ids = ll_tools_wordset_games_query_word_ids_for_category_batch(
+                $wordset_id,
+                (int) $category_id,
+                $batch_limit,
+                $offset
+            );
+            if (empty($batch_ids)) {
+                break;
+            }
+            $scanned += count($batch_ids);
+            $offset += count($batch_ids);
+            foreach ($batch_ids as $word_id) {
+                $word_id = (int) $word_id;
+                if ($word_id <= 0 || isset($exclude_lookup[$word_id])) {
+                    continue;
+                }
+                $candidate_ids[] = $word_id;
+                $exclude_lookup[$word_id] = true;
+                if (count($candidate_ids) >= $candidate_cap) {
+                    break 2;
+                }
+            }
+            if (count($batch_ids) < $batch_limit) {
+                break;
+            }
+        }
+        if ($scanned >= $scan_cap) {
+            break;
+        }
+    }
+
+    return ll_tools_wordset_games_collect_unscramble_candidate_rows(
+        $candidate_ids,
+        $user_id,
+        $visible_category_ids
+    );
+}
+
 function ll_tools_wordset_games_build_unscramble_pool(int $wordset_id, int $user_id = 0): array {
     $wordset_id = max(0, $wordset_id);
     $uid = (int) ($user_id ?: get_current_user_id());
@@ -1190,56 +1370,54 @@ function ll_tools_wordset_games_build_unscramble_pool(int $wordset_id, int $user
         ];
     }
 
-    $collected = ll_tools_wordset_games_collect_visible_speaking_words($wordset_id, $uid, 'unscramble');
-    $categories = isset($collected['categories']) && is_array($collected['categories']) ? $collected['categories'] : [];
-    $words = isset($collected['words']) && is_array($collected['words']) ? $collected['words'] : [];
-    $word_ids = array_values(array_filter(array_map(static function ($row): int {
+    $categories = ll_tools_wordset_games_visible_categories($wordset_id, $uid, 'unscramble');
+    $visible_category_ids = array_values(array_filter(array_map(static function ($row): int {
         return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
-    }, $words), static function (int $id): bool {
-        return $id > 0;
+    }, $categories), static function (int $category_id): bool {
+        return $category_id > 0;
     }));
-    $progress_rows = (!empty($word_ids) && function_exists('ll_tools_get_user_word_progress_rows'))
-        ? ll_tools_get_user_word_progress_rows($uid, $word_ids)
-        : [];
+    if (empty($visible_category_ids)) {
+        return [
+            'minimum_word_count' => $minimum_word_count,
+            'available_word_count' => 0,
+            'launch_word_cap' => $launch_word_cap,
+            'launch_word_count' => 0,
+            'pool_source' => 'no_visible_categories',
+            'category_ids' => [],
+            'enabled_category_count' => 0,
+            'words' => [],
+        ];
+    }
 
-    $eligible_words = [];
+    $candidate_cap = ll_tools_wordset_games_unscramble_candidate_word_cap($launch_word_cap);
+    $progress_word_ids = ll_tools_wordset_games_query_progress_word_ids_for_wordset(
+        $wordset_id,
+        $uid,
+        $candidate_cap,
+        0
+    );
+    $progress_candidates = ll_tools_wordset_games_collect_unscramble_candidate_rows(
+        $progress_word_ids,
+        $uid,
+        $visible_category_ids
+    );
+    $prepared_progress_words = ll_tools_wordset_games_prepare_unscramble_candidates(
+        $wordset_id,
+        $uid,
+        $progress_candidates
+    );
+
     $studied_words = [];
     $mastered_words = [];
-    $has_recorded_progress = false;
-    foreach ($words as $word) {
-        if (!is_array($word)) {
-            continue;
-        }
-
-        $word_id = (int) ($word['id'] ?? 0);
-        if ($word_id <= 0) {
-            continue;
-        }
-
-        $prepared_word = ll_tools_wordset_games_build_unscramble_word_entry($word, $wordset_id);
-        if (!is_array($prepared_word)) {
-            continue;
-        }
-
-        $progress = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
-            ? $progress_rows[$word_id]
-            : [];
-        if (!empty($progress)) {
-            $has_recorded_progress = true;
-        }
-
-        $status = function_exists('ll_tools_user_progress_word_status')
-            ? ll_tools_user_progress_word_status($progress)
-            : 'new';
-
-        $prepared_word['progress_status'] = $status;
-        $eligible_words[] = $prepared_word;
+    foreach ($prepared_progress_words as $prepared_word) {
+        $status = (string) ($prepared_word['progress_status'] ?? 'new');
         if ($status === 'studied') {
             $studied_words[] = $prepared_word;
         } elseif ($status === 'mastered') {
             $mastered_words[] = $prepared_word;
         }
     }
+    $has_recorded_progress = !empty($prepared_progress_words);
 
     $pool = $studied_words;
     $pool_source = 'studied';
@@ -1248,21 +1426,40 @@ function ll_tools_wordset_games_build_unscramble_pool(int $wordset_id, int $user
         $pool_source = 'studied_mastered';
     }
 
-    if (count($pool) < $minimum_word_count && !$has_recorded_progress && !empty($eligible_words)) {
+    $frontier_candidate_count = 0;
+    $frontier_truncated = false;
+    if (count($pool) < $minimum_word_count && !$has_recorded_progress) {
+        $frontier_candidates = ll_tools_wordset_games_collect_unscramble_frontier_candidate_rows(
+            $wordset_id,
+            $uid,
+            $categories,
+            $visible_category_ids,
+            $candidate_cap,
+            $progress_word_ids
+        );
+        $frontier_candidate_count = count($frontier_candidates);
+        $frontier_truncated = $frontier_candidate_count >= $candidate_cap;
+        $eligible_words = ll_tools_wordset_games_prepare_unscramble_candidates(
+            $wordset_id,
+            $uid,
+            $frontier_candidates
+        );
         $frontier_category_ids = ll_tools_wordset_games_lowest_frontier_category_ids($wordset_id, $categories);
         $ordered_category_ids = array_values(array_unique(array_merge(
             $frontier_category_ids,
-            array_values(array_filter(array_map(static function ($row): int {
-                return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
-            }, $categories), static function (int $id): bool {
-                return $id > 0;
-            }))
+            $visible_category_ids
         )));
         $pool = ll_tools_wordset_games_expand_pool_by_category_order($eligible_words, $ordered_category_ids, $minimum_word_count);
         $pool_source = 'frontier_new';
     }
 
     $available_word_count = count($pool);
+    if ($pool_source === 'frontier_new' && $frontier_truncated && $available_word_count >= $minimum_word_count) {
+        $available_word_count = max(
+            $available_word_count,
+            ll_tools_wordset_games_count_wordset_category_words($wordset_id, $visible_category_ids)
+        );
+    }
     $launch_words = ll_tools_wordset_games_limit_launch_words((array) $pool, $launch_word_cap);
     if (!empty($launch_words) && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
         $launch_words = ll_tools_attach_user_practice_progress_to_words($launch_words, $uid);
@@ -1274,8 +1471,10 @@ function ll_tools_wordset_games_build_unscramble_pool(int $wordset_id, int $user
         'launch_word_cap' => $launch_word_cap,
         'launch_word_count' => count($launch_words),
         'pool_source' => $pool_source,
-        'category_ids' => isset($collected['category_ids']) && is_array($collected['category_ids']) ? $collected['category_ids'] : [],
-        'enabled_category_count' => count((array) ($collected['category_ids'] ?? [])),
+        'category_ids' => $visible_category_ids,
+        'enabled_category_count' => count($visible_category_ids),
+        'candidate_word_cap' => $candidate_cap,
+        'candidate_word_count' => $has_recorded_progress ? count($progress_candidates) : $frontier_candidate_count,
         'words' => array_values($launch_words),
     ];
 }
