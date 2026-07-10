@@ -8,6 +8,7 @@
 }
 
 .ll-tools-word-options .ll-tools-word-options-filter,
+.ll-tools-word-options .ll-tools-word-options-word-search,
 .ll-tools-word-options .ll-tools-word-options-pair-add {
   display: flex;
   flex-wrap: wrap;
@@ -16,11 +17,52 @@
   margin: 16px 0;
 }
 
+.ll-tools-word-options .ll-tools-word-options-word-search {
+  align-items: flex-end;
+}
+
+.ll-tools-word-options .ll-tools-word-options-field--word-search {
+  flex: 1 1 280px;
+  max-width: 480px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-field--word-search input,
+.ll-tools-word-options .ll-tools-word-options-pair-search {
+  box-sizing: border-box;
+  min-height: 36px;
+  width: 100%;
+}
+
+.ll-tools-word-options .ll-tools-word-options-page-status {
+  align-items: center;
+  color: #50575e;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  justify-content: space-between;
+  margin: 10px 0 16px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-page-status--pairs {
+  margin-top: 14px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-pager {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .ll-tools-word-options .ll-tools-word-options-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.ll-tools-word-options .ll-tools-word-options-pair-add [data-ll-pair-candidate-field] {
+  flex: 1 1 220px;
+  max-width: 360px;
 }
 
 .ll-tools-word-options .ll-tools-word-options-table {
@@ -868,6 +910,7 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
 }
 
 .ll-tools-word-options--iframe input[type="text"],
+.ll-tools-word-options--iframe input[type="search"],
 .ll-tools-word-options--iframe input[type="file"],
 .ll-tools-word-options--iframe select {
   background: #fff;
@@ -879,6 +922,7 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
 }
 
 .ll-tools-word-options--iframe input[type="text"]:focus,
+.ll-tools-word-options--iframe input[type="search"]:focus,
 .ll-tools-word-options--iframe input[type="file"]:focus,
 .ll-tools-word-options--iframe select:focus {
   border-color: rgba(31, 107, 92, 0.55);
@@ -985,6 +1029,7 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
   }
 
   .ll-tools-word-options--iframe .ll-tools-word-options-filter,
+  .ll-tools-word-options--iframe .ll-tools-word-options-word-search,
   .ll-tools-word-options--iframe .ll-tools-word-options-pair-add,
   .ll-tools-word-options--iframe .ll-tools-word-options-group-row {
     align-items: stretch;
@@ -1000,6 +1045,16 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
   .ll-tools-word-options--iframe .ll-tools-word-options-group-row .ll-tools-button {
     max-width: none;
     width: 100%;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-page-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-pager .ll-tools-button {
+    flex: 1 1 0;
+    justify-content: center;
   }
 
   .ll-tools-word-options--iframe .ll-tools-word-options-table-wrap {

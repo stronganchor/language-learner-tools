@@ -303,6 +303,9 @@ function ll_enqueue_word_option_rules_admin_assets($hook) {
         'autosaveSaving' => __('Saving word options...', 'll-tools-text-domain'),
         'autosaveSaved' => __('Word options saved.', 'll-tools-text-domain'),
         'autosaveError' => __('Unable to save word options.', 'll-tools-text-domain'),
+        'candidateNonce' => wp_create_nonce('ll_word_option_rules_candidates'),
+        'candidateSearchError' => __('Unable to search words.', 'll-tools-text-domain'),
+        'candidateSelectPlaceholder' => __('Select a word', 'll-tools-text-domain'),
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_word_option_rules_admin_assets');
@@ -333,7 +336,156 @@ function ll_tools_word_option_rules_suppress_iframe_admin_notices(): void {
 }
 add_action('admin_head-tools_page_ll-word-option-rules', 'll_tools_word_option_rules_suppress_iframe_admin_notices', 0);
 
+function ll_tools_word_option_rules_get_editor_page_size(): int {
+    $page_size = (int) apply_filters('ll_tools_word_option_rules_editor_page_size', 25);
+    return max(1, min(50, $page_size));
+}
+
+function ll_tools_word_option_rules_get_pair_page_size(): int {
+    $page_size = (int) apply_filters('ll_tools_word_option_rules_pair_page_size', 25);
+    return max(1, min(25, $page_size));
+}
+
+function ll_tools_word_option_rules_get_candidate_search_limit(): int {
+    $limit = (int) apply_filters('ll_tools_word_option_rules_candidate_search_limit', 20);
+    return max(1, min(50, $limit));
+}
+
+function ll_tools_word_option_rules_search_posts_clauses(array $clauses, WP_Query $query): array {
+    $search = trim((string) $query->get('ll_word_option_rules_search'));
+    if ($search === '') {
+        return $clauses;
+    }
+
+    global $wpdb;
+
+    $alias = 'll_word_option_search_meta';
+    if (strpos((string) $clauses['join'], $alias) === false) {
+        $meta_keys = [
+            'word_translation',
+            'word_english_meaning',
+            'translation',
+            'meaning',
+        ];
+        $placeholders = implode(', ', array_fill(0, count($meta_keys), '%s'));
+        $clauses['join'] .= $wpdb->prepare(
+            " LEFT JOIN {$wpdb->postmeta} {$alias} ON ({$wpdb->posts}.ID = {$alias}.post_id AND {$alias}.meta_key IN ({$placeholders}))",
+            ...$meta_keys
+        );
+    }
+
+    $like = '%' . $wpdb->esc_like($search) . '%';
+    $search_sql = $wpdb->prepare(
+        "({$wpdb->posts}.post_title LIKE %s OR {$alias}.meta_value LIKE %s)",
+        $like,
+        $like
+    );
+    if (ctype_digit($search)) {
+        $search_sql = $wpdb->prepare(
+            "({$wpdb->posts}.post_title LIKE %s OR {$alias}.meta_value LIKE %s OR {$wpdb->posts}.ID = %d)",
+            $like,
+            $like,
+            (int) $search
+        );
+    }
+    $clauses['where'] .= ' AND ' . $search_sql;
+
+    $groupby = trim((string) ($clauses['groupby'] ?? ''));
+    if ($groupby === '') {
+        $clauses['groupby'] = "{$wpdb->posts}.ID";
+    } elseif (strpos($groupby, "{$wpdb->posts}.ID") === false) {
+        $clauses['groupby'] .= ", {$wpdb->posts}.ID";
+    }
+
+    return $clauses;
+}
+
+function ll_tools_word_option_rules_get_word_page(
+    int $wordset_id,
+    int $category_id,
+    int $page = 1,
+    string $search = '',
+    int $per_page = 0
+): array {
+    $wordset_id = (int) $wordset_id;
+    $category_id = function_exists('ll_tools_resolve_word_option_rules_category_id')
+        ? ll_tools_resolve_word_option_rules_category_id($wordset_id, (int) $category_id, true)
+        : (int) $category_id;
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        return [
+            'posts' => [],
+            'page' => 1,
+            'per_page' => 0,
+            'total' => 0,
+            'total_pages' => 0,
+            'search' => '',
+        ];
+    }
+
+    $page = max(1, $page);
+    $search = trim(sanitize_text_field($search));
+    $per_page = $per_page > 0 ? min(50, $per_page) : ll_tools_word_option_rules_get_editor_page_size();
+    $per_page = max(1, $per_page);
+
+    $query_args = [
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => $per_page,
+        'paged' => $page,
+        'orderby' => [
+            'title' => 'ASC',
+            'ID' => 'ASC',
+        ],
+        'no_found_rows' => false,
+        'suppress_filters' => false,
+        'tax_query' => [
+            'relation' => 'AND',
+            [
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+            ],
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+            ],
+        ],
+    ];
+    if ($search !== '') {
+        $query_args['ll_word_option_rules_search'] = $search;
+        add_filter('posts_clauses', 'll_tools_word_option_rules_search_posts_clauses', 10, 2);
+    }
+
+    try {
+        $query = new WP_Query($query_args);
+    } finally {
+        if ($search !== '') {
+            remove_filter('posts_clauses', 'll_tools_word_option_rules_search_posts_clauses', 10);
+        }
+    }
+
+    $total = (int) $query->found_posts;
+    $total_pages = $total > 0 ? (int) ceil($total / $per_page) : 0;
+
+    return [
+        'posts' => array_values(array_filter((array) $query->posts, static function ($post): bool {
+            return $post instanceof WP_Post;
+        })),
+        'page' => $page,
+        'per_page' => $per_page,
+        'total' => $total,
+        'total_pages' => $total_pages,
+        'search' => $search,
+    ];
+}
+
 function ll_tools_word_option_rules_get_word_posts(int $wordset_id, int $category_id): array {
+    $page = ll_tools_word_option_rules_get_word_page($wordset_id, $category_id);
+    return $page['posts'];
+}
+
+function ll_tools_word_option_rules_get_all_word_posts_for_maintenance(int $wordset_id, int $category_id): array {
     $wordset_id = (int) $wordset_id;
     $category_id = function_exists('ll_tools_resolve_word_option_rules_category_id')
         ? ll_tools_resolve_word_option_rules_category_id($wordset_id, (int) $category_id, true)
@@ -365,11 +517,63 @@ function ll_tools_word_option_rules_get_word_posts(int $wordset_id, int $categor
 }
 
 function ll_tools_word_option_rules_get_word_ids(int $wordset_id, int $category_id): array {
-    $posts = ll_tools_word_option_rules_get_word_posts($wordset_id, $category_id);
+    $posts = ll_tools_word_option_rules_get_all_word_posts_for_maintenance($wordset_id, $category_id);
     if (empty($posts)) {
         return [];
     }
     return array_values(array_map('intval', wp_list_pluck($posts, 'ID')));
+}
+
+function ll_tools_word_option_rules_get_scoped_word_posts_by_ids(
+    int $wordset_id,
+    int $category_id,
+    array $word_ids,
+    int $limit = 100
+) {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    $limit = max(1, min(100, $limit));
+    if (count($word_ids) > $limit) {
+        return new WP_Error(
+            'too_many_candidates',
+            __('Too many word option candidates were submitted.', 'll-tools-text-domain'),
+            ['status' => 400]
+        );
+    }
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $category_id = function_exists('ll_tools_resolve_word_option_rules_category_id')
+        ? ll_tools_resolve_word_option_rules_category_id($wordset_id, $category_id, true)
+        : $category_id;
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        return [];
+    }
+
+    return get_posts([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'post__in' => $word_ids,
+        'posts_per_page' => count($word_ids),
+        'orderby' => 'post__in',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+        'tax_query' => [
+            'relation' => 'AND',
+            [
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+            ],
+            [
+                'taxonomy' => 'wordset',
+                'field' => 'term_id',
+                'terms' => [$wordset_id],
+            ],
+        ],
+    ]);
 }
 
 function ll_tools_word_option_rules_get_word_texts(int $word_id): array {
@@ -885,6 +1089,332 @@ function ll_tools_word_option_rules_clear_similar_meta_pair(int $word_id, int $o
     }
 }
 
+function ll_tools_word_option_rules_normalize_manual_pair_map(array $pairs): array {
+    $pair_map = [];
+    foreach ($pairs as $pair) {
+        [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
+            ? ll_tools_normalize_word_option_pair_word_ids($pair)
+            : [0, 0];
+        if ($a <= 0 || $b <= 0 || $a === $b) {
+            continue;
+        }
+
+        $pair_map[$a . '|' . $b] = [
+            'word_ids' => [$a, $b],
+            'unblocked_recording_types' => function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+                ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
+                : [],
+        ];
+    }
+
+    return $pair_map;
+}
+
+function ll_tools_word_option_rules_parse_pair_key($raw_pair): array {
+    $raw_pair = sanitize_text_field(wp_unslash((string) $raw_pair));
+    $parts = array_map('intval', explode('|', $raw_pair));
+    if (count($parts) < 2) {
+        return [0, 0, ''];
+    }
+
+    $a = (int) ($parts[0] ?? 0);
+    $b = (int) ($parts[1] ?? 0);
+    if ($a <= 0 || $b <= 0 || $a === $b) {
+        return [0, 0, ''];
+    }
+    if ($a > $b) {
+        $tmp = $a;
+        $a = $b;
+        $b = $tmp;
+    }
+
+    return [$a, $b, $a . '|' . $b];
+}
+
+function ll_tools_word_option_rules_get_manual_pair_page(
+    array $pairs,
+    array $candidate_word_ids,
+    int $page,
+    int $per_page
+): array {
+    $candidate_lookup = array_fill_keys(array_values(array_filter(array_map('intval', $candidate_word_ids))), true);
+    $page = max(1, $page);
+    $per_page = max(1, min(50, $per_page));
+    $offset = ($page - 1) * $per_page;
+    $total = 0;
+    $window = [];
+
+    foreach ($pairs as $pair) {
+        [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
+            ? ll_tools_normalize_word_option_pair_word_ids($pair)
+            : [0, 0];
+        if ($a <= 0 || $b <= 0) {
+            continue;
+        }
+        if (!isset($candidate_lookup[$a]) && !isset($candidate_lookup[$b])) {
+            continue;
+        }
+
+        if ($total >= $offset && count($window) < $per_page) {
+            $window[$a . '|' . $b] = [
+                'word_ids' => [$a, $b],
+                'unblocked_recording_types' => function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+                    ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
+                    : [],
+            ];
+        }
+        $total++;
+    }
+
+    return [
+        'pairs' => $window,
+        'page' => $page,
+        'per_page' => $per_page,
+        'total' => $total,
+        'total_pages' => $total > 0 ? (int) ceil($total / $per_page) : 0,
+    ];
+}
+
+function ll_tools_word_option_rules_get_group_editor_state(array $groups, array $candidate_word_ids): array {
+    $candidate_lookup = array_fill_keys(array_values(array_filter(array_map('intval', $candidate_word_ids))), true);
+    $group_labels = [];
+    $group_members = [];
+
+    foreach ($groups as $group) {
+        $label = trim((string) ($group['label'] ?? ''));
+        if ($label === '') {
+            continue;
+        }
+        if (!in_array($label, $group_labels, true)) {
+            $group_labels[] = $label;
+        }
+        foreach ((array) ($group['word_ids'] ?? []) as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id > 0 && isset($candidate_lookup[$word_id])) {
+                $group_members[$word_id][$label] = true;
+            }
+        }
+    }
+
+    foreach ($group_members as $word_id => $labels) {
+        $group_members[$word_id] = array_keys($labels);
+    }
+
+    return [
+        'labels' => $group_labels,
+        'group_map' => $group_members,
+    ];
+}
+
+function ll_tools_word_option_rules_merge_group_page_delta(
+    array $current_groups,
+    array $request,
+    array $editor_word_ids
+): array {
+    $editor_lookup = array_fill_keys(array_values(array_filter(array_map('intval', $editor_word_ids))), true);
+    $current_label_order = [];
+    $current_members = [];
+    foreach ($current_groups as $group) {
+        $label = trim((string) ($group['label'] ?? ''));
+        if ($label === '') {
+            continue;
+        }
+        if (!isset($current_members[$label])) {
+            $current_members[$label] = [];
+            $current_label_order[] = $label;
+        }
+        foreach ((array) ($group['word_ids'] ?? []) as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id > 0) {
+                $current_members[$label][$word_id] = true;
+            }
+        }
+    }
+
+    $has_group_payload = isset($request['group_names_present'])
+        || (isset($request['group_names']) && is_array($request['group_names']));
+    if (!$has_group_payload) {
+        return array_values($current_groups);
+    }
+
+    $raw_group_names = isset($request['group_names']) && is_array($request['group_names'])
+        ? $request['group_names']
+        : [];
+    $raw_group_members = isset($request['group_members']) && is_array($request['group_members'])
+        ? $request['group_members']
+        : [];
+    $raw_original_labels = isset($request['group_original_labels']) && is_array($request['group_original_labels'])
+        ? $request['group_original_labels']
+        : [];
+    $next_members = [];
+    $next_label_order = [];
+
+    foreach ($raw_group_names as $group_id_raw => $label_raw) {
+        $group_id = sanitize_text_field(wp_unslash((string) $group_id_raw));
+        $label = trim(sanitize_text_field(wp_unslash((string) $label_raw)));
+        if ($label === '') {
+            continue;
+        }
+
+        $old_label = isset($raw_original_labels[$group_id])
+            ? trim(sanitize_text_field(wp_unslash((string) $raw_original_labels[$group_id])))
+            : '';
+        if ($old_label === '' || !isset($current_members[$old_label])) {
+            $old_label = '';
+        }
+        if ($old_label === '' && preg_match('/^g(\d+)$/', $group_id, $matches)) {
+            $old_index = (int) ($matches[1] ?? -1);
+            if (isset($current_label_order[$old_index])) {
+                $old_label = (string) $current_label_order[$old_index];
+            }
+        }
+
+        if (!isset($next_members[$label])) {
+            $next_members[$label] = [];
+            $next_label_order[] = $label;
+        }
+        if ($old_label !== '' && isset($current_members[$old_label])) {
+            foreach ($current_members[$old_label] as $word_id => $is_member) {
+                $word_id = (int) $word_id;
+                if ($word_id > 0 && !isset($editor_lookup[$word_id])) {
+                    $next_members[$label][$word_id] = true;
+                }
+            }
+        }
+
+        $members = isset($raw_group_members[$group_id]) && is_array($raw_group_members[$group_id])
+            ? $raw_group_members[$group_id]
+            : [];
+        foreach ($members as $member_id_raw) {
+            $member_id = (int) $member_id_raw;
+            if ($member_id > 0 && isset($editor_lookup[$member_id])) {
+                $next_members[$label][$member_id] = true;
+            }
+        }
+    }
+
+    $groups = [];
+    foreach ($next_label_order as $label) {
+        $word_ids = array_values(array_map('intval', array_keys($next_members[$label] ?? [])));
+        if (empty($word_ids)) {
+            continue;
+        }
+        sort($word_ids, SORT_NUMERIC);
+        $groups[] = [
+            'label' => $label,
+            'word_ids' => $word_ids,
+        ];
+    }
+
+    return $groups;
+}
+
+function ll_tools_word_option_rules_get_pair_conflict_reasons(
+    int $wordset_id,
+    int $category_id,
+    int $a,
+    int $b,
+    bool $include_recording_text_pairs
+) {
+    if ($a > $b) {
+        $tmp = $a;
+        $a = $b;
+        $b = $tmp;
+    }
+    if ($a <= 0 || $b <= 0 || $a === $b) {
+        return new WP_Error('invalid_pair', __('Select two different words.', 'll-tools-text-domain'), ['status' => 400]);
+    }
+
+    $posts = ll_tools_word_option_rules_get_scoped_word_posts_by_ids($wordset_id, $category_id, [$a, $b], 2);
+    if (is_wp_error($posts)) {
+        return $posts;
+    }
+    if (count($posts) !== 2) {
+        return new WP_Error('invalid_pair_scope', __('The selected words are not in this category.', 'll-tools-text-domain'), ['status' => 400]);
+    }
+
+    $audio_by_word = [];
+    if ($include_recording_text_pairs && function_exists('ll_tools_word_grid_collect_audio_files')) {
+        $audio_by_word = ll_tools_word_grid_collect_audio_files([$a, $b], true);
+    }
+    $auto_text_pair_maps = ll_tools_word_option_rules_build_auto_text_pair_maps(
+        ll_tools_word_option_rules_build_compare_rows($posts, $audio_by_word),
+        $include_recording_text_pairs
+    );
+    $key = $a . '|' . $b;
+    $reasons = [];
+    if (isset($auto_text_pair_maps['same_title_pairs'][$key])) {
+        $reasons['same_title'] = true;
+    }
+    if (isset($auto_text_pair_maps['same_translation_pairs'][$key])) {
+        $reasons['same_translation'] = true;
+    }
+    if (isset($auto_text_pair_maps['recording_text_pairs'][$key])) {
+        $reasons['recording_text'] = (array) ($auto_text_pair_maps['recording_text_pairs'][$key]['types'] ?? []);
+    }
+
+    $similar_pairs = ll_tools_word_option_rules_get_similar_pair_map([$a, $b]);
+    if (isset($similar_pairs[$key])) {
+        $reasons['similar'] = true;
+    }
+
+    $image_pairs = ll_tools_word_option_rules_get_image_pair_map([$a, $b]);
+    if (isset($image_pairs[$key])) {
+        $match_type = (string) ($image_pairs[$key]['match_type'] ?? 'similar_image');
+        $reasons[$match_type === 'same_image' ? 'same_image' : 'similar_image'] = true;
+    }
+
+    return $reasons;
+}
+
+function ll_tools_handle_word_option_rules_candidate_search_ajax(): void {
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error([
+            'message' => __('Permission denied.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_word_option_rules_candidates');
+
+    $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
+    $category_id = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
+    if ($wordset_id <= 0 || $category_id <= 0 || !ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
+        wp_send_json_error([
+            'message' => __('Permission denied.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $search = isset($_POST['search'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['search']))
+        : '';
+    $page = ll_tools_word_option_rules_get_word_page(
+        $wordset_id,
+        $category_id,
+        1,
+        $search,
+        ll_tools_word_option_rules_get_candidate_search_limit()
+    );
+    $candidates = [];
+    foreach ((array) ($page['posts'] ?? []) as $word) {
+        if (!($word instanceof WP_Post)) {
+            continue;
+        }
+        $word_id = (int) $word->ID;
+        if ($word_id <= 0) {
+            continue;
+        }
+        $candidates[] = [
+            'id' => $word_id,
+            'label' => ll_tools_word_option_rules_get_word_label($word_id),
+        ];
+    }
+
+    wp_send_json_success([
+        'candidates' => $candidates,
+    ]);
+}
+add_action('wp_ajax_ll_tools_word_option_rule_candidates', 'll_tools_handle_word_option_rules_candidate_search_ajax');
+
 function ll_tools_word_option_rules_get_wordset_category_ids(int $wordset_id): array {
     global $wpdb;
 
@@ -1391,46 +1921,160 @@ function ll_render_word_option_rules_admin_page() {
         return;
     }
 
-    $words = ll_tools_word_option_rules_get_word_posts($wordset_id, $category_id);
+    $word_search = isset($_GET['ll_word_search'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_word_search']))
+        : '';
+    $word_page_number = isset($_GET['ll_word_page']) ? max(1, (int) $_GET['ll_word_page']) : 1;
+    $word_page = ll_tools_word_option_rules_get_word_page(
+        $wordset_id,
+        $category_id,
+        $word_page_number,
+        $word_search
+    );
+    $words = (array) ($word_page['posts'] ?? []);
+    $word_page_number = (int) ($word_page['page'] ?? 1);
+    $word_total_pages = (int) ($word_page['total_pages'] ?? 0);
+    $word_total = (int) ($word_page['total'] ?? 0);
+    $word_per_page = (int) ($word_page['per_page'] ?? ll_tools_word_option_rules_get_editor_page_size());
+
+    echo '<form method="get" action="' . esc_url(admin_url('tools.php')) . '" class="ll-tools-word-options-word-search">';
+    echo '<input type="hidden" name="page" value="ll-word-option-rules" />';
+    echo '<input type="hidden" name="wordset_id" value="' . esc_attr($wordset_id) . '" />';
+    echo '<input type="hidden" name="category_id" value="' . esc_attr($category_id) . '" />';
+    if ($is_iframe && $lesson_id > 0) {
+        $iframe_nonce = isset($_GET['ll_word_options_iframe_nonce'])
+            ? sanitize_text_field(wp_unslash((string) $_GET['ll_word_options_iframe_nonce']))
+            : '';
+        echo '<input type="hidden" name="ll_iframe" value="1" />';
+        echo '<input type="hidden" name="lesson_id" value="' . esc_attr($lesson_id) . '" />';
+        echo '<input type="hidden" name="ll_word_options_iframe_nonce" value="' . esc_attr($iframe_nonce) . '" />';
+    }
+    echo '<div class="ll-tools-word-options-field ll-tools-word-options-field--word-search">';
+    echo '<label for="ll-word-option-search">' . esc_html__('Search words', 'll-tools-text-domain') . '</label>';
+    echo '<input type="search" id="ll-word-option-search" name="ll_word_search" value="' . esc_attr($word_search) . '" placeholder="' . esc_attr__('Title, translation, or ID', 'll-tools-text-domain') . '" />';
+    echo '</div>';
+    echo '<button type="submit" class="button button-secondary ll-tools-button">' . esc_html__('Search', 'll-tools-text-domain') . '</button>';
+    if ($word_search !== '') {
+        echo '<a class="button button-secondary ll-tools-button" href="' . esc_url(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id)) . '">' . esc_html__('Clear', 'll-tools-text-domain') . '</a>';
+    }
+    echo '</form>';
+
+    if ($word_total > 0) {
+        $word_start = (($word_page_number - 1) * $word_per_page) + 1;
+        $word_end = min($word_total, $word_start + count($words) - 1);
+        echo '<div class="ll-tools-word-options-page-status">';
+        echo '<span>' . esc_html(sprintf(
+            /* translators: 1: first visible word number, 2: last visible word number, 3: total matching words */
+            __('Showing %1$d-%2$d of %3$d words', 'll-tools-text-domain'),
+            $word_start,
+            $word_end,
+            $word_total
+        )) . '</span>';
+        if ($word_total_pages > 1) {
+            echo '<span class="ll-tools-word-options-pager">';
+            if ($word_page_number > 1) {
+                $previous_args = ['ll_word_page' => $word_page_number - 1];
+                if ($word_search !== '') {
+                    $previous_args['ll_word_search'] = $word_search;
+                }
+                echo '<a class="button button-secondary ll-tools-button" href="' . esc_url(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $previous_args)) . '">' . esc_html__('Previous', 'll-tools-text-domain') . '</a>';
+            }
+            if ($word_page_number < $word_total_pages) {
+                $next_args = ['ll_word_page' => $word_page_number + 1];
+                if ($word_search !== '') {
+                    $next_args['ll_word_search'] = $word_search;
+                }
+                echo '<a class="button button-secondary ll-tools-button" href="' . esc_url(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $next_args)) . '">' . esc_html__('Next', 'll-tools-text-domain') . '</a>';
+            }
+            echo '</span>';
+        }
+        echo '</div>';
+    }
+
     if (empty($words)) {
-        echo '<p class="description ll-tools-word-options-hint">' . esc_html__('No words found for this word set and category.', 'll-tools-text-domain') . '</p>';
+        $empty_message = $word_search !== ''
+            ? __('No matching words found.', 'll-tools-text-domain')
+            : __('No words found for this word set and category.', 'll-tools-text-domain');
+        echo '<p class="description ll-tools-word-options-hint">' . esc_html($empty_message) . '</p>';
         echo '</div>';
         return;
     }
 
-    $maps = function_exists('ll_tools_get_word_option_maps')
-        ? ll_tools_get_word_option_maps($wordset_id, $category_id)
-        : ['groups' => [], 'pairs' => [], 'group_map' => [], 'blocked_map' => [], 'blocked_map_by_recording_type' => [], 'similar_image_override_map' => []];
-    $group_map = $maps['group_map'] ?? [];
-    $pair_list = $maps['pairs'] ?? [];
-    $similar_image_override_map = $maps['similar_image_override_map'] ?? [];
-
-    $group_labels = [];
-    foreach ($maps['groups'] ?? [] as $group) {
-        $label = trim((string) ($group['label'] ?? ''));
-        if ($label === '') {
-            continue;
-        }
-        if (!in_array($label, $group_labels, true)) {
-            $group_labels[] = $label;
-        }
-    }
+    $current_rules = function_exists('ll_tools_get_word_option_rules')
+        ? ll_tools_get_word_option_rules($wordset_id, $category_id)
+        : ['groups' => [], 'pairs' => [], 'similar_image_overrides' => []];
+    $word_ids = array_values(array_filter(array_map('intval', wp_list_pluck($words, 'ID'))));
+    $word_lookup = array_fill_keys($word_ids, true);
+    $group_state = ll_tools_word_option_rules_get_group_editor_state(
+        (array) ($current_rules['groups'] ?? []),
+        $word_ids
+    );
+    $group_map = (array) ($group_state['group_map'] ?? []);
+    $group_labels = (array) ($group_state['labels'] ?? []);
     $group_ids = [];
     foreach ($group_labels as $idx => $label) {
         $group_ids[] = 'g' . $idx;
     }
 
+    $pair_page_number = isset($_GET['ll_pair_page']) ? max(1, (int) $_GET['ll_pair_page']) : 1;
+    $manual_pair_page = ll_tools_word_option_rules_get_manual_pair_page(
+        (array) ($current_rules['pairs'] ?? []),
+        $word_ids,
+        $pair_page_number,
+        ll_tools_word_option_rules_get_pair_page_size()
+    );
+    $pair_page_number = (int) ($manual_pair_page['page'] ?? 1);
+    $manual_pair_total_pages = (int) ($manual_pair_page['total_pages'] ?? 0);
+    $manual_pairs = [];
+    $pair_scope_word_ids = $word_ids;
+    foreach ((array) ($manual_pair_page['pairs'] ?? []) as $key => $pair) {
+        $a = (int) ($pair['word_ids'][0] ?? 0);
+        $b = (int) ($pair['word_ids'][1] ?? 0);
+        if ($a <= 0 || $b <= 0) {
+            continue;
+        }
+        $manual_pairs[$key] = [
+            'a' => $a,
+            'b' => $b,
+            'unblocked_recording_types' => (array) ($pair['unblocked_recording_types'] ?? []),
+        ];
+        $pair_scope_word_ids[] = $a;
+        $pair_scope_word_ids[] = $b;
+    }
+    $pair_scope_word_ids = array_values(array_unique(array_filter(array_map('intval', $pair_scope_word_ids))));
+    $pair_scope_posts = ll_tools_word_option_rules_get_scoped_word_posts_by_ids(
+        $wordset_id,
+        $category_id,
+        $pair_scope_word_ids,
+        100
+    );
+    if (is_wp_error($pair_scope_posts)) {
+        $pair_scope_posts = $words;
+    }
+
     $word_label_map = [];
-    foreach ($words as $word) {
+    $pair_scope_lookup = [];
+    foreach ($pair_scope_posts as $word) {
+        if (!($word instanceof WP_Post)) {
+            continue;
+        }
         $word_id = (int) $word->ID;
         if ($word_id <= 0) {
             continue;
         }
+        $pair_scope_lookup[$word_id] = true;
         $word_label_map[$word_id] = ll_tools_word_option_rules_get_word_label($word_id);
     }
-    $word_ids = array_keys($word_label_map);
+    foreach (array_keys($manual_pairs) as $key) {
+        $a = (int) ($manual_pairs[$key]['a'] ?? 0);
+        $b = (int) ($manual_pairs[$key]['b'] ?? 0);
+        if (!isset($pair_scope_lookup[$a]) || !isset($pair_scope_lookup[$b])) {
+            unset($manual_pairs[$key]);
+        }
+    }
+    $pair_scope_word_ids = array_keys($pair_scope_lookup);
     $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
-        ? ll_tools_word_grid_collect_audio_files($word_ids, true)
+        ? ll_tools_word_grid_collect_audio_files($pair_scope_word_ids, true)
         : [];
     $category_config = ($category_term instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
         ? ll_tools_get_category_quiz_config($category_term)
@@ -1443,34 +2087,19 @@ function ll_render_word_option_rules_admin_page() {
         : [];
     $allow_manual_pair_recording_type_controls = $include_recording_text_pairs && !empty($manual_pair_recording_type_choices);
     $auto_text_pair_maps = ll_tools_word_option_rules_build_auto_text_pair_maps(
-        ll_tools_word_option_rules_build_compare_rows($words, $audio_by_word),
+        ll_tools_word_option_rules_build_compare_rows($pair_scope_posts, $audio_by_word),
         $include_recording_text_pairs
     );
-    $manual_pairs = [];
-    if (!empty($pair_list)) {
-        foreach ($pair_list as $pair) {
-            [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
-                ? ll_tools_normalize_word_option_pair_word_ids($pair)
-                : [0, 0];
-            if ($a <= 0 || $b <= 0 || $a === $b) {
-                continue;
-            }
-            if ($a > $b) {
-                $tmp = $a;
-                $a = $b;
-                $b = $tmp;
-            }
-            $manual_pairs[$a . '|' . $b] = [
-                'a' => $a,
-                'b' => $b,
-                'unblocked_recording_types' => function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
-                    ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
-                    : [],
-            ];
-        }
+    $similar_pairs = ll_tools_word_option_rules_get_similar_pair_map($pair_scope_word_ids);
+    $image_pairs = ll_tools_word_option_rules_get_image_pair_map($pair_scope_word_ids);
+    $similar_image_override_map = [];
+    foreach (ll_tools_word_option_rules_normalize_manual_pair_map((array) ($current_rules['similar_image_overrides'] ?? [])) as $key => $pair) {
+        $similar_image_override_map[$key] = true;
     }
-    $similar_pairs = ll_tools_word_option_rules_get_similar_pair_map($word_ids);
-    $image_pairs = ll_tools_word_option_rules_get_image_pair_map($word_ids);
+
+    $pair_is_in_display_scope = static function (string $key, int $a, int $b) use ($manual_pairs, $word_lookup): bool {
+        return isset($manual_pairs[$key]) || (isset($word_lookup[$a]) && isset($word_lookup[$b]));
+    };
 
     $blocked_pairs = [];
     foreach ($manual_pairs as $key => $pair) {
@@ -1487,7 +2116,7 @@ function ll_render_word_option_rules_admin_page() {
     foreach (($auto_text_pair_maps['same_title_pairs'] ?? []) as $key => $pair) {
         $a = (int) ($pair['a'] ?? 0);
         $b = (int) ($pair['b'] ?? 0);
-        if ($a <= 0 || $b <= 0) {
+        if ($a <= 0 || $b <= 0 || !$pair_is_in_display_scope((string) $key, $a, $b)) {
             continue;
         }
         if (!isset($blocked_pairs[$key])) {
@@ -1503,7 +2132,7 @@ function ll_render_word_option_rules_admin_page() {
     foreach (($auto_text_pair_maps['same_translation_pairs'] ?? []) as $key => $pair) {
         $a = (int) ($pair['a'] ?? 0);
         $b = (int) ($pair['b'] ?? 0);
-        if ($a <= 0 || $b <= 0) {
+        if ($a <= 0 || $b <= 0 || !$pair_is_in_display_scope((string) $key, $a, $b)) {
             continue;
         }
         if (!isset($blocked_pairs[$key])) {
@@ -1523,7 +2152,7 @@ function ll_render_word_option_rules_admin_page() {
 
         $a = (int) ($pair['a'] ?? 0);
         $b = (int) ($pair['b'] ?? 0);
-        if ($a <= 0 || $b <= 0) {
+        if ($a <= 0 || $b <= 0 || !$pair_is_in_display_scope((string) $key, $a, $b)) {
             continue;
         }
         if (!isset($blocked_pairs[$key])) {
@@ -1547,7 +2176,7 @@ function ll_render_word_option_rules_admin_page() {
     foreach ($similar_pairs as $key => $pair) {
         $a = (int) ($pair['a'] ?? 0);
         $b = (int) ($pair['b'] ?? 0);
-        if ($a <= 0 || $b <= 0) {
+        if ($a <= 0 || $b <= 0 || !$pair_is_in_display_scope((string) $key, $a, $b)) {
             continue;
         }
         if (!isset($blocked_pairs[$key])) {
@@ -1562,7 +2191,7 @@ function ll_render_word_option_rules_admin_page() {
     foreach ($image_pairs as $key => $pair) {
         $a = (int) ($pair['a'] ?? 0);
         $b = (int) ($pair['b'] ?? 0);
-        if ($a <= 0 || $b <= 0) {
+        if ($a <= 0 || $b <= 0 || !$pair_is_in_display_scope((string) $key, $a, $b)) {
             continue;
         }
         $match_type = (string) ($pair['match_type'] ?? 'similar_image');
@@ -1585,6 +2214,11 @@ function ll_render_word_option_rules_admin_page() {
     $blocked_pairs_list = array_values($blocked_pairs);
     if (!empty($blocked_pairs_list)) {
         usort($blocked_pairs_list, function ($left, $right) use ($word_label_map) {
+            $left_manual = isset($left['reasons']['manual']) ? 0 : 1;
+            $right_manual = isset($right['reasons']['manual']) ? 0 : 1;
+            if ($left_manual !== $right_manual) {
+                return $left_manual <=> $right_manual;
+            }
             $left_a = (int) ($left['a'] ?? 0);
             $left_b = (int) ($left['b'] ?? 0);
             $right_a = (int) ($right['a'] ?? 0);
@@ -1600,6 +2234,8 @@ function ll_render_word_option_rules_admin_page() {
             return strnatcasecmp($left_label_b, $right_label_b);
         });
     }
+    $blocked_pairs_truncated = count($blocked_pairs_list) > ll_tools_word_option_rules_get_pair_page_size();
+    $blocked_pairs_list = array_slice($blocked_pairs_list, 0, ll_tools_word_option_rules_get_pair_page_size());
 
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="ll-tools-word-options-form">';
     wp_nonce_field('ll_word_option_rules_save');
@@ -1607,6 +2243,15 @@ function ll_render_word_option_rules_admin_page() {
     echo '<input type="hidden" name="wordset_id" value="' . esc_attr($wordset_id) . '" />';
     echo '<input type="hidden" name="category_id" value="' . esc_attr($category_id) . '" />';
     echo '<input type="hidden" name="ll_scroll" value="0" data-ll-scroll-input />';
+    echo '<input type="hidden" name="group_names_present" value="1" />';
+    echo '<input type="hidden" name="ll_word_page" value="' . esc_attr($word_page_number) . '" />';
+    echo '<input type="hidden" name="ll_pair_page" value="' . esc_attr($pair_page_number) . '" />';
+    if ($word_search !== '') {
+        echo '<input type="hidden" name="ll_word_search" value="' . esc_attr($word_search) . '" />';
+    }
+    foreach ($word_ids as $editor_word_id) {
+        echo '<input type="hidden" name="editor_word_ids[]" value="' . esc_attr($editor_word_id) . '" />';
+    }
     if ($is_iframe && $lesson_id > 0) {
         echo '<input type="hidden" name="ll_iframe" value="1" />';
         echo '<input type="hidden" name="lesson_id" value="' . esc_attr($lesson_id) . '" />';
@@ -1624,6 +2269,7 @@ function ll_render_word_option_rules_admin_page() {
         foreach ($group_labels as $idx => $label) {
             $group_id = $group_ids[$idx] ?? ('g' . $idx);
             echo '<div class="ll-tools-word-options-group-row" data-group-id="' . esc_attr($group_id) . '">';
+            echo '<input type="hidden" name="group_original_labels[' . esc_attr($group_id) . ']" value="' . esc_attr($label) . '" />';
             echo '<input type="text" class="ll-tools-word-options-group-input" name="group_names[' . esc_attr($group_id) . ']" value="' . esc_attr($label) . '" data-group-name-input />';
             echo '<button type="button" class="button button-secondary ll-tools-button ll-tools-word-options-remove-group" data-group-remove>' . esc_html__('Remove', 'll-tools-text-domain') . '</button>';
             echo '</div>';
@@ -1739,10 +2385,12 @@ function ll_render_word_option_rules_admin_page() {
         echo '<p class="description">' . esc_html__('Manual pairs default to all prompt recording types. Uncheck any type to allow the pair for that prompt.', 'll-tools-text-domain') . '</p>';
     }
     echo '<p class="description">' . esc_html__('Similar image pairs can be removed to allow them together manually.', 'll-tools-text-domain') . '</p>';
+    echo '<p class="description">' . esc_html__('Conflict rows are scoped to the loaded words and the current saved-pair page.', 'll-tools-text-domain') . '</p>';
 
     echo '<div class="ll-tools-word-options-pair-add">';
-    echo '<div class="ll-tools-word-options-field">';
+    echo '<div class="ll-tools-word-options-field" data-ll-pair-candidate-field>';
     echo '<label for="ll-word-option-pair-a">' . esc_html__('Word A', 'll-tools-text-domain') . '</label>';
+    echo '<input type="search" class="ll-tools-word-options-pair-search" data-ll-pair-candidate-search data-target="ll-word-option-pair-a" placeholder="' . esc_attr__('Search words', 'll-tools-text-domain') . '" autocomplete="off" />';
     echo '<select id="ll-word-option-pair-a" name="pair_a">';
     echo '<option value="">' . esc_html__('Select a word', 'll-tools-text-domain') . '</option>';
     foreach ($words as $word) {
@@ -1756,8 +2404,9 @@ function ll_render_word_option_rules_admin_page() {
     echo '</select>';
     echo '</div>';
 
-    echo '<div class="ll-tools-word-options-field">';
+    echo '<div class="ll-tools-word-options-field" data-ll-pair-candidate-field>';
     echo '<label for="ll-word-option-pair-b">' . esc_html__('Word B', 'll-tools-text-domain') . '</label>';
+    echo '<input type="search" class="ll-tools-word-options-pair-search" data-ll-pair-candidate-search data-target="ll-word-option-pair-b" placeholder="' . esc_attr__('Search words', 'll-tools-text-domain') . '" autocomplete="off" />';
     echo '<select id="ll-word-option-pair-b" name="pair_b">';
     echo '<option value="">' . esc_html__('Select a word', 'll-tools-text-domain') . '</option>';
     foreach ($words as $word) {
@@ -1908,8 +2557,44 @@ function ll_render_word_option_rules_admin_page() {
         echo '</table>';
         echo '</div>';
         echo '<p class="description">' . esc_html__('Click the x to remove a pair.', 'll-tools-text-domain') . '</p>';
+        if ($blocked_pairs_truncated) {
+            echo '<p class="description">' . esc_html__('More automatic conflicts exist for these candidates. Narrow the word search to inspect a smaller set.', 'll-tools-text-domain') . '</p>';
+        }
     } else {
         echo '<p class="description">' . esc_html__('No blocked pairs yet.', 'll-tools-text-domain') . '</p>';
+    }
+
+    if ($manual_pair_total_pages > 1) {
+        echo '<div class="ll-tools-word-options-page-status ll-tools-word-options-page-status--pairs">';
+        echo '<span>' . esc_html(sprintf(
+            /* translators: 1: current pair page, 2: total pair pages */
+            __('Saved pair page %1$d of %2$d', 'll-tools-text-domain'),
+            $pair_page_number,
+            $manual_pair_total_pages
+        )) . '</span>';
+        echo '<span class="ll-tools-word-options-pager">';
+        if ($pair_page_number > 1) {
+            $previous_pair_args = [
+                'll_word_page' => $word_page_number,
+                'll_pair_page' => $pair_page_number - 1,
+            ];
+            if ($word_search !== '') {
+                $previous_pair_args['ll_word_search'] = $word_search;
+            }
+            echo '<a class="button button-secondary ll-tools-button" href="' . esc_url(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $previous_pair_args)) . '">' . esc_html__('Previous', 'll-tools-text-domain') . '</a>';
+        }
+        if ($pair_page_number < $manual_pair_total_pages) {
+            $next_pair_args = [
+                'll_word_page' => $word_page_number,
+                'll_pair_page' => $pair_page_number + 1,
+            ];
+            if ($word_search !== '') {
+                $next_pair_args['ll_word_search'] = $word_search;
+            }
+            echo '<a class="button button-secondary ll-tools-button" href="' . esc_url(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $next_pair_args)) . '">' . esc_html__('Next', 'll-tools-text-domain') . '</a>';
+        }
+        echo '</span>';
+        echo '</div>';
     }
 
     echo '</form>';
@@ -2009,201 +2694,140 @@ function ll_tools_save_word_option_rules_from_request(array $request) {
     $wordset_id = isset($request['wordset_id']) ? (int) $request['wordset_id'] : 0;
     $category_id = isset($request['category_id']) ? (int) $request['category_id'] : 0;
     $scroll_position = isset($request['ll_scroll']) ? max(0, (int) wp_unslash((string) $request['ll_scroll'])) : 0;
+    $word_page = isset($request['ll_word_page']) ? max(1, (int) $request['ll_word_page']) : 1;
+    $pair_page = isset($request['ll_pair_page']) ? max(1, (int) $request['ll_pair_page']) : 1;
+    $word_search = isset($request['ll_word_search'])
+        ? sanitize_text_field(wp_unslash((string) $request['ll_word_search']))
+        : '';
+    $result_context = [
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+        'scroll_position' => $scroll_position,
+        'word_page' => $word_page,
+        'pair_page' => $pair_page,
+        'word_search' => $word_search,
+    ];
+    $mutation_scope_raw = isset($request['ll_mutation_scope'])
+        ? sanitize_text_field(wp_unslash((string) $request['ll_mutation_scope']))
+        : '';
+    $mutation_scopes = array_values(array_filter(array_map('sanitize_key', explode(',', $mutation_scope_raw))));
+    $has_explicit_pair_mutation = !empty($request['add_pair'])
+        || !empty($request['remove_pair'])
+        || (!empty($request['remove_pairs']) && is_array($request['remove_pairs']));
+    $apply_group_delta = empty($mutation_scopes)
+        || in_array('all', $mutation_scopes, true)
+        || in_array('groups', $mutation_scopes, true);
+    $apply_pair_delta = $has_explicit_pair_mutation
+        || empty($mutation_scopes)
+        || in_array('all', $mutation_scopes, true)
+        || in_array('pairs', $mutation_scopes, true);
 
     if ($wordset_id > 0 && !ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
-        return new WP_Error('forbidden', __('Permission denied.', 'll-tools-text-domain'), [
+        return new WP_Error('forbidden', __('Permission denied.', 'll-tools-text-domain'), array_merge($result_context, [
             'status' => 403,
-            'wordset_id' => $wordset_id,
-            'category_id' => $category_id,
-            'scroll_position' => $scroll_position,
-        ]);
+        ]));
     }
 
     if ($wordset_id <= 0 || $category_id <= 0) {
-        return new WP_Error('missing_selection', __('Select a word set and category to manage word option rules.', 'll-tools-text-domain'), [
+        return new WP_Error('missing_selection', __('Select a word set and category to manage word option rules.', 'll-tools-text-domain'), array_merge($result_context, [
             'status' => 400,
-            'wordset_id' => $wordset_id,
-            'category_id' => $category_id,
-            'scroll_position' => $scroll_position,
-        ]);
-    }
-
-    $word_ids = ll_tools_word_option_rules_get_word_ids($wordset_id, $category_id);
-    $word_lookup = array_fill_keys($word_ids, true);
-
-    $groups = [];
-    $raw_group_names = isset($request['group_names']) && is_array($request['group_names']) ? $request['group_names'] : [];
-    $raw_group_members = isset($request['group_members']) && is_array($request['group_members']) ? $request['group_members'] : [];
-
-    if (!empty($raw_group_names)) {
-        $groups_map = [];
-        $label_order = [];
-        foreach ($raw_group_names as $group_id => $label) {
-            $group_id = sanitize_text_field(wp_unslash((string) $group_id));
-            $label = sanitize_text_field(wp_unslash((string) $label));
-            $label = trim($label);
-            if ($label === '') {
-                continue;
-            }
-            if (!isset($groups_map[$label])) {
-                $groups_map[$label] = [];
-                $label_order[] = $label;
-            }
-            $members = isset($raw_group_members[$group_id]) && is_array($raw_group_members[$group_id])
-                ? $raw_group_members[$group_id]
-                : [];
-            foreach ($members as $member_id) {
-                $member_id = (int) $member_id;
-                if ($member_id <= 0 || !isset($word_lookup[$member_id])) {
-                    continue;
-                }
-                $groups_map[$label][$member_id] = true;
-            }
-        }
-
-        foreach ($label_order as $label) {
-            $ids_in_group = array_keys($groups_map[$label] ?? []);
-            $ids_in_group = array_values(array_unique(array_filter(array_map('intval', $ids_in_group), static function ($id) {
-                return $id > 0;
-            })));
-            if (!empty($ids_in_group)) {
-                $groups[] = [
-                    'label' => $label,
-                    'word_ids' => $ids_in_group,
-                ];
-            }
-        }
-    } else {
-        $labels_by_word = [];
-        $raw_labels = isset($request['group_label']) && is_array($request['group_label']) ? $request['group_label'] : [];
-        foreach ($raw_labels as $word_id => $label) {
-            $word_id = (int) $word_id;
-            if ($word_id <= 0 || !isset($word_lookup[$word_id])) {
-                continue;
-            }
-            $label = sanitize_text_field(wp_unslash((string) $label));
-            $label = trim($label);
-            if ($label === '') {
-                continue;
-            }
-            $labels_by_word[$word_id] = $label;
-        }
-
-        $groups_map = [];
-        foreach ($labels_by_word as $word_id => $label) {
-            if (!isset($groups_map[$label])) {
-                $groups_map[$label] = [];
-            }
-            $groups_map[$label][] = $word_id;
-        }
-
-        $labels = array_keys($groups_map);
-        if (!empty($labels)) {
-            usort($labels, 'strnatcasecmp');
-        }
-
-        foreach ($labels as $label) {
-            $ids_in_group = [];
-            foreach ($word_ids as $word_id) {
-                if (isset($labels_by_word[$word_id]) && $labels_by_word[$word_id] === $label) {
-                    $ids_in_group[] = $word_id;
-                }
-            }
-            if (!empty($ids_in_group)) {
-                $groups[] = [
-                    'label' => $label,
-                    'word_ids' => $ids_in_group,
-                ];
-            }
-        }
+        ]));
     }
 
     $current = function_exists('ll_tools_get_word_option_rules')
         ? ll_tools_get_word_option_rules($wordset_id, $category_id)
-        : ['pairs' => [], 'similar_image_overrides' => []];
-    $pairs_map = [];
-    foreach ($current['pairs'] as $pair) {
-        [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
-            ? ll_tools_normalize_word_option_pair_word_ids($pair)
-            : [0, 0];
-        if ($a <= 0 || $b <= 0 || $a === $b) {
-            continue;
-        }
-        if (!isset($word_lookup[$a]) || !isset($word_lookup[$b])) {
-            continue;
-        }
-        if ($a > $b) {
-            $tmp = $a;
-            $a = $b;
-            $b = $tmp;
-        }
-        $pairs_map[$a . '|' . $b] = [
-            'word_ids' => [$a, $b],
-            'unblocked_recording_types' => function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
-                ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
-                : [],
-        ];
-    }
+        : ['groups' => [], 'pairs' => [], 'similar_image_overrides' => []];
 
-    $similar_image_override_map = [];
-    foreach (($current['similar_image_overrides'] ?? []) as $pair) {
-        [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
-            ? ll_tools_normalize_word_option_pair_word_ids($pair)
-            : [0, 0];
-        if ($a <= 0 || $b <= 0 || $a === $b) {
-            continue;
-        }
-        if (!isset($word_lookup[$a]) || !isset($word_lookup[$b])) {
-            continue;
-        }
-        if ($a > $b) {
-            $tmp = $a;
-            $a = $b;
-            $b = $tmp;
-        }
-        $similar_image_override_map[$a . '|' . $b] = [$a, $b];
-    }
-
-    $image_pairs = ll_tools_word_option_rules_get_image_pair_map($word_ids);
-    $locked_pairs = [];
-    $auto_similar_image_pairs = [];
-    $category_term = get_term($category_id, 'word-category');
-    $category_config = ($category_term instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
-        ? ll_tools_get_category_quiz_config($category_term)
-        : ['prompt_type' => 'audio'];
-    $include_recording_text_pairs = function_exists('ll_tools_quiz_prompt_type_has_audio')
-        ? ll_tools_quiz_prompt_type_has_audio((string) ($category_config['prompt_type'] ?? 'audio'))
-        : ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
-    $manual_pair_recording_type_choices = $include_recording_text_pairs
-        ? ll_tools_word_option_rules_get_manual_pair_recording_type_choices($category_id)
-        : [];
-    $allow_manual_pair_recording_type_controls = $include_recording_text_pairs && !empty($manual_pair_recording_type_choices);
-    $word_posts = ll_tools_word_option_rules_get_word_posts($wordset_id, $category_id);
-    $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
-        ? ll_tools_word_grid_collect_audio_files($word_ids, true)
-        : [];
-    $auto_text_pair_maps = ll_tools_word_option_rules_build_auto_text_pair_maps(
-        ll_tools_word_option_rules_build_compare_rows($word_posts, $audio_by_word),
-        $include_recording_text_pairs
-    );
-    foreach (['same_title_pairs', 'same_translation_pairs', 'recording_text_pairs'] as $pair_group_key) {
-        foreach ((array) ($auto_text_pair_maps[$pair_group_key] ?? []) as $key => $pair) {
-            $locked_pairs[$key] = true;
-        }
-    }
-    if (!empty($image_pairs)) {
-        foreach ($image_pairs as $key => $pair) {
-            $match_type = (string) ($pair['match_type'] ?? 'similar_image');
-            if ($match_type === 'same_image') {
-                $locked_pairs[$key] = true;
-                unset($similar_image_override_map[$key]);
-                continue;
+    $groups = (array) ($current['groups'] ?? []);
+    if ($apply_group_delta) {
+        $editor_word_ids_raw = isset($request['editor_word_ids']) && is_array($request['editor_word_ids'])
+            ? $request['editor_word_ids']
+            : [];
+        if (empty($editor_word_ids_raw) && isset($request['group_members']) && is_array($request['group_members'])) {
+            foreach ($request['group_members'] as $members) {
+                if (is_array($members)) {
+                    $editor_word_ids_raw = array_merge($editor_word_ids_raw, $members);
+                }
             }
-            $auto_similar_image_pairs[$key] = true;
+        }
+        if (empty($editor_word_ids_raw) && isset($request['group_label']) && is_array($request['group_label'])) {
+            $editor_word_ids_raw = array_keys($request['group_label']);
+        }
+        $editor_word_ids_raw = array_values(array_unique(array_filter(array_map('intval', $editor_word_ids_raw))));
+        $editor_posts = ll_tools_word_option_rules_get_scoped_word_posts_by_ids(
+            $wordset_id,
+            $category_id,
+            $editor_word_ids_raw,
+            ll_tools_word_option_rules_get_editor_page_size()
+        );
+        if (is_wp_error($editor_posts)) {
+            return new WP_Error(
+                $editor_posts->get_error_code(),
+                $editor_posts->get_error_message(),
+                array_merge($result_context, ['status' => 400])
+            );
+        }
+        $editor_word_ids = array_values(array_filter(array_map('intval', wp_list_pluck($editor_posts, 'ID'))));
+
+        $group_request = $request;
+        if (
+            !isset($group_request['group_names'])
+            && isset($group_request['group_label'])
+            && is_array($group_request['group_label'])
+        ) {
+            $legacy_group_ids_by_label = [];
+            $legacy_group_names = [];
+            $legacy_group_members = [];
+            foreach ($group_request['group_label'] as $word_id_raw => $label_raw) {
+                $word_id = (int) $word_id_raw;
+                $label = trim(sanitize_text_field(wp_unslash((string) $label_raw)));
+                if ($word_id <= 0 || $label === '') {
+                    continue;
+                }
+                if (!isset($legacy_group_ids_by_label[$label])) {
+                    $group_id = 'legacy' . count($legacy_group_ids_by_label);
+                    $legacy_group_ids_by_label[$label] = $group_id;
+                    $legacy_group_names[$group_id] = $label;
+                }
+                $legacy_group_members[$legacy_group_ids_by_label[$label]][] = $word_id;
+            }
+            $group_request['group_names_present'] = 1;
+            $group_request['group_names'] = $legacy_group_names;
+            $group_request['group_members'] = $legacy_group_members;
+        }
+        $groups = ll_tools_word_option_rules_merge_group_page_delta(
+            (array) ($current['groups'] ?? []),
+            $group_request,
+            $editor_word_ids
+        );
+    }
+
+    $pairs_map = [];
+    $similar_image_override_map = [];
+    if ($apply_pair_delta) {
+        $pairs_map = ll_tools_word_option_rules_normalize_manual_pair_map((array) ($current['pairs'] ?? []));
+        foreach (ll_tools_word_option_rules_normalize_manual_pair_map((array) ($current['similar_image_overrides'] ?? [])) as $key => $pair) {
+            $similar_image_override_map[$key] = (array) ($pair['word_ids'] ?? []);
         }
     }
 
-    if ($allow_manual_pair_recording_type_controls && !empty($pairs_map)) {
+    $include_recording_text_pairs = false;
+    $manual_pair_recording_type_choices = [];
+    if ($apply_pair_delta) {
+        $category_term = get_term($category_id, 'word-category');
+        $category_config = ($category_term instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
+            ? ll_tools_get_category_quiz_config($category_term)
+            : ['prompt_type' => 'audio'];
+        $include_recording_text_pairs = function_exists('ll_tools_quiz_prompt_type_has_audio')
+            ? ll_tools_quiz_prompt_type_has_audio((string) ($category_config['prompt_type'] ?? 'audio'))
+            : ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
+        $manual_pair_recording_type_choices = $include_recording_text_pairs
+            ? ll_tools_word_option_rules_get_manual_pair_recording_type_choices($category_id)
+            : [];
+    }
+    $allow_manual_pair_recording_type_controls = $include_recording_text_pairs && !empty($manual_pair_recording_type_choices);
+
+    if ($apply_pair_delta && $allow_manual_pair_recording_type_controls && !empty($pairs_map)) {
         $raw_present = isset($request['pair_recording_types_present']) && is_array($request['pair_recording_types_present'])
             ? $request['pair_recording_types_present']
             : [];
@@ -2212,6 +2836,9 @@ function ll_tools_save_word_option_rules_from_request(array $request) {
             : [];
         $present_map = [];
         foreach ($raw_present as $raw_key => $present) {
+            if (count($present_map) >= ll_tools_word_option_rules_get_pair_page_size()) {
+                break;
+            }
             $pair_key = sanitize_text_field(wp_unslash((string) $raw_key));
             if ($pair_key !== '') {
                 $present_map[$pair_key] = !empty($present);
@@ -2221,7 +2848,7 @@ function ll_tools_save_word_option_rules_from_request(array $request) {
         $selected_map = [];
         foreach ($raw_selected as $raw_key => $selected_types) {
             $pair_key = sanitize_text_field(wp_unslash((string) $raw_key));
-            if ($pair_key === '' || !is_array($selected_types)) {
+            if ($pair_key === '' || !isset($present_map[$pair_key]) || !is_array($selected_types)) {
                 continue;
             }
             $selected_map[$pair_key] = array_map(static function ($value): string {
@@ -2230,8 +2857,8 @@ function ll_tools_save_word_option_rules_from_request(array $request) {
         }
 
         $available_manual_pair_recording_types = array_keys($manual_pair_recording_type_choices);
-        foreach (array_keys($pairs_map) as $pair_key) {
-            if (empty($present_map[$pair_key])) {
+        foreach ($present_map as $pair_key => $is_present) {
+            if (!$is_present || !isset($pairs_map[$pair_key])) {
                 continue;
             }
 
@@ -2254,47 +2881,56 @@ function ll_tools_save_word_option_rules_from_request(array $request) {
         }
     }
 
-    $remove_pairs = isset($request['remove_pairs']) && is_array($request['remove_pairs']) ? $request['remove_pairs'] : [];
+    $remove_pairs = $apply_pair_delta && isset($request['remove_pairs']) && is_array($request['remove_pairs']) ? $request['remove_pairs'] : [];
     $single_remove = isset($request['remove_pair']) ? sanitize_text_field(wp_unslash((string) $request['remove_pair'])) : '';
     if ($single_remove !== '') {
         $remove_pairs[] = $single_remove;
     }
+    $remove_pairs = array_slice(array_values($remove_pairs), 0, ll_tools_word_option_rules_get_pair_page_size());
     foreach ($remove_pairs as $raw_pair) {
-        $raw_pair = sanitize_text_field(wp_unslash((string) $raw_pair));
-        if ($raw_pair === '') {
+        [$a, $b, $key] = ll_tools_word_option_rules_parse_pair_key($raw_pair);
+        if ($key === '') {
             continue;
         }
-        $parts = array_map('intval', explode('|', $raw_pair));
-        if (count($parts) < 2) {
+
+        $conflict_reasons = ll_tools_word_option_rules_get_pair_conflict_reasons(
+            $wordset_id,
+            $category_id,
+            $a,
+            $b,
+            $include_recording_text_pairs
+        );
+        if (is_wp_error($conflict_reasons)) {
             continue;
         }
-        $a = (int) ($parts[0] ?? 0);
-        $b = (int) ($parts[1] ?? 0);
-        if ($a <= 0 || $b <= 0 || $a === $b) {
+        $is_locked = isset($conflict_reasons['same_image'])
+            || isset($conflict_reasons['same_title'])
+            || isset($conflict_reasons['same_translation'])
+            || !empty($conflict_reasons['recording_text']);
+        if ($is_locked) {
+            unset($similar_image_override_map[$key]);
             continue;
         }
-        if ($a > $b) {
-            $tmp = $a;
-            $a = $b;
-            $b = $tmp;
-        }
-        $key = $a . '|' . $b;
-        if (isset($locked_pairs[$key])) {
-            continue;
-        }
+
         unset($pairs_map[$key]);
         ll_tools_word_option_rules_clear_similar_meta_pair($a, $b);
         ll_tools_word_option_rules_clear_similar_meta_pair($b, $a);
         unset($similar_image_override_map[$key]);
-        if (isset($auto_similar_image_pairs[$key])) {
+        if (isset($conflict_reasons['similar_image'])) {
             $similar_image_override_map[$key] = [$a, $b];
         }
     }
 
-    if (!empty($request['add_pair'])) {
+    if ($apply_pair_delta && !empty($request['add_pair'])) {
         $pair_a = isset($request['pair_a']) ? (int) $request['pair_a'] : 0;
         $pair_b = isset($request['pair_b']) ? (int) $request['pair_b'] : 0;
-        if ($pair_a > 0 && $pair_b > 0 && $pair_a !== $pair_b && isset($word_lookup[$pair_a]) && isset($word_lookup[$pair_b])) {
+        $pair_posts = ll_tools_word_option_rules_get_scoped_word_posts_by_ids(
+            $wordset_id,
+            $category_id,
+            [$pair_a, $pair_b],
+            2
+        );
+        if (!is_wp_error($pair_posts) && count($pair_posts) === 2 && $pair_a > 0 && $pair_b > 0 && $pair_a !== $pair_b) {
             $a = $pair_a;
             $b = $pair_b;
             if ($a > $b) {
@@ -2322,22 +2958,20 @@ function ll_tools_save_word_option_rules_from_request(array $request) {
     }
 
     if (!function_exists('ll_tools_update_word_option_rules')) {
-        return new WP_Error('save_unavailable', __('Unable to save word option rules.', 'll-tools-text-domain'), [
+        return new WP_Error('save_unavailable', __('Unable to save word option rules.', 'll-tools-text-domain'), array_merge($result_context, [
             'status' => 500,
-            'wordset_id' => $wordset_id,
-            'category_id' => $category_id,
-            'scroll_position' => $scroll_position,
-        ]);
+        ]));
     }
 
-    ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, array_values($pairs_map), array_values($similar_image_override_map));
+    $pairs = $apply_pair_delta ? array_values($pairs_map) : (array) ($current['pairs'] ?? []);
+    $similar_image_overrides = $apply_pair_delta
+        ? array_values($similar_image_override_map)
+        : (array) ($current['similar_image_overrides'] ?? []);
+    ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, $pairs, $similar_image_overrides);
 
-    return [
-        'wordset_id' => $wordset_id,
-        'category_id' => $category_id,
-        'scroll_position' => $scroll_position,
+    return array_merge($result_context, [
         'message' => __('Word option rules saved.', 'll-tools-text-domain'),
-    ];
+    ]);
 }
 
 function ll_tools_handle_word_option_rules_save() {
@@ -2349,7 +2983,7 @@ function ll_tools_handle_word_option_rules_save() {
 
     $result = ll_tools_save_word_option_rules_from_request($_POST);
     if (is_wp_error($result)) {
-        $data = $result->get_error_data();
+        $data = (array) $result->get_error_data();
         if ($result->get_error_code() === 'forbidden') {
             wp_die($result->get_error_message());
         }
@@ -2359,6 +2993,15 @@ function ll_tools_handle_word_option_rules_save() {
         ];
         if (!empty($data['scroll_position'])) {
             $redirect_args['ll_scroll'] = (int) $data['scroll_position'];
+        }
+        if (!empty($data['word_page']) && (int) $data['word_page'] > 1) {
+            $redirect_args['ll_word_page'] = (int) $data['word_page'];
+        }
+        if (!empty($data['pair_page']) && (int) $data['pair_page'] > 1) {
+            $redirect_args['ll_pair_page'] = (int) $data['pair_page'];
+        }
+        if (!empty($data['word_search'])) {
+            $redirect_args['ll_word_search'] = (string) $data['word_search'];
         }
         wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url(
             isset($data['wordset_id']) ? (int) $data['wordset_id'] : 0,
@@ -2373,6 +3016,15 @@ function ll_tools_handle_word_option_rules_save() {
     ];
     if (!empty($result['scroll_position'])) {
         $redirect_args['ll_scroll'] = (int) $result['scroll_position'];
+    }
+    if (!empty($result['word_page']) && (int) $result['word_page'] > 1) {
+        $redirect_args['ll_word_page'] = (int) $result['word_page'];
+    }
+    if (!empty($result['pair_page']) && (int) $result['pair_page'] > 1) {
+        $redirect_args['ll_pair_page'] = (int) $result['pair_page'];
+    }
+    if (!empty($result['word_search'])) {
+        $redirect_args['ll_word_search'] = (string) $result['word_search'];
     }
     wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url(
         (int) ($result['wordset_id'] ?? 0),
@@ -2394,7 +3046,7 @@ function ll_tools_handle_word_option_rules_save_ajax() {
 
     $result = ll_tools_save_word_option_rules_from_request($_POST);
     if (is_wp_error($result)) {
-        $data = $result->get_error_data();
+        $data = (array) $result->get_error_data();
         $status = isset($data['status']) ? (int) $data['status'] : 400;
         wp_send_json_error([
             'message' => $result->get_error_message(),

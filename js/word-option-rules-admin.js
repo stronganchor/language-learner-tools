@@ -52,6 +52,7 @@
         var resetTimer = 0;
         var inFlight = false;
         var queued = false;
+        var queuedScopes = {};
 
         if (!form || !ajaxUrl || typeof window.fetch !== 'function' || typeof window.FormData !== 'function') {
             return null;
@@ -123,6 +124,7 @@
 
         function performSave() {
             var formData;
+            var scopes;
 
             if (inFlight) {
                 queued = true;
@@ -130,6 +132,8 @@
             }
 
             queued = false;
+            scopes = Object.keys(queuedScopes);
+            queuedScopes = {};
             inFlight = true;
             clearResetTimer();
             setStatus('saving', t('autosaveSaving', 'Saving word options...'));
@@ -137,6 +141,7 @@
             formData = new window.FormData(form);
             formData.set('action', 'll_tools_save_word_option_rules_async');
             formData.set('ll_scroll', String(Math.max(0, Math.round(getScrollTop()))));
+            formData.set('ll_mutation_scope', scopes.length ? scopes.join(',') : 'all');
 
             window.fetch(ajaxUrl, {
                 method: 'POST',
@@ -181,18 +186,24 @@
             });
         }
 
-        function scheduleSave(delayMs) {
+        function scheduleSave(delayMs, scope) {
             clearDebounceTimer();
             queued = true;
+            if (scope === 'groups' || scope === 'pairs') {
+                queuedScopes[scope] = true;
+            }
             debounceTimer = window.setTimeout(function () {
                 debounceTimer = 0;
                 performSave();
             }, typeof delayMs === 'number' ? delayMs : 700);
         }
 
-        function saveNow() {
+        function saveNow(scope) {
             clearDebounceTimer();
             queued = true;
+            if (scope === 'groups' || scope === 'pairs') {
+                queuedScopes[scope] = true;
+            }
             performSave();
         }
 
@@ -208,22 +219,29 @@
             );
         }
 
+        function getAutosaveScope(target) {
+            if (target && target.matches && target.matches('input[type="checkbox"][name^="pair_recording_types["]')) {
+                return 'pairs';
+            }
+            return 'groups';
+        }
+
         form.addEventListener('input', function (event) {
             if (isAutosaveField(event.target)) {
-                scheduleSave();
+                scheduleSave(undefined, getAutosaveScope(event.target));
             }
         });
 
         form.addEventListener('change', function (event) {
             if (isAutosaveField(event.target)) {
-                scheduleSave();
+                scheduleSave(undefined, getAutosaveScope(event.target));
             }
         });
 
         form.addEventListener('keydown', function (event) {
             if (event.key === 'Enter' && event.target && event.target.matches && event.target.matches('[data-group-name-input]')) {
                 event.preventDefault();
-                saveNow();
+                saveNow('groups');
             }
         });
 
@@ -571,7 +589,7 @@
             });
 
             if (autosaveController && typeof autosaveController.schedule === 'function') {
-                autosaveController.schedule(150);
+                autosaveController.schedule(150, 'groups');
             }
         }
 
@@ -593,7 +611,7 @@
             row.remove();
             removeGroupColumn(groupId);
             if (autosaveController && typeof autosaveController.schedule === 'function') {
-                autosaveController.schedule(150);
+                autosaveController.schedule(150, 'groups');
             }
         });
 
@@ -679,6 +697,154 @@
         syncPairSelects(null);
     }
 
+    function initPairCandidateSearch() {
+        var form = document.querySelector('.ll-tools-word-options-form');
+        var fields = form ? form.querySelectorAll('[data-ll-pair-candidate-field]') : [];
+        var ajaxUrl = (typeof i18n.ajaxUrl === 'string' && i18n.ajaxUrl !== '')
+            ? i18n.ajaxUrl
+            : ((typeof window.ajaxurl === 'string' && window.ajaxurl !== '') ? window.ajaxurl : '');
+        var nonce = typeof i18n.candidateNonce === 'string' ? i18n.candidateNonce : '';
+        var wordsetInput = form ? form.querySelector('input[name="wordset_id"]') : null;
+        var categoryInput = form ? form.querySelector('input[name="category_id"]') : null;
+
+        if (!form || !fields.length || !ajaxUrl || !nonce || !wordsetInput || !categoryInput || typeof window.fetch !== 'function') {
+            return;
+        }
+
+        fields.forEach(function (field) {
+            var input = field.querySelector('[data-ll-pair-candidate-search]');
+            var targetId = input ? input.getAttribute('data-target') : '';
+            var select = targetId ? document.getElementById(targetId) : null;
+            var initialOptions = select ? select.innerHTML : '';
+            var timer = 0;
+            var controller = null;
+
+            if (!input || !select) {
+                return;
+            }
+
+            function setSearchState(isBusy, hasError) {
+                input.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+                if (hasError) {
+                    input.setAttribute('aria-invalid', 'true');
+                    input.setAttribute('title', t('candidateSearchError', 'Unable to search words.'));
+                } else {
+                    input.removeAttribute('aria-invalid');
+                    input.removeAttribute('title');
+                }
+            }
+
+            function restoreInitialOptions() {
+                var selectedValue = select.value;
+                var selectedOption = selectedValue ? select.querySelector('option:checked') : null;
+                var selectedLabel = selectedOption ? selectedOption.textContent : '';
+                select.innerHTML = initialOptions;
+                if (selectedValue && !select.querySelector('option[value="' + window.CSS.escape(selectedValue) + '"]')) {
+                    var selected = document.createElement('option');
+                    selected.value = selectedValue;
+                    selected.textContent = selectedLabel || ('#' + selectedValue);
+                    select.appendChild(selected);
+                }
+                if (selectedValue) {
+                    select.value = selectedValue;
+                }
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function replaceOptions(candidates) {
+                var selectedValue = select.value;
+                var selectedOption = selectedValue ? select.querySelector('option:checked') : null;
+                var selectedLabel = selectedOption ? selectedOption.textContent : '';
+                var placeholder = document.createElement('option');
+
+                select.innerHTML = '';
+                placeholder.value = '';
+                placeholder.textContent = t('candidateSelectPlaceholder', 'Select a word');
+                select.appendChild(placeholder);
+
+                (Array.isArray(candidates) ? candidates : []).forEach(function (candidate) {
+                    var id = candidate && Number.isInteger(Number(candidate.id)) ? String(candidate.id) : '';
+                    var label = candidate && typeof candidate.label === 'string' ? candidate.label : '';
+                    var option;
+                    if (!id || !label || select.querySelector('option[value="' + window.CSS.escape(id) + '"]')) {
+                        return;
+                    }
+                    option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = label;
+                    select.appendChild(option);
+                });
+
+                if (selectedValue && !select.querySelector('option[value="' + window.CSS.escape(selectedValue) + '"]')) {
+                    var selected = document.createElement('option');
+                    selected.value = selectedValue;
+                    selected.textContent = selectedLabel || ('#' + selectedValue);
+                    select.appendChild(selected);
+                }
+                select.value = selectedValue || '';
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function runSearch() {
+                var search = input.value.trim();
+                var formData;
+
+                timer = 0;
+                if (!search) {
+                    if (controller) {
+                        controller.abort();
+                        controller = null;
+                    }
+                    setSearchState(false, false);
+                    restoreInitialOptions();
+                    return;
+                }
+
+                if (controller) {
+                    controller.abort();
+                }
+                controller = typeof window.AbortController === 'function' ? new window.AbortController() : null;
+                formData = new window.FormData();
+                formData.set('action', 'll_tools_word_option_rule_candidates');
+                formData.set('_ajax_nonce', nonce);
+                formData.set('wordset_id', wordsetInput.value || '');
+                formData.set('category_id', categoryInput.value || '');
+                formData.set('search', search);
+                setSearchState(true, false);
+
+                window.fetch(ajaxUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData,
+                    signal: controller ? controller.signal : undefined
+                }).then(function (response) {
+                    return response.json().then(function (payload) {
+                        if (!response.ok || !payload || !payload.success) {
+                            throw new Error('candidate_search_failed');
+                        }
+                        return payload;
+                    });
+                }).then(function (payload) {
+                    var data = payload && typeof payload.data === 'object' && payload.data ? payload.data : {};
+                    replaceOptions(data.candidates || []);
+                    setSearchState(false, false);
+                }).catch(function (error) {
+                    if (error && error.name === 'AbortError') {
+                        return;
+                    }
+                    setSearchState(false, true);
+                });
+            }
+
+            input.addEventListener('input', function () {
+                if (timer) {
+                    window.clearTimeout(timer);
+                }
+                timer = window.setTimeout(runSearch, 250);
+            });
+        });
+    }
+
     function getScrollTop() {
         return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
     }
@@ -760,6 +926,7 @@
 
     initWordsetMemory();
     initGroupManager(autosaveController);
+    initPairCandidateSearch();
     initPairSelectExclusions();
     initScrollPersistence();
 

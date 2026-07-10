@@ -481,6 +481,7 @@ test('word options popup autosaves group changes without a manual save button', 
   expect(autosavePayload).not.toBeNull();
   expect(autosavePayload.url).toContain('/fake-admin-ajax.php');
   expect(autosavePayload.entries.action).toContain('ll_tools_save_word_option_rules_async');
+  expect(autosavePayload.entries.ll_mutation_scope).toContain('groups');
   expect(autosavePayload.entries['group_members[g1][]']).toContain('11');
 
   await expect(frame.locator('[data-ll-word-options-save-status]')).toHaveAttribute('data-state', 'saved');
