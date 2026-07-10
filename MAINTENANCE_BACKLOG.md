@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 Recent Imports rendering caps:
+  each history entry now renders at most 10 imported categories and five lesson
+  links per category. Wordset filtering is part of the bounded lesson query,
+  full category counts remain visible, and resource coverage verifies capped
+  query count and shape.
 - July 10 legacy translation migration cursor:
   the explicit maintenance action now selects at most 101 eligible IDs, writes
   at most 100 translations, and returns a keyset cursor with batch/cumulative

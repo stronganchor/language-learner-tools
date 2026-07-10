@@ -3127,7 +3127,15 @@ function ll_tools_import_get_history_term_display_name(array $entry): string {
     return __('Unknown term', 'll-tools-text-domain');
 }
 
-function ll_tools_import_get_vocab_lesson_links_for_category(int $category_id, array $wordset_entries): array {
+function ll_tools_import_recent_category_limit(): int {
+    return max(1, min(50, (int) apply_filters('ll_tools_import_recent_category_limit', 10)));
+}
+
+function ll_tools_import_recent_lesson_link_limit(): int {
+    return max(1, min(20, (int) apply_filters('ll_tools_import_recent_lesson_link_limit', 5)));
+}
+
+function ll_tools_import_get_vocab_lesson_links_for_category(int $category_id, array $wordset_entries, int $limit = 0): array {
     if ($category_id <= 0) {
         return [];
     }
@@ -3151,14 +3159,29 @@ function ll_tools_import_get_vocab_lesson_links_for_category(int $category_id, a
         ? LL_TOOLS_VOCAB_LESSON_WORDSET_META
         : '_ll_tools_vocab_wordset_id';
 
+    $limit = $limit > 0 ? min(20, $limit) : ll_tools_import_recent_lesson_link_limit();
+    $meta_query = [
+        [
+            'key' => $category_meta_key,
+            'value' => (string) $category_id,
+        ],
+    ];
+    if (!empty($target_wordset_ids)) {
+        $meta_query[] = [
+            'key' => $wordset_meta_key,
+            'value' => array_map('strval', $target_wordset_ids),
+            'compare' => 'IN',
+        ];
+    }
+
     $lesson_posts = get_posts([
         'post_type' => 'll_vocab_lesson',
         'post_status' => 'publish',
-        'numberposts' => -1,
+        'posts_per_page' => $limit + 1,
         'orderby' => 'title',
         'order' => 'ASC',
-        'meta_key' => $category_meta_key,
-        'meta_value' => (string) $category_id,
+        'meta_query' => $meta_query,
+        'no_found_rows' => true,
     ]);
 
     if (empty($lesson_posts)) {
@@ -3167,7 +3190,7 @@ function ll_tools_import_get_vocab_lesson_links_for_category(int $category_id, a
 
     $links = [];
     $seen = [];
-    foreach ($lesson_posts as $lesson_post) {
+    foreach (array_slice($lesson_posts, 0, $limit) as $lesson_post) {
         if (!($lesson_post instanceof WP_Post)) {
             continue;
         }
@@ -3225,7 +3248,7 @@ function ll_tools_import_build_recent_import_category_rows(array $entry): array 
     }
 
     $rows = [];
-    foreach ($categories as $category_entry) {
+    foreach (array_slice($categories, 0, ll_tools_import_recent_category_limit()) as $category_entry) {
         if (!is_array($category_entry)) {
             continue;
         }
@@ -3238,6 +3261,12 @@ function ll_tools_import_build_recent_import_category_rows(array $entry): array 
     }
 
     return $rows;
+}
+
+function ll_tools_import_get_recent_import_category_count(array $entry): int {
+    $context = ll_tools_import_get_history_context_from_entry($entry);
+    $categories = isset($context['categories']) && is_array($context['categories']) ? $context['categories'] : [];
+    return count($categories);
 }
 
 function ll_tools_render_recent_imports_section(array $recent_imports): void {
@@ -3276,6 +3305,7 @@ function ll_tools_render_recent_imports_section(array $recent_imports): void {
                         $undone_at = isset($entry['undone_at']) ? (int) $entry['undone_at'] : 0;
                         $can_undo = ($undone_at <= 0 && ll_tools_import_has_undo_targets($undo));
                         $category_rows = ll_tools_import_build_recent_import_category_rows($entry);
+                        $category_total = ll_tools_import_get_recent_import_category_count($entry);
                         $time_text = $finished_at > 0
                             ? wp_date(get_option('date_format') . ' ' . get_option('time_format'), $finished_at)
                             : __('Unknown', 'll-tools-text-domain');
@@ -3314,8 +3344,8 @@ function ll_tools_render_recent_imports_section(array $recent_imports): void {
                                             <?php
                                             echo esc_html(sprintf(
                                                 /* translators: %d number of imported categories */
-                                                _n('Categories (%d)', 'Categories (%d)', count($category_rows), 'll-tools-text-domain'),
-                                                count($category_rows)
+                                                _n('Categories (%d)', 'Categories (%d)', $category_total, 'll-tools-text-domain'),
+                                                $category_total
                                             ));
                                             ?>
                                         </summary>
@@ -3346,6 +3376,17 @@ function ll_tools_render_recent_imports_section(array $recent_imports): void {
                                                     <?php endif; ?>
                                                 </li>
                                             <?php endforeach; ?>
+                                            <?php if ($category_total > count($category_rows)) : ?>
+                                                <li class="ll-tools-recent-imports-category-limit">
+                                                    <?php
+                                                    printf(
+                                                        esc_html__('Showing the first %1$d of %2$d imported categories.', 'll-tools-text-domain'),
+                                                        count($category_rows),
+                                                        $category_total
+                                                    );
+                                                    ?>
+                                                </li>
+                                            <?php endif; ?>
                                         </ul>
                                     </details>
                                 <?php endif; ?>

@@ -268,4 +268,95 @@ final class ImportHistoryUndoTest extends LL_Tools_TestCase
         $this->assertStringContainsString(get_permalink($matching_lesson_id), $html);
         $this->assertStringNotContainsString(get_permalink($non_matching_lesson_id), $html);
     }
+
+    public function test_recent_imports_section_bounds_category_and_lesson_queries(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_insert = wp_insert_term('Bounded History Wordset', 'wordset');
+        $this->assertIsArray($wordset_insert);
+        $wordset_id = (int) $wordset_insert['term_id'];
+        $wordset = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $category_context = [];
+        $category_names = [];
+        foreach (range(1, 4) as $category_index) {
+            $category_insert = wp_insert_term('Bounded History Category ' . $category_index, 'word-category');
+            $this->assertIsArray($category_insert);
+            $category_id = (int) $category_insert['term_id'];
+            $category = get_term($category_id, 'word-category');
+            $this->assertInstanceOf(WP_Term::class, $category);
+            $category_names[] = (string) $category->name;
+            $category_context[] = [
+                'term_id' => $category_id,
+                'name' => (string) $category->name,
+                'slug' => (string) $category->slug,
+            ];
+
+            foreach (range(1, 5) as $lesson_index) {
+                $lesson_id = self::factory()->post->create([
+                    'post_type' => 'll_vocab_lesson',
+                    'post_status' => 'publish',
+                    'post_title' => sprintf('Bounded Lesson %d-%d', $category_index, $lesson_index),
+                ]);
+                update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+                update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+            }
+        }
+
+        $category_limit = static function (): int {
+            return 2;
+        };
+        $lesson_limit = static function (): int {
+            return 2;
+        };
+        $captured_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_queries): void {
+            if ($query->get('post_type') === 'll_vocab_lesson') {
+                $captured_queries[] = $query->query_vars;
+            }
+        };
+        add_filter('ll_tools_import_recent_category_limit', $category_limit);
+        add_filter('ll_tools_import_recent_lesson_link_limit', $lesson_limit);
+        add_action('pre_get_posts', $capture, 10, 1);
+        try {
+            ob_start();
+            ll_tools_render_recent_imports_section([[
+                'id' => 'bounded-history-entry',
+                'finished_at' => time(),
+                'ok' => true,
+                'stats' => ['categories_created' => 4],
+                'undo' => ll_tools_import_default_undo_payload(),
+                'history_context' => [
+                    'categories' => $category_context,
+                    'wordsets' => [[
+                        'term_id' => $wordset_id,
+                        'name' => (string) $wordset->name,
+                        'slug' => (string) $wordset->slug,
+                    ]],
+                ],
+            ]]);
+            $html = (string) ob_get_clean();
+        } finally {
+            remove_action('pre_get_posts', $capture, 10);
+            remove_filter('ll_tools_import_recent_lesson_link_limit', $lesson_limit);
+            remove_filter('ll_tools_import_recent_category_limit', $category_limit);
+        }
+
+        $this->assertCount(2, $captured_queries);
+        foreach ($captured_queries as $query_vars) {
+            $this->assertSame(3, (int) ($query_vars['posts_per_page'] ?? 0));
+            $this->assertTrue((bool) ($query_vars['no_found_rows'] ?? false));
+        }
+        $this->assertStringContainsString('Categories (4)', $html);
+        $this->assertStringContainsString('Showing the first 2 of 4 imported categories.', $html);
+        $this->assertStringContainsString($category_names[0], $html);
+        $this->assertStringContainsString($category_names[1], $html);
+        $this->assertStringNotContainsString($category_names[2], $html);
+        $this->assertStringNotContainsString($category_names[3], $html);
+        $this->assertSame(2, substr_count($html, 'class="ll-tools-recent-imports-category-links"'));
+        $this->assertSame(4, substr_count($html, 'target="_blank"'));
+    }
 }
