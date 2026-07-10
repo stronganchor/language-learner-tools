@@ -17367,24 +17367,27 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     if (!$is_study_user && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)) {
         $saved_main_category_sort = 'default';
     }
-    $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
-        ? ll_tools_get_content_lessons_for_wordset($wordset_id)
-        : [];
     $featured_content_lessons = [];
     $mixed_content_lessons = [];
-    foreach ($wordset_content_lessons as $content_lesson) {
-        if (!is_array($content_lesson)) {
-            continue;
-        }
+    $mixed_lesson_cards = [];
+    if ($is_main_view) {
+        $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
+            ? ll_tools_get_content_lessons_for_wordset($wordset_id)
+            : [];
+        foreach ($wordset_content_lessons as $content_lesson) {
+            if (!is_array($content_lesson)) {
+                continue;
+            }
 
-        if (!empty($content_lesson['show_in_mix'])) {
-            $mixed_content_lessons[] = $content_lesson;
-            continue;
-        }
+            if (!empty($content_lesson['show_in_mix'])) {
+                $mixed_content_lessons[] = $content_lesson;
+                continue;
+            }
 
-        $featured_content_lessons[] = $content_lesson;
+            $featured_content_lessons[] = $content_lesson;
+        }
+        $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
     }
-    $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
 
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
     $visible_category_count = count($visible_category_ids);

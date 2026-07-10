@@ -464,6 +464,54 @@ TSV;
         $this->assertStringContainsString('ll-wordset-card ll-wordset-card--content', $html);
     }
 
+    public function test_non_main_wordset_view_does_not_query_content_lesson_cards(): void
+    {
+        $fixture = $this->createMixedLessonFixture();
+        $wordsetId = (int) $fixture['wordset_id'];
+        $wordsetTerm = get_term($wordsetId, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordsetTerm);
+
+        for ($index = 1; $index <= 20; $index++) {
+            $this->createPublishedContentLesson(
+                $wordsetId,
+                'Non Main Lesson ' . $index,
+                [(int) $fixture['category_c_id']],
+                ['show_in_mix' => ($index % 2) === 0]
+            );
+        }
+
+        $contentLessonQueries = 0;
+        $captureQueries = static function (WP_Query $query) use (&$contentLessonQueries): void {
+            $postType = $query->get('post_type');
+            $postTypes = is_array($postType) ? array_map('strval', $postType) : [(string) $postType];
+            if (in_array('ll_content_lesson', $postTypes, true)) {
+                $contentLessonQueries++;
+            }
+        };
+        $originalGet = $_GET;
+        $originalWordsetPage = get_query_var('ll_wordset_page');
+        $originalWordsetView = get_query_var('ll_wordset_view');
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordsetTerm->slug);
+        set_query_var('ll_wordset_view', 'hidden-categories');
+        add_action('pre_get_posts', $captureQueries);
+        try {
+            $html = ll_tools_render_wordset_page_content($wordsetId, [
+                'show_title' => false,
+                'wrapper_tag' => 'div',
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $captureQueries);
+            $_GET = $originalGet;
+            set_query_var('ll_wordset_page', $originalWordsetPage);
+            set_query_var('ll_wordset_view', $originalWordsetView);
+        }
+
+        $this->assertSame(0, $contentLessonQueries);
+        $this->assertStringNotContainsString('Non Main Lesson', $html);
+        $this->assertStringContainsString('ll-wordset-page--hidden-categories', $html);
+    }
+
     public function test_wordset_page_renders_content_lesson_prerequisites_in_sequence(): void
     {
         $fixture = $this->createMixedLessonFixture();
