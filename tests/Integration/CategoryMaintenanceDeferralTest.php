@@ -7,7 +7,9 @@ final class CategoryMaintenanceDeferralTest extends LL_Tools_TestCase
     {
         delete_option('ll_vocab_lesson_wordsets');
         delete_option('ll_tools_quiz_page_sync_last');
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
         delete_option('ll_tools_vocab_lesson_sync_last');
+        delete_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK);
         delete_transient('ll_tools_skip_sync_until_seeded');
         delete_transient('ll_tools_seed_default_wordset');
         wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
@@ -112,6 +114,78 @@ final class CategoryMaintenanceDeferralTest extends LL_Tools_TestCase
 
         clean_post_cache($quiz_page_id);
         $this->assertSame($before_modified_gmt, (string) get_post($quiz_page_id)->post_modified_gmt);
+    }
+
+    public function test_full_quiz_page_sync_uses_bounded_category_cursor_batches(): void
+    {
+        $fixtures = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $fixtures[] = $this->createQuizzableCategoryFixture();
+        }
+
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        $batch_filter = static function (): int {
+            return 2;
+        };
+        global $wpdb;
+        $terms_table = (string) $wpdb->terms;
+        $candidate_queries = [];
+        $query_filter = static function (string $query) use (&$candidate_queries, $terms_table): string {
+            if (stripos($query, 'FROM ' . $terms_table . ' t') !== false
+                && stripos($query, "tt.taxonomy = 'word-category'") !== false) {
+                $candidate_queries[] = $query;
+            }
+            return $query;
+        };
+        add_filter('ll_tools_quiz_page_sync_batch_size', $batch_filter);
+        add_filter('query', $query_filter);
+        try {
+            ll_tools_queue_quiz_page_sync(false, true);
+            $previous_categories = 0;
+            $state = [];
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                $state = ll_tools_run_quiz_page_sync_batch();
+                $current_categories = (int) ($state['categories_processed'] ?? 0);
+                $this->assertLessThanOrEqual(2, $current_categories - $previous_categories);
+                $previous_categories = $current_categories;
+                if ((string) ($state['status'] ?? '') === 'completed') {
+                    break;
+                }
+            }
+        } finally {
+            remove_filter('query', $query_filter);
+            remove_filter('ll_tools_quiz_page_sync_batch_size', $batch_filter);
+        }
+
+        $this->assertSame('completed', (string) ($state['status'] ?? ''));
+        $this->assertGreaterThanOrEqual(5, (int) ($state['categories_processed'] ?? 0));
+        $this->assertGreaterThanOrEqual(3, count($candidate_queries));
+        foreach ($candidate_queries as $candidate_query) {
+            $this->assertMatchesRegularExpression('/LIMIT\s+3\s*$/i', trim($candidate_query));
+        }
+        foreach ($fixtures as $fixture) {
+            $this->assertGreaterThan(0, $this->findQuizPageId((int) $fixture['category_id']));
+        }
+    }
+
+    public function test_only_forced_quiz_cleanup_deletes_missing_category_shells(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_QUIZ_PAGE_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Orphaned Quiz Shell',
+        ]);
+        update_post_meta($page_id, LL_TOOLS_QUIZ_PAGE_CATEGORY_META, '999999');
+
+        ll_tools_queue_quiz_page_sync(false, true);
+        ll_tools_run_quiz_page_sync_batch();
+        $this->assertNotNull(get_post($page_id));
+
+        ll_tools_queue_quiz_page_sync(true, true);
+        $state = ll_tools_run_quiz_page_sync_batch();
+        $this->assertNull(get_post($page_id));
+        $this->assertSame(1, (int) ($state['orphans_deleted'] ?? 0));
     }
 
     /**

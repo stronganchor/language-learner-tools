@@ -331,6 +331,12 @@ function ll_qp_is_quiz_page_context() : bool {
 if (!defined('LL_TOOLS_QUIZ_PAGE_SYNC_EVENT')) {
     define('LL_TOOLS_QUIZ_PAGE_SYNC_EVENT', 'll_tools_quiz_page_sync_event');
 }
+if (!defined('LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION')) {
+    define('LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION', 'll_tools_quiz_page_sync_state');
+}
+if (!defined('LL_TOOLS_QUIZ_PAGE_SYNC_LOCK')) {
+    define('LL_TOOLS_QUIZ_PAGE_SYNC_LOCK', 'll_tools_quiz_page_sync_lock');
+}
 
 if (!function_exists('ll_tools_get_category_maintenance_runtime')) {
     /**
@@ -455,8 +461,9 @@ function ll_tools_flush_deferred_category_maintenance(): array {
     return $category_ids;
 }
 
-function ll_tools_schedule_quiz_page_full_sync(int $delay = 30): void {
+function ll_tools_schedule_quiz_page_full_sync(int $delay = 30, bool $delete_orphans = false): void {
     $delay = max(0, $delay);
+    ll_tools_queue_quiz_page_sync($delete_orphans, false);
     if (wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT)) {
         return;
     }
@@ -1017,101 +1024,179 @@ function ll_tools_handle_category_delete($term_id) {
     }
 }
 
-/** Remove pages for categories that can no longer generate valid quizzes. */
-function ll_tools_cleanup_invalid_quiz_pages() : int {
-    $removed = 0;
-    $pages = get_posts([
-        'post_type'      => ll_tools_get_quiz_page_post_types(true),
-        'post_status'    => ['publish','draft','pending','private'],
-        'meta_key'       => LL_TOOLS_QUIZ_PAGE_CATEGORY_META,
-        'posts_per_page' => -1,
-        'fields'         => 'all',
-        'no_found_rows'  => true,
-    ]);
-    foreach ($pages as $p) {
-        $term_id = get_post_meta($p->ID, LL_TOOLS_QUIZ_PAGE_CATEGORY_META, true);
-        $term    = get_term($term_id, 'word-category');
-
-        // Add safeguards: skip cleanup if term is invalid to avoid aggression during init/activation
-        if (!$term || is_wp_error($term)) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log("LL Tools: Skipping cleanup for invalid term ID $term_id on page {$p->ID}");
-            }
-            continue;
-        }
-
-        if (function_exists('ll_can_category_generate_quiz')) {
-            $ok = ll_can_category_generate_quiz($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
-        } else {
-            // Fallback if function not available (shouldn't happen)
-            $ok = false;
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log("LL Tools: ll_can_category_generate_quiz not available, defaulting to false for term {$term->term_id}");
-            }
-        }
-
-        if (!$ok) {
-            wp_trash_post($p->ID);
-            $removed++;
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log("LL Tools: Trashed page {$p->ID} for category '{$term->name}' due to insufficient words (< " . LL_TOOLS_MIN_WORDS_PER_QUIZ . ")");
-            }
-        }
-    }
-    return $removed;
+function ll_tools_get_quiz_page_sync_state(): array {
+    $state = get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, []);
+    return is_array($state) ? $state : [];
 }
 
-/** Full backfill of all pages */
-function ll_tools_sync_quiz_pages() {
-    // Add transient check to prevent overly aggressive sync during early init (e.g., insufficient word seeding)
+function ll_tools_queue_quiz_page_sync(bool $delete_orphans = false, bool $restart = true): array {
+    $state = ll_tools_get_quiz_page_sync_state();
+    $is_active = in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true);
+    if ($is_active && !$restart) {
+        if ($delete_orphans && empty($state['delete_orphans'])) {
+            $state['delete_orphans'] = true;
+            update_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, $state, false);
+        }
+        return $state;
+    }
+
+    $state = [
+        'status' => 'queued',
+        'phase' => 'cleanup',
+        'cursor' => 0,
+        'cleanup_processed' => 0,
+        'categories_processed' => 0,
+        'removed' => 0,
+        'synced' => 0,
+        'orphans_deleted' => 0,
+        'delete_orphans' => $delete_orphans,
+        'queued_at' => time(),
+        'completed_at' => 0,
+        'message' => '',
+    ];
+    update_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, $state, false);
+    return $state;
+}
+
+function ll_tools_quiz_page_sync_batch_size(): int {
+    return max(1, min(100, (int) apply_filters('ll_tools_quiz_page_sync_batch_size', 25)));
+}
+
+function ll_tools_run_quiz_page_sync_batch(): array {
+    global $wpdb;
+
+    if (get_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK)) {
+        return ll_tools_get_quiz_page_sync_state();
+    }
+    set_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK, 1, 5 * MINUTE_IN_SECONDS);
+    $state = ll_tools_get_quiz_page_sync_state();
+    if (!in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true)) {
+        $state = ll_tools_queue_quiz_page_sync(false, true);
+    }
+    $state['status'] = 'running';
+    $state['message'] = '';
+    $batch_size = ll_tools_quiz_page_sync_batch_size();
+
+    try {
+        for ($phase_pass = 0; $phase_pass < 2; $phase_pass++) {
+            if ((string) ($state['phase'] ?? '') === 'cleanup') {
+                $page_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+                    "SELECT DISTINCT p.ID
+                     FROM {$wpdb->posts} p
+                     INNER JOIN {$wpdb->postmeta} pm
+                        ON pm.post_id = p.ID
+                       AND pm.meta_key = %s
+                     WHERE p.post_type IN ('ll_quiz_page', 'page')
+                       AND p.post_status IN ('publish', 'draft', 'pending', 'private')
+                       AND p.ID > %d
+                     ORDER BY p.ID ASC
+                     LIMIT %d",
+                    LL_TOOLS_QUIZ_PAGE_CATEGORY_META,
+                    (int) ($state['cursor'] ?? 0),
+                    $batch_size + 1
+                )))));
+                $has_more = count($page_ids) > $batch_size;
+                $batch_ids = array_slice($page_ids, 0, $batch_size);
+                foreach ($batch_ids as $page_id) {
+                    $term_id = (int) get_post_meta($page_id, LL_TOOLS_QUIZ_PAGE_CATEGORY_META, true);
+                    $term = $term_id > 0 ? get_term($term_id, 'word-category') : null;
+                    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+                        if (!empty($state['delete_orphans']) && wp_delete_post($page_id, true)) {
+                            $state['orphans_deleted']++;
+                        }
+                        continue;
+                    }
+                    $can_generate = function_exists('ll_can_category_generate_quiz')
+                        && ll_can_category_generate_quiz($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+                    if (!$can_generate && wp_trash_post($page_id)) {
+                        $state['removed']++;
+                    }
+                }
+                if (!empty($batch_ids)) {
+                    $state['cursor'] = (int) end($batch_ids);
+                    $state['cleanup_processed'] += count($batch_ids);
+                }
+                if ($has_more) {
+                    $state['status'] = 'queued';
+                    break;
+                }
+                $state['phase'] = 'sync';
+                $state['cursor'] = 0;
+                continue;
+            }
+
+            $term_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+                "SELECT t.term_id
+                 FROM {$wpdb->terms} t
+                 INNER JOIN {$wpdb->term_taxonomy} tt
+                    ON tt.term_id = t.term_id
+                   AND tt.taxonomy = 'word-category'
+                 WHERE t.term_id > %d
+                 ORDER BY t.term_id ASC
+                 LIMIT %d",
+                (int) ($state['cursor'] ?? 0),
+                $batch_size + 1
+            )))));
+            $has_more = count($term_ids) > $batch_size;
+            $batch_ids = array_slice($term_ids, 0, $batch_size);
+            foreach ($batch_ids as $term_id) {
+                $term = get_term($term_id, 'word-category');
+                if (!($term instanceof WP_Term) || is_wp_error($term)) {
+                    continue;
+                }
+                $can_generate = function_exists('ll_can_category_generate_quiz')
+                    && ll_can_category_generate_quiz($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+                if ($can_generate) {
+                    $result = ll_tools_get_or_create_quiz_page_for_category($term_id);
+                    if (!is_wp_error($result)) {
+                        $state['synced']++;
+                    }
+                }
+            }
+            if (!empty($batch_ids)) {
+                $state['cursor'] = (int) end($batch_ids);
+                $state['categories_processed'] += count($batch_ids);
+            }
+            if ($has_more) {
+                $state['status'] = 'queued';
+            } else {
+                $state['status'] = 'completed';
+                $state['completed_at'] = time();
+                update_option('ll_tools_quiz_page_sync_last', time(), false);
+                wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+            }
+            break;
+        }
+    } catch (Throwable $error) {
+        $state['status'] = 'failed';
+        $state['completed_at'] = time();
+        $state['message'] = sanitize_text_field($error->getMessage());
+    } finally {
+        delete_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK);
+    }
+
+    update_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, $state, false);
+    if ($state['status'] === 'queued' && !wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT)) {
+        wp_schedule_single_event(time() + 1, LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+    }
+    return $state;
+}
+
+/** Queue and advance one bounded maintenance step. */
+function ll_tools_sync_quiz_pages(): array {
     if (get_transient('ll_tools_skip_sync_until_seeded')) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log("LL Tools: Skipping quiz page sync due to 'skip until seeded' transient");
-        }
-        return;
+        return ll_tools_get_quiz_page_sync_state();
     }
+    ll_tools_queue_quiz_page_sync(false, false);
+    return ll_tools_run_quiz_page_sync_batch();
+}
 
-    $removed = ll_tools_cleanup_invalid_quiz_pages();
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log("LL Tools: Cleaned up $removed invalid quiz pages");
-    }
-
-    $terms = get_terms(['taxonomy' => 'word-category', 'hide_empty' => false, 'fields' => 'all']);
-    if (is_wp_error($terms)) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log("LL Tools: Failed to fetch word-category terms: " . $terms->get_error_message());
-        }
-        return;
-    }
-
-    $total_created = 0;
-    foreach ($terms as $term) {
-        if (function_exists('ll_can_category_generate_quiz')) {
-            $ok = ll_can_category_generate_quiz($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
-        } else {
-            $ok = false;
-        }
-
-        if ($ok) {
-            $result = ll_tools_get_or_create_quiz_page_for_category($term->term_id);
-            if (!is_wp_error($result)) {
-                $total_created++;
-            } elseif (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log("LL Tools: Failed to create/sync page for category '{$term->name}': " . $result->get_error_message());
-            }
-        } else {
-            // Log decision for debugging
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log("LL Tools: Skipping page creation for category '{$term->name}' (ID {$term->term_id}): insufficient words");
-            }
-        }
-    }
-
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log("LL Tools: Sync completed - $removed removed, $total_created created/updated");
-    }
-
-    update_option('ll_tools_quiz_page_sync_last', time(), false);
+/** Compatibility wrapper retained for callers that only need a cleanup step. */
+function ll_tools_cleanup_invalid_quiz_pages(): int {
+    $before = ll_tools_get_quiz_page_sync_state();
+    ll_tools_queue_quiz_page_sync(false, false);
+    $after = ll_tools_run_quiz_page_sync_batch();
+    return max(0, (int) ($after['removed'] ?? 0) - (int) ($before['removed'] ?? 0));
 }
 
 /** Wire term create/edit/delete to sync */
@@ -1449,14 +1534,25 @@ function ll_tools_add_manual_cleanup_button() {
 
     $cleanup_nonce = isset($_POST['ll_cleanup_nonce']) ? sanitize_text_field(wp_unslash($_POST['ll_cleanup_nonce'])) : '';
     if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($cleanup_nonce, 'll_cleanup_quiz_pages')) {
-        $removed = ll_tools_cleanup_invalid_quiz_pages();
-        ll_tools_sync_quiz_pages();
-        echo '<div class="notice notice-success is-dismissible"><p>';
+        ll_tools_queue_quiz_page_sync(false, true);
+        $sync_state = ll_tools_run_quiz_page_sync_batch();
+        echo '<div class="notice notice-info is-dismissible"><p>';
         printf(
-            esc_html__('Quiz page cleanup completed. %d invalid pages removed and valid pages synced.', 'll-tools-text-domain'),
-            $removed
+            esc_html__('Quiz page maintenance queued: %1$d pages checked, %2$d categories checked, %3$d pages removed.', 'll-tools-text-domain'),
+            (int) ($sync_state['cleanup_processed'] ?? 0),
+            (int) ($sync_state['categories_processed'] ?? 0),
+            (int) ($sync_state['removed'] ?? 0)
         );
         echo '</p></div>';
+    }
+
+    $sync_state = ll_tools_get_quiz_page_sync_state();
+    if (in_array((string) ($sync_state['status'] ?? ''), ['queued', 'running'], true)) {
+        echo '<div class="notice notice-info inline"><p>' . esc_html(sprintf(
+            __('Quiz page maintenance is running: %1$d pages checked, %2$d categories checked.', 'll-tools-text-domain'),
+            (int) ($sync_state['cleanup_processed'] ?? 0),
+            (int) ($sync_state['categories_processed'] ?? 0)
+        )) . '</p></div>';
     }
 
     echo '<div class="wrap" style="margin: 20px 0; padding: 15px; background: #fff; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
@@ -1477,12 +1573,14 @@ function ll_tools_force_quiz_cleanup() {
         wp_die(esc_html__('Security check failed.', 'll-tools-text-domain'), 403);
     }
 
-    $removed = ll_tools_cleanup_invalid_quiz_pages();
-    ll_tools_sync_quiz_pages();
+    ll_tools_queue_quiz_page_sync(true, true);
+    $sync_state = ll_tools_run_quiz_page_sync_batch();
+    ll_tools_schedule_quiz_page_full_sync(1, true);
 
     $message = sprintf(
-        esc_html__('Quiz page cleanup completed. %d invalid pages removed.', 'll-tools-text-domain'),
-        $removed
+        esc_html__('Quiz page cleanup queued. %1$d pages checked and %2$d invalid or orphaned pages removed so far.', 'll-tools-text-domain'),
+        (int) ($sync_state['cleanup_processed'] ?? 0),
+        (int) ($sync_state['removed'] ?? 0) + (int) ($sync_state['orphans_deleted'] ?? 0)
     );
     $link = sprintf(
         ' <a href="%s">%s</a>',
@@ -1527,41 +1625,13 @@ add_action('admin_init', function () {
         return;
     }
 
-    if (get_transient('ll_tools_autopage_resync_running')) return;
-
-    set_transient('ll_tools_autopage_resync_running', 1, 5 * MINUTE_IN_SECONDS);
-
-    // Run sync
-    $terms = get_terms(['taxonomy' => 'word-category','hide_empty' => false]);
-    if (!is_wp_error($terms)) foreach ($terms as $t) {
-        if (function_exists('ll_can_category_generate_quiz')) {
-            $ok = ll_can_category_generate_quiz($t, LL_TOOLS_MIN_WORDS_PER_QUIZ);
-        } else {
-            $ok = false;
-        }
-        if ($ok) ll_tools_handle_category_sync($t->term_id);
-    }
-
-    // Remove orphaned pages
-    $orphan_pages = get_posts([
-        'post_type'      => ll_tools_get_quiz_page_post_types(true),
-        'post_status'    => ['publish','draft','pending','private'],
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'meta_key'       => LL_TOOLS_QUIZ_PAGE_CATEGORY_META,
-        'no_found_rows'  => true,
-    ]);
-    foreach ($orphan_pages as $pid) {
-        $term_id = (int) get_post_meta($pid, LL_TOOLS_QUIZ_PAGE_CATEGORY_META, true);
-        $term    = $term_id ? get_term($term_id, 'word-category') : null;
-        if (!$term || is_wp_error($term)) wp_delete_post($pid, true);
-    }
-
-    update_option($opt_key, $current_mtime, true);
-    delete_transient('ll_tools_autopage_resync_running');
+    ll_tools_queue_quiz_page_sync(true, true);
+    ll_tools_run_quiz_page_sync_batch();
+    ll_tools_schedule_quiz_page_full_sync(1, true);
+    update_option($opt_key, $current_mtime, false);
 
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('[LL Tools] Quiz pages re-synced after source change (mtime=' . $current_mtime . ').');
+        error_log('[LL Tools] Quiz page re-sync queued after source change (mtime=' . $current_mtime . ').');
     }
 });
 
@@ -1591,14 +1661,25 @@ add_action('admin_notices', function() {
 
     $cleanup_nonce = isset($_POST['ll_cleanup_nonce']) ? sanitize_text_field(wp_unslash($_POST['ll_cleanup_nonce'])) : '';
     if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($cleanup_nonce, 'll_cleanup_quiz_pages')) {
-        $removed = ll_tools_cleanup_invalid_quiz_pages();
-        ll_tools_sync_quiz_pages();
-        echo '<div class="notice notice-success"><p>';
+        ll_tools_queue_quiz_page_sync(false, true);
+        $sync_state = ll_tools_run_quiz_page_sync_batch();
+        echo '<div class="notice notice-info"><p>';
         printf(
-            esc_html__('Quiz page cleanup completed. %d invalid pages removed and valid pages synced.', 'll-tools-text-domain'),
-            $removed
+            esc_html__('Quiz page maintenance queued: %1$d pages checked, %2$d categories checked, %3$d pages removed.', 'll-tools-text-domain'),
+            (int) ($sync_state['cleanup_processed'] ?? 0),
+            (int) ($sync_state['categories_processed'] ?? 0),
+            (int) ($sync_state['removed'] ?? 0)
         );
         echo '</p></div>';
+    }
+
+    $sync_state = ll_tools_get_quiz_page_sync_state();
+    if (in_array((string) ($sync_state['status'] ?? ''), ['queued', 'running'], true)) {
+        echo '<div class="notice notice-info"><p>' . esc_html(sprintf(
+            __('Quiz page maintenance is running: %1$d pages checked, %2$d categories checked.', 'll-tools-text-domain'),
+            (int) ($sync_state['cleanup_processed'] ?? 0),
+            (int) ($sync_state['categories_processed'] ?? 0)
+        )) . '</p></div>';
     }
 
     echo '<div class="wrap"><h2>' . esc_html__('Quiz Page Management', 'll-tools-text-domain') . '</h2>
