@@ -237,6 +237,93 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_stt_training_job_uses_bounded_title_ordered_batches(): void
+    {
+        $wordset_id = $this->createWordset('STT Batched Wordset');
+        foreach (['Echo', 'Alpha', 'Delta', 'Bravo', 'Charlie'] as $title) {
+            $word_id = $this->createWord($wordset_id, $title, $title . ' translation');
+            $this->createAudioRecording($word_id, 'stt-job-' . strtolower($title) . '.mp3', [
+                'recording_text' => $title . ' text',
+            ]);
+        }
+
+        $candidate_queries = [];
+        $query_filter = static function (string $query) use (&$candidate_queries): string {
+            if (stripos($query, 'SELECT a.ID AS recording_id') !== false
+                && stripos($query, "a.post_type = 'word_audio'") !== false) {
+                $candidate_queries[] = $query;
+            }
+            return $query;
+        };
+        $batch_filter = static function (): int {
+            return 2;
+        };
+        add_filter('query', $query_filter);
+        add_filter('ll_tools_export_stt_job_batch_size', $batch_filter);
+        $token = '';
+        $zip_path = '';
+        try {
+            $start = ll_tools_export_prepare_stt_training_job([
+                'll_stt_wordset_id' => $wordset_id,
+                'll_stt_text_field' => 'recording_text',
+                'll_stt_only_reviewed' => '0',
+            ]);
+            $this->assertIsArray($start);
+            $this->assertSame([], $candidate_queries, 'Starting the job must not scan recordings.');
+            $token = (string) ($start['token'] ?? '');
+            $this->assertNotSame('', $token);
+
+            $responses = [];
+            for ($iteration = 0; $iteration < 10; $iteration++) {
+                $response = ll_tools_export_run_batch_job($token);
+                $this->assertIsArray($response, is_wp_error($response) ? $response->get_error_message() : '');
+                $responses[] = $response;
+                if ((string) ($response['status'] ?? '') === 'completed') {
+                    break;
+                }
+            }
+
+            $this->assertCount(3, $responses);
+            $this->assertSame(2, (int) ($responses[0]['checkedRecordings'] ?? 0));
+            $this->assertSame(4, (int) ($responses[1]['checkedRecordings'] ?? 0));
+            $this->assertSame(5, (int) ($responses[2]['checkedRecordings'] ?? 0));
+            $this->assertSame(5, (int) ($responses[2]['sampleCount'] ?? 0));
+            $this->assertSame('completed', (string) ($responses[2]['status'] ?? ''));
+            $this->assertCount(3, $candidate_queries);
+            foreach ($candidate_queries as $candidate_query) {
+                $this->assertMatchesRegularExpression('/LIMIT\s+3\s*$/i', trim($candidate_query));
+            }
+
+            $download = get_transient(ll_tools_export_download_transient_key($token));
+            $this->assertIsArray($download);
+            $zip_path = (string) ($download['zip_path'] ?? '');
+            $this->assertFileExists($zip_path);
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($zip_path) === true);
+            $jsonl = (string) $zip->getFromName('metadata.jsonl');
+            $zip->close();
+            $rows = array_values(array_filter(array_map(static function (string $line): array {
+                $decoded = json_decode($line, true);
+                return is_array($decoded) ? $decoded : [];
+            }, preg_split('/\r\n|\r|\n/', trim($jsonl)))));
+            $this->assertSame(
+                ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'],
+                array_values(array_map(static function (array $row): string {
+                    return (string) ($row['word_title'] ?? '');
+                }, $rows))
+            );
+        } finally {
+            remove_filter('query', $query_filter);
+            remove_filter('ll_tools_export_stt_job_batch_size', $batch_filter);
+            if ($token !== '') {
+                delete_transient(ll_tools_export_download_transient_key($token));
+            }
+            if ($zip_path !== '' && is_file($zip_path)) {
+                @unlink($zip_path);
+            }
+        }
+    }
+
     private function createWordset(string $name): int
     {
         $result = wp_insert_term($name . ' ' . wp_generate_password(6, false, false), 'wordset');

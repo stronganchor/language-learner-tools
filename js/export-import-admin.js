@@ -824,7 +824,13 @@
         for (var i = 0; i < forms.length; i++) {
             (function (form) {
                 var actionInput = form.querySelector('input[name="action"]');
-                if (!actionInput || actionInput.value !== 'll_tools_export_bundle') {
+                var startAction = '';
+                if (actionInput && actionInput.value === 'll_tools_export_bundle') {
+                    startAction = 'll_tools_start_export_bundle';
+                } else if (actionInput && actionInput.value === 'll_tools_export_stt_training_bundle') {
+                    startAction = 'll_tools_start_stt_training_export';
+                }
+                if (!startAction) {
                     return;
                 }
 
@@ -847,7 +853,7 @@
                     document.documentElement.classList.add('ll-tools-import-processing');
 
                     var startData = new FormData(form);
-                    startData.set('action', 'll_tools_start_export_bundle');
+                    startData.set('action', startAction);
 
                     var runBatch = function (token, batchNonce) {
                         var batchData = new FormData();
