@@ -907,6 +907,120 @@ function ll_tools_dictionary_get_wordset_title_language_code(int $wordset_id = 0
 }
 
 /**
+ * Aggregate direct title-language metadata for the anonymous, unscoped view.
+ *
+ * A null result means the aggregate is not semantically equivalent to the
+ * visibility-aware entry scan and the caller must use that existing path.
+ *
+ * @return array<string,int>|null Normalized language counts, or null to fall back.
+ */
+function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?array {
+    if (
+        is_user_logged_in()
+        || !defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY')
+    ) {
+        return null;
+    }
+
+    global $wpdb;
+
+    $language_meta_key = LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY;
+    $wordset_meta_key = LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY;
+    $sql = $wpdb->prepare(
+        "/* ll_tools_dictionary_direct_language_candidates */
+        SELECT candidate.raw_language,
+               COUNT(*) AS entry_count,
+               MIN(candidate.entry_id) AS first_entry_id,
+               SUM(candidate.language_meta_rows) AS language_meta_rows,
+               SUM(candidate.has_direct_language) AS direct_language_entries,
+               SUM(candidate.has_explicit_wordset) AS explicit_wordset_entries
+        FROM (
+            SELECT p.ID AS entry_id,
+                   MAX(
+                       CASE
+                           WHEN pm.meta_key = %s AND TRIM(pm.meta_value) <> '' THEN TRIM(pm.meta_value)
+                           ELSE ''
+                       END
+                   ) AS raw_language,
+                   SUM(CASE WHEN pm.meta_key = %s THEN 1 ELSE 0 END) AS language_meta_rows,
+                   MAX(CASE WHEN pm.meta_key = %s AND TRIM(pm.meta_value) <> '' THEN 1 ELSE 0 END) AS has_direct_language,
+                   MAX(
+                       CASE
+                           WHEN pm.meta_key = %s AND CAST(TRIM(pm.meta_value) AS UNSIGNED) > 0 THEN 1
+                           ELSE 0
+                       END
+                   ) AS has_explicit_wordset
+            FROM {$wpdb->posts} p
+            LEFT JOIN {$wpdb->postmeta} pm
+                   ON pm.post_id = p.ID
+                  AND pm.meta_key IN (%s, %s)
+            WHERE p.post_type = 'll_dictionary_entry'
+              AND p.post_status = 'publish'
+            GROUP BY p.ID
+        ) candidate
+        GROUP BY candidate.raw_language",
+        $language_meta_key,
+        $language_meta_key,
+        $language_meta_key,
+        $wordset_meta_key,
+        $language_meta_key,
+        $wordset_meta_key
+    );
+    $rows = $wpdb->get_results($sql, ARRAY_A);
+    if (!is_array($rows) || $wpdb->last_error !== '') {
+        return null;
+    }
+    if (empty($rows)) {
+        return [];
+    }
+
+    $entry_total = 0;
+    $language_meta_row_total = 0;
+    $direct_language_entry_total = 0;
+    $explicit_wordset_entry_total = 0;
+    $raw_counts = [];
+    foreach ($rows as $row) {
+        $raw_language = trim((string) ($row['raw_language'] ?? ''));
+        $entry_count = max(0, (int) ($row['entry_count'] ?? 0));
+        $entry_total += $entry_count;
+        $language_meta_row_total += max(0, (int) ($row['language_meta_rows'] ?? 0));
+        $direct_language_entry_total += max(0, (int) ($row['direct_language_entries'] ?? 0));
+        $explicit_wordset_entry_total += max(0, (int) ($row['explicit_wordset_entries'] ?? 0));
+        if ($raw_language !== '' && $entry_count > 0) {
+            $raw_counts[] = [
+                'language' => $raw_language,
+                'count' => $entry_count,
+                'first_entry_id' => max(0, (int) ($row['first_entry_id'] ?? 0)),
+            ];
+        }
+    }
+
+    if (
+        $entry_total <= 0
+        || $direct_language_entry_total !== $entry_total
+        || $language_meta_row_total !== $entry_total
+        || $explicit_wordset_entry_total > 0
+    ) {
+        return null;
+    }
+
+    usort($raw_counts, static function (array $left, array $right): int {
+        return ((int) ($left['first_entry_id'] ?? 0)) <=> ((int) ($right['first_entry_id'] ?? 0));
+    });
+
+    $counts = [];
+    foreach ($raw_counts as $raw_count) {
+        $language = ll_tools_dictionary_normalize_language_key((string) ($raw_count['language'] ?? ''));
+        if ($language === '') {
+            return null;
+        }
+        $counts[$language] = ($counts[$language] ?? 0) + max(0, (int) ($raw_count['count'] ?? 0));
+    }
+
+    return $counts;
+}
+
+/**
  * Infer the dictionary title language from published entries when the shortcode
  * is not scoped to a wordset with an explicit title language.
  */
@@ -926,33 +1040,38 @@ function ll_tools_dictionary_infer_title_language_code_from_entries(int $wordset
         return $cached;
     }
 
-    $entry_ids = function_exists('ll_tools_dictionary_get_published_entry_ids_for_scope')
-        ? ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id)
-        : [];
-    if (!empty($entry_ids)) {
-        update_postmeta_cache($entry_ids);
-    }
-
-    $counts = [];
-    foreach ($entry_ids as $entry_id) {
-        $entry_id = (int) $entry_id;
-        if ($entry_id <= 0) {
-            continue;
+    $counts = ($wordset_id === 0 && !is_user_logged_in())
+        ? ll_tools_dictionary_get_anonymous_unscoped_title_language_counts()
+        : null;
+    if (!is_array($counts)) {
+        $entry_ids = function_exists('ll_tools_dictionary_get_published_entry_ids_for_scope')
+            ? ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id)
+            : [];
+        if (!empty($entry_ids)) {
+            update_postmeta_cache($entry_ids);
         }
 
-        $language = ll_tools_dictionary_normalize_language_key(
-            (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY, true)
-        );
-        if ($language === '') {
+        $counts = [];
+        foreach ($entry_ids as $entry_id) {
+            $entry_id = (int) $entry_id;
+            if ($entry_id <= 0) {
+                continue;
+            }
+
             $language = ll_tools_dictionary_normalize_language_key(
-                ll_tools_dictionary_get_primary_sense_value(ll_tools_get_dictionary_entry_senses($entry_id), 'entry_lang')
+                (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY, true)
             );
-        }
-        if ($language === '') {
-            continue;
-        }
+            if ($language === '') {
+                $language = ll_tools_dictionary_normalize_language_key(
+                    ll_tools_dictionary_get_primary_sense_value(ll_tools_get_dictionary_entry_senses($entry_id), 'entry_lang')
+                );
+            }
+            if ($language === '') {
+                continue;
+            }
 
-        $counts[$language] = ($counts[$language] ?? 0) + 1;
+            $counts[$language] = ($counts[$language] ?? 0) + 1;
+        }
     }
 
     if (empty($counts)) {

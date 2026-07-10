@@ -4292,6 +4292,127 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Showing 1-1 of 1', $letter_html);
     }
 
+    public function test_anonymous_unscoped_title_language_uses_grouped_direct_meta_majority(): void
+    {
+        $this->createDictionaryLanguageEntry('Aggregate English', 'English');
+        $this->createDictionaryLanguageEntry('Aggregate Zazaki One', 'Zazaki');
+        $this->createDictionaryLanguageEntry('Aggregate Zazaki Two', 'Zazaki');
+        wp_set_current_user(0);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $queries = [];
+        $query_watcher = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $query_watcher);
+        try {
+            $language = ll_tools_dictionary_infer_title_language_code_from_entries(0);
+        } finally {
+            remove_filter('query', $query_watcher);
+        }
+
+        $this->assertSame('zza', $language);
+        $this->assertStringContainsString('ll_tools_dictionary_direct_language_candidates', implode("\n", $queries));
+    }
+
+    public function test_anonymous_unscoped_title_language_merges_raw_language_aliases(): void
+    {
+        $this->createDictionaryLanguageEntry('Alias English One', 'English');
+        $this->createDictionaryLanguageEntry('Alias English Two', 'English');
+        $this->createDictionaryLanguageEntry('Alias Zazaki Label', 'Zazaki');
+        $this->createDictionaryLanguageEntry('Alias Zza One', 'zza');
+        $this->createDictionaryLanguageEntry('Alias Zza Two', 'zza');
+        wp_set_current_user(0);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $this->assertSame('zza', ll_tools_dictionary_infer_title_language_code_from_entries(0));
+    }
+
+    public function test_anonymous_unscoped_title_language_fast_path_skips_entry_id_and_meta_hydration(): void
+    {
+        global $wpdb;
+
+        for ($index = 1; $index <= 20; $index++) {
+            $this->createDictionaryLanguageEntry('Bounded Aggregate ' . $index, 'Zazaki');
+        }
+        wp_set_current_user(0);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $queries = [];
+        $query_watcher = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $query_watcher);
+        try {
+            $language = ll_tools_dictionary_infer_title_language_code_from_entries(0);
+        } finally {
+            remove_filter('query', $query_watcher);
+        }
+
+        $queries_sql = implode("\n", $queries);
+        $this->assertSame('zza', $language);
+        $this->assertSame(1, substr_count($queries_sql, 'll_tools_dictionary_direct_language_candidates'));
+        $this->assertStringNotContainsString(
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'",
+            $queries_sql
+        );
+        $this->assertStringNotContainsString(
+            "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN",
+            $queries_sql
+        );
+    }
+
+    public function test_anonymous_unscoped_title_language_falls_back_for_structured_sense_language(): void
+    {
+        global $wpdb;
+
+        $this->createDictionaryLanguageEntry('Structured Sense Language', '', 'Zazaki');
+        wp_set_current_user(0);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $queries = [];
+        $query_watcher = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $query_watcher);
+        try {
+            $language = ll_tools_dictionary_infer_title_language_code_from_entries(0);
+        } finally {
+            remove_filter('query', $query_watcher);
+        }
+
+        $queries_sql = implode("\n", $queries);
+        $this->assertSame('zza', $language);
+        $this->assertStringContainsString('ll_tools_dictionary_direct_language_candidates', $queries_sql);
+        $this->assertStringContainsString(
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'",
+            $queries_sql
+        );
+    }
+
+    public function test_title_language_inference_keeps_private_scope_and_logged_in_visibility(): void
+    {
+        $wordset = wp_insert_term('Inference Private Scope ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $private_wordset_id = (int) $wordset['term_id'];
+        update_term_meta($private_wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+
+        $this->createDictionaryLanguageEntry('Inference Shared English', 'English');
+        $this->createDictionaryLanguageEntry('Inference Private Zazaki One', 'Zazaki', '', $private_wordset_id);
+        $this->createDictionaryLanguageEntry('Inference Private Zazaki Two', 'Zazaki', '', $private_wordset_id);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        wp_set_current_user(0);
+        $this->assertSame('en', ll_tools_dictionary_infer_title_language_code_from_entries(0));
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->assertSame('zza', ll_tools_dictionary_infer_title_language_code_from_entries(0));
+    }
+
     public function test_unscoped_dictionary_infers_zazaki_letters_and_keeps_i_buckets_distinct(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -4470,6 +4591,34 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('üniversite', $uumlaut_html);
         $this->assertStringNotContainsString('Lapik', $uumlaut_html);
         $this->assertStringContainsString('Showing 1-1 of 1', $uumlaut_html);
+    }
+
+    private function createDictionaryLanguageEntry(
+        string $title,
+        string $direct_language = '',
+        string $sense_language = '',
+        int $wordset_id = 0
+    ): int {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => $title . ' ' . wp_generate_password(5, false),
+        ]);
+        if ($direct_language !== '') {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY, $direct_language);
+        }
+        if ($sense_language !== '') {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [[
+                'definition' => 'Structured definition',
+                'entry_lang' => $sense_language,
+            ]]);
+        }
+        if ($wordset_id > 0) {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $wordset_id);
+            ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id);
+        }
+
+        return (int) $entry_id;
     }
 
     private function ensurePartOfSpeechTerm(string $slug, string $label): void
