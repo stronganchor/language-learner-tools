@@ -1608,27 +1608,27 @@ function ll_tools_wordset_editor_word_sort_uses_post_titles(int $wordset_id, arr
 }
 
 function ll_tools_wordset_editor_can_use_paged_query(array $filters, int $wordset_id = 0, array $category_rows = []): bool {
-    $search_exact = !empty($filters['exact']);
-    $search = ll_tools_wordset_editor_normalize_search_text((string) ($filters['q'] ?? ''), $search_exact);
-    if ($search !== '') {
-        return false;
+    return $wordset_id > 0;
+}
+
+function ll_tools_wordset_editor_requires_filtered_sql(array $filters, int $wordset_id, array $category_rows): bool {
+    $search = ll_tools_wordset_editor_normalize_search_text(
+        (string) ($filters['q'] ?? ''),
+        !empty($filters['exact'])
+    );
+    if ($search !== '' || !empty(ll_tools_wordset_editor_get_filter_category_ids($filters))) {
+        return true;
     }
 
     foreach (['image', 'recording', 'category_state'] as $filter_key) {
         if (sanitize_key((string) ($filters[$filter_key] ?? '')) !== '') {
-            return false;
+            return true;
         }
-    }
-    if (!empty(ll_tools_wordset_editor_get_filter_category_ids($filters))) {
-        return false;
     }
 
     $sort = sanitize_key((string) ($filters['sort'] ?? 'word'));
-    if ($sort !== '' && $sort !== 'word') {
-        return false;
-    }
-
-    return ll_tools_wordset_editor_word_sort_uses_post_titles($wordset_id, $category_rows);
+    return ($sort !== '' && $sort !== 'word')
+        || !ll_tools_wordset_editor_word_sort_uses_post_titles($wordset_id, $category_rows);
 }
 
 function ll_tools_wordset_editor_get_term_taxonomy_ids(string $taxonomy, array $term_ids): array {
@@ -1710,6 +1710,368 @@ function ll_tools_wordset_editor_base_count_sql(int $wordset_id, array $filters,
     return $sql;
 }
 
+function ll_tools_wordset_editor_audio_presence_sql(string $word_id_sql, array &$params): string {
+    global $wpdb;
+
+    $params = array_merge($params, ['audio_file_path', 'word_audio', 'publish']);
+    return "
+        EXISTS (
+            SELECT 1
+            FROM {$wpdb->posts} editor_audio
+            INNER JOIN {$wpdb->postmeta} editor_audio_file
+                ON editor_audio_file.post_id = editor_audio.ID
+               AND editor_audio_file.meta_key = %s
+               AND editor_audio_file.meta_value <> ''
+            WHERE editor_audio.post_parent = {$word_id_sql}
+              AND editor_audio.post_type = %s
+              AND editor_audio.post_status = %s
+        )
+    ";
+}
+
+function ll_tools_wordset_editor_sql_meta_value(string $meta_key): string {
+    global $wpdb;
+
+    $meta_key = esc_sql($meta_key);
+    return "(
+        SELECT editor_sort_meta.meta_value
+        FROM {$wpdb->postmeta} editor_sort_meta
+        WHERE editor_sort_meta.post_id = p.ID
+          AND editor_sort_meta.meta_key = '{$meta_key}'
+        ORDER BY editor_sort_meta.meta_id DESC
+        LIMIT 1
+    )";
+}
+
+function ll_tools_wordset_editor_search_match_sql(string $expression, bool $exact): string {
+    if ($exact) {
+        return "LOWER(CAST({$expression} AS CHAR)) LIKE BINARY %s";
+    }
+
+    return "{$expression} LIKE %s";
+}
+
+function ll_tools_wordset_editor_filtered_sql_parts(int $wordset_id, array $category_rows, array $filters): array {
+    global $wpdb;
+
+    $params = [];
+    $sql = ll_tools_wordset_editor_base_count_sql($wordset_id, $filters, $params);
+    if ($sql === '') {
+        return [
+            'sql'    => '',
+            'params' => [],
+        ];
+    }
+
+    $category_state = sanitize_key((string) ($filters['category_state'] ?? ''));
+    if ($category_state === ll_tools_wordset_editor_uncategorized_filter_value()) {
+        $category_ids = [];
+        foreach (ll_tools_wordset_editor_get_available_category_ids($category_rows) as $category_id) {
+            $category_ids = array_merge(
+                $category_ids,
+                ll_tools_wordset_editor_expand_category_filter_ids_for_query([$category_id], $wordset_id)
+            );
+        }
+        $category_tt_ids = ll_tools_wordset_editor_get_term_taxonomy_ids(
+            'word-category',
+            ll_tools_wordset_editor_normalize_word_ids($category_ids)
+        );
+        if (!empty($category_tt_ids)) {
+            $placeholders = implode(',', array_fill(0, count($category_tt_ids), '%d'));
+            $sql .= "
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM {$wpdb->term_relationships} editor_category_state
+                  WHERE editor_category_state.object_id = p.ID
+                    AND editor_category_state.term_taxonomy_id IN ({$placeholders})
+              )
+            ";
+            $params = array_merge($params, $category_tt_ids);
+        }
+    }
+
+    $image_filter = sanitize_key((string) ($filters['image'] ?? ''));
+    if (in_array($image_filter, ['has', 'missing'], true)) {
+        $image_params = [];
+        $image_sql = function_exists('ll_tools_effective_word_image_presence_sql')
+            ? ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params)
+            : '0 = 1';
+        $sql .= $image_filter === 'missing' ? " AND NOT ({$image_sql})" : " AND ({$image_sql})";
+        $params = array_merge($params, $image_params);
+    }
+
+    $recording_filter = sanitize_key((string) ($filters['recording'] ?? ''));
+    if ($recording_filter === 'none') {
+        $recording_filter = 'missing';
+    }
+    if (in_array($recording_filter, ['has', 'missing'], true)) {
+        $audio_params = [];
+        $audio_sql = ll_tools_wordset_editor_audio_presence_sql('p.ID', $audio_params);
+        $sql .= $recording_filter === 'missing' ? " AND NOT ({$audio_sql})" : " AND ({$audio_sql})";
+        $params = array_merge($params, $audio_params);
+    }
+
+    $search_exact = !empty($filters['exact']);
+    $search = ll_tools_wordset_editor_normalize_search_text((string) ($filters['q'] ?? ''), $search_exact);
+    if ($search !== '') {
+        $pattern = '%' . $wpdb->esc_like($search) . '%';
+        $search_meta_keys = [
+            'll_word_target_text',
+            'll_word_translations',
+            'word_translation',
+            'word_english_meaning',
+            'word_example_sentence',
+            'word_example_sentence_translation',
+            'll_word_usage_note',
+            '_ll_specific_wrong_answer_texts',
+            '_ll_tools_internal_review_note',
+            'll_grammatical_gender',
+            'll_grammatical_plurality',
+            'll_verb_tense',
+            'll_verb_mood',
+        ];
+        $meta_placeholders = implode(',', array_fill(0, count($search_meta_keys), '%s'));
+        $post_title_match = ll_tools_wordset_editor_search_match_sql('p.post_title', $search_exact);
+        $post_content_match = ll_tools_wordset_editor_search_match_sql('p.post_content', $search_exact);
+        $meta_match = ll_tools_wordset_editor_search_match_sql('editor_search_meta.meta_value', $search_exact);
+        $term_match = ll_tools_wordset_editor_search_match_sql('editor_search_terms.name', $search_exact);
+        $term_meta_match = ll_tools_wordset_editor_search_match_sql('editor_search_term_meta.meta_value', $search_exact);
+        $dictionary_match = ll_tools_wordset_editor_search_match_sql('editor_dictionary.post_title', $search_exact);
+        $sql .= "
+          AND (
+              {$post_title_match}
+              OR {$post_content_match}
+              OR EXISTS (
+                  SELECT 1
+                  FROM {$wpdb->postmeta} editor_search_meta
+                  WHERE editor_search_meta.post_id = p.ID
+                    AND editor_search_meta.meta_key IN ({$meta_placeholders})
+                    AND {$meta_match}
+              )
+              OR EXISTS (
+                  SELECT 1
+                  FROM {$wpdb->term_relationships} editor_search_relationships
+                  INNER JOIN {$wpdb->term_taxonomy} editor_search_taxonomy
+                      ON editor_search_taxonomy.term_taxonomy_id = editor_search_relationships.term_taxonomy_id
+                     AND editor_search_taxonomy.taxonomy IN ('word-category', 'part_of_speech')
+                  INNER JOIN {$wpdb->terms} editor_search_terms
+                      ON editor_search_terms.term_id = editor_search_taxonomy.term_id
+                  LEFT JOIN {$wpdb->termmeta} editor_search_term_meta
+                      ON editor_search_term_meta.term_id = editor_search_terms.term_id
+                  WHERE editor_search_relationships.object_id = p.ID
+                    AND ({$term_match} OR {$term_meta_match})
+              )
+              OR EXISTS (
+                  SELECT 1
+                  FROM {$wpdb->postmeta} editor_dictionary_link
+                  INNER JOIN {$wpdb->posts} editor_dictionary
+                      ON editor_dictionary.ID = CAST(editor_dictionary_link.meta_value AS UNSIGNED)
+                     AND editor_dictionary.post_type = 'll_dictionary_entry'
+                  WHERE editor_dictionary_link.post_id = p.ID
+                    AND editor_dictionary_link.meta_key = 'll_dictionary_entry_id'
+                    AND {$dictionary_match}
+              )
+          )
+        ";
+        $params[] = $pattern;
+        $params[] = $pattern;
+        $params = array_merge($params, $search_meta_keys);
+        $params[] = $pattern;
+        $params[] = $pattern;
+        $params[] = $pattern;
+        $params[] = $pattern;
+    }
+
+    return [
+        'sql'    => $sql,
+        'params' => $params,
+    ];
+}
+
+function ll_tools_wordset_editor_filtered_order_sql(int $wordset_id, array $category_rows, array $filters, array &$params): string {
+    global $wpdb;
+
+    $sort = sanitize_key((string) ($filters['sort'] ?? 'word'));
+    $dir = ((string) ($filters['dir'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+    $translation = 'COALESCE(NULLIF(' . ll_tools_wordset_editor_sql_meta_value('word_translation') . ", ''), NULLIF(" . ll_tools_wordset_editor_sql_meta_value('word_english_meaning') . ", ''), '')";
+    $target = 'COALESCE(NULLIF(' . ll_tools_wordset_editor_sql_meta_value('ll_word_target_text') . ", ''), p.post_title)";
+
+    switch ($sort) {
+        case 'translation':
+            $order_value = $translation;
+            break;
+        case 'category':
+            $order_value = "COALESCE((
+                SELECT GROUP_CONCAT(editor_sort_terms.name ORDER BY editor_sort_terms.name SEPARATOR ' ')
+                FROM {$wpdb->term_relationships} editor_sort_relationships
+                INNER JOIN {$wpdb->term_taxonomy} editor_sort_taxonomy
+                    ON editor_sort_taxonomy.term_taxonomy_id = editor_sort_relationships.term_taxonomy_id
+                   AND editor_sort_taxonomy.taxonomy = 'word-category'
+                INNER JOIN {$wpdb->terms} editor_sort_terms
+                    ON editor_sort_terms.term_id = editor_sort_taxonomy.term_id
+                WHERE editor_sort_relationships.object_id = p.ID
+            ), '')";
+            break;
+        case 'status':
+            $order_value = 'p.post_status';
+            break;
+        case 'image':
+            $image_params = [];
+            $order_value = function_exists('ll_tools_effective_word_image_presence_sql')
+                ? '(' . ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params) . ')'
+                : '0';
+            $params = array_merge($params, $image_params);
+            break;
+        case 'recording':
+            $params = array_merge($params, ['audio_file_path', 'word_audio', 'publish']);
+            $order_value = "(
+                SELECT COUNT(*)
+                FROM {$wpdb->posts} editor_sort_audio
+                INNER JOIN {$wpdb->postmeta} editor_sort_audio_file
+                    ON editor_sort_audio_file.post_id = editor_sort_audio.ID
+                   AND editor_sort_audio_file.meta_key = %s
+                   AND editor_sort_audio_file.meta_value <> ''
+                WHERE editor_sort_audio.post_parent = p.ID
+                  AND editor_sort_audio.post_type = %s
+                  AND editor_sort_audio.post_status = %s
+            )";
+            break;
+        case 'word':
+        default:
+            $order_value = ll_tools_wordset_editor_word_sort_uses_post_titles($wordset_id, $category_rows)
+                ? $target
+                : "COALESCE(NULLIF({$translation}, ''), {$target})";
+            break;
+    }
+
+    return "{$order_value} {$dir}, p.post_title {$dir}, p.ID {$dir}";
+}
+
+function ll_tools_wordset_editor_query_filtered_word_ids(int $wordset_id, array $category_rows, array $filters, array $options = []): array {
+    global $wpdb;
+
+    $parts = ll_tools_wordset_editor_filtered_sql_parts($wordset_id, $category_rows, $filters);
+    $base_sql = (string) ($parts['sql'] ?? '');
+    $base_params = (array) ($parts['params'] ?? []);
+    if ($base_sql === '') {
+        return [
+            'ids'   => [],
+            'total' => 0,
+        ];
+    }
+
+    $count_sql = "SELECT COUNT(DISTINCT p.ID) {$base_sql}";
+    $total = (int) $wpdb->get_var($wpdb->prepare($count_sql, $base_params));
+    if ($total <= 0) {
+        return [
+            'ids'   => [],
+            'total' => 0,
+        ];
+    }
+
+    $per_page = max(1, (int) ($options['posts_per_page'] ?? 75));
+    $paged = max(1, (int) ($options['paged'] ?? ($filters['paged'] ?? 1)));
+    $order_params = [];
+    $order_sql = ll_tools_wordset_editor_filtered_order_sql($wordset_id, $category_rows, $filters, $order_params);
+    $query_sql = "SELECT DISTINCT p.ID {$base_sql} ORDER BY {$order_sql} LIMIT %d OFFSET %d";
+    $query_params = array_merge($base_params, $order_params, [$per_page, ($paged - 1) * $per_page]);
+    $ids = ll_tools_wordset_editor_normalize_word_ids((array) $wpdb->get_col($wpdb->prepare($query_sql, $query_params)));
+
+    return [
+        'ids'   => $ids,
+        'total' => $total,
+    ];
+}
+
+function ll_tools_wordset_editor_get_filtered_aggregate_summary(int $wordset_id, array $category_rows, array $filters, int $total): array {
+    global $wpdb;
+
+    $summary = [
+        'total'         => max(0, $total),
+        'missing_audio' => 0,
+        'missing_image' => 0,
+        'no_audio'      => 0,
+    ];
+    if ($summary['total'] <= 0) {
+        return $summary;
+    }
+
+    $parts = ll_tools_wordset_editor_filtered_sql_parts($wordset_id, $category_rows, $filters);
+    $base_sql = (string) ($parts['sql'] ?? '');
+    $base_params = (array) ($parts['params'] ?? []);
+    if ($base_sql === '') {
+        return $summary;
+    }
+
+    $audio_params = [];
+    $audio_presence = ll_tools_wordset_editor_audio_presence_sql('p.ID', $audio_params);
+    $has_audio = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT p.ID) {$base_sql} AND ({$audio_presence})",
+        array_merge($base_params, $audio_params)
+    ));
+
+    $image_params = [];
+    $image_presence = function_exists('ll_tools_effective_word_image_presence_sql')
+        ? ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params)
+        : '0 = 1';
+    $has_image = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(DISTINCT p.ID) {$base_sql} AND ({$image_presence})",
+        array_merge($base_params, $image_params)
+    ));
+
+    $summary['missing_audio'] = max(0, $summary['total'] - max(0, $has_audio));
+    $summary['no_audio'] = $summary['missing_audio'];
+    $summary['missing_image'] = max(0, $summary['total'] - max(0, $has_image));
+
+    return $summary;
+}
+
+function ll_tools_wordset_editor_get_filtered_category_ids(int $wordset_id, array $category_rows, array $filters): array {
+    global $wpdb;
+
+    $category_filters = $filters;
+    $category_filters['category'] = 0;
+    $category_filters['categories'] = [];
+    $category_filters['category_ids'] = [];
+    $parts = ll_tools_wordset_editor_filtered_sql_parts($wordset_id, $category_rows, $category_filters);
+    $base_sql = (string) ($parts['sql'] ?? '');
+    $params = (array) ($parts['params'] ?? []);
+    if ($base_sql === '') {
+        return [];
+    }
+
+    $sql = "
+        SELECT DISTINCT editor_filter_taxonomy.term_id
+        FROM {$wpdb->term_relationships} editor_filter_relationships
+        INNER JOIN {$wpdb->term_taxonomy} editor_filter_taxonomy
+            ON editor_filter_taxonomy.term_taxonomy_id = editor_filter_relationships.term_taxonomy_id
+           AND editor_filter_taxonomy.taxonomy = 'word-category'
+        WHERE editor_filter_relationships.object_id IN (
+            SELECT DISTINCT p.ID {$base_sql}
+        )
+    ";
+    $matched_term_ids = array_fill_keys(
+        ll_tools_wordset_editor_normalize_word_ids((array) $wpdb->get_col($wpdb->prepare($sql, $params))),
+        true
+    );
+    if (empty($matched_term_ids)) {
+        return [];
+    }
+
+    $filtered_ids = [];
+    foreach (ll_tools_wordset_editor_get_available_category_ids($category_rows) as $category_id) {
+        $candidate_ids = ll_tools_wordset_editor_expand_category_filter_ids_for_query([$category_id], $wordset_id);
+        foreach ($candidate_ids as $candidate_id) {
+            if (isset($matched_term_ids[(int) $candidate_id])) {
+                $filtered_ids[] = (int) $category_id;
+                break;
+            }
+        }
+    }
+
+    return $filtered_ids;
+}
+
 function ll_tools_wordset_editor_get_aggregate_summary(int $wordset_id, array $filters, int $total): array {
     global $wpdb;
 
@@ -1775,6 +2137,7 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     $filters = array_merge(ll_tools_wordset_editor_get_filters(), $filters);
     $hydrate_details = array_key_exists('hydrate_details', $options) ? !empty($options['hydrate_details']) : true;
     $hydrate_images = array_key_exists('hydrate_images', $options) ? !empty($options['hydrate_images']) : true;
+    $sort_rows = array_key_exists('sort_rows', $options) ? !empty($options['sort_rows']) : true;
     $word_sort_uses_post_titles = ll_tools_wordset_editor_word_sort_uses_post_titles($wordset_id, $category_rows);
     $word_ids = array_key_exists('word_ids', $options)
         ? ll_tools_wordset_editor_normalize_word_ids((array) $options['word_ids'])
@@ -1928,7 +2291,9 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     }
 
     return [
-        'rows'                => ll_tools_wordset_editor_sort_rows($filtered_rows, $filters, $word_sort_uses_post_titles),
+        'rows'                => $sort_rows
+            ? ll_tools_wordset_editor_sort_rows($filtered_rows, $filters, $word_sort_uses_post_titles)
+            : $filtered_rows,
         'summary'             => $summary,
         'category_filter_ids' => $category_filter_ids,
     ];
@@ -3124,32 +3489,52 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $paged = max(1, (int) ($filters['paged'] ?? 1));
     $available_category_ids = ll_tools_wordset_editor_get_available_category_ids($category_rows);
     $use_paged_word_query = ll_tools_wordset_editor_can_use_paged_query($filters, $wordset_id, $category_rows);
+    $use_filtered_sql = ll_tools_wordset_editor_requires_filtered_sql($filters, $wordset_id, $category_rows);
 
     if ($use_paged_word_query) {
-        $query_result = ll_tools_wordset_editor_query_word_ids($wordset_id, $filters, [
+        $query_options = [
             'posts_per_page' => $per_page,
             'paged'          => $paged,
             'no_found_rows'  => false,
-        ]);
+        ];
+        $query_result = $use_filtered_sql
+            ? ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, $filters, $query_options)
+            : ll_tools_wordset_editor_query_word_ids($wordset_id, $filters, $query_options);
         $total_filtered = max(0, (int) ($query_result['total'] ?? 0));
         $total_pages = max(1, (int) ceil($total_filtered / $per_page));
         if ($paged > $total_pages) {
             $paged = $total_pages;
-            $query_result = ll_tools_wordset_editor_query_word_ids($wordset_id, $filters, [
-                'posts_per_page' => $per_page,
-                'paged'          => $paged,
-                'no_found_rows'  => false,
-            ]);
+            $query_options['paged'] = $paged;
+            $query_result = $use_filtered_sql
+                ? ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, $filters, $query_options)
+                : ll_tools_wordset_editor_query_word_ids($wordset_id, $filters, $query_options);
         }
         $page_word_ids = ll_tools_wordset_editor_normalize_word_ids((array) ($query_result['ids'] ?? []));
-        $data = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, $filters, [
+        $row_filters = $use_filtered_sql ? [
+            'q'              => '',
+            'exact'          => false,
+            'category'       => 0,
+            'categories'     => [],
+            'category_state' => '',
+            'status'         => '',
+            'image'          => '',
+            'recording'      => '',
+            'sort'           => 'word',
+            'dir'            => 'asc',
+        ] : $filters;
+        $data = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, $row_filters, [
             'hydrate_details' => false,
             'hydrate_images'  => false,
             'word_ids'        => $page_word_ids,
+            'sort_rows'       => !$use_filtered_sql,
         ]);
         $page_rows = ll_tools_wordset_editor_hydrate_display_rows((array) ($data['rows'] ?? []), $wordset_id);
-        $summary = ll_tools_wordset_editor_get_aggregate_summary($wordset_id, $filters, $total_filtered);
-        $category_filter_ids = $available_category_ids;
+        $summary = $use_filtered_sql
+            ? ll_tools_wordset_editor_get_filtered_aggregate_summary($wordset_id, $category_rows, $filters, $total_filtered)
+            : ll_tools_wordset_editor_get_aggregate_summary($wordset_id, $filters, $total_filtered);
+        $category_filter_ids = $use_filtered_sql
+            ? ll_tools_wordset_editor_get_filtered_category_ids($wordset_id, $category_rows, $filters)
+            : $available_category_ids;
     } else {
         $data = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, $filters, [
             'hydrate_details' => false,

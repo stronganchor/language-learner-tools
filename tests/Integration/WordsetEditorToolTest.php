@@ -172,12 +172,18 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $folded_result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, $base_filters);
         $folded_ids = array_map('intval', wp_list_pluck((array) ($folded_result['rows'] ?? []), 'id'));
         $this->assertContains((int) $fixture['alpha_word_id'], $folded_ids);
+        $folded_query = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, $base_filters);
+        $this->assertContains((int) $fixture['alpha_word_id'], (array) ($folded_query['ids'] ?? []));
 
         $exact_result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, array_merge($base_filters, [
             'exact' => true,
         ]));
         $exact_ids = array_map('intval', wp_list_pluck((array) ($exact_result['rows'] ?? []), 'id'));
         $this->assertNotContains((int) $fixture['alpha_word_id'], $exact_ids);
+        $exact_query = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, array_merge($base_filters, [
+            'exact' => true,
+        ]));
+        $this->assertNotContains((int) $fixture['alpha_word_id'], (array) ($exact_query['ids'] ?? []));
 
         $exact_diacritic_result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, array_merge($base_filters, [
             'q'     => "\u{00C7}arna",
@@ -185,6 +191,11 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         ]));
         $exact_diacritic_ids = array_map('intval', wp_list_pluck((array) ($exact_diacritic_result['rows'] ?? []), 'id'));
         $this->assertContains((int) $fixture['alpha_word_id'], $exact_diacritic_ids);
+        $exact_diacritic_query = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, array_merge($base_filters, [
+            'q'     => "\u{00C7}arna",
+            'exact' => true,
+        ]));
+        $this->assertContains((int) $fixture['alpha_word_id'], (array) ($exact_diacritic_query['ids'] ?? []));
     }
 
     public function test_missing_audio_filter_includes_words_with_no_published_audio_even_when_audio_is_not_required(): void
@@ -570,13 +581,64 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg($_GET, ll_tools_get_wordset_page_view_url($wordset_term, 'settings')));
 
         $filters = ll_tools_wordset_editor_get_filters();
-        $this->assertFalse(ll_tools_wordset_editor_can_use_paged_query($filters, $wordset_id, $category_rows));
+        $this->assertTrue(ll_tools_wordset_editor_can_use_paged_query($filters, $wordset_id, $category_rows));
+        $this->assertTrue(ll_tools_wordset_editor_requires_filtered_sql($filters, $wordset_id, $category_rows));
 
         $html = ll_tools_wordset_page_render_settings_editor_tool($wordset_term, $wordset_id, '', $category_rows);
 
         $this->assertStringContainsString('Aardvark Visible Text', $html);
         $this->assertStringNotContainsString('Zulu Visible Text', $html);
         $this->assertSame(75, substr_count($html, 'data-ll-wordset-editor-row '));
+    }
+
+    public function test_wordset_editor_filtered_pagination_queries_and_hydrates_only_the_visible_page(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-filtered-pagination');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $this->createPagedWords('Bounded Candidate', $wordset_id, (int) $fixture['category_a_id'], 80);
+
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+            : [];
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_q' => 'Bounded Candidate',
+            'll_editor_page' => '2',
+            'll_editor_sort' => 'translation',
+            'll_editor_dir' => 'asc',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg($_GET, ll_tools_get_wordset_page_view_url($wordset_term, 'settings')));
+
+        $captured_word_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_word_queries): void {
+            if ((string) $query->get('post_type') === 'words' && (string) $query->get('fields') === 'ids') {
+                $captured_word_queries[] = $query->query_vars;
+            }
+        };
+
+        add_action('pre_get_posts', $capture);
+        try {
+            $html = ll_tools_wordset_page_render_settings_editor_tool($wordset_term, $wordset_id, '', $category_rows);
+        } finally {
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $this->assertStringContainsString('All 80 filtered words', $html);
+        $this->assertStringContainsString('Bounded Candidate 076', $html);
+        $this->assertStringContainsString('Bounded Candidate 080', $html);
+        $this->assertStringNotContainsString('Bounded Candidate 075</strong>', $html);
+        $this->assertSame(5, substr_count($html, 'data-ll-wordset-editor-row '));
+        foreach ($captured_word_queries as $query_vars) {
+            $post_in = ll_tools_wordset_editor_normalize_word_ids((array) ($query_vars['post__in'] ?? []));
+            $this->assertFalse(
+                (int) ($query_vars['posts_per_page'] ?? 0) === -1 && empty($post_in),
+                'Filtered editor render must not issue an unbounded all-word ID query: ' . wp_json_encode($query_vars)
+            );
+            $this->assertLessThanOrEqual(75, count($post_in));
+        }
     }
 
     public function test_wordset_editor_modal_category_choices_are_not_limited_to_visible_page_words(): void
