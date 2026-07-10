@@ -17694,20 +17694,27 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $manager_editor_notice = ($view === 'settings' && function_exists('ll_tools_wordset_page_manager_editor_notice')) ? ll_tools_wordset_page_manager_editor_notice() : null;
     $manager_audio_upload_notice = ($view === 'settings') ? ll_tools_wordset_page_audio_upload_notice() : null;
     $manager_image_upload_notice = ($view === 'settings') ? ll_tools_wordset_page_image_upload_notice() : null;
+    $is_settings_hub = ($view === 'settings' && $settings_tool === '');
     $offline_export_category_options = [];
     $offline_export_zip_available = class_exists('ZipArchive');
-    if ($view === 'settings' && $can_manage_wordset_content && function_exists('ll_tools_offline_app_get_wordset_category_options')) {
+    if (
+        $view === 'settings'
+        && ($is_settings_hub || $settings_tool === 'offline-app')
+        && $can_manage_wordset_content
+        && function_exists('ll_tools_offline_app_get_wordset_category_options')
+    ) {
         $offline_export_category_options = ll_tools_offline_app_get_wordset_category_options($wordset_id);
     }
-    $template_category_count = ($view === 'settings' && function_exists('ll_tools_get_wordset_template_category_ids'))
+    $needs_template_counts = $view === 'settings' && ($is_settings_hub || $settings_tool === 'template');
+    $template_category_count = ($needs_template_counts && function_exists('ll_tools_get_wordset_template_category_ids'))
         ? count(ll_tools_get_wordset_template_category_ids($wordset_id))
         : 0;
-    $template_image_count = ($view === 'settings' && function_exists('ll_tools_get_wordset_template_word_image_ids'))
+    $template_image_count = ($needs_template_counts && function_exists('ll_tools_get_wordset_template_word_image_ids'))
         ? count(ll_tools_get_wordset_template_word_image_ids($wordset_id))
         : 0;
     $manager_audio_upload_shortcode = '';
     $manager_image_upload_shortcode = '';
-    if ($view === 'settings' && $can_manage_wordset_uploads) {
+    if ($view === 'settings' && $can_manage_wordset_uploads && in_array($settings_tool, ['audio-upload', 'image-upload'], true)) {
         $manager_audio_return_shortcode_url = str_replace('"', '&quot;', esc_url_raw($settings_tool_urls['audio-upload']));
         $manager_image_return_shortcode_url = str_replace('"', '&quot;', esc_url_raw($settings_tool_urls['image-upload']));
         $manager_audio_upload_shortcode = sprintf(
@@ -17726,7 +17733,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $recorder_queue_rows = [];
     $managed_category_rows = [];
     $advanced_settings = [];
-    if ($view === 'settings' && $can_manage_wordset_content) {
+    $needs_recorder_users = $view === 'settings'
+        && ($is_settings_hub || in_array($settings_tool, ['recorder', 'recorder-queues'], true));
+    if ($needs_recorder_users && $can_manage_wordset_content) {
         $available_audio_recorders = get_users([
             'role' => 'audio_recorder',
             'orderby' => 'display_name',
@@ -17765,13 +17774,20 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'summary_categories' => $enhanced_categories,
             ]);
         }
+    }
+    if ($view === 'settings' && ($is_settings_hub || $settings_tool === 'advanced') && $can_manage_wordset_content) {
         $advanced_settings = ll_tools_wordset_page_get_advanced_settings($wordset_id);
     }
-    if ($view === 'settings' && $can_manage_wordset_categories) {
+    if (
+        $view === 'settings'
+        && ($is_settings_hub || in_array($settings_tool, ['categories', 'editor'], true))
+        && $can_manage_wordset_categories
+    ) {
         $managed_category_rows = ll_tools_wordset_page_get_managed_category_rows($wordset_id, $enhanced_categories);
     }
     $settings_hub_cards = [];
-    $transcription_settings = function_exists('ll_tools_get_wordset_transcription_service_config')
+    $needs_transcription_settings = $view === 'settings' && ($is_settings_hub || $settings_tool === 'transcription');
+    $transcription_settings = ($needs_transcription_settings && function_exists('ll_tools_get_wordset_transcription_service_config'))
         ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
         : [
             'provider' => '',
@@ -17782,12 +17798,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'local_endpoint' => '',
             'enabled' => false,
         ];
-    $secondary_transcription_config = function_exists('ll_tools_get_wordset_recording_transcription_config')
+    $secondary_transcription_config = ($needs_transcription_settings && function_exists('ll_tools_get_wordset_recording_transcription_config'))
         ? ll_tools_get_wordset_recording_transcription_config([$wordset_id], true)
         : [
             'label' => __('IPA', 'll-tools-text-domain'),
         ];
-    if ($view === 'settings' && $is_study_user) {
+    if ($is_settings_hub && $is_study_user) {
         $enabled_goal_modes = array_values(array_filter(array_map('sanitize_key', (array) ($goals['enabled_modes'] ?? [])), static function ($mode): bool {
             return $mode !== '';
         }));
@@ -17818,7 +17834,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'enabled' => true,
         ];
     }
-    if ($view === 'settings' && $can_manage_wordset_content) {
+    if ($is_settings_hub && $can_manage_wordset_content) {
         $language_card_status = $target_language !== '' ? $target_language : __('Add target language', 'll-tools-text-domain');
         if ($translation_language !== '') {
             $language_card_status .= ' · ' . $translation_language;

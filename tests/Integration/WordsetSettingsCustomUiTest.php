@@ -61,6 +61,60 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_tool=offline-app', $html);
     }
 
+    public function test_visibility_tool_skips_unrelated_settings_prework(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Unrelated Recorder',
+        ]);
+
+        $_GET = [
+            'll_wordset_tool' => 'visibility',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $user_queries = 0;
+        $template_image_queries = 0;
+        $user_watcher = static function () use (&$user_queries): void {
+            $user_queries++;
+        };
+        $post_watcher = static function (WP_Query $query) use (&$template_image_queries): void {
+            if (
+                $query->get('post_type') === 'word_images'
+                && (int) $query->get('posts_per_page') === -1
+                && $query->get('fields') === 'ids'
+            ) {
+                $template_image_queries++;
+            }
+        };
+
+        add_action('pre_get_users', $user_watcher);
+        add_action('pre_get_posts', $post_watcher);
+        try {
+            $html = ll_tools_render_wordset_page_content($wordset_id);
+        } finally {
+            remove_action('pre_get_users', $user_watcher);
+            remove_action('pre_get_posts', $post_watcher);
+        }
+
+        $this->assertStringContainsString('Visibility', $html);
+        $this->assertSame(0, $user_queries);
+        $this->assertSame(0, $template_image_queries);
+        $this->assertStringNotContainsString('Unrelated Recorder', $html);
+        $this->assertStringNotContainsString('Export Offline App', $html);
+    }
+
     public function test_wordset_page_renders_add_category_card_before_category_grid_for_managers(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
