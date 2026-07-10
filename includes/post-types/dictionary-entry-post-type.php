@@ -1708,36 +1708,61 @@ function ll_tools_words_add_dictionary_entry_filter() {
     $selected = isset($_GET['dictionary_entry_id'])
         ? sanitize_text_field(wp_unslash((string) $_GET['dictionary_entry_id']))
         : '';
+    $selected_entry_id = absint($selected);
+    $selected_label = $selected_entry_id > 0 && ll_tools_is_dictionary_entry_id($selected_entry_id)
+        ? trim((string) get_the_title($selected_entry_id))
+        : '';
+    $mode = $selected === '__none__' ? 'none' : ($selected_entry_id > 0 ? 'entry' : 'all');
 
-    $entries = get_posts([
-        'post_type'        => 'll_dictionary_entry',
-        'post_status'      => ['publish', 'draft', 'pending', 'private', 'future'],
-        'posts_per_page'   => -1,
-        'fields'           => 'ids',
-        'orderby'          => 'title',
-        'order'            => 'ASC',
-        'no_found_rows'    => true,
-        'suppress_filters' => true,
-    ]);
-
-    echo '<select name="dictionary_entry_id">';
-    echo '<option value="">' . esc_html__('All Dictionary Entries', 'll-tools-text-domain') . '</option>';
-    echo '<option value="__none__"' . selected($selected, '__none__', false) . '>' . esc_html__('No Dictionary Entry', 'll-tools-text-domain') . '</option>';
-
-    foreach ($entries as $entry_id) {
-        $entry_id = (int) $entry_id;
-        if ($entry_id <= 0) {
-            continue;
-        }
-        $title = trim((string) get_the_title($entry_id));
-        if ($title === '') {
-            $title = __('(no title)', 'll-tools-text-domain');
-        }
-        echo '<option value="' . esc_attr((string) $entry_id) . '"' . selected($selected, (string) $entry_id, false) . '>' . esc_html($title) . '</option>';
-    }
+    echo '<span class="ll-dictionary-admin-entry-filter" data-ll-dictionary-admin-entry-filter>';
+    echo '<select data-ll-dictionary-filter-mode aria-label="' . esc_attr__('Dictionary entry filter', 'll-tools-text-domain') . '">';
+    echo '<option value="all"' . selected($mode, 'all', false) . '>' . esc_html__('All Dictionary Entries', 'll-tools-text-domain') . '</option>';
+    echo '<option value="none"' . selected($mode, 'none', false) . '>' . esc_html__('No Dictionary Entry', 'll-tools-text-domain') . '</option>';
+    echo '<option value="entry"' . selected($mode, 'entry', false) . '>' . esc_html__('Specific Dictionary Entry', 'll-tools-text-domain') . '</option>';
     echo '</select>';
+    echo '<input type="hidden" name="dictionary_entry_id" value="' . esc_attr($selected) . '" data-ll-dictionary-filter-id>';
+    echo '<input type="search" class="regular-text" value="' . esc_attr($selected_label) . '" placeholder="' . esc_attr__('Search dictionary entries', 'll-tools-text-domain') . '" data-ll-dictionary-filter-search>';
+    echo '<span class="spinner" data-ll-dictionary-filter-spinner></span>';
+    echo '</span>';
 }
 add_action('restrict_manage_posts', 'll_tools_words_add_dictionary_entry_filter');
+
+function ll_tools_enqueue_dictionary_admin_filter_assets($hook): void {
+    if ($hook !== 'edit.php') {
+        return;
+    }
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (!$screen || (string) $screen->post_type !== 'words' || !current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    ll_enqueue_asset_by_timestamp(
+        '/js/dictionary-admin-filters.js',
+        'll-tools-dictionary-admin-filters',
+        ['jquery', 'jquery-ui-autocomplete'],
+        true
+    );
+    ll_enqueue_asset_by_timestamp('/css/dictionary-admin-filters.css', 'll-tools-dictionary-admin-filters', [], false);
+    wp_localize_script('ll-tools-dictionary-admin-filters', 'llDictionaryAdminFilters', [
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('ll_tools_dictionary_admin_search'),
+        'searchFailed' => __('Dictionary entries could not be loaded.', 'll-tools-text-domain'),
+    ]);
+}
+add_action('admin_enqueue_scripts', 'll_tools_enqueue_dictionary_admin_filter_assets');
+
+function ll_tools_ajax_dictionary_admin_search_entries(): void {
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(['message' => __('You are not allowed to view dictionary entries.', 'll-tools-text-domain')], 403);
+    }
+    check_ajax_referer('ll_tools_dictionary_admin_search', 'nonce');
+
+    $search = isset($_POST['q']) ? sanitize_text_field(wp_unslash((string) $_POST['q'])) : '';
+    wp_send_json_success([
+        'entries' => array_values(ll_tools_search_dictionary_entries($search, 20, 0)),
+    ]);
+}
+add_action('wp_ajax_ll_tools_dictionary_admin_search_entries', 'll_tools_ajax_dictionary_admin_search_entries');
 
 /**
  * Apply dictionary entry filter to words list query.
@@ -1921,24 +1946,6 @@ function ll_tools_dictionary_entry_get_type_filter_options(): array {
 }
 
 /**
- * Return dictionary entry IDs used for admin list filters.
- *
- * @return int[]
- */
-function ll_tools_dictionary_entry_get_admin_list_ids(): array {
-    return array_values(array_filter(array_map('intval', (array) get_posts([
-        'post_type' => 'll_dictionary_entry',
-        'post_status' => ['publish', 'future', 'draft', 'pending', 'private'],
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'orderby' => 'title',
-        'order' => 'ASC',
-        'no_found_rows' => true,
-        'suppress_filters' => true,
-    ]))));
-}
-
-/**
  * Add helpful columns to dictionary entries list table.
  *
  * @param array $columns Existing columns.
@@ -1964,6 +1971,29 @@ function ll_tools_dictionary_entry_columns($columns) {
     return $new_columns;
 }
 add_filter('manage_ll_dictionary_entry_posts_columns', 'll_tools_dictionary_entry_columns');
+
+function ll_tools_dictionary_entry_prime_admin_linked_counts(array $posts, WP_Query $query): array {
+    $explicit_test_scope = (bool) $query->get('ll_tools_dictionary_prime_admin_counts');
+    if ((!is_admin() || !$query->is_main_query()) && !$explicit_test_scope) {
+        return $posts;
+    }
+    if ((string) $query->get('post_type') !== 'll_dictionary_entry' || empty($posts)) {
+        return $posts;
+    }
+
+    $entry_ids = [];
+    foreach ($posts as $post) {
+        if ($post instanceof WP_Post && $post->post_type === 'll_dictionary_entry') {
+            $entry_ids[] = (int) $post->ID;
+        }
+    }
+    if (!empty($entry_ids)) {
+        $GLOBALS['ll_tools_dictionary_admin_linked_counts'] = ll_tools_count_dictionary_entry_words_batch($entry_ids);
+    }
+
+    return $posts;
+}
+add_filter('the_posts', 'll_tools_dictionary_entry_prime_admin_linked_counts', 20, 2);
 
 /**
  * Render dictionary entry custom columns.
@@ -2124,7 +2154,13 @@ function ll_tools_dictionary_entry_column_content($column, $post_id) {
         return;
     }
 
-    $linked_count = ll_tools_count_dictionary_entry_words((int) $post_id);
+    $primed_counts = isset($GLOBALS['ll_tools_dictionary_admin_linked_counts'])
+        && is_array($GLOBALS['ll_tools_dictionary_admin_linked_counts'])
+        ? $GLOBALS['ll_tools_dictionary_admin_linked_counts']
+        : [];
+    $linked_count = array_key_exists((int) $post_id, $primed_counts)
+        ? (int) $primed_counts[(int) $post_id]
+        : ll_tools_count_dictionary_entry_words((int) $post_id);
     if ($linked_count <= 0) {
         echo '—';
         return;
@@ -2136,7 +2172,10 @@ function ll_tools_dictionary_entry_column_content($column, $post_id) {
         $linked_count
     ));
     echo '<br>';
-    echo ll_tools_get_dictionary_entry_linked_words_markup((int) $post_id, 6, true);
+    echo '<a href="' . esc_url(add_query_arg([
+        'post_type' => 'words',
+        'dictionary_entry_id' => (int) $post_id,
+    ], admin_url('edit.php'))) . '">' . esc_html__('View linked words', 'll-tools-text-domain') . '</a>';
 }
 add_action('manage_ll_dictionary_entry_posts_custom_column', 'll_tools_dictionary_entry_column_content', 10, 2);
 
@@ -2305,61 +2344,285 @@ function ll_tools_dictionary_entry_apply_admin_filters($query): void {
         return;
     }
 
-    $existing_post_in = array_values(array_filter(array_map('intval', (array) $query->get('post__in'))));
-    $filtered_ids = [];
-    foreach (ll_tools_dictionary_entry_get_admin_list_ids() as $entry_id) {
-        if ($wordset_filter !== '') {
-            $scope_ids = ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id);
-            if ($wordset_filter === '__unscoped__') {
-                if (!empty($scope_ids)) {
-                    continue;
-                }
-            } elseif (!in_array((int) $wordset_filter, $scope_ids, true)) {
-                continue;
-            }
-        }
-
-        if ($pos_filter !== '' && ll_tools_get_dictionary_entry_primary_pos_slug($entry_id) !== $pos_filter) {
-            continue;
-        }
-
-        if ($source_filter !== '' && function_exists('ll_tools_dictionary_entry_matches_source_filter') && !ll_tools_dictionary_entry_matches_source_filter($entry_id, $source_filter)) {
-            continue;
-        }
-
-        if ($dialect_filter !== '' && function_exists('ll_tools_dictionary_entry_matches_dialect_filter') && !ll_tools_dictionary_entry_matches_dialect_filter($entry_id, $dialect_filter)) {
-            continue;
-        }
-
-        if ($type_filter !== '' && trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY, true)) !== $type_filter) {
-            continue;
-        }
-
-        if ($review_filter === 'needs_review' && !ll_tools_dictionary_entry_has_review_flag($entry_id)) {
-            continue;
-        }
-        if ($review_filter === 'clean' && ll_tools_dictionary_entry_has_review_flag($entry_id)) {
-            continue;
-        }
-
-        $linked_count = ll_tools_count_dictionary_entry_words($entry_id);
-        if ($linked_filter === 'linked' && $linked_count <= 0) {
-            continue;
-        }
-        if ($linked_filter === 'unlinked' && $linked_count > 0) {
-            continue;
-        }
-
-        $filtered_ids[] = $entry_id;
-    }
-
-    if (!empty($existing_post_in)) {
-        $filtered_ids = array_values(array_intersect($existing_post_in, $filtered_ids));
-    }
-
-    $query->set('post__in', !empty($filtered_ids) ? $filtered_ids : [0]);
+    $query->set('ll_tools_dictionary_admin_filters', [
+        'wordset' => $wordset_filter,
+        'pos' => $pos_filter,
+        'source' => $source_filter,
+        'dialect' => $dialect_filter,
+        'type' => $type_filter,
+        'review' => in_array($review_filter, ['needs_review', 'clean'], true) ? $review_filter : '',
+        'linked' => in_array($linked_filter, ['linked', 'unlinked'], true) ? $linked_filter : '',
+    ]);
 }
 add_action('pre_get_posts', 'll_tools_dictionary_entry_apply_admin_filters', 25);
+
+function ll_tools_dictionary_entry_admin_filter_clauses(array $clauses, WP_Query $query): array {
+    global $wpdb;
+
+    $filters = $query->get('ll_tools_dictionary_admin_filters');
+    if (!is_array($filters) || empty($filters)) {
+        return $clauses;
+    }
+
+    $outer_id = "{$wpdb->posts}.ID";
+    $word_statuses = "'publish','future','draft','pending','private'";
+    $wordset_filter = (string) ($filters['wordset'] ?? '');
+    if ($wordset_filter === '__unscoped__') {
+        $clauses['where'] .= $wpdb->prepare(
+            " AND NOT EXISTS (
+                SELECT 1 FROM {$wpdb->postmeta} explicit_scope
+                WHERE explicit_scope.post_id = {$outer_id}
+                  AND explicit_scope.meta_key = %s
+                  AND CAST(explicit_scope.meta_value AS UNSIGNED) > 0
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM {$wpdb->postmeta} word_link
+                INNER JOIN {$wpdb->posts} linked_word ON linked_word.ID = word_link.post_id
+                INNER JOIN {$wpdb->term_relationships} word_ws_rel ON word_ws_rel.object_id = linked_word.ID
+                INNER JOIN {$wpdb->term_taxonomy} word_ws_tax
+                    ON word_ws_tax.term_taxonomy_id = word_ws_rel.term_taxonomy_id
+                   AND word_ws_tax.taxonomy = 'wordset'
+                WHERE word_link.meta_key = %s
+                  AND CAST(word_link.meta_value AS UNSIGNED) = {$outer_id}
+                  AND linked_word.post_type = 'words'
+                  AND linked_word.post_status IN ({$word_statuses})
+            )",
+            LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY,
+            LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY
+        );
+    } elseif (absint($wordset_filter) > 0) {
+        $wordset_id = absint($wordset_filter);
+        $clauses['where'] .= $wpdb->prepare(
+            " AND (
+                EXISTS (
+                    SELECT 1 FROM {$wpdb->postmeta} explicit_scope
+                    WHERE explicit_scope.post_id = {$outer_id}
+                      AND explicit_scope.meta_key = %s
+                      AND CAST(explicit_scope.meta_value AS UNSIGNED) = %d
+                )
+                OR EXISTS (
+                    SELECT 1 FROM {$wpdb->postmeta} scope_index
+                    WHERE scope_index.post_id = {$outer_id}
+                      AND scope_index.meta_key = %s
+                      AND scope_index.meta_value LIKE %s
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->postmeta} word_link
+                    INNER JOIN {$wpdb->posts} linked_word ON linked_word.ID = word_link.post_id
+                    INNER JOIN {$wpdb->term_relationships} word_ws_rel ON word_ws_rel.object_id = linked_word.ID
+                    INNER JOIN {$wpdb->term_taxonomy} word_ws_tax
+                        ON word_ws_tax.term_taxonomy_id = word_ws_rel.term_taxonomy_id
+                       AND word_ws_tax.taxonomy = 'wordset'
+                       AND word_ws_tax.term_id = %d
+                    WHERE word_link.meta_key = %s
+                      AND CAST(word_link.meta_value AS UNSIGNED) = {$outer_id}
+                      AND linked_word.post_type = 'words'
+                      AND linked_word.post_status IN ({$word_statuses})
+                )
+            )",
+            LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY,
+            $wordset_id,
+            LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY,
+            '%|' . $wpdb->esc_like((string) $wordset_id) . '|%',
+            $wordset_id,
+            LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY
+        );
+    }
+
+    $pos_filter = sanitize_title((string) ($filters['pos'] ?? ''));
+    if ($pos_filter !== '') {
+        $clauses['where'] .= $wpdb->prepare(
+            " AND (
+                EXISTS (
+                    SELECT 1 FROM {$wpdb->postmeta} entry_pos
+                    WHERE entry_pos.post_id = {$outer_id}
+                      AND entry_pos.meta_key = %s
+                      AND entry_pos.meta_value = %s
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->postmeta} word_link
+                    INNER JOIN {$wpdb->posts} linked_word ON linked_word.ID = word_link.post_id
+                    INNER JOIN {$wpdb->term_relationships} word_pos_rel ON word_pos_rel.object_id = linked_word.ID
+                    INNER JOIN {$wpdb->term_taxonomy} word_pos_tax
+                        ON word_pos_tax.term_taxonomy_id = word_pos_rel.term_taxonomy_id
+                       AND word_pos_tax.taxonomy = 'part_of_speech'
+                    INNER JOIN {$wpdb->terms} word_pos_term
+                        ON word_pos_term.term_id = word_pos_tax.term_id
+                       AND word_pos_term.slug = %s
+                    WHERE word_link.meta_key = %s
+                      AND CAST(word_link.meta_value AS UNSIGNED) = {$outer_id}
+                      AND linked_word.post_type = 'words'
+                      AND linked_word.post_status IN ({$word_statuses})
+                )
+            )",
+            LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY,
+            $pos_filter,
+            $pos_filter,
+            LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY
+        );
+    }
+
+    $append_search_terms = static function (array $terms) use (&$clauses, $wpdb, $outer_id): bool {
+        $terms = array_values(array_unique(array_filter(array_map('strval', $terms))));
+        if (empty($terms)) {
+            return false;
+        }
+
+        $matches = [];
+        $params = [LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY];
+        foreach ($terms as $term) {
+            $matches[] = "CONCAT(' ', search_index.meta_value, ' ') LIKE %s";
+            $params[] = '% ' . $wpdb->esc_like($term) . ' %';
+        }
+        $clauses['where'] .= $wpdb->prepare(
+            " AND EXISTS (
+                SELECT 1 FROM {$wpdb->postmeta} search_index
+                WHERE search_index.post_id = {$outer_id}
+                  AND search_index.meta_key = %s
+                  AND (" . implode(' OR ', $matches) . ")
+            )",
+            $params
+        );
+        return true;
+    };
+    $append_index_terms = static function (string $kind, array $terms) use (&$clauses, $wpdb, $outer_id, $append_search_terms): bool {
+        $prepared_terms = [];
+        foreach ($terms as $term) {
+            $prepared = function_exists('ll_tools_dictionary_prepare_lookup_value')
+                ? ll_tools_dictionary_prepare_lookup_value((string) $term)
+                : trim(strtolower((string) $term));
+            if ($prepared !== '') {
+                $prepared_terms[] = $prepared;
+            }
+        }
+        $prepared_terms = array_values(array_unique($prepared_terms));
+        if (empty($prepared_terms)) {
+            return false;
+        }
+
+        if (function_exists('ll_tools_dictionary_lookup_is_ready')
+            && ll_tools_dictionary_lookup_is_ready()
+            && function_exists('ll_tools_dictionary_lookup_table_name')) {
+            $placeholders = implode(', ', array_fill(0, count($prepared_terms), '%s'));
+            $params = array_merge([$kind], $prepared_terms);
+            $table = ll_tools_dictionary_lookup_table_name();
+            $clauses['where'] .= $wpdb->prepare(
+                " AND EXISTS (
+                    SELECT 1 FROM {$table} dictionary_lookup
+                    WHERE dictionary_lookup.entry_id = {$outer_id}
+                      AND dictionary_lookup.lookup_kind = %s
+                      AND dictionary_lookup.lookup_value IN ({$placeholders})
+                )",
+                $params
+            );
+            return true;
+        }
+
+        return $append_search_terms($prepared_terms);
+    };
+
+    $source_filter = (string) ($filters['source'] ?? '');
+    if ($source_filter !== '' && function_exists('ll_tools_dictionary_normalize_source_filter_ids') && function_exists('ll_tools_dictionary_normalize_search_text')) {
+        $source_terms = [];
+        $source_ids = ll_tools_dictionary_normalize_source_filter_ids([$source_filter]);
+        foreach ($source_ids as $source_id) {
+            $source_terms[] = ll_tools_dictionary_normalize_search_text((string) $source_id);
+        }
+        if (function_exists('ll_tools_get_dictionary_source_registry') && function_exists('ll_tools_dictionary_source_identifier_matches_filter')) {
+            foreach ((array) ll_tools_get_dictionary_source_registry() as $source) {
+                if (!is_array($source)) {
+                    continue;
+                }
+                $registry_id = function_exists('ll_tools_dictionary_normalize_source_id')
+                    ? ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''))
+                    : sanitize_title((string) ($source['id'] ?? ''));
+                $registry_label = trim((string) ($source['label'] ?? ''));
+                foreach ($source_ids as $source_id) {
+                    if (!ll_tools_dictionary_source_identifier_matches_filter($registry_id, (string) $source_id)) {
+                        continue;
+                    }
+                    $source_terms[] = ll_tools_dictionary_normalize_search_text($registry_id);
+                    $source_terms[] = ll_tools_dictionary_normalize_search_text($registry_label);
+                }
+            }
+        }
+        $source_terms = array_slice(array_values(array_unique(array_filter($source_terms))), 0, 25);
+        if (!$append_index_terms('source', $source_terms)) {
+            $clauses['where'] .= ' AND 1 = 0';
+        }
+    }
+    $dialect_filter = (string) ($filters['dialect'] ?? '');
+    if ($dialect_filter !== '' && function_exists('ll_tools_dictionary_normalize_search_text')) {
+        $dialect_term = ll_tools_dictionary_normalize_search_text($dialect_filter);
+        if (!$append_index_terms('dialect', $dialect_term !== '' ? [$dialect_term] : [])) {
+            $clauses['where'] .= ' AND 1 = 0';
+        }
+    }
+    if (($source_filter !== '' && (!function_exists('ll_tools_dictionary_normalize_source_filter_ids') || !function_exists('ll_tools_dictionary_normalize_search_text')))
+        || ($dialect_filter !== '' && !function_exists('ll_tools_dictionary_normalize_search_text'))) {
+        $clauses['where'] .= ' AND 1 = 0';
+    }
+
+    $type_filter = trim((string) ($filters['type'] ?? ''));
+    if ($type_filter !== '') {
+        $clauses['where'] .= $wpdb->prepare(
+            " AND EXISTS (
+                SELECT 1 FROM {$wpdb->postmeta} entry_type
+                WHERE entry_type.post_id = {$outer_id}
+                  AND entry_type.meta_key = %s
+                  AND entry_type.meta_value = %s
+            )",
+            LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY,
+            $type_filter
+        );
+    }
+
+    $review_filter = (string) ($filters['review'] ?? '');
+    if ($review_filter === 'needs_review') {
+        $clauses['where'] .= $wpdb->prepare(
+            " AND EXISTS (
+                SELECT 1 FROM {$wpdb->postmeta} review_meta
+                WHERE review_meta.post_id = {$outer_id}
+                  AND review_meta.meta_key = %s
+                  AND LOWER(TRIM(review_meta.meta_value)) NOT IN ('', '0', 'false', 'no', 'n')
+            )",
+            LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY
+        );
+    } elseif ($review_filter === 'clean') {
+        $clauses['where'] .= $wpdb->prepare(
+            " AND NOT EXISTS (
+                SELECT 1 FROM {$wpdb->postmeta} review_meta
+                WHERE review_meta.post_id = {$outer_id}
+                  AND review_meta.meta_key = %s
+                  AND LOWER(TRIM(review_meta.meta_value)) NOT IN ('', '0', 'false', 'no', 'n')
+            )",
+            LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY
+        );
+    }
+
+    $linked_filter = (string) ($filters['linked'] ?? '');
+    if ($linked_filter === 'linked' || $linked_filter === 'unlinked') {
+        $exists = $linked_filter === 'linked' ? 'EXISTS' : 'NOT EXISTS';
+        $clauses['where'] .= $wpdb->prepare(
+            " AND {$exists} (
+                SELECT 1
+                FROM {$wpdb->postmeta} word_link
+                INNER JOIN {$wpdb->posts} linked_word ON linked_word.ID = word_link.post_id
+                WHERE word_link.meta_key = %s
+                  AND CAST(word_link.meta_value AS UNSIGNED) = {$outer_id}
+                  AND linked_word.post_type = 'words'
+                  AND linked_word.post_status IN ({$word_statuses})
+            )",
+            LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY
+        );
+    }
+
+    return $clauses;
+}
+add_filter('posts_clauses', 'll_tools_dictionary_entry_admin_filter_clauses', 25, 2);
 
 /**
  * Read-only metabox on dictionary entries: show linked words.

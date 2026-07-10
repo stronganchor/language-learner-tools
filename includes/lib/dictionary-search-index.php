@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION')) {
-    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '4');
+    define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '5');
 }
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION', 'll_tools_dictionary_lookup_version');
@@ -292,6 +292,12 @@ function ll_tools_dictionary_build_lookup_rows_for_entry(int $entry_id): array {
     $translations = function_exists('ll_tools_dictionary_get_entry_translation_candidates')
         ? ll_tools_dictionary_get_entry_translation_candidates($senses)
         : [];
+    $sources = function_exists('ll_tools_dictionary_collect_sources')
+        ? ll_tools_dictionary_collect_sources($senses)
+        : [];
+    $dialects = function_exists('ll_tools_dictionary_collect_dialects')
+        ? ll_tools_dictionary_collect_dialects($senses)
+        : [];
 
     $rows = [];
     $seen = [];
@@ -340,6 +346,16 @@ function ll_tools_dictionary_build_lookup_rows_for_entry(int $entry_id): array {
         if ($stripped !== '' && $stripped !== $lookup_value) {
             $append('translation_apos', $stripped);
         }
+    }
+    foreach ($sources as $source) {
+        if (!is_array($source)) {
+            continue;
+        }
+        $append('source', (string) ($source['id'] ?? ''));
+        $append('source', (string) ($source['label'] ?? ''));
+    }
+    foreach ($dialects as $dialect) {
+        $append('dialect', (string) $dialect);
     }
 
     return $rows;
