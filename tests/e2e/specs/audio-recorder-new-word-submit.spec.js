@@ -212,6 +212,7 @@ async function mountRecorder(page, options = {}) {
       transcribeRequests: 0,
       uploadRequests: 0,
       lastUploadPayload: null,
+      lastCategoryTypePayload: null,
       uploadRemainingTypes,
       uploadRemainingTypesSequence
     };
@@ -244,6 +245,11 @@ async function mountRecorder(page, options = {}) {
       const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
 
       if (action === 'll_get_recording_types_for_category') {
+        window.__llTestState.lastCategoryTypePayload = {
+          category: String(body.get('category') || ''),
+          wordset: String(body.get('wordset') || ''),
+          wordset_ids: String(body.get('wordset_ids') || '')
+        };
         return Promise.resolve(makeJsonResponse({
           success: true,
           data: {
@@ -546,8 +552,8 @@ async function mountRecorder(page, options = {}) {
         uncategorized: 'Uncategorized'
       },
       language: '',
-      wordset: '',
-      wordset_ids: [],
+      wordset: String(mountOptions.wordset || ''),
+      wordset_ids: Array.isArray(mountOptions.wordsetIds) ? mountOptions.wordsetIds : [],
       sort_locale: 'en_US',
       hide_name: false,
       recording_types: [
@@ -601,6 +607,19 @@ async function recordAndSubmitCurrentType(page) {
 
   await page.locator('#ll-submit-btn').click();
 }
+
+test('new-word category type preflight includes the selected wordset scope', async ({ page }) => {
+  await mountRecorder(page, {
+    wordset: 'non-default-wordset',
+    wordsetIds: [42]
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.lastCategoryTypePayload)).toEqual({
+    category: 'uncategorized',
+    wordset: 'non-default-wordset',
+    wordset_ids: '[42]'
+  });
+});
 
 test('successful word upload advances past a stale returned recording type', async ({ page }) => {
   await mountRecorder(page, {

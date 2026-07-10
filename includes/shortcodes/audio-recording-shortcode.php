@@ -3152,7 +3152,10 @@ function ll_get_recording_types_for_category_handler() {
     }
 
     $category_slug = sanitize_text_field($_POST['category'] ?? 'uncategorized');
-    $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
+    $posted_ids = ll_tools_get_recording_wordset_ids_from_request(false);
+    if (empty($posted_ids)) {
+        wp_send_json_error(__('No accessible recording word set was selected.', 'll-tools-text-domain'), 403);
+    }
     $type_filters = ll_tools_get_recording_type_filters_from_request();
     $all_types = $type_filters['all_types'];
     if (empty($all_types)) {
@@ -3845,9 +3848,10 @@ function ll_tools_filter_recording_wordset_ids_for_user($wordset_ids, $user_id =
 /**
  * Resolve wordset term IDs from recorder AJAX requests.
  *
+ * @param bool $allow_default Whether an omitted scope may fall back to the default wordset.
  * @return int[]
  */
-function ll_tools_get_recording_wordset_ids_from_request() {
+function ll_tools_get_recording_wordset_ids_from_request($allow_default = true) {
     $posted_ids = [];
     if (isset($_POST['wordset_ids'])) {
         $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
@@ -3857,12 +3861,25 @@ function ll_tools_get_recording_wordset_ids_from_request() {
     }
 
     $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
-    if (empty($posted_ids)) {
+    if (empty($posted_ids) && !$allow_default && $wordset_spec !== '' && function_exists('ll_raw_resolve_wordset_term_ids')) {
+        $posted_ids = ll_raw_resolve_wordset_term_ids($wordset_spec);
+    } elseif (empty($posted_ids) && $allow_default) {
         $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    $requested_ids = array_values(array_filter(array_map('intval', (array) $posted_ids), static function ($id) {
+        return $id > 0;
+    }));
+    if (!$allow_default && empty($requested_ids)) {
+        return [];
     }
 
     if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
         $posted_ids = ll_tools_filter_recording_wordset_ids_for_user($posted_ids, get_current_user_id());
+    }
+
+    if (!$allow_default) {
+        $posted_ids = array_intersect((array) $posted_ids, $requested_ids);
     }
 
     return array_values(array_filter(array_map('intval', (array) $posted_ids), static function ($id) {

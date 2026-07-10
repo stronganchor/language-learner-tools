@@ -259,6 +259,26 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame((int) $word_id, (int) $existing_word_id);
     }
 
+    public function test_recording_wordset_request_scope_can_require_an_explicit_accessible_wordset(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Explicit Recorder Scope', 'explicit-recorder-scope');
+        $previous_post = $_POST;
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+
+        try {
+            $_POST = [];
+            $this->assertSame([], ll_tools_get_recording_wordset_ids_from_request(false));
+
+            $_POST = [
+                'wordset_ids' => wp_json_encode([$wordset_id]),
+                'wordset' => 'ignored-legacy-scope',
+            ];
+            $this->assertSame([$wordset_id], ll_tools_get_recording_wordset_ids_from_request(false));
+        } finally {
+            $_POST = $previous_post;
+        }
+    }
+
     public function test_recorder_image_request_uses_posted_matching_word_id(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Recorder Posted Word WS', 'rec-posted-word-ws');

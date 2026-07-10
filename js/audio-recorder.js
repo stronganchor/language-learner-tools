@@ -2630,9 +2630,18 @@
         return { types, selected };
     }
 
+    function getNewWordCategoryTypeCacheKey(categorySlug) {
+        const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids)
+            ? window.ll_recorder_data.wordset_ids.map(id => String(id)).filter(Boolean).sort()
+            : [];
+        const legacyWordset = String(window.ll_recorder_data?.wordset || '').trim();
+        return `${wordsetIds.join(',')}|${legacyWordset}|${categorySlug}`;
+    }
+
     async function requestNewWordCategoryTypes(categorySlug) {
         if (!ajaxUrl || !nonce || !categorySlug) return;
-        if (newWordCategoryTypeCache[categorySlug]) return;
+        const cacheKey = getNewWordCategoryTypeCacheKey(categorySlug);
+        if (newWordCategoryTypeCache[cacheKey]) return;
         if (newWordCategoryTypeAbort) {
             newWordCategoryTypeAbort.abort();
         }
@@ -2644,6 +2653,8 @@
         formData.append('nonce', nonce);
         appendRequestLocale(formData);
         formData.append('category', categorySlug);
+        formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
+        formData.append('wordset', window.ll_recorder_data?.wordset || '');
         formData.append('include_types', window.ll_recorder_data?.include_types || '');
         formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
 
@@ -2661,7 +2672,7 @@
                 return;
             }
             const types = Array.isArray(data.data?.recording_types) ? data.data.recording_types : [];
-            newWordCategoryTypeCache[categorySlug] = sortRecordingTypes(types);
+            newWordCategoryTypeCache[cacheKey] = sortRecordingTypes(types);
             updateNewWordRecordingTypeLabel();
         } catch (err) {
             if (err && err.name === 'AbortError') {
@@ -2699,7 +2710,7 @@
             labelText = getRecordingTypeDisplay(slug, types).text;
         } else {
             const categorySlug = el.newWordCategory?.value || lastNewWordCategory || 'uncategorized';
-            const cached = newWordCategoryTypeCache[categorySlug];
+            const cached = newWordCategoryTypeCache[getNewWordCategoryTypeCacheKey(categorySlug)];
             if (Array.isArray(cached) && cached.length) {
                 const ordered = sortRecordingTypes(cached);
                 const first = ordered[0];

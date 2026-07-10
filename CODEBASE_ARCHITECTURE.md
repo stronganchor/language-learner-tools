@@ -590,6 +590,7 @@ wordset can opt into it.
 
 ## Audio workflow (end to end)
 - Recording UI: `[audio_recording_interface]` uses MediaRecorder and category recording type targets.
+  Recorder AJAX requests that depend on category configuration must carry the current wordset scope; strict preflight paths reject an omitted or inaccessible scope rather than substituting the default wordset.
 - Bulk upload: `[audio_upload_form]` and `[image_upload_form]` allow admin uploads.
 - Processing: Audio Processor runs in browser, uses `lamejs` from CDN for MP3 encoding.
 - Storage: `word_audio` posts store `audio_file_path` and `recording_type` terms; parent word published only when audio exists.

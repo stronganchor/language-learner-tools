@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 recorder new-word preflight scope guard:
+  category recording-type preflights now send the selected numeric and legacy
+  wordset context, cache results per wordset/category, and reject an omitted or
+  inaccessible explicit scope instead of consulting the default wordset.
+  Focused PHP and Playwright coverage guards both sides of the request contract.
 - July 10 REST word-row scan and report paging:
   `missing-meta` and broad `bulk-update` now query bounded candidate ID windows
   before hydrating editor rows. Sparse reads continue with candidate offsets;
