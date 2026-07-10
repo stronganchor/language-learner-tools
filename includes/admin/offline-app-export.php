@@ -38,6 +38,24 @@ function ll_tools_prime_offline_app_export_admin_title(): void {
 }
 
 add_action('admin_post_ll_tools_export_offline_app', 'll_tools_handle_export_offline_app');
+add_action('wp_ajax_ll_tools_offline_app_export_categories', 'll_tools_ajax_offline_app_export_categories');
+
+function ll_tools_ajax_offline_app_export_categories(): void {
+    if (!ll_tools_current_user_can_offline_app_export()) {
+        wp_send_json_error(['message' => __('You do not have permission to export offline app bundles.', 'll-tools-text-domain')], 403);
+    }
+
+    check_ajax_referer('ll_tools_offline_app_export_categories', 'nonce');
+    $wordset_id = isset($_POST['wordset_id']) ? (int) wp_unslash((string) $_POST['wordset_id']) : 0;
+    $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
+    if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+        wp_send_json_error(['message' => __('Select a valid word set.', 'll-tools-text-domain')], 400);
+    }
+
+    wp_send_json_success([
+        'categories' => ll_tools_offline_app_get_wordset_category_options($wordset_id),
+    ]);
+}
 
 function ll_tools_offline_app_filter_game_entry_words_by_category_ids(array $words, array $allowed_category_ids): array {
     $allowed_lookup = array_fill_keys(array_values(array_filter(array_map('intval', $allowed_category_ids), static function (int $id): bool {
@@ -579,14 +597,6 @@ function ll_tools_render_offline_app_export_page(): void {
         $wordsets = [];
     }
 
-    $wordset_category_map = [];
-    foreach ($wordsets as $wordset) {
-        if (!($wordset instanceof WP_Term)) {
-            continue;
-        }
-        $wordset_category_map[(string) $wordset->term_id] = ll_tools_offline_app_get_wordset_category_options((int) $wordset->term_id);
-    }
-
     $plugin_version = ll_tools_get_plugin_version_string();
     $default_app_name = get_bloginfo('name');
     $site_icon_payload = ll_tools_offline_app_get_attachment_icon_payload(ll_tools_offline_app_get_site_icon_attachment_id());
@@ -829,7 +839,14 @@ function ll_tools_render_offline_app_export_page(): void {
     </div>
     <script>
         (function () {
-            const categoriesByWordset = <?php echo wp_json_encode($wordset_category_map); ?>;
+            const categoriesByWordset = {};
+            const categoryLoadErrors = {};
+            const categoryLoads = {};
+            const categoryEndpoint = <?php echo wp_json_encode([
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'action' => 'll_tools_offline_app_export_categories',
+                'nonce' => wp_create_nonce('ll_tools_offline_app_export_categories'),
+            ]); ?>;
             const siteIcon = <?php echo wp_json_encode(!empty($site_icon_payload) ? [
                 'attachmentId' => (int) ($site_icon_payload['attachment_id'] ?? 0),
                 'label'        => (string) ($site_icon_payload['label'] ?? ''),
@@ -840,6 +857,8 @@ function ll_tools_render_offline_app_export_page(): void {
                 'allCategories'      => __('Every category with published words in the selected word set will be included.', 'll-tools-text-domain'),
                 'pickSpecific'       => __('Choose the specific categories to include from this word set.', 'll-tools-text-domain'),
                 'noCategories'       => __('No categories with published words were found for the selected word set.', 'll-tools-text-domain'),
+                'loadingCategories'  => __('Loading categories...', 'll-tools-text-domain'),
+                'categoryLoadFailed' => __('Categories could not be loaded. Select the word set again to retry.', 'll-tools-text-domain'),
                 'usingSiteIcon'      => __('Using the current site icon.', 'll-tools-text-domain'),
                 'usingCustomIcon'    => __('Using a custom icon for this export only.', 'll-tools-text-domain'),
                 'noIconSelected'     => __('No app icon selected yet.', 'll-tools-text-domain'),
@@ -888,6 +907,60 @@ function ll_tools_render_offline_app_export_page(): void {
                 return categoriesByWordset[wordsetId];
             }
 
+            function loadCategories(wordsetId) {
+                wordsetId = String(wordsetId || '').trim();
+                if (!wordsetId) {
+                    updateCategoryUi();
+                    return Promise.resolve([]);
+                }
+                if (Object.prototype.hasOwnProperty.call(categoriesByWordset, wordsetId)) {
+                    updateCategoryUi();
+                    return Promise.resolve(getCurrentCategories());
+                }
+                if (categoryLoads[wordsetId]) {
+                    return categoryLoads[wordsetId];
+                }
+                if (!window.fetch || !window.FormData || !categoryEndpoint.ajaxUrl) {
+                    categoryLoadErrors[wordsetId] = true;
+                    updateCategoryUi();
+                    return Promise.resolve([]);
+                }
+
+                delete categoryLoadErrors[wordsetId];
+                const payload = new FormData();
+                payload.set('action', categoryEndpoint.action);
+                payload.set('nonce', categoryEndpoint.nonce);
+                payload.set('wordset_id', wordsetId);
+
+                categoryLoads[wordsetId] = fetch(categoryEndpoint.ajaxUrl, {
+                    method: 'POST',
+                    body: payload,
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('category_load_failed');
+                    }
+                    return response.json();
+                }).then(function (response) {
+                    if (!response || !response.success || !response.data || !Array.isArray(response.data.categories)) {
+                        throw new Error('category_load_failed');
+                    }
+                    categoriesByWordset[wordsetId] = response.data.categories;
+                    return categoriesByWordset[wordsetId];
+                }).catch(function () {
+                    categoryLoadErrors[wordsetId] = true;
+                    return [];
+                }).finally(function () {
+                    delete categoryLoads[wordsetId];
+                    if (getCurrentWordsetId() === wordsetId) {
+                        updateCategoryUi();
+                    }
+                });
+                updateCategoryUi();
+
+                return categoryLoads[wordsetId];
+            }
+
             function rememberSelections(wordsetId) {
                 if (!wordsetId) {
                     return;
@@ -928,25 +1001,32 @@ function ll_tools_render_offline_app_export_page(): void {
                 const wordsetId = getCurrentWordsetId();
                 const categories = getCurrentCategories();
                 const hasWordset = wordsetId !== '';
+                const isLoading = hasWordset && !!categoryLoads[wordsetId];
+                const loadFailed = hasWordset && !!categoryLoadErrors[wordsetId];
+                const hasLoaded = hasWordset && Object.prototype.hasOwnProperty.call(categoriesByWordset, wordsetId);
                 const hasCategories = categories.length > 0;
                 const includeAll = includeAllField.checked;
 
-                categoryFieldset.disabled = !hasWordset;
-                includeAllField.disabled = !hasWordset || !hasCategories;
+                categoryFieldset.disabled = !hasWordset || isLoading || loadFailed;
+                includeAllField.disabled = !hasWordset || !hasCategories || isLoading || loadFailed;
                 categoryScopeField.value = includeAll ? 'all' : 'custom';
 
                 categoryHelp.textContent = strings.selectWordsetFirst;
-                if (hasWordset && hasCategories) {
+                if (isLoading || (hasWordset && !hasLoaded && !loadFailed)) {
+                    categoryHelp.textContent = strings.loadingCategories;
+                } else if (loadFailed) {
+                    categoryHelp.textContent = strings.categoryLoadFailed;
+                } else if (hasWordset && hasCategories) {
                     categoryHelp.textContent = includeAll ? strings.allCategories : strings.pickSpecific;
                 }
 
-                categoryEmpty.hidden = !hasWordset || hasCategories;
+                categoryEmpty.hidden = !hasWordset || !hasLoaded || hasCategories || isLoading || loadFailed;
                 categoryEmpty.textContent = strings.noCategories;
 
                 buildCategoryChoices(categories, wordsetId, !hasWordset || includeAll);
 
                 categoryListWrap.hidden = !hasWordset || !hasCategories || includeAll;
-                submitButton.disabled = <?php echo empty($wordsets) ? 'true' : 'false'; ?> || !hasWordset || !hasCategories;
+                submitButton.disabled = <?php echo empty($wordsets) ? 'true' : 'false'; ?> || !hasWordset || !hasCategories || isLoading || loadFailed;
             }
 
             function getEffectiveIcon() {
@@ -1008,7 +1088,7 @@ function ll_tools_render_offline_app_export_page(): void {
                 }
 
                 categoryList.setAttribute('data-wordset-id', getCurrentWordsetId());
-                updateCategoryUi();
+                loadCategories(getCurrentWordsetId());
             });
 
             includeAllField.addEventListener('change', function () {

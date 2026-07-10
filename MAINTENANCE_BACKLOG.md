@@ -23,6 +23,10 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 offline export category lazy loading:
+  opening the export tool now loads no per-wordset category maps. A guarded AJAX
+  endpoint fetches categories only after a wordset is selected, and loading or
+  failure keeps export disabled. Full offline export coverage remains green.
 - July 10 Recent Imports rendering caps:
   each history entry now renders at most 10 imported categories and five lesson
   links per category. Wordset filtering is part of the bounded lesson query,

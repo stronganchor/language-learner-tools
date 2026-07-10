@@ -113,6 +113,57 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         $this->assertSame([$category_a_id], $option_ids);
     }
 
+    public function test_offline_export_page_loads_categories_only_for_selected_wordset(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_ids = [];
+        $category_names = [];
+        foreach (range(1, 2) as $index) {
+            $wordset_insert = wp_insert_term('Lazy Offline Wordset ' . $index, 'wordset');
+            $category_insert = wp_insert_term('Lazy Offline Category ' . $index, 'word-category');
+            $this->assertIsArray($wordset_insert);
+            $this->assertIsArray($category_insert);
+            $wordset_id = (int) $wordset_insert['term_id'];
+            $category_id = (int) $category_insert['term_id'];
+            $wordset_ids[] = $wordset_id;
+            $category_names[] = (string) get_term($category_id, 'word-category')->name;
+
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Lazy Offline Word ' . $index,
+            ]);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        }
+
+        ob_start();
+        ll_tools_render_offline_app_export_page();
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('const categoriesByWordset = {};', $html);
+        $this->assertStringContainsString('ll_tools_offline_app_export_categories', $html);
+        foreach ($category_names as $category_name) {
+            $this->assertStringNotContainsString($category_name, $html);
+        }
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_tools_offline_app_export_categories'),
+            'wordset_id' => (string) $wordset_ids[0],
+        ];
+        $_REQUEST = $_POST;
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_ajax_offline_app_export_categories();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $categories = (array) (($response['data'] ?? [])['categories'] ?? []);
+        $this->assertCount(1, $categories);
+        $this->assertSame($category_names[0], (string) ($categories[0]['name'] ?? ''));
+    }
+
     public function test_offline_app_export_bundles_effective_word_image_when_word_lacks_thumbnail(): void
     {
         $wordset = wp_insert_term('Offline Effective Image Wordset ' . wp_generate_password(6, false), 'wordset');
@@ -792,5 +843,42 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         }
 
         return (int) ($term_ids[0] ?? 0);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function runJsonEndpoint(callable $callback): array
+    {
+        $die_handler = static function (): void {
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_filter);
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+
+        ob_start();
+        try {
+            $callback();
+            $this->fail('Expected wp_die to be called.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_die', $e->getMessage());
+        } finally {
+            $output = (string) ob_get_clean();
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_filter);
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+        }
+
+        $decoded = json_decode($output, true);
+        $this->assertIsArray($decoded, 'Expected JSON response payload.');
+        return $decoded;
     }
 }
