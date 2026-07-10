@@ -390,6 +390,22 @@ test('Turkish translation avoids high-risk tone and glossary regressions', async
     {
       name: 'manager glossary',
       regex: /M\u00fcd\u00fcr/u
+    },
+    {
+      name: 'slug mistranslation',
+      regex: /s\u00fcm\u00fckl(?:\u00fc|u)/iu
+    },
+    {
+      name: 'signed-in mistranslation',
+      regex: /\u0130mzaland\u0131/u
+    },
+    {
+      name: 'formal refresh-save phrasing',
+      regex: /Yenileyin ve tekrar kaydet/u
+    },
+    {
+      name: 'formal save-sync phrasing',
+      regex: /Kaydetti\u011finizde/u
     }
   ];
   const findings = [];

@@ -192,7 +192,7 @@ tests/bin/run-e2e.sh --shard=4/4
 
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
-expanded the suite; the June 26, 2026 docs refresh listed 363 tests in 81
+expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81
 files. Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
 minutes after shards pass, investigate suite-level state leakage or Local-site
@@ -288,7 +288,7 @@ Representative E2E coverage areas:
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md`, `CODEBASE_ARCHITECTURE.md` matching direct bootstrap include order, high-confidence hardcoded UI-string contexts using WordPress i18n wrappers, wordset-games public JS avoiding duplicated English `i18n` fallback strings, and Turkish PO high-risk glossary/tone checks.
 - Known E2E coverage gaps still worth adding:
   - Content lessons now have WordPress-backed route/media/cue/related-vocab browser coverage beyond the covered mixed-grid order/search/selection behavior; remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
-  - Prompt-card recorder real browser microphone permission permutations beyond the local WordPress-backed queue fixture, limited-recorder real upload regression, self-contained prompt-card upload/advance regression, existing prompt-card quiz payload coverage, and lesson-grid browser coverage.
+  - Prompt-card recorder remaining gaps are real browser microphone permission permutations and future data-contract changes. The local WordPress-backed queue fixture, limited-recorder real upload regression, self-contained prompt-card upload/advance regression, prompt-card quiz payload coverage, and lesson-grid browser coverage are already represented.
   - Real browser permission-prompt permutations and live hosted API behavior under real credentials/latency beyond the mocked Speaking Practice microphone-denial, record/transcribe/score, and hosted transcribe/score failure flows.
   - Offline app service-worker/install behavior if a browser PWA/service-worker runtime is added, plus broader hosted/offline deployment permutations beyond the local WordPress-backed conflict retry fixture.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`

@@ -831,7 +831,14 @@ function ll_tools_interlinear_render_phrase_row(array $line, array $tokens): str
     }
     $cells .= ll_tools_interlinear_render_empty_phrase_cells($tokens, $cursor, count($tokens));
 
-    return '<tr class="phrase-row"><th scope="row">PHRASE</th>' . $cells . '</tr>';
+    $phrase_row_label = __('phrase', 'll-tools-text-domain');
+    if (function_exists('mb_strtoupper')) {
+        $phrase_row_label = mb_strtoupper($phrase_row_label, 'UTF-8');
+    } else {
+        $phrase_row_label = strtoupper($phrase_row_label);
+    }
+
+    return '<tr class="phrase-row"><th scope="row">' . esc_html($phrase_row_label) . '</th>' . $cells . '</tr>';
 }
 
 function ll_tools_render_interlinear_line(array $line, bool $show_line_text = true): string {

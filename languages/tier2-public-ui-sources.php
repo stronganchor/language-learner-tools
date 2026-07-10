@@ -163,7 +163,7 @@ return [
         [
             'path' => 'includes/lib/interlinear.php',
             'ranges' => [
-                [532, 833],
+                [532, 838],
                 [1305, 1912],
                 [2071, 2071],
                 [2093, 2101],

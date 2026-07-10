@@ -1,25 +1,33 @@
 # Maintenance Backlog
 
-Updated July 3, 2026 after the weekly maintenance/performance audit follow-up
-sequence. Recent closed passes include the June 19 public flashcard AJAX
+Updated July 10, 2026 after the weekly maintenance/performance audit and first
+follow-up pass. Recent closed passes include the June 19 public flashcard AJAX
 cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
 export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
 flake-tracking closeout, and the July 3 audio credit grid, vocab lesson grid,
-and image copyright grid public-surface guards.
+image copyright grid public-surface guards, plus the July 10 Turkish i18n and
+testing-doc drift cleanup.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
 ## Current Short List
 
-The active maintenance list for the current round is intentionally narrowed to
-helper cleanup decisions and deliberate larger projects. The June 26
-resource-guard and flake-tracking follow-ups from the audit are closed; keep new
-performance work evidence-led and scoped to a measured growth dimension.
+The active maintenance list for the current round is narrowed to the July 10
+resource-protection findings, helper cleanup decisions, and deliberate larger
+projects. Keep new performance work evidence-led and scoped to a measured
+growth dimension.
 
 ## Recently Closed
 
+- July 10 Turkish i18n and testing-doc drift cleanup:
+  the interlinear phrase-row header now renders through the existing translated
+  `phrase` string, the tier-2 public source range covers that render path,
+  Turkish `slug`/`Signed in`/formal-tone regressions were corrected and guarded,
+  and the testing docs now record the measured local Playwright inventory as
+  368 tests in 81 files. The local-only live-site runbook still needs a fresh
+  read-only smoke result when a deploy makes that useful.
 - July 3 audio credit grid cold-cache guard:
   `[audio_credit_grid]` now builds its public recording-ID cache in bounded
   batches, uses an option-backed rebuild lock to avoid concurrent cold-cache
@@ -51,7 +59,7 @@ performance work evidence-led and scoped to a measured growth dimension.
   any future recurrence as Local browser/admin startup pressure unless a focused
   rerun produces an app-level assertion failure.
 - June 26 maintenance/performance docs refresh:
-  the testing docs now record the measured local Playwright inventory as 363
+  the testing docs recorded the measured local Playwright inventory as 363
   tests in 81 files, the backlog reflects the June 26 closed resource guards,
   and the performance/architecture docs include the AI crawler export cache and
   cheap HEAD invariant.
@@ -172,7 +180,8 @@ performance work evidence-led and scoped to a measured growth dimension.
 - June 10 full local E2E timeout investigation: `bash tests/bin/run-e2e.sh --list`
   found 314 Playwright tests, and all four local shards completed successfully
   with 313 passed and 1 skipped. Later follow-ups expanded the suite; the June
-  26 documentation refresh listed 363 tests in 81 files. No hung spec was
+  26 documentation refresh listed 363 tests in 81 files, and the July 10 weekly
+  audit listed 368 tests in 81 files. No hung spec was
   isolated. Treat the unsharded local E2E command as a long serial suite in
   automation; use `--list`, shards, and a timeout of at least 35 minutes before
   declaring a runner hang.

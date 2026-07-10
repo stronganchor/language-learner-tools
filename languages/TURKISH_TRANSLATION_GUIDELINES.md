@@ -30,6 +30,7 @@
 | part of speech | `konuşma parçası` | Use this for the taxonomy/filter label; avoid drifting to `sözcük türü`. |
 | recording type | `kayıt türü` | Keep consistent across taxonomy/admin labels. |
 | dictionary entry | `sözlük girişi` | |
+| slug | `kısa ad` | Use this for URL/import identifiers unless the string is explicitly about the raw technical field name. |
 | quiz | `quiz` | Prefer `quiz` over `sınav` or `test`; it better conveys a lightweight knowledge check rather than a serious graded exam. |
 | flashcard | `bilgi kartı` | Use only when the source really means `flashcard`, not `quiz`. |
 | hard (difficult) | `zor` | Use for learning difficulty filters/status. Avoid `sert` unless the source means physically hard or strict. |
@@ -58,7 +59,7 @@ Run these searches before finishing a translation pass:
 
 ```bash
 rg -n 'hesabınız|şifreniz|izniniz|yapın|misiniz|musunuz|unuz|ünüz' languages/ll-tools-text-domain-tr_TR.po
-rg -n 'sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\\bSınav\\b|\\bsınav\\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür' languages/ll-tools-text-domain-tr_TR.po
+rg -n 'sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\\bSınav\\b|\\bsınav\\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür|sümüklü|İmzalandı' languages/ll-tools-text-domain-tr_TR.po
 ```
 
 Manually review matches. Some hits may be false positives, but these searches catch most tone/glossary regressions quickly.

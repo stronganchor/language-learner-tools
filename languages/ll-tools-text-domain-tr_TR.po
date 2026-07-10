@@ -1464,7 +1464,7 @@ msgid ""
 "data was incomplete. Refresh and save again."
 msgstr ""
 "Gönderilen önkoşul verileri eksik olduğu için kategori önkoşulları "
-"kaydedilmedi. Yenileyin ve tekrar kaydet."
+"kaydedilmedi. Yenile ve tekrar kaydet."
 
 #: includes/pages/wordset-pages.php:4613
 #: includes/taxonomies/wordset-taxonomy.php:3350
@@ -1621,7 +1621,7 @@ msgid ""
 msgstr ""
 "Hangi kelime setleri için /{wordset}/{category} adresinde kelime dersi "
 "sayfaları ve /{wordset} adresinde kelime seti açılış sayfası "
-"oluşturulacağını seçin. Kaydettiğinizde sayfalar otomatik olarak senkronize "
+"oluşturulacağını seç. Kaydettiğinde sayfalar otomatik olarak senkronize "
 "edilir."
 
 #: includes/post-types/words-post-type.php:661
@@ -5952,7 +5952,7 @@ msgstr "Optimize etmek..."
 
 #: includes/admin/duplicate-category-words-admin.php:792
 msgid "Optional slug"
-msgstr "İsteğe bağlı sümüklü böcek"
+msgstr "İsteğe bağlı kısa ad"
 
 #: includes/post-types/dictionary-entry-post-type.php:1129
 msgid "Optional title"
@@ -7864,7 +7864,7 @@ msgstr "Kaydol"
 
 #: includes/pages/wordset-pages.php:8344
 msgid "Signed in"
-msgstr "İmzalandı"
+msgstr "Oturum açık"
 
 #: includes/admin/word-option-rules-admin.php:1784
 msgid "Similar image"
@@ -8019,8 +8019,7 @@ msgstr "Kısa ad"
 #: includes/admin/recording-types-admin.php:216
 msgid "Slugs should be lowercase and use hyphens instead of spaces"
 msgstr ""
-"Sümüklü böcekler küçük harfle yazılmalı ve boşluk yerine kısa çizgi "
-"kullanılmalıdır"
+"Kısa adlar küçük harfle yazılmalı ve boşluk yerine kısa çizgi kullanılmalı"
 
 #: includes/admin/settings.php:370
 #: includes/shortcodes/site-tools-shortcode.php:1089
@@ -8095,7 +8094,7 @@ msgstr "Kaynak görüntü dosyası eksik."
 
 #: includes/admin/export-import.php:4037
 msgid "Source slug"
-msgstr "Kaynak sümüklüböcek"
+msgstr "Kaynak kısa ad"
 
 #: includes/admin/export-import.php:4024
 msgid "Source word set names"
@@ -13176,7 +13175,7 @@ msgstr "\"%1$s\" şablon kelime görseli oluşturulamadı: %2$s"
 
 #: includes/admin/export-import.php:12525
 msgid "(no slug)"
-msgstr "(sümüklü böcek yok)"
+msgstr "(kısa ad yok)"
 
 #: includes/admin/export-import.php:13809
 msgid ""
@@ -19105,7 +19104,7 @@ msgstr "Kelime seti adı"
 
 #: includes/pages/wordset-pages.php:10601
 msgid "Slug (optional)"
-msgstr "Sümüklüböcek (isteğe bağlı)"
+msgstr "Kısa ad (isteğe bağlı)"
 
 #: includes/pages/wordset-pages.php:10608
 msgid "new-word-set"
@@ -24239,7 +24238,7 @@ msgstr "Korpus metni varlığı medya kütüphanesine eklenemedi."
 
 #: includes/api/automation-rest.php
 msgid "Provide a corpus text post slug."
-msgstr "Korpus metni yazısı için bir kısa ad sağlayın."
+msgstr "Korpus metni yazısı için bir kısa ad ver."
 
 #: includes/api/automation-rest.php
 msgid "The corpus text post could not be created or updated."
