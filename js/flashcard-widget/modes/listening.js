@@ -230,6 +230,7 @@
     let listeningPrefetchSeenWordIds = {};
     let listeningPrefetchRoundSerial = 0;
     let listeningCategoryOrder = [];
+    let listeningCategoryLoadGeneration = 0;
 
     function getStarredLookup() {
         const prefs = root.llToolsStudyPrefs || {};
@@ -858,35 +859,73 @@
         if (pendingCategoryLoads[key]) return pendingCategoryLoads[key];
         if (isCategoryLoaded(name, loader)) return Promise.resolve(key);
 
+        const generation = listeningCategoryLoadGeneration;
         const promise = new Promise(function (resolve) {
-            try {
-                loader.loadResourcesForCategory(name, function () {
-                    rebuildWordsLinear();
-                    resolve(key);
-                }, { earlyCallback: true, skipCategoryPreload: true });
-            } catch (_) {
+            let settled = false;
+            const finish = function () {
+                if (settled) return;
+                settled = true;
                 resolve(key);
+            };
+            try {
+                const request = loader.loadResourcesForCategory(name, function () {
+                    if (generation === listeningCategoryLoadGeneration && State.isListeningMode && !State.abortAllOperations) {
+                        rebuildWordsLinear();
+                    }
+                    finish();
+                }, {
+                    earlyCallback: true,
+                    skipCategoryPreload: true,
+                    isRequestCurrent: function () {
+                        return generation === listeningCategoryLoadGeneration
+                            && !!State.isListeningMode
+                            && !State.abortAllOperations;
+                    }
+                });
+                Promise.resolve(request).then(finish).catch(finish);
+            } catch (_) {
+                finish();
             }
         }).finally(function () {
-            delete pendingCategoryLoads[key];
+            if (pendingCategoryLoads[key] === promise) {
+                delete pendingCategoryLoads[key];
+            }
         });
         pendingCategoryLoads[key] = promise;
         return promise;
     }
 
-    function queueAllSelectedCategories(loader) {
-        if (!loader || typeof loader.loadResourcesForCategory !== 'function') return;
-        const names = Array.isArray(State.categoryNames) ? State.categoryNames : [];
-        names.forEach(function (name) {
-            ensureCategoryLoad(name, loader);
-        });
+    function getCategoryLoadWindowSize() {
+        const data = root.llToolsFlashcardsData || {};
+        const tuning = data.preloadTuning && typeof data.preloadTuning === 'object' ? data.preloadTuning : {};
+        return Math.max(1, Math.min(5, parseInt(tuning.listeningCategoryLoadWindow, 10) || 3));
     }
 
-    function queueStartupCategories(loader) {
+    function queueSelectedCategoryWindow(loader) {
         if (!loader || typeof loader.loadResourcesForCategory !== 'function') return;
-        const names = Array.isArray(State.categoryNames) ? State.categoryNames : [];
-        names.slice(0, 3).forEach(function (name) {
+        const names = resolveListeningCategoryOrder(false);
+        const windowSize = getCategoryLoadWindowSize();
+        let occupied = 0;
+        for (const name of names) {
+            if (isCategoryLoaded(name, loader)) {
+                continue;
+            }
+            const key = getCategoryCacheKey(name);
+            if (pendingCategoryLoads[key]) {
+                occupied += 1;
+                if (occupied >= windowSize) break;
+                continue;
+            }
             ensureCategoryLoad(name, loader);
+            occupied += 1;
+            if (occupied >= windowSize) break;
+        }
+    }
+
+    function cancelPendingCategoryLoads() {
+        listeningCategoryLoadGeneration += 1;
+        Object.keys(pendingCategoryLoads).forEach(function (key) {
+            delete pendingCategoryLoads[key];
         });
     }
 
@@ -900,21 +939,9 @@
         });
     }
 
-    function waitForPendingCategoryLoads(loader) {
-        queueAllSelectedCategories(loader);
-        const pending = Object.values(pendingCategoryLoads || {});
-        if (!pending.length) return Promise.resolve();
-        return Promise.all(pending.map(function (p) { return Promise.resolve(p).catch(() => undefined); })).catch(function () { });
-    }
-
     // Wait until at least one pending category finishes (or a timeout), instead of waiting for all.
     function waitForNextAvailableWords(loader, timeoutMs = 2500, options) {
-        const opts = (options && typeof options === 'object') ? options : {};
-        if (opts.startupOnly) {
-            queueStartupCategories(loader);
-        } else {
-            queueAllSelectedCategories(loader);
-        }
+        queueSelectedCategoryWindow(loader);
         if (hasWordsReady()) return Promise.resolve(true);
 
         const pending = Object.values(pendingCategoryLoads || {});
@@ -1084,6 +1111,7 @@
     }
 
     function initialize() {
+        cancelPendingCategoryLoads();
         State.isLearningMode = false;
         State.isListeningMode = true;
         State.listeningPaused = false;
@@ -1094,7 +1122,6 @@
         State.listeningLoop = false;
         State.listeningRapidMode = getInitialRapidListeningMode();
         storeRapidListeningMode(State.listeningRapidMode);
-        Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
         resetListeningCategoryOrder();
         resolveListeningCategoryOrder(true);
         rebuildWordsLinear();
@@ -1568,7 +1595,7 @@
             rebuildWordsLinear();
         }
         if (!isStartupRound) {
-            queueAllSelectedCategories(loader);
+            queueSelectedCategoryWindow(loader);
         }
 
         if ((!State.wordsLinear || !State.wordsLinear.length) && hasPendingCategoryLoads(loader)) {
@@ -1818,7 +1845,7 @@
         }).then(function () {
             if (isStartupRound) {
                 const startupBulkQueueId = scheduleTimeout(utils, function () {
-                    queueAllSelectedCategories(loader);
+                    queueSelectedCategoryWindow(loader);
                 }, 0);
                 State.addTimeout && State.addTimeout(startupBulkQueueId);
             }
@@ -2402,6 +2429,8 @@
         onCorrectAnswer,
         onWrongAnswer,
         runRound,
+        queueCategoryPrefetch: function (loader) { return queueSelectedCategoryWindow(loader || FlashcardLoader); },
+        cancelPendingCategoryLoads,
         onStarChange,
         getTotalCount: function () { return (State.wordsLinear || []).length; },
         getProgressDisplayState: function () { return getProgressDisplayState(FlashcardLoader); }

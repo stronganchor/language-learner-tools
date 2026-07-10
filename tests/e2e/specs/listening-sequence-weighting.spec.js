@@ -65,6 +65,88 @@ test('listening initialize defers bulk category loads until after startup', asyn
   expect(result.categoryLoadCalls).toEqual([]);
 });
 
+test('listening category prefetch advances in bounded windows and invalidates old-session requests', async ({ page }) => {
+  await page.goto('about:blank');
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    window.__llCategoryLoadCalls = [];
+    window.__llCategoryLoadOptions = [];
+    window.__llPendingCategoryLoads = {};
+    window.FlashcardLoader = {
+      loadedCategories: [],
+      loadResourcesForCategory(categoryName, callback, options) {
+        const name = String(categoryName || '');
+        window.__llCategoryLoadCalls.push(name);
+        window.__llCategoryLoadOptions.push(options || {});
+        return new Promise((resolve) => {
+          window.__llPendingCategoryLoads[name] = { callback, resolve };
+        });
+      }
+    };
+    window.llToolsFlashcardsData = {
+      preloadTuning: { listeningCategoryLoadWindow: 3 }
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', star_mode: 'normal' };
+    window.LLFlashcards = {
+      State: {
+        STATES: {},
+        categoryNames: Array.from({ length: 30 }, (_, index) => 'Category ' + (index + 1)),
+        wordsByCategory: {},
+        wordsLinear: [],
+        listeningHistory: [],
+        listeningLoop: false,
+        abortAllOperations: false,
+        starModeOverride: null
+      },
+      Dom: {},
+      Cards: {},
+      Results: {},
+      Util: {},
+      Modes: {}
+    };
+  });
+  await page.addScriptTag({ content: listeningSource });
+
+  const result = await page.evaluate(async () => {
+    const Listening = window.LLFlashcards.Modes.Listening;
+    Listening.initialize();
+    Listening.queueCategoryPrefetch(window.FlashcardLoader);
+    const firstWindow = window.__llCategoryLoadCalls.slice();
+    const firstChecksBeforeCancel = window.__llCategoryLoadOptions.map((options) => options.isRequestCurrent());
+
+    Object.entries(window.__llPendingCategoryLoads).forEach(([name, pending], index) => {
+      window.LLFlashcards.State.wordsByCategory[name] = [{ id: 100 + index, title: name }];
+      pending.callback();
+      pending.resolve({ success: true, category: name });
+    });
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    Listening.queueCategoryPrefetch(window.FlashcardLoader);
+    const secondWindow = window.__llCategoryLoadCalls.slice(firstWindow.length);
+    const secondOptions = window.__llCategoryLoadOptions.slice(firstWindow.length);
+    const secondChecksBeforeCancel = secondOptions.map((options) => options.isRequestCurrent());
+    Listening.cancelPendingCategoryLoads();
+    const secondChecksAfterCancel = secondOptions.map((options) => options.isRequestCurrent());
+
+    return {
+      firstWindow,
+      secondWindow,
+      firstChecksBeforeCancel,
+      secondChecksBeforeCancel,
+      secondChecksAfterCancel
+    };
+  });
+
+  expect(result.firstWindow).toHaveLength(3);
+  expect(result.secondWindow).toHaveLength(3);
+  expect(new Set(result.firstWindow.concat(result.secondWindow)).size).toBe(6);
+  expect(result.firstChecksBeforeCancel).toEqual([true, true, true]);
+  expect(result.secondChecksBeforeCancel).toEqual([true, true, true]);
+  expect(result.secondChecksAfterCancel).toEqual([false, false, false]);
+});
+
 test('listening progress uses estimated total while multi-category loads are still pending', async ({ page }) => {
   await page.goto('about:blank');
 

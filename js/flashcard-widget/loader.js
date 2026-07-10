@@ -932,6 +932,9 @@
             const opts = options || {};
             const earlyCallback = opts.earlyCallback === true;
             const skipCategoryPreload = opts.skipCategoryPreload === true;
+            const requestIsCurrent = function () {
+                return typeof opts.isRequestCurrent !== 'function' || opts.isRequestCurrent() !== false;
+            };
             const wordsetKey = ensureWordsetCacheKey();
             const cacheKey = wordsetKey + '::' + categoryName;
 
@@ -941,6 +944,9 @@
             }
 
             if (getRuntimeMode() === 'offline') {
+                if (!requestIsCurrent()) {
+                    return Promise.resolve({ cancelled: true, category: categoryName, offline: true });
+                }
                 const offlineCategoryData = getOfflineCategoryData();
                 const offlineCategoryKey = categoryName;
                 const offlineFallbackKey = String((getCategoryConfig(categoryName) || {}).name || '').trim();
@@ -1024,7 +1030,7 @@
             }
 
             function isStaleRequest() {
-                return wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId;
+                return !requestIsCurrent() || wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId;
             }
 
             function recordAjaxStart(attempt) {
@@ -1065,6 +1071,12 @@
 
             function runAjaxAttempt(attempt) {
                 const attemptNumber = Math.max(1, parseInt(attempt, 10) || 1);
+                if (!requestIsCurrent()) {
+                    if (inFlightRequests[cacheKey] === requestId) {
+                        delete inFlightRequests[cacheKey];
+                    }
+                    return Promise.resolve({ cancelled: true, category: categoryName });
+                }
                 if (loadedCategories.includes(cacheKey)) {
                     if (inFlightRequests[cacheKey] === requestId) {
                         delete inFlightRequests[cacheKey];
@@ -1092,6 +1104,9 @@
                         success: function (response) {
                             // Ignore stale responses from previous wordset/session requests.
                             if (isStaleRequest()) {
+                                if (inFlightRequests[cacheKey] === requestId) {
+                                    delete inFlightRequests[cacheKey];
+                                }
                                 resolve({ stale: true, category: categoryName });
                                 return;
                             }
@@ -1121,6 +1136,9 @@
                         },
                         error: function (xhr, status, error) {
                             if (isStaleRequest()) {
+                                if (inFlightRequests[cacheKey] === requestId) {
+                                    delete inFlightRequests[cacheKey];
+                                }
                                 resolve({ stale: true, category: categoryName });
                                 return;
                             }
@@ -1165,6 +1183,9 @@
             }
 
             return enqueueCategoryAjaxRequest(function () {
+                if (!requestIsCurrent()) {
+                    return Promise.resolve({ cancelled: true, category: categoryName });
+                }
                 if (loadedCategories.includes(cacheKey)) {
                     invokeCallbackOnce();
                     return Promise.resolve({ cached: true, category: categoryName });

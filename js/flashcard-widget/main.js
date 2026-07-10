@@ -2736,6 +2736,16 @@
         return Modes.Practice || null;
     }
 
+    function cancelListeningCategoryPrefetch() {
+        const Modes = root.LLFlashcards && root.LLFlashcards.Modes;
+        if (!Modes || !Modes.Listening || typeof Modes.Listening.cancelPendingCategoryLoads !== 'function') {
+            return;
+        }
+        try {
+            Modes.Listening.cancelPendingCategoryLoads();
+        } catch (_) { /* no-op */ }
+    }
+
     function callModeHook(name, ...args) {
         const module = getActiveModeModule();
         if (module && typeof module[name] === 'function') {
@@ -3326,6 +3336,7 @@
         State.transitionTo(STATES.SWITCHING_MODE, 'User requested mode switch');
 
         // Stop anything in-flight right now.
+        cancelListeningCategoryPrefetch();
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
         $('#ll-tools-learning-progress').hide().empty();
@@ -4720,6 +4731,7 @@
                     }
                 }
 
+                cancelListeningCategoryPrefetch();
                 State.isLearningMode = false;
                 State.isListeningMode = false;
                 State.isGenderMode = false;
@@ -4956,6 +4968,7 @@
             State.transitionTo(STATES.CLOSING, 'User closed widget');
         }
 
+        cancelListeningCategoryPrefetch();
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
         newSession();

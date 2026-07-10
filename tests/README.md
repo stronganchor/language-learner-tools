@@ -241,7 +241,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
   - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`
-  - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints.
+  - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints, while large category selections advance through a bounded prefetch window and invalidate old-session requests.
 - `tests/e2e/specs/listening-visualizer-regression.spec.js`
   - Verifies Listening visualizer warmup/resume behavior and countdown-hide recovery.
 - `tests/e2e/specs/offline-app-shell-launcher.spec.js`

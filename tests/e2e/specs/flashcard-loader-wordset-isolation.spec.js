@@ -148,6 +148,46 @@ test('flashcard loader serializes category AJAX preloads by default to avoid req
   }).toBe(2);
 });
 
+test('flashcard loader drops an invalidated queued category before AJAX starts', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Cancelled Category'];
+    window.getCategoryDisplayMode = function () { return 'image'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'set-a',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      categories: [
+        { id: 11, name: 'Cancelled Category', prompt_type: 'audio', option_type: 'image' }
+      ]
+    };
+    window.__llAjaxCount = 0;
+    window.jQuery.ajax = function () {
+      window.__llAjaxCount += 1;
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(async () => {
+    const response = await window.FlashcardLoader.loadResourcesForCategory(
+      'Cancelled Category',
+      function () {},
+      { isRequestCurrent: function () { return false; } }
+    );
+    return { response, ajaxCount: window.__llAjaxCount };
+  });
+
+  expect(result.ajaxCount).toBe(0);
+  expect(result.response).toMatchObject({ cancelled: true, category: 'Cancelled Category' });
+});
+
 test('flashcard loader retries retryable category AJAX 429 responses', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });

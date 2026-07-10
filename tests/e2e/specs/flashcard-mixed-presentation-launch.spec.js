@@ -85,6 +85,7 @@ async function mountLaunchHarness(page, options = {}) {
 
     window.__LLFlashcardsMainLoaded = false;
     window.__loadCategoryCalls = [];
+    window.__listeningCategoryCancelCalls = 0;
     window.llToolsFlashcardsData = {
       debug: false,
       firstCategoryName: 'Cat A',
@@ -145,6 +146,12 @@ async function mountLaunchHarness(page, options = {}) {
       Practice: {
         initialize() {},
         runRound() {}
+      },
+      Listening: {
+        initialize() {},
+        cancelPendingCategoryLoads() {
+          window.__listeningCategoryCancelCalls += 1;
+        }
       }
     };
 
@@ -229,4 +236,24 @@ test('practice init still uses a single aspect bucket when mixed presentation is
   expect(result.initialCategoryNames).toEqual(['Cat A']);
   expect(result.firstCategoryName).toBe('Cat A');
   expect(Array.from(new Set(result.loadCategoryCalls))).toEqual(['Cat A']);
+});
+
+test('mode switch and close invalidate listening category prefetch', async ({ page }) => {
+  await mountLaunchHarness(page, { preserveMixedPresentation: true });
+
+  const result = await page.evaluate(async () => {
+    window.LLFlashcards.State.isListeningMode = true;
+    window.LLFlashcards.State.forceTransitionTo(window.LLFlashcards.State.STATES.QUIZ_READY, 'test setup');
+    window.LLFlashcards.Main.switchMode('practice');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const afterSwitch = window.__listeningCategoryCancelCalls;
+    await window.LLFlashcards.Main.closeFlashcard();
+    return {
+      afterSwitch,
+      afterClose: window.__listeningCategoryCancelCalls
+    };
+  });
+
+  expect(result.afterSwitch).toBeGreaterThanOrEqual(1);
+  expect(result.afterClose).toBeGreaterThan(result.afterSwitch);
 });

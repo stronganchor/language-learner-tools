@@ -910,6 +910,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'categoryMediaChunkSize'     => 5,
         'categoryMediaChunkDelayMs'  => 160,
         'categoryMediaChunkConcurrency' => 1,
+        'listeningCategoryLoadWindow' => 3,
     ];
     $preload_tuning = apply_filters('ll_tools_flashcards_preload_tuning', $preload_tuning_defaults, $atts, $categories, $wordset_ids);
     if (!is_array($preload_tuning)) {
@@ -924,6 +925,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'categoryMediaChunkSize'        => max(1, min(30, (int) ($preload_tuning['categoryMediaChunkSize'] ?? $preload_tuning_defaults['categoryMediaChunkSize']))),
         'categoryMediaChunkDelayMs'     => max(0, min(10000, (int) ($preload_tuning['categoryMediaChunkDelayMs'] ?? $preload_tuning_defaults['categoryMediaChunkDelayMs']))),
         'categoryMediaChunkConcurrency' => max(1, min(8, (int) ($preload_tuning['categoryMediaChunkConcurrency'] ?? $preload_tuning_defaults['categoryMediaChunkConcurrency']))),
+        'listeningCategoryLoadWindow'   => max(1, min(5, (int) ($preload_tuning['listeningCategoryLoadWindow'] ?? $preload_tuning_defaults['listeningCategoryLoadWindow']))),
     ];
     $rapid_listening_gap_ms = max(250, min(2000, (int) apply_filters('ll_tools_rapid_listening_gap_ms', 750, $atts, $categories, $wordset_ids)));
     $localized_data = [
