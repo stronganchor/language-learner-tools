@@ -264,6 +264,20 @@ or single-locale fields:
 }
 ```
 
+## Turkish Translation Review Checks
+
+When Turkish is the helper or review language, include these wording checks in
+translation plans and spot checks:
+
+- Preserve the difference between `eski` and `yaşlı`. Use `yaşlı` for people,
+  animals, or other living beings whose age is meant; use `eski` for old
+  objects, former roles, or earlier versions. For comparative age, avoid
+  collapsing "older" into `eski` when the subject is a person or living being.
+- Treat `asla` as a marked, emotive choice like "NEVER!!!" or "under no
+  circumstances". For neutral experience or occurrence statements, prefer a
+  context-appropriate `hiç ... -mamış/-memiş` construction instead, such as
+  `hiç görülmemiş`, `hiç duymamış`, or `hiç gitmemiş`.
+
 ## Review Before Writing
 
 Before applying a generated plan, inspect:
