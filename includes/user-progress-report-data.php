@@ -22,7 +22,21 @@ if (!function_exists('ll_tools_user_progress_report_stats_for_users')) {
             $params[] = $wordset_id;
         }
 
-        $rows_sql = "SELECT * FROM {$tables['words']} WHERE {$where_sql}";
+        $rows_sql = "SELECT
+                user_id,
+                last_seen_at,
+                total_coverage,
+                correct_clean,
+                correct_after_retry,
+                current_correct_streak,
+                mastery_unlocked,
+                incorrect,
+                lapse_count,
+                stage,
+                practice_required_recording_types,
+                practice_correct_recording_types
+            FROM {$tables['words']}
+            WHERE {$where_sql}";
         $rows = $wpdb->get_results($wpdb->prepare($rows_sql, $params), ARRAY_A);
 
         $stats = [];

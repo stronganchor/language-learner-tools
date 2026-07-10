@@ -95,6 +95,106 @@ if (!function_exists('ll_tools_user_progress_report_tracked_user_ids')) {
     }
 }
 
+if (!function_exists('ll_tools_user_progress_report_query_users')) {
+    /**
+     * Query one report page while keeping progress-user intersection in SQL.
+     *
+     * @return array{users:WP_User[],user_ids:int[],total:int,page:int,per_page:int}
+     */
+    function ll_tools_user_progress_report_query_users(
+        int $wordset_id = 0,
+        string $search = '',
+        int $page = 1,
+        int $per_page = 20
+    ): array {
+        global $wpdb;
+
+        $wordset_id = max(0, $wordset_id);
+        $search = sanitize_text_field($search);
+        $page = max(1, $page);
+        $per_page = max(1, min(100, $per_page));
+        if (!function_exists('ll_tools_user_progress_table_names')) {
+            return [
+                'users' => [],
+                'user_ids' => [],
+                'total' => 0,
+                'page' => $page,
+                'per_page' => $per_page,
+            ];
+        }
+
+        $tables = ll_tools_user_progress_table_names();
+        if ($wordset_id > 0) {
+            $tracked_sql = $wpdb->prepare(
+                "SELECT progress_words.user_id
+                 FROM {$tables['words']} progress_words
+                 WHERE progress_words.wordset_id = %d
+                 GROUP BY progress_words.user_id
+                 UNION
+                 SELECT progress_events.user_id
+                 FROM {$tables['events']} progress_events
+                 WHERE progress_events.wordset_id = %d
+                 GROUP BY progress_events.user_id",
+                $wordset_id,
+                $wordset_id
+            );
+        } else {
+            $tracked_sql = "SELECT progress_words.user_id
+                            FROM {$tables['words']} progress_words
+                            GROUP BY progress_words.user_id
+                            UNION
+                            SELECT progress_events.user_id
+                            FROM {$tables['events']} progress_events
+                            GROUP BY progress_events.user_id";
+        }
+
+        $search_sql = '';
+        if ($search !== '') {
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $search_sql = $wpdb->prepare(
+                ' WHERE (users.user_login LIKE %s OR users.user_email LIKE %s OR users.display_name LIKE %s)',
+                $like,
+                $like,
+                $like
+            );
+        }
+
+        $from_sql = " FROM {$wpdb->users} users
+                      INNER JOIN ({$tracked_sql}) tracked_users
+                         ON tracked_users.user_id = users.ID";
+        $total = max(0, (int) $wpdb->get_var("SELECT COUNT(*){$from_sql}{$search_sql}"));
+        $offset = ($page - 1) * $per_page;
+        $ids_sql = $wpdb->prepare(
+            "SELECT users.ID{$from_sql}{$search_sql}
+             ORDER BY users.display_name ASC, users.user_login ASC, users.ID ASC
+             LIMIT %d OFFSET %d",
+            $per_page,
+            $offset
+        );
+        $user_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($ids_sql))));
+        $users = [];
+        if (!empty($user_ids)) {
+            $users = get_users([
+                'include' => $user_ids,
+                'orderby' => 'include',
+                'count_total' => false,
+                'fields' => 'all',
+            ]);
+            $users = array_values(array_filter((array) $users, static function ($user): bool {
+                return $user instanceof WP_User;
+            }));
+        }
+
+        return [
+            'users' => $users,
+            'user_ids' => $user_ids,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $per_page,
+        ];
+    }
+}
+
 if (!function_exists('ll_tools_user_progress_report_build_admin_url')) {
     function ll_tools_user_progress_report_build_admin_url(array $args = []): string {
         $query_args = array_merge([
@@ -591,37 +691,10 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
         $paged = isset($_GET['paged']) ? max(1, (int) wp_unslash((string) $_GET['paged'])) : 1;
         $per_page = 20;
 
-        $tracked_user_ids = ll_tools_user_progress_report_tracked_user_ids($wordset_id);
-        $user_query = null;
-        $users = [];
-        $stats = [];
-
-        if (!empty($tracked_user_ids)) {
-            $query_args = [
-                'include' => $tracked_user_ids,
-                'number' => $per_page,
-                'paged' => $paged,
-                'orderby' => 'display_name',
-                'order' => 'ASC',
-                'count_total' => true,
-            ];
-
-            if ($search !== '') {
-                $query_args['search'] = '*' . $search . '*';
-                $query_args['search_columns'] = ['user_login', 'user_email', 'display_name'];
-            }
-
-            $user_query = new WP_User_Query($query_args);
-            $users = (array) $user_query->get_results();
-
-            $page_user_ids = array_values(array_filter(array_map(static function ($user): int {
-                return ($user instanceof WP_User) ? (int) $user->ID : 0;
-            }, $users), static function (int $user_id): bool {
-                return $user_id > 0;
-            }));
-
-            $stats = ll_tools_user_progress_report_stats_for_users($page_user_ids, $wordset_id);
-        }
+        $user_page = ll_tools_user_progress_report_query_users($wordset_id, $search, $paged, $per_page);
+        $users = (array) ($user_page['users'] ?? []);
+        $page_user_ids = array_values(array_map('intval', (array) ($user_page['user_ids'] ?? [])));
+        $stats = ll_tools_user_progress_report_stats_for_users($page_user_ids, $wordset_id);
 
         $detail_user = ($selected_user_id > 0) ? get_userdata($selected_user_id) : null;
         $detail_wordset_id = $wordset_id;
@@ -856,7 +929,7 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
             </table>
 
             <?php
-            $total_users = ($user_query instanceof WP_User_Query) ? (int) $user_query->get_total() : 0;
+            $total_users = max(0, (int) ($user_page['total'] ?? 0));
             $total_pages = $per_page > 0 ? (int) ceil($total_users / $per_page) : 1;
             if ($total_pages > 1) :
                 echo '<div class="tablenav"><div class="tablenav-pages">';

@@ -98,6 +98,88 @@ final class UserProgressReportTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>2<', $output);
     }
 
+    public function test_report_user_query_pages_progress_users_in_sql(): void
+    {
+        $wordsetId = $this->createWordset('Paged Report Wordset');
+        $learnerIds = [];
+        for ($index = 1; $index <= 45; $index++) {
+            $learnerId = self::factory()->user->create([
+                'role' => 'subscriber',
+                'display_name' => sprintf('Paged Learner %02d', $index),
+                'user_email' => sprintf('paged-learner-%02d@example.test', $index),
+            ]);
+            $learnerIds[] = $learnerId;
+            $this->assertTrue(ll_tools_record_server_progress_event($learnerId, [
+                'event_type' => 'stt_api_call',
+                'wordset_id' => $wordsetId,
+                'payload' => ['source' => 'report_paging_test', 'provider' => 'hosted_api'],
+            ]));
+        }
+
+        $queries = [];
+        $captureQuery = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $captureQuery);
+        try {
+            $pageOne = ll_tools_user_progress_report_query_users($wordsetId, '', 1, 20);
+            $pageTwo = ll_tools_user_progress_report_query_users($wordsetId, '', 2, 20);
+            $pageThree = ll_tools_user_progress_report_query_users($wordsetId, '', 3, 20);
+            $searchPage = ll_tools_user_progress_report_query_users($wordsetId, 'Paged Learner 37', 1, 20);
+        } finally {
+            remove_filter('query', $captureQuery);
+        }
+
+        $this->assertSame(45, (int) ($pageOne['total'] ?? 0));
+        $this->assertCount(20, (array) ($pageOne['user_ids'] ?? []));
+        $this->assertCount(20, (array) ($pageTwo['user_ids'] ?? []));
+        $this->assertCount(5, (array) ($pageThree['user_ids'] ?? []));
+        $this->assertSame([$learnerIds[36]], array_values(array_map('intval', (array) ($searchPage['user_ids'] ?? []))));
+        $this->assertEmpty(array_intersect(
+            array_map('intval', (array) ($pageOne['user_ids'] ?? [])),
+            array_map('intval', (array) ($pageTwo['user_ids'] ?? []))
+        ));
+
+        $queryLog = implode("\n", $queries);
+        $this->assertStringContainsString('LIMIT 20 OFFSET 20', $queryLog);
+        $this->assertDoesNotMatchRegularExpression('/SELECT\s+DISTINCT\s+user_id\s+FROM/i', $queryLog);
+    }
+
+    public function test_report_stats_query_selects_only_required_progress_columns(): void
+    {
+        global $wpdb;
+
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordsetId = $this->createWordset('Projected Report Stats');
+        $this->assertTrue(ll_tools_record_server_progress_event($learnerId, [
+            'event_type' => 'stt_api_call',
+            'wordset_id' => $wordsetId,
+            'payload' => ['source' => 'report_projection_test', 'provider' => 'hosted_api'],
+        ]));
+
+        $queries = [];
+        $captureQuery = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $captureQuery);
+        try {
+            ll_tools_user_progress_report_stats_for_users([$learnerId], $wordsetId);
+        } finally {
+            remove_filter('query', $captureQuery);
+        }
+
+        $wordsTable = preg_quote(ll_tools_user_progress_table_names()['words'], '/');
+        $progressQueries = array_values(array_filter($queries, static function (string $query) use ($wordsTable): bool {
+            return (bool) preg_match('/FROM\s+' . $wordsTable . '\s+WHERE/i', $query);
+        }));
+        $this->assertNotEmpty($progressQueries);
+        $this->assertStringNotContainsString('SELECT *', strtoupper($progressQueries[0]));
+        $this->assertStringContainsString('practice_required_recording_types', $progressQueries[0]);
+        $this->assertSame($wpdb->prefix . 'll_tools_user_word_progress', ll_tools_user_progress_table_names()['words']);
+    }
+
     public function test_bot_risk_assessment_flags_spammy_profile_and_activity(): void
     {
         $learnerId = self::factory()->user->create([

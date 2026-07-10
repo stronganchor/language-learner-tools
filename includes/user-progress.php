@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION')) {
-    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.3.1');
+    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.3.2');
 }
 if (!defined('LL_TOOLS_USER_PROGRESS_VERSION_OPTION')) {
     define('LL_TOOLS_USER_PROGRESS_VERSION_OPTION', 'll_tools_user_progress_schema_version');
@@ -821,6 +821,7 @@ function ll_tools_install_user_progress_schema(): void {
         KEY idx_user_due (user_id, due_at),
         KEY idx_user_category (user_id, category_id),
         KEY idx_user_wordset (user_id, wordset_id),
+        KEY idx_wordset_user (wordset_id, user_id),
         KEY idx_word (word_id)
     ) {$charset_collate};";
 
@@ -843,6 +844,7 @@ function ll_tools_install_user_progress_schema(): void {
         KEY idx_user_word (user_id, word_id),
         KEY idx_user_category (user_id, category_id),
         KEY idx_user_wordset_created (user_id, wordset_id, created_at),
+        KEY idx_wordset_user (wordset_id, user_id),
         KEY idx_user_category_created (user_id, category_id, created_at)
     ) {$charset_collate};";
 
