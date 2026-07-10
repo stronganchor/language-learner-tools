@@ -190,6 +190,112 @@ final class WordGridBulkEditStateTest extends LL_Tools_TestCase
         $this->assertSame('Indicative', (string) ($word_two_meta['verb_mood']['value'] ?? ''));
     }
 
+    public function test_large_bulk_pos_update_and_undo_use_bounded_cursor_batches(): void
+    {
+        ll_register_part_of_speech_taxonomy();
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+        wp_set_current_user($admin_id);
+
+        $wordset_id = $this->createWordset();
+        $category_id = $this->createCategory('Bulk Cursor');
+        $adjective_term_id = $this->ensurePartOfSpeechTerm('adjective', 'Adjective');
+        $word_ids = [];
+        for ($index = 1; $index <= 60; $index++) {
+            $word_ids[] = $this->createWord($wordset_id, $category_id, sprintf('Bulk Cursor %02d', $index));
+        }
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
+
+        $captured_word_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_word_queries): void {
+            if ((string) $query->get('post_type') === 'words') {
+                $captured_word_queries[] = $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $capture);
+        try {
+            $after_id = 0;
+            $updated_ids = [];
+            $batch_count = 0;
+            do {
+                $_POST = [
+                    'nonce' => wp_create_nonce('ll_word_grid_edit'),
+                    'wordset_id' => $wordset_id,
+                    'category_id' => $effective_category_id,
+                    'mode' => 'pos',
+                    'part_of_speech' => 'adjective',
+                    'after_id' => $after_id,
+                ];
+                $_REQUEST = $_POST;
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_word_grid_bulk_update_handler();
+                });
+                $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+                $data = is_array($response['data'] ?? null) ? (array) $response['data'] : [];
+                $batch_ids = array_values(array_map('intval', (array) ($data['word_ids'] ?? [])));
+                $this->assertLessThanOrEqual(ll_tools_word_grid_bulk_batch_size(), count($batch_ids));
+                $updated_ids = array_merge($updated_ids, $batch_ids);
+                $batch_count++;
+                $next_after_id = (int) ($data['next_after_id'] ?? 0);
+                if (!empty($data['has_more'])) {
+                    $this->assertGreaterThan($after_id, $next_after_id);
+                }
+                $after_id = $next_after_id;
+            } while (!empty($data['has_more']) && $batch_count < 10);
+
+            $this->assertSame(3, $batch_count);
+            $this->assertEqualsCanonicalizing($word_ids, $updated_ids);
+            foreach ($word_ids as $word_id) {
+                $this->assertSame([$adjective_term_id], array_map('intval', wp_get_post_terms($word_id, 'part_of_speech', ['fields' => 'ids'])));
+            }
+
+            foreach (array_chunk($word_ids, ll_tools_word_grid_bulk_batch_size()) as $chunk) {
+                $snapshot = array_map(static function (int $word_id): array {
+                    return [
+                        'word_id' => $word_id,
+                        'part_of_speech' => '',
+                        'grammatical_gender' => '',
+                        'grammatical_plurality' => '',
+                        'verb_tense' => '',
+                        'verb_mood' => '',
+                    ];
+                }, $chunk);
+                $_POST = [
+                    'nonce' => wp_create_nonce('ll_word_grid_edit'),
+                    'wordset_id' => $wordset_id,
+                    'category_id' => $effective_category_id,
+                    'mode' => 'pos',
+                    'snapshot' => wp_json_encode($snapshot),
+                ];
+                $_REQUEST = $_POST;
+                $undo_response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_word_grid_bulk_undo_handler();
+                });
+                $this->assertTrue((bool) ($undo_response['success'] ?? false), wp_json_encode($undo_response));
+                $this->assertLessThanOrEqual(
+                    ll_tools_word_grid_bulk_batch_size(),
+                    (int) ($undo_response['data']['count'] ?? 0)
+                );
+            }
+        } finally {
+            remove_action('pre_get_posts', $capture);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        foreach ($word_ids as $word_id) {
+            $this->assertSame([], wp_get_post_terms($word_id, 'part_of_speech', ['fields' => 'ids']));
+        }
+        foreach ($captured_word_queries as $query_vars) {
+            $this->assertNotSame(-1, (int) ($query_vars['posts_per_page'] ?? 0));
+            $this->assertLessThanOrEqual(50, (int) ($query_vars['posts_per_page'] ?? 0));
+        }
+    }
+
     private function createWordset(): int
     {
         $term = wp_insert_term('Bulk Test Wordset ' . wp_generate_password(6, false, false), 'wordset');

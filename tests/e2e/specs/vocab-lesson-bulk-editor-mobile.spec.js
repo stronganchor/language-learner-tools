@@ -197,10 +197,11 @@ function buildMinimalWordGridMarkup(options = {}) {
   `;
 }
 
-function buildWordGridConfig() {
+function buildWordGridConfig(options = {}) {
   return {
     ajaxUrl: '/wp-admin/admin-ajax.php',
     editNonce: 'bulk-test-edit-nonce',
+    bulkBatchSize: options.simulateCursorBatches ? 1 : 25,
     canEdit: true,
     isLoggedIn: true,
     state: {
@@ -232,8 +233,9 @@ async function mountMobileBulkEditor(page, options = {}) {
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
-  }, buildWordGridConfig());
-  await page.evaluate(() => {
+  }, buildWordGridConfig(options));
+  await page.evaluate((simulateCursorBatches) => {
+    window.llSimulateBulkBatches = !!simulateCursorBatches;
     window.llBulkPostCalls = [];
     jQuery.post = function (_url, data) {
       const payload = JSON.parse(JSON.stringify(data || {}));
@@ -241,11 +243,19 @@ async function mountMobileBulkEditor(page, options = {}) {
       const deferred = jQuery.Deferred();
 
       if (payload.action === 'll_tools_word_grid_bulk_undo') {
+        let undoWordIds = [101, 102];
+        if (window.llSimulateBulkBatches) {
+          try {
+            undoWordIds = JSON.parse(payload.snapshot || '[]').map((row) => parseInt(row.word_id, 10) || 0).filter(Boolean);
+          } catch (_error) {
+            undoWordIds = [];
+          }
+        }
         deferred.resolve({
           success: true,
           data: {
             message: 'Bulk changes undone.',
-            word_ids: [101, 102],
+            word_ids: undoWordIds,
             words: [
               {
                 word_id: 101,
@@ -263,16 +273,22 @@ async function mountMobileBulkEditor(page, options = {}) {
                 verb_tense: { value: '', label: '' },
                 verb_mood: { value: '', label: '' }
               }
-            ]
+            ].filter((word) => undoWordIds.includes(word.word_id))
           }
         });
         return deferred.promise();
       }
 
+      const cursorBatch = window.llSimulateBulkBatches;
+      const afterId = parseInt(payload.after_id, 10) || 0;
+      const batchWordIds = cursorBatch ? (afterId > 0 ? [102] : [101]) : [101, 102];
+
       deferred.resolve({
         success: true,
         data: {
-          word_ids: [101, 102],
+          word_ids: batchWordIds,
+          has_more: cursorBatch && afterId === 0,
+          next_after_id: cursorBatch && afterId === 0 ? 101 : 102,
           part_of_speech: {
             slug: payload.part_of_speech || '',
             label: payload.part_of_speech === 'adjective' ? 'Adjective' : 'Noun'
@@ -285,7 +301,7 @@ async function mountMobileBulkEditor(page, options = {}) {
       });
       return deferred.promise();
     };
-  });
+  }, !!options.simulateCursorBatches);
   await page.addScriptTag({ content: wordGridScriptSource });
 }
 
@@ -357,6 +373,28 @@ test('mobile bulk edit applies a select change and can undo it', async ({ page }
   expect(calls[0].action).toBe('ll_tools_word_grid_bulk_update');
   expect(calls[1].action).toBe('ll_tools_word_grid_bulk_undo');
   expect(calls[1].mode).toBe('pos');
+});
+
+test('mobile bulk edit continues cursor batches and chunks undo payloads', async ({ page }) => {
+  await mountMobileBulkEditor(page, { simulateCursorBatches: true });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await page.locator('[data-ll-bulk-pos]').selectOption('adjective');
+
+  await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 2);
+  await expect(page.locator('[data-ll-bulk-control-status="pos"]')).toHaveAttribute('data-state', 'saved');
+  await expect(page.locator('.word-item[data-word-id="101"] [data-ll-word-pos]')).toHaveText('Adjective');
+  await expect(page.locator('.word-item[data-word-id="102"] [data-ll-word-pos]')).toHaveText('Adjective');
+
+  await page.locator('[data-ll-bulk-control-undo="pos"]').click();
+  await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 4);
+  await expect(page.locator('[data-ll-bulk-pos]')).toHaveValue('noun');
+
+  const calls = await page.evaluate(() => window.llBulkPostCalls);
+  expect(calls[0].after_id).toBe(0);
+  expect(calls[1].after_id).toBe(101);
+  expect(JSON.parse(calls[2].snapshot)).toHaveLength(1);
+  expect(JSON.parse(calls[3].snapshot)).toHaveLength(1);
 });
 
 test('mobile bulk edit neutralizes hostile theme select and button styles', async ({ page }) => {

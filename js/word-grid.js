@@ -8,6 +8,7 @@
     const editI18n = cfg.editI18n || {};
     const orderI18n = cfg.orderI18n || {};
     const bulkI18n = cfg.bulkI18n || {};
+    const bulkBatchSize = Math.max(1, Math.min(50, parseInt(cfg.bulkBatchSize, 10) || 25));
     const prereqI18n = cfg.prereqI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
     const internalNotesCfg = (cfg.internalNotes && typeof cfg.internalNotes === 'object') ? cfg.internalNotes : {};
@@ -8103,52 +8104,12 @@
             setBulkStatus($wrap, '', false);
             setBulkControlStatus($wrap, controlKey, 'saving', bulkMessages.saving);
 
-            const payload = {
-                action: 'll_tools_word_grid_bulk_update',
-                nonce: editNonce,
-                mode: config.mode,
-                wordset_id: context.wordsetId,
-                category_id: context.categoryId
-            };
-            payload[config.requestField] = requestValue;
+            let updatedTotal = 0;
+            let finished = false;
 
-            $.post(ajaxUrl, payload).done(function (response) {
-                if (!response || response.success !== true) {
-                    const responseMessage = response && typeof response.data === 'string'
-                        ? response.data
-                        : (response && response.data && typeof response.data.message === 'string'
-                            ? response.data.message
-                            : bulkMessages.error);
-                    setBulkControlStatus($wrap, controlKey, 'error', responseMessage);
-                    setBulkStatus($wrap, responseMessage, true);
-                    return;
-                }
-
-                const data = response.data || {};
-                const updatedCount = typeof config.applyResponse === 'function'
-                    ? (parseInt(config.applyResponse(context, data), 10) || 0)
-                    : (Array.isArray(data.word_ids) ? data.word_ids.length : 0);
-                const hasUndoSnapshot = !!(undoSnapshot && Array.isArray(undoSnapshot.rows) && undoSnapshot.rows.length && updatedCount > 0);
-
-                updateGridLayouts();
-                syncBulkControlSelectDefaults($wrap);
-                clearAllBulkControlUndoSnapshots($wrap, controlKey);
-                setBulkControlUndoSnapshot($wrap, controlKey, hasUndoSnapshot ? undoSnapshot : null);
-                setBulkStatus($wrap, '', false);
-                setBulkControlStatus(
-                    $wrap,
-                    controlKey,
-                    'saved',
-                    config.successTemplate ? formatBulkMessage(config.successTemplate, updatedCount) : bulkMessages.saved
-                );
-                if (!hasUndoSnapshot) {
-                    scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
-                }
-            }).fail(function (jqXHR) {
-                const errorMessage = readAjaxErrorMessage(jqXHR, bulkMessages.error);
-                setBulkControlStatus($wrap, controlKey, 'error', errorMessage);
-                setBulkStatus($wrap, errorMessage, true);
-            }).always(function () {
+            function finishRequest() {
+                if (finished) { return; }
+                finished = true;
                 const currentState = getBulkAutoState($wrap);
                 const $select = getBulkControlSelect($wrap, controlKey);
                 const currentValue = $select.length ? ($select.val() || '').toString() : '';
@@ -8166,7 +8127,78 @@
                 }
 
                 flushBulkControlQueue($wrap);
-            });
+            }
+
+            function failRequest(errorMessage) {
+                setBulkControlStatus($wrap, controlKey, 'error', errorMessage || bulkMessages.error);
+                setBulkStatus($wrap, errorMessage || bulkMessages.error, true);
+                finishRequest();
+            }
+
+            function completeRequest() {
+                const hasUndoSnapshot = !!(undoSnapshot && Array.isArray(undoSnapshot.rows) && undoSnapshot.rows.length && updatedTotal > 0);
+                updateGridLayouts();
+                syncBulkControlSelectDefaults($wrap);
+                clearAllBulkControlUndoSnapshots($wrap, controlKey);
+                setBulkControlUndoSnapshot($wrap, controlKey, hasUndoSnapshot ? undoSnapshot : null);
+                setBulkStatus($wrap, '', false);
+                setBulkControlStatus(
+                    $wrap,
+                    controlKey,
+                    'saved',
+                    config.successTemplate ? formatBulkMessage(config.successTemplate, updatedTotal) : bulkMessages.saved
+                );
+                if (!hasUndoSnapshot) {
+                    scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+                }
+                finishRequest();
+            }
+
+            function runBatch(afterId) {
+                const payload = {
+                    action: 'll_tools_word_grid_bulk_update',
+                    nonce: editNonce,
+                    mode: config.mode,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId,
+                    after_id: Math.max(0, parseInt(afterId, 10) || 0)
+                };
+                payload[config.requestField] = requestValue;
+
+                $.post(ajaxUrl, payload).done(function (response) {
+                    if (!response || response.success !== true) {
+                        const responseMessage = response && typeof response.data === 'string'
+                            ? response.data
+                            : (response && response.data && typeof response.data.message === 'string'
+                                ? response.data.message
+                                : bulkMessages.error);
+                        failRequest(responseMessage);
+                        return;
+                    }
+
+                    const data = response.data || {};
+                    const updatedCount = typeof config.applyResponse === 'function'
+                        ? (parseInt(config.applyResponse(context, data), 10) || 0)
+                        : (Array.isArray(data.word_ids) ? data.word_ids.length : 0);
+                    updatedTotal += updatedCount;
+
+                    if (data.has_more === true) {
+                        const nextAfterId = Math.max(0, parseInt(data.next_after_id, 10) || 0);
+                        if (nextAfterId <= payload.after_id) {
+                            failRequest(bulkMessages.error);
+                            return;
+                        }
+                        runBatch(nextAfterId);
+                        return;
+                    }
+
+                    completeRequest();
+                }).fail(function (jqXHR) {
+                    failRequest(readAjaxErrorMessage(jqXHR, bulkMessages.error));
+                });
+            }
+
+            runBatch(0);
         }
 
         function undoBulkControlUpdate($wrap, controlKey) {
@@ -8200,38 +8232,15 @@
                 return row.word_id > 0;
             });
 
-            $.post(ajaxUrl, {
-                action: 'll_tools_word_grid_bulk_undo',
-                nonce: editNonce,
-                mode: config.mode,
-                wordset_id: context.wordsetId,
-                category_id: context.categoryId,
-                snapshot: JSON.stringify(payloadRows)
-            }).done(function (response) {
-                if (!response || response.success !== true) {
-                    const responseMessage = response && typeof response.data === 'string'
-                        ? response.data
-                        : (response && response.data && typeof response.data.message === 'string'
-                            ? response.data.message
-                            : bulkMessages.undoError);
-                    setBulkControlStatus($wrap, controlKey, 'error', responseMessage);
-                    setBulkStatus($wrap, responseMessage, true);
-                    return;
-                }
+            const payloadChunks = [];
+            for (let offset = 0; offset < payloadRows.length; offset += bulkBatchSize) {
+                payloadChunks.push(payloadRows.slice(offset, offset + bulkBatchSize));
+            }
+            let finished = false;
 
-                const data = response.data || {};
-                applyBulkUndoWords(context, Array.isArray(data.words) ? data.words : []);
-                updateGridLayouts();
-                syncBulkControlSelectDefaults($wrap);
-                clearAllBulkControlUndoSnapshots($wrap);
-                setBulkStatus($wrap, '', false);
-                setBulkControlStatus($wrap, controlKey, 'saved', (typeof data.message === 'string' && data.message) ? data.message : bulkMessages.undoSuccess);
-                scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
-            }).fail(function (jqXHR) {
-                const errorMessage = readAjaxErrorMessage(jqXHR, bulkMessages.undoError);
-                setBulkControlStatus($wrap, controlKey, 'error', errorMessage);
-                setBulkStatus($wrap, errorMessage, true);
-            }).always(function () {
+            function finishUndo() {
+                if (finished) { return; }
+                finished = true;
                 const currentState = getBulkAutoState($wrap);
                 if (currentState) {
                     currentState.activeKey = '';
@@ -8239,7 +8248,57 @@
                 }
                 setBulkControlsDisabled($wrap, false);
                 setBulkBusy($wrap, false);
-            });
+            }
+
+            function failUndo(errorMessage) {
+                setBulkControlStatus($wrap, controlKey, 'error', errorMessage || bulkMessages.undoError);
+                setBulkStatus($wrap, errorMessage || bulkMessages.undoError, true);
+                finishUndo();
+            }
+
+            function runUndoChunk(index) {
+                if (index >= payloadChunks.length) {
+                    updateGridLayouts();
+                    syncBulkControlSelectDefaults($wrap);
+                    clearAllBulkControlUndoSnapshots($wrap);
+                    setBulkStatus($wrap, '', false);
+                    setBulkControlStatus($wrap, controlKey, 'saved', bulkMessages.undoSuccess);
+                    scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+                    finishUndo();
+                    return;
+                }
+
+                $.post(ajaxUrl, {
+                    action: 'll_tools_word_grid_bulk_undo',
+                    nonce: editNonce,
+                    mode: config.mode,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId,
+                    snapshot: JSON.stringify(payloadChunks[index])
+                }).done(function (response) {
+                    if (!response || response.success !== true) {
+                        const responseMessage = response && typeof response.data === 'string'
+                            ? response.data
+                            : (response && response.data && typeof response.data.message === 'string'
+                                ? response.data.message
+                                : bulkMessages.undoError);
+                        failUndo(responseMessage);
+                        return;
+                    }
+
+                    const data = response.data || {};
+                    applyBulkUndoWords(context, Array.isArray(data.words) ? data.words : []);
+                    runUndoChunk(index + 1);
+                }).fail(function (jqXHR) {
+                    failUndo(readAjaxErrorMessage(jqXHR, bulkMessages.undoError));
+                });
+            }
+
+            if (!payloadChunks.length) {
+                failUndo(bulkMessages.undoError);
+                return;
+            }
+            runUndoChunk(0);
         }
 
         if ($prereqEditors.length) {
