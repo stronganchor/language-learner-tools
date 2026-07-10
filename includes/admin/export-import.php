@@ -7205,74 +7205,34 @@ function ll_tools_handle_import_bundle() {
         wp_die(__('ZipArchive is not available on this server.', 'll-tools-text-domain'));
     }
 
-    require_once ABSPATH . 'wp-admin/includes/file.php';
-    require_once ABSPATH . 'wp-admin/includes/image.php';
-
-    $result = [
-        'ok'      => false,
-        'message' => '',
-        'errors'  => [],
-        'stats'   => [],
-    ];
-
-    $preview_token = '';
-    $preview_token = ll_tools_get_import_preview_token_from_request($_POST);
-
-    $zip_path = '';
-    $cleanup_zip = false;
-    $preview_defaults = [];
-    $history_source_type = 'server';
-    $history_source_zip = '';
-    if ($preview_token !== '') {
-        $preview_data = ll_tools_get_import_preview_data($preview_token);
-        if (!is_array($preview_data) || empty($preview_data['zip_path'])) {
-            $result['message'] = __('Import failed: preview is missing or expired. Please preview the bundle again.', 'll-tools-text-domain');
-            ll_tools_store_import_result_and_redirect($result);
-        }
-
-        $zip_path = (string) $preview_data['zip_path'];
-        $cleanup_zip = !empty($preview_data['cleanup_zip']);
-        $preview_defaults = isset($preview_data['options']) && is_array($preview_data['options']) ? $preview_data['options'] : [];
-        $history_source_type = isset($preview_data['source_type']) ? sanitize_key((string) $preview_data['source_type']) : 'server';
-        $history_source_zip = isset($preview_data['zip_name']) ? (string) $preview_data['zip_name'] : basename($zip_path);
-    } else {
-        // Fallback path for direct imports (legacy flow).
-        $zip_info = ll_tools_resolve_import_request_zip();
-        if (is_wp_error($zip_info)) {
-            $result['message'] = __('Import failed: could not resolve zip file.', 'll-tools-text-domain');
-            $result['errors'][] = $zip_info->get_error_message();
-            ll_tools_store_import_result_and_redirect($result);
-        }
-        $zip_path = (string) $zip_info['zip_path'];
-        $cleanup_zip = !empty($zip_info['cleanup_zip']);
-        $history_source_type = !empty($zip_info['uploaded_file']) ? 'uploaded' : 'server';
-        $history_source_zip = basename($zip_path);
+    $start_conflict = ll_tools_import_job_get_start_conflict();
+    if (is_wp_error($start_conflict)) {
+        ll_tools_store_import_result_and_redirect([
+            'ok' => false,
+            'message' => $start_conflict->get_error_message(),
+            'errors' => [$start_conflict->get_error_message()],
+            'stats' => [],
+        ]);
     }
 
-    if ($zip_path === '' || !file_exists($zip_path)) {
-        $result['message'] = __('Import failed: selected zip file is missing.', 'll-tools-text-domain');
-        ll_tools_store_import_result_and_redirect($result);
+    $job = ll_tools_import_job_create_from_request($_POST);
+    if (is_wp_error($job)) {
+        ll_tools_store_import_result_and_redirect([
+            'ok' => false,
+            'message' => $job->get_error_message(),
+            'errors' => [$job->get_error_message()],
+            'stats' => [],
+        ]);
     }
 
-    $import_options = array_merge($preview_defaults, ll_tools_parse_import_options($_POST));
-    $processed = ll_tools_process_import_zip($zip_path, $import_options);
-    if ($cleanup_zip) {
-        @unlink($zip_path);
-    }
-    if ($preview_token !== '') {
-        ll_tools_delete_import_preview_data($preview_token);
-    }
-
-    $history_entry_id = ll_tools_import_append_result_history(
-        $processed,
-        $history_source_type,
-        $history_source_zip !== '' ? $history_source_zip : basename($zip_path)
-    );
-    if ($history_entry_id !== '') {
-        $processed['history_entry_id'] = $history_entry_id;
-    }
-
-    ll_tools_store_import_result_and_redirect($processed);
+    ll_tools_store_import_result_and_redirect([
+        'ok' => true,
+        'message' => __('Import job created. Processing will continue on the import page.', 'll-tools-text-domain'),
+        'errors' => [],
+        'stats' => [
+            'job_id' => (string) ($job['id'] ?? ''),
+        ],
+    ]);
 }
 
 function ll_tools_resolve_metadata_update_upload() {
@@ -10358,6 +10318,25 @@ function ll_tools_import_job_create_from_request(array $request) {
     return ll_tools_import_job_save($job_id, $job);
 }
 
+function ll_tools_import_job_get_start_conflict() {
+    $active_job_id = ll_tools_import_job_get_active_id();
+    if ($active_job_id === '') {
+        return null;
+    }
+
+    $active_job = ll_tools_import_job_get($active_job_id);
+    if (is_array($active_job) && in_array((string) ($active_job['status'] ?? ''), ['running', 'paused'], true)) {
+        return new WP_Error(
+            'll_tools_import_job_active',
+            __('Another import job is already active. Resume or finish it before starting a new one.', 'll-tools-text-domain'),
+            ['job' => ll_tools_import_job_get_snapshot($active_job)]
+        );
+    }
+
+    ll_tools_import_job_clear_active_id($active_job_id);
+    return null;
+}
+
 function ll_tools_ajax_import_start_job(): void {
     if (!ll_tools_current_user_can_export_import()) {
         wp_send_json_error(['message' => __('You do not have permission to import LL Tools data.', 'll-tools-text-domain')], 403);
@@ -10365,17 +10344,14 @@ function ll_tools_ajax_import_start_job(): void {
 
     check_ajax_referer('ll_tools_import_job_ajax', 'nonce');
 
-    $active_job_id = ll_tools_import_job_get_active_id();
-    if ($active_job_id !== '') {
-        $active_job = ll_tools_import_job_get($active_job_id);
-        if (is_array($active_job) && in_array((string) ($active_job['status'] ?? ''), ['running', 'paused'], true)) {
-            wp_send_json_error([
-                'message' => __('Another import job is already active. Resume or finish it before starting a new one.', 'll-tools-text-domain'),
-                'job' => ll_tools_import_job_get_snapshot($active_job),
-            ], 409);
-        }
-
-        ll_tools_import_job_clear_active_id($active_job_id);
+    $start_conflict = ll_tools_import_job_get_start_conflict();
+    if (is_wp_error($start_conflict)) {
+        $error_data = $start_conflict->get_error_data();
+        $error_data = is_array($error_data) ? $error_data : [];
+        wp_send_json_error([
+            'message' => $start_conflict->get_error_message(),
+            'job' => $error_data['job'] ?? null,
+        ], 409);
     }
 
     $job = ll_tools_import_job_create_from_request($_POST);

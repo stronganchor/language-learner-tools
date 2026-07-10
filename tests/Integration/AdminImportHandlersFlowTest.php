@@ -89,6 +89,30 @@ final class AdminImportHandlersFlowTest extends LL_Tools_TestCase
             });
 
             $this->assertNotSame('', $importRedirect);
+            $queuedResult = get_transient('ll_tools_import_result');
+            $this->assertIsArray($queuedResult);
+            $this->assertTrue((bool) ($queuedResult['ok'] ?? false), implode(' | ', (array) ($queuedResult['errors'] ?? [])));
+            $this->assertStringContainsString('Import job created', (string) ($queuedResult['message'] ?? ''));
+            $this->assertIsArray(get_transient(ll_tools_import_preview_transient_key($previewToken)));
+            $this->assertFalse((bool) get_term_by('slug', $categorySlug, 'word-category'));
+
+            $jobId = ll_tools_import_job_get_active_id();
+            $this->assertNotSame('', $jobId);
+            for ($step = 0; $step < 30; $step++) {
+                $job = ll_tools_import_job_get($jobId);
+                $this->assertIsArray($job);
+                if ((string) ($job['status'] ?? '') === 'completed') {
+                    break;
+                }
+
+                $processedJob = ll_tools_import_job_process_with_lock($job);
+                $this->assertFalse(is_wp_error($processedJob), is_wp_error($processedJob) ? $processedJob->get_error_message() : '');
+                ll_tools_import_job_save($jobId, $processedJob);
+            }
+
+            $completedJob = ll_tools_import_job_get($jobId);
+            $this->assertIsArray($completedJob);
+            $this->assertSame('completed', (string) ($completedJob['status'] ?? ''));
             $importResult = get_transient('ll_tools_import_result');
             $this->assertIsArray($importResult);
             $this->assertTrue((bool) ($importResult['ok'] ?? false), implode(' | ', (array) ($importResult['errors'] ?? [])));

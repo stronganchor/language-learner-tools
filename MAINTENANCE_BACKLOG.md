@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 direct import fallback job routing:
+  direct admin-post import confirmation now creates the same durable import job
+  used by the AJAX progress UI and redirects back for automatic resume. It no
+  longer invokes the full-zip importer synchronously; handler and AJAX job tests
+  cover shared conflict gating, bounded completion, cleanup, history, and undo.
 - July 10 offline STT PCM resource ceilings:
   the offline shell rejects oversized encoded blobs and audio over 15 seconds;
   Android validates PCM parameters and byte budgets before decoding, then the
