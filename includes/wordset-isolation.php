@@ -14,13 +14,28 @@ if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT')) {
     define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT', 'll_tools_wordset_isolation_health_report');
 }
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TTL')) {
-    define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TTL', 15 * MINUTE_IN_SECONDS);
+    define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TTL', DAY_IN_SECONDS);
 }
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT')) {
     define('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT', 'll_tools_wordset_isolation_vocab_lesson_auto_repair');
 }
-if (!defined('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TTL')) {
-    define('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TTL', 5 * MINUTE_IN_SECONDS);
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK', 'll_tools_wordset_isolation_health_refresh');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_STATE_OPTION')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_STATE_OPTION', 'll_tools_wordset_isolation_health_refresh_state');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_LOCK')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_LOCK', 'll_tools_wordset_isolation_health_refresh_lock');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK', 'll_tools_wordset_isolation_vocab_repair');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION', 'll_tools_wordset_isolation_vocab_repair_state');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_LOCK')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_LOCK', 'll_tools_wordset_isolation_vocab_repair_lock');
 }
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION')) {
     define('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION', 4);
@@ -760,46 +775,6 @@ function ll_tools_repair_all_vocab_lesson_category_meta_for_isolation(): int {
 
     return $repaired;
 }
-
-function ll_tools_maybe_auto_repair_vocab_lesson_category_meta_for_isolation(): void {
-    if (!is_admin()) {
-        return;
-    }
-    if (defined('WP_TESTS_DOMAIN')) {
-        return;
-    }
-    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
-        return;
-    }
-    if (!ll_tools_is_wordset_isolation_enabled()) {
-        return;
-    }
-
-    $can_run_repairs = function_exists('ll_tools_current_user_can_settings_maintenance')
-        ? ll_tools_current_user_can_settings_maintenance()
-        : current_user_can('manage_options');
-    if (!$can_run_repairs) {
-        return;
-    }
-
-    if (get_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT) !== false) {
-        return;
-    }
-
-    set_transient(
-        LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT,
-        time(),
-        max(MINUTE_IN_SECONDS, (int) LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TTL)
-    );
-
-    $anomalies = ll_tools_collect_wordset_isolation_vocab_lesson_anomalies(1);
-    if ((int) ($anomalies['count'] ?? 0) <= 0) {
-        return;
-    }
-
-    ll_tools_repair_all_vocab_lesson_category_meta_for_isolation();
-}
-add_action('admin_init', 'll_tools_maybe_auto_repair_vocab_lesson_category_meta_for_isolation', 6);
 
 function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, int $wordset_id): int {
     $source_origin_id = (int) $source_origin_id;
@@ -1877,6 +1852,224 @@ function ll_tools_get_wordset_isolation_health_report_ttl(): int {
     return max(MINUTE_IN_SECONDS, $ttl);
 }
 
+function ll_tools_get_wordset_isolation_health_refresh_state(): array {
+    $state = get_option(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_STATE_OPTION, []);
+    return [
+        'status' => in_array((string) ($state['status'] ?? ''), ['idle', 'queued', 'running', 'completed', 'failed'], true)
+            ? (string) $state['status']
+            : 'idle',
+        'queued_at' => max(0, (int) ($state['queued_at'] ?? 0)),
+        'started_at' => max(0, (int) ($state['started_at'] ?? 0)),
+        'completed_at' => max(0, (int) ($state['completed_at'] ?? 0)),
+        'message' => sanitize_text_field((string) ($state['message'] ?? '')),
+    ];
+}
+
+function ll_tools_queue_wordset_isolation_health_refresh(): array {
+    $state = [
+        'status' => 'queued',
+        'queued_at' => time(),
+        'started_at' => 0,
+        'completed_at' => 0,
+        'message' => '',
+    ];
+    update_option(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_STATE_OPTION, $state, false);
+    if (!wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK)) {
+        wp_schedule_single_event(time() + 1, LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK);
+    }
+    return $state;
+}
+
+function ll_tools_run_wordset_isolation_health_refresh(): array {
+    if (get_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_LOCK)) {
+        return ll_tools_get_wordset_isolation_health_refresh_state();
+    }
+    set_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_LOCK, 1, 15 * MINUTE_IN_SECONDS);
+
+    $state = ll_tools_get_wordset_isolation_health_refresh_state();
+    $state['status'] = 'running';
+    $state['started_at'] = time();
+    $state['message'] = '';
+    update_option(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_STATE_OPTION, $state, false);
+
+    try {
+        $report = ll_tools_build_wordset_isolation_health_report();
+        set_transient(
+            LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT,
+            $report,
+            ll_tools_get_wordset_isolation_health_report_ttl()
+        );
+        $state['status'] = 'completed';
+        $state['completed_at'] = time();
+    } catch (Throwable $error) {
+        $state['status'] = 'failed';
+        $state['completed_at'] = time();
+        $state['message'] = sanitize_text_field($error->getMessage());
+    } finally {
+        delete_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_LOCK);
+    }
+
+    update_option(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_STATE_OPTION, $state, false);
+    return $state;
+}
+add_action(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK, 'll_tools_run_wordset_isolation_health_refresh');
+
+function ll_tools_get_wordset_isolation_vocab_repair_state(): array {
+    $state = get_option(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION, []);
+    return [
+        'status' => in_array((string) ($state['status'] ?? ''), ['idle', 'queued', 'running', 'completed', 'failed'], true)
+            ? (string) $state['status']
+            : 'idle',
+        'cursor' => max(0, (int) ($state['cursor'] ?? 0)),
+        'processed' => max(0, (int) ($state['processed'] ?? 0)),
+        'repaired' => max(0, (int) ($state['repaired'] ?? 0)),
+        'queued_at' => max(0, (int) ($state['queued_at'] ?? 0)),
+        'completed_at' => max(0, (int) ($state['completed_at'] ?? 0)),
+        'message' => sanitize_text_field((string) ($state['message'] ?? '')),
+    ];
+}
+
+function ll_tools_queue_wordset_isolation_vocab_repair(): array {
+    $state = [
+        'status' => 'queued',
+        'cursor' => 0,
+        'processed' => 0,
+        'repaired' => 0,
+        'queued_at' => time(),
+        'completed_at' => 0,
+        'message' => '',
+    ];
+    update_option(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION, $state, false);
+    if (!wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK)) {
+        wp_schedule_single_event(time() + 1, LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK);
+    }
+    return $state;
+}
+
+function ll_tools_run_wordset_isolation_vocab_repair_batch(): array {
+    global $wpdb;
+
+    if (get_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_LOCK)) {
+        return ll_tools_get_wordset_isolation_vocab_repair_state();
+    }
+    set_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_LOCK, 1, 5 * MINUTE_IN_SECONDS);
+
+    $state = ll_tools_get_wordset_isolation_vocab_repair_state();
+    $state['status'] = 'running';
+    $state['message'] = '';
+    update_option(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION, $state, false);
+
+    try {
+        $batch_size = (int) apply_filters('ll_tools_wordset_isolation_vocab_repair_batch_size', 100);
+        $batch_size = max(1, min(250, $batch_size));
+        $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+            "SELECT ID
+             FROM {$wpdb->posts}
+             WHERE post_type = 'll_vocab_lesson'
+               AND post_status IN ('publish', 'draft', 'pending', 'future', 'private')
+               AND ID > %d
+             ORDER BY ID ASC
+             LIMIT %d",
+            (int) $state['cursor'],
+            $batch_size + 1
+        )))));
+        $has_more = count($ids) > $batch_size;
+        $batch_ids = array_slice($ids, 0, $batch_size);
+        foreach ($batch_ids as $lesson_id) {
+            if (ll_tools_repair_vocab_lesson_category_meta_for_isolation($lesson_id)) {
+                $state['repaired']++;
+            }
+        }
+        if (!empty($batch_ids)) {
+            $state['cursor'] = (int) end($batch_ids);
+            $state['processed'] += count($batch_ids);
+        }
+
+        if ($has_more) {
+            $state['status'] = 'queued';
+            wp_schedule_single_event(time() + 1, LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK);
+        } else {
+            $state['status'] = 'completed';
+            $state['completed_at'] = time();
+            ll_tools_queue_wordset_isolation_health_refresh();
+        }
+    } catch (Throwable $error) {
+        $state['status'] = 'failed';
+        $state['completed_at'] = time();
+        $state['message'] = sanitize_text_field($error->getMessage());
+    } finally {
+        delete_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_LOCK);
+    }
+
+    update_option(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION, $state, false);
+    return $state;
+}
+add_action(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK, 'll_tools_run_wordset_isolation_vocab_repair_batch');
+
+function ll_tools_handle_queue_wordset_isolation_health_refresh(): void {
+    if (!ll_tools_current_user_can_view_wordset_isolation_health_notice()) {
+        wp_die(
+            esc_html__('You are not allowed to run this maintenance check.', 'll-tools-text-domain'),
+            '',
+            ['response' => 403]
+        );
+    }
+    check_admin_referer('ll_tools_queue_wordset_isolation_health_refresh');
+    ll_tools_queue_wordset_isolation_health_refresh();
+    wp_safe_redirect(wp_get_referer() ?: admin_url());
+    exit;
+}
+add_action('admin_post_ll_tools_queue_wordset_isolation_health_refresh', 'll_tools_handle_queue_wordset_isolation_health_refresh');
+
+function ll_tools_handle_queue_wordset_isolation_vocab_repair(): void {
+    if (!ll_tools_current_user_can_view_wordset_isolation_health_notice()) {
+        wp_die(
+            esc_html__('You are not allowed to run this maintenance repair.', 'll-tools-text-domain'),
+            '',
+            ['response' => 403]
+        );
+    }
+    check_admin_referer('ll_tools_queue_wordset_isolation_vocab_repair');
+    ll_tools_queue_wordset_isolation_vocab_repair();
+    wp_safe_redirect(wp_get_referer() ?: admin_url());
+    exit;
+}
+add_action('admin_post_ll_tools_queue_wordset_isolation_vocab_repair', 'll_tools_handle_queue_wordset_isolation_vocab_repair');
+
+function ll_tools_render_wordset_isolation_health_actions(array $report = []): void {
+    $health_state = ll_tools_get_wordset_isolation_health_refresh_state();
+    $repair_state = ll_tools_get_wordset_isolation_vocab_repair_state();
+    $health_pending = in_array((string) $health_state['status'], ['queued', 'running'], true);
+    $repair_pending = in_array((string) $repair_state['status'], ['queued', 'running'], true);
+
+    echo '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0;">';
+    if ($health_pending) {
+        echo '<span>' . esc_html__('Health check queued or running.', 'll-tools-text-domain') . '</span>';
+    } else {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="ll_tools_queue_wordset_isolation_health_refresh">';
+        wp_nonce_field('ll_tools_queue_wordset_isolation_health_refresh');
+        submit_button(__('Check now', 'll-tools-text-domain'), 'secondary', 'submit', false);
+        echo '</form>';
+    }
+
+    $lesson_count = (int) (($report['issues']['vocab_lessons']['count'] ?? 0));
+    if ($repair_pending) {
+        echo '<span>' . esc_html(sprintf(
+            __('Vocab lesson repair: %1$d processed, %2$d repaired.', 'll-tools-text-domain'),
+            (int) $repair_state['processed'],
+            (int) $repair_state['repaired']
+        )) . '</span>';
+    } elseif ($lesson_count > 0) {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="ll_tools_queue_wordset_isolation_vocab_repair">';
+        wp_nonce_field('ll_tools_queue_wordset_isolation_vocab_repair');
+        submit_button(__('Repair vocab lessons', 'll-tools-text-domain'), 'secondary', 'submit', false);
+        echo '</form>';
+    }
+    echo '</div>';
+}
+
 function ll_tools_wordset_isolation_health_format_id_list(array $ids, int $limit = 8): string {
     $ids = array_values(array_filter(array_map('intval', $ids), static function (int $id): bool {
         return $id > 0;
@@ -2410,7 +2603,15 @@ function ll_tools_render_wordset_isolation_health_notice(): void {
         return;
     }
 
-    $report = ll_tools_get_wordset_isolation_health_report();
+    $report = get_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT);
+    if (!is_array($report)) {
+        echo '<div class="notice notice-info">';
+        echo '<p><strong>' . esc_html__('LL Tools Maintenance', 'll-tools-text-domain') . ':</strong> ';
+        echo esc_html__('Wordset isolation health has not been checked since the last data change or cache expiry.', 'll-tools-text-domain') . '</p>';
+        ll_tools_render_wordset_isolation_health_actions();
+        echo '</div>';
+        return;
+    }
     if (!ll_tools_wordset_isolation_health_report_has_issues($report)) {
         return;
     }
@@ -2637,6 +2838,7 @@ function ll_tools_render_wordset_isolation_health_notice(): void {
     }
 
     echo '</details>';
+    ll_tools_render_wordset_isolation_health_actions($report);
     echo '</div>';
 }
 add_action('admin_notices', 'll_tools_render_wordset_isolation_health_notice', 6);

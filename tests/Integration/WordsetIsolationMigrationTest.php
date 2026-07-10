@@ -19,6 +19,13 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         delete_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION);
         delete_transient(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT);
         delete_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT);
+        delete_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT);
+        delete_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_LOCK);
+        delete_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_LOCK);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_STATE_OPTION);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK);
         delete_option('ll_tools_word_option_rules');
 
         parent::tearDown();
@@ -338,6 +345,94 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
 
         $this->assertSame(1, $repaired);
         $this->assertSame($isolated_category_id, (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true));
+    }
+
+    public function test_health_notice_cache_miss_does_not_run_full_collectors(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+        set_current_screen('dashboard');
+        delete_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT);
+
+        $collector_queries = 0;
+        $watch_queries = static function (WP_Query $query) use (&$collector_queries): void {
+            if (in_array($query->get('post_type'), ['words', 'word_images', 'll_vocab_lesson'], true)) {
+                $collector_queries++;
+            }
+        };
+        add_action('pre_get_posts', $watch_queries);
+        try {
+            ob_start();
+            ll_tools_render_wordset_isolation_health_notice();
+            $html = (string) ob_get_clean();
+        } finally {
+            remove_action('pre_get_posts', $watch_queries);
+            set_current_screen('front');
+        }
+
+        $this->assertSame(0, $collector_queries);
+        $this->assertStringContainsString('Check now', $html);
+        $this->assertStringContainsString('ll_tools_queue_wordset_isolation_health_refresh', $html);
+        $this->assertFalse(get_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT));
+        $this->assertFalse(has_action('admin_init', 'll_tools_maybe_auto_repair_vocab_lesson_category_meta_for_isolation'));
+        $this->assertNotFalse(has_action(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK, 'll_tools_run_wordset_isolation_health_refresh'));
+    }
+
+    public function test_vocab_lesson_repair_job_uses_bounded_cursor_batches(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Repair Job', 'isolation-repair-job');
+        $legacy_category_id = $this->ensure_term('word-category', 'Isolation Repair Job Category', 'isolation-repair-job-category');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Isolation Repair Job Word',
+        ]);
+        wp_set_object_terms($word_id, [$legacy_category_id], 'word-category', false);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_run_wordset_isolation_migration();
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($legacy_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+
+        $lesson_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $lesson_id = self::factory()->post->create([
+                'post_type' => 'll_vocab_lesson',
+                'post_status' => 'publish',
+                'post_title' => 'Isolation Repair Job Lesson ' . $index,
+            ]);
+            update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+            update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $legacy_category_id);
+            $lesson_ids[] = $lesson_id;
+        }
+
+        $batch_size = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_wordset_isolation_vocab_repair_batch_size', $batch_size);
+        try {
+            ll_tools_queue_wordset_isolation_vocab_repair();
+            $first = ll_tools_run_wordset_isolation_vocab_repair_batch();
+            $second = ll_tools_run_wordset_isolation_vocab_repair_batch();
+            $third = ll_tools_run_wordset_isolation_vocab_repair_batch();
+        } finally {
+            remove_filter('ll_tools_wordset_isolation_vocab_repair_batch_size', $batch_size);
+        }
+
+        $this->assertSame('queued', (string) $first['status']);
+        $this->assertSame(2, (int) $first['processed']);
+        $this->assertSame('queued', (string) $second['status']);
+        $this->assertSame(4, (int) $second['processed']);
+        $this->assertSame('completed', (string) $third['status']);
+        $this->assertSame(5, (int) $third['processed']);
+        $this->assertSame(5, (int) $third['repaired']);
+        foreach ($lesson_ids as $lesson_id) {
+            $this->assertSame($isolated_category_id, (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true));
+        }
+        $this->assertSame('queued', (string) ll_tools_get_wordset_isolation_health_refresh_state()['status']);
     }
 
     public function test_wordset_isolation_migration_repairs_user_study_and_recommendation_category_meta(): void
