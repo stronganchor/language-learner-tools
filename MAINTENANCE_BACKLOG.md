@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 dictionary result linked-word count batching:
+  visible dictionary result entries now receive linked-word counts from one
+  bounded aggregate query instead of one `WP_Query` per card. Direct detail and
+  admin callers keep the existing single-entry helper, and focused resource
+  coverage verifies one aggregate query preserves zero and nonzero counts.
 - July 10 recorder new-word preflight scope guard:
   category recording-type preflights now send the selected numeric and legacy
   wordset context, cache results per wordset/category, and reject an omitted or

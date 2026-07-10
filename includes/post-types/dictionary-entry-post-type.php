@@ -864,6 +864,56 @@ function ll_tools_count_dictionary_entry_words($entry_id) {
 }
 
 /**
+ * Count linked words for dictionary entries in bounded aggregate queries.
+ *
+ * @param int[] $entry_ids Dictionary entry post IDs.
+ * @return array<int,int> Counts keyed by entry ID, including zero counts.
+ */
+function ll_tools_count_dictionary_entry_words_batch(array $entry_ids): array {
+    global $wpdb;
+
+    $entry_ids = array_values(array_unique(array_filter(array_map('intval', $entry_ids), static function ($entry_id) {
+        return $entry_id > 0;
+    })));
+    if (empty($entry_ids)) {
+        return [];
+    }
+
+    $counts = array_fill_keys($entry_ids, 0);
+    $statuses = ['publish', 'draft', 'pending', 'private', 'future'];
+
+    foreach (array_chunk($entry_ids, 250) as $entry_id_chunk) {
+        $entry_placeholders = implode(', ', array_fill(0, count($entry_id_chunk), '%s'));
+        $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
+        $query_args = array_merge(
+            [LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY],
+            array_map('strval', $entry_id_chunk),
+            $statuses
+        );
+        $sql = $wpdb->prepare(
+            "SELECT pm.meta_value AS entry_id, COUNT(DISTINCT p.ID) AS linked_word_count
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+             WHERE pm.meta_key = %s
+               AND pm.meta_value IN ({$entry_placeholders})
+               AND p.post_type = 'words'
+               AND p.post_status IN ({$status_placeholders})
+             GROUP BY pm.meta_value",
+            $query_args
+        );
+
+        foreach ((array) $wpdb->get_results($sql, ARRAY_A) as $row) {
+            $entry_id = (int) ($row['entry_id'] ?? 0);
+            if (array_key_exists($entry_id, $counts)) {
+                $counts[$entry_id] = max(0, (int) ($row['linked_word_count'] ?? 0));
+            }
+        }
+    }
+
+    return $counts;
+}
+
+/**
  * Search dictionary entries by title text.
  *
  * @param string $search     Search text.

@@ -3881,9 +3881,10 @@ function ll_tools_dictionary_get_linked_word_previews(int $entry_id, int $limit 
 /**
  * Build a structured display payload for one dictionary entry.
  *
+ * @param int|null $linked_word_count_override Optional count from a page-level aggregate query.
  * @return array<string,mixed>
  */
-function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = [], $source_filter = []): array {
+function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = [], $source_filter = [], ?int $linked_word_count_override = null): array {
     static $request_cache = [];
 
     $entry_id = (int) $entry_id;
@@ -3995,9 +3996,12 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         $page_number = ll_tools_dictionary_get_primary_sense_value($senses, 'page_number');
     }
 
-    $linked_word_count = function_exists('ll_tools_count_dictionary_entry_words')
-        ? (int) ll_tools_count_dictionary_entry_words($entry_id)
-        : 0;
+    $linked_word_count = $linked_word_count_override;
+    if ($linked_word_count === null) {
+        $linked_word_count = function_exists('ll_tools_count_dictionary_entry_words')
+            ? (int) ll_tools_count_dictionary_entry_words($entry_id)
+            : 0;
+    }
     $sources = ll_tools_dictionary_collect_sources($senses);
     $dialects = ll_tools_dictionary_collect_dialects($senses);
     $translation_is_ai = function_exists('ll_tools_dictionary_entry_translation_is_ai')
@@ -4885,9 +4889,23 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         update_postmeta_cache($ids);
     }
 
+    $linked_word_counts = function_exists('ll_tools_count_dictionary_entry_words_batch')
+        ? ll_tools_count_dictionary_entry_words_batch($ids)
+        : [];
+
     $items = [];
     foreach ($ids as $entry_id) {
-        $item = ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, $linked_word_limit, $preferred_languages, $source_ids);
+        $linked_word_count = array_key_exists((int) $entry_id, $linked_word_counts)
+            ? (int) $linked_word_counts[(int) $entry_id]
+            : null;
+        $item = ll_tools_dictionary_get_entry_data(
+            $entry_id,
+            $sense_limit,
+            $linked_word_limit,
+            $preferred_languages,
+            $source_ids,
+            $linked_word_count
+        );
         if (!empty($item)) {
             $items[] = $item;
         }

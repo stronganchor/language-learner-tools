@@ -3765,6 +3765,62 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($second_item['linked_word_count'] ?? 0));
     }
 
+    public function test_dictionary_query_batches_linked_word_counts_for_visible_entries(): void
+    {
+        $entry_ids = [];
+        foreach (['Batch Alpha', 'Batch Bravo', 'Batch Charlie'] as $title) {
+            $entry_ids[] = self::factory()->post->create([
+                'post_type' => 'll_dictionary_entry',
+                'post_status' => 'publish',
+                'post_title' => $title,
+            ]);
+        }
+
+        foreach ([$entry_ids[0], $entry_ids[0], $entry_ids[2]] as $index => $entry_id) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Batch Linked Word ' . $index,
+            ]);
+            update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $entry_id);
+        }
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            if (str_contains($query, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY)) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+        add_filter('query', $capture);
+        try {
+            $result = ll_tools_dictionary_query_entries([
+                'page' => 1,
+                'per_page' => 3,
+                'sense_limit' => 1,
+                'linked_word_limit' => 0,
+                'post_status' => ['publish'],
+            ]);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertCount(3, (array) ($result['items'] ?? []));
+        $counts = array_map(static function (array $item): int {
+            return (int) ($item['linked_word_count'] ?? 0);
+        }, (array) ($result['items'] ?? []));
+        sort($counts);
+        $this->assertSame([0, 1, 2], $counts);
+        $aggregate_queries = array_values(array_filter($queries, static function (string $query): bool {
+            return str_contains($query, 'COUNT(DISTINCT p.ID)');
+        }));
+        $queries_sql = implode("\n", $queries);
+        $this->assertCount(1, $aggregate_queries, $queries_sql);
+        $this->assertStringContainsString('GROUP BY pm.meta_value', $aggregate_queries[0]);
+        $this->assertStringNotContainsString('SQL_CALC_FOUND_ROWS', $queries_sql);
+    }
+
     public function test_find_entry_by_title_backfills_lookup_meta_without_wordset_join_regression(): void
     {
         $wordset = wp_insert_term('Legacy Dictionary Wordset', 'wordset', ['slug' => 'legacy-dictionary-wordset']);
