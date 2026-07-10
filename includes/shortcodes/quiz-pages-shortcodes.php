@@ -255,12 +255,251 @@ function ll_tools_quiz_pages_data_cache_set(string $cache_key, array $items): vo
     set_transient($cache_key, $payload, $ttl);
 }
 
+function ll_tools_quiz_pages_catalog_stale_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_quiz_pages_catalog_stale_ttl', 7 * DAY_IN_SECONDS);
+    return max(DAY_IN_SECONDS, min(30 * DAY_IN_SECONDS, $ttl));
+}
+
+function ll_tools_quiz_pages_catalog_scope(array $opts, int $min_word_count): array {
+    $wordset_spec = isset($opts['wordset']) && is_scalar($opts['wordset'])
+        ? trim((string) $opts['wordset'])
+        : '';
+    $locale = function_exists('determine_locale')
+        ? (string) determine_locale()
+        : (function_exists('get_locale') ? (string) get_locale() : '');
+    $identity = [
+        'wordset' => $wordset_spec,
+        'min_words' => $min_word_count,
+        'user_id' => (int) get_current_user_id(),
+        'locale' => $locale,
+        'schema' => 1,
+    ];
+
+    return [
+        'id' => md5(wp_json_encode($identity)),
+        'opts' => $wordset_spec === '' ? [] : ['wordset' => $wordset_spec],
+        'min_word_count' => $min_word_count,
+        'user_id' => (int) $identity['user_id'],
+        'locale' => $locale,
+        'cache_key' => ll_tools_quiz_pages_data_cache_key($opts, $min_word_count),
+    ];
+}
+
+function ll_tools_quiz_pages_catalog_option_name(string $type, string $scope_id): string {
+    return 'll_qpg_catalog_' . $type . '_' . preg_replace('/[^a-f0-9]/', '', strtolower($scope_id));
+}
+
+function ll_tools_quiz_pages_catalog_latest_get(array $scope) {
+    $payload = get_option(ll_tools_quiz_pages_catalog_option_name('latest', (string) $scope['id']), null);
+    if (
+        !is_array($payload)
+        || empty($payload['__ll_quiz_pages_catalog'])
+        || !is_array($payload['items'] ?? null)
+    ) {
+        return null;
+    }
+
+    $generated_at = max(0, (int) ($payload['generated_at'] ?? 0));
+    if ($generated_at <= 0 || $generated_at + ll_tools_quiz_pages_catalog_stale_ttl() < time()) {
+        return null;
+    }
+
+    return $payload['items'];
+}
+
+function ll_tools_quiz_pages_catalog_latest_set(array $scope, array $items, bool $replace = false): void {
+    $option_name = ll_tools_quiz_pages_catalog_option_name('latest', (string) $scope['id']);
+    $existing = get_option($option_name, null);
+    if (
+        !$replace
+        && is_array($existing)
+        && !empty($existing['__ll_quiz_pages_catalog'])
+        && (string) ($existing['cache_key'] ?? '') === (string) $scope['cache_key']
+    ) {
+        return;
+    }
+
+    update_option($option_name, [
+        '__ll_quiz_pages_catalog' => 1,
+        'cache_key' => (string) $scope['cache_key'],
+        'generated_at' => time(),
+        'items' => $items,
+    ], false);
+}
+
+function ll_tools_quiz_pages_catalog_set_status(array $status): void {
+    $GLOBALS['ll_tools_quiz_pages_catalog_status'] = array_merge([
+        'refreshing' => false,
+        'has_snapshot' => false,
+        'needs_loading_notice' => false,
+    ], $status);
+}
+
+function ll_tools_quiz_pages_catalog_needs_loading_notice(): bool {
+    $status = $GLOBALS['ll_tools_quiz_pages_catalog_status'] ?? [];
+    return !empty($status['needs_loading_notice']);
+}
+
+function ll_tools_quiz_pages_catalog_filter_visible_items(array $items, array $scope): array {
+    $wordset_ids = [];
+    foreach ($items as $item) {
+        $wordset_id = is_array($item) ? (int) ($item['wordset_id'] ?? 0) : 0;
+        if ($wordset_id > 0) {
+            $wordset_ids[$wordset_id] = $wordset_id;
+        }
+    }
+
+    $viewable_wordset_ids = array_values($wordset_ids);
+    if (!empty($viewable_wordset_ids) && function_exists('ll_tools_filter_viewable_wordset_ids')) {
+        $viewable_wordset_ids = ll_tools_filter_viewable_wordset_ids(
+            $viewable_wordset_ids,
+            (int) get_current_user_id()
+        );
+    }
+    $viewable_wordset_map = array_fill_keys(array_map('intval', (array) $viewable_wordset_ids), true);
+    $has_explicit_wordset = !empty($scope['opts']['wordset']);
+    $visible = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $wordset_id = (int) ($item['wordset_id'] ?? 0);
+        if ($wordset_id > 0 && !isset($viewable_wordset_map[$wordset_id])) {
+            if ($has_explicit_wordset) {
+                continue;
+            }
+
+            $item['wordset_id'] = 0;
+            $item['wordset_slug'] = '';
+            $item['autoplay_text_audio_answer_options'] = false;
+            $item['gender_enabled'] = false;
+            $item['gender_options'] = [];
+            $item['gender_visual_config'] = [];
+            $item['gender_supported'] = false;
+        }
+
+        $visible[] = $item;
+    }
+
+    return $visible;
+}
+
+function ll_tools_quiz_pages_catalog_lock_acquire(string $scope_id): string {
+    $option_name = ll_tools_quiz_pages_catalog_option_name('lock', $scope_id);
+    $token = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('ll-qpg-', true);
+    $payload = [
+        'token' => $token,
+        'expires_at' => time() + 5 * MINUTE_IN_SECONDS,
+    ];
+
+    if (add_option($option_name, $payload, '', false)) {
+        return $token;
+    }
+
+    $existing = get_option($option_name, []);
+    if (is_array($existing) && (int) ($existing['expires_at'] ?? 0) < time()) {
+        delete_option($option_name);
+        if (add_option($option_name, $payload, '', false)) {
+            return $token;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_quiz_pages_catalog_lock_release(string $scope_id, string $token): void {
+    if ($token === '') {
+        return;
+    }
+
+    $option_name = ll_tools_quiz_pages_catalog_option_name('lock', $scope_id);
+    $existing = get_option($option_name, []);
+    if (is_array($existing) && hash_equals((string) ($existing['token'] ?? ''), $token)) {
+        delete_option($option_name);
+    }
+}
+
+function ll_tools_quiz_pages_catalog_schedule_refresh(array $scope): void {
+    $scope_id = (string) $scope['id'];
+    $state_option = ll_tools_quiz_pages_catalog_option_name('state', $scope_id);
+    $state = get_option($state_option, []);
+    if (!is_array($state) || (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key']) {
+        update_option($state_option, [
+            '__ll_quiz_pages_catalog_state' => 1,
+            'scope' => $scope,
+            'cache_key' => (string) $scope['cache_key'],
+            'requested_at' => time(),
+        ], false);
+    }
+
+    $hook = 'll_tools_quiz_pages_catalog_refresh_event';
+    $args = [$scope_id];
+    if (!wp_next_scheduled($hook, $args)) {
+        wp_schedule_single_event(time() + 1, $hook, $args);
+    }
+}
+
+function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
+    $state_option = ll_tools_quiz_pages_catalog_option_name('state', $scope_id);
+    $state = get_option($state_option, []);
+    if (empty($state['__ll_quiz_pages_catalog_state']) || !is_array($state['scope'] ?? null)) {
+        return;
+    }
+
+    $token = ll_tools_quiz_pages_catalog_lock_acquire($scope_id);
+    if ($token === '') {
+        $scope = (array) $state['scope'];
+        ll_tools_quiz_pages_catalog_schedule_refresh($scope);
+        return;
+    }
+
+    $old_user_id = (int) get_current_user_id();
+    $switched_locale = false;
+    try {
+        $stored_scope = (array) $state['scope'];
+        if (function_exists('wp_set_current_user')) {
+            wp_set_current_user((int) ($stored_scope['user_id'] ?? 0));
+        }
+        $locale = (string) ($stored_scope['locale'] ?? '');
+        if ($locale !== '' && function_exists('switch_to_locale')) {
+            $switched_locale = switch_to_locale($locale);
+        }
+
+        $opts = is_array($stored_scope['opts'] ?? null) ? $stored_scope['opts'] : [];
+        $min_word_count = (int) ($stored_scope['min_word_count'] ?? LL_TOOLS_MIN_WORDS_PER_QUIZ);
+        $scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
+        $items = ll_tools_quiz_pages_rebuild_catalog_data($opts);
+        $current_scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
+
+        if ((string) $scope['cache_key'] === (string) $current_scope['cache_key']) {
+            ll_tools_quiz_pages_catalog_latest_set($current_scope, $items, true);
+            $latest_state = get_option($state_option, []);
+            if ((string) ($latest_state['cache_key'] ?? '') === (string) $current_scope['cache_key']) {
+                delete_option($state_option);
+            }
+        } else {
+            ll_tools_quiz_pages_catalog_schedule_refresh($current_scope);
+        }
+    } finally {
+        if ($switched_locale && function_exists('restore_previous_locale')) {
+            restore_previous_locale();
+        }
+        if (function_exists('wp_set_current_user')) {
+            wp_set_current_user($old_user_id);
+        }
+        ll_tools_quiz_pages_catalog_lock_release($scope_id, $token);
+    }
+}
+add_action('ll_tools_quiz_pages_catalog_refresh_event', 'll_tools_quiz_pages_catalog_refresh_event', 10, 1);
+
 /**
- * Fetch all published quiz pages and return display data.
+ * Rebuild the complete materialized quiz-page catalog.
  * Optional filter: $opts['wordset'] accepts slug/name/id of a WORDSET term.
- * This version is DB-driven for the filter path so guest/admin see identical results.
+ * This runs only in the locked refresh worker, never in a public cold render.
  */
-function ll_get_all_quiz_pages_data($opts = []) {
+function ll_tools_quiz_pages_rebuild_catalog_data($opts = []) {
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
     $cache_key = ll_tools_quiz_pages_data_cache_key((array) $opts, $min_word_count);
     $cached_items = ll_tools_quiz_pages_data_cache_get($cache_key);
@@ -544,6 +783,59 @@ function ll_get_all_quiz_pages_data($opts = []) {
     ll_tools_quiz_pages_data_cache_set($cache_key, $items);
 
     return $items;
+}
+
+/**
+ * Read the materialized quiz-page catalog and schedule stale-while-refresh work.
+ */
+function ll_get_all_quiz_pages_data($opts = []) {
+    $opts = is_array($opts) ? $opts : [];
+    $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
+    $cached_items = ll_tools_quiz_pages_data_cache_get((string) $scope['cache_key']);
+    if (is_array($cached_items)) {
+        ll_tools_quiz_pages_catalog_latest_set($scope, $cached_items);
+        ll_tools_quiz_pages_catalog_set_status([
+            'refreshing' => false,
+            'has_snapshot' => true,
+        ]);
+        return ll_tools_quiz_pages_catalog_filter_visible_items($cached_items, $scope);
+    }
+
+    $stale_items = ll_tools_quiz_pages_catalog_latest_get($scope);
+    ll_tools_quiz_pages_catalog_schedule_refresh($scope);
+
+    if (is_array($stale_items)) {
+        ll_tools_quiz_pages_catalog_set_status([
+            'refreshing' => true,
+            'has_snapshot' => true,
+        ]);
+        return ll_tools_quiz_pages_catalog_filter_visible_items($stale_items, $scope);
+    }
+
+    ll_tools_quiz_pages_catalog_set_status([
+        'refreshing' => true,
+        'has_snapshot' => false,
+        'needs_loading_notice' => true,
+    ]);
+    return [];
+}
+
+function ll_tools_quiz_pages_catalog_loading_notice(): string {
+    if (!ll_tools_quiz_pages_catalog_needs_loading_notice()) {
+        return '';
+    }
+
+    $refresh_url = get_permalink();
+    if (!is_string($refresh_url) || $refresh_url === '') {
+        $refresh_url = home_url('/');
+    }
+
+    return '<p class="ll-quiz-pages-catalog-status" role="status" aria-live="polite">'
+        . esc_html__('Loading quiz...', 'll-tools-text-domain')
+        . ' <a href="' . esc_url($refresh_url) . '">'
+        . esc_html__('Refresh', 'll-tools-text-domain')
+        . '</a></p>';
 }
 
 /**
@@ -1377,7 +1669,11 @@ function ll_quiz_pages_grid_shortcode($atts) {
     }
 
     $items = ll_get_all_quiz_pages_data($filter);
+    $loading_notice = ll_tools_quiz_pages_catalog_loading_notice();
     if (empty($items)) {
+        if ($loading_notice !== '') {
+            return $loading_notice;
+        }
         return '<p>' . esc_html__('No quizzes found.', 'll-tools-text-domain') . '</p>';
     }
 
@@ -1456,6 +1752,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
     }
 
     echo '</div>';
+    echo $loading_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- helper returns escaped markup.
 
     return ob_get_clean();
 }
@@ -1487,10 +1784,15 @@ function ll_quiz_pages_dropdown_shortcode($atts) {
     }
 
     $items = ll_get_all_quiz_pages_data($filter);
+    $loading_notice = ll_tools_quiz_pages_catalog_loading_notice();
 
     ob_start();
 
     if (empty($items)) {
+        if ($loading_notice !== '') {
+            echo $loading_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- helper returns escaped markup.
+            return ob_get_clean();
+        }
         echo '<p>' . esc_html__('No quiz pages are available yet.', 'll-tools-text-domain') . '</p>';
         return ob_get_clean();
     }
@@ -1519,6 +1821,7 @@ function ll_quiz_pages_dropdown_shortcode($atts) {
     }
 
     echo '</div>';
+    echo $loading_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- helper returns escaped markup.
 
     return ob_get_clean();
 }

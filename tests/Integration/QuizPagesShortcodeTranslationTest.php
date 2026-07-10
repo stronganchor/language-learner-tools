@@ -52,7 +52,7 @@ final class QuizPagesShortcodeTranslationTest extends LL_Tools_TestCase
         });
 
         try {
-            $items = ll_get_all_quiz_pages_data([
+            $items = ll_tools_quiz_pages_rebuild_catalog_data([
                 'wordset' => $wordset->slug,
             ]);
         } finally {

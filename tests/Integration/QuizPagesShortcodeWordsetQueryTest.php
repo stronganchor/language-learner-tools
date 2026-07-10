@@ -55,7 +55,7 @@ final class QuizPagesShortcodeWordsetQueryTest extends LL_Tools_TestCase
             add_filter('get_post_metadata', $capture_meta, 10, 4);
 
             try {
-                $items = ll_get_all_quiz_pages_data([
+                $items = ll_tools_quiz_pages_rebuild_catalog_data([
                     'wordset' => $wordset_a->slug,
                 ]);
             } finally {
@@ -110,7 +110,7 @@ final class QuizPagesShortcodeWordsetQueryTest extends LL_Tools_TestCase
             add_action('pre_get_posts', $capture_query, 10, 1);
 
             try {
-                $items = ll_get_all_quiz_pages_data([
+                $items = ll_tools_quiz_pages_rebuild_catalog_data([
                     'wordset' => $wordset->slug,
                 ]);
             } finally {
