@@ -143,9 +143,38 @@
     /**
      * Displays the category selection popup with checkboxes for each category.
      */
+    function getCategorySelectionValue(category) {
+        return (window.LLFlashcards && window.LLFlashcards.Util && typeof window.LLFlashcards.Util.getCategorySelectionValue === 'function')
+            ? window.LLFlashcards.Util.getCategorySelectionValue(category)
+            : (category.slug || category.name);
+    }
+
+    function getSelectedCategoryValues() {
+        var selected = {};
+        $('#ll-tools-category-checkboxes input[type="checkbox"]:checked').each(function () {
+            selected[String($(this).val() || '')] = true;
+        });
+        return selected;
+    }
+
+    function updateCategoryCatalogControls() {
+        var data = window.llToolsFlashcardsData || {};
+        var catalog = data.categoryCatalog || {};
+        var messages = window.llToolsFlashcardsMessages || {};
+        var hasMore = !!catalog.hasMore;
+        var $button = $('#ll-tools-load-more-categories');
+        $button.prop('hidden', !hasMore).toggle(hasMore);
+        if (!$button.prop('disabled')) {
+            $button.text(messages.categoryCatalogLoadMore || $button.text());
+        }
+    }
+
     function showCategorySelection() {
+        var selectedValues = getSelectedCategoryValues();
         // Clone the categories array so that the original order remains unchanged.
-        var categories = llToolsFlashcardsData.categories.slice();
+        var categories = Array.isArray(llToolsFlashcardsData.categories)
+            ? llToolsFlashcardsData.categories.slice()
+            : [];
 
         // Sort categories by display name (using translation if available) with natural numeric sorting.
         categories.sort(function (a, b) {
@@ -160,16 +189,14 @@
         categories.forEach(function (category, index) {
             var displayName = category.translation || category.name;
             var checkboxId = 'category-' + category.slug;
-            var checkboxValue = (window.LLFlashcards && window.LLFlashcards.Util && typeof window.LLFlashcards.Util.getCategorySelectionValue === 'function')
-                ? window.LLFlashcards.Util.getCategorySelectionValue(category)
-                : (category.slug || category.name);
+            var checkboxValue = getCategorySelectionValue(category);
 
             var checkbox = $('<div>').append(
                 $('<input>', {
                     type: 'checkbox',
                     id: checkboxId,
                     value: checkboxValue,
-                    checked: false,
+                    checked: !!selectedValues[String(checkboxValue || '')],
                     'data-preloaded': index === 0 // Preload only the first category
                 }),
                 $('<label>', {
@@ -180,6 +207,7 @@
             );
             checkboxesContainer.append(checkbox);
         });
+        updateCategoryCatalogControls();
 
         // IMPORTANT: match the actual template id
         $('#ll-tools-category-selection-popup').show();
@@ -193,6 +221,60 @@
     // Event handler for the "Check All" button
     $('#ll-tools-check-all').on('click', function () {
         $('#ll-tools-category-checkboxes input[type="checkbox"]').prop('checked', true);
+    });
+
+    $('#ll-tools-load-more-categories').on('click', function () {
+        var data = window.llToolsFlashcardsData || {};
+        var catalog = data.categoryCatalog || {};
+        var messages = window.llToolsFlashcardsMessages || {};
+        var $button = $(this);
+        var $status = $('#ll-tools-category-catalog-status');
+        if (!catalog.hasMore || $button.prop('disabled')) return;
+
+        $button.prop('disabled', true).text(messages.categoryCatalogLoading || $button.text());
+        $status.text(messages.categoryCatalogLoading || '');
+
+        $.ajax({
+            url: data.ajaxurl || window.ajaxurl || '/wp-admin/admin-ajax.php',
+            method: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'll_get_flashcard_category_catalog',
+                offset: Math.max(0, parseInt(catalog.nextOffset, 10) || 0),
+                wordset: data.wordset || '',
+                wordset_fallback: data.wordsetFallback ? '1' : '0'
+            }
+        }).done(function (response) {
+            var payload = response && response.success && response.data ? response.data : null;
+            if (!payload || !Array.isArray(payload.categories)) {
+                $status.text(messages.categoryCatalogError || messages.somethingWentWrong || '');
+                return;
+            }
+
+            var existing = {};
+            if (!Array.isArray(data.categories)) {
+                data.categories = [];
+            }
+            (Array.isArray(data.categories) ? data.categories : []).forEach(function (category) {
+                existing[String(category.id || category.slug || category.name || '')] = true;
+            });
+            payload.categories.forEach(function (category) {
+                var key = String(category.id || category.slug || category.name || '');
+                if (key && !existing[key]) {
+                    data.categories.push(category);
+                    existing[key] = true;
+                }
+            });
+            data.categoryCatalog = payload.catalog || { hasMore: false, nextOffset: 0, pageSize: 0 };
+            window.llToolsFlashcardsData = data;
+            $status.text('');
+            showCategorySelection();
+        }).fail(function () {
+            $status.text(messages.categoryCatalogError || messages.somethingWentWrong || '');
+        }).always(function () {
+            $button.prop('disabled', false);
+            updateCategoryCatalogControls();
+        });
     });
 
     // Event handler for the "Start Quiz" button

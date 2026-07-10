@@ -39,6 +39,40 @@
     -webkit-overflow-scrolling: touch;
 }
 
+.ll-tools-category-catalog-controls {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: -10px 0 10px;
+}
+
+#ll-tools-load-more-categories {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid #64748b;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #111827;
+    font: inherit;
+    cursor: pointer;
+}
+
+#ll-tools-load-more-categories[hidden] {
+    display: none !important;
+}
+
+#ll-tools-load-more-categories:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+#ll-tools-category-catalog-status {
+    color: #475569;
+    font-size: 14px;
+}
+
 #ll-tools-start-selected-quiz {
     align-self: center;
 }

@@ -154,10 +154,16 @@ function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_t
 
 /**
  * Build the categories list used by the widget.
- * Returns [array $categories, bool $categoriesPreselected]
+ * Returns [array $categories, bool $categoriesPreselected, array $catalogPage]
  */
-function ll_flashcards_build_categories(?string $raw, bool $use_translations, array $wordset_ids = []): array {
+function ll_flashcards_catalog_page_size(): int {
+    $page_size = (int) apply_filters('ll_tools_flashcard_catalog_page_size', 24);
+    return max(6, min(48, $page_size));
+}
+
+function ll_flashcards_build_categories(?string $raw, bool $use_translations, array $wordset_ids = [], int $offset = 0, bool $bounded_catalog = false): array {
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $offset = max(0, min(10000, $offset));
     $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $id): bool {
         return $id > 0;
     })));
@@ -385,17 +391,50 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
                 ll_tools_log_missing_flashcard_category_once((string) $w);
             }
         }
-        return [$out, true];
+        return [$out, true, [
+            'has_more' => false,
+            'next_offset' => 0,
+            'page_size' => 0,
+        ]];
     }
 
-    $all_terms = $fetch_terms();
+    if (!$bounded_catalog) {
+        $all_terms = $fetch_terms();
+        if (function_exists('ll_tools_filter_category_terms_for_user')) {
+            $all_terms = ll_tools_filter_category_terms_for_user((array) $all_terms);
+        }
+
+        $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
+        return [$all_processed, false, [
+            'has_more' => false,
+            'next_offset' => 0,
+            'page_size' => 0,
+        ]];
+    }
+
+    $page_size = ll_flashcards_catalog_page_size();
+    $all_terms = $fetch_terms([
+        'number' => $page_size + 1,
+        'offset' => $offset,
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+    $has_more = count($all_terms) > $page_size;
+    if ($has_more) {
+        $all_terms = array_slice($all_terms, 0, $page_size);
+    }
+    $raw_term_count = count($all_terms);
     if (function_exists('ll_tools_filter_category_terms_for_user')) {
         $all_terms = ll_tools_filter_category_terms_for_user((array) $all_terms);
     }
 
-    // No specific categories provided: offer all; not preselected.
+    // No specific categories provided: return one bounded picker page.
     $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
-    return [$all_processed, false];
+    return [$all_processed, false, [
+        'has_more' => $has_more,
+        'next_offset' => $offset + $raw_term_count,
+        'page_size' => $page_size,
+    ]];
 }
 
 /**
@@ -566,6 +605,9 @@ function ll_flashcards_get_messages(): array {
         // Error messages
         'loadingError'            => __('Something went wrong', 'll-tools-text-domain'),
         'somethingWentWrong'      => __('Something went wrong', 'll-tools-text-domain'),
+        'categoryCatalogLoadMore' => __('Load more', 'll-tools-text-domain'),
+        'categoryCatalogLoading'  => __('Loading categories...', 'll-tools-text-domain'),
+        'categoryCatalogError'    => __('Something went wrong', 'll-tools-text-domain'),
         'noWordsFound'            => __('No content available.', 'll-tools-text-domain'),
         'optionsInvariantErrorTitle' => __('Something went wrong', 'll-tools-text-domain'),
         'minimumOptionsInvariantMessage' => __('Quiz round requires at least two options.', 'll-tools-text-domain'),
@@ -677,7 +719,7 @@ function ll_flashcards_get_mode_ui_config(): array {
 }
 
 /** Enqueue styles/scripts and localize data. Returns the localized data array for per-instance scoping. */
-function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName): array {
+function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName, array $catalog_page = []): array {
     wp_enqueue_script('jquery');
 
     // ---- Robust defaults to avoid "Undefined array key" notices ----
@@ -893,6 +935,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'ajaxurl'               => admin_url('admin-ajax.php'),
         'ajaxNonce'             => is_user_logged_in() ? wp_create_nonce('ll_get_words_by_category') : '',
         'categories'            => $categories,
+        'categoryCatalog'       => [
+            'hasMore' => !empty($catalog_page['has_more']),
+            'nextOffset' => max(0, (int) ($catalog_page['next_offset'] ?? 0)),
+            'pageSize' => max(0, (int) ($catalog_page['page_size'] ?? 0)),
+        ],
         'isUserLoggedIn'        => is_user_logged_in(),
         'categoriesPreselected' => $preselected,
         'firstCategoryData'     => $initial_words,
@@ -1017,11 +1064,12 @@ function ll_tools_flashcard_widget($atts) {
     if ($blocked_explicit_wordset) {
         $categories = [];
         $preselected = false;
+        $catalog_page = ['has_more' => false, 'next_offset' => 0, 'page_size' => 0];
         $selected_category_data = [];
         $firstCategoryName = '';
         $words_data = [];
     } else {
-        [$categories, $preselected] = ll_flashcards_build_categories($atts['category'], $use_translations, $wordset_ids);
+        [$categories, $preselected, $catalog_page] = ll_flashcards_build_categories($atts['category'], $use_translations, $wordset_ids, 0, true);
 
         // 3) Fetch the first category payload only when the page will consume it immediately.
         if ($preselected) {
@@ -1039,7 +1087,7 @@ function ll_tools_flashcard_widget($atts) {
     $category_label_text = ll_flashcards_category_label($selected_category_data, $firstCategoryName, $embed, $wordset_ids);
 
     // 5) assets + localized data for JS - NOW INCLUDES WORDSET
-    $localized_data = ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName);
+    $localized_data = ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName, $catalog_page);
 
     // 6) render the template (single source of truth for markup)
     if (!function_exists('ll_tools_render_template')) {
@@ -1231,6 +1279,71 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
 
 add_action('wp_ajax_ll_get_words_by_category',        'll_get_words_by_category_ajax');
 add_action('wp_ajax_nopriv_ll_get_words_by_category', 'll_get_words_by_category_ajax');
+add_action('wp_ajax_ll_get_flashcard_category_catalog', 'll_tools_get_flashcard_category_catalog_ajax');
+add_action('wp_ajax_nopriv_ll_get_flashcard_category_catalog', 'll_tools_get_flashcard_category_catalog_ajax');
+
+function ll_tools_get_flashcard_category_catalog_ajax(): void {
+    $throttle = ll_tools_flashcards_public_ajax_throttle_status();
+    if (empty($throttle['allowed'])) {
+        ll_tools_flashcards_public_ajax_send_throttle_response($throttle);
+    }
+
+    $offset = isset($_POST['offset']) && is_scalar($_POST['offset'])
+        ? absint(wp_unslash($_POST['offset']))
+        : 0;
+    $offset = min(10000, $offset);
+    $wordset_spec = isset($_POST['wordset'])
+        ? ll_tools_flashcards_public_ajax_request_value($_POST['wordset'], 120)
+        : '';
+    $wordset_fallback = isset($_POST['wordset_fallback'])
+        ? ll_tools_flashcards_public_ajax_bool_value($_POST['wordset_fallback'])
+        : ($wordset_spec === '');
+    if ($wordset_spec !== '') {
+        $wordset_fallback = false;
+    }
+
+    $wordset_ids = ll_flashcards_resolve_wordset_ids($wordset_spec, $wordset_fallback);
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if ($wordset_spec !== '' && empty($wordset_ids)) {
+        wp_send_json_success([
+            'categories' => [],
+            'catalog' => ['hasMore' => false, 'nextOffset' => 0, 'pageSize' => ll_flashcards_catalog_page_size()],
+        ]);
+    }
+
+    $lock_args = [
+        'kind' => 'category_catalog',
+        'offset' => $offset,
+        'wordset_ids' => $wordset_ids,
+        'use_translations' => ll_flashcards_should_use_translations($wordset_ids) ? 1 : 0,
+    ];
+    if (!ll_tools_flashcards_public_ajax_acquire_build_lock($lock_args)) {
+        ll_tools_flashcards_public_ajax_send_build_lock_response();
+    }
+
+    try {
+        [$categories, , $catalog_page] = ll_flashcards_build_categories(
+            '',
+            !empty($lock_args['use_translations']),
+            $wordset_ids,
+            $offset,
+            true
+        );
+    } finally {
+        ll_tools_flashcards_public_ajax_release_build_lock($lock_args);
+    }
+
+    wp_send_json_success([
+        'categories' => $categories,
+        'catalog' => [
+            'hasMore' => !empty($catalog_page['has_more']),
+            'nextOffset' => max(0, (int) ($catalog_page['next_offset'] ?? 0)),
+            'pageSize' => max(0, (int) ($catalog_page['page_size'] ?? 0)),
+        ],
+    ]);
+}
 
 /**
  * Remove internal speaker identifiers from public flashcard payloads.

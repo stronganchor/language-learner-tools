@@ -104,6 +104,10 @@ function ll_tools_render_flashcard_overlay_shell(array $args = []): void {
           <div id="ll-tools-category-checkboxes-container">
             <div id="ll-tools-category-checkboxes"></div>
           </div>
+          <div class="ll-tools-category-catalog-controls">
+            <button id="ll-tools-load-more-categories" type="button" hidden><?php echo esc_html__('Load more', 'll-tools-text-domain'); ?></button>
+            <span id="ll-tools-category-catalog-status" role="status" aria-live="polite"></span>
+          </div>
           <button id="ll-tools-start-selected-quiz" type="button"><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
           <button id="ll-tools-close-category-selection" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
         </div>

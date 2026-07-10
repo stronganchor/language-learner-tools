@@ -222,6 +222,8 @@ Representative E2E coverage areas:
   - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
   - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader, category preloads are serialized, and retryable `429` category responses are retried.
+- `tests/e2e/specs/flashcard-category-catalog-pagination.spec.js`
+  - Verifies the standalone category picker fetches later catalog pages only after Load more, sends the continuation offset and wordset scope, preserves checked categories, and hides the control at the end.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
   - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
