@@ -44,6 +44,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
 
     protected function tearDown(): void
     {
+        delete_transient('ll_tools_ipa_orthography_profile_migration_notice');
         update_option('ll_word_title_language_role', $this->titleRoleBackup);
         $_POST = $this->postBackup;
         $_REQUEST = $this->requestBackup;
@@ -421,10 +422,47 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_zazaki_language_requires_an_explicit_regional_profile(): void
+    {
+        $wordset_id = $this->createWordset('Generic Zazaki Profile');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        $this->assertSame('', ll_tools_ipa_orthography_get_profile_key($wordset_id));
+        $this->assertSame([], ll_tools_ipa_orthography_get_conversion_profile($wordset_id));
+        $this->assertSame([], ll_tools_ipa_orthography_get_profile_default_manual_rules($wordset_id));
+
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
+        $this->assertSame('zazaki_genc_palu', ll_tools_ipa_orthography_get_profile_key($wordset_id));
+        $this->assertNotEmpty(ll_tools_ipa_orthography_get_profile_default_manual_rules($wordset_id));
+    }
+
+    public function test_profile_migration_preserves_existing_zazaki_wordsets_only_once(): void
+    {
+        delete_option(ll_tools_ipa_orthography_profile_migration_option());
+        delete_transient('ll_tools_ipa_orthography_profile_migration_notice');
+        $existing_wordset_id = $this->createWordset('Existing Zazaki Profile');
+        update_term_meta($existing_wordset_id, 'll_language', 'zazaki');
+        $other_wordset_id = $this->createWordset('Other Language Profile');
+        update_term_meta($other_wordset_id, 'll_language', 'tr');
+
+        $this->assertSame(1, ll_tools_ipa_orthography_migrate_implicit_profiles());
+        $this->assertSame(
+            'zazaki_genc_palu',
+            (string) get_term_meta($existing_wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true)
+        );
+        $this->assertSame('', (string) get_term_meta($other_wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+        $this->assertSame(0, ll_tools_ipa_orthography_migrate_implicit_profiles());
+
+        $new_wordset_id = $this->createWordset('New Generic Zazaki Profile');
+        update_term_meta($new_wordset_id, 'll_language', 'zza');
+        $this->assertSame('', ll_tools_ipa_orthography_get_profile_key($new_wordset_id));
+    }
+
     public function test_zazaki_profile_maps_i_vowels_to_dotless_i_and_flags_dotted_i(): void
     {
         $wordset_id = $this->createWordset('Zazaki Genç-Palu Profile');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
 
         $this->assertSame('zazaki_genc_palu', ll_tools_ipa_orthography_get_profile_key($wordset_id));
 
@@ -531,6 +569,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Pistachio Dotless I');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
 
         $settings = ll_tools_ipa_orthography_get_settings($wordset_id);
         $this->assertArrayNotHasKey('fıstıx', (array) ($settings['word_overrides'] ?? []));
@@ -555,6 +594,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Profile Settings Boundary');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
 
         $settings = ll_tools_ipa_orthography_get_settings($wordset_id);
 
@@ -625,6 +665,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Word Bound Final Vowel Override');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
 
         $target_word_id = $this->createWord($wordset_id, 'Exact final dotless item', 'Vı');
         $other_word_id = $this->createWord($wordset_id, 'Other final dotless item', 'Vı');
@@ -658,6 +699,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Strict Profile Mappings');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
         update_term_meta(
             $wordset_id,
             ll_tools_ipa_orthography_manual_rules_meta_key(),
@@ -704,6 +746,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Local Phonetic Exceptions');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
         update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
             'sʲ' => ['any' => 's'],
             'ŋ' => ['any' => 'ng'],
@@ -948,6 +991,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Targeted Mismatch Detail');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
         update_term_meta($wordset_id, ll_tools_ipa_orthography_manual_rules_meta_key(), [
             'ə' => ['any' => 'ı'],
             'ᵊ' => ['any' => 'ı'],
@@ -1073,6 +1117,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Bread Final N Exception');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
         $bread_entry_id = $this->createDictionaryEntry('nûn bread');
         $other_entry_id = $this->createDictionaryEntry('nû other');
         $this->setOrthographySettings($wordset_id, [
@@ -1107,6 +1152,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Zazaki Genç-Palu Bread Sentence Exception');
         update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
         $bread_entry_id = $this->createDictionaryEntry('nûn bread');
         $this->setOrthographySettings($wordset_id, [
             'word_overrides' => [

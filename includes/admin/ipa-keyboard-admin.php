@@ -3680,6 +3680,94 @@ function ll_tools_ipa_orthography_profile_meta_key(): string {
     return 'll_wordset_ipa_orthography_profile';
 }
 
+function ll_tools_ipa_orthography_profile_migration_option(): string {
+    return 'll_tools_ipa_orthography_profile_migration_version';
+}
+
+function ll_tools_ipa_orthography_migrate_implicit_profiles(): int {
+    global $wpdb;
+
+    if ((int) get_option(ll_tools_ipa_orthography_profile_migration_option(), 0) >= 1) {
+        return 0;
+    }
+
+    $profile_meta_key = ll_tools_ipa_orthography_profile_meta_key();
+    $language_codes = ['zza', 'diq', 'kiu', 'zazaki', 'zaza'];
+    $placeholders = implode(',', array_fill(0, count($language_codes), '%s'));
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->termmeta} profile_meta
+         INNER JOIN {$wpdb->term_taxonomy} tt
+            ON tt.term_id = profile_meta.term_id
+           AND tt.taxonomy = 'wordset'
+         INNER JOIN {$wpdb->termmeta} language_meta
+            ON language_meta.term_id = tt.term_id
+           AND language_meta.meta_key = 'll_language'
+         SET profile_meta.meta_value = %s
+         WHERE profile_meta.meta_key = %s
+           AND profile_meta.meta_value <> %s
+           AND LOWER(TRIM(language_meta.meta_value)) IN ({$placeholders})",
+        array_merge(
+            ['zazaki_genc_palu', $profile_meta_key, 'zazaki_genc_palu'],
+            $language_codes
+        )
+    ));
+    if ($updated === false) {
+        return 0;
+    }
+    $sql = $wpdb->prepare(
+        "INSERT INTO {$wpdb->termmeta} (term_id, meta_key, meta_value)
+         SELECT DISTINCT tt.term_id, %s, %s
+         FROM {$wpdb->term_taxonomy} tt
+         INNER JOIN {$wpdb->termmeta} language_meta
+            ON language_meta.term_id = tt.term_id
+           AND language_meta.meta_key = %s
+         WHERE tt.taxonomy = %s
+           AND LOWER(TRIM(language_meta.meta_value)) IN ({$placeholders})
+           AND NOT EXISTS (
+               SELECT 1
+               FROM {$wpdb->termmeta} profile_meta
+               WHERE profile_meta.term_id = tt.term_id
+                 AND profile_meta.meta_key = %s
+           )",
+        array_merge(
+            [$profile_meta_key, 'zazaki_genc_palu', 'll_language', 'wordset'],
+            $language_codes,
+            [$profile_meta_key]
+        )
+    );
+    $result = $wpdb->query($sql);
+    if ($result === false) {
+        return 0;
+    }
+
+    $migrated = max(0, (int) $updated) + max(0, (int) $result);
+    update_option(ll_tools_ipa_orthography_profile_migration_option(), 1, false);
+    if ($migrated > 0) {
+        set_transient('ll_tools_ipa_orthography_profile_migration_notice', $migrated, 7 * DAY_IN_SECONDS);
+    }
+    return $migrated;
+}
+add_action('admin_init', 'll_tools_ipa_orthography_migrate_implicit_profiles', 5);
+
+function ll_tools_ipa_orthography_render_profile_migration_notice(): void {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    $migrated = (int) get_transient('ll_tools_ipa_orthography_profile_migration_notice');
+    if ($migrated <= 0) {
+        return;
+    }
+
+    $wordsets_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
+    echo '<div class="notice notice-warning is-dismissible"><p>' . wp_kses_post(sprintf(
+        /* translators: 1: migrated wordset count, 2: URL to the Wordsets admin screen */
+        __('Preserved the GenÃ§-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href="%2$s">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically.', 'll-tools-text-domain'),
+        $migrated,
+        esc_url($wordsets_url)
+    )) . '</p></div>';
+}
+add_action('admin_notices', 'll_tools_ipa_orthography_render_profile_migration_notice');
+
 function ll_tools_ipa_orthography_unicode_normalize(string $text, int $form = 16): string {
     if (class_exists('Normalizer')) {
         $normalized = Normalizer::normalize($text, $form);
@@ -3719,11 +3807,6 @@ function ll_tools_ipa_orthography_get_profile_key(int $wordset_id): string {
     $profiles = ll_tools_ipa_orthography_get_available_conversion_profiles();
     if ($stored !== '' && isset($profiles[$stored])) {
         return $stored;
-    }
-
-    $language = strtolower(ll_tools_ipa_orthography_get_wordset_language($wordset_id));
-    if (in_array($language, ['zza', 'diq', 'kiu', 'zazaki', 'zaza'], true)) {
-        return 'zazaki_genc_palu';
     }
 
     return '';

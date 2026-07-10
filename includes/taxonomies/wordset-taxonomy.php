@@ -3014,6 +3014,10 @@ function ll_add_wordset_language_field($term) {
     $recording_transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? ll_tools_get_wordset_recording_transcription_mode([], true)
         : 'ipa';
+    $ipa_orthography_profile = '';
+    $ipa_orthography_profiles = function_exists('ll_tools_ipa_orthography_get_available_conversion_profiles')
+        ? ll_tools_ipa_orthography_get_available_conversion_profiles()
+        : [];
 
     if ($term_id > 0) {
         $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
@@ -3060,6 +3064,9 @@ function ll_add_wordset_language_field($term) {
         }
         if (function_exists('ll_tools_get_wordset_recording_transcription_mode')) {
             $recording_transcription_mode = ll_tools_get_wordset_recording_transcription_mode([$term_id], true);
+        }
+        if (function_exists('ll_tools_ipa_orthography_get_profile_key')) {
+            $ipa_orthography_profile = ll_tools_ipa_orthography_get_profile_key($term_id);
         }
     }
 
@@ -3136,6 +3143,31 @@ function ll_add_wordset_language_field($term) {
             . '</select>',
         'll-wordset-recording-transcription-mode',
         __('Keep this off for most word sets. Turn it on only when this word set needs IPA, transliteration, or another secondary transcription field.', 'll-tools-text-domain')
+    );
+
+    $ipa_orthography_profile_options = '<option value="" ' . selected($ipa_orthography_profile, '', false) . '>'
+        . esc_html__('None (generic language rules)', 'll-tools-text-domain')
+        . '</option>';
+    foreach ($ipa_orthography_profiles as $profile_key => $profile) {
+        $profile_key = sanitize_key((string) $profile_key);
+        if ($profile_key === '') {
+            continue;
+        }
+        $profile_label = (string) ($profile['label'] ?? $profile_key);
+        $ipa_orthography_profile_options .= '<option value="' . esc_attr($profile_key) . '" '
+            . selected($ipa_orthography_profile, $profile_key, false) . '>'
+            . esc_html($profile_label)
+            . '</option>';
+    }
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-ipa-orthography-profile-wrap',
+        __('Regional orthography profile', 'll-tools-text-domain'),
+        '<select id="ll-wordset-ipa-orthography-profile" name="ll_wordset_ipa_orthography_profile">'
+            . $ipa_orthography_profile_options
+            . '</select>',
+        'll-wordset-ipa-orthography-profile',
+        __('Select a regional profile only when this word set follows those spelling and lexical conventions.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -3490,6 +3522,7 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_category_translation_source'])
         || isset($_POST['ll_wordset_word_title_language_role'])
         || isset($_POST['ll_wordset_recording_transcription_mode'])
+        || isset($_POST['ll_wordset_ipa_orthography_profile'])
         || isset($_POST['ll_wordset_visibility'])
         || isset($_POST['ll_wordset_sign_language_mode'])
         || isset($_POST['ll_wordset_autoplay_text_audio_answer_options'])
@@ -3577,6 +3610,21 @@ function ll_save_wordset_language($term_id) {
                 ? ll_tools_sanitize_wordset_recording_transcription_mode(wp_unslash((string) $_POST['ll_wordset_recording_transcription_mode']))
                 : sanitize_key(wp_unslash((string) $_POST['ll_wordset_recording_transcription_mode']));
             update_term_meta($term_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, $recording_transcription_mode);
+        }
+
+        if (array_key_exists('ll_wordset_ipa_orthography_profile', $_POST)) {
+            $ipa_orthography_profile = sanitize_key(wp_unslash((string) $_POST['ll_wordset_ipa_orthography_profile']));
+            $available_profiles = function_exists('ll_tools_ipa_orthography_get_available_conversion_profiles')
+                ? ll_tools_ipa_orthography_get_available_conversion_profiles()
+                : [];
+            $profile_meta_key = function_exists('ll_tools_ipa_orthography_profile_meta_key')
+                ? ll_tools_ipa_orthography_profile_meta_key()
+                : 'll_wordset_ipa_orthography_profile';
+            if ($ipa_orthography_profile === '') {
+                delete_term_meta($term_id, $profile_meta_key);
+            } elseif (isset($available_profiles[$ipa_orthography_profile])) {
+                update_term_meta($term_id, $profile_meta_key, $ipa_orthography_profile);
+            }
         }
 
         $wordset_visibility = isset($_POST['ll_wordset_visibility'])

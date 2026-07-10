@@ -1244,6 +1244,38 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_plurality_options"', $html);
     }
 
+    public function test_wordset_taxonomy_form_selects_saves_and_clears_orthography_profile(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
+
+        ob_start();
+        ll_add_wordset_language_field($wordset);
+        $html = (string) ob_get_clean();
+        $this->assertStringContainsString('name="ll_wordset_ipa_orthography_profile"', $html);
+        $this->assertMatchesRegularExpression('/value="zazaki_genc_palu"\s+selected/', $html);
+        $this->assertStringContainsString('None (generic language rules)', $html);
+
+        $_POST = [
+            'll_wordset_meta_nonce' => wp_create_nonce('ll_wordset_meta'),
+            'll_wordset_ipa_orthography_profile' => '',
+        ];
+        ll_save_wordset_language($wordset_id);
+        $this->assertSame('', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+
+        $_POST = [
+            'll_wordset_meta_nonce' => wp_create_nonce('ll_wordset_meta'),
+            'll_wordset_ipa_orthography_profile' => 'zazaki_genc_palu',
+        ];
+        ll_save_wordset_language($wordset_id);
+        $this->assertSame('zazaki_genc_palu', (string) get_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true));
+    }
+
     public function test_wordset_page_renders_profile_image_language_code_and_blurb(): void
     {
         $fixture = $this->createWordsetFixtureWithCategory();
