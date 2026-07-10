@@ -332,6 +332,7 @@ function ll_tools_quiz_pages_catalog_set_status(array $status): void {
         'refreshing' => false,
         'has_snapshot' => false,
         'needs_loading_notice' => false,
+        'scope_id' => '',
     ], $status);
 }
 
@@ -341,6 +342,16 @@ function ll_tools_quiz_pages_catalog_needs_loading_notice(): bool {
 }
 
 function ll_tools_quiz_pages_catalog_filter_visible_items(array $items, array $scope): array {
+    $has_explicit_wordset = !empty($scope['opts']['wordset']);
+    $explicit_wordset_map = [];
+    if ($has_explicit_wordset) {
+        $explicit_wordset_ids = ll_raw_resolve_wordset_term_ids((string) $scope['opts']['wordset']);
+        $explicit_wordset_map = array_fill_keys(array_map('intval', $explicit_wordset_ids), true);
+        if (empty($explicit_wordset_map)) {
+            return [];
+        }
+    }
+
     $wordset_ids = [];
     foreach ($items as $item) {
         $wordset_id = is_array($item) ? (int) ($item['wordset_id'] ?? 0) : 0;
@@ -357,7 +368,6 @@ function ll_tools_quiz_pages_catalog_filter_visible_items(array $items, array $s
         );
     }
     $viewable_wordset_map = array_fill_keys(array_map('intval', (array) $viewable_wordset_ids), true);
-    $has_explicit_wordset = !empty($scope['opts']['wordset']);
     $visible = [];
 
     foreach ($items as $item) {
@@ -366,6 +376,9 @@ function ll_tools_quiz_pages_catalog_filter_visible_items(array $items, array $s
         }
 
         $wordset_id = (int) ($item['wordset_id'] ?? 0);
+        if ($has_explicit_wordset && !isset($explicit_wordset_map[$wordset_id])) {
+            continue;
+        }
         if ($wordset_id > 0 && !isset($viewable_wordset_map[$wordset_id])) {
             if ($has_explicit_wordset) {
                 continue;
@@ -421,6 +434,32 @@ function ll_tools_quiz_pages_catalog_lock_release(string $scope_id, string $toke
     }
 }
 
+function ll_tools_quiz_pages_catalog_snapshot_ready(string $scope_id): bool {
+    if (!preg_match('/^[a-f0-9]{32}$/D', $scope_id)) {
+        return false;
+    }
+
+    $payload = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
+    if (
+        !is_array($payload)
+        || empty($payload['__ll_quiz_pages_catalog'])
+        || !is_array($payload['items'] ?? null)
+    ) {
+        return false;
+    }
+
+    $state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+    if (
+        !empty($state['__ll_quiz_pages_catalog_state'])
+        && (string) ($state['cache_key'] ?? '') !== (string) ($payload['cache_key'] ?? '')
+    ) {
+        return false;
+    }
+
+    $generated_at = max(0, (int) ($payload['generated_at'] ?? 0));
+    return $generated_at > 0 && $generated_at + ll_tools_quiz_pages_catalog_stale_ttl() >= time();
+}
+
 function ll_tools_quiz_pages_catalog_schedule_refresh(array $scope): void {
     $scope_id = (string) $scope['id'];
     $state_option = ll_tools_quiz_pages_catalog_option_name('state', $scope_id);
@@ -452,6 +491,14 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
     if ($token === '') {
         $scope = (array) $state['scope'];
         ll_tools_quiz_pages_catalog_schedule_refresh($scope);
+        return;
+    }
+
+    $global_lock_id = md5('ll-tools-quiz-pages-catalog-global-refresh');
+    $global_token = ll_tools_quiz_pages_catalog_lock_acquire($global_lock_id);
+    if ($global_token === '') {
+        ll_tools_quiz_pages_catalog_schedule_refresh((array) $state['scope']);
+        ll_tools_quiz_pages_catalog_lock_release($scope_id, $token);
         return;
     }
 
@@ -489,10 +536,55 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
         if (function_exists('wp_set_current_user')) {
             wp_set_current_user($old_user_id);
         }
+        ll_tools_quiz_pages_catalog_lock_release($global_lock_id, $global_token);
         ll_tools_quiz_pages_catalog_lock_release($scope_id, $token);
     }
 }
 add_action('ll_tools_quiz_pages_catalog_refresh_event', 'll_tools_quiz_pages_catalog_refresh_event', 10, 1);
+
+function ll_tools_quiz_pages_catalog_warmup_status(string $scope_id) {
+    $scope_id = strtolower(trim($scope_id));
+    if (!preg_match('/^[a-f0-9]{32}$/D', $scope_id)) {
+        return new WP_Error('ll_quiz_catalog_invalid_scope', __('Invalid request.', 'll-tools-text-domain'));
+    }
+
+    if (ll_tools_quiz_pages_catalog_snapshot_ready($scope_id)) {
+        return ['ready' => true, 'retry_after_ms' => 0];
+    }
+
+    $state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+    if (empty($state['__ll_quiz_pages_catalog_state']) || !is_array($state['scope'] ?? null)) {
+        return new WP_Error('ll_quiz_catalog_not_pending', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
+    }
+
+    ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+
+    return [
+        'ready' => ll_tools_quiz_pages_catalog_snapshot_ready($scope_id),
+        'retry_after_ms' => 1200,
+    ];
+}
+
+function ll_tools_quiz_pages_catalog_warmup_ajax(): void {
+    $scope_id = isset($_POST['scope_id']) && is_scalar($_POST['scope_id'])
+        ? strtolower(sanitize_text_field(wp_unslash($_POST['scope_id'])))
+        : '';
+    if (
+        !preg_match('/^[a-f0-9]{32}$/D', $scope_id)
+        || !check_ajax_referer('ll_quiz_catalog_warmup_' . $scope_id, 'nonce', false)
+    ) {
+        wp_send_json_error(['message' => __('Invalid request.', 'll-tools-text-domain')], 403);
+    }
+
+    $status = ll_tools_quiz_pages_catalog_warmup_status($scope_id);
+    if (is_wp_error($status)) {
+        wp_send_json_error(['message' => $status->get_error_message()], 409);
+    }
+
+    wp_send_json_success($status);
+}
+add_action('wp_ajax_ll_quiz_pages_catalog_warmup', 'll_tools_quiz_pages_catalog_warmup_ajax');
+add_action('wp_ajax_nopriv_ll_quiz_pages_catalog_warmup', 'll_tools_quiz_pages_catalog_warmup_ajax');
 
 /**
  * Rebuild the complete materialized quiz-page catalog.
@@ -798,6 +890,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
         ll_tools_quiz_pages_catalog_set_status([
             'refreshing' => false,
             'has_snapshot' => true,
+            'scope_id' => (string) $scope['id'],
         ]);
         return ll_tools_quiz_pages_catalog_filter_visible_items($cached_items, $scope);
     }
@@ -806,17 +899,29 @@ function ll_get_all_quiz_pages_data($opts = []) {
     ll_tools_quiz_pages_catalog_schedule_refresh($scope);
 
     if (is_array($stale_items)) {
+        $visible_stale_items = ll_tools_quiz_pages_catalog_filter_visible_items($stale_items, $scope);
+        if (!empty($scope['opts']['wordset']) && !empty($stale_items) && empty($visible_stale_items)) {
+            ll_tools_quiz_pages_catalog_set_status([
+                'refreshing' => true,
+                'has_snapshot' => false,
+                'needs_loading_notice' => true,
+                'scope_id' => (string) $scope['id'],
+            ]);
+            return [];
+        }
         ll_tools_quiz_pages_catalog_set_status([
             'refreshing' => true,
             'has_snapshot' => true,
+            'scope_id' => (string) $scope['id'],
         ]);
-        return ll_tools_quiz_pages_catalog_filter_visible_items($stale_items, $scope);
+        return $visible_stale_items;
     }
 
     ll_tools_quiz_pages_catalog_set_status([
         'refreshing' => true,
         'has_snapshot' => false,
         'needs_loading_notice' => true,
+        'scope_id' => (string) $scope['id'],
     ]);
     return [];
 }
@@ -831,7 +936,22 @@ function ll_tools_quiz_pages_catalog_loading_notice(): string {
         $refresh_url = home_url('/');
     }
 
-    return '<p class="ll-quiz-pages-catalog-status" role="status" aria-live="polite">'
+    $status = $GLOBALS['ll_tools_quiz_pages_catalog_status'] ?? [];
+    $scope_id = strtolower((string) ($status['scope_id'] ?? ''));
+    if (!preg_match('/^[a-f0-9]{32}$/D', $scope_id)) {
+        return '';
+    }
+
+    ll_enqueue_asset_by_timestamp('/js/quiz-pages-shortcodes.js', 'll-quiz-pages-shortcodes-js', [], true);
+
+    return '<p class="ll-quiz-pages-catalog-status" role="status" aria-live="polite"'
+        . ' data-ll-quiz-catalog-status="1"'
+        . ' data-ajax-url="' . esc_url(admin_url('admin-ajax.php')) . '"'
+        . ' data-action="ll_quiz_pages_catalog_warmup"'
+        . ' data-nonce="' . esc_attr(wp_create_nonce('ll_quiz_catalog_warmup_' . $scope_id)) . '"'
+        . ' data-scope-id="' . esc_attr($scope_id) . '"'
+        . ' data-refresh-url="' . esc_url($refresh_url) . '"'
+        . ' data-retry-ms="1200" data-max-attempts="8">'
         . esc_html__('Loading quiz...', 'll-tools-text-domain')
         . ' <a href="' . esc_url($refresh_url) . '">'
         . esc_html__('Refresh', 'll-tools-text-domain')

@@ -2028,7 +2028,31 @@ function ll_tools_get_recording_category_summary_for_wordsets(array $wordset_ter
            AND words.post_status IN ('publish', 'draft')",
         $wordset_term_ids
     ));
-    $term_ids = array_values(array_filter(array_map('intval', (array) $term_ids)));
+    $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')
+        ? (string) LL_TOOLS_PROMPT_CARD_POST_TYPE
+        : 'll_prompt_card';
+    $prompt_card_term_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT category_taxonomy.term_id
+         FROM {$wpdb->posts} prompt_cards
+         INNER JOIN {$wpdb->term_relationships} wordset_relationship
+            ON wordset_relationship.object_id = prompt_cards.ID
+         INNER JOIN {$wpdb->term_taxonomy} wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationship.term_taxonomy_id
+           AND wordset_taxonomy.taxonomy = 'wordset'
+           AND wordset_taxonomy.term_id IN ({$wordset_placeholders})
+         INNER JOIN {$wpdb->term_relationships} category_relationship
+            ON category_relationship.object_id = prompt_cards.ID
+         INNER JOIN {$wpdb->term_taxonomy} category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationship.term_taxonomy_id
+           AND category_taxonomy.taxonomy = 'word-category'
+         WHERE prompt_cards.post_type = %s
+           AND prompt_cards.post_status = 'publish'",
+        array_merge($wordset_term_ids, [$prompt_card_post_type])
+    ));
+    $term_ids = array_values(array_unique(array_filter(array_map('intval', array_merge(
+        (array) $term_ids,
+        (array) $prompt_card_term_ids
+    )))));
     if (!empty($term_ids)) {
         $terms = get_terms([
             'taxonomy' => 'word-category',

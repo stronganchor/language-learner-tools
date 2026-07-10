@@ -34,6 +34,7 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
                 wp_clear_scheduled_hook('ll_tools_quiz_pages_catalog_refresh_event', [$scope_id]);
             }
         }
+        delete_option(ll_tools_quiz_pages_catalog_option_name('lock', md5('ll-tools-quiz-pages-catalog-global-refresh')));
 
         unset($GLOBALS['ll_tools_quiz_pages_catalog_status']);
 
@@ -85,11 +86,47 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             $this->assertStringContainsString('role="status"', $html);
             $this->assertStringContainsString('Loading quiz...', $html);
             $this->assertStringContainsString('Refresh', $html);
+            $this->assertStringContainsString('data-ll-quiz-catalog-status="1"', $html);
+            $this->assertStringContainsString('data-scope-id="' . esc_attr((string) $scope['id']) . '"', $html);
+            $this->assertStringContainsString('admin-ajax.php', $html);
+            $this->assertTrue(wp_script_is('ll-quiz-pages-shortcodes-js', 'enqueued'));
             $this->assertStringNotContainsString('No quizzes found.', $html);
             $this->assertNotFalse(wp_next_scheduled('ll_tools_quiz_pages_catalog_refresh_event', [(string) $scope['id']]));
 
             $state = get_option(ll_tools_quiz_pages_catalog_option_name('state', (string) $scope['id']), []);
             $this->assertSame((string) $scope['cache_key'], (string) ($state['cache_key'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_public_warmup_request_materializes_a_cold_catalog_for_reload(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $fixture = $this->createCatalogFixture('Warmup Catalog');
+            $opts = ['wordset' => $fixture['wordset_slug']];
+            $scope = $this->trackAndClearScope($opts, 1);
+
+            $this->assertSame([], ll_get_all_quiz_pages_data($opts));
+            $this->assertFalse(ll_tools_quiz_pages_catalog_snapshot_ready((string) $scope['id']));
+
+            $status = ll_tools_quiz_pages_catalog_warmup_status((string) $scope['id']);
+            $this->assertIsArray($status);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $this->assertTrue(ll_tools_quiz_pages_catalog_snapshot_ready((string) $scope['id']));
+            $this->assertSame([], get_option(ll_tools_quiz_pages_catalog_option_name('state', (string) $scope['id']), []));
+
+            $items = ll_get_all_quiz_pages_data($opts);
+            $this->assertCount(1, $items);
+            $this->assertSame($fixture['page_id'], (int) ($items[0]['post_id'] ?? 0));
+
+            $invalid = ll_tools_quiz_pages_catalog_warmup_status('not-a-scope');
+            $this->assertWPError($invalid);
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
@@ -191,6 +228,43 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             $this->assertSame($fixture['page_id'], (int) ($stale_items[0]['post_id'] ?? 0));
             $this->assertSame([], $quiz_queries, 'Concurrent stale readers and a contended worker must not rebuild the catalog.');
             $this->assertNotFalse(wp_next_scheduled('ll_tools_quiz_pages_catalog_refresh_event', [(string) $new_scope['id']]));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_explicit_scope_rejects_a_stale_snapshot_with_an_obsolete_wordset_id(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $fixture = $this->createCatalogFixture('Obsolete Wordset Catalog');
+            $opts = ['wordset' => $fixture['wordset_slug']];
+            $old_scope = $this->trackAndClearScope($opts, 1);
+            $stale_items = ll_tools_quiz_pages_rebuild_catalog_data($opts);
+            $this->assertCount(1, $stale_items);
+            $stale_items[0]['wordset_id'] = $fixture['wordset_id'] + 1000000;
+            ll_tools_quiz_pages_catalog_latest_set($old_scope, $stale_items, true);
+
+            ll_tools_bump_category_cache_epoch([$fixture['wordset_id']]);
+            $current_scope = $this->trackAndClearCurrentCacheOnly($opts, 1);
+            $this->assertSame((string) $old_scope['id'], (string) $current_scope['id']);
+
+            $this->assertSame([], ll_get_all_quiz_pages_data($opts));
+            $this->assertTrue(ll_tools_quiz_pages_catalog_needs_loading_notice());
+            $this->assertStringContainsString('data-ll-quiz-catalog-status="1"', ll_tools_quiz_pages_catalog_loading_notice());
+            $this->assertFalse(ll_tools_quiz_pages_catalog_snapshot_ready((string) $current_scope['id']));
+
+            $status = ll_tools_quiz_pages_catalog_warmup_status((string) $current_scope['id']);
+            $this->assertIsArray($status);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $this->assertTrue(ll_tools_quiz_pages_catalog_snapshot_ready((string) $current_scope['id']));
+
+            $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', (string) $current_scope['id']), []);
+            $this->assertSame((string) $current_scope['cache_key'], (string) ($latest['cache_key'] ?? ''));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }

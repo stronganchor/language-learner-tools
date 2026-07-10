@@ -204,6 +204,70 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_default_recorder_bootstrap_selects_categorized_prompt_card_without_category_attribute(): void
+    {
+        if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {
+            $this->markTestSkipped('Prompt card support is not loaded.');
+        }
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $wordsetId = $this->ensure_term('wordset', 'Prompt-only Recorder Wordset', 'prompt-only-recorder-wordset');
+        $wordset = get_term($wordsetId, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $categoryId = $this->ensure_term('word-category', 'Prompt-only Recorder Category', 'prompt-only-recorder-category');
+
+        $promptCardId = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Prompt-only Recorder Card',
+        ]);
+        wp_set_object_terms($promptCardId, [$wordsetId], 'wordset', false);
+        wp_set_object_terms($promptCardId, [$categoryId], 'word-category', false);
+        update_post_meta($promptCardId, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, 'Record this categorized prompt.');
+
+        $promptCardQueries = [];
+        $capturePromptCardQueries = static function (WP_Query $query) use (&$promptCardQueries): void {
+            if ((string) $query->get('post_type') === LL_TOOLS_PROMPT_CARD_POST_TYPE) {
+                $promptCardQueries[] = $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $capturePromptCardQueries);
+        try {
+            $output = do_shortcode('[audio_recording_interface wordset="' . $wordset->slug . '"]');
+        } finally {
+            remove_action('pre_get_posts', $capturePromptCardQueries);
+        }
+
+        $this->assertStringContainsString('id="ll-record-btn"', $output);
+        $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
+        $this->assertIsString($localized);
+        $matches = [];
+        $matchCount = preg_match_all('/var ll_recorder_data = (\{[^\r\n]+\});/', $localized, $matches);
+        $this->assertGreaterThanOrEqual(1, $matchCount);
+        $payload = json_decode((string) end($matches[1]), true);
+        $this->assertIsArray($payload);
+
+        $this->assertSame('prompt-only-recorder-category', (string) ($payload['initial_category'] ?? ''));
+        $this->assertSame(
+            ['prompt-only-recorder-category' => 'Prompt-only Recorder Category'],
+            (array) ($payload['available_categories'] ?? [])
+        );
+        $items = (array) ($payload['images'] ?? []);
+        $this->assertCount(1, $items);
+        $this->assertSame($promptCardId, (int) ($items[0]['prompt_card_id'] ?? 0));
+        $this->assertSame('prompt-only-recorder-category', (string) ($items[0]['category_slug'] ?? ''));
+
+        $this->assertNotEmpty($promptCardQueries);
+        foreach ($promptCardQueries as $queryVars) {
+            $this->assertGreaterThan(0, (int) ($queryVars['posts_per_page'] ?? 0));
+            $this->assertLessThanOrEqual(100, (int) ($queryVars['posts_per_page'] ?? 0));
+        }
+    }
+
     public function test_new_word_category_select_is_scoped_to_selected_wordset(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
