@@ -13,8 +13,227 @@ function ll_create_missing_audio_admin_page() {
     );
 }
 add_action('admin_menu', 'll_create_missing_audio_admin_page');
+
+function ll_missing_audio_maintenance_job_option_name() {
+    return 'll_missing_audio_job_' . max(0, intval(get_current_user_id()));
+}
+
+function ll_missing_audio_get_maintenance_job() {
+    $job = get_option(ll_missing_audio_maintenance_job_option_name(), array());
+    return is_array($job) ? $job : array();
+}
+
+function ll_missing_audio_get_cached_table_headers() {
+    $headers = get_option('ll_missing_audio_table_headers', array());
+    if (!is_array($headers)) {
+        return array();
+    }
+
+    $normalized = array();
+    foreach ($headers as $header) {
+        if (!is_array($header)) {
+            continue;
+        }
+        $label = sanitize_text_field((string) ($header['label'] ?? ''));
+        if ($label === '') {
+            continue;
+        }
+        $normalized[] = array(
+            'label' => $label,
+            'count' => max(1, intval($header['count'] ?? 1)),
+        );
+    }
+    return $normalized;
+}
+
+function ll_missing_audio_save_maintenance_job($job) {
+    $job = is_array($job) ? $job : array();
+    $job['updated_at'] = time();
+    update_option(ll_missing_audio_maintenance_job_option_name(), $job, false);
+    return $job;
+}
+
+function ll_missing_audio_create_maintenance_job($kind, $settings = array()) {
+    $kind = sanitize_key((string) $kind);
+    $allowed_kinds = array('scan', 'headers', 'regex_preview', 'regex_apply', 'table_preview', 'table_apply');
+    if (!in_array($kind, $allowed_kinds, true)) {
+        return new WP_Error('ll_missing_audio_invalid_job_kind', __('Invalid Missing Audio maintenance job.', 'll-tools-text-domain'));
+    }
+    $defaults = array();
+    if ($kind === 'scan') {
+        $defaults = array('missing_audio_instances' => array(), 'missing_count' => 0, 'posts_scanned' => 0);
+    } elseif ($kind === 'regex_preview') {
+        $defaults = array('matches' => array(), 'match_total' => 0, 'posts_with_matches' => 0, 'errors' => array());
+    } elseif ($kind === 'table_preview') {
+        $defaults = array('matches' => array(), 'cell_count' => 0, 'posts_with_matches' => 0, 'errors' => array());
+    } elseif ($kind === 'regex_apply' || $kind === 'table_apply') {
+        $defaults = array('posts_updated' => 0, 'shortcodes_inserted' => 0, 'log' => array(), 'errors' => array(), 'changed_posts_skipped' => 0);
+    }
+
+    return ll_missing_audio_save_maintenance_job(array(
+        'id' => wp_generate_uuid4(),
+        'kind' => $kind,
+        'status' => 'running',
+        'cursor' => 0,
+        'processed' => 0,
+        'created_at' => time(),
+        'settings' => is_array($settings) ? $settings : array(),
+        'result' => $defaults,
+    ));
+}
+
+function ll_missing_audio_cancel_maintenance_job($job, $job_id) {
+    if (!is_array($job) || empty($job['id']) || ($job['status'] ?? '') !== 'running') {
+        return is_array($job) ? $job : array();
+    }
+    if ($job_id === '' || !hash_equals((string) $job['id'], (string) $job_id)) {
+        return new WP_Error('ll_missing_audio_stale_job', __('This maintenance job is no longer current. Reload the page and try again.', 'll-tools-text-domain'));
+    }
+    $job['status'] = 'cancelled';
+    return ll_missing_audio_save_maintenance_job($job);
+}
+
+function ll_missing_audio_get_preview_apply_settings($kind, $preview_job, $exclusions = array()) {
+    $expected_kind = $kind === 'regex_apply' ? 'regex_preview' : 'table_preview';
+    if (!is_array($preview_job) || ($preview_job['kind'] ?? '') !== $expected_kind || ($preview_job['status'] ?? '') !== 'completed') {
+        return new WP_Error('ll_missing_audio_preview_required', __('Complete a fresh preview before applying changes.', 'll-tools-text-domain'));
+    }
+    $matches = isset($preview_job['result']['matches']) && is_array($preview_job['result']['matches'])
+        ? $preview_job['result']['matches']
+        : array();
+    $fingerprints = array();
+    foreach ($matches as $post_id => $row) {
+        $post_id = intval($post_id);
+        if ($post_id > 0 && is_array($row) && !empty($row['content_fingerprint'])) {
+            $fingerprints[$post_id] = (string) $row['content_fingerprint'];
+        }
+    }
+    $candidate_ids = array_values(array_unique(array_filter(array_map('intval', array_keys($matches)))));
+    foreach ($candidate_ids as $candidate_id) {
+        if (empty($fingerprints[$candidate_id])) {
+            return new WP_Error('ll_missing_audio_preview_incomplete', __('The saved preview is incomplete. Run the preview again before applying changes.', 'll-tools-text-domain'));
+        }
+    }
+    return array(
+        'pattern' => (string) ($preview_job['settings']['pattern'] ?? ''),
+        'headers' => array_values((array) ($preview_job['settings']['headers'] ?? array())),
+        'candidate_ids' => $candidate_ids,
+        'fingerprints' => $fingerprints,
+        'exclusions' => is_array($exclusions) ? $exclusions : array(),
+    );
+}
+
+function ll_missing_audio_process_maintenance_job($job) {
+    if (!is_array($job) || ($job['status'] ?? '') !== 'running') {
+        return is_array($job) ? $job : array();
+    }
+    $job_id = sanitize_key((string) ($job['id'] ?? ''));
+    $lock_name = 'll_missing_audio_lock_' . substr(md5($job_id), 0, 20);
+    $lock_token = wp_generate_password(12, false, false);
+    $lock = array('token' => $lock_token, 'expires_at' => time() + 2 * MINUTE_IN_SECONDS);
+    if (!add_option($lock_name, $lock, '', false)) {
+        $existing = get_option($lock_name, array());
+        if (is_array($existing) && intval($existing['expires_at'] ?? 0) < time()) {
+            delete_option($lock_name);
+        }
+        if (!add_option($lock_name, $lock, '', false)) {
+            return $job;
+        }
+    }
+
+    try {
+        $kind = sanitize_key((string) ($job['kind'] ?? ''));
+        $settings = is_array($job['settings'] ?? null) ? $job['settings'] : array();
+        $result = is_array($job['result'] ?? null) ? $job['result'] : array();
+        $allowed_kinds = array('scan', 'headers', 'regex_preview', 'regex_apply', 'table_preview', 'table_apply');
+        if (!in_array($kind, $allowed_kinds, true)) {
+            $job['status'] = 'failed';
+            $result['errors'][] = __('Invalid Missing Audio maintenance job.', 'll-tools-text-domain');
+            $job['result'] = $result;
+            return ll_missing_audio_save_maintenance_job($job);
+        }
+        if (in_array($kind, array('regex_preview', 'regex_apply'), true)
+            && !ll_missing_audio_is_valid_regex((string) ($settings['pattern'] ?? ''))) {
+            $job['status'] = 'failed';
+            $result['errors'][] = __('The regex pattern is invalid or unsafe. Please fix it and start again.', 'll-tools-text-domain');
+            $job['result'] = $result;
+            return ll_missing_audio_save_maintenance_job($job);
+        }
+        if (in_array($kind, array('table_preview', 'table_apply'), true)
+            && empty($settings['headers'])) {
+            $job['status'] = 'failed';
+            $result['errors'][] = __('No headers selected for matching.', 'll-tools-text-domain');
+            $job['result'] = $result;
+            return ll_missing_audio_save_maintenance_job($job);
+        }
+        if (in_array($kind, array('regex_apply', 'table_apply'), true)) {
+            $candidate_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($settings['candidate_ids'] ?? array())))));
+            $offset = max(0, intval($job['cursor'] ?? 0));
+            $ids = array_slice($candidate_ids, $offset, ll_missing_audio_get_maintenance_batch_size());
+            if ($kind === 'regex_apply') {
+                $result = ll_apply_word_audio_insertions(
+                    (string) ($settings['pattern'] ?? ''),
+                    (array) ($settings['exclusions'] ?? array()),
+                    $ids,
+                    (array) ($settings['fingerprints'] ?? array()),
+                    $result
+                );
+            } else {
+                $result = ll_apply_table_column_word_audio_insertions(
+                    (array) ($settings['headers'] ?? array()),
+                    (array) ($settings['exclusions'] ?? array()),
+                    $ids,
+                    (array) ($settings['fingerprints'] ?? array()),
+                    $result
+                );
+            }
+            $job['cursor'] = $offset + count($ids);
+            $job['processed'] = intval($job['cursor']);
+            if (empty($ids) || intval($job['cursor']) >= count($candidate_ids)) {
+                $job['status'] = 'completed';
+            }
+        } else {
+            $batch = ll_missing_audio_get_post_id_batch(intval($job['cursor'] ?? 0), ll_missing_audio_get_maintenance_batch_size());
+            $ids = (array) ($batch['ids'] ?? array());
+            if ($kind === 'scan') {
+                $result = ll_run_missing_audio_scan($ids, (array) ($result['missing_audio_instances'] ?? array()));
+                $result['posts_scanned'] = intval($job['processed'] ?? 0) + count($ids);
+            } elseif ($kind === 'regex_preview') {
+                $result = ll_find_word_audio_regex_matches((string) ($settings['pattern'] ?? ''), $ids, $result);
+            } elseif ($kind === 'table_preview') {
+                $result = ll_find_table_column_word_audio_matches((array) ($settings['headers'] ?? array()), $ids, $result);
+            } elseif ($kind === 'headers') {
+                $result = ll_missing_audio_collect_table_headers($ids, $result, true);
+            }
+            $job['cursor'] = intval($batch['next_cursor'] ?? $job['cursor'] ?? 0);
+            $job['processed'] = intval($job['processed'] ?? 0) + count($ids);
+            if (empty($batch['has_more'])) {
+                $job['status'] = 'completed';
+                if ($kind === 'scan') {
+                    update_option('ll_missing_audio_instances', (array) ($result['missing_audio_instances'] ?? array()));
+                } elseif ($kind === 'headers') {
+                    $result = ll_missing_audio_collect_table_headers(array(), $result, false);
+                    update_option('ll_missing_audio_table_headers', $result, false);
+                    update_option('ll_missing_audio_table_headers_updated_at', time(), false);
+                }
+            }
+        }
+        $job['result'] = $result;
+        return ll_missing_audio_save_maintenance_job($job);
+    } finally {
+        $existing = get_option($lock_name, array());
+        if (is_array($existing) && hash_equals((string) ($existing['token'] ?? ''), $lock_token)) {
+            delete_option($lock_name);
+        }
+    }
+}
+
 // Render the "Missing Audio" admin page
 function ll_render_missing_audio_admin_page() {
+    if (!current_user_can('view_ll_tools')) {
+        wp_die(__('You do not have permission to access this page.', 'll-tools-text-domain'));
+    }
+
     $missing_audio_instances = get_option('ll_missing_audio_instances', array());
     $missing_audio_instances = ll_missing_audio_sanitize_cache_keys($missing_audio_instances);
     $regex_patterns = ll_missing_audio_get_regex_patterns();
@@ -27,14 +246,21 @@ function ll_render_missing_audio_admin_page() {
     $available_table_headers = array();
     $last_selected_headers = array();
     $scroll_target = '';
+    $maintenance_job = ll_missing_audio_get_maintenance_job();
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!isset($_POST['ll_missing_audio_nonce']) || !wp_verify_nonce($_POST['ll_missing_audio_nonce'], 'll_missing_audio_actions')) {
             wp_die(__('Security check failed.', 'll-tools-text-domain'));
         }
 
         $action = '';
-        if (isset($_POST['clear_cache'])) {
+        if (isset($_POST['continue_maintenance_job'])) {
+            $action = 'continue_maintenance_job';
+        } elseif (isset($_POST['cancel_maintenance_job'])) {
+            $action = 'cancel_maintenance_job';
+        } elseif (isset($_POST['refresh_table_headers'])) {
+            $action = 'refresh_table_headers';
+        } elseif (isset($_POST['clear_cache'])) {
             $action = 'clear_cache';
         } elseif (isset($_POST['scan_missing_audio'])) {
             $action = 'scan_missing_audio';
@@ -54,7 +280,44 @@ function ll_render_missing_audio_admin_page() {
             $action = 'remove_missing_audio';
         }
 
+        $job_start_actions = array(
+            'refresh_table_headers',
+            'scan_missing_audio',
+            'preview_regex_matches',
+            'apply_regex_insertions',
+            'preview_table_matches',
+            'apply_table_insertions',
+        );
+        if (($maintenance_job['status'] ?? '') === 'running' && in_array($action, $job_start_actions, true)) {
+            echo '<div class="notice notice-error"><p>' . esc_html__('Finish or cancel the current maintenance job before starting another one.', 'll-tools-text-domain') . '</p></div>';
+            $action = '';
+        }
+
         switch ($action) {
+            case 'continue_maintenance_job':
+                $posted_job_id = isset($_POST['maintenance_job_id']) ? sanitize_text_field(wp_unslash($_POST['maintenance_job_id'])) : '';
+                if (empty($maintenance_job['id']) || $posted_job_id === '' || !hash_equals((string) $maintenance_job['id'], $posted_job_id)) {
+                    echo '<div class="notice notice-error"><p>' . esc_html__('This maintenance job is no longer current. Reload the page and try again.', 'll-tools-text-domain') . '</p></div>';
+                } else {
+                    $maintenance_job = ll_missing_audio_process_maintenance_job($maintenance_job);
+                }
+                break;
+
+            case 'cancel_maintenance_job':
+                $posted_job_id = isset($_POST['maintenance_job_id']) ? sanitize_text_field(wp_unslash($_POST['maintenance_job_id'])) : '';
+                $cancelled_job = ll_missing_audio_cancel_maintenance_job($maintenance_job, $posted_job_id);
+                if (is_wp_error($cancelled_job)) {
+                    echo '<div class="notice notice-error"><p>' . esc_html($cancelled_job->get_error_message()) . '</p></div>';
+                } else {
+                    $maintenance_job = $cancelled_job;
+                }
+                break;
+
+            case 'refresh_table_headers':
+                $maintenance_job = ll_missing_audio_create_maintenance_job('headers');
+                $maintenance_job = ll_missing_audio_process_maintenance_job($maintenance_job);
+                break;
+
             case 'clear_cache':
                 update_option('ll_missing_audio_instances', array());
                 $missing_audio_instances = array();
@@ -62,25 +325,8 @@ function ll_render_missing_audio_admin_page() {
                 break;
 
             case 'scan_missing_audio':
-                $scan_result = ll_run_missing_audio_scan();
-                $missing_audio_instances = $scan_result['missing_audio_instances'];
-
-                $missing_count = intval($scan_result['missing_count']);
-                $posts_scanned = intval($scan_result['posts_scanned']);
-                printf(
-                    '<div class="notice notice-success"><p>' . esc_html(
-                        sprintf(
-                            _n(
-                                'Scan complete. Found %1$d missing audio entry across %2$d post.',
-                                'Scan complete. Found %1$d missing audio entries across %2$d posts.',
-                                $missing_count,
-                                'll-tools-text-domain'
-                            ),
-                            $missing_count,
-                            $posts_scanned
-                        )
-                    ) . '</p></div>'
-                );
+                $maintenance_job = ll_missing_audio_create_maintenance_job('scan');
+                $maintenance_job = ll_missing_audio_process_maintenance_job($maintenance_job);
                 break;
 
             case 'save_regex_pattern':
@@ -92,7 +338,7 @@ function ll_render_missing_audio_admin_page() {
                     echo '<div class="notice notice-error"><p>' . esc_html__('Please provide both a label and a regex pattern.', 'll-tools-text-domain') . '</p></div>';
                 } else {
                     if (!ll_missing_audio_is_valid_regex($pattern)) {
-                        echo '<div class="notice notice-error"><p>' . esc_html__('The regex pattern is invalid. Please fix it and try again.', 'll-tools-text-domain') . '</p></div>';
+                        echo '<div class="notice notice-error"><p>' . esc_html__('The regex pattern is invalid or unsafe. Please fix it and try again.', 'll-tools-text-domain') . '</p></div>';
                     } else {
                         $regex_patterns = ll_missing_audio_upsert_regex_pattern($label, $pattern, $pattern_id);
                         echo '<div class="notice notice-success"><p>' . esc_html__('Regex pattern saved.', 'll-tools-text-domain') . '</p></div>';
@@ -121,64 +367,25 @@ function ll_render_missing_audio_admin_page() {
                 }
 
                 if (!ll_missing_audio_is_valid_regex($pattern_to_use)) {
-                    echo '<div class="notice notice-error"><p>' . esc_html__('The regex pattern is invalid. Please fix it and try again.', 'll-tools-text-domain') . '</p></div>';
+                    echo '<div class="notice notice-error"><p>' . esc_html__('The regex pattern is invalid or unsafe. Please fix it and try again.', 'll-tools-text-domain') . '</p></div>';
                     break;
                 }
 
                 if ($action === 'preview_regex_matches') {
-                    $regex_preview = ll_find_word_audio_regex_matches($pattern_to_use);
-                    if (!empty($regex_preview['errors'])) {
-                        foreach ($regex_preview['errors'] as $err) {
-                            echo '<div class="notice notice-error"><p>' . esc_html($err) . '</p></div>';
-                        }
-                    } else {
-                        $scroll_target = '#ll-regex-preview-results';
-                        $match_total = isset($regex_preview['match_total']) ? intval($regex_preview['match_total']) : 0;
-                        printf(
-                            '<div class="notice notice-info"><p>%s</p></div>',
-                            esc_html(
-                                sprintf(
-                                    _n(
-                                        'Preview only. Found %1$d match across %2$d post.',
-                                        'Preview only. Found %1$d matches across %2$d posts.',
-                                        $match_total,
-                                        'll-tools-text-domain'
-                                    ),
-                                    $match_total,
-                                    intval($regex_preview['posts_with_matches'])
-                                )
-                            )
-                        );
-                    }
+                    $maintenance_job = ll_missing_audio_create_maintenance_job('regex_preview', array(
+                        'pattern' => $pattern_to_use,
+                        'pattern_id' => $last_saved_pattern_id,
+                    ));
+                    $maintenance_job = ll_missing_audio_process_maintenance_job($maintenance_job);
                 } else {
                     $exclusions = ll_parse_regex_exclusions($_POST);
-                    $apply_summary = ll_apply_word_audio_insertions($pattern_to_use, $exclusions);
-                    $missing_audio_instances = get_option('ll_missing_audio_instances', array());
-
-                    if (!empty($apply_summary['errors'])) {
-                        foreach ($apply_summary['errors'] as $err) {
-                            echo '<div class="notice notice-error"><p>' . esc_html($err) . '</p></div>';
-                        }
+                    $apply_settings = ll_missing_audio_get_preview_apply_settings('regex_apply', $maintenance_job, $exclusions);
+                    if (is_wp_error($apply_settings) || (string) ($apply_settings['pattern'] ?? '') !== $pattern_to_use) {
+                        echo '<div class="notice notice-error"><p>' . esc_html__('Complete a fresh preview before applying changes.', 'll-tools-text-domain') . '</p></div>';
+                        break;
                     }
-
-                    $inserted = isset($apply_summary['shortcodes_inserted']) ? intval($apply_summary['shortcodes_inserted']) : 0;
-                    $updated_posts = isset($apply_summary['posts_updated']) ? intval($apply_summary['posts_updated']) : 0;
-                    $scroll_target = '#ll-regex-summary';
-                    printf(
-                        '<div class="notice notice-success"><p>%s</p></div>',
-                        esc_html(
-                            sprintf(
-                                _n(
-                                    'Inserted %1$d shortcode across %2$d post.',
-                                    'Inserted %1$d shortcodes across %2$d posts.',
-                                    $inserted,
-                                    'll-tools-text-domain'
-                                ),
-                                $inserted,
-                                $updated_posts
-                            )
-                        )
-                    );
+                    $maintenance_job = ll_missing_audio_create_maintenance_job('regex_apply', $apply_settings);
+                    $maintenance_job = ll_missing_audio_process_maintenance_job($maintenance_job);
                 }
                 break;
 
@@ -193,59 +400,23 @@ function ll_render_missing_audio_admin_page() {
                 }
 
                 if ($action === 'preview_table_matches') {
-                    $table_preview = ll_find_table_column_word_audio_matches($selected_table_headers);
-                    if (!empty($table_preview['errors'])) {
-                        foreach ($table_preview['errors'] as $err) {
-                            echo '<div class="notice notice-error"><p>' . esc_html($err) . '</p></div>';
-                        }
-                    } else {
-                        $scroll_target = '#ll-table-preview-results';
-                        $match_total = isset($table_preview['cell_count']) ? intval($table_preview['cell_count']) : 0;
-                        printf(
-                            '<div class="notice notice-info"><p>%s</p></div>',
-                            esc_html(
-                                sprintf(
-                                    _n(
-                                        'Preview only. Found %1$d cell across %2$d post.',
-                                        'Preview only. Found %1$d cells across %2$d posts.',
-                                        $match_total,
-                                        'll-tools-text-domain'
-                                    ),
-                                    $match_total,
-                                    intval($table_preview['posts_with_matches'])
-                                )
-                            )
-                        );
-                    }
+                    $maintenance_job = ll_missing_audio_create_maintenance_job('table_preview', array('headers' => $selected_table_headers));
+                    $maintenance_job = ll_missing_audio_process_maintenance_job($maintenance_job);
                 } else {
                     $cell_exclusions = ll_parse_table_exclusions($_POST);
-                    $table_apply_summary = ll_apply_table_column_word_audio_insertions($selected_table_headers, $cell_exclusions);
-                    $missing_audio_instances = get_option('ll_missing_audio_instances', array());
-
-                    if (!empty($table_apply_summary['errors'])) {
-                        foreach ($table_apply_summary['errors'] as $err) {
-                            echo '<div class="notice notice-error"><p>' . esc_html($err) . '</p></div>';
-                        }
+                    $apply_settings = ll_missing_audio_get_preview_apply_settings('table_apply', $maintenance_job, $cell_exclusions);
+                    $requested_headers = array_map('ll_missing_audio_normalize_header_text', $selected_table_headers);
+                    $preview_headers = is_wp_error($apply_settings)
+                        ? array()
+                        : array_map('ll_missing_audio_normalize_header_text', (array) ($apply_settings['headers'] ?? array()));
+                    sort($requested_headers, SORT_STRING);
+                    sort($preview_headers, SORT_STRING);
+                    if (is_wp_error($apply_settings) || $requested_headers !== $preview_headers) {
+                        echo '<div class="notice notice-error"><p>' . esc_html__('Complete a fresh preview before applying changes.', 'll-tools-text-domain') . '</p></div>';
+                        break;
                     }
-
-                    $inserted = isset($table_apply_summary['shortcodes_inserted']) ? intval($table_apply_summary['shortcodes_inserted']) : 0;
-                    $updated_posts = isset($table_apply_summary['posts_updated']) ? intval($table_apply_summary['posts_updated']) : 0;
-                    $scroll_target = '#ll-table-summary';
-                    printf(
-                        '<div class="notice notice-success"><p>%s</p></div>',
-                        esc_html(
-                            sprintf(
-                                _n(
-                                    'Inserted %1$d shortcode across %2$d post.',
-                                    'Inserted %1$d shortcodes across %2$d posts.',
-                                    $inserted,
-                                    'll-tools-text-domain'
-                                ),
-                                $inserted,
-                                $updated_posts
-                            )
-                        )
-                    );
+                    $maintenance_job = ll_missing_audio_create_maintenance_job('table_apply', $apply_settings);
+                    $maintenance_job = ll_missing_audio_process_maintenance_job($maintenance_job);
                 }
                 break;
 
@@ -303,18 +474,140 @@ function ll_render_missing_audio_admin_page() {
         }
     }
 
-    // Build header list for selection (post-processing to reflect any content updates)
-    $available_table_headers = ll_missing_audio_collect_table_headers();
+    $maintenance_job = ll_missing_audio_get_maintenance_job();
+    $job_kind = sanitize_key((string) ($maintenance_job['kind'] ?? ''));
+    $job_status = sanitize_key((string) ($maintenance_job['status'] ?? ''));
+    $job_settings = is_array($maintenance_job['settings'] ?? null) ? $maintenance_job['settings'] : array();
+    $job_result = is_array($maintenance_job['result'] ?? null) ? $maintenance_job['result'] : array();
+
+    if ($job_kind === 'regex_preview') {
+        $last_regex_pattern = (string) ($job_settings['pattern'] ?? '');
+        $last_saved_pattern_id = sanitize_text_field((string) ($job_settings['pattern_id'] ?? ''));
+        if ($job_status === 'completed') {
+            $regex_preview = $job_result;
+            $scroll_target = '#ll-regex-preview-results';
+        }
+    } elseif ($job_kind === 'regex_apply') {
+        $last_regex_pattern = (string) ($job_settings['pattern'] ?? '');
+        if (in_array($job_status, array('running', 'completed', 'failed'), true)) {
+            $apply_summary = $job_result;
+        }
+        if ($job_status === 'completed') {
+            $scroll_target = '#ll-regex-summary';
+        }
+    } elseif ($job_kind === 'table_preview') {
+        $last_selected_headers = array_values((array) ($job_settings['headers'] ?? array()));
+        if ($job_status === 'completed') {
+            $table_preview = $job_result;
+            $scroll_target = '#ll-table-preview-results';
+        }
+    } elseif ($job_kind === 'table_apply') {
+        $last_selected_headers = array_values((array) ($job_settings['headers'] ?? array()));
+        if (in_array($job_status, array('running', 'completed', 'failed'), true)) {
+            $table_apply_summary = $job_result;
+        }
+        if ($job_status === 'completed') {
+            $scroll_target = '#ll-table-summary';
+        }
+    }
+
+    if ($job_kind === 'scan' && $job_status === 'completed') {
+        $missing_audio_instances = ll_missing_audio_sanitize_cache_keys((array) ($job_result['missing_audio_instances'] ?? array()));
+    } elseif (in_array($job_kind, array('regex_apply', 'table_apply'), true)) {
+        $missing_audio_instances = ll_missing_audio_sanitize_cache_keys(get_option('ll_missing_audio_instances', array()));
+    }
+
+    // Rendering reads the materialized header cache only. Discovery runs through the explicit bounded job.
+    $available_table_headers = ll_missing_audio_get_cached_table_headers();
     ?>
     <div class="wrap">
         <h1><?php echo esc_html__('Language Learner Tools - Missing Audio', 'll-tools-text-domain'); ?></h1>
         <form method="post">
             <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
             <p>
-                <input type="submit" name="scan_missing_audio" class="button button-primary" value="<?php echo esc_attr__('Scan All Posts for Missing Audio', 'll-tools-text-domain'); ?>">
-                <input type="submit" name="clear_cache" class="button button-secondary" value="<?php echo esc_attr__('Clear Cache', 'll-tools-text-domain'); ?>">
+                <input type="submit" name="scan_missing_audio" class="button button-primary" value="<?php echo esc_attr__('Scan All Posts for Missing Audio', 'll-tools-text-domain'); ?>" <?php disabled($job_status, 'running'); ?>>
+                <input type="submit" name="clear_cache" class="button button-secondary" value="<?php echo esc_attr__('Clear Cache', 'll-tools-text-domain'); ?>" <?php disabled($job_status, 'running'); ?>>
             </p>
         </form>
+
+        <?php if (!empty($maintenance_job['id'])) : ?>
+            <?php
+            $job_labels = array(
+                'scan' => __('Missing audio scan', 'll-tools-text-domain'),
+                'headers' => __('Table header refresh', 'll-tools-text-domain'),
+                'regex_preview' => __('Regex preview', 'll-tools-text-domain'),
+                'regex_apply' => __('Regex insertion', 'll-tools-text-domain'),
+                'table_preview' => __('Table preview', 'll-tools-text-domain'),
+                'table_apply' => __('Table insertion', 'll-tools-text-domain'),
+            );
+            $job_label = $job_labels[$job_kind] ?? __('Maintenance job', 'll-tools-text-domain');
+            $processed_posts = max(0, intval($maintenance_job['processed'] ?? 0));
+            $job_candidate_total = in_array($job_kind, array('regex_apply', 'table_apply'), true)
+                ? count((array) ($job_settings['candidate_ids'] ?? array()))
+                : 0;
+            ?>
+            <div class="notice notice-info inline" id="ll-missing-audio-job-status">
+                <p><strong><?php echo esc_html($job_label); ?></strong></p>
+                <p>
+                    <?php if ($job_status === 'running' && $job_candidate_total > 0) : ?>
+                        <?php
+                        echo esc_html(sprintf(
+                            __('Processed %1$d of %2$d matching posts. Continue to run the next bounded batch.', 'll-tools-text-domain'),
+                            min($processed_posts, $job_candidate_total),
+                            $job_candidate_total
+                        ));
+                        ?>
+                    <?php elseif ($job_status === 'running') : ?>
+                        <?php echo esc_html(sprintf(__('Processed %d posts so far. Continue to run the next bounded batch.', 'll-tools-text-domain'), $processed_posts)); ?>
+                    <?php elseif ($job_status === 'completed') : ?>
+                        <?php echo esc_html(sprintf(__('Completed after processing %d posts.', 'll-tools-text-domain'), $processed_posts)); ?>
+                    <?php elseif ($job_status === 'cancelled') : ?>
+                        <?php echo esc_html(sprintf(__('Cancelled after processing %d posts.', 'll-tools-text-domain'), $processed_posts)); ?>
+                    <?php else : ?>
+                        <?php echo esc_html__('The maintenance job stopped before completion.', 'll-tools-text-domain'); ?>
+                    <?php endif; ?>
+                </p>
+                <?php if ($job_kind === 'scan') : ?>
+                    <p><?php echo esc_html(sprintf(__('Missing audio entries found so far: %d.', 'll-tools-text-domain'), intval($job_result['missing_count'] ?? 0))); ?></p>
+                <?php elseif ($job_kind === 'headers') : ?>
+                    <p><?php echo esc_html(sprintf(__('Unique table headers found so far: %d.', 'll-tools-text-domain'), count($job_result))); ?></p>
+                <?php elseif ($job_kind === 'regex_preview') : ?>
+                    <p><?php echo esc_html(sprintf(__('Regex matches found so far: %1$d across %2$d posts.', 'll-tools-text-domain'), intval($job_result['match_total'] ?? 0), intval($job_result['posts_with_matches'] ?? 0))); ?></p>
+                <?php elseif ($job_kind === 'table_preview') : ?>
+                    <p><?php echo esc_html(sprintf(__('Table cells found so far: %1$d across %2$d posts.', 'll-tools-text-domain'), intval($job_result['cell_count'] ?? 0), intval($job_result['posts_with_matches'] ?? 0))); ?></p>
+                <?php elseif (in_array($job_kind, array('regex_apply', 'table_apply'), true)) : ?>
+                    <p>
+                        <?php
+                        echo esc_html(sprintf(
+                            __('Updated %1$d posts and inserted %2$d shortcodes so far. Changed posts skipped: %3$d.', 'll-tools-text-domain'),
+                            intval($job_result['posts_updated'] ?? 0),
+                            intval($job_result['shortcodes_inserted'] ?? 0),
+                            intval($job_result['changed_posts_skipped'] ?? 0)
+                        ));
+                        ?>
+                    </p>
+                <?php endif; ?>
+                <?php if (!empty($job_result['errors']) && is_array($job_result['errors'])) : ?>
+                    <ul style="list-style:disc;margin-left:20px;">
+                        <?php foreach (array_unique(array_map('strval', $job_result['errors'])) as $job_error) : ?>
+                            <li><?php echo esc_html($job_error); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+                <?php if ($job_status === 'running') : ?>
+                    <form method="post" style="display:inline-block;margin:0 6px 8px 0;">
+                        <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
+                        <input type="hidden" name="maintenance_job_id" value="<?php echo esc_attr((string) $maintenance_job['id']); ?>">
+                        <button type="submit" name="continue_maintenance_job" class="button button-primary"><?php echo esc_html__('Continue', 'll-tools-text-domain'); ?></button>
+                    </form>
+                    <form method="post" style="display:inline-block;margin:0 0 8px;">
+                        <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
+                        <input type="hidden" name="maintenance_job_id" value="<?php echo esc_attr((string) $maintenance_job['id']); ?>">
+                        <button type="submit" name="cancel_maintenance_job" class="button button-secondary"><?php echo esc_html__('Cancel', 'll-tools-text-domain'); ?></button>
+                    </form>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
         <hr>
         <h2><?php echo esc_html__('Regex → Insert [word_audio]', 'll-tools-text-domain'); ?></h2>
         <p><?php echo wp_kses_post(sprintf(esc_html__('Find text via regex and wrap it with the %s shortcode. Patterns are stored for re-use and tagged with a comment label.', 'll-tools-text-domain'), '<code>[word_audio]</code>')); ?></p>
@@ -392,8 +685,8 @@ function ll_render_missing_audio_admin_page() {
             </p>
             <p class="description"><?php echo wp_kses_post(sprintf(esc_html__('Uses PHP regex with delimiters. Matches are wrapped as %s.', 'll-tools-text-domain'), '<code>[word_audio]match[/word_audio]</code>')); ?></p>
             <p>
-                <input type="submit" name="preview_regex_matches" class="button button-primary" value="<?php echo esc_attr__('Preview Matches', 'll-tools-text-domain'); ?>">
-                <input type="submit" name="apply_regex_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes Now', 'll-tools-text-domain'); ?>">
+                <input type="submit" name="preview_regex_matches" class="button button-primary" value="<?php echo esc_attr__('Preview Matches', 'll-tools-text-domain'); ?>" <?php disabled($job_status, 'running'); ?>>
+                <input type="submit" name="apply_regex_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes Now', 'll-tools-text-domain'); ?>" <?php disabled(!($job_kind === 'regex_preview' && $job_status === 'completed')); ?>>
             </p>
         </form>
 
@@ -469,6 +762,9 @@ function ll_render_missing_audio_admin_page() {
                 );
                 ?>
             </p>
+            <?php if (!empty($apply_summary['changed_posts_skipped'])) : ?>
+                <p><?php echo esc_html(sprintf(__('Skipped %d posts because their content changed after preview.', 'll-tools-text-domain'), intval($apply_summary['changed_posts_skipped']))); ?></p>
+            <?php endif; ?>
             <?php if (!empty($apply_summary['log'])) : ?>
                 <?php foreach ($apply_summary['log'] as $log_row) : ?>
                     <div style="margin-bottom:10px;">
@@ -490,6 +786,11 @@ function ll_render_missing_audio_admin_page() {
         <hr>
         <h2><?php echo esc_html__('Table Column → Insert [word_audio]', 'll-tools-text-domain'); ?></h2>
         <p><?php echo wp_kses_post(sprintf(esc_html__('Find HTML tables, choose header(s), and wrap every cell in those columns with %s. Existing shortcodes are skipped.', 'll-tools-text-domain'), '<code>[word_audio]</code>')); ?></p>
+        <form method="post" style="margin-bottom:12px;">
+            <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
+            <button type="submit" name="refresh_table_headers" class="button button-secondary" <?php disabled($job_status, 'running'); ?>><?php echo esc_html__('Refresh Table Headers', 'll-tools-text-domain'); ?></button>
+            <span class="description"><?php echo esc_html__('Header discovery runs in bounded batches and is cached for later page loads.', 'll-tools-text-domain'); ?></span>
+        </form>
         <form method="post">
             <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
             <div>
@@ -524,12 +825,12 @@ function ll_render_missing_audio_admin_page() {
                         ?>
                     </p>
                 <?php else : ?>
-                    <p class="description" style="margin-top:6px;"><em><?php echo esc_html__('No table headers found in the scanned post types.', 'll-tools-text-domain'); ?></em></p>
+                    <p class="description" style="margin-top:6px;"><em><?php echo esc_html__('No cached table headers are available. Refresh the header cache to discover them.', 'll-tools-text-domain'); ?></em></p>
                 <?php endif; ?>
             </div>
             <p>
-                <input type="submit" name="preview_table_matches" class="button button-primary" value="<?php echo esc_attr__('Preview Table Matches', 'll-tools-text-domain'); ?>">
-                <input type="submit" name="apply_table_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes in Column Now', 'll-tools-text-domain'); ?>">
+                <input type="submit" name="preview_table_matches" class="button button-primary" value="<?php echo esc_attr__('Preview Table Matches', 'll-tools-text-domain'); ?>" <?php disabled($job_status, 'running'); ?>>
+                <input type="submit" name="apply_table_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes in Column Now', 'll-tools-text-domain'); ?>" <?php disabled(!($job_kind === 'table_preview' && $job_status === 'completed')); ?>>
             </p>
         </form>
 
@@ -608,6 +909,9 @@ function ll_render_missing_audio_admin_page() {
                 );
                 ?>
             </p>
+            <?php if (!empty($table_apply_summary['changed_posts_skipped'])) : ?>
+                <p><?php echo esc_html(sprintf(__('Skipped %d posts because their content changed after preview.', 'll-tools-text-domain'), intval($table_apply_summary['changed_posts_skipped']))); ?></p>
+            <?php endif; ?>
             <?php if (!empty($table_apply_summary['log'])) : ?>
                 <?php foreach ($table_apply_summary['log'] as $log_row) : ?>
                     <div style="margin-bottom:10px;">
@@ -695,6 +999,40 @@ function ll_missing_audio_get_scan_post_types() {
     return $post_types;
 }
 
+function ll_missing_audio_get_maintenance_batch_size() {
+    $limit = intval(apply_filters('ll_missing_audio_maintenance_batch_size', 10));
+    return max(1, min(50, $limit));
+}
+
+function ll_missing_audio_get_post_id_batch($after_id = 0, $limit = 0) {
+    global $wpdb;
+
+    $post_types = array_values(array_filter(array_map('sanitize_key', (array) ll_missing_audio_get_scan_post_types())));
+    if (empty($post_types)) {
+        return array('ids' => array(), 'next_cursor' => max(0, intval($after_id)), 'has_more' => false);
+    }
+    $limit = $limit > 0 ? max(1, min(50, intval($limit))) : ll_missing_audio_get_maintenance_batch_size();
+    $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+    $args = array_merge($post_types, array(max(0, intval($after_id)), $limit + 1));
+    $sql = $wpdb->prepare(
+        "SELECT ID FROM {$wpdb->posts}
+         WHERE post_type IN ({$placeholders})
+           AND post_status = 'publish'
+           AND ID > %d
+         ORDER BY ID ASC
+         LIMIT %d",
+        $args
+    );
+    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($sql))));
+    $has_more = count($ids) > $limit;
+    $ids = array_slice($ids, 0, $limit);
+    return array(
+        'ids' => $ids,
+        'next_cursor' => empty($ids) ? max(0, intval($after_id)) : max($ids),
+        'has_more' => $has_more,
+    );
+}
+
 /**
  * Scan all posts for [word_audio] shortcodes that lack matching audio and rebuild the cache.
  *
@@ -704,8 +1042,8 @@ function ll_missing_audio_get_scan_post_types() {
  *     @type int   $posts_scanned           Number of posts scanned.
  * }
  */
-function ll_run_missing_audio_scan() {
-    $missing_audio_instances = array();
+function ll_run_missing_audio_scan($post_ids = null, $missing_audio_instances = array()) {
+    $missing_audio_instances = is_array($missing_audio_instances) ? $missing_audio_instances : array();
 
     $post_types = ll_missing_audio_get_scan_post_types();
 
@@ -717,18 +1055,14 @@ function ll_run_missing_audio_scan() {
         );
     }
 
-    $query = new WP_Query(array(
-        'post_type'      => $post_types,
-        'post_status'    => array('publish'),
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ));
+    if ($post_ids === null) {
+        $post_ids = ll_missing_audio_get_post_id_batch(0, ll_missing_audio_get_maintenance_batch_size())['ids'];
+    }
+    $post_ids = array_values(array_filter(array_map('intval', (array) $post_ids)));
+    $posts_scanned = count($post_ids);
 
-    $posts_scanned = is_array($query->posts) ? count($query->posts) : 0;
-
-    if (!empty($query->posts)) {
-        foreach ($query->posts as $post_id) {
+    if (!empty($post_ids)) {
+        foreach ($post_ids as $post_id) {
             $content = get_post_field('post_content', $post_id);
             if (empty($content) || stripos($content, '[word_audio') === false) {
                 continue;
@@ -742,10 +1076,6 @@ function ll_run_missing_audio_scan() {
         }
         }
     }
-
-    wp_reset_postdata();
-
-    update_option('ll_missing_audio_instances', $missing_audio_instances);
 
     return array(
         'missing_audio_instances' => $missing_audio_instances,
@@ -918,13 +1248,40 @@ function ll_missing_audio_resolve_pattern_from_request($patterns, $request) {
  * @return bool
  */
 function ll_missing_audio_is_valid_regex($pattern) {
-    if ($pattern === '') {
+    $pattern = (string) $pattern;
+    $max_length = max(64, min(1024, intval(apply_filters('ll_missing_audio_regex_max_length', 512))));
+    if ($pattern === '' || strlen($pattern) > $max_length) {
+        return false;
+    }
+    if (preg_match('/\(\?(?:R|0|[1-9][0-9]*|&[A-Za-z_][A-Za-z0-9_]*)\)/', $pattern)) {
         return false;
     }
     set_error_handler(function () { /* suppress */ });
     $is_valid = @preg_match($pattern, '') !== false;
     restore_error_handler();
     return $is_valid;
+}
+
+function ll_missing_audio_preg_match_all($pattern, $content, &$found) {
+    $old_backtrack = ini_get('pcre.backtrack_limit');
+    $old_recursion = ini_get('pcre.recursion_limit');
+    @ini_set('pcre.backtrack_limit', '250000');
+    @ini_set('pcre.recursion_limit', '10000');
+    try {
+        set_error_handler(function () { /* suppress */ });
+        try {
+            return @preg_match_all($pattern, $content, $found, PREG_OFFSET_CAPTURE);
+        } finally {
+            restore_error_handler();
+        }
+    } finally {
+        if ($old_backtrack !== false) {
+            @ini_set('pcre.backtrack_limit', (string) $old_backtrack);
+        }
+        if ($old_recursion !== false) {
+            @ini_set('pcre.recursion_limit', (string) $old_recursion);
+        }
+    }
 }
 
 /**
@@ -998,29 +1355,26 @@ function ll_build_match_context_html($content, $offset, $length) {
  * @param string $pattern
  * @return array
  */
-function ll_find_word_audio_regex_matches($pattern) {
+function ll_find_word_audio_regex_matches($pattern, $post_ids = null, $results = array()) {
     $post_types = ll_missing_audio_get_scan_post_types();
-    $results = array(
+    $results = is_array($results) ? array_merge(array(
         'matches' => array(),
         'match_total' => 0,
         'posts_with_matches' => 0,
         'errors' => array(),
-    );
+    ), $results) : array();
 
     if (empty($post_types)) {
         return $results;
     }
 
-    $query = new WP_Query(array(
-        'post_type'      => $post_types,
-        'post_status'    => array('publish'),
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ));
+    if ($post_ids === null) {
+        $post_ids = ll_missing_audio_get_post_id_batch(0, ll_missing_audio_get_maintenance_batch_size())['ids'];
+    }
+    $post_ids = array_values(array_filter(array_map('intval', (array) $post_ids)));
 
-    if (!empty($query->posts)) {
-        foreach ($query->posts as $post_id) {
+    if (!empty($post_ids)) {
+        foreach ($post_ids as $post_id) {
             if (!current_user_can('edit_post', $post_id)) {
                 continue;
             }
@@ -1032,9 +1386,8 @@ function ll_find_word_audio_regex_matches($pattern) {
 
             $spans = ll_get_word_audio_shortcode_spans($content);
 
-            set_error_handler(function () { /* suppress */ });
-            $match_count = @preg_match_all($pattern, $content, $found, PREG_OFFSET_CAPTURE);
-            restore_error_handler();
+            $found = array();
+            $match_count = ll_missing_audio_preg_match_all($pattern, $content, $found);
 
             if ($match_count === false) {
                 $results['errors'][] = sprintf(__('Failed to run regex on post ID %d', 'll-tools-text-domain'), $post_id);
@@ -1074,6 +1427,7 @@ function ll_find_word_audio_regex_matches($pattern) {
             if (!empty($post_matches)) {
                 $results['matches'][$post_id] = array(
                     'title' => get_the_title($post_id),
+                    'content_fingerprint' => hash('sha256', $content),
                     'matches' => $post_matches,
                 );
                 $results['match_total'] += count($post_matches);
@@ -1081,8 +1435,6 @@ function ll_find_word_audio_regex_matches($pattern) {
             }
         }
     }
-
-    wp_reset_postdata();
 
     return $results;
 }
@@ -1093,29 +1445,27 @@ function ll_find_word_audio_regex_matches($pattern) {
  * @param string $pattern
  * @return array Summary data.
  */
-function ll_apply_word_audio_insertions($pattern, $exclusions = array()) {
+function ll_apply_word_audio_insertions($pattern, $exclusions = array(), $post_ids = null, $fingerprints = array(), $summary = array()) {
     $post_types = ll_missing_audio_get_scan_post_types();
-    $summary = array(
+    $summary = array_merge(array(
         'posts_updated' => 0,
         'shortcodes_inserted' => 0,
         'log' => array(),
         'errors' => array(),
-    );
+        'changed_posts_skipped' => 0,
+    ), is_array($summary) ? $summary : array());
 
     if (empty($post_types)) {
         return $summary;
     }
 
-    $query = new WP_Query(array(
-        'post_type'      => $post_types,
-        'post_status'    => array('publish'),
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ));
+    if ($post_ids === null) {
+        $post_ids = ll_missing_audio_get_post_id_batch(0, ll_missing_audio_get_maintenance_batch_size())['ids'];
+    }
+    $post_ids = array_values(array_filter(array_map('intval', (array) $post_ids)));
 
-    if (!empty($query->posts)) {
-        foreach ($query->posts as $post_id) {
+    if (!empty($post_ids)) {
+        foreach ($post_ids as $post_id) {
             if (!current_user_can('edit_post', $post_id)) {
                 continue;
             }
@@ -1124,12 +1474,16 @@ function ll_apply_word_audio_insertions($pattern, $exclusions = array()) {
             if ($content === '') {
                 continue;
             }
+            if (isset($fingerprints[$post_id]) && !hash_equals((string) $fingerprints[$post_id], hash('sha256', $content))) {
+                $summary['changed_posts_skipped']++;
+                $summary['errors'][] = sprintf(__('Skipped changed post ID %d; preview it again before applying.', 'll-tools-text-domain'), $post_id);
+                continue;
+            }
 
             $spans = ll_get_word_audio_shortcode_spans($content);
 
-            set_error_handler(function () { /* suppress */ });
-            $match_count = @preg_match_all($pattern, $content, $found, PREG_OFFSET_CAPTURE);
-            restore_error_handler();
+            $found = array();
+            $match_count = ll_missing_audio_preg_match_all($pattern, $content, $found);
 
             if ($match_count === false) {
                 $summary['errors'][] = sprintf(__('Failed to run regex on post ID %d', 'll-tools-text-domain'), $post_id);
@@ -1183,10 +1537,18 @@ function ll_apply_word_audio_insertions($pattern, $exclusions = array()) {
             $updated_content = ll_wrap_matches_with_word_audio_shortcode($content, $matches_for_replacement);
 
             if ($updated_content !== $content) {
-                wp_update_post(array(
+                $update_result = wp_update_post(array(
                     'ID' => $post_id,
                     'post_content' => $updated_content,
-                ));
+                ), true);
+                if (is_wp_error($update_result)) {
+                    $summary['errors'][] = sprintf(
+                        __('Failed to update post ID %1$d: %2$s', 'll-tools-text-domain'),
+                        $post_id,
+                        $update_result->get_error_message()
+                    );
+                    continue;
+                }
 
                 $summary['posts_updated']++;
                 $summary['shortcodes_inserted'] += count($matches_for_replacement);
@@ -1206,8 +1568,6 @@ function ll_apply_word_audio_insertions($pattern, $exclusions = array()) {
             }
         }
     }
-
-    wp_reset_postdata();
 
     return $summary;
 }
@@ -1343,24 +1703,21 @@ function ll_missing_audio_normalize_header_text($text) {
  *
  * @return array Each entry: ['label' => string, 'count' => int]
  */
-function ll_missing_audio_collect_table_headers() {
+function ll_missing_audio_collect_table_headers($post_ids = null, $headers = array(), $return_raw = false) {
     $post_types = ll_missing_audio_get_scan_post_types();
-    $headers = array();
+    $headers = is_array($headers) ? $headers : array();
 
     if (empty($post_types)) {
         return $headers;
     }
 
-    $query = new WP_Query(array(
-        'post_type'      => $post_types,
-        'post_status'    => array('publish'),
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ));
+    if ($post_ids === null) {
+        $post_ids = ll_missing_audio_get_post_id_batch(0, ll_missing_audio_get_maintenance_batch_size())['ids'];
+    }
+    $post_ids = array_values(array_filter(array_map('intval', (array) $post_ids)));
 
-    if (!empty($query->posts)) {
-        foreach ($query->posts as $post_id) {
+    if (!empty($post_ids)) {
+        foreach ($post_ids as $post_id) {
             if (!current_user_can('edit_post', $post_id)) {
                 continue;
             }
@@ -1429,7 +1786,9 @@ function ll_missing_audio_collect_table_headers() {
         }
     }
 
-    wp_reset_postdata();
+    if ($return_raw) {
+        return $headers;
+    }
 
     // Drop headers that are fully covered by existing shortcodes everywhere
     $filtered = array_filter($headers, function ($meta) {
@@ -1472,14 +1831,14 @@ function ll_missing_audio_parse_selected_headers($request) {
  * @param array $header_targets
  * @return array
  */
-function ll_find_table_column_word_audio_matches($header_targets) {
+function ll_find_table_column_word_audio_matches($header_targets, $post_ids = null, $results = array()) {
     $post_types = ll_missing_audio_get_scan_post_types();
-    $results = array(
+    $results = array_merge(array(
         'matches' => array(),
         'cell_count' => 0,
         'posts_with_matches' => 0,
         'errors' => array(),
-    );
+    ), is_array($results) ? $results : array());
 
     $target_map = array();
     $targets = is_array($header_targets) ? $header_targets : array($header_targets);
@@ -1499,16 +1858,13 @@ function ll_find_table_column_word_audio_matches($header_targets) {
         return $results;
     }
 
-    $query = new WP_Query(array(
-        'post_type'      => $post_types,
-        'post_status'    => array('publish'),
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ));
+    if ($post_ids === null) {
+        $post_ids = ll_missing_audio_get_post_id_batch(0, ll_missing_audio_get_maintenance_batch_size())['ids'];
+    }
+    $post_ids = array_values(array_filter(array_map('intval', (array) $post_ids)));
 
-    if (!empty($query->posts)) {
-        foreach ($query->posts as $post_id) {
+    if (!empty($post_ids)) {
+        foreach ($post_ids as $post_id) {
             if (!current_user_can('edit_post', $post_id)) {
                 continue;
             }
@@ -1584,6 +1940,7 @@ function ll_find_table_column_word_audio_matches($header_targets) {
             if (!empty($post_cells)) {
                 $results['matches'][$post_id] = array(
                     'title' => get_the_title($post_id),
+                    'content_fingerprint' => hash('sha256', $content),
                     'cells' => $post_cells,
                 );
                 $results['cell_count'] += count($post_cells);
@@ -1591,8 +1948,6 @@ function ll_find_table_column_word_audio_matches($header_targets) {
             }
         }
     }
-
-    wp_reset_postdata();
 
     return $results;
 }
@@ -1604,14 +1959,15 @@ function ll_find_table_column_word_audio_matches($header_targets) {
  * @param array $exclusions
  * @return array
  */
-function ll_apply_table_column_word_audio_insertions($header_targets, $exclusions = array()) {
+function ll_apply_table_column_word_audio_insertions($header_targets, $exclusions = array(), $post_ids = null, $fingerprints = array(), $summary = array()) {
     $post_types = ll_missing_audio_get_scan_post_types();
-    $summary = array(
+    $summary = array_merge(array(
         'posts_updated' => 0,
         'shortcodes_inserted' => 0,
         'log' => array(),
         'errors' => array(),
-    );
+        'changed_posts_skipped' => 0,
+    ), is_array($summary) ? $summary : array());
 
     $target_map = array();
     $targets = is_array($header_targets) ? $header_targets : array($header_targets);
@@ -1631,22 +1987,24 @@ function ll_apply_table_column_word_audio_insertions($header_targets, $exclusion
         return $summary;
     }
 
-    $query = new WP_Query(array(
-        'post_type'      => $post_types,
-        'post_status'    => array('publish'),
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ));
+    if ($post_ids === null) {
+        $post_ids = ll_missing_audio_get_post_id_batch(0, ll_missing_audio_get_maintenance_batch_size())['ids'];
+    }
+    $post_ids = array_values(array_filter(array_map('intval', (array) $post_ids)));
 
-    if (!empty($query->posts)) {
-        foreach ($query->posts as $post_id) {
+    if (!empty($post_ids)) {
+        foreach ($post_ids as $post_id) {
             if (!current_user_can('edit_post', $post_id)) {
                 continue;
             }
 
             $content = get_post_field('post_content', $post_id);
             if ($content === '') {
+                continue;
+            }
+            if (isset($fingerprints[$post_id]) && !hash_equals((string) $fingerprints[$post_id], hash('sha256', $content))) {
+                $summary['changed_posts_skipped']++;
+                $summary['errors'][] = sprintf(__('Skipped changed post ID %d; preview it again before applying.', 'll-tools-text-domain'), $post_id);
                 continue;
             }
 
@@ -1736,10 +2094,18 @@ function ll_apply_table_column_word_audio_insertions($header_targets, $exclusion
                 }
 
                 if ($new_content !== $content) {
-                    wp_update_post(array(
+                    $update_result = wp_update_post(array(
                         'ID' => $post_id,
                         'post_content' => $new_content,
-                    ));
+                    ), true);
+                    if (is_wp_error($update_result)) {
+                        $summary['errors'][] = sprintf(
+                            __('Failed to update post ID %1$d: %2$s', 'll-tools-text-domain'),
+                            $post_id,
+                            $update_result->get_error_message()
+                        );
+                        continue;
+                    }
                     $summary['posts_updated']++;
                     $summary['shortcodes_inserted'] += $inserted_here;
                     $summary['log'][] = array(
@@ -1751,8 +2117,6 @@ function ll_apply_table_column_word_audio_insertions($header_targets, $exclusion
             }
         }
     }
-
-    wp_reset_postdata();
 
     return $summary;
 }
