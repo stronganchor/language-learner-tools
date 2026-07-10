@@ -1272,7 +1272,7 @@
             } else if (!settings.quietStatus) {
                 setStatus('');
             }
-        }).fail(function () {
+        }).fail(function (xhr) {
             if (settings.showLoading) {
                 $searchResults.empty();
                 setSearchSummary('');
@@ -1280,7 +1280,10 @@
             } else if (settings.append) {
                 setSearchLoadMoreState(false);
             }
-            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+            const responseMessage = xhr && xhr.responseJSON && typeof xhr.responseJSON.data === 'string'
+                ? xhr.responseJSON.data
+                : '';
+            setStatus(responseMessage || t('error', 'Something went wrong. Please try again.'), true);
         });
     }
 
@@ -1294,9 +1297,19 @@
         );
     }
 
-    function buildSearchSummaryText(totalMatches, pageStart, pageEnd, issuesOnly, reviewOnly) {
+    function buildSearchSummaryText(totalMatches, pageStart, pageEnd, issuesOnly, reviewOnly, totalExact) {
         if (totalMatches <= 0) {
             return '';
+        }
+
+        if (totalExact === false) {
+            return formatCount(
+                totalMatches,
+                'searchSummaryLoaded',
+                'searchSummaryLoadedPlural',
+                '%1$d matching recording loaded',
+                '%1$d matching recordings loaded'
+            );
         }
 
         if (totalMatches > 1 && pageStart > 0 && pageEnd >= pageStart) {
@@ -3364,12 +3377,15 @@
             setSearchSummary('');
             $searchResults.append($('<div>', {
                 class: 'll-ipa-empty',
-                text: t('searchResultsEmpty', 'No recordings matched this search.')
+                text: payload.has_more
+                    ? t('searchResultsWindowEmpty', 'No matches in this batch. Continue searching to check the remaining recordings.')
+                    : t('searchResultsEmpty', 'No recordings matched this search.')
             }));
+            replaceSearchLazyControl(currentSearchPayload, false);
             return;
         }
 
-        setSearchSummary(buildSearchSummaryText(totalMatches, pageStart, pageEnd, issuesOnly, reviewOnly));
+        setSearchSummary(buildSearchSummaryText(totalMatches, pageStart, pageEnd, issuesOnly, reviewOnly, payload.total_exact !== false));
 
         const $table = $('<table>', { class: 'widefat striped ll-ipa-search-table' });
         const $colgroup = $('<colgroup>')
@@ -3425,11 +3441,18 @@
         });
 
         const previousResults = Array.isArray(currentSearchPayload.results) ? currentSearchPayload.results : [];
-        const pageStart = parseInt(currentSearchPayload.page_start, 10) || parseInt(payload.page_start, 10) || 0;
-        const pageEnd = parseInt(payload.page_end, 10) || pageStart + $tbody.children('tr').length - 1;
+        const scanBatched = !!payload.scan_batched;
+        const displayedCount = $tbody.children('tr').length;
+        const pageStart = scanBatched
+            ? (displayedCount > 0 ? 1 : 0)
+            : (parseInt(currentSearchPayload.page_start, 10) || parseInt(payload.page_start, 10) || 0);
+        const pageEnd = scanBatched
+            ? displayedCount
+            : (parseInt(payload.page_end, 10) || pageStart + displayedCount - 1);
         currentSearchPayload = $.extend({}, currentSearchPayload, payload, {
             results: previousResults.concat(appended),
-            shown_count: $tbody.children('tr').length,
+            shown_count: displayedCount,
+            total_matches: scanBatched ? displayedCount : (parseInt(payload.total_matches, 10) || 0),
             page_start: pageStart,
             page_end: pageEnd
         });
@@ -3439,7 +3462,8 @@
             parseInt(currentSearchPayload.page_start, 10) || 0,
             parseInt(currentSearchPayload.page_end, 10) || 0,
             !!currentSearchPayload.issues_only,
-            !!currentSearchPayload.review_only
+            !!currentSearchPayload.review_only,
+            currentSearchPayload.total_exact !== false
         ));
         replaceSearchLazyControl(currentSearchPayload, false);
     }

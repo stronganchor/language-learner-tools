@@ -171,6 +171,93 @@ function ll_tools_ipa_keyboard_sanitize_search_query($raw): string {
     return trim((string) $query);
 }
 
+function ll_tools_ipa_keyboard_get_search_query_max_length(): int {
+    return max(32, min(512, (int) apply_filters('ll_tools_ipa_keyboard_search_query_max_length', 256)));
+}
+
+function ll_tools_ipa_keyboard_get_regex_query_max_length(): int {
+    return max(16, min(256, (int) apply_filters('ll_tools_ipa_keyboard_regex_query_max_length', 128)));
+}
+
+function ll_tools_ipa_keyboard_validate_search_query(string $query) {
+    $length = function_exists('mb_strlen') ? mb_strlen($query, 'UTF-8') : strlen($query);
+    if ($length > ll_tools_ipa_keyboard_get_search_query_max_length()) {
+        return new WP_Error(
+            'll_tools_ipa_search_query_too_long',
+            sprintf(
+                /* translators: %d: maximum search query length. */
+                __('Search queries are limited to %d characters.', 'll-tools-text-domain'),
+                ll_tools_ipa_keyboard_get_search_query_max_length()
+            )
+        );
+    }
+
+    if (stripos($query, 'rx:') !== 0) {
+        return true;
+    }
+
+    return ll_tools_ipa_keyboard_build_limited_regex_pattern(trim(substr($query, 3)));
+}
+
+function ll_tools_ipa_keyboard_build_limited_regex_pattern(string $raw_pattern) {
+    $raw_pattern = trim($raw_pattern);
+    if ($raw_pattern === '') {
+        return new WP_Error('ll_tools_ipa_search_regex_empty', __('Enter a regular expression after rx:.', 'll-tools-text-domain'));
+    }
+
+    $body = $raw_pattern;
+    $modifiers = 'u';
+    if ($raw_pattern[0] === '/') {
+        $closing_delimiter = strrpos($raw_pattern, '/');
+        if ($closing_delimiter === 0) {
+            return new WP_Error('ll_tools_ipa_search_regex_invalid', __('The regular expression is invalid.', 'll-tools-text-domain'));
+        }
+        $body = substr($raw_pattern, 1, $closing_delimiter - 1);
+        $modifiers = substr($raw_pattern, $closing_delimiter + 1);
+        if ($modifiers === '') {
+            $modifiers = 'u';
+        } elseif (preg_match('/[^imsxuADUJu]/', $modifiers)) {
+            return new WP_Error('ll_tools_ipa_search_regex_modifiers', __('The regular expression uses unsupported modifiers.', 'll-tools-text-domain'));
+        } elseif (strpos($modifiers, 'u') === false) {
+            $modifiers .= 'u';
+        }
+    }
+
+    $length = function_exists('mb_strlen') ? mb_strlen($body, 'UTF-8') : strlen($body);
+    if ($length > ll_tools_ipa_keyboard_get_regex_query_max_length()) {
+        return new WP_Error(
+            'll_tools_ipa_search_regex_too_long',
+            sprintf(
+                /* translators: %d: maximum regular expression length. */
+                __('Regular expressions are limited to %d characters.', 'll-tools-text-domain'),
+                ll_tools_ipa_keyboard_get_regex_query_max_length()
+            )
+        );
+    }
+
+    if (preg_match('/\(\?(?:R|0|[1-9][0-9]*|&|P>)/i', $body)) {
+        return new WP_Error('ll_tools_ipa_search_regex_recursive', __('Recursive regular expressions are not supported.', 'll-tools-text-domain'));
+    }
+
+    $delimiter = '~';
+    foreach (['~', '#', '%', '!', ';'] as $candidate) {
+        if (strpos($body, $candidate) === false) {
+            $delimiter = $candidate;
+            break;
+        }
+    }
+    if (strpos($body, $delimiter) !== false) {
+        $body = str_replace($delimiter, '\\' . $delimiter, $body);
+    }
+
+    $pattern = $delimiter . '(*LIMIT_MATCH=50000)(*LIMIT_DEPTH=250)' . $body . $delimiter . $modifiers;
+    if (@preg_match($pattern, '') === false) {
+        return new WP_Error('ll_tools_ipa_search_regex_invalid', __('The regular expression is invalid.', 'll-tools-text-domain'));
+    }
+
+    return $pattern;
+}
+
 function ll_tools_ipa_keyboard_sanitize_search_page($raw): int {
     $page = is_scalar($raw) ? (int) $raw : 1;
     return max(1, $page);
@@ -349,8 +436,11 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchLoading' => __('Searching recordings...', 'll-tools-text-domain'),
             'searchLoadingHint' => __('This can take a moment for larger word sets.', 'll-tools-text-domain'),
             'searchResultsEmpty' => __('No recordings matched this search.', 'll-tools-text-domain'),
+            'searchResultsWindowEmpty' => __('No matches in this batch. Continue searching to check the remaining recordings.', 'll-tools-text-domain'),
             'searchSummary' => __('%1$d result', 'll-tools-text-domain'),
             'searchSummaryPlural' => __('%1$d results', 'll-tools-text-domain'),
+            'searchSummaryLoaded' => __('%1$d matching recording loaded', 'll-tools-text-domain'),
+            'searchSummaryLoadedPlural' => __('%1$d matching recordings loaded', 'll-tools-text-domain'),
             'searchFilteredSummary' => __('Showing %1$d flagged recording', 'll-tools-text-domain'),
             'searchFilteredSummaryPlural' => __('Showing %1$d flagged recordings', 'll-tools-text-domain'),
             'searchReviewSummary' => __('Showing %1$d transcription needing review', 'll-tools-text-domain'),
@@ -572,7 +662,7 @@ function ll_render_ipa_keyboard_admin_page() {
     echo '<p class="description">' . esc_html__('Search written text or IPA and edit recordings inline. Typo checks are available below as an advanced section.', 'll-tools-text-domain') . '</p>';
     echo '<div class="ll-ipa-search-controls">';
     echo '<label class="screen-reader-text" for="ll-ipa-search-query">' . esc_html__('Search recordings', 'll-tools-text-domain') . '</label>';
-    echo '<input type="search" id="ll-ipa-search-query" class="ll-ipa-search-input" value="' . esc_attr($initial_search['query']) . '" placeholder="' . esc_attr__('Search written text or IPA', 'll-tools-text-domain') . '" />';
+    echo '<input type="search" id="ll-ipa-search-query" class="ll-ipa-search-input" maxlength="' . esc_attr((string) ll_tools_ipa_keyboard_get_search_query_max_length()) . '" value="' . esc_attr($initial_search['query']) . '" placeholder="' . esc_attr__('Search written text or IPA', 'll-tools-text-domain') . '" />';
     echo '<label class="screen-reader-text" for="ll-ipa-search-scope">' . esc_html__('Search field', 'll-tools-text-domain') . '</label>';
     echo '<select id="ll-ipa-search-scope" class="ll-ipa-search-scope">';
     echo '<option value="both"' . selected($initial_search['scope'], 'both', false) . '>' . esc_html__('Written or transcription', 'll-tools-text-domain') . '</option>';
@@ -627,7 +717,11 @@ function ll_render_ipa_keyboard_admin_page() {
     echo '</div>';
 }
 
-function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): array {
+function ll_tools_ipa_keyboard_get_transcription_config(
+    int $wordset_id = 0,
+    bool $cached_inventory_only = false,
+    array $candidate_recordings = []
+): array {
     $config = function_exists('ll_tools_get_wordset_recording_transcription_config')
         ? ll_tools_get_wordset_recording_transcription_config($wordset_id > 0 ? [$wordset_id] : [], true)
         : [
@@ -699,7 +793,9 @@ function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): ar
         $config['keyboard_aria_label'] = __('IPA symbols', 'll-tools-text-domain');
     }
 
-    $keyboard_inventory = ll_tools_ipa_keyboard_get_keyboard_inventory($wordset_id, $mode);
+    $keyboard_inventory = $cached_inventory_only
+        ? ll_tools_ipa_keyboard_get_cached_keyboard_inventory($wordset_id, $mode, $candidate_recordings)
+        : ll_tools_ipa_keyboard_get_keyboard_inventory($wordset_id, $mode);
     $config['keyboard_symbols'] = function_exists('ll_tools_compact_secondary_text_keyboard_symbols')
         ? ll_tools_compact_secondary_text_keyboard_symbols((array) ($keyboard_inventory['symbols'] ?? []), $mode)
         : array_values((array) ($keyboard_inventory['symbols'] ?? []));
@@ -720,6 +816,56 @@ function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): ar
     $config['illegal_symbols'] = array_values((array) ($keyboard_inventory['illegal_symbols'] ?? []));
 
     return $config;
+}
+
+function ll_tools_ipa_keyboard_get_cached_keyboard_inventory(
+    int $wordset_id,
+    string $transcription_mode = '',
+    array $candidate_recordings = []
+): array {
+    $mode = in_array($transcription_mode, ['ipa', 'transliteration', 'transcription'], true)
+        ? $transcription_mode
+        : ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
+    $illegal_symbols = function_exists('ll_tools_get_wordset_secondary_text_illegal_symbols')
+        ? ll_tools_get_wordset_secondary_text_illegal_symbols($wordset_id, $mode)
+        : [];
+    $recording_counts = [];
+    foreach ($candidate_recordings as $recording) {
+        if (!is_array($recording) || !empty($recording['review_fields']['recording_ipa'])) {
+            continue;
+        }
+        $tokens = function_exists('ll_tools_word_grid_tokenize_ipa')
+            ? ll_tools_word_grid_tokenize_ipa((string) ($recording['recording_ipa'] ?? ''), $mode)
+            : preg_split('//u', (string) ($recording['recording_ipa'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
+        $seen = [];
+        foreach ((array) $tokens as $token) {
+            $token = ll_tools_ipa_keyboard_normalize_ipa_token((string) $token, $mode);
+            if ($token === '' || isset($seen[$token])) {
+                continue;
+            }
+            if (function_exists('ll_tools_word_grid_is_special_ipa_token')
+                && !ll_tools_word_grid_is_special_ipa_token($token, $mode)) {
+                continue;
+            }
+            if (function_exists('ll_tools_secondary_text_token_has_illegal_symbol')
+                && ll_tools_secondary_text_token_has_illegal_symbol($token, $illegal_symbols) !== '') {
+                continue;
+            }
+            $seen[$token] = true;
+            $recording_counts[$token] = (int) ($recording_counts[$token] ?? 0) + 1;
+        }
+    }
+    $symbols = array_keys($recording_counts);
+    if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+        $symbols = ll_tools_sort_secondary_text_symbols($symbols, $mode);
+    }
+
+    return [
+        'symbols' => array_values((array) $symbols),
+        'recording_counts' => $recording_counts,
+        'illegal_symbols' => array_values((array) $illegal_symbols),
+        'mode' => $mode,
+    ];
 }
 
 function ll_tools_ipa_keyboard_get_keyboard_inventory(int $wordset_id = 0, string $transcription_mode = ''): array {
@@ -2358,8 +2504,7 @@ function ll_tools_ipa_keyboard_build_validation_rule_summary(array $rule): strin
 }
 
 function ll_tools_ipa_keyboard_build_validation_config_payload(int $wordset_id): array {
-    $transcription = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
-    $mode = (string) ($transcription['mode'] ?? 'ipa');
+    $mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $config = ll_tools_ipa_keyboard_get_wordset_validation_config($wordset_id);
     $builtin_rules = ll_tools_ipa_keyboard_get_builtin_validation_rules();
 
@@ -8032,13 +8177,9 @@ function ll_tools_ipa_keyboard_text_matches_pattern(string $value, string $query
     }
 
     if (stripos($query, 'rx:') === 0) {
-        $pattern = trim(substr($query, 3));
-        if ($pattern === '') {
+        $pattern = ll_tools_ipa_keyboard_build_limited_regex_pattern(trim(substr($query, 3)));
+        if (is_wp_error($pattern)) {
             return false;
-        }
-
-        if ($pattern[0] !== '/') {
-            $pattern = '/' . str_replace('/', '\/', $pattern) . '/u';
         }
 
         $result = @preg_match($pattern, $value);
@@ -8456,37 +8597,123 @@ function ll_tools_ipa_keyboard_get_issue_search_stale_refresh_limit(): int {
     return max(0, min(100, $limit));
 }
 
-function ll_tools_ipa_keyboard_get_search_recording_ids(array $word_ids, bool $issues_only = false): array {
-    $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
-        return $word_id > 0;
-    }));
-    if (empty($word_ids)) {
+function ll_tools_ipa_keyboard_get_search_candidate_batch_size(int $per_page): int {
+    $default = $per_page;
+    $batch_size = (int) apply_filters('ll_tools_ipa_keyboard_search_candidate_batch_size', $default, $per_page);
+    return max($per_page, min(500, $batch_size));
+}
+
+function ll_tools_ipa_keyboard_get_search_recording_sql(bool $issues_only, bool $review_only): string {
+    global $wpdb;
+
+    $where = [
+        "a.post_type = 'word_audio'",
+        "a.post_status = 'publish'",
+        "w.post_type = 'words'",
+        "w.post_status = 'publish'",
+        "tt.taxonomy = 'wordset'",
+        'tt.term_id = %d',
+    ];
+    if ($issues_only) {
+        $where[] = $wpdb->prepare(
+            "EXISTS (SELECT 1 FROM {$wpdb->postmeta} issue_pm WHERE issue_pm.post_id = a.ID AND issue_pm.meta_key = %s AND CAST(issue_pm.meta_value AS UNSIGNED) > 0)",
+            ll_tools_ipa_keyboard_validation_issue_count_meta_key()
+        );
+    }
+    if ($review_only) {
+        $where[] = $wpdb->prepare(
+            "EXISTS (SELECT 1 FROM {$wpdb->postmeta} review_pm WHERE review_pm.post_id = a.ID AND review_pm.meta_key = %s AND review_pm.meta_value = '1')",
+            ll_tools_ipa_keyboard_auto_review_meta_key()
+        );
+    }
+
+    return " FROM {$wpdb->posts} a"
+        . " INNER JOIN {$wpdb->posts} w ON w.ID = a.post_parent"
+        . " INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = w.ID"
+        . " INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id"
+        . ' WHERE ' . implode(' AND ', $where);
+}
+
+function ll_tools_ipa_keyboard_count_search_recording_candidates(int $wordset_id, bool $issues_only, bool $review_only): int {
+    global $wpdb;
+
+    if ($wordset_id <= 0) {
+        return 0;
+    }
+
+    $sql = 'SELECT COUNT(a.ID)' . ll_tools_ipa_keyboard_get_search_recording_sql($issues_only, $review_only);
+    return max(0, (int) $wpdb->get_var($wpdb->prepare($sql, $wordset_id))); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+}
+
+function ll_tools_ipa_keyboard_get_search_recording_id_page(
+    int $wordset_id,
+    bool $issues_only,
+    bool $review_only,
+    int $limit,
+    int $offset
+): array {
+    global $wpdb;
+
+    if ($wordset_id <= 0 || $limit <= 0) {
         return [];
     }
 
-    $args = [
+    $sql = 'SELECT a.ID'
+        . ll_tools_ipa_keyboard_get_search_recording_sql($issues_only, $review_only)
+        . " ORDER BY w.post_title ASC, COALESCE((SELECT sort_pm.meta_value FROM {$wpdb->postmeta} sort_pm"
+        . " WHERE sort_pm.post_id = a.ID AND sort_pm.meta_key = 'recording_text' LIMIT 1), '') ASC, a.ID ASC"
+        . ' LIMIT %d OFFSET %d';
+    $prepared = $wpdb->prepare($sql, $wordset_id, max(1, min(501, $limit)), max(0, $offset)); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    return array_values(array_map('intval', (array) $wpdb->get_col($prepared))); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+}
+
+function ll_tools_ipa_keyboard_get_search_recording_context(array $recording_ids): array {
+    $recording_ids = array_values(array_filter(array_unique(array_map('intval', $recording_ids))));
+    if (empty($recording_ids)) {
+        return [[], []];
+    }
+
+    $recordings = get_posts([
         'post_type' => 'word_audio',
         'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'post_parent__in' => $word_ids,
+        'posts_per_page' => count($recording_ids),
+        'post__in' => $recording_ids,
+        'orderby' => 'post__in',
         'no_found_rows' => true,
         'update_post_meta_cache' => true,
         'update_post_term_cache' => false,
-    ];
-
-    if ($issues_only) {
-        $args['meta_query'] = [
-            [
-                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
-                'value' => 0,
-                'compare' => '>',
-                'type' => 'NUMERIC',
-            ],
-        ];
+    ]);
+    $parent_ids = [];
+    $recording_parent_ids = [];
+    foreach ((array) $recordings as $recording) {
+        if (!($recording instanceof WP_Post)) {
+            continue;
+        }
+        $parent_id = (int) $recording->post_parent;
+        if ($parent_id <= 0) {
+            continue;
+        }
+        $recording_parent_ids[(int) $recording->ID] = $parent_id;
+        $parent_ids[$parent_id] = $parent_id;
     }
 
-    return array_values(array_map('intval', get_posts($args)));
+    return [$recording_parent_ids, ll_tools_ipa_keyboard_get_word_display_map(array_values($parent_ids))];
+}
+
+function ll_tools_ipa_keyboard_empty_search_response(int $per_page): array {
+    return [
+        'results' => [],
+        'total_matches' => 0,
+        'shown_count' => 0,
+        'has_more' => false,
+        'current_page' => 1,
+        'total_pages' => 1,
+        'per_page' => $per_page,
+        'page_start' => 0,
+        'page_end' => 0,
+        'total_exact' => true,
+        'scan_batched' => false,
+    ];
 }
 
 function ll_tools_ipa_keyboard_search_recordings(
@@ -8502,58 +8729,63 @@ function ll_tools_ipa_keyboard_search_recordings(
     $transcription_mode = ll_tools_ipa_keyboard_get_transcription_mode_for_wordset($wordset_id);
     $page = max(1, $page);
     $per_page = $per_page > 0 ? $per_page : ll_tools_ipa_keyboard_get_search_results_per_page();
-    $word_ids = ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id);
-    if (empty($word_ids)) {
-        return [
-            'results' => [],
-            'total_matches' => 0,
-            'shown_count' => 0,
-            'has_more' => false,
-            'current_page' => 1,
-            'total_pages' => 1,
-            'per_page' => $per_page,
-            'page_start' => 0,
-            'page_end' => 0,
-        ];
-    }
-
-    $recording_ids = ll_tools_ipa_keyboard_get_search_recording_ids($word_ids, $issues_only);
-    if (empty($recording_ids)) {
-        return [
-            'results' => [],
-            'total_matches' => 0,
-            'shown_count' => 0,
-            'has_more' => false,
-            'current_page' => 1,
-            'total_pages' => 1,
-            'per_page' => $per_page,
-            'page_start' => 0,
-            'page_end' => 0,
-        ];
-    }
-
-    $recording_parent_ids = [];
-    $display_word_ids = $word_ids;
-    if ($issues_only) {
-        $display_word_ids = [];
-        foreach ((array) $recording_ids as $recording_id) {
-            $recording_id = (int) $recording_id;
-            if ($recording_id <= 0) {
-                continue;
-            }
-            $parent_id = (int) wp_get_post_parent_id($recording_id);
-            if ($parent_id <= 0) {
-                continue;
-            }
-            $recording_parent_ids[$recording_id] = $parent_id;
-            $display_word_ids[$parent_id] = $parent_id;
-        }
-        $display_word_ids = array_values($display_word_ids);
-    }
-
-    $word_display = ll_tools_ipa_keyboard_get_word_display_map($display_word_ids);
-    $matches = [];
     $has_query = ($query !== '');
+    $scan_batched = $has_query || $issues_only;
+    $candidate_batch_size = $scan_batched
+        ? ll_tools_ipa_keyboard_get_search_candidate_batch_size($per_page)
+        : $per_page;
+    $candidate_offset = $scan_batched
+        ? (($page - 1) * $candidate_batch_size)
+        : 0;
+    $total_matches = 0;
+    $total_pages = 1;
+    $current_page = $page;
+
+    if ($scan_batched) {
+        $recording_ids = ll_tools_ipa_keyboard_get_search_recording_id_page(
+            $wordset_id,
+            $issues_only,
+            $review_only,
+            $candidate_batch_size + 1,
+            $candidate_offset
+        );
+        $has_more_candidates = count($recording_ids) > $candidate_batch_size;
+        if ($has_more_candidates) {
+            array_pop($recording_ids);
+        }
+    } else {
+        $total_matches = ll_tools_ipa_keyboard_count_search_recording_candidates($wordset_id, false, $review_only);
+        if ($total_matches <= 0) {
+            return ll_tools_ipa_keyboard_empty_search_response($per_page);
+        }
+        $total_pages = max(1, (int) ceil($total_matches / $per_page));
+        $current_page = min($page, $total_pages);
+        $candidate_offset = max(0, ($current_page - 1) * $per_page);
+        $recording_ids = ll_tools_ipa_keyboard_get_search_recording_id_page(
+            $wordset_id,
+            false,
+            $review_only,
+            $per_page,
+            $candidate_offset
+        );
+        $has_more_candidates = $current_page < $total_pages;
+    }
+
+    if (empty($recording_ids)) {
+        $empty = ll_tools_ipa_keyboard_empty_search_response($per_page);
+        $empty['current_page'] = $current_page;
+        $empty['total_pages'] = $scan_batched && $has_more_candidates ? $current_page + 1 : $current_page;
+        $empty['has_more'] = $has_more_candidates;
+        $empty['total_exact'] = !$has_more_candidates;
+        $empty['scan_batched'] = $scan_batched;
+        $empty['candidate_batch_size'] = $candidate_batch_size;
+        $empty['candidate_offset'] = $candidate_offset;
+        $empty['candidate_count'] = 0;
+        return $empty;
+    }
+
+    [$recording_parent_ids, $word_display] = ll_tools_ipa_keyboard_get_search_recording_context($recording_ids);
+    $matches = [];
     $stale_refreshes_remaining = $issues_only ? ll_tools_ipa_keyboard_get_issue_search_stale_refresh_limit() : 0;
     $stale_refresh_count = 0;
     $stale_refresh_deferred_count = 0;
@@ -8564,7 +8796,10 @@ function ll_tools_ipa_keyboard_search_recordings(
             continue;
         }
 
-        $word_id = (int) ($recording_parent_ids[$recording_id] ?? wp_get_post_parent_id($recording_id));
+        $word_id = (int) ($recording_parent_ids[$recording_id] ?? 0);
+        if ($word_id <= 0) {
+            continue;
+        }
         $word_info = (array) ($word_display[$word_id] ?? ['word_text' => '', 'translation' => '']);
         if (!$has_query) {
             if ($issues_only) {
@@ -8582,10 +8817,6 @@ function ll_tools_ipa_keyboard_search_recordings(
                 if (empty($validation['active'])) {
                     continue;
                 }
-            }
-
-            if ($review_only && !ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id)) {
-                continue;
             }
 
             $matches[] = [
@@ -8637,10 +8868,6 @@ function ll_tools_ipa_keyboard_search_recordings(
             }
         }
 
-        if ($review_only && empty($payload['needs_review'])) {
-            continue;
-        }
-
         if (!ll_tools_ipa_keyboard_recording_matches_search($payload, $query, $scope, $transcription_mode, $exact_transcription)) {
             continue;
         }
@@ -8655,20 +8882,13 @@ function ll_tools_ipa_keyboard_search_recordings(
         ];
     }
 
-    usort($matches, static function (array $left, array $right): int {
-        $word_compare = ll_tools_locale_compare_strings((string) ($left['word_text'] ?? ''), (string) ($right['word_text'] ?? ''));
-        if ($word_compare !== 0) {
-            return $word_compare;
-        }
-
-        return ll_tools_locale_compare_strings((string) ($left['recording_text'] ?? ''), (string) ($right['recording_text'] ?? ''));
-    });
-
-    $total_matches = count($matches);
-    $total_pages = max(1, (int) ceil($total_matches / $per_page));
-    $current_page = min($page, $total_pages);
-    $offset = max(0, ($current_page - 1) * $per_page);
-    $page_matches = array_slice($matches, $offset, $per_page);
+    if ($scan_batched) {
+        $total_matches = count($matches);
+        $total_pages = $has_more_candidates ? $current_page + 1 : $current_page;
+        $page_matches = $matches;
+    } else {
+        $page_matches = $matches;
+    }
     $results = array_map(static function (array $match) use ($wordset_id, $transcription_mode): array {
         if (is_array($match['payload'] ?? null)) {
             return (array) $match['payload'];
@@ -8682,19 +8902,24 @@ function ll_tools_ipa_keyboard_search_recordings(
             false
         );
     }, $page_matches);
-    $page_start = $total_matches > 0 ? ($offset + 1) : 0;
-    $page_end = $total_matches > 0 ? ($offset + count($results)) : 0;
+    $page_start = !empty($results) ? ($scan_batched ? 1 : $candidate_offset + 1) : 0;
+    $page_end = !empty($results) ? ($scan_batched ? count($results) : $candidate_offset + count($results)) : 0;
 
     return [
         'results' => $results,
         'total_matches' => $total_matches,
         'shown_count' => count($results),
-        'has_more' => ($current_page < $total_pages),
+        'has_more' => $has_more_candidates,
         'current_page' => $current_page,
         'total_pages' => $total_pages,
         'per_page' => $per_page,
         'page_start' => $page_start,
         'page_end' => $page_end,
+        'total_exact' => !$scan_batched || !$has_more_candidates,
+        'scan_batched' => $scan_batched,
+        'candidate_batch_size' => $candidate_batch_size,
+        'candidate_offset' => $candidate_offset,
+        'candidate_count' => count($recording_ids),
         'stale_refresh_count' => $stale_refresh_count,
         'stale_refresh_deferred_count' => $stale_refresh_deferred_count,
     ];
@@ -9308,6 +9533,10 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
     }
 
     $query = ll_tools_ipa_keyboard_sanitize_search_query($_POST['query'] ?? '');
+    $query_validation = ll_tools_ipa_keyboard_validate_search_query($query);
+    if (is_wp_error($query_validation)) {
+        wp_send_json_error($query_validation->get_error_message(), 400);
+    }
     $scope = sanitize_key((string) ($_POST['scope'] ?? 'both'));
     if (!in_array($scope, ['written', 'transcription', 'both'], true)) {
         $scope = 'both';
@@ -9327,7 +9556,11 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
             'id' => (int) $wordset_id,
             'name' => (string) $wordset->name,
         ],
-        'transcription' => ll_tools_ipa_keyboard_get_transcription_config($wordset_id),
+        'transcription' => ll_tools_ipa_keyboard_get_transcription_config(
+            $wordset_id,
+            true,
+            array_values((array) ($results['results'] ?? []))
+        ),
         'results' => array_values((array) ($results['results'] ?? [])),
         'total_matches' => (int) ($results['total_matches'] ?? 0),
         'shown_count' => (int) ($results['shown_count'] ?? 0),
@@ -9337,6 +9570,11 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
         'per_page' => (int) ($results['per_page'] ?? ll_tools_ipa_keyboard_get_search_results_per_page()),
         'page_start' => (int) ($results['page_start'] ?? 0),
         'page_end' => (int) ($results['page_end'] ?? 0),
+        'total_exact' => !empty($results['total_exact']),
+        'scan_batched' => !empty($results['scan_batched']),
+        'candidate_batch_size' => (int) ($results['candidate_batch_size'] ?? 0),
+        'candidate_offset' => (int) ($results['candidate_offset'] ?? 0),
+        'candidate_count' => (int) ($results['candidate_count'] ?? 0),
         'issues_only' => $issues_only,
         'review_only' => $review_only,
         'exact_transcription' => $exact_transcription,

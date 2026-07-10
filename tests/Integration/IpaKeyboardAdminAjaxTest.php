@@ -232,6 +232,97 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_search_query_scans_one_bounded_candidate_page_per_request(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Bounded Search Wordset');
+        foreach (range(1, 7) as $index) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Search %02d', $index),
+            ]);
+            wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+            $recording_id = self::factory()->post->create([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => $word_id,
+                'post_title' => sprintf('Recording %02d', $index),
+            ]);
+            update_post_meta($recording_id, 'recording_text', 'needle');
+            update_post_meta($recording_id, 'recording_ipa', 'n');
+        }
+
+        $unbounded_recording_queries = [];
+        $query_guard = static function (WP_Query $query) use (&$unbounded_recording_queries): void {
+            if ($query->get('post_type') === 'word_audio'
+                && $query->get('fields') === 'ids'
+                && (int) $query->get('posts_per_page') === -1) {
+                $unbounded_recording_queries[] = [
+                    'post_parent' => $query->get('post_parent'),
+                    'post_parent__in' => $query->get('post_parent__in'),
+                    'meta_key' => $query->get('meta_key'),
+                    'meta_query' => $query->get('meta_query'),
+                ];
+            }
+        };
+        add_action('pre_get_posts', $query_guard);
+
+        try {
+            wp_set_current_user($user_id);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+                'wordset_id' => $wordset_id,
+                'query' => 'needle',
+                'search_page' => 1,
+                'per_page' => 3,
+            ];
+            $_REQUEST = $_POST;
+
+            $first_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_search_ipa_keyboard_recordings_handler();
+            });
+            $first_data = (array) ($first_response['data'] ?? []);
+            $this->assertTrue((bool) ($first_response['success'] ?? false));
+            $this->assertTrue((bool) ($first_data['scan_batched'] ?? false));
+            $this->assertFalse((bool) ($first_data['total_exact'] ?? true));
+            $this->assertTrue((bool) ($first_data['has_more'] ?? false));
+            $this->assertSame(3, (int) ($first_data['candidate_count'] ?? 0));
+            $this->assertCount(3, (array) ($first_data['results'] ?? []));
+
+            $_POST['search_page'] = 3;
+            $_REQUEST = $_POST;
+            $last_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_search_ipa_keyboard_recordings_handler();
+            });
+            $last_data = (array) ($last_response['data'] ?? []);
+            $this->assertTrue((bool) ($last_response['success'] ?? false));
+            $this->assertTrue((bool) ($last_data['total_exact'] ?? false));
+            $this->assertFalse((bool) ($last_data['has_more'] ?? true));
+            $this->assertSame(1, (int) ($last_data['candidate_count'] ?? 0));
+            $this->assertCount(1, (array) ($last_data['results'] ?? []));
+            $this->assertSame([], $unbounded_recording_queries);
+        } finally {
+            remove_action('pre_get_posts', $query_guard);
+        }
+    }
+
+    public function test_search_query_rejects_unsafe_regex_and_overlong_input(): void
+    {
+        $this->assertInstanceOf(
+            WP_Error::class,
+            ll_tools_ipa_keyboard_validate_search_query(str_repeat('x', ll_tools_ipa_keyboard_get_search_query_max_length() + 1))
+        );
+        $this->assertInstanceOf(WP_Error::class, ll_tools_ipa_keyboard_validate_search_query('rx:(?R)'));
+        $this->assertInstanceOf(WP_Error::class, ll_tools_ipa_keyboard_validate_search_query('rx:/(invalid/'));
+
+        $pattern = ll_tools_ipa_keyboard_validate_search_query('rx:^safe+$');
+        $this->assertIsString($pattern);
+        $this->assertStringContainsString('(*LIMIT_MATCH=50000)', $pattern);
+        $this->assertStringContainsString('(*LIMIT_DEPTH=250)', $pattern);
+        $this->assertTrue(ll_tools_ipa_keyboard_text_matches_pattern('safe', 'rx:^safe+$'));
+    }
+
     public function test_get_recordings_handler_returns_only_requested_wordset_rows(): void
     {
         $user_id = $this->create_viewer_user();
