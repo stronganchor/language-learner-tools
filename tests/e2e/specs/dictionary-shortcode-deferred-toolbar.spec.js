@@ -122,6 +122,7 @@ async function mountDictionaryHarness(page, options = {}) {
     };
 
     window.__dictionaryFetchCalls = [];
+    let toolbarWarmingRemaining = Math.max(0, Number(config && config.toolbarWarmingResponses) || 0);
     window.fetch = async (_url, init = {}) => {
       const requestData = {};
       const body = init && init.body;
@@ -134,6 +135,20 @@ async function mountDictionaryHarness(page, options = {}) {
       window.__dictionaryFetchCalls.push(requestData);
 
       if (requestData.action === 'll_tools_dictionary_toolbar_bootstrap') {
+        if (toolbarWarmingRemaining > 0) {
+          toolbarWarmingRemaining -= 1;
+          return {
+            ok: true,
+            json: async () => ({
+              success: false,
+              data: {
+                code: 'cache_warming',
+                retry_after: 0
+              }
+            })
+          };
+        }
+
         return {
           ok: true,
           json: async () => ({
@@ -364,6 +379,26 @@ test('loads deferred dictionary filters on first interaction only once', async (
   const bootstrapCalls = fetchCalls.filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap');
 
   expect(bootstrapCalls).toHaveLength(1);
+});
+
+test('retries a warming deferred toolbar until the shared cache is ready', async ({ page }) => {
+  await mountDictionaryHarness(page, { toolbarWarmingResponses: 2 });
+
+  await page.locator('#ll-dictionary-search').focus();
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(2);
+
+  const bootstrapCalls = await page.evaluate(() => window.__dictionaryFetchCalls
+    .filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap'));
+  expect(bootstrapCalls).toHaveLength(3);
+});
+
+test('caps warming retries when another toolbar build does not finish', async ({ page }) => {
+  await mountDictionaryHarness(page, { toolbarWarmingResponses: 10 });
+
+  await page.locator('#ll-dictionary-search').focus();
+  await expect.poll(async () => page.evaluate(() => window.__dictionaryFetchCalls
+    .filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap').length)).toBe(4);
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(0);
 });
 
 test('live search accepts one-character queries', async ({ page }) => {

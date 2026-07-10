@@ -4257,20 +4257,30 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));
 
         $_GET = [];
-        $idle_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        $idle_queries = [];
+        $query_watcher = static function (string $query) use (&$idle_queries): string {
+            $idle_queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $query_watcher);
+        try {
+            $idle_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        } finally {
+            remove_filter('query', $query_watcher);
+        }
         $this->assertStringContainsString('ll-dictionary__toolbar is-collapsed', $idle_html);
         $this->assertStringContainsString('name="ll_dictionary_q"', $idle_html);
         $this->assertStringNotContainsString('ll-dictionary__results', $idle_html);
         $this->assertStringNotContainsString('Showing 1-20', $idle_html);
-        $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="0"', $idle_html);
-        $this->assertStringNotContainsString('ll-dictionary__toolbar-panel--deferred', $idle_html);
-        $this->assertStringContainsString('name="ll_dictionary_scope[]"', $idle_html);
-        $this->assertStringContainsString('Search settings', $idle_html);
-        $this->assertStringContainsString('Search in languages', $idle_html);
+        $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="1"', $idle_html);
+        $this->assertStringContainsString('ll-dictionary__toolbar-panel--deferred', $idle_html);
+        $this->assertStringNotContainsString('name="ll_dictionary_scope[]"', $idle_html);
+        $this->assertStringNotContainsString('Search settings', $idle_html);
+        $this->assertStringNotContainsString('Search in languages', $idle_html);
         $this->assertStringNotContainsString('name="ll_dictionary_pos[]"', $idle_html);
         $this->assertStringNotContainsString('ll-dictionary__hint', $idle_html);
-        $this->assertStringContainsString('ll-dictionary__letters', $idle_html);
-        $this->assertStringContainsString('ll_dictionary_letter=', $idle_html);
+        $this->assertStringNotContainsString('ll-dictionary__letters', $idle_html);
+        $this->assertStringNotContainsString('ll_dictionary_letter=', $idle_html);
         $this->assertStringContainsString('autocomplete="off"', $idle_html);
         $this->assertStringContainsString('data-ll-dictionary-form', $idle_html);
         $this->assertStringContainsString('toolname="searchLlToolsDictionary"', $idle_html);
@@ -4282,6 +4292,10 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('autocapitalize="none"', $idle_html);
         $this->assertStringContainsString('autocorrect="off"', $idle_html);
         $this->assertStringContainsString('spellcheck="false"', $idle_html);
+        $this->assertStringNotContainsString(
+            'GROUP BY BINARY LEFT(TRIM(p.post_title), 1)',
+            implode("\n", $idle_queries)
+        );
 
         $_GET = [
             'll_dictionary_letter' => 'Ê',
@@ -4290,6 +4304,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Êvar', $letter_html);
         $this->assertStringNotContainsString('Ava', $letter_html);
         $this->assertStringContainsString('Showing 1-1 of 1', $letter_html);
+        $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="0"', $letter_html);
+        $this->assertStringContainsString('name="ll_dictionary_scope[]"', $letter_html);
+        $this->assertStringContainsString('ll-dictionary__letters', $letter_html);
     }
 
     public function test_anonymous_unscoped_title_language_uses_grouped_direct_meta_majority(): void
@@ -4508,15 +4525,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $_GET = [];
         $idle_html = do_shortcode('[ll_dictionary]');
-        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Â\s*<\/a>/u', $idle_html);
-        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ç\s*<\/a>/u', $idle_html);
-        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ş\s*<\/a>/u', $idle_html);
-        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*İ\s*<\/a>/u', $idle_html);
-        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Û\s*<\/a>/u', $idle_html);
-        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ö\s*<\/a>/u', $idle_html);
-        $this->assertMatchesRegularExpression('/ll-dictionary__letter[^>]*>\s*Ü\s*<\/a>/u', $idle_html);
-        $this->assertDoesNotMatchRegularExpression('/ll-dictionary__letter[^>]*>\s*Î\s*<\/a>/u', $idle_html);
-        $this->assertDoesNotMatchRegularExpression('/ll-dictionary__letter[^>]*>\s*Ħ\s*<\/a>/u', $idle_html);
+        $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="1"', $idle_html);
+        $this->assertStringContainsString('ll-dictionary__toolbar-panel--deferred', $idle_html);
+        $this->assertStringNotContainsString('ll-dictionary__letters', $idle_html);
 
         wp_set_current_user(0);
         $_POST = [

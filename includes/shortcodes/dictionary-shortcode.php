@@ -3730,8 +3730,8 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         : ($wordset_name !== '' ? $wordset_name : __('Dictionary', 'll-tools-text-domain'));
 
     $base_url = ll_tools_dictionary_get_current_base_url();
-    $defer_toolbar_panel = false;
     $has_explicit_scope = array_key_exists('ll_dictionary_scope', $_GET);
+    $defer_toolbar_panel = !$has_active_browse_query && !$has_explicit_scope;
     $toolbar_classes = ['ll-dictionary__toolbar', $has_active_browse_query ? 'is-expanded' : 'is-collapsed'];
     if ($has_active_browse_query || $has_explicit_scope) {
         $toolbar_classes[] = 'is-scope-visible';
@@ -3797,9 +3797,14 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                             <button class="ll-dictionary__button" type="submit"><?php esc_html_e('Search', 'll-tools-text-domain'); ?></button>
                         </div>
                     </div>
-                    <?php
-                    echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                    ?>
+                    <?php if ($defer_toolbar_panel) : ?>
+                        <div
+                            class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred"
+                            data-ll-dictionary-toolbar-panel
+                        ></div>
+                    <?php else : ?>
+                        <?php echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <?php endif; ?>
                 </form>
             </div>
 

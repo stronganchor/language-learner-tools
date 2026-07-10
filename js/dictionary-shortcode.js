@@ -484,6 +484,7 @@
         let activeRequestId = 0;
         let toolbarBootstrapPromise = null;
         let toolbarReady = !toolbarDeferred;
+        const toolbarBootstrapMaxRetries = 3;
         const responseCache = new Map();
         const storageKey = `llDictionaryScopePrefs:${root.dataset.wordsetId || '0'}`;
         let scopePreferencesRestored = false;
@@ -856,17 +857,8 @@
             }
         };
 
-        const ensureToolbarBootstrap = () => {
-            if (!toolbarDeferred || toolbarReady || !toolbarPanel) {
-                return Promise.resolve(toolbarReady);
-            }
-
-            if (toolbarBootstrapPromise) {
-                return toolbarBootstrapPromise;
-            }
-
-            setToolbarBootstrapState(true);
-            toolbarBootstrapPromise = fetch(ajaxUrl, {
+        const requestToolbarBootstrap = (attempt) => {
+            return fetch(ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 body: buildToolbarBootstrapPayload(),
@@ -879,9 +871,36 @@
                 })
                 .then((payload) => {
                     if (payload && !payload.success && payload.data && payload.data.code === 'cache_warming') {
-                        throw new Error('cache_warming');
+                        if (attempt >= toolbarBootstrapMaxRetries) {
+                            throw new Error('cache_warming');
+                        }
+
+                        const retryAfterSeconds = Number(payload.data.retry_after);
+                        const retryDelayMs = Math.max(
+                            250,
+                            Math.min(5000, Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 1000)
+                        );
+                        return new Promise((resolve) => {
+                            window.setTimeout(resolve, retryDelayMs);
+                        }).then(() => requestToolbarBootstrap(attempt + 1));
                     }
 
+                    return payload;
+                });
+        };
+
+        const ensureToolbarBootstrap = () => {
+            if (!toolbarDeferred || toolbarReady || !toolbarPanel) {
+                return Promise.resolve(toolbarReady);
+            }
+
+            if (toolbarBootstrapPromise) {
+                return toolbarBootstrapPromise;
+            }
+
+            setToolbarBootstrapState(true);
+            toolbarBootstrapPromise = requestToolbarBootstrap(0)
+                .then((payload) => {
                     if (!payload || !payload.success || !payload.data) {
                         throw new Error('invalid_payload');
                     }
