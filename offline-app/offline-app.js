@@ -80,6 +80,10 @@
         hidePasswordLabel: String(syncConfigMessages.hidePasswordLabel || 'Hide password')
     };
     const MODE_ORDER = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+    const OFFLINE_STT_MAX_DURATION_SECONDS = 15;
+    const OFFLINE_STT_TARGET_SAMPLE_RATE = 16000;
+    const OFFLINE_STT_MAX_PCM_SAMPLES = OFFLINE_STT_MAX_DURATION_SECONDS * OFFLINE_STT_TARGET_SAMPLE_RATE;
+    const OFFLINE_STT_MAX_BLOB_BYTES = 8 * 1024 * 1024;
 
     function getProgressTracker() {
         return root.LLFlashcards && root.LLFlashcards.ProgressTracker
@@ -1082,6 +1086,9 @@
         if (!AudioContextCtor || !blob || typeof blob.arrayBuffer !== 'function') {
             return Promise.reject(new Error('audio_decode_unavailable'));
         }
+        if (Number(blob.size) > OFFLINE_STT_MAX_BLOB_BYTES) {
+            return Promise.reject(new Error('offline_stt_audio_too_large'));
+        }
 
         const audioContext = new AudioContextCtor();
         return blob.arrayBuffer()
@@ -1089,8 +1096,20 @@
                 return decodeAudioDataCompat(audioContext, arrayBuffer.slice(0));
             })
             .then(function (audioBuffer) {
+                const sourceSampleRate = Math.max(1, Number(audioBuffer && audioBuffer.sampleRate) || desiredSampleRate);
+                const sourceSampleCount = Math.max(0, Number(audioBuffer && audioBuffer.length) || 0);
+                const durationSeconds = Math.max(
+                    Number(audioBuffer && audioBuffer.duration) || 0,
+                    sourceSampleCount / sourceSampleRate
+                );
+                if (durationSeconds > OFFLINE_STT_MAX_DURATION_SECONDS) {
+                    throw new Error('offline_stt_audio_too_long');
+                }
                 const monoSamples = mixAudioBufferToMono(audioBuffer);
-                const pcmSamples = resampleFloat32Linear(monoSamples, audioBuffer.sampleRate || desiredSampleRate, desiredSampleRate);
+                const pcmSamples = resampleFloat32Linear(monoSamples, sourceSampleRate, desiredSampleRate);
+                if (pcmSamples.length > OFFLINE_STT_MAX_PCM_SAMPLES) {
+                    throw new Error('offline_stt_audio_too_long');
+                }
                 return {
                     pcm16Base64: float32ToPcm16Base64(pcmSamples),
                     sampleRate: desiredSampleRate,
@@ -1561,9 +1580,12 @@
                 if (!runtime) {
                     return Promise.reject(new Error('embedded_stt_unavailable'));
                 }
+                if (blob && Number(blob.size) > OFFLINE_STT_MAX_BLOB_BYTES) {
+                    return Promise.reject(new Error('offline_stt_audio_too_large'));
+                }
 
                 if (typeof runtime.transcribePcm === 'function') {
-                    return blobToPcmPayload(blob, 16000).then(function (pcmPayload) {
+                    return blobToPcmPayload(blob, OFFLINE_STT_TARGET_SAMPLE_RATE).then(function (pcmPayload) {
                         return runtime.transcribePcm({
                             pcm16Base64: pcmPayload.pcm16Base64,
                             sampleRate: pcmPayload.sampleRate,

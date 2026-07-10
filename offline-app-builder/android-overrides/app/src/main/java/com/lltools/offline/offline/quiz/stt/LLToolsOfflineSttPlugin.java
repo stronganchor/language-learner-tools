@@ -14,7 +14,10 @@ import java.util.concurrent.Executors;
 @CapacitorPlugin(name = "LLToolsOfflineStt")
 public class LLToolsOfflineSttPlugin extends Plugin {
     private static final String LOG_TAG = "LLToolsOfflineStt";
-    private static final int TARGET_SAMPLE_RATE = 16000;
+    private static final int TARGET_SAMPLE_RATE = PcmAudioUtils.TARGET_SAMPLE_RATE;
+    private static final int MIN_INPUT_SAMPLE_RATE = 8000;
+    private static final int MAX_INPUT_SAMPLE_RATE = 48000;
+    private static final int MAX_INPUT_CHANNELS = 2;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final WhisperModelPool modelPool = WhisperModelPool.getInstance();
@@ -45,6 +48,25 @@ public class LLToolsOfflineSttPlugin extends Plugin {
             call.reject("Missing PCM audio data.");
             return;
         }
+        if (sampleRate < MIN_INPUT_SAMPLE_RATE || sampleRate > MAX_INPUT_SAMPLE_RATE) {
+            call.reject("PCM sample rate must be between 8000 and 48000 Hz.");
+            return;
+        }
+        if (channels < 1 || channels > MAX_INPUT_CHANNELS) {
+            call.reject("PCM audio must contain one or two channels.");
+            return;
+        }
+        int maxPcmBytes = PcmAudioUtils.maxPcm16BytesForDuration(sampleRate, channels);
+        int maxEncodedCharacters = (((maxPcmBytes + 2) / 3) * 4) + 1024;
+        try {
+            if (encodedPcm.length() > maxEncodedCharacters) {
+                throw new IllegalArgumentException("PCM audio exceeds the 15-second limit.");
+            }
+            PcmAudioUtils.requirePcm16PayloadWithinLimit(encodedPcm, maxPcmBytes);
+        } catch (IllegalArgumentException error) {
+            call.reject(error.getMessage());
+            return;
+        }
         if (!WhisperNative.isAvailable()) {
             call.reject("Offline STT is unavailable on this build. " + WhisperNative.getLoadErrorMessage());
             return;
@@ -58,10 +80,11 @@ public class LLToolsOfflineSttPlugin extends Plugin {
                     return;
                 }
 
-                float[] pcmData = PcmAudioUtils.decodePcm16Base64(encodedPcm, channels);
+                float[] pcmData = PcmAudioUtils.decodePcm16Base64(encodedPcm, channels, maxPcmBytes);
                 if (sampleRate > 0 && sampleRate != TARGET_SAMPLE_RATE) {
                     pcmData = PcmAudioUtils.resampleLinear(pcmData, sampleRate, TARGET_SAMPLE_RATE);
                 }
+                PcmAudioUtils.requireSampleCountWithinLimit(pcmData.length);
 
                 WhisperModelSession session = modelPool.getOrCreate(getContext().getAssets(), spec);
                 String transcript = session.transcribe(pcmData, spec.language, spec.shouldTranslate());

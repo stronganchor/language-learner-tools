@@ -643,6 +643,7 @@ wordset can opt into it.
 - REST word-row discovery must page IDs before row hydration. `missing-meta` uses bounded candidate offsets, broad bulk updates persist `scan_after_id` in resume state, and `/report` returns page-scoped counts while the CLI remains the explicit full-report surface.
 - Treat REST automation as the control plane and server-side jobs/WP-CLI as the execution plane for heavy bulk work. New operations that touch hundreds of records and perform expensive validation, media handling, taxonomy repair, cache rebuilding, or cross-post recomputation should expose dry-run/readback/status/result surfaces and process bounded chunks with durable cursors instead of relying on one long synchronous HTTP request.
 - Offline export/sync payloads must preserve wordset scoping, quiz configuration, media proxy expectations, and prompt-card metadata needed by the shared flashcard runtime.
+- Offline STT accepts at most 15 seconds of 16 kHz mono inference audio. Keep browser blob/duration checks and the Android PCM byte, Java sample, and JNI sample ceilings aligned; the native boundary remains authoritative.
 - Frontend teacher-class `admin-post.php` actions must account for limited-role redirect handling so teachers are not bounced to the site home after valid class actions.
 
 # UI color standards (canonical)

@@ -7,6 +7,8 @@
 
 #include "whisper.h"
 
+#define LLTOOLS_MAX_TRANSCRIPTION_SAMPLES (15 * 16000)
+
 #define UNUSED(x) (void)(x)
 #define TAG "LLToolsWhisperJNI"
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, TAG, __VA_ARGS__)
@@ -101,8 +103,12 @@ Java_com_lltools_offline_offline_quiz_stt_WhisperNative_fullTranscribe(
         return -1;
     }
 
-    jfloat * audio_data_arr = (*env)->GetFloatArrayElements(env, audio_data, NULL);
     jsize audio_data_length = (*env)->GetArrayLength(env, audio_data);
+    if (audio_data_length > LLTOOLS_MAX_TRANSCRIPTION_SAMPLES) {
+        return -2;
+    }
+
+    jfloat * audio_data_arr = (*env)->GetFloatArrayElements(env, audio_data, NULL);
     const char * language_chars = NULL;
 
     struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);

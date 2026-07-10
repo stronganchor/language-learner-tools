@@ -6,11 +6,60 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 final class PcmAudioUtils {
+    static final int MAX_DURATION_SECONDS = 15;
+    static final int TARGET_SAMPLE_RATE = 16000;
+    static final int MAX_TRANSCRIPTION_SAMPLES = MAX_DURATION_SECONDS * TARGET_SAMPLE_RATE;
+
     private PcmAudioUtils() {
     }
 
-    static float[] decodePcm16Base64(String encoded, int channels) {
+    static int maxPcm16BytesForDuration(int sampleRate, int channels) {
+        long safeSampleRate = Math.max(1, sampleRate);
+        long safeChannels = Math.max(1, channels);
+        long maxBytes = safeSampleRate * safeChannels * MAX_DURATION_SECONDS * 2L;
+        return (int) Math.min(Integer.MAX_VALUE, maxBytes);
+    }
+
+    static int estimatePcm16DecodedBytes(String encoded) {
+        if (encoded == null || encoded.isEmpty()) {
+            return 0;
+        }
+
+        int significantCharacters = 0;
+        int paddingCharacters = 0;
+        for (int index = 0; index < encoded.length(); index++) {
+            char value = encoded.charAt(index);
+            if (Character.isWhitespace(value)) {
+                continue;
+            }
+            significantCharacters++;
+            if (value == '=') {
+                paddingCharacters++;
+            }
+        }
+
+        long estimatedBytes = ((long) significantCharacters * 3L) / 4L;
+        return (int) Math.max(0L, Math.min(Integer.MAX_VALUE, estimatedBytes - Math.min(2, paddingCharacters)));
+    }
+
+    static void requirePcm16PayloadWithinLimit(String encoded, int maxBytes) {
+        if (maxBytes < 1 || estimatePcm16DecodedBytes(encoded) > maxBytes) {
+            throw new IllegalArgumentException("PCM audio exceeds the 15-second limit.");
+        }
+    }
+
+    static void requireSampleCountWithinLimit(int sampleCount) {
+        if (sampleCount > MAX_TRANSCRIPTION_SAMPLES) {
+            throw new IllegalArgumentException("PCM audio exceeds the 15-second limit.");
+        }
+    }
+
+    static float[] decodePcm16Base64(String encoded, int channels, int maxBytes) {
+        requirePcm16PayloadWithinLimit(encoded, maxBytes);
         byte[] data = Base64.decode(encoded == null ? "" : encoded, Base64.DEFAULT);
+        if (data.length > maxBytes) {
+            throw new IllegalArgumentException("PCM audio exceeds the 15-second limit.");
+        }
         if (data.length < 2) {
             return new float[0];
         }

@@ -23,6 +23,11 @@ growth dimension.
 
 ## Recently Closed
 
+- July 10 offline STT PCM resource ceilings:
+  the offline shell rejects oversized encoded blobs and audio over 15 seconds;
+  Android validates PCM parameters and byte budgets before decoding, then the
+  model session and JNI layer independently cap 16 kHz samples before native
+  inference. Browser, JVM, Java compile, and three-ABI native builds pass.
 - July 10 vocab-lesson prompt-card shell guard:
   initial public lesson rendering now detects prompt-card mode through an
   ID-only query capped at three, without hydrating every prompt card or priming

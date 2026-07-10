@@ -92,6 +92,7 @@ npm run build:release -- /absolute/path/to/ll-tools-offline-app.zip
 - If you prefer Android Studio for release signing, run `npm run open:android` after preparing the bundle.
 - The offline app now carries the `Study` and `Games` views from the export bundle. `Speaking Practice` is only shown offline when the export includes a packaged STT bundle for that wordset.
 - Android offline STT now uses a bundled native `whisper.cpp` runtime exposed through `Capacitor.Plugins.LLToolsOfflineStt`.
+- Offline STT input is capped at 15 seconds. The web shell rejects oversized blobs before PCM encoding, and the Android bridge, model session, and JNI layer enforce matching byte/sample ceilings before inference.
 - The STT bundle must be a mobile-ready `whisper.cpp` bundle. A desktop Python training checkpoint by itself is not enough for Android inference.
 - The simplest supported bundle is either:
   - a single `.bin` or `.gguf` Whisper model file, or

@@ -21,6 +21,12 @@ final class WhisperModelSession {
         if (contextPtr == 0L) {
             throw new IOException("The Whisper context is not available.");
         }
+        int sampleCount = audioData == null ? 0 : audioData.length;
+        try {
+            PcmAudioUtils.requireSampleCountWithinLimit(sampleCount);
+        } catch (IllegalArgumentException error) {
+            throw new IOException(error.getMessage(), error);
+        }
 
         int availableProcessors = Math.max(1, Runtime.getRuntime().availableProcessors());
         int threadCount = Math.max(2, Math.min(4, availableProcessors));

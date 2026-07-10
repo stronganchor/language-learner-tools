@@ -72,7 +72,10 @@ function buildOfflineShellMarkup() {
               </form>
             </div>
           </section>
+          <button id="ll-offline-games-toggle" type="button" data-ll-offline-view-toggle data-target-view="games">Games</button>
         </section>
+
+        <section id="ll-offline-games-view" data-ll-offline-view="games" hidden></section>
 
         <div id="ll-tools-flashcard-popup" style="display:none;">
           <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
@@ -107,6 +110,8 @@ async function mountOfflineLauncher(page, options = {}) {
     window.__offlineLaunches = [];
     window.__offlineSyncRequests = [];
     window.__offlineSyncCalls = [];
+    window.__offlineSttCalls = [];
+    window.__offlineSpeakingBridge = null;
     window.initFlashcardWidget = function initFlashcardWidget(catNames, mode) {
       const flashData = window.llToolsFlashcardsData || {};
       window.__offlineLaunches.push({
@@ -179,6 +184,40 @@ async function mountOfflineLauncher(page, options = {}) {
         }
       }
     };
+
+    if (mountOptions.enableGames) {
+      window.__offlineAudioSampleCount = 16000;
+      window.AudioContext = class FakeOfflineAudioContext {
+        decodeAudioData() {
+          const sampleCount = Number(window.__offlineAudioSampleCount) || 0;
+          const samples = new Float32Array(sampleCount);
+          return Promise.resolve({
+            duration: sampleCount / 16000,
+            length: sampleCount,
+            numberOfChannels: 1,
+            sampleRate: 16000,
+            getChannelData() {
+              return samples;
+            }
+          });
+        }
+
+        close() {
+          return Promise.resolve();
+        }
+      };
+      window.LLToolsOfflineEmbeddedStt = {
+        transcribePcm(payload) {
+          window.__offlineSttCalls.push(payload);
+          return Promise.resolve({ text: 'fixture transcript' });
+        }
+      };
+      window.LLWordsetGames = {
+        init(_root, config) {
+          window.__offlineSpeakingBridge = config.offlineBridge;
+        }
+      };
+    }
 
     window.fetch = async (_url, requestOptions = {}) => {
       const body = requestOptions.body;
@@ -270,6 +309,7 @@ async function mountOfflineLauncher(page, options = {}) {
           ]
         }
       },
+      games: mountOptions.enableGames ? { catalog: { speaking: {} } } : {},
       flashcards: {
         wordset: 'offline-set',
         wordsetIds: [777],
@@ -352,6 +392,48 @@ test('offline app launcher filters, sorts, selects, and launches the real shell 
   expect(launch.lastLaunchPlan.session_word_ids).toEqual([]);
   expect(launch.userStudyState.wordset_id).toBe(777);
   expect(launch.userStudyState.category_ids).toEqual([11, 22]);
+});
+
+test('offline speaking bridge caps PCM duration before native transcription', async ({ page }) => {
+  await mountOfflineLauncher(page, { enableGames: true });
+  await page.locator('#ll-offline-games-toggle').click();
+  await expect.poll(async () => page.evaluate(() => !!window.__offlineSpeakingBridge)).toBe(true);
+
+  const normalResult = await page.evaluate(async () => {
+    const fakeBlob = {
+      size: 32000,
+      type: 'audio/wav',
+      arrayBuffer: async () => new ArrayBuffer(8)
+    };
+    return window.__offlineSpeakingBridge.transcribeSpeakingAttempt(fakeBlob, {
+      embeddedModel: { webPath: './models/test.bin' }
+    });
+  });
+  expect(normalResult).toEqual({ text: 'fixture transcript' });
+
+  const normalPayload = await page.evaluate(() => window.__offlineSttCalls[0]);
+  expect(normalPayload.sampleRate).toBe(16000);
+  expect(normalPayload.channels).toBe(1);
+  expect(normalPayload.pcm16Base64.length).toBeGreaterThan(0);
+
+  const oversizedError = await page.evaluate(async () => {
+    window.__offlineAudioSampleCount = (15 * 16000) + 1;
+    const fakeBlob = {
+      size: 32000,
+      type: 'audio/wav',
+      arrayBuffer: async () => new ArrayBuffer(8)
+    };
+    try {
+      await window.__offlineSpeakingBridge.transcribeSpeakingAttempt(fakeBlob, {
+        embeddedModel: { webPath: './models/test.bin' }
+      });
+      return '';
+    } catch (error) {
+      return String(error && error.message || error || '');
+    }
+  });
+  expect(oversizedError).toBe('offline_stt_audio_too_long');
+  await expect.poll(async () => page.evaluate(() => window.__offlineSttCalls.length)).toBe(1);
 });
 
 test('offline app sync panel signs in, syncs, and disconnects through the real shell wiring', async ({ page }) => {
