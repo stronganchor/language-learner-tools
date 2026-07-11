@@ -1346,23 +1346,36 @@ function ll_tools_import_job_set_last_id(string $job_id, int $user_id = 0): void
     update_user_meta($user_id, LL_TOOLS_IMPORT_LAST_JOB_META_KEY, sanitize_text_field($job_id));
 }
 
+function ll_tools_import_job_current_user_can_access(array $job): bool {
+    $current_user_id = get_current_user_id();
+    $owner_user_id = (int) ($job['user_id'] ?? 0);
+
+    if ($current_user_id <= 0) {
+        return false;
+    }
+
+    return ($owner_user_id > 0 && $owner_user_id === $current_user_id) || current_user_can('manage_options');
+}
+
 function ll_tools_import_job_get_relevant_job(string $job_id = ''): ?array {
     $job_id = trim(sanitize_text_field($job_id));
     if ($job_id !== '') {
-        return ll_tools_import_job_get($job_id);
+        $job = ll_tools_import_job_get($job_id);
+        return is_array($job) && ll_tools_import_job_current_user_can_access($job) ? $job : null;
     }
 
     $last_job_id = ll_tools_import_job_get_last_id();
     if ($last_job_id !== '') {
         $last_job = ll_tools_import_job_get($last_job_id);
-        if (is_array($last_job)) {
+        if (is_array($last_job) && ll_tools_import_job_current_user_can_access($last_job)) {
             return $last_job;
         }
     }
 
     $active_job_id = ll_tools_import_job_get_active_id();
     if ($active_job_id !== '') {
-        return ll_tools_import_job_get($active_job_id);
+        $active_job = ll_tools_import_job_get($active_job_id);
+        return is_array($active_job) && ll_tools_import_job_current_user_can_access($active_job) ? $active_job : null;
     }
 
     return null;
@@ -11453,10 +11466,13 @@ function ll_tools_import_job_get_start_conflict() {
 
     $active_job = ll_tools_import_job_get($active_job_id);
     if (is_array($active_job) && in_array((string) ($active_job['status'] ?? ''), ['running', 'paused'], true)) {
+        $snapshot = ll_tools_import_job_current_user_can_access($active_job)
+            ? ll_tools_import_job_get_snapshot($active_job)
+            : null;
         return new WP_Error(
             'll_tools_import_job_active',
             __('Another import job is already active. Resume or finish it before starting a new one.', 'll-tools-text-domain'),
-            ['job' => ll_tools_import_job_get_snapshot($active_job)]
+            ['job' => $snapshot]
         );
     }
 
@@ -11518,7 +11534,7 @@ function ll_tools_ajax_import_process_job(): void {
 
     $job_id = isset($_POST['job_id']) ? sanitize_text_field(wp_unslash((string) $_POST['job_id'])) : '';
     $job = ll_tools_import_job_get($job_id);
-    if (!is_array($job)) {
+    if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)) {
         wp_send_json_error(['message' => __('The requested import job could not be found.', 'll-tools-text-domain')], 404);
     }
 
@@ -11569,7 +11585,7 @@ function ll_tools_ajax_import_discard_job(): void {
 
     $job_id = isset($_POST['job_id']) ? sanitize_text_field(wp_unslash((string) $_POST['job_id'])) : '';
     $job = ll_tools_import_job_get($job_id);
-    if (!is_array($job)) {
+    if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)) {
         wp_send_json_error(['message' => __('The requested import job could not be found.', 'll-tools-text-domain')], 404);
     }
 

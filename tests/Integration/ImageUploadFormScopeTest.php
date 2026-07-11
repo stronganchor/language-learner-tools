@@ -3,6 +3,32 @@ declare(strict_types=1);
 
 final class ImageUploadFormScopeTest extends LL_Tools_TestCase
 {
+    public function test_failed_image_upload_cleanup_removes_file_and_attachment(): void
+    {
+        $path = wp_tempnam('ll-tools-failed-image.png');
+        $this->assertIsString($path);
+        $this->assertNotSame('', $path);
+        file_put_contents($path, 'staged image');
+        $attachment_id = wp_insert_attachment([
+            'post_title' => 'Failed image attachment',
+            'post_status' => 'inherit',
+            'post_mime_type' => 'image/png',
+        ], $path);
+        $this->assertIsInt($attachment_id);
+        $this->assertGreaterThan(0, $attachment_id);
+
+        ll_image_upload_cleanup_failed_file($attachment_id, $path);
+
+        $this->assertNull(get_post($attachment_id));
+        $this->assertFileDoesNotExist($path);
+
+        $unattached_path = wp_tempnam('ll-tools-failed-image-unattached.png');
+        $this->assertIsString($unattached_path);
+        file_put_contents($unattached_path, 'staged image');
+        ll_image_upload_cleanup_failed_file(0, $unattached_path);
+        $this->assertFileDoesNotExist($unattached_path);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

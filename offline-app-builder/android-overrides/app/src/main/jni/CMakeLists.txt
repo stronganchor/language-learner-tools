@@ -41,7 +41,7 @@ target_compile_definitions(
     lltools_whisper
     PRIVATE
     GGML_USE_CPU
-    WHISPER_VERSION="android-bundled"
+    WHISPER_VERSION="android-bundled-95ea8f9"
 )
 
 target_include_directories(

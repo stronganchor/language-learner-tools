@@ -225,7 +225,7 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_frontend_login_success_resets_rate_limit_attempts(): void
+    public function test_frontend_login_success_does_not_clear_ip_wide_rate_limit_attempts(): void
     {
         $ip = '203.0.113.25';
         $limit_filter = static function (): int {
@@ -262,7 +262,7 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
             ]);
 
             $this->assertSame('http://example.org/learn/', $success_redirect);
-            $this->assertSame(0, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
+            $this->assertSame(1, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
             $this->assertFalse((bool) ll_tools_login_window_get_login_rate_limit_status($ip)['limited']);
 
             $post_success_redirect = $this->runLoginRequest($ip, [
@@ -273,7 +273,7 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
 
             $this->assertContains('Please enter your password.', $post_success_payload['messages']);
             $this->assertNotContains(ll_tools_login_window_login_rate_limit_message(), $post_success_payload['messages']);
-            $this->assertSame(1, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
+            $this->assertSame(2, (int) ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
         } finally {
             ll_tools_login_window_reset_login_attempts($ip);
             remove_filter('ll_tools_login_ip_attempt_limit', $limit_filter);

@@ -47,6 +47,14 @@ function ll_tools_dictionary_static_cache_browser_max_age(): int {
     return max(60, (int) apply_filters('ll_tools_dictionary_static_cache_browser_max_age', $max_age));
 }
 
+function ll_tools_dictionary_static_cache_max_bytes(): int {
+    $max_bytes = defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_MAX_BYTES')
+        ? (int) constant('LL_TOOLS_DICTIONARY_STATIC_CACHE_MAX_BYTES')
+        : 4 * 1024 * 1024;
+
+    return max(0, (int) apply_filters('ll_tools_dictionary_static_cache_max_bytes', $max_bytes));
+}
+
 /**
  * Query args that do not change dictionary display and should not survive in links/cache keys.
  *
@@ -313,6 +321,9 @@ function ll_tools_dictionary_static_cache_normalize_query_args(?array $raw_args 
         $search = ll_tools_dictionary_normalize_public_search($search);
     }
     $page = ll_tools_dictionary_static_cache_positive_int_value($normalized['ll_dictionary_page'] ?? '');
+    if ($page > 0 && function_exists('ll_tools_dictionary_anonymous_live_search_page_cap')) {
+        $page = min($page, ll_tools_dictionary_anonymous_live_search_page_cap());
+    }
     $letter = isset($normalized['ll_dictionary_letter'])
         ? ll_tools_dictionary_static_cache_letter_value($normalized['ll_dictionary_letter'])
         : ll_tools_dictionary_static_cache_letter_value($normalized['letter'] ?? '');
@@ -722,6 +733,12 @@ function ll_tools_dictionary_static_cache_maybe_redirect_canonical_request(): vo
 
     $identity = ll_tools_dictionary_static_cache_request_identity();
     if ($identity === null) {
+        return;
+    }
+
+    $normalized_args = ll_tools_dictionary_static_cache_normalize_query_args();
+    if (!empty($normalized_args['ll_dictionary_q'])) {
+        ll_tools_dictionary_static_cache_debug_log('search_bypass', ['args' => $normalized_args]);
         return;
     }
 
@@ -1180,8 +1197,18 @@ function ll_tools_store_dictionary_static_cache(): void {
             @file_put_contents($index, '');
         }
 
+        $stored_html = ll_tools_dictionary_static_cache_prepare_html_for_storage($html);
+        $max_bytes = ll_tools_dictionary_static_cache_max_bytes();
+        if ($max_bytes > 0 && strlen($stored_html) > $max_bytes) {
+            ll_tools_dictionary_static_cache_debug_log('skip_oversized_html', [
+                'bytes' => strlen($stored_html),
+                'max_bytes' => $max_bytes,
+            ]);
+            return;
+        }
+
         $tmp = $file . '.tmp-' . wp_generate_password(12, false, false);
-        $written = @file_put_contents($tmp, ll_tools_dictionary_static_cache_prepare_html_for_storage($html), LOCK_EX);
+        $written = @file_put_contents($tmp, $stored_html, LOCK_EX);
         if ($written === false) {
             @unlink($tmp);
             ll_tools_dictionary_static_cache_debug_log('write_failed', [

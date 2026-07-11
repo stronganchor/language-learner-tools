@@ -76,6 +76,10 @@ function ll_get_assemblyai_api_key() {
     return trim((string) get_option('ll_assemblyai_api_key', ''));
 }
 
+function ll_tools_assemblyai_upload_max_bytes(): int {
+    return max(1, (int) apply_filters('ll_tools_assemblyai_upload_max_bytes', 32 * MB_IN_BYTES));
+}
+
 /**
  * Upload an audio file to AssemblyAI and return its upload URL.
  *
@@ -90,6 +94,14 @@ function ll_tools_assemblyai_upload_audio($file_path) {
 
     if (!is_readable($file_path)) {
         return new WP_Error('file_missing', __('Audio file is missing or unreadable.', 'll-tools-text-domain'));
+    }
+
+    $file_size = filesize($file_path);
+    if ($file_size === false) {
+        return new WP_Error('file_size', __('Failed to read the audio file size.', 'll-tools-text-domain'));
+    }
+    if ($file_size > ll_tools_assemblyai_upload_max_bytes()) {
+        return new WP_Error('file_too_large', __('The audio file is too large for AssemblyAI transcription.', 'll-tools-text-domain'));
     }
 
     $audio_data = file_get_contents($file_path);

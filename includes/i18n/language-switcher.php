@@ -82,6 +82,9 @@ function ll_tools_get_accept_language_preferences($accept_language): array {
         if (isset($parts[1]) && preg_match('/q=([0-9.]+)/i', (string) $parts[1], $matches)) {
             $quality = max(0.0, min(1.0, (float) $matches[1]));
         }
+        if ($quality <= 0.0) {
+            continue;
+        }
 
         $preferences[] = [
             'locale' => $locale,

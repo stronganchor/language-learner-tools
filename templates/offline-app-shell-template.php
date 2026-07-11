@@ -37,12 +37,16 @@ $escape_asset_url = static function ($asset): string {
 
   return esc_attr($asset);
 };
-$viewport_content = function_exists('ll_tools_get_locked_viewport_content')
-  ? ll_tools_get_locked_viewport_content()
+$viewport_content = function_exists('ll_tools_get_viewport_content')
+  ? ll_tools_get_viewport_content()
   : 'width=device-width, initial-scale=1';
+$document_locale = isset($ll_config['sortLocale']) ? str_replace('_', '-', (string) $ll_config['sortLocale']) : 'en';
+$document_locale = preg_replace('/[^A-Za-z0-9-]/', '', $document_locale);
+$document_locale = is_string($document_locale) && $document_locale !== '' ? $document_locale : 'en';
+$document_direction = is_rtl() ? 'rtl' : 'ltr';
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?php echo esc_attr($document_locale); ?>" dir="<?php echo esc_attr($document_direction); ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="<?php echo esc_attr($viewport_content); ?>">
@@ -661,7 +665,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
       </section>
     </header>
 
-    <div id="ll-offline-sync-sheet" class="ll-offline-sync-sheet" hidden>
+    <div id="ll-offline-sync-sheet" class="ll-offline-sync-sheet" role="dialog" aria-modal="true" aria-labelledby="ll-offline-sync-sheet-title" hidden>
       <form id="ll-offline-sync-form" class="ll-offline-sync-sheet__card">
         <h2 id="ll-offline-sync-sheet-title" class="ll-offline-sync-sheet__title"><?php esc_html_e('Connect to Sync', 'll-tools-text-domain'); ?></h2>
         <label class="ll-offline-sync-sheet__field">
@@ -682,7 +686,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
             </button>
           </span>
         </label>
-        <p id="ll-offline-sync-sheet-feedback" class="ll-offline-sync-sheet__feedback" hidden></p>
+        <p id="ll-offline-sync-sheet-feedback" class="ll-offline-sync-sheet__feedback" role="status" aria-live="polite" hidden></p>
         <div class="ll-offline-sync-sheet__actions">
           <button id="ll-offline-sync-cancel" class="ll-offline-sync-sheet__button" type="button"><?php esc_html_e('Cancel', 'll-tools-text-domain'); ?></button>
           <button id="ll-offline-sync-submit" class="ll-offline-sync-sheet__button ll-offline-sync-sheet__button--primary" type="submit"><?php esc_html_e('Sign in', 'll-tools-text-domain'); ?></button>

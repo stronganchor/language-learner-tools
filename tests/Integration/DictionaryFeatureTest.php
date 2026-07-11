@@ -434,6 +434,55 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_dictionary_letter' => 'B',
         ]);
         $this->assertSame(['ll_dictionary_q' => 'ro'], $search_normalized);
+
+        $page_cap = static function (): int {
+            return 25;
+        };
+        add_filter('ll_tools_dictionary_anonymous_live_search_page_cap', $page_cap);
+        try {
+            $this->assertSame(
+                ['ll_dictionary_letter' => 'H', 'll_dictionary_page' => '25'],
+                ll_tools_dictionary_static_cache_normalize_query_args([
+                    'll_dictionary_letter' => 'H',
+                    'll_dictionary_page' => '999999',
+                ])
+            );
+        } finally {
+            remove_filter('ll_tools_dictionary_anonymous_live_search_page_cap', $page_cap);
+        }
+    }
+
+    public function test_dictionary_live_base_url_rejects_external_and_nonexistent_pages(): void
+    {
+        $dictionary_page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Canonical Dictionary Base',
+            'post_content' => '[ll_dictionary]',
+        ]);
+        update_option('ll_default_dictionary_page_id', $dictionary_page_id);
+
+        $this->assertSame(
+            get_permalink($dictionary_page_id),
+            ll_tools_dictionary_resolve_live_base_url('https://attacker.example/dictionary')
+        );
+        $this->assertSame(
+            get_permalink($dictionary_page_id),
+            ll_tools_dictionary_resolve_live_base_url(home_url('/not-a-real-dictionary-page/?random=1'))
+        );
+    }
+
+    public function test_dictionary_static_cache_size_limit_is_filterable(): void
+    {
+        $limit = static function (): int {
+            return 1234;
+        };
+        add_filter('ll_tools_dictionary_static_cache_max_bytes', $limit);
+        try {
+            $this->assertSame(1234, ll_tools_dictionary_static_cache_max_bytes());
+        } finally {
+            remove_filter('ll_tools_dictionary_static_cache_max_bytes', $limit);
+        }
     }
 
     public function test_dictionary_static_cache_canonical_url_drops_conflicting_and_unsigned_args(): void
@@ -1266,7 +1315,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'sense_limit' => 3,
             'linked_word_limit' => 4,
             'gloss_lang' => '',
-            'base_url' => 'https://example.com/sozluk/',
+            'base_url' => ll_tools_dictionary_resolve_live_base_url('https://example.com/sozluk/'),
             'search' => 'a',
             'search_scopes' => $search_scopes,
             'letter' => '',

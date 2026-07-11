@@ -119,6 +119,27 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_ai_export_downstream_cache_policy_is_locale_safe(): void
+    {
+        update_option('WPLANG', 'en_US');
+        switch_to_locale('en_US');
+        try {
+            $this->assertStringStartsWith('public, max-age=', ll_tools_ai_crawler_response_cache_control_value());
+        } finally {
+            restore_previous_locale();
+        }
+
+        $turkish_locale = static function (): string {
+            return 'tr_TR';
+        };
+        add_filter('locale', $turkish_locale);
+        try {
+            $this->assertSame('private, no-store, max-age=0', ll_tools_ai_crawler_response_cache_control_value());
+        } finally {
+            remove_filter('locale', $turkish_locale);
+        }
+    }
+
     public function test_head_export_response_does_not_build_uncached_body(): void
     {
         $export = [

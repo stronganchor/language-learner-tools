@@ -237,8 +237,46 @@ if (!function_exists('ll_tools_privacy_register_exporters')) {
             'exporter_friendly_name' => __('LL Tools Offline Sessions', 'll-tools-text-domain'),
             'callback' => 'll_tools_privacy_export_offline_sessions',
         ];
+        $exporters['ll-tools-class-memberships'] = [
+            'exporter_friendly_name' => __('LL Tools Class Memberships', 'll-tools-text-domain'),
+            'callback' => 'll_tools_privacy_export_class_memberships',
+        ];
 
         return $exporters;
+    }
+}
+
+if (!function_exists('ll_tools_privacy_export_class_memberships')) {
+    function ll_tools_privacy_export_class_memberships(string $email_address, int $page = 1): array {
+        $user = ll_tools_privacy_get_user_by_email($email_address);
+        if (!($user instanceof WP_User) || $page > 1 || !function_exists('ll_tools_teacher_class_get_ids_for_student')) {
+            return ['data' => [], 'done' => true];
+        }
+
+        $export_items = [];
+        foreach (ll_tools_teacher_class_get_ids_for_student((int) $user->ID) as $class_id) {
+            $class_id = (int) $class_id;
+            if ($class_id <= 0 || !ll_tools_teacher_class_exists($class_id)) {
+                continue;
+            }
+
+            $wordset_id = ll_tools_teacher_class_get_wordset_id($class_id);
+            $teacher_id = ll_tools_teacher_class_get_owner_id($class_id);
+            $export_items[] = [
+                'group_id' => 'll-tools-class-memberships',
+                'group_label' => __('LL Tools Class Memberships', 'll-tools-text-domain'),
+                'item_id' => 'll-tools-class-membership-' . $class_id,
+                'data' => [
+                    ll_tools_privacy_export_data_pair(__('Class ID', 'll-tools-text-domain'), $class_id),
+                    ll_tools_privacy_export_data_pair(__('Class', 'll-tools-text-domain'), ll_tools_teacher_class_get_name($class_id)),
+                    ll_tools_privacy_export_data_pair(__('Word set ID', 'll-tools-text-domain'), $wordset_id),
+                    ll_tools_privacy_export_data_pair(__('Word set', 'll-tools-text-domain'), ll_tools_privacy_term_label($wordset_id, 'wordset')),
+                    ll_tools_privacy_export_data_pair(__('Teacher', 'll-tools-text-domain'), $teacher_id > 0 ? get_the_author_meta('display_name', $teacher_id) : ''),
+                ],
+            ];
+        }
+
+        return ['data' => $export_items, 'done' => true];
     }
 }
 add_filter('wp_privacy_personal_data_exporters', 'll_tools_privacy_register_exporters');
@@ -631,6 +669,9 @@ if (!function_exists('ll_tools_privacy_delete_user_personal_data')) {
         }
 
         $removed = false;
+        if (function_exists('ll_tools_teacher_class_unlink_student')) {
+            $removed = ll_tools_teacher_class_unlink_student($user_id) || $removed;
+        }
         $tables = function_exists('ll_tools_user_progress_table_names')
             ? ll_tools_user_progress_table_names()
             : [];
@@ -659,6 +700,7 @@ if (!function_exists('ll_tools_privacy_delete_user_personal_data')) {
             defined('LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META') ? LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META : 'll_user_study_recommendation_dismissed',
             defined('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META') ? LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META : 'll_user_study_recommendation_deferrals',
             defined('LL_TOOLS_OFFLINE_APP_SESSION_META') ? LL_TOOLS_OFFLINE_APP_SESSION_META : '',
+            defined('LL_TOOLS_STUDENT_CLASS_IDS_META') ? LL_TOOLS_STUDENT_CLASS_IDS_META : '',
         ];
 
         foreach ($meta_keys as $meta_key) {

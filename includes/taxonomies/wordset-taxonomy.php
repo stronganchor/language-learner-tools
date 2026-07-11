@@ -771,6 +771,24 @@ function ll_tools_current_user_can_manage_wordset_content($wordset): bool {
     return ll_tools_user_can_manage_wordset_content($wordset, (int) get_current_user_id());
 }
 
+function ll_tools_map_wordset_term_meta_caps(array $caps, string $cap, int $user_id, array $args): array {
+    if (!in_array($cap, ['edit_term', 'delete_term'], true) || empty($args[0])) {
+        return $caps;
+    }
+
+    $term = get_term((int) $args[0]);
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'wordset') {
+        return $caps;
+    }
+
+    if (!ll_tools_user_can_manage_wordset_content((int) $term->term_id, $user_id)) {
+        return ['do_not_allow'];
+    }
+
+    return $caps;
+}
+add_filter('map_meta_cap', 'll_tools_map_wordset_term_meta_caps', 20, 4);
+
 function ll_tools_user_can_manage_wordset_categories($wordsets = [], int $user_id = 0): bool {
     $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
     if ($user_id <= 0) {

@@ -145,11 +145,14 @@ test('seeded LL Tools benchmark scenarios stay within the historical performance
   test.slow();
 
   const { manifest, manifestPath } = loadPerformanceManifest();
-  const scenarios = buildBenchmarkScenarios(manifest);
-  test.skip(
-    scenarios.some((scenario) => scenario.requiresAuth) && !hasAdminCredentials(),
-    'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for authenticated performance scenarios.'
-  );
+  const allScenarios = buildBenchmarkScenarios(manifest);
+  const credentialsAvailable = hasAdminCredentials();
+  const scenarios = credentialsAvailable
+    ? allScenarios
+    : allScenarios.filter((scenario) => !scenario.requiresAuth);
+  if (!scenarios.length) {
+    throw new Error('No performance scenarios are runnable with the available credentials.');
+  }
   const scenarioSummaries = [];
   let throttleProfile = null;
   let authenticated = false;

@@ -213,6 +213,50 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame([2, 2, 1], array_map('count', $requests));
     }
 
+    public function test_remote_requests_reject_unsafe_urls_except_local_development_hosts(): void
+    {
+        $request_args = [];
+        $http_filter = static function ($preempt, array $args) use (&$request_args) {
+            unset($preempt);
+            $request_args[] = $args;
+            return [
+                'headers' => [],
+                'body' => '{}',
+                'response' => ['code' => 200, 'message' => 'OK'],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+        add_filter('pre_http_request', $http_filter, 10, 2);
+
+        try {
+            $base = [
+                'local_wordset_id' => 1,
+                'remote_wordset' => 'remote-wordset',
+                'remote_username' => 'remote-user',
+                'surface' => 'transcriptions',
+            ];
+            $this->assertIsArray(ll_tools_site_sync_remote_request(
+                $base + ['remote_url' => 'https://example.com'],
+                'GET',
+                '/wordsets/remote-wordset/snapshot',
+                'remote-password'
+            ));
+            $this->assertIsArray(ll_tools_site_sync_remote_request(
+                $base + ['remote_url' => 'http://starter-english.local'],
+                'GET',
+                '/wordsets/remote-wordset/snapshot',
+                'remote-password'
+            ));
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+        }
+
+        $this->assertCount(2, $request_args);
+        $this->assertTrue((bool) ($request_args[0]['reject_unsafe_urls'] ?? false));
+        $this->assertFalse((bool) ($request_args[1]['reject_unsafe_urls'] ?? true));
+    }
+
     public function test_apply_push_batch_processes_update_and_reports_done(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Apply Batch Wordset', 'apply-batch-wordset');

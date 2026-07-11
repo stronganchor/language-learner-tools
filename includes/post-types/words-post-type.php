@@ -1232,17 +1232,17 @@ function ll_add_words_filters() {
         ));
 
         echo '<select name="wordset">';
-        echo '<option value="">' . __('All Word Sets', 'll-tools-text-domain') . '</option>';
+        echo '<option value="">' . esc_html__('All Word Sets', 'll-tools-text-domain') . '</option>';
         foreach ($wordsets as $wordset) {
-            echo '<option value="' . $wordset->slug . '"' . selected($selected_wordset, $wordset->slug, false) . '>' . $wordset->name . '</option>';
+            echo '<option value="' . esc_attr((string) $wordset->slug) . '"' . selected($selected_wordset, $wordset->slug, false) . '>' . esc_html((string) $wordset->name) . '</option>';
         }
         echo '</select>';
 
         // Featured image filter
         echo '<select name="has_image">';
-        echo '<option value="">' . __('Has Featured Image', 'll-tools-text-domain') . '</option>';
-        echo '<option value="yes"' . selected($selected_image, 'yes', false) . '>' . __('Yes', 'll-tools-text-domain') . '</option>';
-        echo '<option value="no"' . selected($selected_image, 'no', false) . '>' . __('No', 'll-tools-text-domain') . '</option>';
+        echo '<option value="">' . esc_html__('Has Featured Image', 'll-tools-text-domain') . '</option>';
+        echo '<option value="yes"' . selected($selected_image, 'yes', false) . '>' . esc_html__('Yes', 'll-tools-text-domain') . '</option>';
+        echo '<option value="no"' . selected($selected_image, 'no', false) . '>' . esc_html__('No', 'll-tools-text-domain') . '</option>';
         echo '</select>';
     }
 }

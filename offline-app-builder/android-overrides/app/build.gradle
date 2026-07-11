@@ -1,18 +1,27 @@
 apply plugin: 'com.android.application'
 
+def llToolsAppProperties = new Properties()
+def llToolsAppPropertiesFile = rootProject.file('ll-tools-app.properties')
+if (llToolsAppPropertiesFile.exists()) {
+    llToolsAppPropertiesFile.withInputStream { llToolsAppProperties.load(it) }
+}
+def llToolsApplicationId = llToolsAppProperties.getProperty('applicationId', 'com.lltools.offline.app')
+def llToolsVersionCode = Integer.parseInt(llToolsAppProperties.getProperty('versionCode', '1'))
+def llToolsVersionName = llToolsAppProperties.getProperty('versionName', '1.0')
+
 android {
-    namespace = "com.lltools.offline.offline.quiz"
+    namespace = llToolsApplicationId
     compileSdk = rootProject.ext.compileSdkVersion
     aaptOptions {
          // Keep bundled offline STT model files readable as packaged assets.
         noCompress 'onnx', 'ort', 'tflite', 'gguf', 'bin', 'model', 'pte'
     }
     defaultConfig {
-        applicationId "com.lltools.offline.offline.quiz"
+        applicationId llToolsApplicationId
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode llToolsVersionCode
+        versionName llToolsVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'

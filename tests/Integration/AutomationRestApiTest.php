@@ -3027,6 +3027,32 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Replace prompt audio.', ll_tools_get_internal_review_note($prompt_card_id));
     }
 
+    public function test_prompt_card_update_validates_assignments_before_mutating_fields(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Prompt Atomic Wordset', 'rest-prompt-atomic-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Prompt Atomic Category', 'rest-prompt-atomic-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Prompt Atomic Word', 'Translation');
+        $wrong_word_id = $this->create_word($wordset_id, [$category_id], 'REST Prompt Atomic Wrong', 'Wrong');
+        $prompt_card_id = $this->create_prompt_card($wordset_id, $category_id, $word_id, [$wrong_word_id]);
+        wp_set_current_user($admin_id);
+
+        $request = new WP_REST_Request('POST');
+        $request->set_param('wordset', 'rest-prompt-atomic-wordset');
+        $request->set_param('prompt_card_id', $prompt_card_id);
+        $request->set_param('prompt_text', 'This must not be saved');
+        $request->set_param('category_slug', 'missing-prompt-category');
+
+        $response = ll_tools_rest_automation_prompt_cards($request);
+
+        $this->assertWPError($response);
+        $this->assertSame(
+            'Which option is right?',
+            (string) get_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, true)
+        );
+        $this->assertSame([$category_id], array_map('intval', wp_get_post_terms($prompt_card_id, 'word-category', ['fields' => 'ids'])));
+    }
+
     public function test_review_notes_route_blocks_view_only_writes_and_allows_manager_writes(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'REST Review Notes Permission Wordset', 'rest-review-notes-permission-wordset');

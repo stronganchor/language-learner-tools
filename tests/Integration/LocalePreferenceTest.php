@@ -473,6 +473,14 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertSame('en_US', ll_tools_filter_locale('tr_TR'));
     }
 
+    public function test_accept_language_parser_discards_explicitly_rejected_locales(): void
+    {
+        $this->assertSame(
+            ['fr_FR', 'en_US'],
+            ll_tools_get_accept_language_preferences('fr-FR;q=1,tr-TR;q=0,en-US;q=0.5')
+        );
+    }
+
     public function test_filter_locale_skips_browser_language_when_admin_setting_disables_it(): void
     {
         update_option('ll_enable_browser_language_autoswitch', 0);

@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
     "prepare:bundle": "node scripts/prepare-bundle.mjs",
     "inject:stt": "node scripts/inject-stt-bundle.mjs",
     "build:debug": "node scripts/build-apk.mjs --debug",

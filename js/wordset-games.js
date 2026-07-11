@@ -8775,13 +8775,6 @@
         return String(source.speaking_prompt_text || source.translation || source.prompt_label || source.label || source.title || '').trim();
     }
 
-    function resetSpeakingStackUi(ctx) {
-        setSpeakingStackProgress(ctx, '');
-        setSpeakingStatus(ctx, '');
-        setSpeakingStackHeard(ctx, '');
-        resetSpeakingMeter(ctx);
-    }
-
     function setSpeakingStackProgressFromRun(ctx, run) {
         if (!run) {
             setSpeakingStackProgress(ctx, '');

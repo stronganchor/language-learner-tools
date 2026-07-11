@@ -624,6 +624,59 @@ if (!function_exists('ll_tools_teacher_class_remove_student')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_unlink_student')) {
+    function ll_tools_teacher_class_unlink_student(int $user_id): bool {
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        $class_ids = ll_tools_teacher_class_get_ids_for_student($user_id);
+        $matching_class_ids = get_posts([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'any',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'meta_query' => [[
+                'key' => LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META,
+                'value' => 'i:' . $user_id . ';',
+                'compare' => 'LIKE',
+            ]],
+        ]);
+        $class_ids = ll_tools_teacher_class_normalize_ids(array_merge($class_ids, (array) $matching_class_ids));
+        $removed = false;
+
+        foreach ($class_ids as $class_id) {
+            $student_ids = ll_tools_teacher_class_get_student_ids((int) $class_id);
+            $remaining_ids = array_values(array_filter(
+                $student_ids,
+                static function (int $student_id) use ($user_id): bool {
+                    return $student_id !== $user_id;
+                }
+            ));
+            if ($remaining_ids !== $student_ids) {
+                update_post_meta((int) $class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, $remaining_ids);
+                $removed = true;
+            }
+        }
+
+        if (metadata_exists('user', $user_id, LL_TOOLS_STUDENT_CLASS_IDS_META)) {
+            delete_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META);
+            $removed = true;
+        }
+
+        return $removed;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_cleanup_deleted_user')) {
+    function ll_tools_teacher_class_cleanup_deleted_user(int $user_id): void {
+        ll_tools_teacher_class_unlink_student($user_id);
+    }
+}
+add_action('delete_user', 'll_tools_teacher_class_cleanup_deleted_user', 10, 1);
+add_action('wpmu_delete_user', 'll_tools_teacher_class_cleanup_deleted_user', 10, 1);
+
 if (!function_exists('ll_tools_teacher_class_delete')) {
     function ll_tools_teacher_class_delete(int $class_id) {
         if (!ll_tools_teacher_class_exists($class_id)) {

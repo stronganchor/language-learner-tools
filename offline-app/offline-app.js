@@ -1762,6 +1762,7 @@
         }
         passwordToggle.setAttribute('aria-label', syncMessages.showPasswordLabel);
         panel.hidden = false;
+        let sheetReturnFocus = null;
 
         function setFeedback(element, message, isError) {
             if (!element) {
@@ -1770,23 +1771,32 @@
             const text = String(message || '');
             element.hidden = !text;
             element.textContent = text;
+            element.setAttribute('role', isError ? 'alert' : 'status');
+            element.setAttribute('aria-live', isError ? 'assertive' : 'polite');
             element.style.color = isError ? '#8e2b18' : '#1f5f4a';
         }
 
-        function closeSheet() {
+        function closeSheet(restoreFocus) {
             sheet.hidden = true;
             setFeedback(sheetFeedbackEl, '', false);
             if (passwordInput) {
                 passwordInput.type = 'password';
             }
             passwordToggle.setAttribute('aria-pressed', 'false');
+            if (restoreFocus !== false && sheetReturnFocus && typeof sheetReturnFocus.focus === 'function') {
+                sheetReturnFocus.focus();
+            }
+            sheetReturnFocus = null;
         }
 
         function openSheet() {
             setFeedback(sheetFeedbackEl, '', false);
+            sheetReturnFocus = documentRef.activeElement || connectButton;
             sheet.hidden = false;
             if (identifierInput && !identifierInput.value) {
                 identifierInput.focus();
+            } else {
+                passwordInput.focus();
             }
         }
 
@@ -1892,6 +1902,36 @@
                 closeSheet();
             }
         });
+        sheet.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeSheet();
+                return;
+            }
+            if (event.key !== 'Tab') {
+                return;
+            }
+
+            const focusable = Array.prototype.slice.call(sheet.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )).filter(function (element) {
+                return !element.hidden;
+            });
+            if (!focusable.length) {
+                event.preventDefault();
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && documentRef.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && documentRef.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
 
         form.addEventListener('submit', function (event) {
             event.preventDefault();
@@ -1915,7 +1955,7 @@
                     expires_at: payload.expires_at || '',
                     user: payload.user || null
                 });
-                closeSheet();
+                closeSheet(false);
                 updatePanel();
                 return syncNow({ silent: false });
             }).catch(function (error) {

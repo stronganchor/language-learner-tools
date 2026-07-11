@@ -23,6 +23,53 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertTrue($role->has_cap(ll_tools_get_teacher_view_progress_capability()));
     }
 
+    public function test_class_memberships_are_exported_and_erased_from_both_sides(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'display_name' => 'Privacy Teacher',
+        ]);
+        $learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'class-privacy@example.org',
+        ]);
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Privacy Class', $this->default_wordset_id);
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
+
+        $export = ll_tools_privacy_export_class_memberships('class-privacy@example.org');
+        $this->assertTrue((bool) ($export['done'] ?? false));
+        $this->assertCount(1, (array) ($export['data'] ?? []));
+        $export_item = (array) (($export['data'] ?? [])[0] ?? []);
+        $this->assertSame('ll-tools-class-membership-' . $class_id, (string) ($export_item['item_id'] ?? ''));
+        $this->assertStringContainsString('Privacy Class', wp_json_encode($export_item));
+        $this->assertStringContainsString('Privacy Teacher', wp_json_encode($export_item));
+
+        $this->assertTrue(ll_tools_privacy_delete_user_personal_data($learner_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
+        $this->assertSame([], ll_tools_teacher_class_get_student_ids((int) $class_id));
+    }
+
+    public function test_user_deletion_unlinks_teacher_class_membership(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+        $teacher_id = self::factory()->user->create(['role' => 'll_tools_teacher']);
+        $learner_id = self::factory()->user->create(['role' => 'll_tools_learner']);
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Deleted Learner Class', $this->default_wordset_id);
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
+
+        if (!function_exists('wp_delete_user')) {
+            require_once ABSPATH . 'wp-admin/includes/user.php';
+        }
+        $this->assertTrue(wp_delete_user($learner_id));
+
+        $this->assertSame([], ll_tools_teacher_class_get_student_ids((int) $class_id));
+    }
+
     public function test_signup_invite_enables_registration_when_public_signup_is_disabled(): void
     {
         ll_tools_register_or_refresh_teacher_role();

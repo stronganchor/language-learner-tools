@@ -54,7 +54,7 @@ function normalizeInputPath(inputPath) {
   return `/mnt/${driveLetter}/${relativePath}`;
 }
 
-function sanitizeSegment(value, fallback = 'app') {
+export function sanitizeSegment(value, fallback = 'app') {
   const clean = String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9_.]+/g, '')
@@ -84,7 +84,8 @@ function readManifest(bundleRoot) {
   return fs.readJsonSync(manifestPath);
 }
 
-function writeCapacitorConfig(manifest) {
+export function buildCapacitorConfig(manifest, options = {}) {
+  const includeSigning = options.includeSigning === true;
   const appId = sanitizeSegment(manifest?.android?.appId, 'com.lltools.offline.app');
   const appName = String(manifest?.app?.name || 'LL Tools Offline Quiz');
   const config = {
@@ -103,7 +104,7 @@ function writeCapacitorConfig(manifest) {
   const keystorePassword = process.env.LL_OFFLINE_KEYSTORE_PASSWORD || '';
   const keystoreAlias = process.env.LL_OFFLINE_KEY_ALIAS || '';
   const keystoreAliasPassword = process.env.LL_OFFLINE_KEY_ALIAS_PASSWORD || '';
-  if (keystorePath && keystorePassword && keystoreAlias && keystoreAliasPassword) {
+  if (includeSigning && keystorePath && keystorePassword && keystoreAlias && keystoreAliasPassword) {
     config.android.buildOptions = {
       ...config.android.buildOptions,
       keystorePath,
@@ -114,6 +115,11 @@ function writeCapacitorConfig(manifest) {
     };
   }
 
+  return config;
+}
+
+export function writeCapacitorConfig(manifest, options = {}) {
+  const config = buildCapacitorConfig(manifest, options);
   fs.writeJsonSync(CAPACITOR_CONFIG_PATH, config, { spaces: 2 });
 }
 

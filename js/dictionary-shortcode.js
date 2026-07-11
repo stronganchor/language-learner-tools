@@ -8,25 +8,25 @@
     const cacheSize = Number.isFinite(Number(config.cacheSize)) ? Math.max(0, Math.min(64, Number(config.cacheSize))) : 24;
     const loadingLabel = typeof config.loadingLabel === 'string' && config.loadingLabel
         ? config.loadingLabel
-        : 'Loading dictionary results...';
+        : '';
     const detailLoadingLabel = typeof config.detailLoadingLabel === 'string' && config.detailLoadingLabel
         ? config.detailLoadingLabel
-        : 'Loading dictionary entry...';
+        : '';
     const toolbarLoadingLabel = typeof config.toolbarLoadingLabel === 'string' && config.toolbarLoadingLabel
         ? config.toolbarLoadingLabel
-        : 'Loading dictionary filters...';
+        : '';
     const entryTitleRequiredLabel = typeof config.entryTitleRequiredLabel === 'string' && config.entryTitleRequiredLabel
         ? config.entryTitleRequiredLabel
-        : 'Enter a dictionary entry title.';
+        : '';
     const entryDefinitionRequiredLabel = typeof config.entryDefinitionRequiredLabel === 'string' && config.entryDefinitionRequiredLabel
         ? config.entryDefinitionRequiredLabel
-        : 'Enter a definition.';
+        : '';
     const entrySavingLabel = typeof config.entrySavingLabel === 'string' && config.entrySavingLabel
         ? config.entrySavingLabel
-        : 'Saving...';
+        : '';
     const entryErrorLabel = typeof config.entryErrorLabel === 'string' && config.entryErrorLabel
         ? config.entryErrorLabel
-        : 'Unable to save this dictionary entry right now.';
+        : '';
 
     if (!ajaxUrl) {
         return;

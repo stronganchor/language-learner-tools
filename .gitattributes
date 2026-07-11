@@ -15,5 +15,6 @@
 /languages/*.po~ export-ignore
 
 # Keep bash test runner scripts runnable under LF-only shells.
+/bin/*.sh text eol=lf
 /tests/bin/*.sh text eol=lf
 /scripts/*.sh text eol=lf

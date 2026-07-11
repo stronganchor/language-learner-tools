@@ -189,7 +189,7 @@ $format_ms = static function (int $ms): string {
                 </div>
 
                 <?php if (!empty($cues)) : ?>
-                    <div class="ll-content-lesson-transcript" data-ll-content-lesson-transcript role="list" aria-label="<?php echo esc_attr__('Transcript', 'll-tools-text-domain'); ?>">
+                    <div class="ll-content-lesson-transcript" data-ll-content-lesson-transcript aria-label="<?php echo esc_attr__('Transcript', 'll-tools-text-domain'); ?>">
                         <?php foreach ($cues as $cue) : ?>
                             <?php
                             $cue_id = isset($cue['id']) ? (int) $cue['id'] : 0;
@@ -203,7 +203,6 @@ $format_ms = static function (int $ms): string {
                             <button
                                 type="button"
                                 class="ll-content-lesson-transcript__cue"
-                                role="listitem"
                                 data-ll-content-lesson-cue
                                 data-cue-id="<?php echo esc_attr((string) $cue_id); ?>"
                                 data-start-ms="<?php echo esc_attr((string) $cue_start_ms); ?>"

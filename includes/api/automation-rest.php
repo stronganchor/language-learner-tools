@@ -8566,18 +8566,30 @@ function ll_tools_rest_automation_prompt_cards(WP_REST_Request $request) {
         $fields['track_answer_word_progress'] = rest_sanitize_boolean($request->get_param('track_answer_word_progress'));
     }
 
-    $changed_keys = [];
-    if (!empty($fields) && function_exists('ll_tools_update_prompt_card_configuration')) {
-        $changed_keys = ll_tools_update_prompt_card_configuration($prompt_card_id, $fields);
-    }
-
+    $category_ids = null;
     if (ll_tools_rest_automation_request_has_any_param($request, ['category_ids', 'categories', 'category', 'category_slug'])) {
         $category_raw = ll_tools_rest_automation_first_request_param($request, ['category_ids', 'categories', 'category', 'category_slug']);
         $category_ids = ll_tools_rest_automation_prompt_card_resolve_category_ids($wordset_term, $category_raw);
         if (is_wp_error($category_ids)) {
             return $category_ids;
         }
+    }
 
+    $wordset_ids = null;
+    if (ll_tools_rest_automation_request_has_any_param($request, ['wordset_ids', 'wordsets'])) {
+        $wordset_raw = ll_tools_rest_automation_first_request_param($request, ['wordset_ids', 'wordsets']);
+        $wordset_ids = ll_tools_rest_automation_prompt_card_resolve_wordset_ids($wordset_id, $wordset_raw);
+        if (is_wp_error($wordset_ids)) {
+            return $wordset_ids;
+        }
+    }
+
+    $changed_keys = [];
+    if (!empty($fields) && function_exists('ll_tools_update_prompt_card_configuration')) {
+        $changed_keys = ll_tools_update_prompt_card_configuration($prompt_card_id, $fields);
+    }
+
+    if (is_array($category_ids)) {
         $assigned = wp_set_post_terms($prompt_card_id, $category_ids, 'word-category', false);
         if (is_wp_error($assigned)) {
             return ll_tools_rest_automation_with_status($assigned, 400);
@@ -8587,13 +8599,7 @@ function ll_tools_rest_automation_prompt_cards(WP_REST_Request $request) {
         }
     }
 
-    if (ll_tools_rest_automation_request_has_any_param($request, ['wordset_ids', 'wordsets'])) {
-        $wordset_raw = ll_tools_rest_automation_first_request_param($request, ['wordset_ids', 'wordsets']);
-        $wordset_ids = ll_tools_rest_automation_prompt_card_resolve_wordset_ids($wordset_id, $wordset_raw);
-        if (is_wp_error($wordset_ids)) {
-            return $wordset_ids;
-        }
-
+    if (is_array($wordset_ids)) {
         $assigned = wp_set_post_terms($prompt_card_id, $wordset_ids, 'wordset', false);
         if (is_wp_error($assigned)) {
             return ll_tools_rest_automation_with_status($assigned, 400);
@@ -9362,7 +9368,7 @@ function ll_tools_rest_automation_get_import_job_from_request(WP_REST_Request $r
     }
 
     $job = ll_tools_import_job_get($job_id);
-    if (!is_array($job)) {
+    if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)) {
         return ll_tools_rest_automation_error(
             'll_tools_rest_import_job_not_found',
             __('The requested import job could not be found.', 'll-tools-text-domain'),
@@ -9380,12 +9386,15 @@ function ll_tools_rest_automation_import_start(WP_REST_Request $request) {
     if ($active_job_id !== '') {
         $active_job = ll_tools_import_job_get($active_job_id);
         if (is_array($active_job) && in_array((string) ($active_job['status'] ?? ''), ['running', 'paused'], true)) {
+            $snapshot = ll_tools_import_job_current_user_can_access($active_job)
+                ? ll_tools_import_job_get_snapshot($active_job)
+                : null;
             return new WP_Error(
                 'll_tools_rest_import_job_active',
                 __('Another import job is already active. Resume or finish it before starting a new one.', 'll-tools-text-domain'),
                 [
                     'status' => 409,
-                    'job' => ll_tools_import_job_get_snapshot($active_job),
+                    'job' => $snapshot,
                 ]
             );
         }

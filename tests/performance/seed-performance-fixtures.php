@@ -550,6 +550,49 @@ function ll_tools_perf_seed_delete_rows_by_ids(string $table, string $column, ar
 }
 
 function ll_tools_perf_seed_reset_fixture(array $manifest): array {
+    $collisions = [];
+    $learn_slug = sanitize_title((string) ($manifest['learnPage']['slug'] ?? 'll-perf-learn'));
+    if ($learn_slug !== '') {
+        $learn_page = get_page_by_path($learn_slug, OBJECT, 'page');
+        if ($learn_page instanceof WP_Post) {
+            $marker = (string) get_post_meta((int) $learn_page->ID, LL_TOOLS_PERF_FIXTURE_META_KEY, true);
+            if ($marker !== LL_TOOLS_PERF_FIXTURE_KEY) {
+                $collisions[] = 'page:' . $learn_slug;
+            }
+        }
+    }
+
+    foreach (ll_tools_perf_seed_expected_category_slugs($manifest) as $category_slug) {
+        $term = get_term_by('slug', $category_slug, 'word-category');
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            $marker = (string) get_term_meta((int) $term->term_id, LL_TOOLS_PERF_FIXTURE_META_KEY, true);
+            if ($marker !== LL_TOOLS_PERF_FIXTURE_KEY) {
+                $collisions[] = 'word-category:' . $category_slug;
+            }
+        }
+    }
+
+    foreach ((array) ($manifest['wordsets'] ?? []) as $wordset) {
+        $wordset_slug = sanitize_title((string) ($wordset['slug'] ?? ''));
+        if ($wordset_slug === '') {
+            continue;
+        }
+        $term = get_term_by('slug', $wordset_slug, 'wordset');
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            $marker = (string) get_term_meta((int) $term->term_id, LL_TOOLS_PERF_FIXTURE_META_KEY, true);
+            if ($marker !== LL_TOOLS_PERF_FIXTURE_KEY) {
+                $collisions[] = 'wordset:' . $wordset_slug;
+            }
+        }
+    }
+
+    if (!empty($collisions)) {
+        ll_tools_perf_seed_fail(
+            'Refusing to reset performance fixtures because these slugs belong to untagged Local-site content: '
+            . implode(', ', $collisions)
+        );
+    }
+
     $deleted = [
         'posts' => 0,
         'quiz_pages' => 0,
@@ -581,23 +624,7 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
         }
     }
 
-    $learn_slug = sanitize_title((string) ($manifest['learnPage']['slug'] ?? 'll-perf-learn'));
-    if ($learn_slug !== '') {
-        $learn_page = get_page_by_path($learn_slug, OBJECT, 'page');
-        if ($learn_page instanceof WP_Post) {
-            $deleted['posts'] += ll_tools_perf_seed_delete_posts([(int) $learn_page->ID]);
-        }
-    }
-
     $deleted['posts'] += ll_tools_perf_seed_delete_posts(ll_tools_perf_seed_query_fixture_posts());
-
-    $expected_category_slugs = ll_tools_perf_seed_expected_category_slugs($manifest);
-    foreach ($expected_category_slugs as $category_slug) {
-        $term = get_term_by('slug', $category_slug, 'word-category');
-        if ($term instanceof WP_Term && !is_wp_error($term)) {
-            update_term_meta((int) $term->term_id, LL_TOOLS_PERF_FIXTURE_META_KEY, LL_TOOLS_PERF_FIXTURE_KEY);
-        }
-    }
 
     $term_sets = [
         'word-category' => get_terms([
@@ -615,17 +642,6 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
             'meta_value' => LL_TOOLS_PERF_FIXTURE_KEY,
         ]),
     ];
-
-    foreach ((array) ($manifest['wordsets'] ?? []) as $wordset) {
-        $wordset_slug = sanitize_title((string) ($wordset['slug'] ?? ''));
-        if ($wordset_slug === '') {
-            continue;
-        }
-        $term = get_term_by('slug', $wordset_slug, 'wordset');
-        if ($term instanceof WP_Term && !is_wp_error($term)) {
-            $term_sets['wordset'][] = (int) $term->term_id;
-        }
-    }
 
     foreach ($term_sets as $taxonomy => $ids) {
         if (is_wp_error($ids)) {

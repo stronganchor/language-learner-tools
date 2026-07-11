@@ -21,21 +21,54 @@ const ADAPTIVE_FOREGROUND_SIZES = {
   xxxhdpi: 432
 };
 const ADAPTIVE_FOREGROUND_SCALE = 0.6666667;
+const MAX_ICON_BYTES = 10 * 1024 * 1024;
+const MAX_ICON_PIXELS = 64 * 1024 * 1024;
+const ALLOWED_ICON_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+const ALLOWED_ICON_FORMATS = new Set(['jpeg', 'png', 'webp']);
 
-function resolvePreparedIcon(state) {
+function isPathInside(rootPath, candidatePath) {
+  const relative = path.relative(rootPath, candidatePath);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+export function resolvePreparedIcon(state) {
   const bundleRoot = String(state?.bundleRoot || '');
-  const bundlePath = String(state?.manifest?.app?.icon?.bundlePath || '').replace(/^[/\\]+/, '');
+  const bundlePath = String(state?.manifest?.app?.icon?.bundlePath || '');
 
   if (!bundleRoot || !bundlePath) {
     return null;
   }
 
-  const absolutePath = path.join(bundleRoot, bundlePath);
+  if (path.isAbsolute(bundlePath)) {
+    throw new Error('The app icon path must be relative to the prepared bundle.');
+  }
+
+  const realBundleRoot = fs.realpathSync(bundleRoot);
+  const absolutePath = path.resolve(realBundleRoot, bundlePath);
+  if (!isPathInside(realBundleRoot, absolutePath)) {
+    throw new Error('The app icon path escapes the prepared bundle.');
+  }
   if (!fs.existsSync(absolutePath)) {
     return null;
   }
 
-  return absolutePath;
+  const realIconPath = fs.realpathSync(absolutePath);
+  if (!isPathInside(realBundleRoot, realIconPath)) {
+    throw new Error('The app icon resolves outside the prepared bundle.');
+  }
+
+  const stats = fs.statSync(realIconPath);
+  if (!stats.isFile()) {
+    throw new Error('The app icon path must reference a file.');
+  }
+  if (stats.size > MAX_ICON_BYTES) {
+    throw new Error(`The app icon exceeds the ${MAX_ICON_BYTES}-byte limit.`);
+  }
+  if (!ALLOWED_ICON_EXTENSIONS.has(path.extname(realIconPath).toLowerCase())) {
+    throw new Error('The app icon must be a PNG, JPEG, or WebP file.');
+  }
+
+  return realIconPath;
 }
 
 async function renderSquareIcon(sourcePath, size, destinationPath) {
@@ -81,6 +114,11 @@ export async function applyBundledAppIcon(state) {
 
   if (!fs.existsSync(ANDROID_RES_DIR)) {
     return { applied: false, reason: 'android-missing', iconPath };
+  }
+
+  const metadata = await sharp(iconPath, { limitInputPixels: MAX_ICON_PIXELS, failOn: 'error' }).metadata();
+  if (!ALLOWED_ICON_FORMATS.has(String(metadata.format || ''))) {
+    throw new Error('The app icon contents must be PNG, JPEG, or WebP.');
   }
 
   for (const [density, size] of Object.entries(LEGACY_ICON_SIZES)) {

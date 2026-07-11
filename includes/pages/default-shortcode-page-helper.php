@@ -328,19 +328,27 @@ function ll_tools_render_default_shortcode_page_settings_row(array $config): voi
                 <button type="button" class="button" id="<?php echo esc_attr($button_id); ?>">
                     <?php echo esc_html($page_exists ? $recreate_label : $create_label); ?>
                 </button>
+                <span id="<?php echo esc_attr($button_id); ?>-status" class="description" role="status" aria-live="polite"></span>
             </p>
 
             <script>
             jQuery(function($) {
                 $('#<?php echo esc_js($button_id); ?>').on('click', function() {
+                    var $button = $(this);
+                    var $status = $('#<?php echo esc_js($button_id); ?>-status');
+                    if ($button.prop('disabled')) {
+                        return;
+                    }
                     if (!window.confirm('<?php echo esc_js($confirm_message); ?>')) {
                         return;
                     }
 
+                    $button.prop('disabled', true).attr('aria-busy', 'true');
+                    $status.text('<?php echo esc_js(__('Creating page...', 'll-tools-text-domain')); ?>');
                     $.post(ajaxurl, {
                         action: '<?php echo esc_js($ajax_action); ?>',
                         nonce: '<?php echo esc_js(wp_create_nonce($ajax_nonce_action)); ?>'
-                    }, function(response) {
+                    }).done(function(response) {
                         if (response && response.success) {
                             window.location.reload();
                             return;
@@ -348,6 +356,13 @@ function ll_tools_render_default_shortcode_page_settings_row(array $config): voi
 
                         var message = (response && response.data) ? response.data : '<?php echo esc_js(__('Unknown error.', 'll-tools-text-domain')); ?>';
                         window.alert('<?php echo esc_js(__('Error:', 'll-tools-text-domain')); ?> ' + message);
+                        $status.text(message);
+                    }).fail(function() {
+                        var message = '<?php echo esc_js(__('The request failed. Please try again.', 'll-tools-text-domain')); ?>';
+                        window.alert('<?php echo esc_js(__('Error:', 'll-tools-text-domain')); ?> ' + message);
+                        $status.text(message);
+                    }).always(function() {
+                        $button.prop('disabled', false).removeAttr('aria-busy');
                     });
                 });
             });
@@ -376,12 +391,21 @@ function ll_tools_handle_default_shortcode_page_creation_ajax(array $config): vo
         wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
     }
 
-    delete_option($option_key);
-    delete_transient($creation_attempt_transient);
-    update_option($force_option_key, 1);
-    ll_tools_ensure_default_shortcode_page($config);
+    $lock_option = '_ll_tools_shortcode_page_create_' . md5($option_key);
+    if (!add_option($lock_option, (string) time(), '', false)) {
+        wp_send_json_error(__('Page creation is already in progress.', 'll-tools-text-domain'), 409);
+    }
 
-    $page_id = (int) get_option($option_key);
+    try {
+        delete_option($option_key);
+        delete_transient($creation_attempt_transient);
+        update_option($force_option_key, 1);
+        ll_tools_ensure_default_shortcode_page($config);
+        $page_id = (int) get_option($option_key);
+    } finally {
+        delete_option($lock_option);
+    }
+
     if ($page_id <= 0) {
         wp_send_json_error(__('Failed to create page', 'll-tools-text-domain'));
     }

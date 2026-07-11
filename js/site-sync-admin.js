@@ -3,54 +3,11 @@
 
   var config = window.llToolsSiteSyncAdmin || {};
   var strings = config.strings || {};
-  var passwordStoreKey = 'llToolsSiteSyncRemotePassword';
 
   function t(key) {
     return strings[key] || '';
   }
 
-  function getPasswordFields() {
-    return Array.prototype.slice.call(document.querySelectorAll('input[name="ll_site_sync_remote_password"]'));
-  }
-
-  function storePassword(value) {
-    try {
-      if (value) {
-        window.sessionStorage.setItem(passwordStoreKey, value);
-      }
-    } catch (error) {
-      // Session storage can be disabled; the form still works without reuse.
-    }
-  }
-
-  function getStoredPassword() {
-    try {
-      return window.sessionStorage.getItem(passwordStoreKey) || '';
-    } catch (error) {
-      return '';
-    }
-  }
-
-  function hydratePasswordFields() {
-    var stored = getStoredPassword();
-    getPasswordFields().forEach(function (field) {
-      if (stored && !field.value) {
-        field.value = stored;
-      }
-      field.addEventListener('input', function () {
-        storePassword(field.value);
-      });
-    });
-
-    document.addEventListener('submit', function (event) {
-      var field = event.target && event.target.querySelector
-        ? event.target.querySelector('input[name="ll_site_sync_remote_password"]')
-        : null;
-      if (field && field.value) {
-        storePassword(field.value);
-      }
-    }, true);
-  }
 
   function setLoading(container) {
     container.setAttribute('aria-busy', 'true');
@@ -266,9 +223,6 @@
       }
 
       var passwordField = form.querySelector('input[name="ll_site_sync_remote_password"]');
-      if (passwordField && !passwordField.value) {
-        passwordField.value = getStoredPassword();
-      }
       if (!passwordField || !passwordField.value) {
         setApplyStatus(form, t('applyPasswordRequired'), false);
         if (passwordField) {
@@ -277,7 +231,6 @@
         return;
       }
 
-      storePassword(passwordField.value);
       running = true;
       processed = 0;
       if (button) {
@@ -290,7 +243,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    hydratePasswordFields();
     initOverview();
     initApplyPush();
   });

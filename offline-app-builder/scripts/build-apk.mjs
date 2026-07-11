@@ -3,7 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { prepareBundle } from './prepare-bundle.mjs';
+import { prepareBundle, sanitizeSegment, writeCapacitorConfig } from './prepare-bundle.mjs';
 import { applyBundledAppIcon } from './apply-app-icon.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -12,6 +12,7 @@ const WORKSPACE_DIR = path.join(ROOT_DIR, 'workspace');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
 const ANDROID_DIR = path.join(ROOT_DIR, 'android');
 const ANDROID_OVERRIDES_DIR = path.join(ROOT_DIR, 'android-overrides');
+const ANDROID_APP_PROPERTIES_PATH = path.join(ANDROID_DIR, 'll-tools-app.properties');
 const LINUX_TOOLCHAIN_DIR = path.join(WORKSPACE_DIR, 'linux-toolchain');
 const LINUX_JDK_DIR = path.join(LINUX_TOOLCHAIN_DIR, 'jdk');
 const LINUX_ANDROID_SDK_DIR = path.join(LINUX_TOOLCHAIN_DIR, 'android-sdk');
@@ -189,6 +190,31 @@ function applyAndroidOverrides() {
   });
 }
 
+function escapePropertiesValue(value) {
+  return String(value).replace(/([\\:=#!])/g, '\\$1');
+}
+
+export function resolveAndroidPackageConfig(manifest) {
+  const rawVersionCode = Number.parseInt(String(manifest?.app?.versionCode || ''), 10);
+  return {
+    applicationId: sanitizeSegment(manifest?.android?.appId, 'com.lltools.offline.app'),
+    versionCode: Number.isSafeInteger(rawVersionCode) && rawVersionCode > 0 ? rawVersionCode : 1,
+    versionName: String(manifest?.app?.versionName || '1.0').trim() || '1.0'
+  };
+}
+
+export function writeAndroidAppProperties(preparedState) {
+  const config = resolveAndroidPackageConfig(preparedState?.manifest || {});
+  const contents = [
+    `applicationId=${escapePropertiesValue(config.applicationId)}`,
+    `versionCode=${config.versionCode}`,
+    `versionName=${escapePropertiesValue(config.versionName)}`,
+    ''
+  ].join('\n');
+  fs.writeFileSync(ANDROID_APP_PROPERTIES_PATH, contents, 'utf8');
+  return config;
+}
+
 function ensureBundlePrepared(explicitInput) {
   if (explicitInput) {
     return prepareBundle(explicitInput);
@@ -222,15 +248,20 @@ async function buildDebug(preparedState) {
   printOutputHints('debug');
 }
 
-function buildRelease() {
+function buildRelease(preparedState) {
   if (!getSigningEnvReady()) {
     throw new Error(
       'Release build requires LL_OFFLINE_KEYSTORE_PATH, LL_OFFLINE_KEYSTORE_PASSWORD, LL_OFFLINE_KEY_ALIAS, and LL_OFFLINE_KEY_ALIAS_PASSWORD.'
     );
   }
 
-  runCapacitor(['build', 'android', '--androidreleasetype', 'APK']);
-  printOutputHints('release');
+  writeCapacitorConfig(preparedState.manifest, { includeSigning: true });
+  try {
+    runCapacitor(['build', 'android', '--androidreleasetype', 'APK']);
+    printOutputHints('release');
+  } finally {
+    writeCapacitorConfig(preparedState.manifest);
+  }
 }
 
 async function main() {
@@ -241,10 +272,11 @@ async function main() {
   const preparedState = ensureBundlePrepared(explicitInput);
   ensureAndroidPlatform();
   applyAndroidOverrides();
+  writeAndroidAppProperties(preparedState);
   await applyBundledAppIcon(preparedState);
 
   if (mode === 'release') {
-    buildRelease();
+    buildRelease(preparedState);
   } else {
     await buildDebug(preparedState);
   }

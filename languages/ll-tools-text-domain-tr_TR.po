@@ -2965,7 +2965,7 @@ msgstr "Kelime oluşturulamadı: %s"
 #: includes/shortcodes/audio-recording-shortcode.php:6332
 #, php-format
 msgid "Failed to create word_audio post: %s"
-msgstr "Word_audio gönderisi oluşturulamadı: %s"
+msgstr "Kelime ses kaydı gönderisi oluşturulamadı: %s"
 
 #: includes/admin/export-import.php:8990
 #, php-format
@@ -3003,7 +3003,7 @@ msgstr "Geri alma sırasında %d kelime seti terimi silinemedi."
 #: includes/admin/export-import.php:8939
 #, php-format
 msgid "Failed to delete word_audio post %d during undo."
-msgstr "Geri alma sırasında word_audio post %d silinemedi."
+msgstr "Geri alma sırasında %d numaralı kelime ses kaydı gönderisi silinemedi."
 
 #. translators: %s: word creation error
 #: includes/shortcodes/audio-recording-shortcode.php:5410
@@ -7396,7 +7396,7 @@ msgstr ""
 #: includes/shortcodes/dictionary-shortcode.php:2830
 #: includes/shortcodes/image-copyright-grid-shortcode.php:161
 msgid "Search"
-msgstr "Arama"
+msgstr "Ara"
 
 #: includes/post-types/word-audio-post-type.php:18
 msgid "Search Audio Recordings"
@@ -9829,7 +9829,7 @@ msgstr "Kelime başlığı"
 
 #: includes/shortcodes/audio-recording-shortcode.php:1252
 msgid "Word unhidden."
-msgstr "Gizlenmemiş kelime."
+msgstr "Kelime yeniden görünür yapıldı."
 
 #. Description of the plugin
 #: language-learner-tools.php
@@ -13486,7 +13486,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:341
 msgid "Add check"
-msgstr "Çek ekle"
+msgstr "Denetim ekle"
 
 #: includes/admin/ipa-keyboard-admin.php:343
 msgid "Enter a sound to check."
@@ -13494,15 +13494,15 @@ msgstr "Kontrol etmek için bir ses gir."
 
 #: includes/admin/ipa-keyboard-admin.php:344
 msgid "Save checks"
-msgstr "Çekleri kaydet"
+msgstr "Denetimleri kaydet"
 
 #: includes/admin/ipa-keyboard-admin.php:345
 msgid "Checks saved and rescanned."
-msgstr "Çekler kaydedildi ve yeniden tarandı."
+msgstr "Denetimler kaydedildi ve yeniden tarandı."
 
 #: includes/admin/ipa-keyboard-admin.php:346
 msgid "Saving checks and rescanning this word set..."
-msgstr "Çekler kaydediliyor ve bu kelime seti yeniden taranıyor..."
+msgstr "Denetimler kaydediliyor ve bu kelime seti yeniden taranıyor..."
 
 #: includes/admin/ipa-keyboard-admin.php:347
 msgid "Open word"
@@ -14510,7 +14510,8 @@ msgid ""
 "Word %d could not bundle its featured image because the source file is "
 "missing."
 msgstr ""
-"Kaynak dosya eksik olduğundan %d Word öne çıkan görselini paketleyemedi."
+"Kaynak dosya eksik olduğundan %d numaralı kelimenin öne çıkan görseli "
+"paketlenemedi."
 
 #. translators: %s: relative plugin path
 #: includes/admin/offline-app-export.php:2245
@@ -16025,7 +16026,7 @@ msgid ""
 "Word-option rules were not saved because the payload did not validate. "
 "Review missing_words and errors in the response data."
 msgstr ""
-"Yük doğrulanmadığı için Word seçeneği kuralları kaydedilmedi. Yanıt "
+"Yük doğrulanmadığı için kelime seçeneği kuralları kaydedilmedi. Yanıt "
 "verilerindeki eksik_kelimeler ve hataları inceleyin."
 
 #: includes/api/automation-rest.php:1671
@@ -16260,11 +16261,11 @@ msgstr "TR"
 
 #: includes/lib/dictionary-browser.php:747
 msgid "DE"
-msgstr "Almanya"
+msgstr "DE"
 
 #: includes/lib/dictionary-browser.php:748
 msgid "EN"
-msgstr "TR"
+msgstr "EN"
 
 #: includes/lib/dictionary-browser.php:749
 msgid "ZZA"
@@ -17508,7 +17509,7 @@ msgstr "Bu kategori önizlemesi hazırlanamadı."
 
 #: includes/pages/wordset-pages.php:1168
 msgid "Word image preparation is not available right now."
-msgstr "Word görseli hazırlama şu anda kullanılamıyor."
+msgstr "Kelime görseli hazırlama şu anda kullanılamıyor."
 
 #: includes/pages/wordset-pages.php:1223 includes/pages/wordset-pages.php:1414
 msgid "Unable to update this category right now."
@@ -20977,7 +20978,7 @@ msgstr "Aramak için yaz veya aşağıdaki alfabeyi aç."
 
 #: includes/shortcodes/dictionary-shortcode.php:2331
 msgid "Browse dictionary by letter"
-msgstr "Sözlüğe harfe göre göz atın"
+msgstr "Sözlüğe harfe göre göz at"
 
 #: includes/shortcodes/dictionary-shortcode.php:2374
 msgid "Missing dictionary entry."
@@ -21358,7 +21359,7 @@ msgstr "Kelime başlıkları gizlendi"
 
 #: includes/shortcodes/site-tools-shortcode.php:1149
 msgid "Word titles shown"
-msgstr "Gösterilen kelime başlıkları"
+msgstr "Kelime başlıkları gösterildi"
 
 #: includes/shortcodes/site-tools-shortcode.php:1150
 #, php-format
@@ -21592,7 +21593,7 @@ msgstr "Ses kaydı mevcut ancak henüz dosyası yok."
 
 #: includes/shortcodes/word-grid-shortcode.php:2963
 msgid "Word has not been published yet."
-msgstr "Word henüz yayınlanmadı."
+msgstr "Kelime henüz yayınlanmadı."
 
 #: includes/shortcodes/word-grid-shortcode.php:3256
 msgid "Saving review note..."
@@ -27669,3 +27670,35 @@ msgstr "Toplu işlem tamamlandı."
 #. ll-tools-maintenance: 2026-07-10 bounded workflow batch
 msgid "No accessible recording word set was selected."
 msgstr "Ses kaydı için erişilebilir bir kelime seti seçilmedi."
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "Failed to create the audio post."
+msgstr "Ses kaydı gönderisi oluşturulamadı."
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "Creating page..."
+msgstr "Sayfa oluşturuluyor..."
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "LL Tools Class Memberships"
+msgstr "LL Tools Sınıf Üyelikleri"
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "Class ID"
+msgstr "Sınıf kimliği"
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "LL Tools Editor"
+msgstr "LL Tools Editörü"
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "Word Set Manager"
+msgstr "Kelime Seti Yöneticisi"
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "Failed to read the audio file size."
+msgstr "Ses dosyasının boyutu okunamadı."
+
+#. ll-tools-maintenance: 2026-07-10 codebase audit
+msgid "The audio file is too large for AssemblyAI transcription."
+msgstr "Ses dosyası AssemblyAI transkripsiyonu için çok büyük."

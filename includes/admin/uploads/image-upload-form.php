@@ -754,6 +754,16 @@ add_action('admin_notices', 'll_add_bulk_image_upload_tool_admin_page');
 /**
  * Handles the processing of uploaded image files.
  */
+function ll_image_upload_cleanup_failed_file(int $attachment_id, string $upload_path): void {
+    if ($attachment_id > 0) {
+        wp_delete_attachment($attachment_id, true);
+    }
+
+    if ($upload_path !== '' && is_file($upload_path)) {
+        wp_delete_file($upload_path);
+    }
+}
+
 function ll_handle_image_file_uploads() {
     // Security check: Ensure the current user can access this tool
     if (!ll_image_upload_user_can_access_admin_tool()) {
@@ -951,9 +961,11 @@ function ll_handle_image_file_uploads() {
 
                     $success_uploads[] = $original_name . ' -> New Post ID: ' . $post_id . $word_note;
                 } else {
+                    ll_image_upload_cleanup_failed_file((int) $attachment_id, $upload_path);
                     $failed_uploads[] = $original_name . ' (Failed to create post)';
                 }
             } else {
+                ll_image_upload_cleanup_failed_file(0, $upload_path);
                 $failed_uploads[] = $original_name . ' (Failed to create attachment)';
             }
         } else {

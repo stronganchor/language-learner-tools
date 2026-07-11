@@ -1401,6 +1401,9 @@ function ll_tools_ajax_content_lesson_options(): void {
         if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
             wp_send_json_error(['message' => __('Select a valid word set.', 'll-tools-text-domain')], 400);
         }
+        if (!ll_tools_user_can_manage_wordset_content($wordset_id, get_current_user_id())) {
+            wp_send_json_error(['message' => __('You do not have permission to manage this word set.', 'll-tools-text-domain')], 403);
+        }
     }
 
     $selected_ids = isset($_POST['selected_ids']) ? (array) wp_unslash($_POST['selected_ids']) : [];
@@ -1707,9 +1710,17 @@ function ll_tools_save_content_lesson_metabox($post_id, $post): void {
         return;
     }
 
+    $existing_wordset_id = ll_tools_get_content_lesson_wordset_id((int) $post_id);
+    if ($existing_wordset_id > 0 && !ll_tools_user_can_manage_wordset_content($existing_wordset_id, get_current_user_id())) {
+        return;
+    }
+
     $wordset_id = isset($_POST['ll_content_lesson_wordset_id']) ? (int) wp_unslash((string) $_POST['ll_content_lesson_wordset_id']) : 0;
     if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
         $wordset_id = 0;
+    }
+    if ($wordset_id > 0 && !ll_tools_user_can_manage_wordset_content($wordset_id, get_current_user_id())) {
+        return;
     }
 
     $lesson_kind = ll_tools_content_lesson_sanitize_kind(

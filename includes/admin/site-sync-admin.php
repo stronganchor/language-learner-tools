@@ -115,13 +115,18 @@ function ll_tools_site_sync_validate_connection(array $connection, string $passw
 
     $scheme = strtolower((string) wp_parse_url((string) $connection['remote_url'], PHP_URL_SCHEME));
     $host = strtolower((string) wp_parse_url((string) $connection['remote_url'], PHP_URL_HOST));
-    $is_local = in_array($host, ['localhost', '127.0.0.1', '::1'], true) || preg_match('/\.(local|test)$/', $host);
+    $is_local = ll_tools_site_sync_remote_host_is_local($host);
     $allowed_insecure = (bool) apply_filters('ll_tools_site_sync_allow_insecure_remote', false, $connection);
     if ($scheme !== 'https' && !$is_local && !$allowed_insecure) {
         return new WP_Error('ll_tools_site_sync_https_required', __('Remote password authentication is only allowed over HTTPS unless the remote host is local development.', 'll-tools-text-domain'));
     }
 
     return true;
+}
+
+function ll_tools_site_sync_remote_host_is_local(string $host): bool {
+    $host = strtolower(trim($host, '[]'));
+    return in_array($host, ['localhost', '127.0.0.1', '::1'], true) || (bool) preg_match('/\.(local|test)$/', $host);
 }
 
 function ll_tools_site_sync_remote_request(array $connection, string $method, string $route, string $password, array $body = []) {
@@ -137,6 +142,7 @@ function ll_tools_site_sync_remote_request(array $connection, string $method, st
     $args = [
         'method' => strtoupper($method),
         'timeout' => 30,
+        'reject_unsafe_urls' => !ll_tools_site_sync_remote_host_is_local((string) wp_parse_url($remote_url, PHP_URL_HOST)),
         'headers' => [
             'Authorization' => 'Basic ' . base64_encode((string) $connection['remote_username'] . ':' . $password),
             'Accept' => 'application/json',

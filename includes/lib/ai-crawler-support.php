@@ -108,7 +108,8 @@ function ll_tools_ai_crawler_maybe_serve_export(): void {
     status_header(200);
     header('Content-Type: ' . $export['content_type']);
     header('X-Robots-Tag: index, follow');
-    header('Cache-Control: public, max-age=' . (string) ll_tools_ai_crawler_response_cache_seconds());
+    header('Cache-Control: ' . ll_tools_ai_crawler_response_cache_control_value());
+    header('Vary: Accept-Language, Cookie');
     header('X-LL-Tools-AI-Crawler-Cache: ' . (string) ($response['cache_status'] ?? 'MISS'));
 
     if (!empty($response['send_body'])) {
@@ -117,6 +118,21 @@ function ll_tools_ai_crawler_maybe_serve_export(): void {
     exit;
 }
 add_action('template_redirect', 'll_tools_ai_crawler_maybe_serve_export', 0);
+
+function ll_tools_ai_crawler_response_cache_control_value(): string {
+    $site_locale = (string) get_option('WPLANG', '');
+    $site_locale = $site_locale !== '' ? $site_locale : 'en_US';
+    $request_locale = function_exists('get_locale') ? (string) get_locale() : '';
+    if ($request_locale === '' && function_exists('determine_locale')) {
+        $request_locale = (string) determine_locale();
+    }
+
+    if ($request_locale !== '' && $request_locale !== $site_locale) {
+        return 'private, no-store, max-age=0';
+    }
+
+    return 'public, max-age=' . (string) ll_tools_ai_crawler_response_cache_seconds();
+}
 
 /**
  * @return array<int,array{href:string,rel:string,type:string,title:string}>

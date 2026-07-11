@@ -9,7 +9,10 @@ The fixture uses a small materialized pool of existing Word Boat source
 images/audio so the database shape is large without copying thousands of unique
 media files.
 
-## Latest Local Baseline
+## Historical Local Baseline
+
+This 2026-06-13 result was recorded with plugin 6.6.2. Treat it as historical
+until the stress profile is rerun against the current plugin version and commit.
 
 Command:
 

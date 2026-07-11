@@ -1,8 +1,12 @@
 <?php
 if (!defined('WPINC')) { die; }
 
+function ll_tools_get_viewport_content(): string {
+    return 'width=device-width, initial-scale=1, viewport-fit=cover';
+}
+
 function ll_tools_get_locked_viewport_content(): string {
-    return 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+    return ll_tools_get_viewport_content();
 }
 
 function ll_enqueue_asset_by_timestamp($relative_path, $handle, $deps = [], $in_footer = false) {

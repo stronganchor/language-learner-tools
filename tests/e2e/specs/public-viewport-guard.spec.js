@@ -7,7 +7,7 @@ const viewportGuardSource = fs.readFileSync(
   'utf8'
 );
 
-test('shared viewport guard blocks new zoom but lets users pinch back out if zoom slips through', async ({ page }) => {
+test('shared viewport guard preserves scalable viewport metadata and never cancels pinch gestures', async ({ page }) => {
   await page.addInitScript(() => {
     let scale = 1;
     const listeners = {};
@@ -106,12 +106,13 @@ test('shared viewport guard blocks new zoom but lets users pinch back out if zoo
   });
 
   expect(results.overrideError).toBe('');
-  expect(results.metaContent).toContain('maximum-scale=1');
-  expect(results.metaContent).toContain('user-scalable=no');
+  expect(results.metaContent).toContain('width=device-width');
+  expect(results.metaContent).not.toContain('maximum-scale');
+  expect(results.metaContent).not.toContain('user-scalable=no');
   expect(results.htmlZoomedState).toBe('1');
   expect(results.reportedScale).toBeCloseTo(1.25, 2);
   expect(results.isZoomed).toBe(true);
-  expect(results.pinchBlockedAtScaleOne).toBe(true);
+  expect(results.pinchBlockedAtScaleOne).toBe(false);
   expect(results.pinchOutToRecoverBlocked).toBe(false);
-  expect(results.pinchFurtherInBlocked).toBe(true);
+  expect(results.pinchFurtherInBlocked).toBe(false);
 });

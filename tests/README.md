@@ -193,7 +193,7 @@ tests/bin/run-e2e.sh --shard=4/4
 
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
-expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81
+expanded the suite; the July 10, 2026 full discovery lists 390 tests in 90
 files. Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
 minutes after shards pass, investigate suite-level state leakage or Local-site
@@ -307,7 +307,7 @@ Representative E2E coverage areas:
 Optional env vars (set directly or in `tests/.env`):
 
 ```bash
-LL_E2E_BASE_URL=http://127.0.0.1:10036
+LL_E2E_BASE_URL=https://starter-english-local.local
 LL_E2E_LEARN_PATH=/learn/
 LL_E2E_STANDALONE_PATH=/english/
 LL_E2E_ADMIN_USER=codex
@@ -412,7 +412,8 @@ tests/bin/run-performance-benchmark.sh
 
 ## Notes
 
-- Tests run against a WordPress test database, not your production site DB.
+- PHPUnit runs against a WordPress test database, not your production site DB.
+- Playwright and performance fixtures target the configured Local site. They can mutate Local-site content; the performance seeder deletes only objects already carrying its fixture marker and refuses untagged slug collisions.
 - Avoid running multiple PHPUnit commands in parallel against the same `wptests` database; InnoDB deadlocks can produce intermittent false failures.
 - Keep all new tests under `tests/Integration/` and use translation-ready messages in assertions where relevant.
 - `run-tests.sh` supports either Linux PHP or Local Windows `php.exe` through `bin/php-local.sh`.

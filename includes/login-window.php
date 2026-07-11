@@ -1813,8 +1813,6 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
             exit;
         }
 
-        ll_tools_login_window_reset_login_attempts($request_ip);
-
         $requested_redirect = ll_tools_get_valid_login_redirect_request($raw_redirect);
         $final_redirect = apply_filters(
             'login_redirect',

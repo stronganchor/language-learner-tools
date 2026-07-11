@@ -279,6 +279,23 @@ test('CODEBASE_ARCHITECTURE bootstrap include index matches loaded plugin module
   expect(documented).toEqual(collectBootstrapIncludePaths());
 });
 
+test('performance fixture reset refuses untagged slug collisions', async () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, 'tests', 'performance', 'seed-performance-fixtures.php'),
+    'utf8'
+  );
+  const resetStart = source.indexOf('function ll_tools_perf_seed_reset_fixture(array $manifest): array');
+  const resetEnd = source.indexOf('\nfunction ', resetStart + 1);
+  const resetBlock = source.slice(resetStart, resetEnd === -1 ? source.length : resetEnd);
+
+  expect(resetStart).toBeGreaterThanOrEqual(0);
+  expect(resetBlock).toContain('Refusing to reset performance fixtures');
+  expect(resetBlock).toContain('LL_TOOLS_PERF_FIXTURE_META_KEY');
+  expect(resetBlock).toContain('ll_tools_perf_seed_query_fixture_posts()');
+  expect(resetBlock).not.toMatch(/ll_tools_perf_seed_delete_posts\(\s*\[\(int\) \$learn_page->ID\]/);
+  expect(resetBlock).not.toContain('update_term_meta((int) $term->term_id, LL_TOOLS_PERF_FIXTURE_META_KEY');
+});
+
 test('AI context router and workflow docs cover configured context packs', async () => {
   const packNames = collectContextPackNames();
   const contextReadme = fs.readFileSync(path.join(repoRoot, 'docs', 'ai-context', 'README.md'), 'utf8');

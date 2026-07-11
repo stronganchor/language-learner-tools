@@ -9,7 +9,7 @@ if (!defined('WPINC')) { die; }
 function ll_create_wordset_manager_role() {
     add_role(
         'wordset_manager',
-        'Word Set Manager',
+        __('Word Set Manager', 'll-tools-text-domain'),
         array(
             'read' => true,
             'upload_files' => true,

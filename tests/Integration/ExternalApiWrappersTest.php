@@ -189,6 +189,33 @@ final class ExternalApiWrappersTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($payload['format_text'] ?? false));
     }
 
+    public function test_assemblyai_upload_rejects_oversized_audio_before_reading_or_requesting(): void
+    {
+        update_option('ll_assemblyai_api_key', 'assembly-test-key');
+        $audioPath = $this->createTempAudioFile('assembly-oversize');
+        $limitFilter = static function (): int {
+            return 1;
+        };
+        $requestCount = 0;
+        $httpFilter = static function ($pre) use (&$requestCount) {
+            $requestCount++;
+            return $pre;
+        };
+
+        add_filter('ll_tools_assemblyai_upload_max_bytes', $limitFilter);
+        add_filter('pre_http_request', $httpFilter);
+        try {
+            $result = ll_tools_assemblyai_upload_audio($audioPath);
+        } finally {
+            remove_filter('ll_tools_assemblyai_upload_max_bytes', $limitFilter);
+            remove_filter('pre_http_request', $httpFilter);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('file_too_large', $result->get_error_code());
+        $this->assertSame(0, $requestCount);
+    }
+
     public function test_assemblyai_transcribe_audio_file_polls_until_completed(): void
     {
         update_option('ll_assemblyai_api_key', 'assembly-test-key');

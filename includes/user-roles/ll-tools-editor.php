@@ -44,7 +44,7 @@ function ll_create_ll_tools_editor_role() {
     ];
 
     if (null === get_role('ll_tools_editor')) {
-        add_role('ll_tools_editor', 'LL Tools Editor', $caps);
+        add_role('ll_tools_editor', __('LL Tools Editor', 'll-tools-text-domain'), $caps);
     } else {
         $role = get_role('ll_tools_editor');
         foreach ($caps as $cap => $grant) {

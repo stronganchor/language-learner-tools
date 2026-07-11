@@ -398,7 +398,7 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Auto-detect Browser Language:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_enable_browser_language_autoswitch"><?php esc_html_e('Auto-detect Browser Language:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <input
                             type="checkbox"
@@ -410,7 +410,7 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Language Switcher Visible Buttons:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="<?php echo esc_attr(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION); ?>"><?php esc_html_e('Language Switcher Visible Buttons:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <input
                             type="number"
@@ -423,7 +423,7 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Language Switcher Order:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="<?php echo esc_attr(LL_TOOLS_LANGUAGE_SWITCHER_LOCALE_ORDER_OPTION); ?>"><?php esc_html_e('Language Switcher Order:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <input
                             type="text"
@@ -436,14 +436,14 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Max Number of Options:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_max_options_override"><?php esc_html_e('Max Number of Options:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <input type="number" name="ll_max_options_override" id="ll_max_options_override" value="<?php echo esc_attr(get_option('ll_max_options_override', 9)); ?>" min="2" />
                         <p class="description"><?php esc_html_e('Set the maximum number of options in flashcards. Minimum is 2.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Flashcard Image Size:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_flashcard_image_size"><?php esc_html_e('Flashcard Image Size:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <?php
                         $flashcard_image_size = get_option('ll_flashcard_image_size', 'small');
@@ -456,14 +456,14 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Hide Word Titles in Recording Interface:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_hide_recording_titles"><?php esc_html_e('Hide Word Titles in Recording Interface:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <input type="checkbox" name="ll_hide_recording_titles" id="ll_hide_recording_titles" value="1" <?php checked(1, get_option('ll_hide_recording_titles', 0), true); ?> />
                         <p class="description"><?php esc_html_e('Fallback for recorder pages without a wordset-specific text visibility setting. Wordset managers can override this in wordset study settings.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Allow Learner Registration:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_allow_learner_self_registration"><?php esc_html_e('Allow Learner Registration:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <input
                             type="checkbox"
@@ -475,7 +475,7 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Show Generated Registration Password:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_show_generated_registration_password"><?php esc_html_e('Show Generated Registration Password:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <input
                             type="checkbox"
@@ -487,7 +487,7 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Quiz Font (for text mode):', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_quiz_font"><?php esc_html_e('Quiz Font (for text mode):', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <?php
                         $available_fonts = ll_get_site_available_fonts();
@@ -527,7 +527,7 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Update Branch:', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><label for="ll_update_branch"><?php esc_html_e('Update Branch:', 'll-tools-text-domain'); ?></label></th>
                     <td>
                         <select name="ll_update_branch" id="ll_update_branch">
                             <option value="main" <?php selected($update_branch, 'main'); ?>><?php esc_html_e('Main (stable)', 'll-tools-text-domain'); ?></option>

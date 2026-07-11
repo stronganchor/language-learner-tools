@@ -38,6 +38,52 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
         parent::tearDown();
     }
 
+    public function test_import_jobs_are_visible_only_to_owner_or_administrator(): void
+    {
+        $owner_id = self::factory()->user->create(['role' => 'author']);
+        $other_id = self::factory()->user->create(['role' => 'author']);
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $job_id = 'import-owner-' . strtolower(wp_generate_password(8, false, false));
+        $job = [
+            'id' => $job_id,
+            'status' => 'running',
+            'phase' => 'extract',
+            'created_at' => time(),
+            'updated_at' => time(),
+            'user_id' => $owner_id,
+            'extract_index' => 0,
+            'extract_total' => 1,
+            'payload_counts' => [],
+            'error_message' => '',
+            'result' => ll_tools_import_job_default_result(),
+        ];
+        ll_tools_import_job_save($job_id, $job);
+        ll_tools_import_job_set_active_id($job_id);
+
+        try {
+            wp_set_current_user($owner_id);
+            $this->assertTrue(ll_tools_import_job_current_user_can_access($job));
+            $this->assertIsArray(ll_tools_import_job_get_relevant_job($job_id));
+            $owner_conflict = ll_tools_import_job_get_start_conflict();
+            $this->assertWPError($owner_conflict);
+            $this->assertIsArray($owner_conflict->get_error_data()['job'] ?? null);
+
+            wp_set_current_user($other_id);
+            $this->assertFalse(ll_tools_import_job_current_user_can_access($job));
+            $this->assertNull(ll_tools_import_job_get_relevant_job($job_id));
+            $other_conflict = ll_tools_import_job_get_start_conflict();
+            $this->assertWPError($other_conflict);
+            $this->assertNull($other_conflict->get_error_data()['job'] ?? null);
+
+            wp_set_current_user($admin_id);
+            $this->assertTrue(ll_tools_import_job_current_user_can_access($job));
+            $this->assertIsArray(ll_tools_import_job_get_relevant_job($job_id));
+        } finally {
+            ll_tools_import_job_clear_active_id($job_id);
+            ll_tools_import_job_delete_path(ll_tools_import_job_get_dir($job_id));
+        }
+    }
+
     public function test_ajax_chunked_preview_upload_creates_preview_from_staged_zip(): void
     {
         if (!class_exists('ZipArchive')) {

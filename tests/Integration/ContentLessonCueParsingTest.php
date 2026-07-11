@@ -498,6 +498,47 @@ TSV;
         $this->assertSame([(int) $fixture['isolated_one_id']], $saved_category_ids);
     }
 
+    public function test_content_lesson_save_cannot_move_lesson_to_unmanaged_wordset(): void
+    {
+        ll_create_wordset_manager_role();
+        ll_ensure_wordset_manager_has_view_ll_tools_cap();
+        $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        $managed = wp_insert_term('Managed Content Lessons ' . wp_generate_password(5, false), 'wordset');
+        $unmanaged = wp_insert_term('Unmanaged Content Lessons ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($managed);
+        $this->assertIsArray($unmanaged);
+        $managed_id = (int) ($managed['term_id'] ?? 0);
+        $unmanaged_id = (int) ($unmanaged['term_id'] ?? 0);
+        ll_tools_set_wordset_manager_user_ids($managed_id, [$manager_id], $manager_id);
+        wp_set_current_user($manager_id);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'draft',
+            'post_author' => $manager_id,
+            'post_title' => 'Manager Scoped Content Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $managed_id);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_MEDIA_URL_META, 'https://example.com/original.mp3');
+        $lesson = get_post($lesson_id);
+        $this->assertInstanceOf(WP_Post::class, $lesson);
+        $this->assertTrue(current_user_can('edit_post', $lesson_id));
+
+        $_POST = [
+            'll_tools_content_lesson_nonce' => wp_create_nonce('ll_tools_content_lesson_save'),
+            'll_content_lesson_wordset_id' => (string) $unmanaged_id,
+            'll_content_lesson_media_type' => 'audio',
+            'll_content_lesson_media_url' => 'https://example.com/unauthorized.mp3',
+            'll_content_lesson_transcript_format' => 'auto',
+            'll_content_lesson_transcript_source' => '',
+        ];
+
+        ll_tools_save_content_lesson_metabox($lesson_id, $lesson);
+
+        $this->assertSame($managed_id, ll_tools_get_content_lesson_wordset_id($lesson_id));
+        $this->assertSame('https://example.com/original.mp3', (string) get_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_MEDIA_URL_META, true));
+    }
+
     public function test_content_lesson_save_filters_mixed_grid_prerequisites_to_quizzable_wordset_lessons(): void
     {
         $fixture = $this->createMixedLessonFixture();
