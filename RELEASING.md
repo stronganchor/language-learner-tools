@@ -82,6 +82,7 @@ If you need to rebuild a release zip manually from a specific git ref or tag, us
 - The uploaded asset name starts with `language-learner-tools` and ends with `.zip`.
 - The zip root folder is `language-learner-tools/`.
 - The zip does not contain `offline-app-builder/`, `tests/`, or other export-ignored paths.
+- The zip does not contain `.codex-remote-attachments/`; conversation attachments are never runtime plugin assets.
 - The release scripts validate the required runtime asset manifest in
   `scripts/required-runtime-assets.txt`. If a public/admin CSS, JS, or media
   file is broadly enqueued, add it to that manifest so dev pushes and stable

@@ -1,5 +1,6 @@
 /.gitignore export-ignore
 /.gitattributes export-ignore text eol=lf
+/.codex-remote-attachments export-ignore
 /.vscode export-ignore
 /AGENTS.md export-ignore
 /CODEBASE_ARCHITECTURE.md export-ignore

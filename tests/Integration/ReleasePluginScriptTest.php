@@ -3,6 +3,16 @@ declare(strict_types=1);
 
 final class ReleasePluginScriptTest extends LL_Tools_TestCase
 {
+    public function test_release_exports_and_git_ignores_remote_conversation_attachments(): void
+    {
+        $repoRoot = dirname(__DIR__, 2);
+        $attributes = (string) file_get_contents($repoRoot . '/.gitattributes');
+        $ignore = (string) file_get_contents($repoRoot . '/.gitignore');
+
+        $this->assertStringContainsString('/.codex-remote-attachments export-ignore', $attributes);
+        $this->assertStringContainsString('/.codex-remote-attachments/', $ignore);
+    }
+
     public function test_stable_publish_uploads_verified_replacement_before_deleting_existing_asset(): void
     {
         $script = $this->releaseScriptContents();
