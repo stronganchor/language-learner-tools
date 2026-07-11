@@ -4847,3 +4847,33 @@ msgstr "Há atualizações demais de falante dos áudios de palavras em uma úni
 #: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
 msgid "Too many active words were provided. Maximum is %d."
 msgstr "Foram fornecidas palavras ativas demais. O máximo é %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:521
+msgid "Generate translations in bulk using your configured translation services."
+msgstr "Gere traduções em lote usando seus serviços de tradução configurados."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:530
+msgid "Review learner activity and progress summaries by word set."
+msgstr "Revise a atividade dos alunos e os resumos de progresso por conjunto de palavras."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:539
+msgid "Download category bundles and CSV text exports for transfer or backup."
+msgstr "Baixe pacotes de categorias e exportações de texto CSV para transferência ou backup."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:548
+msgid "Preview and import zip bundles into local categories, words, and audio."
+msgstr "Pré-visualize e importe pacotes zip para categorias, palavras e áudios locais."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:557
+msgid "Pull a live word set into staging, preview local transcription changes, and push clean updates back to live."
+msgstr "Traga um conjunto de palavras do site ativo para o ambiente de staging, pré-visualize alterações locais de transcrição e envie atualizações limpas de volta ao site ativo."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:566
+msgid "Build a one-wordset offline quiz bundle that can be turned into an Android APK."
+msgstr "Crie um pacote de quiz offline de um único conjunto de palavras que pode ser transformado em um APK Android."

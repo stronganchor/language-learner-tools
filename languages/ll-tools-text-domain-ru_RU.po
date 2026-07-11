@@ -4884,3 +4884,33 @@ msgstr "Слишком много обновлений диктора аудио
 #: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
 msgid "Too many active words were provided. Maximum is %d."
 msgstr "Передано слишком много активных слов. Максимум: %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:521
+msgid "Generate translations in bulk using your configured translation services."
+msgstr "Создавайте переводы пакетно с помощью настроенных сервисов перевода."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:530
+msgid "Review learner activity and progress summaries by word set."
+msgstr "Просматривайте активность учащихся и сводки прогресса по наборам слов."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:539
+msgid "Download category bundles and CSV text exports for transfer or backup."
+msgstr "Скачивайте пакеты категорий и текстовые CSV-экспорты для переноса или резервного копирования."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:548
+msgid "Preview and import zip bundles into local categories, words, and audio."
+msgstr "Предпросматривайте и импортируйте zip-пакеты в локальные категории, слова и аудио."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:557
+msgid "Pull a live word set into staging, preview local transcription changes, and push clean updates back to live."
+msgstr "Переносите рабочий набор слов в staging, просматривайте локальные изменения транскрипций и отправляйте проверенные обновления обратно на рабочий сайт."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:566
+msgid "Build a one-wordset offline quiz bundle that can be turned into an Android APK."
+msgstr "Создавайте офлайн-пакет квиза для одного набора слов, который можно преобразовать в Android APK."

@@ -4847,3 +4847,33 @@ msgstr "Terlalu banyak pembaruan pembicara audio kata dalam satu permintaan. Mak
 #: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
 msgid "Too many active words were provided. Maximum is %d."
 msgstr "Terlalu banyak kata aktif yang diberikan. Maksimum %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:521
+msgid "Generate translations in bulk using your configured translation services."
+msgstr "Buat terjemahan secara massal menggunakan layanan terjemahan yang telah dikonfigurasi."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:530
+msgid "Review learner activity and progress summaries by word set."
+msgstr "Tinjau aktivitas pelajar dan ringkasan kemajuan berdasarkan set kata."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:539
+msgid "Download category bundles and CSV text exports for transfer or backup."
+msgstr "Unduh paket kategori dan ekspor teks CSV untuk transfer atau cadangan."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:548
+msgid "Preview and import zip bundles into local categories, words, and audio."
+msgstr "Pratinjau dan impor paket zip ke kategori, kata, dan audio lokal."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:557
+msgid "Pull a live word set into staging, preview local transcription changes, and push clean updates back to live."
+msgstr "Tarik set kata live ke staging, pratinjau perubahan transkripsi lokal, lalu kirim pembaruan bersih kembali ke live."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:566
+msgid "Build a one-wordset offline quiz bundle that can be turned into an Android APK."
+msgstr "Buat paket kuis offline satu set kata yang dapat diubah menjadi APK Android."

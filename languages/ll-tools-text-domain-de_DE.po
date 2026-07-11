@@ -27737,3 +27737,33 @@ msgstr "Zu viele Sprecheraktualisierungen für Vokabel-Audio in einer Anfrage. M
 #: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
 msgid "Too many active words were provided. Maximum is %d."
 msgstr "Zu viele aktive Vokabeln wurden angegeben. Maximal %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/bulk-translation-admin.php:90
+msgid "Continue legacy meta migration"
+msgstr "Legacy-Meta-Migration fortsetzen"
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/bulk-translation-admin.php:98
+msgid "%d values migrated so far. Continue with the next bounded batch."
+msgstr "Bisher wurden %d Werte migriert. Mit dem nächsten begrenzten Batch fortfahren."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/bulk-translation-admin.php:102
+msgid "Copies legacy values where the new meta is empty in bounded batches."
+msgstr "Kopiert Legacy-Werte in begrenzten Batches, wenn das neue Meta-Feld leer ist."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/bulk-word-import-admin.php:333
+msgid "Bulk word import is limited to %s of pasted text per request."
+msgstr "Der Massenimport von Vokabeln ist pro Anfrage auf %s eingefügten Text begrenzt."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/export-import.php:3383
+msgid "Showing the first %1$d of %2$d imported categories."
+msgstr "Die ersten %1$d von %2$d importierten Kategorien werden angezeigt."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/export-import.php:3646
+msgid "Selecting a category exports that category only, plus word images assigned to it. Choose All categories for a full export."
+msgstr "Wenn du eine Kategorie auswählst, wird nur diese Kategorie exportiert, plus die ihr zugewiesenen Vokabelbilder. Wähle Alle Kategorien für einen vollständigen Export."

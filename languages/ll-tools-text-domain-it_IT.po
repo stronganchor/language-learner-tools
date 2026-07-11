@@ -4847,3 +4847,33 @@ msgstr "Troppi aggiornamenti del parlante per l’audio delle parole in una sola
 #: includes/pages/wordset-games.php:5437 includes/pages/wordset-games.php:6125
 msgid "Too many active words were provided. Maximum is %d."
 msgstr "Sono state fornite troppe parole attive. Il massimo è %d."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:521
+msgid "Generate translations in bulk using your configured translation services."
+msgstr "Genera traduzioni in blocco usando i servizi di traduzione configurati."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:530
+msgid "Review learner activity and progress summaries by word set."
+msgstr "Rivedi l’attività degli studenti e i riepiloghi dei progressi per set di parole."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:539
+msgid "Download category bundles and CSV text exports for transfer or backup."
+msgstr "Scarica pacchetti di categorie ed esportazioni di testo CSV per trasferimento o backup."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:548
+msgid "Preview and import zip bundles into local categories, words, and audio."
+msgstr "Visualizza in anteprima e importa pacchetti zip in categorie, parole e audio locali."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:557
+msgid "Pull a live word set into staging, preview local transcription changes, and push clean updates back to live."
+msgstr "Porta un set di parole live in staging, visualizza in anteprima le modifiche locali alle trascrizioni e reinvia aggiornamenti puliti al sito live."
+
+#. ll-tools-autonomous-upkeep: 2026-07-11 source-backed batch
+#: includes/admin/admin-dashboard-menu.php:566
+msgid "Build a one-wordset offline quiz bundle that can be turned into an Android APK."
+msgstr "Crea un pacchetto di quiz offline per un solo set di parole che può essere trasformato in un APK Android."
