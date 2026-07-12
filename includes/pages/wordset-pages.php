@@ -15288,11 +15288,10 @@ function ll_tools_wordset_page_recorder_prompt_target_belongs_to_wordset(int $ta
     return false;
 }
 
-function ll_tools_wordset_page_hidden_entry_belongs_to_wordset(array $entry, int $wordset_id, array $queue_lookup): bool {
-    if ($wordset_id <= 0) {
-        return false;
-    }
-
+/**
+ * @return string[]
+ */
+function ll_tools_wordset_page_get_hidden_entry_keys(array $entry): array {
     $possible_keys = [];
     $primary_key = function_exists('ll_tools_sanitize_recording_hide_key')
         ? ll_tools_sanitize_recording_hide_key((string) ($entry['key'] ?? ''))
@@ -15313,7 +15312,15 @@ function ll_tools_wordset_page_hidden_entry_belongs_to_wordset(array $entry, int
         }
     }
 
-    foreach ($possible_keys as $possible_key) {
+    return array_values(array_unique(array_filter($possible_keys)));
+}
+
+function ll_tools_wordset_page_hidden_entry_belongs_to_wordset(array $entry, int $wordset_id, array $queue_lookup): bool {
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    foreach (ll_tools_wordset_page_get_hidden_entry_keys($entry) as $possible_key) {
         if (isset($queue_lookup[$possible_key])) {
             return true;
         }
@@ -15630,6 +15637,152 @@ function ll_tools_wordset_page_recorder_queue_candidate_is_hidden(array $hidden_
     }
 
     return false;
+}
+
+/**
+ * Filter hidden recorder entries with bulk relationship/meta lookups.
+ *
+ * Hidden lists are capped at 500 entries, but checking each entry through
+ * wp_get_object_terms() or the legacy image reverse lookup creates thousands
+ * of queries on large queues. Resolve the same identities in batches and
+ * preserve the stored ordering.
+ *
+ * @param array<int,array<string,mixed>> $entries
+ * @param array<string,array<string,mixed>> $queue_lookup
+ * @return array<int,array<string,mixed>>
+ */
+function ll_tools_wordset_page_filter_hidden_entries_for_wordset(array $entries, int $wordset_id, array $queue_lookup = []): array {
+    if ($wordset_id <= 0 || empty($entries)) {
+        return [];
+    }
+
+    $valid_entries = [];
+    $matched_indexes = [];
+    $word_indexes = [];
+    $image_indexes = [];
+    $prompt_card_indexes = [];
+
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $index = count($valid_entries);
+        $valid_entries[] = $entry;
+
+        foreach (ll_tools_wordset_page_get_hidden_entry_keys($entry) as $possible_key) {
+            if (isset($queue_lookup[$possible_key])) {
+                $matched_indexes[$index] = true;
+                break;
+            }
+        }
+        if (isset($matched_indexes[$index])) {
+            continue;
+        }
+
+        $word_id = (int) ($entry['word_id'] ?? 0);
+        if ($word_id > 0) {
+            $word_indexes[$word_id][] = $index;
+            continue;
+        }
+        $image_id = (int) ($entry['image_id'] ?? 0);
+        if ($image_id > 0) {
+            $image_indexes[$image_id][] = $index;
+            continue;
+        }
+        $prompt_card_id = (int) ($entry['prompt_card_id'] ?? 0);
+        if ($prompt_card_id > 0) {
+            $prompt_card_indexes[$prompt_card_id][] = $index;
+        }
+    }
+
+    $relationship_object_ids = array_values(array_unique(array_merge(
+        array_map('intval', array_keys($word_indexes)),
+        array_map('intval', array_keys($prompt_card_indexes))
+    )));
+    if (!empty($relationship_object_ids)) {
+        $wordset_terms = wp_get_object_terms($relationship_object_ids, 'wordset', [
+            'fields' => 'all_with_object_id',
+        ]);
+        if (!is_wp_error($wordset_terms)) {
+            foreach ((array) $wordset_terms as $wordset_term) {
+                if (!($wordset_term instanceof WP_Term) || (int) $wordset_term->term_id !== $wordset_id) {
+                    continue;
+                }
+                $object_id = (int) ($wordset_term->object_id ?? 0);
+                foreach ((array) ($word_indexes[$object_id] ?? []) as $index) {
+                    $matched_indexes[(int) $index] = true;
+                }
+                foreach ((array) ($prompt_card_indexes[$object_id] ?? []) as $index) {
+                    $matched_indexes[(int) $index] = true;
+                }
+            }
+        } else {
+            foreach ($relationship_object_ids as $object_id) {
+                foreach (array_merge(
+                    (array) ($word_indexes[$object_id] ?? []),
+                    (array) ($prompt_card_indexes[$object_id] ?? [])
+                ) as $index) {
+                    if (ll_tools_wordset_page_hidden_entry_belongs_to_wordset($valid_entries[(int) $index], $wordset_id, $queue_lookup)) {
+                        $matched_indexes[(int) $index] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    $image_ids = array_values(array_map('intval', array_keys($image_indexes)));
+    if (!empty($image_ids)) {
+        if (function_exists('_prime_post_caches')) {
+            _prime_post_caches($image_ids, false, true);
+        } else {
+            update_postmeta_cache($image_ids);
+        }
+
+        $ownerless_image_ids = [];
+        foreach ($image_ids as $image_id) {
+            $owner_wordset_id = function_exists('ll_tools_get_word_image_wordset_owner_id')
+                ? (int) ll_tools_get_word_image_wordset_owner_id($image_id)
+                : 0;
+            if ($owner_wordset_id > 0) {
+                if ($owner_wordset_id === $wordset_id) {
+                    foreach ((array) ($image_indexes[$image_id] ?? []) as $index) {
+                        $matched_indexes[(int) $index] = true;
+                    }
+                }
+                continue;
+            }
+            $ownerless_image_ids[] = $image_id;
+        }
+
+        if (!empty($ownerless_image_ids) && function_exists('ll_tools_recorder_get_candidate_image_word_map')) {
+            $image_word_map = ll_tools_recorder_get_candidate_image_word_map($ownerless_image_ids, [$wordset_id], true);
+            foreach ($ownerless_image_ids as $image_id) {
+                if ((int) ($image_word_map[$image_id] ?? 0) <= 0) {
+                    continue;
+                }
+                foreach ((array) ($image_indexes[$image_id] ?? []) as $index) {
+                    $matched_indexes[(int) $index] = true;
+                }
+            }
+        } elseif (!empty($ownerless_image_ids)) {
+            foreach ($ownerless_image_ids as $image_id) {
+                foreach ((array) ($image_indexes[$image_id] ?? []) as $index) {
+                    if (ll_tools_wordset_page_hidden_entry_belongs_to_wordset($valid_entries[(int) $index], $wordset_id, $queue_lookup)) {
+                        $matched_indexes[(int) $index] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    $filtered = [];
+    foreach ($valid_entries as $index => $entry) {
+        if (isset($matched_indexes[$index])) {
+            $filtered[] = $entry;
+        }
+    }
+
+    return $filtered;
 }
 
 function ll_tools_wordset_page_get_recorder_queue_raw_word_candidate_ids(int $wordset_id, string $category_slug, int $category_term_id, int $limit, int $offset): array {
@@ -16460,82 +16613,69 @@ function ll_tools_wordset_page_build_recorder_queue_summary_groups(
     return $groups;
 }
 
+function ll_tools_wordset_page_build_recorder_queue_hidden_item(array $hidden_entry, array $queue_lookup = []): array {
+    $matched_item = null;
+    $candidate_keys = ll_tools_wordset_page_get_hidden_entry_keys($hidden_entry);
+    $entry_key = (string) ($candidate_keys[0] ?? '');
+    foreach ($candidate_keys as $candidate_key) {
+        if (isset($queue_lookup[$candidate_key]) && is_array($queue_lookup[$candidate_key])) {
+            $matched_item = $queue_lookup[$candidate_key];
+            break;
+        }
+    }
+
+    $normalized_key = $entry_key;
+    if ($normalized_key === '' && function_exists('ll_tools_build_recording_hide_key')) {
+        $normalized_key = ll_tools_build_recording_hide_key(
+            (int) ($hidden_entry['word_id'] ?? 0),
+            (int) ($hidden_entry['image_id'] ?? 0),
+            (string) ($hidden_entry['title'] ?? ''),
+            (int) ($hidden_entry['prompt_card_id'] ?? 0)
+        );
+    }
+
+    $hidden_item = [
+        'hide_key'         => $normalized_key,
+        'word_id'          => (int) ($hidden_entry['word_id'] ?? 0),
+        'image_id'         => (int) ($hidden_entry['image_id'] ?? 0),
+        'prompt_card_id'   => (int) ($hidden_entry['prompt_card_id'] ?? 0),
+        'title'            => (string) ($hidden_entry['title'] ?? ''),
+        'word_title'       => (string) ($hidden_entry['title'] ?? ''),
+        'word_translation' => '',
+        'category_name'    => (string) ($hidden_entry['category_name'] ?? ''),
+        'category_slug'    => (string) ($hidden_entry['category_slug'] ?? ''),
+        'image_url'        => '',
+        'missing_types'    => [],
+        'use_word_display' => true,
+        'is_text_only'     => ((int) ($hidden_entry['image_id'] ?? 0) <= 0),
+        'is_stale'         => true,
+        'hidden_at'        => (string) ($hidden_entry['hidden_at'] ?? ''),
+    ];
+
+    if (is_array($matched_item)) {
+        $hidden_item = array_merge($hidden_item, $matched_item);
+        $hidden_item['hide_key'] = $normalized_key !== '' ? $normalized_key : (string) ($matched_item['hide_key'] ?? '');
+        $hidden_item['hidden_at'] = (string) ($hidden_entry['hidden_at'] ?? '');
+        $hidden_item['is_stale'] = false;
+    }
+
+    return $hidden_item;
+}
+
 function ll_tools_wordset_page_get_recorder_queue_hidden_entries(int $recorder_user_id, int $wordset_id, array $queue_lookup = []): array {
-    $hidden_entries = [];
     if (!function_exists('ll_tools_get_hidden_recording_words_list')) {
-        return $hidden_entries;
+        return [];
     }
 
-    foreach ((array) ll_tools_get_hidden_recording_words_list($recorder_user_id) as $hidden_entry) {
-        if (!is_array($hidden_entry) || !ll_tools_wordset_page_hidden_entry_belongs_to_wordset($hidden_entry, $wordset_id, $queue_lookup)) {
-            continue;
-        }
+    $hidden_entries = ll_tools_wordset_page_filter_hidden_entries_for_wordset(
+        (array) ll_tools_get_hidden_recording_words_list($recorder_user_id),
+        $wordset_id,
+        $queue_lookup
+    );
 
-        $matched_item = null;
-        $candidate_keys = [];
-        $entry_key = function_exists('ll_tools_sanitize_recording_hide_key')
-            ? ll_tools_sanitize_recording_hide_key((string) ($hidden_entry['key'] ?? ''))
-            : sanitize_text_field((string) ($hidden_entry['key'] ?? ''));
-        if ($entry_key !== '') {
-            $candidate_keys[] = $entry_key;
-        }
-        if (function_exists('ll_tools_build_recording_hide_key')) {
-            $fallback_key = ll_tools_build_recording_hide_key(
-                (int) ($hidden_entry['word_id'] ?? 0),
-                (int) ($hidden_entry['image_id'] ?? 0),
-                (string) ($hidden_entry['title'] ?? ''),
-                (int) ($hidden_entry['prompt_card_id'] ?? 0)
-            );
-            if ($fallback_key !== '') {
-                $candidate_keys[] = $fallback_key;
-            }
-        }
-        foreach ($candidate_keys as $candidate_key) {
-            if (isset($queue_lookup[$candidate_key]) && is_array($queue_lookup[$candidate_key])) {
-                $matched_item = $queue_lookup[$candidate_key];
-                break;
-            }
-        }
-
-        $normalized_key = $entry_key;
-        if ($normalized_key === '' && function_exists('ll_tools_build_recording_hide_key')) {
-            $normalized_key = ll_tools_build_recording_hide_key(
-                (int) ($hidden_entry['word_id'] ?? 0),
-                (int) ($hidden_entry['image_id'] ?? 0),
-                (string) ($hidden_entry['title'] ?? ''),
-                (int) ($hidden_entry['prompt_card_id'] ?? 0)
-            );
-        }
-
-        $hidden_item = [
-            'hide_key'         => $normalized_key,
-            'word_id'          => (int) ($hidden_entry['word_id'] ?? 0),
-            'image_id'         => (int) ($hidden_entry['image_id'] ?? 0),
-            'prompt_card_id'   => (int) ($hidden_entry['prompt_card_id'] ?? 0),
-            'title'            => (string) ($hidden_entry['title'] ?? ''),
-            'word_title'       => (string) ($hidden_entry['title'] ?? ''),
-            'word_translation' => '',
-            'category_name'    => (string) ($hidden_entry['category_name'] ?? ''),
-            'category_slug'    => (string) ($hidden_entry['category_slug'] ?? ''),
-            'image_url'        => '',
-            'missing_types'    => [],
-            'use_word_display' => true,
-            'is_text_only'     => ((int) ($hidden_entry['image_id'] ?? 0) <= 0),
-            'is_stale'         => true,
-            'hidden_at'        => (string) ($hidden_entry['hidden_at'] ?? ''),
-        ];
-
-        if (is_array($matched_item)) {
-            $hidden_item = array_merge($hidden_item, $matched_item);
-            $hidden_item['hide_key'] = $normalized_key !== '' ? $normalized_key : (string) ($matched_item['hide_key'] ?? '');
-            $hidden_item['hidden_at'] = (string) ($hidden_entry['hidden_at'] ?? '');
-            $hidden_item['is_stale'] = false;
-        }
-
-        $hidden_entries[] = $hidden_item;
-    }
-
-    return $hidden_entries;
+    return array_values(array_map(static function (array $hidden_entry) use ($queue_lookup): array {
+        return ll_tools_wordset_page_build_recorder_queue_hidden_item($hidden_entry, $queue_lookup);
+    }, $hidden_entries));
 }
 
 function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term $wordset_term, array $assigned_audio_recorders, array $args = []): array {
@@ -16547,7 +16687,11 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
     $focused_queue_user_id = isset($args['focused_user_id']) ? (int) $args['focused_user_id'] : 0;
     $focused_category_slug = isset($args['focused_category_slug']) ? sanitize_title((string) $args['focused_category_slug']) : '';
     $focused_category_view = (!$hidden_view && $focused_queue_user_id > 0 && $focused_category_slug !== '');
+    $focused_hidden_view = ($hidden_view && $focused_queue_user_id > 0);
     $page = isset($args['page']) ? max(1, (int) $args['page']) : 1;
+    if ($hidden_view && !$focused_hidden_view) {
+        $page = 1;
+    }
     $per_page = isset($args['per_page']) ? max(1, (int) $args['per_page']) : ll_tools_wordset_page_get_recorder_queue_page_size();
     $summary_categories = isset($args['summary_categories']) && is_array($args['summary_categories'])
         ? $args['summary_categories']
@@ -16555,7 +16699,7 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
     $assigned_audio_recorders = array_values(array_filter($assigned_audio_recorders, static function ($user): bool {
         return $user instanceof WP_User && (int) $user->ID > 0;
     }));
-    if ($focused_category_view) {
+    if ($focused_category_view || $focused_hidden_view) {
         $assigned_audio_recorders = array_values(array_filter($assigned_audio_recorders, static function (WP_User $user) use ($focused_queue_user_id): bool {
             return (int) $user->ID === $focused_queue_user_id;
         }));
@@ -16566,13 +16710,13 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
         : ll_tools_wordset_page_get_recorder_queue_overview_page_size('recorders');
     $recorder_total = count($assigned_audio_recorders);
     $recorder_total_pages = max(1, (int) ceil($recorder_total / $recorders_per_page));
-    $recorder_page = $focused_category_view
+    $recorder_page = ($focused_category_view || $focused_hidden_view)
         ? 1
         : min(
             isset($args['recorder_page']) ? max(1, (int) $args['recorder_page']) : 1,
             $recorder_total_pages
         );
-    if (!$focused_category_view) {
+    if (!$focused_category_view && !$focused_hidden_view) {
         $assigned_audio_recorders = array_slice(
             $assigned_audio_recorders,
             ($recorder_page - 1) * $recorders_per_page,
@@ -16584,8 +16728,8 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
         'per_page' => $recorders_per_page,
         'total' => $recorder_total,
         'total_pages' => $recorder_total_pages,
-        'has_prev' => !$focused_category_view && $recorder_page > 1,
-        'has_next' => !$focused_category_view && $recorder_page < $recorder_total_pages,
+        'has_prev' => !$focused_category_view && !$focused_hidden_view && $recorder_page > 1,
+        'has_next' => !$focused_category_view && !$focused_hidden_view && $recorder_page < $recorder_total_pages,
     ];
 
     $summary_categories = (!$hidden_view && !$focused_category_view)
@@ -16723,7 +16867,31 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
         }
 
         $queue_lookup = !empty($all_items) ? ll_tools_wordset_page_build_recorder_queue_item_lookup($all_items) : [];
-        $hidden_entries = ll_tools_wordset_page_get_recorder_queue_hidden_entries($recorder_user_id, $wordset_id, $queue_lookup);
+        $stored_hidden_entries = function_exists('ll_tools_get_hidden_recording_words_list')
+            ? (array) ll_tools_get_hidden_recording_words_list($recorder_user_id)
+            : [];
+        $scoped_hidden_entries = ll_tools_wordset_page_filter_hidden_entries_for_wordset(
+            $stored_hidden_entries,
+            $wordset_id,
+            $queue_lookup
+        );
+        $hidden_count = count($scoped_hidden_entries);
+        $hidden_entries = [];
+        if ($hidden_view) {
+            $hidden_total_pages = max(1, (int) ceil($hidden_count / $per_page));
+            $hidden_page = min($page, $hidden_total_pages);
+            $hidden_entries = array_values(array_map(static function (array $hidden_entry) use ($queue_lookup): array {
+                return ll_tools_wordset_page_build_recorder_queue_hidden_item($hidden_entry, $queue_lookup);
+            }, array_slice($scoped_hidden_entries, ($hidden_page - 1) * $per_page, $per_page)));
+            $pagination = [
+                'page' => $hidden_page,
+                'per_page' => $per_page,
+                'total' => $hidden_count,
+                'total_pages' => $hidden_total_pages,
+                'has_prev' => $hidden_page > 1,
+                'has_next' => $hidden_page < $hidden_total_pages,
+            ];
+        }
 
         $queue_notes = [];
         if ($include_types !== '') {
@@ -16774,7 +16942,7 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
             'visible_groups' => array_values($visible_groups),
             'visible_count' => $visible_count,
             'hidden_items' => array_values($hidden_entries),
-            'hidden_count' => count($hidden_entries),
+            'hidden_count' => $hidden_count,
             'pagination' => $pagination,
             'recorder_pagination' => $recorder_pagination,
             'summary_pagination' => $summary_pagination,
@@ -17311,7 +17479,7 @@ function ll_tools_wordset_page_render_recorder_queue_overview_pagination(
     string $anchor = '',
     array $preserve_args = []
 ): string {
-    if (!in_array($query_arg, ['ll_recorder_queue_recorders_page', 'll_recorder_queue_categories_page'], true)) {
+    if (!in_array($query_arg, ['ll_recorder_queue_page', 'll_recorder_queue_recorders_page', 'll_recorder_queue_categories_page'], true)) {
         return '';
     }
 
@@ -17328,13 +17496,16 @@ function ll_tools_wordset_page_render_recorder_queue_overview_pagination(
         'll_recorder_queue_categories_page' => true,
     ];
     $build_url = static function (int $target_page) use ($action_url, $query_arg, $anchor, $preserve_args, $allowed_preserve_args): string {
-        $url = remove_query_arg([
-            'll_recorder_queue_focus',
+        $remove_args = [
             'll_recorder_queue_category',
             'll_recorder_queue_page',
             'll_recorder_queue_recorders_page',
             'll_recorder_queue_categories_page',
-        ], $action_url);
+        ];
+        if ($query_arg !== 'll_recorder_queue_page') {
+            $remove_args[] = 'll_recorder_queue_focus';
+        }
+        $url = remove_query_arg($remove_args, $action_url);
         foreach ($preserve_args as $key => $value) {
             if (!isset($allowed_preserve_args[$key])) {
                 continue;
@@ -17394,13 +17565,13 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
         && sanitize_key(wp_unslash((string) $_GET['ll_recorder_queue_view'])) === 'hidden';
     $hidden_url = add_query_arg('ll_recorder_queue_view', 'hidden', $action_url);
     $queue_url = remove_query_arg('ll_recorder_queue_view', $action_url);
-    $focused_queue_user_id = (!$hidden_view && isset($_GET['ll_recorder_queue_focus']))
+    $focused_queue_user_id = isset($_GET['ll_recorder_queue_focus'])
         ? absint(wp_unslash((string) $_GET['ll_recorder_queue_focus']))
         : 0;
     $focused_category_slug = (!$hidden_view && isset($_GET['ll_recorder_queue_category']))
         ? sanitize_title(wp_unslash((string) $_GET['ll_recorder_queue_category']))
         : '';
-    $focused_category_view = ($focused_queue_user_id > 0 && $focused_category_slug !== '');
+    $focused_category_view = (!$hidden_view && $focused_queue_user_id > 0 && $focused_category_slug !== '');
     $focused_back_url = remove_query_arg(['ll_recorder_queue_focus', 'll_recorder_queue_category'], $action_url);
     $recording_type_options = ll_tools_wordset_page_get_recorder_queue_recording_type_options();
     $first_queue_row = isset($recorder_queue_rows[0]) && is_array($recorder_queue_rows[0])
@@ -17557,7 +17728,11 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                 $summary_pagination = isset($queue_row['summary_pagination']) && is_array($queue_row['summary_pagination'])
                     ? $queue_row['summary_pagination']
                     : [];
-                $row_hidden_url = add_query_arg('ll_recorder_queue_focus', (string) $queue_user_id, $hidden_url) . '#ll-recorder-queue-' . $queue_user_id;
+                $hidden_pagination = isset($queue_row['pagination']) && is_array($queue_row['pagination'])
+                    ? $queue_row['pagination']
+                    : [];
+                $row_hidden_base_url = add_query_arg('ll_recorder_queue_focus', (string) $queue_user_id, $hidden_url);
+                $row_hidden_url = $row_hidden_base_url . '#ll-recorder-queue-' . $queue_user_id;
                 $summary_refresh_url = $action_url;
                 $current_recorder_page = max(1, (int) ($queue_row['recorder_pagination']['page'] ?? 1));
                 $current_category_page = max(1, (int) ($summary_pagination['page'] ?? 1));
@@ -17748,6 +17923,20 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                                     <?php endforeach; ?>
                                 </div>
                             <?php endif; ?>
+                            <?php
+                            echo ll_tools_wordset_page_render_recorder_queue_overview_pagination(
+                                $hidden_pagination,
+                                $row_hidden_base_url,
+                                'll_recorder_queue_page',
+                                sprintf(
+                                    /* translators: %s: recorder display name */
+                                    __('Hidden queue pages for %s', 'll-tools-text-domain'),
+                                    $queue_display_name
+                                ),
+                                '#ll-recorder-queue-' . $queue_user_id,
+                                ['ll_recorder_queue_recorders_page' => $current_recorder_page]
+                            ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                            ?>
                         </section>
                     <?php endif; ?>
                 </article>
@@ -19295,7 +19484,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         if ($settings_tool === 'recorder-queues') {
             $recorder_queue_hidden_view = isset($_GET['ll_recorder_queue_view'])
                 && sanitize_key(wp_unslash((string) $_GET['ll_recorder_queue_view'])) === 'hidden';
-            $recorder_queue_focused_user_id = (!$recorder_queue_hidden_view && isset($_GET['ll_recorder_queue_focus']))
+            $recorder_queue_focused_user_id = isset($_GET['ll_recorder_queue_focus'])
                 ? absint(wp_unslash((string) $_GET['ll_recorder_queue_focus']))
                 : 0;
             $recorder_queue_focused_category_slug = (!$recorder_queue_hidden_view && isset($_GET['ll_recorder_queue_category']))

@@ -2724,9 +2724,10 @@ function ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope(array
  *
  * @param int[] $image_post_ids
  * @param int[] $wordset_ids
+ * @param bool $include_non_published_images Keep stale hidden-history identities attributable.
  * @return array<int, int> Map of word_images post ID to words post ID.
  */
-function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, array $wordset_ids): array {
+function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, array $wordset_ids, bool $include_non_published_images = false): array {
     global $wpdb;
 
     $image_post_ids = array_values(array_unique(array_filter(array_map('intval', $image_post_ids), static function (int $image_id): bool {
@@ -2743,6 +2744,7 @@ function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, a
         update_postmeta_cache($image_post_ids);
     }
 
+    $valid_image_ids = [];
     $attachment_id_by_image = [];
     $origin_id_by_image = [];
     $isolation_enabled = function_exists('ll_tools_is_wordset_isolation_enabled')
@@ -2752,20 +2754,25 @@ function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, a
         : 'll_word_image_isolation_source_id';
     foreach ($image_post_ids as $image_id) {
         $image_post = get_post($image_id);
-        if (!($image_post instanceof WP_Post) || $image_post->post_type !== 'word_images' || $image_post->post_status !== 'publish') {
+        if (
+            !($image_post instanceof WP_Post)
+            || $image_post->post_type !== 'word_images'
+            || (!$include_non_published_images && $image_post->post_status !== 'publish')
+        ) {
             continue;
         }
 
+        $valid_image_ids[] = $image_id;
+        $stored_origin_id = $isolation_enabled
+            ? (int) get_post_meta($image_id, $isolation_source_meta_key, true)
+            : 0;
+        $origin_id_by_image[$image_id] = $stored_origin_id > 0 ? $stored_origin_id : $image_id;
         $attachment_id = (int) get_post_thumbnail_id($image_id);
         if ($attachment_id > 0) {
             $attachment_id_by_image[$image_id] = $attachment_id;
-            $stored_origin_id = $isolation_enabled
-                ? (int) get_post_meta($image_id, $isolation_source_meta_key, true)
-                : 0;
-            $origin_id_by_image[$image_id] = $stored_origin_id > 0 ? $stored_origin_id : $image_id;
         }
     }
-    if (empty($attachment_id_by_image)) {
+    if (empty($valid_image_ids)) {
         return [];
     }
 
@@ -2908,7 +2915,7 @@ function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, a
     };
 
     $linked_image_lookup_ids = array_values(array_unique(array_merge(
-        array_map('intval', array_keys($attachment_id_by_image)),
+        array_map('intval', $valid_image_ids),
         array_map('intval', array_values($origin_id_by_image))
     )));
     $word_by_linked_image = $get_word_by_meta_value('_ll_autopicked_image_id', $linked_image_lookup_ids);
@@ -2936,12 +2943,13 @@ function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, a
     }
 
     $word_by_image = [];
-    foreach ($attachment_id_by_image as $image_id => $attachment_id) {
+    foreach ($valid_image_ids as $image_id) {
+        $attachment_id = (int) ($attachment_id_by_image[$image_id] ?? 0);
         $origin_id = (int) ($origin_id_by_image[$image_id] ?? $image_id);
         $direct_word_id = (int) (
             $word_by_linked_image[$image_id]
             ?? $word_by_linked_image[$origin_id]
-            ?? $word_by_candidate_attachment[$attachment_id]
+            ?? ($attachment_id > 0 ? ($word_by_candidate_attachment[$attachment_id] ?? 0) : 0)
             ?? 0
         );
         if ($direct_word_id > 0) {
@@ -2949,7 +2957,7 @@ function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, a
             continue;
         }
 
-        $fallback_word_id = (int) ($word_by_attachment[$attachment_id] ?? 0);
+        $fallback_word_id = $attachment_id > 0 ? (int) ($word_by_attachment[$attachment_id] ?? 0) : 0;
         if ($fallback_word_id <= 0) {
             continue;
         }

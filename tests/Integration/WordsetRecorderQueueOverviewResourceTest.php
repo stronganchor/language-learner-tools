@@ -203,6 +203,238 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertTrue((bool) $rows[0]['recorder_pagination']['has_next']);
     }
 
+    public function test_hidden_entry_wordset_filter_batches_relationship_and_image_lookups(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $other_wordset = wp_insert_term('Other Hidden Queue Wordset ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($other_wordset);
+        $other_wordset_id = (int) $other_wordset['term_id'];
+
+        $entries = [];
+        $word_ids = [];
+        for ($index = 1; $index <= 30; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Bulk Hidden Queue Word %02d', $index),
+            ]);
+            $word_ids[] = $word_id;
+            wp_set_post_terms($word_id, [$index <= 20 ? $wordset_id : $other_wordset_id], 'wordset', false);
+            $entries[] = [
+                'key' => 'word:' . $word_id,
+                'word_id' => $word_id,
+                'title' => (string) get_the_title($word_id),
+            ];
+        }
+
+        $owned_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Bulk Hidden Owned Image',
+        ]);
+        ll_tools_set_word_image_wordset_owner($owned_image_id, $wordset_id, $owned_image_id);
+        $entries[] = ['key' => 'image:' . $owned_image_id, 'image_id' => $owned_image_id];
+
+        $other_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Bulk Hidden Other Image',
+        ]);
+        ll_tools_set_word_image_wordset_owner($other_image_id, $other_wordset_id, $other_image_id);
+        $entries[] = ['key' => 'image:' . $other_image_id, 'image_id' => $other_image_id];
+
+        $ownerless_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Bulk Hidden Ownerless Direct Image',
+        ]);
+        $ownerless_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Bulk Hidden Ownerless Direct Word',
+        ]);
+        update_post_meta($ownerless_word_id, '_ll_autopicked_image_id', $ownerless_image_id);
+        wp_set_post_terms($ownerless_word_id, [$wordset_id], 'wordset', false);
+        $entries[] = ['key' => 'image:' . $ownerless_image_id, 'image_id' => $ownerless_image_id];
+
+        $stale_attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Bulk Hidden Stale Image Attachment',
+            'post_mime_type' => 'image/png',
+        ]);
+        $stale_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'draft',
+            'post_title' => 'Bulk Hidden Draft Image',
+        ]);
+        set_post_thumbnail($stale_image_id, $stale_attachment_id);
+        $stale_image_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Bulk Hidden Draft Image Word',
+        ]);
+        update_post_meta($stale_image_word_id, '_ll_autopicked_image_id', $stale_image_id);
+        wp_set_post_terms($stale_image_word_id, [$wordset_id], 'wordset', false);
+        $entries[] = ['key' => 'image:' . $stale_image_id, 'image_id' => $stale_image_id];
+
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Bulk Hidden Prompt Card',
+        ]);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+        $entries[] = ['key' => 'prompt_card:' . $prompt_card_id, 'prompt_card_id' => $prompt_card_id];
+        $entries[] = ['key' => 'title:stale-hidden-title', 'title' => 'Stale Hidden Title'];
+
+        clean_object_term_cache($word_ids, 'words');
+        foreach ([$owned_image_id, $other_image_id, $ownerless_image_id, $stale_image_id] as $image_id) {
+            clean_post_cache($image_id);
+        }
+        $queries_before = (int) $GLOBALS['wpdb']->num_queries;
+        $filtered = ll_tools_wordset_page_filter_hidden_entries_for_wordset($entries, $wordset_id);
+        $query_count = (int) $GLOBALS['wpdb']->num_queries - $queries_before;
+
+        $this->assertCount(24, $filtered);
+        $this->assertContains('image:' . $owned_image_id, array_column($filtered, 'key'));
+        $this->assertContains('image:' . $ownerless_image_id, array_column($filtered, 'key'));
+        $this->assertContains('image:' . $stale_image_id, array_column($filtered, 'key'));
+        $this->assertContains('prompt_card:' . $prompt_card_id, array_column($filtered, 'key'));
+        $this->assertNotContains('image:' . $other_image_id, array_column($filtered, 'key'));
+        $this->assertNotContains('title:stale-hidden-title', array_column($filtered, 'key'));
+        $this->assertLessThan(25, $query_count, 'Hidden-entry membership must stay batched instead of querying once per entry.');
+
+        $title_matched = ll_tools_wordset_page_filter_hidden_entries_for_wordset($entries, $wordset_id, [
+            'title:stale-hidden-title' => ['hide_key' => 'title:stale-hidden-title'],
+        ]);
+        $this->assertCount(25, $title_matched);
+        $this->assertContains('title:stale-hidden-title', array_column($title_matched, 'key'));
+    }
+
+    public function test_hidden_queue_view_paginates_scoped_entries(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Paged Hidden Queue Recorder',
+        ]);
+        update_user_meta($recorder_id, 'll_recording_config', ['wordset' => (string) $wordset_term->slug]);
+        $recorder = get_userdata($recorder_id);
+        $this->assertInstanceOf(WP_User::class, $recorder);
+
+        $hidden_entries = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Paged Hidden Word %02d', $index),
+            ]);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            $hidden_entries['word:' . $word_id] = [
+                'key' => 'word:' . $word_id,
+                'word_id' => $word_id,
+                'title' => (string) get_the_title($word_id),
+                'hidden_at' => gmdate('c', time() + $index),
+            ];
+        }
+        $this->assertTrue(ll_tools_save_hidden_recording_words($recorder_id, $hidden_entries));
+
+        $rows = ll_tools_wordset_page_get_recorder_queue_rows($wordset_id, $wordset_term, [$recorder], [
+            'hidden_view' => true,
+            'focused_user_id' => $recorder_id,
+            'page' => 2,
+            'per_page' => 2,
+        ]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(5, (int) $rows[0]['hidden_count']);
+        $this->assertCount(2, $rows[0]['hidden_items']);
+        $this->assertSame(2, (int) $rows[0]['pagination']['page']);
+        $this->assertSame(3, (int) $rows[0]['pagination']['total_pages']);
+        $this->assertTrue((bool) $rows[0]['pagination']['has_prev']);
+        $this->assertTrue((bool) $rows[0]['pagination']['has_next']);
+
+        $_GET = ['ll_wordset_tool' => 'recorder-queues', 'll_recorder_queue_view' => 'hidden'];
+        $html = ll_tools_wordset_page_render_settings_recorder_queues_tool($wordset_term, $wordset_id, '', $rows);
+        $this->assertStringContainsString('Page 2 of 3', $html);
+        $this->assertStringContainsString('ll_recorder_queue_page=3', $html);
+        $this->assertStringContainsString('ll_recorder_queue_view=hidden', $html);
+    }
+
+    public function test_hidden_queue_pager_focuses_one_recorder_before_advancing(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $recorders = [];
+        foreach (['First', 'Second'] as $recorder_label) {
+            $recorder_id = self::factory()->user->create([
+                'role' => 'audio_recorder',
+                'display_name' => $recorder_label . ' Hidden Pager Recorder',
+            ]);
+            update_user_meta($recorder_id, 'll_recording_config', ['wordset' => (string) $wordset_term->slug]);
+            $recorder = get_userdata($recorder_id);
+            $this->assertInstanceOf(WP_User::class, $recorder);
+            $recorders[] = $recorder;
+
+            $hidden_entries = [];
+            for ($index = 1; $index <= 3; $index++) {
+                $word_id = self::factory()->post->create([
+                    'post_type' => 'words',
+                    'post_status' => 'publish',
+                    'post_title' => sprintf('%s Hidden Pager Word %02d', $recorder_label, $index),
+                ]);
+                wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+                $hidden_entries['word:' . $word_id] = [
+                    'key' => 'word:' . $word_id,
+                    'word_id' => $word_id,
+                    'title' => (string) get_the_title($word_id),
+                    'hidden_at' => gmdate('c', time() + $index),
+                ];
+            }
+            $this->assertTrue(ll_tools_save_hidden_recording_words($recorder_id, $hidden_entries));
+        }
+
+        $overview_rows = ll_tools_wordset_page_get_recorder_queue_rows($wordset_id, $wordset_term, $recorders, [
+            'hidden_view' => true,
+            'page' => 2,
+            'per_page' => 2,
+        ]);
+        $this->assertCount(2, $overview_rows);
+        $this->assertSame(1, (int) $overview_rows[0]['pagination']['page']);
+        $this->assertSame(1, (int) $overview_rows[1]['pagination']['page']);
+
+        $_GET = ['ll_wordset_tool' => 'recorder-queues', 'll_recorder_queue_view' => 'hidden'];
+        $html = ll_tools_wordset_page_render_settings_recorder_queues_tool($wordset_term, $wordset_id, '', $overview_rows);
+        $this->assertStringContainsString('ll_recorder_queue_focus=' . (int) $recorders[0]->ID, $html);
+        $this->assertStringContainsString('ll_recorder_queue_focus=' . (int) $recorders[1]->ID, $html);
+        $this->assertSame(2, substr_count($html, 'll_recorder_queue_page=2'));
+
+        $focused_rows = ll_tools_wordset_page_get_recorder_queue_rows($wordset_id, $wordset_term, $recorders, [
+            'hidden_view' => true,
+            'focused_user_id' => (int) $recorders[1]->ID,
+            'page' => 2,
+            'per_page' => 2,
+        ]);
+        $this->assertCount(1, $focused_rows);
+        $this->assertSame((int) $recorders[1]->ID, (int) $focused_rows[0]['user_id']);
+        $this->assertCount(1, $focused_rows[0]['hidden_items']);
+        $this->assertSame(2, (int) $focused_rows[0]['pagination']['page']);
+    }
+
     public function test_overview_category_source_paginates_the_compact_category_list(): void
     {
         wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));

@@ -905,6 +905,31 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame($word_id, (int) ($map[$candidate_image_id] ?? 0));
     }
 
+    public function test_candidate_image_map_resolves_a_direct_link_even_when_the_image_has_no_attachment(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Direct Empty Image Map', 'recorder-direct-empty-image-map');
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Direct Empty Image',
+        ]);
+        delete_post_meta($image_id, '_thumbnail_id');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Direct Empty Image Word',
+        ]);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $image_id);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $map = ll_tools_recorder_get_candidate_image_word_map([$image_id], [$wordset_id]);
+
+        $this->assertSame($word_id, (int) ($map[$image_id] ?? 0));
+    }
+
     public function test_recording_category_queue_page_does_not_fetch_prompt_cards_when_word_page_is_full(): void
     {
         if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {
