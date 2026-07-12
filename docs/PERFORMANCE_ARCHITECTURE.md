@@ -13,6 +13,21 @@ cached/materialized aggregate. Full scans and hydration of every word in a
 wordset belong only in explicit maintenance jobs, bounded imports/exports, or
 admin flows that show progress and can be resumed.
 
+Wordset-page aggregates persisted by
+`ll_tools_wordset_page_store_cached_payload()` use an ASCII durable envelope.
+Keep request/object-cache values native, but do not bypass this helper with a
+raw multilingual transient. Production sites can have a legacy utf8mb3
+options table; a payload containing a four-byte icon or other Unicode value is
+then rejected after WordPress creates only the timeout row. Token-producing
+flows must confirm a durable readback before advertising the token, repair
+timeout-only rows, and leave a complete non-AJAX fallback when persistence is
+unavailable. Shared lazy-card and category-search tokens must also outlive the
+static HTML that references them, while static-cache HIT headers expose only
+the lesser of the file's remaining freshness and a short nonce-safe browser
+TTL rather than restarting the full internal file lifetime.
+Payloads using the durable helper must remain arrays/scalars; convert runtime
+objects such as `WP_Post` and `WP_Term` to compact IDs or value arrays first.
+
 When a fix needs broader context, use `docs/ai-context/task-router.md` and
 generate a local context pack with `scripts/build-ai-context-pack.php` instead
 of sending the whole plugin to an external model.

@@ -162,21 +162,26 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         ];
 
         $lazy_nonce = wp_create_nonce('ll_tools_wordset_page_lazy_cards');
+        $category_search_nonce = wp_create_nonce('ll_tools_wordset_page_category_search');
         $grid_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . (int) $lesson_id);
         $stored = ll_tools_public_static_cache_prepare_html_for_storage(
-            '<!doctype html><html><body><script>' . $lazy_nonce . '</script><div data-nonce="' . $grid_nonce . '"></div></body></html>',
+            '<!doctype html><html><body><script>' . $lazy_nonce . '</script><div data-search-nonce="' . $category_search_nonce . '" data-nonce="' . $grid_nonce . '"></div></body></html>',
             $identity
         );
 
         $this->assertStringContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER, $stored);
+        $this->assertStringContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER, $stored);
         $this->assertStringContainsString(ll_tools_public_static_cache_vocab_grid_nonce_placeholder((int) $lesson_id), $stored);
         $this->assertStringNotContainsString($lazy_nonce, $stored);
+        $this->assertStringNotContainsString($category_search_nonce, $stored);
         $this->assertStringNotContainsString($grid_nonce, $stored);
 
         $output = ll_tools_public_static_cache_prepare_html_for_output($stored, $identity);
         $this->assertStringContainsString($lazy_nonce, $output);
+        $this->assertStringContainsString($category_search_nonce, $output);
         $this->assertStringContainsString($grid_nonce, $output);
         $this->assertStringNotContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER, $output);
+        $this->assertStringNotContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER, $output);
         $this->assertStringNotContainsString(ll_tools_public_static_cache_vocab_grid_nonce_placeholder((int) $lesson_id), $output);
     }
 
@@ -195,7 +200,77 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
     public function test_public_static_cache_miss_uses_no_cache_until_response_is_known(): void
     {
         $this->assertSame('no-cache, must-revalidate', ll_tools_public_static_cache_cache_control_value(false));
-        $this->assertStringStartsWith('public, max-age=', ll_tools_public_static_cache_cache_control_value(true));
+        $this->assertSame('no-cache, must-revalidate', ll_tools_public_static_cache_cache_control_value(false, 30));
+        $this->assertSame(
+            'public, max-age=' . ll_tools_public_static_cache_browser_max_age(),
+            ll_tools_public_static_cache_cache_control_value(true)
+        );
+    }
+
+    public function test_public_static_cache_remaining_max_age_uses_full_ttl_for_new_files(): void
+    {
+        $ttl = 86400;
+        $now = 1783850000;
+
+        $this->assertSame($ttl, ll_tools_public_static_cache_remaining_max_age($now, $ttl, $now));
+        $this->assertSame($ttl, ll_tools_public_static_cache_remaining_max_age($now + 300, $ttl, $now));
+        $this->assertSame(
+            'public, max-age=' . ll_tools_public_static_cache_browser_max_age(),
+            ll_tools_public_static_cache_cache_control_value(true, $ttl + 300)
+        );
+    }
+
+    public function test_public_static_cache_remaining_max_age_decays_with_file_age(): void
+    {
+        $ttl = 86400;
+        $now = 1783850000;
+        $remaining = $ttl - 3600;
+
+        $this->assertSame($remaining, ll_tools_public_static_cache_remaining_max_age($now - 3600, $ttl, $now));
+        $this->assertSame(
+            'public, max-age=' . ll_tools_public_static_cache_browser_max_age(),
+            ll_tools_public_static_cache_cache_control_value(true, $remaining)
+        );
+    }
+
+    public function test_public_static_cache_browser_lifetime_is_capped_below_nonce_window(): void
+    {
+        $long_browser_ttl = static function (): int {
+            return DAY_IN_SECONDS;
+        };
+        $seen_nonce_action = '';
+        $short_nonce_life = static function (int $life, string $action) use (&$seen_nonce_action): int {
+            $seen_nonce_action = $action;
+            return 2 * HOUR_IN_SECONDS;
+        };
+        add_filter('ll_tools_public_static_cache_browser_max_age', $long_browser_ttl);
+        add_filter('nonce_life', $short_nonce_life, 10, 2);
+
+        try {
+            $this->assertSame(30 * MINUTE_IN_SECONDS, ll_tools_public_static_cache_browser_max_age());
+            $this->assertSame('ll_tools_public_static_cache', $seen_nonce_action);
+            $this->assertSame(
+                'public, max-age=' . (30 * MINUTE_IN_SECONDS),
+                ll_tools_public_static_cache_cache_control_value(true, DAY_IN_SECONDS)
+            );
+        } finally {
+            remove_filter('ll_tools_public_static_cache_browser_max_age', $long_browser_ttl);
+            remove_filter('nonce_life', $short_nonce_life, 10);
+        }
+    }
+
+    public function test_public_static_cache_remaining_max_age_is_safe_at_expiry_boundary(): void
+    {
+        $ttl = 86400;
+        $now = 1783850000;
+
+        $this->assertSame(1, ll_tools_public_static_cache_remaining_max_age($now - $ttl + 1, $ttl, $now));
+        $this->assertSame(0, ll_tools_public_static_cache_remaining_max_age($now - $ttl, $ttl, $now));
+        $this->assertSame(0, ll_tools_public_static_cache_remaining_max_age(0, $ttl, $now));
+        $this->assertSame(
+            'public, max-age=0, must-revalidate',
+            ll_tools_public_static_cache_cache_control_value(true, 0)
+        );
     }
 
     public function test_public_static_cache_rebuild_lock_blocks_parallel_rebuilds_until_released(): void

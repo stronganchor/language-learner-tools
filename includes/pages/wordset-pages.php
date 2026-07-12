@@ -654,6 +654,62 @@ function ll_tools_wordset_page_build_cache_key(string $namespace, array $args = 
     return 'll_wsp_' . sanitize_key($namespace) . '_' . md5((string) wp_json_encode($args));
 }
 
+/**
+ * Prefix for durable wordset-page payloads stored through WordPress options.
+ *
+ * The ASCII envelope allows payloads containing four-byte Unicode characters
+ * to survive legacy utf8mb3 options tables and mixed connection charsets.
+ */
+function ll_tools_wordset_page_durable_cache_envelope_prefix(): string {
+    return 'll-wsp-b64-v1:';
+}
+
+/**
+ * @param mixed $payload
+ */
+function ll_tools_wordset_page_encode_durable_cache_payload($payload): string {
+    return ll_tools_wordset_page_durable_cache_envelope_prefix()
+        . base64_encode(serialize($payload));
+}
+
+/**
+ * Decode an ASCII durable-cache envelope while accepting legacy native values.
+ *
+ * @param mixed $cached
+ * @param bool  $valid Set false when an envelope is malformed.
+ * @return mixed
+ */
+function ll_tools_wordset_page_decode_durable_cache_payload($cached, bool &$valid) {
+    $valid = true;
+    $prefix = ll_tools_wordset_page_durable_cache_envelope_prefix();
+    if (!is_string($cached) || strpos($cached, $prefix) !== 0) {
+        return $cached;
+    }
+
+    $encoded = substr($cached, strlen($prefix));
+    $serialized = base64_decode($encoded, true);
+    if (!is_string($serialized)) {
+        $valid = false;
+        return null;
+    }
+    if (base64_encode($serialized) !== $encoded) {
+        $valid = false;
+        return null;
+    }
+
+    $payload = @unserialize($serialized, ['allowed_classes' => false]);
+    if ($payload === false && $serialized !== 'b:0;') {
+        $valid = false;
+        return null;
+    }
+    if (serialize($payload) !== $serialized) {
+        $valid = false;
+        return null;
+    }
+
+    return $payload;
+}
+
 function ll_tools_wordset_page_normalize_cache_ttl(string $filter_name, int $default_ttl): int {
     $ttl = (int) apply_filters($filter_name, $default_ttl);
     if ($ttl < MINUTE_IN_SECONDS) {
@@ -669,23 +725,118 @@ function ll_tools_wordset_page_get_cached_payload(string $cache_key, array &$req
     }
 
     $cached = wp_cache_get($cache_key, $cache_group);
-    if ($cached === false) {
-        $cached = get_transient($cache_key);
+    if ($cached !== false) {
+        $valid = true;
+        $payload = ll_tools_wordset_page_decode_durable_cache_payload($cached, $valid);
+        if ($valid) {
+            $request_cache[$cache_key] = $payload;
+            return $payload;
+        }
+
+        // A malformed persistent-object-cache value must not mask a valid
+        // transient fallback or keep every request on the miss path.
+        wp_cache_delete($cache_key, $cache_group);
     }
+
+    $cached = get_transient($cache_key);
     if ($cached === false) {
         return null;
     }
 
-    $request_cache[$cache_key] = $cached;
-    return $cached;
+    $valid = true;
+    $payload = ll_tools_wordset_page_decode_durable_cache_payload($cached, $valid);
+    if (!$valid) {
+        return null;
+    }
+
+    $request_cache[$cache_key] = $payload;
+    return $payload;
 }
 
-function ll_tools_wordset_page_store_cached_payload(string $cache_key, $payload, int $ttl, array &$request_cache, string $cache_group = 'll_tools') {
+function ll_tools_wordset_page_store_cached_payload(
+    string $cache_key,
+    $payload,
+    int $ttl,
+    array &$request_cache,
+    string $cache_group = 'll_tools',
+    ?bool &$durable_stored = null
+) {
     $request_cache[$cache_key] = $payload;
     wp_cache_set($cache_key, $payload, $cache_group, $ttl);
-    set_transient($cache_key, $payload, $ttl);
+    set_transient($cache_key, ll_tools_wordset_page_encode_durable_cache_payload($payload), $ttl);
+
+    // Most aggregate callers only need the request/object-cache value. Token
+    // producers opt into one durable readback so they never advertise a key
+    // whose timeout row exists without a corresponding value row.
+    if (func_num_args() >= 6) {
+        $stored_value = get_transient($cache_key);
+        if ($stored_value === false) {
+            $durable_stored = false;
+        } else {
+            $valid = true;
+            $decoded = ll_tools_wordset_page_decode_durable_cache_payload($stored_value, $valid);
+            $durable_stored = $valid && $decoded === $payload;
+        }
+        if ($durable_stored && !wp_using_ext_object_cache() && $ttl > 0) {
+            $expires_at = (int) get_option('_transient_timeout_' . $cache_key, 0);
+            $durable_stored = $expires_at >= (time() + $ttl - 5);
+        }
+    }
 
     return $payload;
+}
+
+function ll_tools_wordset_page_delete_durable_cached_payload(string $cache_key, string $cache_group = 'll_tools'): void {
+    wp_cache_delete($cache_key, $cache_group);
+    delete_transient($cache_key);
+
+    if (!wp_using_ext_object_cache()) {
+        // Core only deletes the timeout when the value row exists. Clean both
+        // explicitly so an interrupted/invalid add cannot leave an orphan.
+        $value_option = '_transient_' . $cache_key;
+        $timeout_option = '_transient_timeout_' . $cache_key;
+        delete_option($value_option);
+        delete_option($timeout_option);
+
+        // delete_option() can return early when an invalid serialized row is
+        // unreadable. The bounded exact-name delete is only for that recovery
+        // case and for timeout-only rows left by a failed transient add.
+        global $wpdb;
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options}
+             WHERE option_name IN (%s, %s)",
+            $value_option,
+            $timeout_option
+        ));
+        wp_cache_delete($value_option, 'options');
+        wp_cache_delete($timeout_option, 'options');
+    }
+}
+
+function ll_tools_wordset_page_repair_orphan_durable_timeout(string $cache_key): void {
+    if (wp_using_ext_object_cache()) {
+        return;
+    }
+
+    global $wpdb;
+    $value_option = '_transient_' . $cache_key;
+    $timeout_option = '_transient_timeout_' . $cache_key;
+    $option_names = $wpdb->get_col($wpdb->prepare(
+        "SELECT option_name
+         FROM {$wpdb->options}
+         WHERE option_name IN (%s, %s)",
+        $value_option,
+        $timeout_option
+    ));
+    $has_value = in_array($value_option, (array) $option_names, true);
+    $has_timeout = in_array($timeout_option, (array) $option_names, true);
+    if ($has_value || !$has_timeout) {
+        return;
+    }
+
+    delete_option($timeout_option);
+    $wpdb->delete($wpdb->options, ['option_name' => $timeout_option], ['%s']);
+    wp_cache_delete($timeout_option, 'options');
 }
 
 function ll_tools_wordset_page_cache_rebuild_lock_option(string $cache_key): string {
@@ -4194,6 +4345,24 @@ function ll_tools_wordset_page_build_lazy_cards_token(array $signature = []): st
     return 'shared_' . md5((string) wp_json_encode($signature));
 }
 
+function ll_tools_wordset_page_public_static_dependency_ttl(int $minimum_ttl, string $dependency): int {
+    $minimum_ttl = max(MINUTE_IN_SECONDS, $minimum_ttl);
+    if (!function_exists('ll_tools_public_static_cache_ttl')) {
+        return $minimum_ttl;
+    }
+
+    $static_ttl = max(MINUTE_IN_SECONDS, (int) ll_tools_public_static_cache_ttl());
+    $grace = (int) apply_filters(
+        'll_tools_wordset_page_public_static_dependency_cache_grace',
+        5 * MINUTE_IN_SECONDS,
+        sanitize_key($dependency),
+        $static_ttl
+    );
+    $grace = max(MINUTE_IN_SECONDS, min(HOUR_IN_SECONDS, $grace));
+
+    return max($minimum_ttl, $static_ttl + $grace);
+}
+
 function ll_tools_wordset_page_store_lazy_cards_payload(array $payload, int $ttl = 0, string $preferred_token = ''): string {
     static $request_cache = [];
 
@@ -4211,21 +4380,39 @@ function ll_tools_wordset_page_store_lazy_cards_payload(array $payload, int $ttl
 
     $cache_key = ll_tools_wordset_page_lazy_cards_cache_key($token);
     $default_ttl = 30 * MINUTE_IN_SECONDS;
-    if ($preferred_token !== '' && function_exists('ll_tools_public_static_cache_ttl')) {
-        $default_ttl = max($default_ttl, ll_tools_public_static_cache_ttl());
+    $dependency_ttl_floor = 0;
+    if ($preferred_token !== '') {
+        $dependency_ttl_floor = ll_tools_wordset_page_public_static_dependency_ttl($default_ttl, 'lazy_cards');
+        $default_ttl = $dependency_ttl_floor;
     }
     $ttl = $ttl > 0
         ? $ttl
         : ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_lazy_cards_cache_ttl', $default_ttl);
+    if ($dependency_ttl_floor > 0) {
+        $ttl = max($ttl, $dependency_ttl_floor);
+    }
 
     if ($preferred_token !== '') {
         $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
-        if (is_array($cached)) {
-            return $token;
+        if (!is_array($cached)) {
+            ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
         }
+        ll_tools_wordset_page_repair_orphan_durable_timeout($cache_key);
     }
 
-    ll_tools_wordset_page_store_cached_payload($cache_key, $payload, $ttl, $request_cache);
+    $durable_stored = false;
+    ll_tools_wordset_page_store_cached_payload(
+        $cache_key,
+        $payload,
+        $ttl,
+        $request_cache,
+        'll_tools',
+        $durable_stored
+    );
+    if (!$durable_stored) {
+        ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
+        return '';
+    }
 
     return $token;
 }
@@ -4278,21 +4465,39 @@ function ll_tools_wordset_page_store_category_search_payload(array $payload, int
 
     $cache_key = ll_tools_wordset_page_category_search_payload_cache_key($token);
     $default_ttl = 30 * MINUTE_IN_SECONDS;
-    if ($preferred_token !== '' && function_exists('ll_tools_public_static_cache_ttl')) {
-        $default_ttl = max($default_ttl, ll_tools_public_static_cache_ttl());
+    $dependency_ttl_floor = 0;
+    if ($preferred_token !== '') {
+        $dependency_ttl_floor = ll_tools_wordset_page_public_static_dependency_ttl($default_ttl, 'category_search');
+        $default_ttl = $dependency_ttl_floor;
     }
     $ttl = $ttl > 0
         ? $ttl
         : ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_category_search_payload_cache_ttl', $default_ttl);
+    if ($dependency_ttl_floor > 0) {
+        $ttl = max($ttl, $dependency_ttl_floor);
+    }
 
     if ($preferred_token !== '') {
         $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
-        if (is_array($cached)) {
-            return $token;
+        if (!is_array($cached)) {
+            ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
         }
+        ll_tools_wordset_page_repair_orphan_durable_timeout($cache_key);
     }
 
-    ll_tools_wordset_page_store_cached_payload($cache_key, $payload, $ttl, $request_cache);
+    $durable_stored = false;
+    ll_tools_wordset_page_store_cached_payload(
+        $cache_key,
+        $payload,
+        $ttl,
+        $request_cache,
+        'll_tools',
+        $durable_stored
+    );
+    if (!$durable_stored) {
+        ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
+        return '';
+    }
 
     return $token;
 }
@@ -19346,22 +19551,46 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'user_id' => $lazy_cards_user_id,
         ];
         $lazy_cards_token = ll_tools_wordset_page_store_lazy_cards_payload($lazy_payload, 0, $lazy_cards_token_hint);
-        $lazy_cards_config = [
-            'enabled' => ($lazy_cards_token !== ''),
-            'nonce' => ($lazy_cards_token !== '') ? wp_create_nonce('ll_tools_wordset_page_lazy_cards') : '',
-            'token' => $lazy_cards_token,
-            'wordsetId' => $wordset_id,
-            'previewLimit' => $preview_limit,
-            'batchSize' => $lazy_batch_size,
-            'requestIdBatchSize' => ll_tools_wordset_page_lazy_cards_request_id_cap(),
-            'initialCount' => count($initial_mixed_lesson_cards),
-            'loaded' => count($initial_mixed_lesson_cards),
-            'total' => count($mixed_lesson_cards),
-            'remaining' => max(0, count($mixed_lesson_cards) - count($initial_mixed_lesson_cards)),
-            'shellBaseOffset' => count($initial_mixed_lesson_cards),
-            'shells' => $lazy_shells,
-            'contentShells' => $lazy_content_shells,
-        ];
+        if ($lazy_cards_token === '') {
+            // A failed durable write must not leave every card after the first
+            // batch inaccessible. Render all lightweight deferred cards and
+            // keep AJAX disabled; previews remain skeletons instead of forcing
+            // an eager full-wordset hydration.
+            $initial_mixed_lesson_cards = $mixed_lesson_cards;
+            $lazy_cards_config = [
+                'enabled' => false,
+                'nonce' => '',
+                'token' => '',
+                'wordsetId' => $wordset_id,
+                'previewLimit' => $preview_limit,
+                'batchSize' => 0,
+                'requestIdBatchSize' => ll_tools_wordset_page_lazy_cards_request_id_cap(),
+                'initialCount' => count($mixed_lesson_cards),
+                'loaded' => count($mixed_lesson_cards),
+                'total' => count($mixed_lesson_cards),
+                'remaining' => 0,
+                'shellBaseOffset' => count($mixed_lesson_cards),
+                'shells' => [],
+                'contentShells' => [],
+            ];
+        } else {
+            $lazy_cards_config = [
+                'enabled' => true,
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_lazy_cards'),
+                'token' => $lazy_cards_token,
+                'wordsetId' => $wordset_id,
+                'previewLimit' => $preview_limit,
+                'batchSize' => $lazy_batch_size,
+                'requestIdBatchSize' => ll_tools_wordset_page_lazy_cards_request_id_cap(),
+                'initialCount' => count($initial_mixed_lesson_cards),
+                'loaded' => count($initial_mixed_lesson_cards),
+                'total' => count($mixed_lesson_cards),
+                'remaining' => max(0, count($mixed_lesson_cards) - count($initial_mixed_lesson_cards)),
+                'shellBaseOffset' => count($initial_mixed_lesson_cards),
+                'shells' => $lazy_shells,
+                'contentShells' => $lazy_content_shells,
+            ];
+        }
     } else {
         $initial_mixed_lesson_cards = ll_tools_wordset_page_hydrate_mixed_card_previews($initial_mixed_lesson_cards, $preview_limit);
     }

@@ -9,12 +9,20 @@ if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_TTL')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_TTL', DAY_IN_SECONDS);
 }
 
+if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_BROWSER_MAX_AGE')) {
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_BROWSER_MAX_AGE', 5 * MINUTE_IN_SECONDS);
+}
+
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_MAX_BYTES')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_MAX_BYTES', 5 * 1024 * 1024);
 }
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER', '%%LL_TOOLS_WORDSET_LAZY_CARDS_NONCE%%');
+}
+
+if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER')) {
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER', '%%LL_TOOLS_WORDSET_CATEGORY_SEARCH_NONCE%%');
 }
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_VOCAB_GRID_NONCE_PLACEHOLDER_PREFIX')) {
@@ -34,6 +42,28 @@ function ll_tools_public_static_cache_ttl(): int {
         : (int) LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_TTL;
 
     return max(60, (int) apply_filters('ll_tools_public_static_cache_ttl', $ttl));
+}
+
+/**
+ * Return a nonce-safe browser/downstream lifetime for cached public HTML.
+ */
+function ll_tools_public_static_cache_browser_max_age(): int {
+    $max_age = defined('LL_TOOLS_PUBLIC_STATIC_CACHE_BROWSER_MAX_AGE')
+        ? (int) constant('LL_TOOLS_PUBLIC_STATIC_CACHE_BROWSER_MAX_AGE')
+        : (int) LL_TOOLS_PUBLIC_STATIC_CACHE_DEFAULT_BROWSER_MAX_AGE;
+    $max_age = max(0, (int) apply_filters('ll_tools_public_static_cache_browser_max_age', $max_age));
+
+    // Cached HTML contains request nonces refreshed on every file-cache HIT.
+    // Keep downstream freshness comfortably below the shortest valid nonce
+    // window, including sites that customize WordPress' nonce lifetime.
+    $nonce_life = max(MINUTE_IN_SECONDS, (int) apply_filters(
+        'nonce_life',
+        DAY_IN_SECONDS,
+        'll_tools_public_static_cache'
+    ));
+    $nonce_safe_max_age = max(0, (int) floor($nonce_life / 4));
+
+    return min($max_age, $nonce_safe_max_age);
 }
 
 /**
@@ -647,6 +677,11 @@ function ll_tools_public_static_cache_prepare_html_for_storage(string $html, ?ar
         LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER,
         $html
     );
+    $html = str_replace(
+        wp_create_nonce('ll_tools_wordset_page_category_search'),
+        LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER,
+        $html
+    );
 
     $lesson_id = ($identity !== null && ($identity['type'] ?? '') === 'vocab_lesson') ? (int) ($identity['id'] ?? 0) : 0;
     if ($lesson_id > 0) {
@@ -678,6 +713,11 @@ function ll_tools_public_static_cache_prepare_html_for_output(string $html, ?arr
         wp_create_nonce('ll_tools_wordset_page_lazy_cards'),
         $html
     );
+    $html = str_replace(
+        LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER,
+        wp_create_nonce('ll_tools_wordset_page_category_search'),
+        $html
+    );
 
     $lesson_id = ($identity !== null && ($identity['type'] ?? '') === 'vocab_lesson') ? (int) ($identity['id'] ?? 0) : 0;
     if ($lesson_id > 0) {
@@ -704,8 +744,8 @@ function ll_tools_public_static_cache_read_prepared_file(string $file, ?array $i
     return ll_tools_public_static_cache_prepare_html_for_output($html, $identity);
 }
 
-function ll_tools_public_static_cache_send_prepared_file_response(string $output_html, string $cache_status, string $reason, bool $public_cache, string $method): void {
-    ll_tools_public_static_cache_send_headers($cache_status, $reason, $public_cache);
+function ll_tools_public_static_cache_send_prepared_file_response(string $output_html, string $cache_status, string $reason, bool $public_cache, string $method, ?int $public_max_age = null): void {
+    ll_tools_public_static_cache_send_headers($cache_status, $reason, $public_cache, $public_max_age);
     header('Content-Type: text/html; charset=' . get_bloginfo('charset'));
     header('Content-Length: ' . strlen($output_html));
     if ($method === 'HEAD') {
@@ -724,20 +764,48 @@ function ll_tools_public_static_cache_vocab_grid_nonce_placeholder(int $lesson_i
 }
 
 /**
+ * Return the browser-cache lifetime still available for a static-cache file.
+ *
+ * The result is capped to the internal cache TTL so a future-dated file cannot
+ * extend downstream freshness beyond the server-side freshness window.
+ */
+function ll_tools_public_static_cache_remaining_max_age(int $file_mtime, int $ttl, int $now = 0): int {
+    $ttl = max(0, $ttl);
+    if ($file_mtime <= 0 || $ttl === 0) {
+        return 0;
+    }
+
+    $now = $now > 0 ? $now : time();
+    $remaining = ($file_mtime + $ttl) - $now;
+
+    return max(0, min($ttl, $remaining));
+}
+
+/**
  * Build the browser/downstream cache policy for static-cache responses.
  */
-function ll_tools_public_static_cache_cache_control_value(bool $public): string {
+function ll_tools_public_static_cache_cache_control_value(bool $public, ?int $public_max_age = null): string {
     if (!$public) {
         return 'no-cache, must-revalidate';
     }
 
-    return 'public, max-age=' . ll_tools_public_static_cache_ttl();
+    $max_age = ll_tools_public_static_cache_browser_max_age();
+    if ($public_max_age !== null) {
+        $max_age = max(0, min($max_age, $public_max_age));
+    }
+
+    $value = 'public, max-age=' . $max_age;
+    if ($max_age === 0) {
+        $value .= ', must-revalidate';
+    }
+
+    return $value;
 }
 
 /**
  * Send public/debug headers for the anonymous public static cache.
  */
-function ll_tools_public_static_cache_send_headers(string $cache_status, string $reason = '', bool $public_cache = true): void {
+function ll_tools_public_static_cache_send_headers(string $cache_status, string $reason = '', bool $public_cache = true, ?int $public_max_age = null): void {
     if (headers_sent()) {
         return;
     }
@@ -746,7 +814,7 @@ function ll_tools_public_static_cache_send_headers(string $cache_status, string 
     if ($reason !== '') {
         header('X-LL-Public-Static-Cache-Reason: ' . sanitize_key($reason));
     }
-    header('Cache-Control: ' . ll_tools_public_static_cache_cache_control_value($public_cache));
+    header('Cache-Control: ' . ll_tools_public_static_cache_cache_control_value($public_cache, $public_max_age));
     header('Vary: Accept-Language, Cookie', false);
 }
 
@@ -769,13 +837,18 @@ function ll_tools_serve_public_static_cache(): void {
     $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
 
     if (ll_tools_public_static_cache_file_is_fresh($file, $ttl)) {
+        $file_mtime = filemtime($file);
         $output_html = ll_tools_public_static_cache_read_prepared_file($file, $identity);
         if (is_string($output_html)) {
+            $public_max_age = ll_tools_public_static_cache_remaining_max_age(
+                $file_mtime !== false ? (int) $file_mtime : 0,
+                $ttl
+            );
             ll_tools_public_static_cache_debug_log('hit', [
                 'key' => $key,
                 'file' => basename($file),
             ]);
-            ll_tools_public_static_cache_send_prepared_file_response($output_html, 'HIT', 'fresh', true, $method);
+            ll_tools_public_static_cache_send_prepared_file_response($output_html, 'HIT', 'fresh', true, $method, $public_max_age);
         }
     }
 
