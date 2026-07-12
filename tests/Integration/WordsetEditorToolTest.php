@@ -470,6 +470,195 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertSame([], $captured_post_type_queries, 'Owned wordset categories should avoid broad words/word_images scans.');
     }
 
+    public function test_effective_image_summary_filter_and_sort_reuse_batched_membership(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-batched-images');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_a_id'];
+        $attachment_id = $this->createImageAttachment('wordset-editor-batched-images.png');
+
+        wp_update_post(['ID' => (int) $fixture['alpha_word_id'], 'post_title' => 'Alpha Direct Image']);
+        wp_update_post(['ID' => (int) $fixture['beta_word_id'], 'post_title' => 'Beta Linked Image']);
+        set_post_thumbnail((int) $fixture['alpha_word_id'], $attachment_id);
+
+        $linked_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'draft',
+            'post_title' => 'Linked Draft Image',
+        ]);
+        set_post_thumbnail($linked_image_id, $attachment_id);
+        update_post_meta((int) $fixture['beta_word_id'], '_ll_autopicked_image_id', $linked_image_id);
+
+        $source_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Source Image Without Thumbnail',
+        ]);
+        $copy_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'private',
+            'post_title' => 'Target Copy With Thumbnail',
+        ]);
+        set_post_thumbnail($copy_image_id, $attachment_id);
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($source_image_id, $wordset_id + 1000, $source_image_id);
+            ll_tools_set_word_image_wordset_owner($copy_image_id, $wordset_id, $source_image_id);
+        } else {
+            update_post_meta($source_image_id, 'll_wordset_owner_id', $wordset_id + 1000);
+            update_post_meta($source_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+            update_post_meta($copy_image_id, 'll_wordset_owner_id', $wordset_id);
+            update_post_meta($copy_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+        }
+
+        $copy_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Gamma Isolated Copy',
+        ]);
+        wp_set_object_terms($copy_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($copy_word_id, [$category_id], 'word-category', false);
+        update_post_meta($copy_word_id, '_ll_autopicked_image_id', $source_image_id);
+
+        $missing_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Delta Missing Image',
+        ]);
+        wp_set_object_terms($missing_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($missing_word_id, [$category_id], 'word-category', false);
+
+        $trashed_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'trash',
+            'post_title' => 'Trashed Linked Image',
+        ]);
+        set_post_thumbnail($trashed_image_id, $attachment_id);
+        $trashed_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Epsilon Trashed Image',
+        ]);
+        wp_set_object_terms($trashed_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($trashed_word_id, [$category_id], 'word-category', false);
+        update_post_meta($trashed_word_id, '_ll_autopicked_image_id', $trashed_image_id);
+
+        $filters = [
+            'q' => '',
+            'exact' => false,
+            'category' => 0,
+            'status' => '',
+            'image' => '',
+            'recording' => '',
+            'sort' => 'word',
+            'dir' => 'asc',
+        ];
+        $batch_size = static function (): int {
+            return 2;
+        };
+        $captured_sql = [];
+        $query_watcher = static function (string $sql) use (&$captured_sql): string {
+            if (strpos($sql, 'll_tools_editor_') !== false || strpos($sql, 'linked_image.post_id = p.ID') !== false) {
+                $captured_sql[] = $sql;
+            }
+            return $sql;
+        };
+
+        add_filter('ll_tools_wordset_editor_effective_image_batch_size', $batch_size);
+        add_filter('query', $query_watcher);
+        try {
+            $summary = ll_tools_wordset_editor_get_aggregate_summary($wordset_id, $filters, 5);
+
+            $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+                ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+                : [];
+            $filtered_summary = ll_tools_wordset_editor_get_filtered_aggregate_summary(
+                $wordset_id,
+                $category_rows,
+                array_merge($filters, ['q' => 'Gamma Isolated']),
+                1
+            );
+            $has_images = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, array_merge($filters, [
+                'image' => 'has',
+                'sort' => 'image',
+            ]), ['posts_per_page' => 10]);
+            $missing_images = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, array_merge($filters, [
+                'image' => 'missing',
+                'sort' => 'image',
+            ]), ['posts_per_page' => 10]);
+            $image_sorted = ll_tools_wordset_editor_query_filtered_word_ids($wordset_id, $category_rows, array_merge($filters, [
+                'sort' => 'image',
+            ]), ['posts_per_page' => 10]);
+        } finally {
+            remove_filter('query', $query_watcher);
+            remove_filter('ll_tools_wordset_editor_effective_image_batch_size', $batch_size);
+        }
+
+        $this->assertSame([
+            'total' => 5,
+            'missing_audio' => 4,
+            'missing_image' => 2,
+            'no_audio' => 4,
+        ], $summary);
+        $this->assertSame([
+            'total' => 1,
+            'missing_audio' => 1,
+            'missing_image' => 0,
+            'no_audio' => 1,
+        ], $filtered_summary);
+
+        $expected_has = [(int) $fixture['alpha_word_id'], (int) $fixture['beta_word_id'], (int) $copy_word_id];
+        $actual_has = array_map('intval', (array) ($has_images['ids'] ?? []));
+        sort($expected_has, SORT_NUMERIC);
+        sort($actual_has, SORT_NUMERIC);
+        $this->assertSame($expected_has, $actual_has);
+
+        $expected_missing = [(int) $missing_word_id, (int) $trashed_word_id];
+        $actual_missing = array_map('intval', (array) ($missing_images['ids'] ?? []));
+        sort($expected_missing, SORT_NUMERIC);
+        sort($actual_missing, SORT_NUMERIC);
+        $this->assertSame($expected_missing, $actual_missing);
+        $this->assertSame([
+            (int) $missing_word_id,
+            (int) $trashed_word_id,
+            (int) $fixture['alpha_word_id'],
+            (int) $fixture['beta_word_id'],
+            (int) $copy_word_id,
+        ], array_map('intval', (array) ($image_sorted['ids'] ?? [])));
+
+        $scope_queries = array_values(array_filter($captured_sql, static function (string $sql): bool {
+            return strpos($sql, 'll_tools_editor_image_scope_batch') !== false;
+        }));
+        $this->assertCount(3, $scope_queries, 'Five words with a batch size of two should require three keyset scope reads.');
+        foreach ($scope_queries as $sql) {
+            $this->assertStringContainsString('ORDER BY p.ID ASC', $sql);
+            $this->assertStringContainsString('p.ID >', $sql);
+            $this->assertStringContainsString('LIMIT 2', $sql);
+            $this->assertStringNotContainsString('OFFSET', $sql);
+        }
+
+        $aggregate_scope_queries = array_values(array_filter($captured_sql, static function (string $sql): bool {
+            return strpos($sql, 'll_tools_editor_image_aggregate_scope_batch') !== false;
+        }));
+        $this->assertCount(4, $aggregate_scope_queries, 'Unfiltered and one-word filtered summaries should use four bounded aggregate scope reads.');
+        foreach ($aggregate_scope_queries as $sql) {
+            $this->assertStringContainsString('ORDER BY p.ID ASC', $sql);
+            $this->assertStringContainsString('p.ID >', $sql);
+            $this->assertStringContainsString('LIMIT 2', $sql);
+            $this->assertStringNotContainsString('OFFSET', $sql);
+        }
+
+        $meta_queries = array_values(array_filter($captured_sql, static function (string $sql): bool {
+            return strpos($sql, 'll_tools_editor_image_meta_batch') !== false;
+        }));
+        $this->assertCount(3, $meta_queries);
+        foreach ($meta_queries as $sql) {
+            $this->assertSame(1, preg_match('/post_id IN \(([^)]+)\)/', $sql, $matches));
+            $this->assertLessThanOrEqual(2, count(array_filter(array_map('trim', explode(',', (string) ($matches[1] ?? ''))))));
+        }
+        $this->assertStringNotContainsString('linked_image.post_id = p.ID', implode("\n", $captured_sql));
+    }
+
     public function test_wordset_editor_normal_pagination_uses_bounded_word_query(): void
     {
         $this->loginEditor();

@@ -1894,6 +1894,570 @@ function ll_tools_wordset_editor_base_count_sql(int $wordset_id, array $filters,
     return $sql;
 }
 
+function ll_tools_wordset_editor_get_image_aggregate_epoch(): string {
+    $epoch = trim((string) get_option('ll_tools_wordset_editor_image_aggregate_epoch', '1'));
+    return $epoch !== '' ? $epoch : '1';
+}
+
+function ll_tools_wordset_editor_new_image_aggregate_epoch(): string {
+    $uuid = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('', true);
+    return sprintf('%.6F-%s', microtime(true), $uuid);
+}
+
+function ll_tools_wordset_editor_get_image_aggregate_mutation_state(): array {
+    $state = $GLOBALS['ll_tools_wordset_editor_image_aggregate_mutation_state'] ?? null;
+    if (!is_array($state)) {
+        $state = [
+            'dirty'        => false,
+            'revision'     => 0,
+            'epoch_bumped' => false,
+            'finalizer_registered' => false,
+        ];
+        $GLOBALS['ll_tools_wordset_editor_image_aggregate_mutation_state'] = $state;
+    }
+
+    return $state;
+}
+
+function ll_tools_wordset_editor_finalize_image_aggregate_epoch(): void {
+    update_option(
+        'll_tools_wordset_editor_image_aggregate_epoch',
+        ll_tools_wordset_editor_new_image_aggregate_epoch(),
+        false
+    );
+}
+
+function ll_tools_wordset_editor_mark_image_aggregate_dirty(): void {
+    $state = ll_tools_wordset_editor_get_image_aggregate_mutation_state();
+    $state['dirty'] = true;
+    $state['revision'] = max(0, (int) ($state['revision'] ?? 0)) + 1;
+    if (empty($state['epoch_bumped'])) {
+        update_option(
+            'll_tools_wordset_editor_image_aggregate_epoch',
+            ll_tools_wordset_editor_new_image_aggregate_epoch(),
+            false
+        );
+        $state['epoch_bumped'] = true;
+    }
+    if (empty($state['finalizer_registered'])) {
+        add_action('shutdown', 'll_tools_wordset_editor_finalize_image_aggregate_epoch', PHP_INT_MAX, 0);
+        $state['finalizer_registered'] = true;
+    }
+    $GLOBALS['ll_tools_wordset_editor_image_aggregate_mutation_state'] = $state;
+}
+
+function ll_tools_wordset_editor_maybe_bump_image_aggregate_epoch($meta_id, int $object_id, string $meta_key): void {
+    $word_meta_keys = [
+        '_ll_autopicked_image_id',
+        'll_word_target_text',
+        'll_word_translations',
+        'word_translation',
+        'word_english_meaning',
+        'word_example_sentence',
+        'word_example_sentence_translation',
+        'll_word_usage_note',
+        '_ll_specific_wrong_answer_texts',
+        '_ll_tools_internal_review_note',
+        'll_grammatical_gender',
+        'll_grammatical_plurality',
+        'll_verb_tense',
+        'll_verb_mood',
+        'll_dictionary_entry_id',
+    ];
+    $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')
+        ? (string) LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY
+        : 'll_wordset_owner_id';
+    $source_meta_key = defined('LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY')
+        ? (string) LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY
+        : 'll_word_image_isolation_source_id';
+    if (!in_array($meta_key, array_merge([
+        '_thumbnail_id',
+        'audio_file_path',
+        $owner_meta_key,
+        $source_meta_key,
+    ], $word_meta_keys), true)) {
+        return;
+    }
+
+    $post_type = (string) get_post_type($object_id);
+    if ($meta_key === '_thumbnail_id' && !in_array($post_type, ['words', 'word_images'], true)) {
+        return;
+    }
+    if (in_array($meta_key, $word_meta_keys, true) && $post_type !== 'words') {
+        return;
+    }
+    if ($meta_key === 'audio_file_path' && $post_type !== 'word_audio') {
+        return;
+    }
+    if (in_array($meta_key, [$owner_meta_key, $source_meta_key], true) && $post_type !== 'word_images') {
+        return;
+    }
+
+    ll_tools_wordset_editor_mark_image_aggregate_dirty();
+}
+add_action('added_post_meta', 'll_tools_wordset_editor_maybe_bump_image_aggregate_epoch', 10, 3);
+add_action('updated_post_meta', 'll_tools_wordset_editor_maybe_bump_image_aggregate_epoch', 10, 3);
+add_action('deleted_post_meta', 'll_tools_wordset_editor_maybe_bump_image_aggregate_epoch', 10, 3);
+
+function ll_tools_wordset_editor_maybe_bump_image_aggregate_for_post(int $post_id, $post = null): void {
+    $post_type = $post instanceof WP_Post ? (string) $post->post_type : (string) get_post_type($post_id);
+    if (in_array($post_type, ['words', 'word_audio', 'word_images', 'll_dictionary_entry'], true)) {
+        ll_tools_wordset_editor_mark_image_aggregate_dirty();
+    }
+}
+add_action('save_post', 'll_tools_wordset_editor_maybe_bump_image_aggregate_for_post', 20, 2);
+add_action('before_delete_post', 'll_tools_wordset_editor_maybe_bump_image_aggregate_for_post', 20, 2);
+
+function ll_tools_wordset_editor_maybe_bump_image_aggregate_for_terms(
+    int $object_id,
+    $terms,
+    array $term_taxonomy_ids,
+    string $taxonomy
+): void {
+    if (
+        in_array($taxonomy, ['wordset', 'word-category', 'part_of_speech'], true)
+        && get_post_type($object_id) === 'words'
+    ) {
+        ll_tools_wordset_editor_mark_image_aggregate_dirty();
+    }
+}
+add_action('set_object_terms', 'll_tools_wordset_editor_maybe_bump_image_aggregate_for_terms', 20, 4);
+
+function ll_tools_wordset_editor_bump_image_aggregate_for_term_meta($meta_id, int $term_id, string $meta_key): void {
+    $term = get_term($term_id);
+    if (
+        $term instanceof WP_Term
+        && in_array((string) $term->taxonomy, ['wordset', 'word-category', 'part_of_speech'], true)
+    ) {
+        ll_tools_wordset_editor_mark_image_aggregate_dirty();
+    }
+}
+add_action('added_term_meta', 'll_tools_wordset_editor_bump_image_aggregate_for_term_meta', 20, 3);
+add_action('updated_term_meta', 'll_tools_wordset_editor_bump_image_aggregate_for_term_meta', 20, 3);
+add_action('deleted_term_meta', 'll_tools_wordset_editor_bump_image_aggregate_for_term_meta', 20, 3);
+foreach (['wordset', 'word-category', 'part_of_speech'] as $ll_tools_wordset_editor_aggregate_taxonomy) {
+    add_action('created_' . $ll_tools_wordset_editor_aggregate_taxonomy, 'll_tools_wordset_editor_mark_image_aggregate_dirty', 20, 0);
+    add_action('edited_' . $ll_tools_wordset_editor_aggregate_taxonomy, 'll_tools_wordset_editor_mark_image_aggregate_dirty', 20, 0);
+    add_action('delete_' . $ll_tools_wordset_editor_aggregate_taxonomy, 'll_tools_wordset_editor_mark_image_aggregate_dirty', 20, 0);
+}
+
+function ll_tools_wordset_editor_effective_image_batch_size(): int {
+    return max(1, min(1000, (int) apply_filters('ll_tools_wordset_editor_effective_image_batch_size', 500)));
+}
+
+function ll_tools_wordset_editor_effective_image_cache_key(string $namespace, int $wordset_id, array $extra = []): string {
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+    $mutation_state = ll_tools_wordset_editor_get_image_aggregate_mutation_state();
+    $args = [
+        'schema'          => 1,
+        'wordset_id'      => max(0, $wordset_id),
+        'category_epoch'  => $category_epoch,
+        'wordset_epoch'   => $wordset_epoch,
+        'image_epoch'     => ll_tools_wordset_editor_get_image_aggregate_epoch(),
+        'isolation'       => function_exists('ll_tools_is_wordset_isolation_enabled') && ll_tools_is_wordset_isolation_enabled(),
+        'request_revision'=> !empty($mutation_state['dirty']) ? max(0, (int) ($mutation_state['revision'] ?? 0)) : 0,
+        'extra'           => $extra,
+    ];
+
+    return function_exists('ll_tools_wordset_page_build_cache_key')
+        ? ll_tools_wordset_page_build_cache_key($namespace, $args)
+        : 'll_wse_' . sanitize_key($namespace) . '_' . md5((string) wp_json_encode($args));
+}
+
+/**
+ * Materialize the compact set of word IDs that satisfy the editor's effective
+ * image rules. The cold rebuild is keyset-paged and all dependent metadata is
+ * read in finite candidate batches; interactive filters and sorting reuse the
+ * cached membership set instead of evaluating a correlated subquery per word.
+ */
+function ll_tools_wordset_editor_get_effective_image_word_ids(int $wordset_id): array {
+    global $wpdb;
+
+    static $request_cache = [];
+
+    $wordset_id = max(0, $wordset_id);
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $cache_key = ll_tools_wordset_editor_effective_image_cache_key('editor_image_membership', $wordset_id);
+    $mutation_state = ll_tools_wordset_editor_get_image_aggregate_mutation_state();
+    $cached = array_key_exists($cache_key, $request_cache) ? $request_cache[$cache_key] : null;
+    if ($cached === null && empty($mutation_state['dirty'])) {
+        if (function_exists('ll_tools_wordset_page_get_cached_payload')) {
+            $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
+        } else {
+            $cached = wp_cache_get($cache_key, 'll_tools');
+            if ($cached === false) {
+                $cached = get_transient($cache_key);
+            }
+            if ($cached !== false) {
+                $request_cache[$cache_key] = $cached;
+            } else {
+                $cached = null;
+            }
+        }
+    }
+    if (is_array($cached) && (int) ($cached['schema'] ?? 0) === 1 && isset($cached['word_ids']) && is_array($cached['word_ids'])) {
+        return ll_tools_wordset_editor_normalize_word_ids($cached['word_ids']);
+    }
+
+    $base_params = [];
+    $base_sql = ll_tools_wordset_editor_base_count_sql($wordset_id, [], $base_params);
+    if ($base_sql === '') {
+        return [];
+    }
+
+    $batch_size = ll_tools_wordset_editor_effective_image_batch_size();
+    $allowed_statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')
+        ? (string) LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY
+        : 'll_wordset_owner_id';
+    $source_meta_key = defined('LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY')
+        ? (string) LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY
+        : 'll_word_image_isolation_source_id';
+    $include_effective_copy = function_exists('ll_tools_is_wordset_isolation_enabled')
+        && ll_tools_is_wordset_isolation_enabled();
+    $matched_word_ids = [];
+    $cursor = 0;
+
+    do {
+        $scope_sql = "
+            SELECT DISTINCT p.ID
+            /* ll_tools_editor_image_scope_batch */
+            {$base_sql}
+              AND p.ID > %d
+            ORDER BY p.ID ASC
+            LIMIT %d
+        ";
+        $word_ids = ll_tools_wordset_editor_normalize_word_ids((array) $wpdb->get_col($wpdb->prepare(
+            $scope_sql,
+            array_merge($base_params, [$cursor, $batch_size])
+        )));
+        if (empty($word_ids)) {
+            break;
+        }
+        $cursor = max($word_ids);
+
+        $word_placeholders = implode(',', array_fill(0, count($word_ids), '%d'));
+        $word_meta_sql = "
+            SELECT editor_word_image_meta.post_id,
+                   editor_word_image_meta.meta_key,
+                   CAST(editor_word_image_meta.meta_value AS UNSIGNED) AS value_id
+            /* ll_tools_editor_image_meta_batch */
+            FROM {$wpdb->postmeta} editor_word_image_meta
+            WHERE editor_word_image_meta.post_id IN ({$word_placeholders})
+              AND editor_word_image_meta.meta_key IN (%s, %s)
+              AND editor_word_image_meta.meta_value <> ''
+              AND CAST(editor_word_image_meta.meta_value AS UNSIGNED) > 0
+        ";
+        $word_meta_rows = (array) $wpdb->get_results($wpdb->prepare(
+            $word_meta_sql,
+            array_merge($word_ids, ['_thumbnail_id', '_ll_autopicked_image_id'])
+        ), ARRAY_A);
+
+        $linked_image_ids_by_word = [];
+        $linked_image_ids = [];
+        foreach ($word_meta_rows as $row) {
+            $word_id = (int) ($row['post_id'] ?? 0);
+            if ($word_id <= 0) {
+                continue;
+            }
+            if ((string) ($row['meta_key'] ?? '') === '_thumbnail_id') {
+                $matched_word_ids[$word_id] = true;
+                continue;
+            }
+            $image_id = (int) ($row['value_id'] ?? 0);
+            if ($image_id <= 0) {
+                continue;
+            }
+            $linked_image_ids_by_word[$word_id][$image_id] = true;
+            $linked_image_ids[$image_id] = true;
+        }
+
+        $allowed_image_ids = [];
+        $image_has_thumb = [];
+        $origin_ids_by_image = [];
+        foreach (array_chunk(array_keys($linked_image_ids), $batch_size) as $image_id_chunk) {
+            $image_placeholders = implode(',', array_fill(0, count($image_id_chunk), '%d'));
+            $status_placeholders = implode(',', array_fill(0, count($allowed_statuses), '%s'));
+            $image_sql = "
+                SELECT editor_linked_images.ID AS image_id,
+                       editor_linked_image_meta.meta_key,
+                       CAST(editor_linked_image_meta.meta_value AS UNSIGNED) AS value_id
+                /* ll_tools_editor_linked_image_batch */
+                FROM {$wpdb->posts} editor_linked_images
+                LEFT JOIN {$wpdb->postmeta} editor_linked_image_meta
+                  ON editor_linked_image_meta.post_id = editor_linked_images.ID
+                 AND editor_linked_image_meta.meta_key IN (%s, %s)
+                 AND editor_linked_image_meta.meta_value <> ''
+                 AND CAST(editor_linked_image_meta.meta_value AS UNSIGNED) > 0
+                WHERE editor_linked_images.ID IN ({$image_placeholders})
+                  AND editor_linked_images.post_type = %s
+                  AND editor_linked_images.post_status IN ({$status_placeholders})
+            ";
+            $image_rows = (array) $wpdb->get_results($wpdb->prepare(
+                $image_sql,
+                array_merge(
+                    ['_thumbnail_id', $source_meta_key],
+                    $image_id_chunk,
+                    ['word_images'],
+                    $allowed_statuses
+                )
+            ), ARRAY_A);
+            foreach ($image_rows as $row) {
+                $image_id = (int) ($row['image_id'] ?? 0);
+                if ($image_id <= 0) {
+                    continue;
+                }
+                $allowed_image_ids[$image_id] = true;
+                $meta_key = (string) ($row['meta_key'] ?? '');
+                $value_id = (int) ($row['value_id'] ?? 0);
+                if ($meta_key === '_thumbnail_id' && $value_id > 0) {
+                    $image_has_thumb[$image_id] = true;
+                } elseif ($meta_key === $source_meta_key && $value_id > 0) {
+                    $origin_ids_by_image[$image_id][$value_id] = true;
+                }
+            }
+        }
+
+        $effective_copy_origins = [];
+        if ($include_effective_copy && !empty($allowed_image_ids)) {
+            $origin_ids = [];
+            foreach (array_keys($allowed_image_ids) as $image_id) {
+                if (!empty($origin_ids_by_image[$image_id])) {
+                    foreach (array_keys($origin_ids_by_image[$image_id]) as $origin_id) {
+                        $origin_ids[(int) $origin_id] = true;
+                    }
+                } else {
+                    $origin_ids[(int) $image_id] = true;
+                }
+            }
+
+            foreach (array_chunk(array_keys($origin_ids), $batch_size) as $origin_id_chunk) {
+                $origin_placeholders = implode(',', array_fill(0, count($origin_id_chunk), '%d'));
+                $status_placeholders = implode(',', array_fill(0, count($allowed_statuses), '%s'));
+                $copy_sql = "
+                    SELECT DISTINCT CAST(editor_effective_source.meta_value AS UNSIGNED) AS source_id
+                    /* ll_tools_editor_image_copy_batch */
+                    FROM {$wpdb->posts} editor_effective_images
+                    INNER JOIN {$wpdb->postmeta} editor_effective_owner
+                      ON editor_effective_owner.post_id = editor_effective_images.ID
+                     AND editor_effective_owner.meta_key = %s
+                     AND CAST(editor_effective_owner.meta_value AS UNSIGNED) = %d
+                    INNER JOIN {$wpdb->postmeta} editor_effective_source
+                      ON editor_effective_source.post_id = editor_effective_images.ID
+                     AND editor_effective_source.meta_key = %s
+                     AND editor_effective_source.meta_value <> ''
+                     AND CAST(editor_effective_source.meta_value AS UNSIGNED) > 0
+                     AND CAST(editor_effective_source.meta_value AS UNSIGNED) IN ({$origin_placeholders})
+                    INNER JOIN {$wpdb->postmeta} editor_effective_thumb
+                      ON editor_effective_thumb.post_id = editor_effective_images.ID
+                     AND editor_effective_thumb.meta_key = %s
+                     AND editor_effective_thumb.meta_value <> ''
+                     AND CAST(editor_effective_thumb.meta_value AS UNSIGNED) > 0
+                    WHERE editor_effective_images.post_type = %s
+                      AND editor_effective_images.post_status IN ({$status_placeholders})
+                ";
+                $copy_source_ids = (array) $wpdb->get_col($wpdb->prepare(
+                    $copy_sql,
+                    array_merge(
+                        [$owner_meta_key, $wordset_id, $source_meta_key],
+                        $origin_id_chunk,
+                        ['_thumbnail_id', 'word_images'],
+                        $allowed_statuses
+                    )
+                ));
+                foreach ($copy_source_ids as $source_id) {
+                    $source_id = (int) $source_id;
+                    if ($source_id > 0) {
+                        $effective_copy_origins[$source_id] = true;
+                    }
+                }
+            }
+        }
+
+        foreach ($linked_image_ids_by_word as $word_id => $image_ids) {
+            if (isset($matched_word_ids[$word_id])) {
+                continue;
+            }
+            foreach (array_keys($image_ids) as $image_id) {
+                if (!isset($allowed_image_ids[$image_id])) {
+                    continue;
+                }
+                if (isset($image_has_thumb[$image_id])) {
+                    $matched_word_ids[$word_id] = true;
+                    break;
+                }
+                $origins = !empty($origin_ids_by_image[$image_id])
+                    ? array_keys($origin_ids_by_image[$image_id])
+                    : [$image_id];
+                foreach ($origins as $origin_id) {
+                    if (isset($effective_copy_origins[(int) $origin_id])) {
+                        $matched_word_ids[$word_id] = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+    } while (count($word_ids) === $batch_size);
+
+    $result = array_map('intval', array_keys($matched_word_ids));
+    sort($result, SORT_NUMERIC);
+    $payload = [
+        'schema'   => 1,
+        'word_ids' => $result,
+    ];
+    $ttl = function_exists('ll_tools_wordset_page_normalize_cache_ttl')
+        ? ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_editor_effective_image_membership_cache_ttl', 5 * MINUTE_IN_SECONDS)
+        : 5 * MINUTE_IN_SECONDS;
+    $mutation_state = ll_tools_wordset_editor_get_image_aggregate_mutation_state();
+    if (!empty($mutation_state['dirty'])) {
+        $request_cache[$cache_key] = $payload;
+    } elseif (function_exists('ll_tools_wordset_page_store_cached_payload')) {
+        ll_tools_wordset_page_store_cached_payload($cache_key, $payload, $ttl, $request_cache);
+    } else {
+        $request_cache[$cache_key] = $payload;
+        wp_cache_set($cache_key, $payload, 'll_tools', $ttl);
+        set_transient($cache_key, $payload, $ttl);
+    }
+
+    return $result;
+}
+
+function ll_tools_wordset_editor_effective_image_membership_sql(int $wordset_id, string $word_id_sql = 'p.ID'): string {
+    $word_id_sql = trim($word_id_sql);
+    if ($word_id_sql === '') {
+        return '0 = 1';
+    }
+
+    $word_ids = ll_tools_wordset_editor_get_effective_image_word_ids($wordset_id);
+    if (empty($word_ids)) {
+        return '0 = 1';
+    }
+
+    $clauses = [];
+    foreach (array_chunk($word_ids, 1000) as $word_id_chunk) {
+        $clauses[] = $word_id_sql . ' IN (' . implode(',', array_map('intval', $word_id_chunk)) . ')';
+    }
+
+    return '(' . implode(' OR ', $clauses) . ')';
+}
+
+function ll_tools_wordset_editor_image_aggregate_cache_context(array $filters): array {
+    $category_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
+    sort($category_ids, SORT_NUMERIC);
+    $recording = sanitize_key((string) ($filters['recording'] ?? ''));
+    if ($recording === 'none') {
+        $recording = 'missing';
+    }
+
+    return [
+        'q'              => (string) ($filters['q'] ?? ''),
+        'exact'          => !empty($filters['exact']),
+        'category_ids'   => $category_ids,
+        'category_state' => sanitize_key((string) ($filters['category_state'] ?? '')),
+        'status'         => sanitize_key((string) ($filters['status'] ?? '')),
+        'image'          => sanitize_key((string) ($filters['image'] ?? '')),
+        'recording'      => $recording,
+    ];
+}
+
+function ll_tools_wordset_editor_count_words_with_effective_images_from_sql(
+    int $wordset_id,
+    string $base_sql,
+    array $base_params,
+    array $cache_context = []
+): int {
+    global $wpdb;
+
+    static $request_cache = [];
+
+    $wordset_id = max(0, $wordset_id);
+    $base_sql = trim($base_sql);
+    if ($wordset_id <= 0 || $base_sql === '') {
+        return 0;
+    }
+
+    $cache_key = ll_tools_wordset_editor_effective_image_cache_key('editor_image_aggregate', $wordset_id, [
+        'query_sig' => md5((string) wp_json_encode([$base_sql, array_values($base_params)])),
+        'context'   => $cache_context,
+    ]);
+    $mutation_state = ll_tools_wordset_editor_get_image_aggregate_mutation_state();
+    $cached = array_key_exists($cache_key, $request_cache) ? $request_cache[$cache_key] : null;
+    if ($cached === null && empty($mutation_state['dirty'])) {
+        if (function_exists('ll_tools_wordset_page_get_cached_payload')) {
+            $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
+        } else {
+            $cached = wp_cache_get($cache_key, 'll_tools');
+            if ($cached === false) {
+                $cached = get_transient($cache_key);
+            }
+            if ($cached !== false) {
+                $request_cache[$cache_key] = $cached;
+            } else {
+                $cached = null;
+            }
+        }
+    }
+    if (is_array($cached) && (int) ($cached['schema'] ?? 0) === 1 && array_key_exists('count', $cached)) {
+        return max(0, (int) $cached['count']);
+    }
+
+    $image_lookup = array_fill_keys(ll_tools_wordset_editor_get_effective_image_word_ids($wordset_id), true);
+    $batch_size = ll_tools_wordset_editor_effective_image_batch_size();
+    $count = 0;
+    $cursor = 0;
+    do {
+        $scope_sql = "
+            SELECT DISTINCT p.ID
+            /* ll_tools_editor_image_aggregate_scope_batch */
+            {$base_sql}
+              AND p.ID > %d
+            ORDER BY p.ID ASC
+            LIMIT %d
+        ";
+        $word_ids = ll_tools_wordset_editor_normalize_word_ids((array) $wpdb->get_col($wpdb->prepare(
+            $scope_sql,
+            array_merge($base_params, [$cursor, $batch_size])
+        )));
+        if (empty($word_ids)) {
+            break;
+        }
+        $cursor = max($word_ids);
+        foreach ($word_ids as $word_id) {
+            if (isset($image_lookup[$word_id])) {
+                $count++;
+            }
+        }
+    } while (count($word_ids) === $batch_size);
+
+    $payload = [
+        'schema' => 1,
+        'count'  => $count,
+    ];
+    $ttl = function_exists('ll_tools_wordset_page_normalize_cache_ttl')
+        ? ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_editor_effective_image_aggregate_cache_ttl', 5 * MINUTE_IN_SECONDS)
+        : 5 * MINUTE_IN_SECONDS;
+    $mutation_state = ll_tools_wordset_editor_get_image_aggregate_mutation_state();
+    if (!empty($mutation_state['dirty'])) {
+        $request_cache[$cache_key] = $payload;
+    } elseif (function_exists('ll_tools_wordset_page_store_cached_payload')) {
+        ll_tools_wordset_page_store_cached_payload($cache_key, $payload, $ttl, $request_cache);
+    } else {
+        $request_cache[$cache_key] = $payload;
+        wp_cache_set($cache_key, $payload, 'll_tools', $ttl);
+        set_transient($cache_key, $payload, $ttl);
+    }
+
+    return $count;
+}
+
 function ll_tools_wordset_editor_audio_presence_sql(string $word_id_sql, array &$params): string {
     global $wpdb;
 
@@ -1976,12 +2540,8 @@ function ll_tools_wordset_editor_filtered_sql_parts(int $wordset_id, array $cate
 
     $image_filter = sanitize_key((string) ($filters['image'] ?? ''));
     if (in_array($image_filter, ['has', 'missing'], true)) {
-        $image_params = [];
-        $image_sql = function_exists('ll_tools_effective_word_image_presence_sql')
-            ? ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params)
-            : '0 = 1';
+        $image_sql = ll_tools_wordset_editor_effective_image_membership_sql($wordset_id, 'p.ID');
         $sql .= $image_filter === 'missing' ? " AND NOT ({$image_sql})" : " AND ({$image_sql})";
-        $params = array_merge($params, $image_params);
     }
 
     $recording_filter = sanitize_key((string) ($filters['recording'] ?? ''));
@@ -2100,11 +2660,7 @@ function ll_tools_wordset_editor_filtered_order_sql(int $wordset_id, array $cate
             $order_value = 'p.post_status';
             break;
         case 'image':
-            $image_params = [];
-            $order_value = function_exists('ll_tools_effective_word_image_presence_sql')
-                ? '(' . ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params) . ')'
-                : '0';
-            $params = array_merge($params, $image_params);
+            $order_value = '(' . ll_tools_wordset_editor_effective_image_membership_sql($wordset_id, 'p.ID') . ')';
             break;
         case 'recording':
             $params = array_merge($params, ['audio_file_path', 'word_audio', 'publish']);
@@ -2194,14 +2750,12 @@ function ll_tools_wordset_editor_get_filtered_aggregate_summary(int $wordset_id,
         array_merge($base_params, $audio_params)
     ));
 
-    $image_params = [];
-    $image_presence = function_exists('ll_tools_effective_word_image_presence_sql')
-        ? ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params)
-        : '0 = 1';
-    $has_image = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(DISTINCT p.ID) {$base_sql} AND ({$image_presence})",
-        array_merge($base_params, $image_params)
-    ));
+    $has_image = ll_tools_wordset_editor_count_words_with_effective_images_from_sql(
+        $wordset_id,
+        $base_sql,
+        $base_params,
+        array_merge(['scope' => 'filtered'], ll_tools_wordset_editor_image_aggregate_cache_context($filters))
+    );
 
     $summary['missing_audio'] = max(0, $summary['total'] - max(0, $has_audio));
     $summary['no_audio'] = $summary['missing_audio'];
@@ -2296,19 +2850,12 @@ function ll_tools_wordset_editor_get_aggregate_summary(int $wordset_id, array $f
         array_merge($base_params, ['audio_file_path', 'word_audio', 'publish'])
     ));
 
-    $image_params = [];
-    $image_presence_sql = function_exists('ll_tools_effective_word_image_presence_sql')
-        ? ll_tools_effective_word_image_presence_sql('p.ID', $wordset_id, $image_params)
-        : '0 = 1';
-    $image_sql = "
-        SELECT COUNT(DISTINCT p.ID)
-        {$base_sql}
-          AND {$image_presence_sql}
-    ";
-    $has_image = (int) $wpdb->get_var($wpdb->prepare(
-        $image_sql,
-        array_merge($base_params, $image_params)
-    ));
+    $has_image = ll_tools_wordset_editor_count_words_with_effective_images_from_sql(
+        $wordset_id,
+        $base_sql,
+        $base_params,
+        array_merge(['scope' => 'unfiltered'], ll_tools_wordset_editor_image_aggregate_cache_context($filters))
+    );
 
     $summary['missing_audio'] = max(0, $total - max(0, $has_audio));
     $summary['no_audio'] = $summary['missing_audio'];

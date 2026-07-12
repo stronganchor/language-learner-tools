@@ -175,6 +175,75 @@ final class CanonicalWordImageReadPathsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_editor_image_aggregate_does_not_create_missing_isolated_copy(): void
+    {
+        global $wpdb;
+
+        $isolation_option = defined('LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION')
+            ? (string) LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION
+            : 'll_tools_wordset_isolation_enabled';
+        $missing_sentinel = '__ll_tools_missing_option__';
+        $previous_isolation = get_option($isolation_option, $missing_sentinel);
+        update_option($isolation_option, '1');
+
+        try {
+            $source_wordset_id = $this->ensureTerm('wordset', 'Read Only Source Wordset', 'read-only-source-wordset');
+            $target_wordset_id = $this->ensureTerm('wordset', 'Read Only Target Wordset', 'read-only-target-wordset');
+            $source_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Read Only Source Image',
+            ]);
+            if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+                ll_tools_set_word_image_wordset_owner($source_image_id, $source_wordset_id, $source_image_id);
+            } else {
+                update_post_meta($source_image_id, 'll_wordset_owner_id', $source_wordset_id);
+                update_post_meta($source_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+            }
+
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Read Only Aggregate Word',
+            ]);
+            wp_set_post_terms($word_id, [$target_wordset_id], 'wordset', false);
+            update_post_meta($word_id, '_ll_autopicked_image_id', $source_image_id);
+            delete_post_meta($word_id, '_thumbnail_id');
+
+            $before_count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s",
+                'word_images'
+            ));
+            $this->assertSame(0, (int) ll_tools_get_existing_isolated_word_image_copy_id($source_image_id, $target_wordset_id));
+
+            $summary = ll_tools_wordset_editor_get_aggregate_summary($target_wordset_id, [
+                'q' => '',
+                'exact' => false,
+                'category' => 0,
+                'status' => '',
+                'image' => '',
+                'recording' => '',
+                'sort' => 'word',
+                'dir' => 'asc',
+            ], 1);
+
+            $after_count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s",
+                'word_images'
+            ));
+            $this->assertSame(1, (int) ($summary['missing_image'] ?? -1));
+            $this->assertSame($source_image_id, (int) get_post_meta($word_id, '_ll_autopicked_image_id', true));
+            $this->assertSame(0, (int) ll_tools_get_existing_isolated_word_image_copy_id($source_image_id, $target_wordset_id));
+            $this->assertSame($before_count, $after_count);
+        } finally {
+            if ($previous_isolation === $missing_sentinel) {
+                delete_option($isolation_option);
+            } else {
+                update_option($isolation_option, $previous_isolation);
+            }
+        }
+    }
+
     private function ensureTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);
