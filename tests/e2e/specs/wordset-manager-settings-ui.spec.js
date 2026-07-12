@@ -520,6 +520,10 @@ function buildEditorToolMarkup() {
       <section
         class="ll-wordset-settings-page ll-wordset-editor"
         data-ll-wordset-editor
+        data-ll-wordset-id="7970"
+        data-ll-wordset-editor-category-id="73"
+        data-ll-wordset-editor-review-note-label="Review note"
+        data-ll-wordset-editor-word-details-label="Word details"
         data-ll-wordset-editor-selected-singular="1 selected"
         data-ll-wordset-editor-selected-plural="%d selected"
         data-ll-wordset-editor-all-filtered="All 8 filtered words selected"
@@ -615,7 +619,7 @@ function buildEditorToolMarkup() {
               <span class="ll-wordset-editor-cell" role="columnheader">State</span>
               <span class="ll-wordset-editor-cell" role="columnheader">Media</span>
             </div>
-            <div class="ll-wordset-editor-row" role="row">
+            <div class="ll-wordset-editor-row" role="row" data-ll-wordset-editor-row data-word-id="101">
               <label class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="cell"><input type="checkbox" data-ll-wordset-editor-word /></label>
               <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell" data-label="Word">
                 <div class="ll-wordset-editor-word-layout">
@@ -625,7 +629,7 @@ function buildEditorToolMarkup() {
                   <span class="ll-wordset-editor-word-main">
                     <strong class="ll-wordset-editor-word-title">Very Long Multilingual Word Title</strong>
                     <span class="ll-wordset-editor-word-translation">A compact but long translation shown in the editor table</span>
-                    <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="101" aria-label="Edit word">
+                    <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="101" data-ll-wordset-editor-edit-url="/fallback-word-edit/" aria-label="Edit word">
                       <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 16.5-.5 3 3-.5L17 9.5 14.5 7 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                       <span>Edit</span>
                     </button>
@@ -967,6 +971,57 @@ test('manager wordset editor keeps recording moves inside the edit popup', async
 
   await expect(page.locator('[data-ll-wordset-editor-move-target]')).toHaveCount(0);
   await expect(page.getByLabel('Move recording to word')).toHaveCount(0);
+});
+
+test('manager wordset editor lazy-loads a single edit dialog on demand', async ({ page }) => {
+  await mountSettingsTool(page, buildEditorToolMarkup(), { width: 1180, height: 900 });
+  await enableWordsetPageScript(page);
+  await page.evaluate(() => {
+    window.__llWordsetEditorModalCalls = [];
+    window.LLToolsWordEditModal = {
+      open(options) {
+        window.__llWordsetEditorModalCalls.push(options);
+        return Promise.resolve({ wordId: options.wordId });
+      }
+    };
+  });
+
+  await page.getByRole('button', { name: 'Edit word' }).click();
+
+  await expect.poll(() => page.evaluate(() => window.__llWordsetEditorModalCalls)).toEqual([{
+    wordId: 101,
+    wordsetId: 7970,
+    categoryId: 73
+  }]);
+});
+
+test('manager wordset editor synchronizes successful internal review-note autosaves', async ({ page }) => {
+  await mountSettingsTool(page, buildEditorToolMarkup(), { width: 1180, height: 900 });
+  await enableWordsetPageScript(page);
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:internal-review-note-updated', [{
+      objectId: 101,
+      objectType: 'word',
+      wordsetId: 7970,
+      note: 'Check the isolation recording before publishing.'
+    }]);
+  });
+
+  const reviewField = page.locator('[data-ll-wordset-editor-row][data-word-id="101"] [data-ll-wordset-editor-field="internal_review_note"]');
+  await expect(reviewField.locator('dt')).toHaveText('Review note');
+  await expect(reviewField.locator('[data-ll-wordset-editor-field-value="internal_review_note"]')).toHaveText('Check the isolation recording before publishing.');
+  expect(await page.evaluate(() => window.jQuery('[data-ll-wordset-editor-row][data-word-id="101"]').data('llInternalReviewNote'))).toBe('Check the isolation recording before publishing.');
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:internal-review-note-updated', [{
+      objectId: 101,
+      objectType: 'word',
+      wordsetId: 7970,
+      note: ''
+    }]);
+  });
+  await expect(reviewField).toHaveCount(0);
 });
 
 test('manager wordset editor table keeps recording controls usable on mobile', async ({ page }) => {

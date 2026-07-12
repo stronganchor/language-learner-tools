@@ -2319,7 +2319,7 @@ test('dirty transcription rows save once and then open the detached word editor'
   expect(result.savedText).toBe('delta changed');
 });
 
-test('detached word editor shows a loading shell immediately and reuses cached one-word markup', async ({ page }) => {
+test('detached word editor reuses cached markup until an internal review-note autosave invalidates it', async ({ page }) => {
   await page.route('**/*', route => route.fulfill({
     status: 200,
     contentType: 'text/html',
@@ -2423,6 +2423,122 @@ test('detached word editor shows a loading shell immediately and reuses cached o
     configCallCount: 2,
     renderedWordId: '91'
   });
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:internal-review-note-updated', [{
+      objectId: 91,
+      objectType: 'word',
+      wordsetId: 7,
+      note: 'Saved reviewer note'
+    }]);
+    window.__llModalMock.afterReviewNoteOpen = window.LLToolsWordEditModal.open({
+      wordId: 91,
+      wordsetId: 7,
+      recordingId: 505
+    });
+  });
+
+  await expect.poll(() => page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(2);
+  await page.evaluate(() => {
+    window.__llModalMock.deferreds[1].resolve({
+      success: true,
+      data: {
+        html: `
+          <div class="word-grid ll-word-grid" data-ll-word-grid>
+            <article class="word-item" data-word-id="91">
+              <button type="button" data-ll-word-edit-toggle aria-expanded="false">Edit</button>
+              <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true"></div>
+            </article>
+          </div>
+        `,
+        config: {
+          canEdit: true
+        }
+      }
+    });
+  });
+  await page.evaluate(() => window.__llModalMock.afterReviewNoteOpen);
+  expect(await page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(2);
+
+  await page.evaluate(() => {
+    window.__llModalMock.inFlightFirstOpen = window.LLToolsWordEditModal.open({
+      wordId: 92,
+      wordsetId: 7
+    });
+  });
+  await expect.poll(() => page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(3);
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:internal-review-note-updated', [{
+      objectId: 92,
+      objectType: 'word',
+      wordsetId: 7,
+      note: 'Invalidates the in-flight response'
+    }]);
+    window.__llModalMock.inFlightReplacementOpen = window.LLToolsWordEditModal.open({
+      wordId: 92,
+      wordsetId: 7
+    });
+  });
+  await expect.poll(() => page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(4);
+
+  await page.evaluate(() => {
+    window.__llModalMock.deferreds[2].resolve({
+      success: true,
+      data: {
+        html: `
+          <div class="word-grid ll-word-grid" data-ll-word-grid>
+            <article class="word-item" data-word-id="92">
+              <button type="button" data-ll-word-edit-toggle aria-expanded="false">Edit</button>
+              <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true">
+                <input data-in-flight-cache-value value="stale" />
+              </div>
+            </article>
+          </div>
+        `
+      }
+    });
+  });
+  await page.waitForTimeout(0);
+
+  await page.evaluate(() => {
+    window.__llModalMock.inFlightSharedOpen = window.LLToolsWordEditModal.open({
+      wordId: 92,
+      wordsetId: 7
+    });
+  });
+  await page.waitForTimeout(0);
+  expect(await page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(4);
+
+  await page.evaluate(() => {
+    window.__llModalMock.deferreds[3].resolve({
+      success: true,
+      data: {
+        html: `
+          <div class="word-grid ll-word-grid" data-ll-word-grid>
+            <article class="word-item" data-word-id="92">
+              <button type="button" data-ll-word-edit-toggle aria-expanded="false">Edit</button>
+              <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true">
+                <input data-in-flight-cache-value value="fresh" />
+              </div>
+            </article>
+          </div>
+        `
+      }
+    });
+  });
+  await page.evaluate(() => Promise.all([
+    window.__llModalMock.inFlightFirstOpen,
+    window.__llModalMock.inFlightReplacementOpen,
+    window.__llModalMock.inFlightSharedOpen
+  ]));
+
+  await expect(page.locator('[data-in-flight-cache-value]')).toHaveValue('fresh');
+  await page.evaluate(() => window.LLToolsWordEditModal.open({
+    wordId: 92,
+    wordsetId: 7
+  }));
+  expect(await page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(4);
 });
 
 test('transcription autosave keeps fields editable and preserves newer edits', async ({ page }) => {

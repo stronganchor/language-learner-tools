@@ -2917,11 +2917,13 @@ function ll_tools_word_grid_get_category_editor_terms_for_wordset(int $wordset_i
     })));
 
     $terms = [];
+    $used_authoritative_wordset_catalog = false;
     if (empty($specific_word_ids) && function_exists('ll_tools_recorder_get_category_terms_for_wordsets')) {
         $terms = ll_tools_recorder_get_category_terms_for_wordsets([$wordset_id], get_current_user_id());
+        $used_authoritative_wordset_catalog = true;
     }
 
-    if (empty($terms)) {
+    if (!$used_authoritative_wordset_catalog && empty($terms)) {
         $category_ids = [];
 
         if (defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
@@ -4031,15 +4033,22 @@ function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, 
     return $config;
 }
 
-function ll_tools_word_edit_modal_enqueue_assets(int $wordset_id = 0): void {
+function ll_tools_word_edit_modal_enqueue_assets(int $wordset_id = 0, array $candidate_word_ids = []): void {
     $wordset_id = (int) $wordset_id;
+    $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
     ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
     ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style', ['ll-ipa-fonts']);
 
-    $context = ll_tools_word_grid_resolve_context([
+    $context_args = [
         'wordset' => $wordset_id > 0 ? (string) $wordset_id : '',
         'editor_context' => '1',
-    ]);
+    ];
+    if (!empty($candidate_word_ids)) {
+        $context_args['word_ids'] = implode(',', $candidate_word_ids);
+    }
+    $context = ll_tools_word_grid_resolve_context($context_args);
     ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
     ll_enqueue_asset_by_timestamp('/js/word-edit-modal.js', 'll-tools-word-edit-modal', ['jquery', 'll-tools-word-grid'], true);
     wp_localize_script('ll-tools-word-edit-modal', 'llToolsWordEditModalData', [
@@ -4084,6 +4093,7 @@ function ll_tools_word_edit_modal_build_grid_context(int $word_id, int $wordset_
         'wordset' => (string) $wordset_id,
         'word_ids' => (string) $word_id,
         'editor_context' => '1',
+        'category_editor_scope' => 'wordset',
         'category_editor_counts' => '0',
     ];
     if ($category_id > 0) {

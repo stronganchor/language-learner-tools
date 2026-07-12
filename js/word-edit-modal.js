@@ -10,6 +10,7 @@
     const loadingSelector = '[data-ll-word-edit-modal-loading-shell]';
     const gridResponseCache = {};
     const gridRequestCache = {};
+    let gridCacheGeneration = 0;
 
     function t(key, fallback) {
         const value = i18n[key];
@@ -138,11 +139,17 @@
         if (gridResponseCache[cacheKey]) {
             return Promise.resolve(gridResponseCache[cacheKey]);
         }
-        if (gridRequestCache[cacheKey]) {
-            return gridRequestCache[cacheKey];
+        const cachedRequest = gridRequestCache[cacheKey];
+        if (cachedRequest && cachedRequest.generation === gridCacheGeneration) {
+            return cachedRequest.promise;
         }
 
-        gridRequestCache[cacheKey] = new Promise(function (resolve, reject) {
+        const requestGeneration = gridCacheGeneration;
+        const requestEntry = {
+            generation: requestGeneration,
+            promise: null
+        };
+        requestEntry.promise = new Promise(function (resolve, reject) {
             $.post(ajaxUrl, {
                 action: 'll_tools_get_word_edit_modal_grid',
                 nonce: nonce,
@@ -155,22 +162,35 @@
                     return;
                 }
 
-                gridResponseCache[cacheKey] = response.data || {};
-                resolve(gridResponseCache[cacheKey]);
+                const responseData = response.data || {};
+                if (requestGeneration !== gridCacheGeneration) {
+                    requestGridData(wordId, wordsetId, categoryId).then(resolve, reject);
+                    return;
+                }
+
+                gridResponseCache[cacheKey] = responseData;
+                resolve(responseData);
             }).fail(function (jqXHR) {
                 const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
                 reject(new Error(readAjaxMessage(response, t('openError', 'Unable to open the word editor.'))));
             }).always(function () {
-                delete gridRequestCache[cacheKey];
+                if (gridRequestCache[cacheKey] === requestEntry) {
+                    delete gridRequestCache[cacheKey];
+                }
             });
         });
+        gridRequestCache[cacheKey] = requestEntry;
 
-        return gridRequestCache[cacheKey];
+        return requestEntry.promise;
     }
 
     function clearGridResponseCache() {
+        gridCacheGeneration += 1;
         Object.keys(gridResponseCache).forEach(function (key) {
             delete gridResponseCache[key];
+        });
+        Object.keys(gridRequestCache).forEach(function (key) {
+            delete gridRequestCache[key];
         });
     }
 
@@ -266,7 +286,7 @@
     window.LLToolsWordEditModal = window.LLToolsWordEditModal || {};
     window.LLToolsWordEditModal.open = openWordEditor;
     $(document).on(
-        'lltools:word-grid-word-updated.llToolsWordEditModal lltools:word-grid-word-deleted.llToolsWordEditModal lltools:word-grid-recording-deleted.llToolsWordEditModal lltools:word-grid-recording-moved.llToolsWordEditModal',
+        'lltools:word-grid-word-updated.llToolsWordEditModal lltools:word-grid-word-deleted.llToolsWordEditModal lltools:word-grid-recording-deleted.llToolsWordEditModal lltools:word-grid-recording-moved.llToolsWordEditModal lltools:internal-review-note-updated.llToolsWordEditModal',
         clearGridResponseCache
     );
 })(jQuery);

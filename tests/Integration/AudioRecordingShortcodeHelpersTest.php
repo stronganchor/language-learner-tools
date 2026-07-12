@@ -172,6 +172,127 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         }, $prioritized));
     }
 
+    public function test_legacy_wordset_category_catalog_uses_one_set_based_content_query(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Legacy Category Catalog', 'legacy-category-catalog');
+        $other_wordset_id = $this->ensure_term('wordset', 'Other Legacy Category Catalog', 'other-legacy-category-catalog');
+        $published_word_category_id = $this->ensure_term('word-category', 'Legacy Published Word Category', 'legacy-published-word-category');
+        $private_word_category_id = $this->ensure_term('word-category', 'Legacy Private Word Category', 'legacy-private-word-category');
+        $draft_image_category_id = $this->ensure_term('word-category', 'Legacy Draft Image Category', 'legacy-draft-image-category');
+        $trashed_word_category_id = $this->ensure_term('word-category', 'Legacy Trashed Word Category', 'legacy-trashed-word-category');
+        $trashed_image_category_id = $this->ensure_term('word-category', 'Legacy Trashed Image Category', 'legacy-trashed-image-category');
+        $other_wordset_category_id = $this->ensure_term('word-category', 'Other Wordset Category', 'other-wordset-category');
+        foreach ([
+            $published_word_category_id,
+            $private_word_category_id,
+            $draft_image_category_id,
+            $trashed_word_category_id,
+            $trashed_image_category_id,
+            $other_wordset_category_id,
+        ] as $category_id) {
+            delete_term_meta($category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY);
+        }
+
+        $published_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Legacy Published Catalog Word',
+        ]);
+        wp_set_post_terms($published_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($published_word_id, [$published_word_category_id], 'word-category', false);
+
+        $private_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'private',
+            'post_title' => 'Legacy Private Catalog Word',
+        ]);
+        wp_set_post_terms($private_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($private_word_id, [$private_word_category_id], 'word-category', false);
+
+        $trashed_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'trash',
+            'post_title' => 'Legacy Trashed Catalog Word',
+        ]);
+        wp_set_post_terms($trashed_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($trashed_word_id, [$trashed_word_category_id], 'word-category', false);
+
+        $other_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Other Legacy Catalog Word',
+        ]);
+        wp_set_post_terms($other_word_id, [$other_wordset_id], 'wordset', false);
+        wp_set_post_terms($other_word_id, [$other_wordset_category_id], 'word-category', false);
+
+        $draft_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'draft',
+            'post_title' => 'Legacy Draft Catalog Image',
+        ]);
+        update_post_meta($draft_image_id, LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, $wordset_id);
+        wp_set_post_terms($draft_image_id, [$draft_image_category_id], 'word-category', false);
+
+        $trashed_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'trash',
+            'post_title' => 'Legacy Trashed Catalog Image',
+        ]);
+        update_post_meta($trashed_image_id, LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, $wordset_id);
+        wp_set_post_terms($trashed_image_id, [$trashed_image_category_id], 'word-category', false);
+
+        $other_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Other Legacy Catalog Image',
+        ]);
+        update_post_meta($other_image_id, LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, $other_wordset_id);
+        wp_set_post_terms($other_image_id, [$other_wordset_category_id], 'word-category', false);
+
+        $unbounded_post_queries = [];
+        $set_based_queries = [];
+        $capture_posts = static function (WP_Query $query) use (&$unbounded_post_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? $post_type : [$post_type];
+            if (
+                array_intersect(['words', 'word_images'], array_map('strval', $post_types))
+                && (int) $query->get('posts_per_page') === -1
+                && empty($query->get('post__in'))
+            ) {
+                $unbounded_post_queries[] = $query->query_vars;
+            }
+        };
+        $capture_sql = static function (string $sql) use (&$set_based_queries): string {
+            if (strpos($sql, 'll_tools_recorder_legacy_category_ids') !== false) {
+                $set_based_queries[] = $sql;
+            }
+
+            return $sql;
+        };
+        add_action('pre_get_posts', $capture_posts);
+        add_filter('query', $capture_sql);
+        try {
+            $terms = ll_tools_recorder_get_category_terms_for_wordsets([$wordset_id], get_current_user_id());
+        } finally {
+            remove_filter('query', $capture_sql);
+            remove_action('pre_get_posts', $capture_posts);
+        }
+
+        $actual_ids = array_map('intval', wp_list_pluck($terms, 'term_id'));
+        sort($actual_ids, SORT_NUMERIC);
+        $expected_ids = [$published_word_category_id, $private_word_category_id, $draft_image_category_id];
+        sort($expected_ids, SORT_NUMERIC);
+
+        $this->assertSame($expected_ids, $actual_ids);
+        $this->assertSame([], $unbounded_post_queries, 'Legacy category discovery must not hydrate every word or image ID.');
+        $this->assertCount(1, $set_based_queries);
+        $this->assertStringContainsString('UNION', $set_based_queries[0]);
+        $this->assertStringContainsString('scoped_words', $set_based_queries[0]);
+        $this->assertStringContainsString('scoped_images', $set_based_queries[0]);
+    }
+
     public function test_wordset_recorder_text_visibility_defaults_to_lesson_setting_and_allows_override(): void
     {
         $original_hide_recording_titles = get_option('ll_hide_recording_titles', null);

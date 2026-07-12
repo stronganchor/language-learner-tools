@@ -15650,6 +15650,23 @@
                 return;
             }
 
+            const fallbackUrl = String($button.attr('data-ll-wordset-editor-edit-url') || '');
+            const opener = window.LLToolsWordEditModal && window.LLToolsWordEditModal.open;
+            if (typeof opener === 'function') {
+                const wordsetId = parseInt($editor.attr('data-ll-wordset-id'), 10) || 0;
+                const categoryId = parseInt($editor.attr('data-ll-wordset-editor-category-id'), 10) || 0;
+                Promise.resolve(opener({
+                    wordId: wordId,
+                    wordsetId: wordsetId,
+                    categoryId: categoryId
+                })).catch(function () {
+                    if (fallbackUrl) {
+                        window.location.href = fallbackUrl;
+                    }
+                });
+                return;
+            }
+
             const $modalGrid = $editor.find('[data-ll-wordset-editor-modal-grid] [data-ll-word-grid]').first();
             const $wordItem = $modalGrid.find('.word-item[data-word-id="' + wordId + '"]').first();
             const $toggle = $wordItem.find('[data-ll-word-edit-toggle]').first();
@@ -15658,7 +15675,6 @@
                 return;
             }
 
-            const fallbackUrl = String($button.attr('data-ll-wordset-editor-edit-url') || '');
             if (fallbackUrl) {
                 window.location.href = fallbackUrl;
             }
@@ -15678,6 +15694,71 @@
             if (!$field.length) { return; }
             $field.toggle(text !== '');
             $field.find('[data-ll-wordset-editor-field-value="' + cleanKey + '"]').first().text(text);
+        };
+
+        const upsertEditorTextField = function ($row, key, value, label) {
+            const cleanKey = String(key || '').trim();
+            const text = String(value || '').trim();
+            const cleanLabel = String(label || '').trim();
+            if (!cleanKey) { return; }
+
+            let $field = $row.find('[data-ll-wordset-editor-field="' + cleanKey + '"]').first();
+            if ($field.length) {
+                if (text !== '') {
+                    $field.show();
+                    $field.find('[data-ll-wordset-editor-field-value="' + cleanKey + '"]').first().text(text);
+                    return;
+                }
+
+                const $fields = $field.closest('.ll-wordset-editor-word-fields');
+                const $details = $field.closest('.ll-wordset-editor-row__details--word');
+                $field.remove();
+                if ($fields.length && !$fields.children('[data-ll-wordset-editor-field]').length) {
+                    $fields.remove();
+                }
+                if ($details.length && !$details.find('.ll-wordset-editor-word-details').first().children().length) {
+                    $details.remove();
+                }
+                return;
+            }
+
+            if (text === '' || cleanLabel === '') { return; }
+
+            let $details = $row.children('.ll-wordset-editor-row__details--word').first();
+            let $wordDetails = $details.find('.ll-wordset-editor-word-details').first();
+            if (!$details.length) {
+                $details = $('<div>', {
+                    class: 'll-wordset-editor-row__details ll-wordset-editor-row__details--word',
+                    role: 'cell',
+                    'aria-colspan': '4',
+                    'data-label': String($editor.attr('data-ll-wordset-editor-word-details-label') || '')
+                });
+                $wordDetails = $('<div>', { class: 'll-wordset-editor-word-details' }).appendTo($details);
+                const $nextDetails = $row.children('.ll-wordset-editor-row__details').first();
+                if ($nextDetails.length) {
+                    $details.insertBefore($nextDetails);
+                } else {
+                    $row.append($details);
+                }
+            } else if (!$wordDetails.length) {
+                $wordDetails = $('<div>', { class: 'll-wordset-editor-word-details' }).appendTo($details);
+            }
+
+            let $fields = $wordDetails.children('.ll-wordset-editor-word-fields').first();
+            if (!$fields.length) {
+                $fields = $('<dl>', { class: 'll-wordset-editor-word-fields' }).appendTo($wordDetails);
+            }
+            $field = $('<div>', {
+                class: 'll-wordset-editor-word-field',
+                'data-ll-wordset-editor-field': cleanKey
+            }).append(
+                $('<dt>', { text: cleanLabel }),
+                $('<dd>', {
+                    'data-ll-wordset-editor-field-value': cleanKey,
+                    text: text
+                })
+            );
+            $fields.append($field);
         };
 
         const updateExistingRecordingField = function ($row, recId, key, value) {
@@ -15778,6 +15859,31 @@
                         .attr('title', imageUrl ? readyTitle : missingTitle);
                 }
             }
+        });
+
+        $(document).off('lltools:internal-review-note-updated.llWordsetEditor').on('lltools:internal-review-note-updated.llWordsetEditor', function (_evt, detail) {
+            const payload = detail && typeof detail === 'object' ? detail : {};
+            const objectId = parseInt(payload.objectId || payload.object_id, 10) || 0;
+            const objectType = String(payload.objectType || payload.object_type || '').trim();
+            const wordsetId = parseInt(payload.wordsetId || payload.wordset_id, 10) || 0;
+            const editorWordsetId = parseInt($editor.attr('data-ll-wordset-id'), 10) || 0;
+            if (!objectId || objectType !== 'word' || (wordsetId && editorWordsetId && wordsetId !== editorWordsetId)) {
+                return;
+            }
+
+            const $row = $editor.find('[data-ll-wordset-editor-row][data-word-id="' + objectId + '"]').first();
+            if (!$row.length) {
+                return;
+            }
+
+            const note = typeof payload.note === 'string' ? payload.note : '';
+            $row.data('llInternalReviewNote', note);
+            upsertEditorTextField(
+                $row,
+                'internal_review_note',
+                note,
+                $editor.attr('data-ll-wordset-editor-review-note-label')
+            );
         });
 
         $root.on('submit', '[data-ll-wordset-editor-bulk-form]', function (evt) {

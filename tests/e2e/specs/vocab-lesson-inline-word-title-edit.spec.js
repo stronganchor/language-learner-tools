@@ -129,6 +129,11 @@ function buildMarkup(options = {}) {
             ${renderInlineEditor('translation', translationText, 'Translation', 'Add translation')}
           </h3>
         </div>
+        <details data-ll-internal-review-note data-object-type="word" data-object-id="101" data-wordset-id="17">
+          <summary data-ll-internal-review-note-summary>Add internal review note</summary>
+          <textarea data-ll-internal-review-note-input></textarea>
+          <div data-ll-internal-review-note-status aria-live="polite"></div>
+        </details>
         ${recordingMarkup}
         <div class="ll-word-save-status" data-ll-word-save-status aria-live="polite"></div>
       </div>
@@ -155,6 +160,17 @@ async function mountInlineEditor(page, options = {}) {
           saving: 'Saving...',
           saved: 'Saved.',
           error: 'Unable to save changes.'
+        },
+        internalNotes: {
+          enabled: true,
+          action: 'll_tools_save_internal_review_note',
+          nonce: 'internal-note-nonce',
+          saveDelayMs: 1500,
+          i18n: {
+            saving: 'Saving review note...',
+            saved: 'Review note saved.',
+            error: 'Unable to save the review note.'
+          }
         }
       };
       window.__wordGridRequests = [];
@@ -181,6 +197,18 @@ async function mountInlineEditor(page, options = {}) {
         const submittedRecordings = payload.recordings ? JSON.parse(String(payload.recordings)) : [];
         const deferred = jQuery.Deferred();
         setTimeout(function () {
+          if (payload.action === 'll_tools_save_internal_review_note') {
+            deferred.resolve({
+              success: true,
+              data: {
+                object_id: parseInt(payload.object_id, 10) || 0,
+                object_type: String(payload.object_type || ''),
+                wordset_id: parseInt(payload.wordset_id, 10) || 0,
+                note: String(payload.note || '')
+              }
+            });
+            return;
+          }
           deferred.resolve({
             success: true,
             data: {
@@ -234,6 +262,40 @@ test('clicking away from a lesson word title autosaves that field', async ({ pag
   expect(requests).toHaveLength(1);
   expect(requests[0].word_text).toBe('shalom updated');
   expect(requests[0].word_translation).toBe('peace');
+});
+
+test('successful internal review-note autosave emits its synchronization event', async ({ page }) => {
+  await mountInlineEditor(page, { wordText: 'shalom', translationText: 'peace' });
+  await page.evaluate(() => {
+    window.__internalReviewNoteEvents = [];
+    window.jQuery(document).on('lltools:internal-review-note-updated.test', function (_event, detail) {
+      window.__internalReviewNoteEvents.push(Object.assign({}, detail || {}));
+    });
+  });
+
+  const input = page.locator('[data-ll-internal-review-note-input]');
+  await page.locator('[data-ll-internal-review-note-summary]').click();
+  await input.fill('Check the recording before publishing.');
+  await page.locator('#outside-button').click();
+
+  await expect(page.locator('[data-ll-internal-review-note-status]')).toHaveText('Review note saved.');
+  await expect.poll(() => page.evaluate(() => window.__internalReviewNoteEvents)).toEqual([{
+    objectId: 101,
+    objectType: 'word',
+    wordsetId: 17,
+    note: 'Check the recording before publishing.'
+  }]);
+
+  const requests = await page.evaluate(() => window.__wordGridRequests);
+  expect(requests).toHaveLength(1);
+  expect(requests[0]).toMatchObject({
+    action: 'll_tools_save_internal_review_note',
+    nonce: 'internal-note-nonce',
+    object_id: 101,
+    object_type: 'word',
+    wordset_id: 17,
+    note: 'Check the recording before publishing.'
+  });
 });
 
 test('an empty lesson translation still exposes a clickable inline placeholder', async ({ page }) => {

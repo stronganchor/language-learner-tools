@@ -135,14 +135,45 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Saved views', $html);
         $this->assertStringContainsString('ll_wordset_editor_filter_name', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-open-word-edit', $html);
-        $this->assertStringContainsString('data-ll-wordset-editor-modal-grid', $html);
-        $this->assertStringContainsString('data-ll-word-edit-panel', $html);
+        $this->assertStringContainsString('data-ll-wordset-id="' . (int) $fixture['wordset_id'] . '"', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-category-id="0"', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-review-note-label="Review note"', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-word-details-label="Word details"', $html);
+        $this->assertStringContainsString('data-ll-word-edit-modal-host', $html);
+        $this->assertStringContainsString('data-ll-word-edit-modal-grid="1"', $html);
+        $this->assertStringNotContainsString('data-ll-wordset-editor-modal-grid', $html);
+        $this->assertStringNotContainsString('data-ll-word-edit-panel', $html);
+        $this->assertTrue(wp_script_is('ll-tools-word-edit-modal', 'enqueued'));
         $this->assertStringContainsString('ll-wordset-editor-pill--link', $html);
         $this->assertStringContainsString(esc_url(get_permalink((int) $lesson_id)), $html);
         $this->assertStringContainsString('missing_image_review', $html);
         $this->assertStringContainsString('Action history', $html);
         $this->assertStringContainsString('ll_editor_history_type', $html);
         $this->assertStringContainsString('Recent actions', $html);
+    }
+
+    public function test_wordset_editor_empty_results_do_not_enqueue_or_render_modal_shell(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-empty-results');
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        wp_dequeue_script('ll-tools-word-edit-modal');
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_q' => 'No word can possibly match this exact text 749318',
+            'll_editor_exact' => '1',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
+
+        $this->assertStringContainsString('No words match these filters.', $html);
+        $this->assertStringNotContainsString('data-ll-word-edit-modal-host', $html);
+        $this->assertFalse(wp_script_is('ll-tools-word-edit-modal', 'enqueued'));
     }
 
     public function test_wordset_editor_search_folds_diacritics_by_default_and_allows_exact_match(): void
@@ -701,6 +732,8 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Alpha Word', $html);
         $this->assertSame(7, substr_count($html, 'data-ll-wordset-editor-row '));
         $this->assertStringContainsString('aria-current="page"', $html);
+        $this->assertStringContainsString('data-ll-word-edit-modal-host', $html);
+        $this->assertStringNotContainsString('data-ll-word-edit-panel', $html);
 
         $bounded_query = null;
         foreach ($captured_word_queries as $query_vars) {
@@ -778,6 +811,9 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Aardvark Visible Text', $html);
         $this->assertStringNotContainsString('Zulu Visible Text', $html);
         $this->assertSame(75, substr_count($html, 'data-ll-wordset-editor-row '));
+        $this->assertStringContainsString('data-ll-word-edit-modal-host', $html);
+        $this->assertStringNotContainsString('data-ll-word-edit-panel', $html);
+        $this->assertLessThan(1000000, strlen($html), 'The visible editor page must not embed 75 complete word-edit dialogs.');
     }
 
     public function test_wordset_editor_filtered_pagination_queries_and_hydrates_only_the_visible_page(): void
@@ -828,46 +864,6 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
             );
             $this->assertLessThanOrEqual(75, count($post_in));
         }
-    }
-
-    public function test_wordset_editor_modal_category_choices_are_not_limited_to_visible_page_words(): void
-    {
-        $this->loginEditor();
-        $fixture = $this->createFixture('wordset-editor-modal-category-scope');
-        $wordset_id = (int) $fixture['wordset_id'];
-        $wordset_term = get_term($wordset_id, 'wordset');
-        $this->assertInstanceOf(WP_Term::class, $wordset_term);
-
-        $legacy_category = wp_insert_term('Legacy Off Page Category', 'word-category', [
-            'slug' => 'legacy-off-page-category',
-        ]);
-        $this->assertFalse(is_wp_error($legacy_category));
-        $legacy_category_id = (int) ($legacy_category['term_id'] ?? 0);
-        update_term_meta($legacy_category_id, 'll_quiz_prompt_type', 'text_title');
-        update_term_meta($legacy_category_id, 'll_quiz_option_type', 'text_title');
-
-        $off_page_word_id = self::factory()->post->create([
-            'post_type' => 'words',
-            'post_status' => 'publish',
-            'post_title' => 'Off Page Legacy Category Word',
-        ]);
-        wp_set_object_terms($off_page_word_id, [$wordset_id], 'wordset', false);
-        wp_set_object_terms($off_page_word_id, [$legacy_category_id], 'word-category', false);
-        update_post_meta($off_page_word_id, 'word_translation', 'Off page legacy category translation');
-
-        $html = ll_tools_wordset_editor_render_modal_grid(
-            $wordset_term,
-            $wordset_id,
-            [(int) $fixture['alpha_word_id']],
-            []
-        );
-
-        $this->assertStringContainsString('data-ll-wordset-editor-modal-grid', $html);
-        $this->assertStringContainsString('Legacy Off Page Category', $html);
-        $this->assertMatchesRegularExpression(
-            '/data-ll-word-category-option[^>]+data-ll-word-category-label="Legacy Off Page Category"[^>]*>\\s*<input[^>]+data-ll-word-category-input/',
-            $html
-        );
     }
 
     public function test_all_filtered_bulk_selection_is_capped_to_the_visible_page_limit(): void

@@ -3610,6 +3610,14 @@
             const hasTypedAhead = currentNote !== note;
             setInternalNoteOriginalValue($input, savedNote, !hasTypedAhead);
             setInternalNoteStatus($wrap, getInternalNoteMessage('saved', 'Review note saved.'), 'success');
+            // Event contract: emitted only after the server persists a review note.
+            // Consumers may invalidate detached editor markup and synchronize wordset rows.
+            $(document).trigger('lltools:internal-review-note-updated', [{
+                objectId: objectId,
+                objectType: objectType,
+                wordsetId: wordsetId,
+                note: savedNote
+            }]);
             if (hasTypedAhead) {
                 $wrap.data('llInternalReviewNoteDirty', true);
                 scheduleInternalReviewNoteSave($wrap);

@@ -102,6 +102,19 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $fixture = $this->createFixture('word-edit-modal-render');
         $this->loginEditor();
 
+        $legacy_category_id = $this->ensureTerm(
+            'word-category',
+            'Detached Modal Off Page Category',
+            'detached-modal-off-page-category'
+        );
+        $off_page_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Detached Modal Off Page Word',
+        ]);
+        wp_set_post_terms($off_page_word_id, [(int) $fixture['wordset_id']], 'wordset', false);
+        wp_set_post_terms($off_page_word_id, [$legacy_category_id], 'word-category', false);
+
         $_POST = [
             'nonce' => wp_create_nonce('ll_word_edit_modal'),
             'word_id' => (string) $fixture['source_word_id'],
@@ -124,9 +137,96 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-word-edit-toggle', $html);
         $this->assertStringContainsString('data-ll-recording-delete-toggle', $html);
         $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $html);
+        $this->assertStringContainsString('Detached Modal Off Page Category', $html);
         $this->assertStringNotContainsString('ll-word-edit-category-count', $html);
         $this->assertIsArray($data['config'] ?? null);
         $this->assertNotEmpty((string) (($data['config'] ?? [])['editNonce'] ?? ''));
+    }
+
+    public function test_detached_word_edit_modal_endpoint_rejects_word_from_another_wordset(): void
+    {
+        $fixture = $this->createFixture('word-edit-modal-cross-wordset');
+        $other_wordset_id = $this->ensureTerm(
+            'wordset',
+            'Detached Modal Other Wordset',
+            'detached-modal-other-wordset'
+        );
+        $this->loginEditor();
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_edit_modal'),
+            'word_id' => (string) $fixture['source_word_id'],
+            'wordset_id' => (string) $other_wordset_id,
+            'category_id' => (string) $fixture['category_id'],
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_edit_modal_grid_handler();
+        });
+
+        $this->assertFalse((bool) ($response['success'] ?? true), wp_json_encode($response));
+        $this->assertSame('Invalid word editor context.', (string) ($response['data'] ?? ''));
+    }
+
+    public function test_detached_word_edit_modal_endpoint_rejects_invalid_nonce(): void
+    {
+        $fixture = $this->createFixture('word-edit-modal-invalid-nonce');
+        $this->loginEditor();
+
+        $_POST = [
+            'nonce' => 'invalid-nonce',
+            'word_id' => (string) $fixture['source_word_id'],
+            'wordset_id' => (string) $fixture['wordset_id'],
+            'category_id' => (string) $fixture['category_id'],
+        ];
+        $_REQUEST = $_POST;
+
+        $die_message = $this->runEndpointExpectWpDie(static function (): void {
+            ll_tools_word_edit_modal_grid_handler();
+        });
+
+        $this->assertSame('-1', $die_message);
+    }
+
+    public function test_empty_wordset_category_editor_catalog_does_not_hydrate_every_word_or_image(): void
+    {
+        $wordset_id = $this->ensureTerm(
+            'wordset',
+            'Detached Modal Empty Category Wordset',
+            'detached-modal-empty-category-wordset'
+        );
+        for ($index = 1; $index <= 5; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Uncategorized Detached Modal Word ' . $index,
+            ]);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+        $this->loginEditor();
+
+        $unbounded_queries = [];
+        $capture = static function (WP_Query $query) use (&$unbounded_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? array_map('strval', $post_type) : [(string) $post_type];
+            if (
+                array_intersect(['words', 'word_images'], $post_types)
+                && (int) $query->get('posts_per_page') === -1
+                && empty($query->get('post__in'))
+            ) {
+                $unbounded_queries[] = $query->query_vars;
+            }
+        };
+        add_action('pre_get_posts', $capture);
+        try {
+            $terms = ll_tools_word_grid_get_category_editor_terms_for_wordset($wordset_id);
+        } finally {
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $this->assertSame([], $terms);
+        $this->assertSame([], $unbounded_queries, 'An authoritative empty category catalog must not fall back to all-post hydration.');
     }
 
     public function test_lesson_edit_popup_marks_category_counts_and_non_quizzable_numbers(): void
@@ -510,5 +610,40 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertIsArray($decoded, 'Expected JSON response payload. Raw output: ' . $output);
 
         return $decoded;
+    }
+
+    private function runEndpointExpectWpDie(callable $callback): string
+    {
+        $captured = '';
+        $dieHandler = static function ($message = '') use (&$captured): void {
+            $captured = is_scalar($message) ? (string) $message : '';
+            throw new RuntimeException('wp_die');
+        };
+        $dieFilter = static function () use ($dieHandler) {
+            return $dieHandler;
+        };
+        $ajaxDieFilter = static function () use ($dieHandler) {
+            return $dieHandler;
+        };
+        $doingAjaxFilter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $dieFilter);
+        add_filter('wp_die_ajax_handler', $ajaxDieFilter);
+        add_filter('wp_doing_ajax', $doingAjaxFilter);
+
+        try {
+            $callback();
+            $this->fail('Expected wp_die to be called.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_die', $e->getMessage());
+        } finally {
+            remove_filter('wp_die_handler', $dieFilter);
+            remove_filter('wp_die_ajax_handler', $ajaxDieFilter);
+            remove_filter('wp_doing_ajax', $doingAjaxFilter);
+        }
+
+        return $captured;
     }
 }

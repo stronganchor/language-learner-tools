@@ -2396,6 +2396,92 @@ function ll_tools_recorder_remap_category_terms_for_wordsets(array $terms, array
     return array_values($resolved_terms);
 }
 
+/**
+ * Return the category IDs used by legacy, non-owner-scoped content in one wordset.
+ *
+ * This is the fallback for wordsets that predate category ownership metadata.
+ * Keep it set-based: callers only need the distinct category identities, not
+ * every matching word or word-image post ID.
+ *
+ * @return int[]
+ */
+function ll_tools_recorder_get_legacy_category_ids_for_wordset(int $wordset_id): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+    $selects = [
+        "
+        SELECT word_categories.term_id AS category_id
+        FROM {$wpdb->posts} AS scoped_words
+        INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = scoped_words.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationships.term_taxonomy_id
+            AND wordset_taxonomy.taxonomy = %s
+            AND wordset_taxonomy.term_id = %d
+        INNER JOIN {$wpdb->term_relationships} AS word_category_relationships
+            ON word_category_relationships.object_id = scoped_words.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS word_categories
+            ON word_categories.term_taxonomy_id = word_category_relationships.term_taxonomy_id
+            AND word_categories.taxonomy = %s
+        WHERE scoped_words.post_type = %s
+            AND scoped_words.post_status IN ({$status_placeholders})
+        ",
+    ];
+    $params = array_merge(
+        ['wordset', $wordset_id, 'word-category', 'words'],
+        $statuses
+    );
+
+    if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+        $selects[] = "
+            SELECT image_categories.term_id AS category_id
+            FROM {$wpdb->posts} AS scoped_images
+            INNER JOIN {$wpdb->postmeta} AS image_owner
+                ON image_owner.post_id = scoped_images.ID
+                AND image_owner.meta_key = %s
+                AND image_owner.meta_value = %s
+            INNER JOIN {$wpdb->term_relationships} AS image_category_relationships
+                ON image_category_relationships.object_id = scoped_images.ID
+            INNER JOIN {$wpdb->term_taxonomy} AS image_categories
+                ON image_categories.term_taxonomy_id = image_category_relationships.term_taxonomy_id
+                AND image_categories.taxonomy = %s
+            WHERE scoped_images.post_type = %s
+                AND scoped_images.post_status IN ({$status_placeholders})
+        ";
+        $params = array_merge(
+            $params,
+            [LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, (string) $wordset_id, 'word-category', 'word_images'],
+            $statuses
+        );
+    }
+
+    $sql = "
+        SELECT DISTINCT scoped_categories.category_id
+        /* ll_tools_recorder_legacy_category_ids */
+        FROM (
+            " . implode("\nUNION\n", $selects) . "
+        ) AS scoped_categories
+        WHERE scoped_categories.category_id > 0
+    ";
+    $prepared = $wpdb->prepare($sql, $params);
+    $category_ids = array_values(array_unique(array_filter(array_map(
+        'intval',
+        (array) $wpdb->get_col($prepared)
+    ), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    sort($category_ids, SORT_NUMERIC);
+
+    return $category_ids;
+}
+
 function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, int $user_id = 0): array {
     $normalized_wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
     $single_wordset_id = ll_tools_recorder_get_single_wordset_id($normalized_wordset_ids);
@@ -2426,57 +2512,8 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
         }
 
         if (empty($category_ids)) {
-            $word_ids = get_posts([
-                'post_type'      => 'words',
-                'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
-                'posts_per_page' => -1,
-                'fields'         => 'ids',
-                'no_found_rows'  => true,
-                'tax_query'      => [
-                    [
-                        'taxonomy' => 'wordset',
-                        'field'    => 'term_id',
-                        'terms'    => [$single_wordset_id],
-                    ],
-                ],
-            ]);
-            if (!empty($word_ids)) {
-                $used_word_category_ids = wp_get_object_terms((array) $word_ids, 'word-category', ['fields' => 'ids']);
-                if (!is_wp_error($used_word_category_ids)) {
-                    foreach ((array) $used_word_category_ids as $category_id) {
-                        $category_id = (int) $category_id;
-                        if ($category_id > 0) {
-                            $category_ids[$category_id] = true;
-                        }
-                    }
-                }
-            }
-
-            if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
-                $image_ids = get_posts([
-                    'post_type'      => 'word_images',
-                    'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
-                    'posts_per_page' => -1,
-                    'fields'         => 'ids',
-                    'no_found_rows'  => true,
-                    'meta_query'     => [
-                        [
-                            'key'   => LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
-                            'value' => $single_wordset_id,
-                        ],
-                    ],
-                ]);
-                if (!empty($image_ids)) {
-                    $used_image_category_ids = wp_get_object_terms((array) $image_ids, 'word-category', ['fields' => 'ids']);
-                    if (!is_wp_error($used_image_category_ids)) {
-                        foreach ((array) $used_image_category_ids as $category_id) {
-                            $category_id = (int) $category_id;
-                            if ($category_id > 0) {
-                                $category_ids[$category_id] = true;
-                            }
-                        }
-                    }
-                }
+            foreach (ll_tools_recorder_get_legacy_category_ids_for_wordset($single_wordset_id) as $category_id) {
+                $category_ids[(int) $category_id] = true;
             }
         }
 

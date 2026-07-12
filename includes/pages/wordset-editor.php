@@ -4193,36 +4193,6 @@ function ll_tools_wordset_editor_sort_link(WP_Term $wordset_term, string $key, s
     return '<a class="' . esc_attr($classes) . '" href="' . esc_url($url) . '"><span>' . esc_html($label) . '</span><span class="ll-wordset-editor-sort-link__icon" aria-hidden="true">' . esc_html($indicator) . '</span></a>';
 }
 
-function ll_tools_wordset_editor_render_modal_grid(WP_Term $wordset_term, int $wordset_id, array $word_ids, array $filters = []): string {
-    $word_ids = ll_tools_wordset_editor_normalize_word_ids($word_ids);
-    if (empty($word_ids) || !function_exists('ll_tools_word_grid_shortcode')) {
-        return '';
-    }
-
-    $atts = [
-        'wordset'               => (string) $wordset_id,
-        'word_ids'              => implode(',', $word_ids),
-        'editor_context'        => '1',
-        'category_editor_scope' => 'wordset',
-    ];
-
-    $filter_category_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
-    $category_id = count($filter_category_ids) === 1 ? (int) $filter_category_ids[0] : 0;
-    if ($category_id > 0) {
-        $category = get_term($category_id, 'word-category');
-        if ($category instanceof WP_Term && !is_wp_error($category)) {
-            $atts['category'] = (string) $category->slug;
-        }
-    }
-
-    $html = ll_tools_word_grid_shortcode($atts);
-    if (!is_string($html) || trim($html) === '') {
-        return '';
-    }
-
-    return '<div class="ll-wordset-editor-modal-grid" data-ll-wordset-editor-modal-grid>' . $html . '</div>';
-}
-
 function ll_tools_wordset_editor_render_split_panel(
     int $wordset_id,
     array $filters,
@@ -4440,6 +4410,9 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $reset_url = $action_url;
     $bulk_form_id = 'll-wordset-editor-bulk-' . (int) $wordset_id;
     $page_word_ids = ll_tools_wordset_editor_normalize_word_ids(wp_list_pluck($page_rows, 'id'));
+    if (!empty($page_word_ids) && function_exists('ll_tools_word_edit_modal_enqueue_assets')) {
+        ll_tools_word_edit_modal_enqueue_assets($wordset_id, $page_word_ids);
+    }
     $recordings_by_word_id = ll_tools_wordset_editor_get_recordings_for_word_ids($page_word_ids, $wordset_id);
     $recording_transcription_label = ll_tools_wordset_editor_get_recording_transcription_label($wordset_id);
     $recording_transcription_enabled = ll_tools_wordset_editor_recording_transcription_enabled($wordset_id);
@@ -4470,10 +4443,14 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
         'll_editor_image' => 'missing',
     ], $editor_base_url);
     $recent_actions_url = $editor_base_url . '#ll-wordset-editor-history';
+    $selected_filter_category_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
+    $modal_category_id = count($selected_filter_category_ids) === 1
+        ? (int) $selected_filter_category_ids[0]
+        : 0;
 
     ob_start();
     ?>
-    <section class="ll-wordset-settings-page ll-wordset-editor" data-ll-wordset-editor data-ll-wordset-editor-selected-singular="<?php echo esc_attr__('1 selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-selected-plural="<?php echo esc_attr__('%d selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-all-filtered="<?php echo esc_attr(sprintf(_n('All %d filtered word selected', 'All %d filtered words selected', $total_filtered, 'll-tools-text-domain'), $total_filtered)); ?>">
+    <section class="ll-wordset-settings-page ll-wordset-editor" data-ll-wordset-editor data-ll-wordset-id="<?php echo esc_attr((string) $wordset_id); ?>" data-ll-wordset-editor-category-id="<?php echo esc_attr((string) $modal_category_id); ?>" data-ll-wordset-editor-review-note-label="<?php echo esc_attr__('Review note', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-word-details-label="<?php echo esc_attr__('Word details', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-selected-singular="<?php echo esc_attr__('1 selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-selected-plural="<?php echo esc_attr__('%d selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-all-filtered="<?php echo esc_attr(sprintf(_n('All %d filtered word selected', 'All %d filtered words selected', $total_filtered, 'll-tools-text-domain'), $total_filtered)); ?>">
         <div class="ll-wordset-editor-stats" aria-label="<?php echo esc_attr__('Wordset editor summary', 'll-tools-text-domain'); ?>">
             <a class="ll-wordset-editor-stat" href="<?php echo esc_url($all_words_url); ?>" aria-label="<?php echo esc_attr__('Show all words', 'll-tools-text-domain'); ?>">
                 <?php echo ll_tools_wordset_editor_icon('table'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -4862,7 +4839,9 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 <?php endif; ?>
             </div>
 
-            <?php echo ll_tools_wordset_editor_render_modal_grid($wordset_term, $wordset_id, $page_word_ids, $filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php if (!empty($page_word_ids) && function_exists('ll_tools_word_edit_modal_host_html')) : ?>
+                <?php echo ll_tools_word_edit_modal_host_html($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php endif; ?>
 
             <?php if ($total_pages > 1) : ?>
                 <nav class="ll-wordset-editor-pagination" aria-label="<?php echo esc_attr__('Word editor pages', 'll-tools-text-domain'); ?>">
