@@ -644,6 +644,267 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($first_page['pagination']['per_page'] ?? 0));
     }
 
+    public function test_candidate_image_queue_does_not_build_a_whole_wordset_reverse_image_map(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Candidate Image Scope', 'recorder-candidate-image-scope');
+        $foreign_wordset_id = $this->ensure_term('wordset', 'Recorder Candidate Image Foreign', 'recorder-candidate-image-foreign');
+        $category_id = $this->ensure_term('word-category', 'Recorder Candidate Image Category', 'recorder-candidate-image-category');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+
+        $candidate_image = $this->create_word_image_for_recording('Recorder Candidate Image', $category_id);
+        $candidate_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Candidate Word',
+        ]);
+        update_post_meta($candidate_word_id, '_ll_autopicked_image_id', (int) $candidate_image['image_id']);
+        delete_post_meta($candidate_word_id, '_thumbnail_id');
+        wp_set_post_terms($candidate_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($candidate_word_id, [$category_id], 'word-category', false);
+
+        $foreign_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Candidate Foreign Word',
+        ]);
+        update_post_meta($foreign_word_id, '_ll_autopicked_image_id', (int) $candidate_image['image_id']);
+        wp_set_post_terms($foreign_word_id, [$foreign_wordset_id], 'wordset', false);
+        wp_set_post_terms($foreign_word_id, [$category_id], 'word-category', false);
+
+        $unrelated_attachment_id = $this->create_image_attachment('recorder-candidate-unrelated.png');
+        $unrelated_word_ids = [];
+        for ($index = 1; $index <= 40; $index++) {
+            $unrelated_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Recorder Unrelated Image %02d', $index),
+            ]);
+            set_post_thumbnail($unrelated_image_id, $unrelated_attachment_id);
+            wp_set_post_terms($unrelated_image_id, [$category_id], 'word-category', false);
+
+            $unrelated_word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Recorder Unrelated Word %02d', $index),
+            ]);
+            set_post_thumbnail($unrelated_word_id, $unrelated_attachment_id);
+            update_post_meta($unrelated_word_id, '_ll_autopicked_image_id', $unrelated_image_id);
+            wp_set_post_terms($unrelated_word_id, [$wordset_id], 'wordset', false);
+            wp_set_post_terms($unrelated_word_id, [$category_id], 'word-category', false);
+            $unrelated_word_ids[] = (int) $unrelated_word_id;
+        }
+
+        $unrelated_word_lookup = array_fill_keys($unrelated_word_ids, true);
+        $legacy_whole_map_queries = [];
+        $unrelated_meta_reads = [];
+        $query_watcher = static function (WP_Query $query) use (&$legacy_whole_map_queries): void {
+            if (!in_array('words', (array) $query->get('post_type'), true)) {
+                return;
+            }
+
+            $meta_query_json = wp_json_encode($query->get('meta_query'));
+            if (
+                (int) $query->get('posts_per_page') === -1
+                && is_string($meta_query_json)
+                && strpos($meta_query_json, '_thumbnail_id') !== false
+                && strpos($meta_query_json, '_ll_autopicked_image_id') !== false
+            ) {
+                $legacy_whole_map_queries[] = $query->query_vars;
+            }
+        };
+        $meta_watcher = static function ($value, $object_id, $meta_key, $single) use ($unrelated_word_lookup, &$unrelated_meta_reads) {
+            if (
+                isset($unrelated_word_lookup[(int) $object_id])
+                && in_array((string) $meta_key, ['_thumbnail_id', '_ll_autopicked_image_id'], true)
+            ) {
+                $unrelated_meta_reads[] = (int) $object_id;
+            }
+
+            return $value;
+        };
+
+        add_action('pre_get_posts', $query_watcher, 10, 1);
+        add_filter('get_post_metadata', $meta_watcher, 10, 4);
+        try {
+            $items = ll_tools_get_recording_queue_items(
+                'recorder-candidate-image-category',
+                [$wordset_id],
+                '',
+                '',
+                true,
+                0,
+                [],
+                [
+                    'candidate_word_ids_limited' => true,
+                    'candidate_image_ids' => [(int) $candidate_image['image_id']],
+                    'include_prompt_cards' => false,
+                ]
+            );
+        } finally {
+            remove_filter('get_post_metadata', $meta_watcher, 10);
+            remove_action('pre_get_posts', $query_watcher, 10);
+        }
+
+        $this->assertCount(40, $unrelated_word_ids);
+        $this->assertSame([], $legacy_whole_map_queries, 'Candidate image queue work must not invoke the legacy unbounded wordset image map.');
+        $this->assertSame([], array_values(array_unique($unrelated_meta_reads)), 'Candidate image queue work must not hydrate unrelated image-backed words.');
+        $this->assertCount(1, $items);
+        $this->assertSame((int) $candidate_image['image_id'], (int) ($items[0]['id'] ?? 0));
+        $this->assertSame((int) $candidate_word_id, (int) ($items[0]['word_id'] ?? 0));
+        $this->assertNotSame((int) $foreign_word_id, (int) ($items[0]['word_id'] ?? 0));
+    }
+
+    public function test_candidate_image_map_resolves_an_isolated_copy_from_the_source_link(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Isolated Candidate Map', 'recorder-isolated-candidate-map');
+        $source_attachment_id = $this->create_image_attachment('recorder-isolated-source.png');
+        $copy_attachment_id = $this->create_image_attachment('recorder-isolated-copy.png');
+
+        $source_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Isolated Source Image',
+        ]);
+        set_post_thumbnail($source_image_id, $source_attachment_id);
+
+        $copy_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Isolated Copy Image',
+        ]);
+        set_post_thumbnail($copy_image_id, $copy_attachment_id);
+        ll_tools_set_word_image_wordset_owner($copy_image_id, $wordset_id, $source_image_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Isolated Source Linked Word',
+        ]);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $source_image_id);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $map = ll_tools_recorder_get_candidate_image_word_map([$copy_image_id], [$wordset_id]);
+
+        $this->assertSame($word_id, (int) ($map[$copy_image_id] ?? 0));
+        $this->assertSame($copy_image_id, ll_tools_get_effective_word_image_id_for_wordset($source_image_id, $wordset_id));
+    }
+
+    public function test_candidate_image_map_resolves_duplicate_image_posts_that_share_an_attachment(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Shared Attachment Map', 'recorder-shared-attachment-map');
+        $attachment_id = $this->create_image_attachment('recorder-shared-attachment.png');
+        $linked_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Shared Attachment Linked Image',
+        ]);
+        $candidate_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Shared Attachment Candidate Image',
+        ]);
+        set_post_thumbnail($linked_image_id, $attachment_id);
+        set_post_thumbnail($candidate_image_id, $attachment_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Shared Attachment Linked Word',
+        ]);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $linked_image_id);
+        delete_post_meta($word_id, '_thumbnail_id');
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $map = ll_tools_recorder_get_candidate_image_word_map([$candidate_image_id], [$wordset_id]);
+
+        $this->assertSame($word_id, (int) ($map[$candidate_image_id] ?? 0));
+    }
+
+    public function test_candidate_image_map_uses_a_valid_thumbnail_word_when_a_newer_word_has_an_explicit_override(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Thumbnail Fallback Map', 'recorder-thumbnail-fallback-map');
+        $candidate_attachment_id = $this->create_image_attachment('recorder-thumbnail-candidate.png');
+        $override_attachment_id = $this->create_image_attachment('recorder-thumbnail-override.png');
+        $candidate_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Thumbnail Candidate Image',
+        ]);
+        set_post_thumbnail($candidate_image_id, $candidate_attachment_id);
+
+        $valid_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Valid Thumbnail Word',
+        ]);
+        set_post_thumbnail($valid_word_id, $candidate_attachment_id);
+        wp_set_post_terms($valid_word_id, [$wordset_id], 'wordset', false);
+
+        $override_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Explicit Override Image',
+        ]);
+        set_post_thumbnail($override_image_id, $override_attachment_id);
+        $newer_overridden_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Newer Overridden Thumbnail Word',
+        ]);
+        set_post_thumbnail($newer_overridden_word_id, $candidate_attachment_id);
+        update_post_meta($newer_overridden_word_id, '_ll_autopicked_image_id', $override_image_id);
+        wp_set_post_terms($newer_overridden_word_id, [$wordset_id], 'wordset', false);
+        $this->assertGreaterThan($valid_word_id, $newer_overridden_word_id);
+
+        $map = ll_tools_recorder_get_candidate_image_word_map([$candidate_image_id], [$wordset_id]);
+
+        $this->assertSame($valid_word_id, (int) ($map[$candidate_image_id] ?? 0));
+        $this->assertNotSame($newer_overridden_word_id, (int) ($map[$candidate_image_id] ?? 0));
+    }
+
+    public function test_candidate_image_map_falls_back_to_the_word_thumbnail_when_the_linked_image_has_no_attachment(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Empty Linked Image Map', 'recorder-empty-linked-image-map');
+        $attachment_id = $this->create_image_attachment('recorder-empty-linked-image-candidate.png');
+        $candidate_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Empty Link Candidate Image',
+        ]);
+        set_post_thumbnail($candidate_image_id, $attachment_id);
+
+        $empty_linked_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Empty Linked Image',
+        ]);
+        delete_post_meta($empty_linked_image_id, '_thumbnail_id');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Empty Link Thumbnail Word',
+        ]);
+        set_post_thumbnail($word_id, $attachment_id);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $empty_linked_image_id);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $map = ll_tools_recorder_get_candidate_image_word_map([$candidate_image_id], [$wordset_id]);
+
+        $this->assertSame($word_id, (int) ($map[$candidate_image_id] ?? 0));
+    }
+
     public function test_recording_category_queue_page_does_not_fetch_prompt_cards_when_word_page_is_full(): void
     {
         if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {

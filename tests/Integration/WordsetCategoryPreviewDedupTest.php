@@ -51,7 +51,7 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         );
     }
 
-    public function test_preview_skips_duplicate_content_from_separate_attachments_and_keeps_searching(): void
+    public function test_preview_uses_stored_visual_hashes_to_skip_duplicate_attachments_and_keep_searching(): void
     {
         $wordset = wp_insert_term('Preview File Dedup Wordset ' . wp_generate_password(6, false), 'wordset');
         $this->assertFalse(is_wp_error($wordset));
@@ -66,6 +66,24 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $duplicate_attachment_a = $this->createImageAttachment('preview-dedup-file-a.png');
         $duplicate_attachment_b = $this->createImageAttachment('preview-dedup-file-b.png');
         $unique_attachment = $this->createImageAttachment('preview-dedup-file-c.png', self::ALT_PIXEL_PNG_BASE64);
+        $image_hash_meta_key = function_exists('ll_tools_get_image_hash_meta_key')
+            ? ll_tools_get_image_hash_meta_key()
+            : '_ll_tools_image_hash';
+        update_post_meta($duplicate_attachment_a, $image_hash_meta_key, [
+            'hash' => '0000000000000000',
+            'mtime' => 0,
+            'algo' => 'dhash',
+        ]);
+        update_post_meta($duplicate_attachment_b, $image_hash_meta_key, [
+            'hash' => '0000000000000000',
+            'mtime' => 0,
+            'algo' => 'dhash',
+        ]);
+        update_post_meta($unique_attachment, $image_hash_meta_key, [
+            'hash' => 'ffffffffffffffff',
+            'mtime' => 0,
+            'algo' => 'dhash',
+        ]);
 
         $first_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_a, 'Preview File Dedup Word A', '2026-01-01 00:00:03');
         $second_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_b, 'Preview File Dedup Word B', '2026-01-01 00:00:02');
@@ -96,6 +114,85 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertContains($unique_url, $image_urls, 'The preview should keep searching until it finds a non-duplicate image.');
         $duplicate_matches = array_values(array_intersect($image_urls, [$duplicate_url_a, $duplicate_url_b]));
         $this->assertCount(1, $duplicate_matches, 'Only one of the duplicate-content attachments should appear in the preview.');
+    }
+
+    public function test_preview_dedupe_does_not_hash_attachment_files_or_generate_missing_visual_hashes(): void
+    {
+        $wordset = wp_insert_term('Preview Read Only Dedup Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Preview Read Only Dedup Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        $first_attachment_id = $this->createImageAttachment('preview-read-only-dedup-a.png');
+        $second_attachment_id = $this->createImageAttachment('preview-read-only-dedup-b.png');
+        $first_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $first_attachment_id, 'Preview Read Only Word A', '2026-01-01 00:00:02');
+        $second_word_id = $this->createWordWithThumbnail($category_id, $wordset_id, $second_attachment_id, 'Preview Read Only Word B', '2026-01-01 00:00:01');
+        $this->createAudioRecording($first_word_id, 'preview-read-only-word-a.mp3');
+        $this->createAudioRecording($second_word_id, 'preview-read-only-word-b.mp3');
+
+        $image_hash_meta_key = function_exists('ll_tools_get_image_hash_meta_key')
+            ? ll_tools_get_image_hash_meta_key()
+            : '_ll_tools_image_hash';
+        delete_post_meta($first_attachment_id, $image_hash_meta_key);
+        delete_post_meta($second_attachment_id, $image_hash_meta_key);
+
+        $target_attachment_ids = [
+            $first_attachment_id => true,
+            $second_attachment_id => true,
+        ];
+        $image_hash_meta_writes = 0;
+        $track_image_hash_meta_writes = static function ($meta_id, int $object_id, string $meta_key) use (&$image_hash_meta_writes, $target_attachment_ids, $image_hash_meta_key): void {
+            if (isset($target_attachment_ids[$object_id]) && $meta_key === $image_hash_meta_key) {
+                $image_hash_meta_writes++;
+            }
+        };
+
+        add_action('added_post_meta', $track_image_hash_meta_writes, 10, 3);
+        add_action('updated_post_meta', $track_image_hash_meta_writes, 10, 3);
+        try {
+            $dedupe_keys = ll_tools_get_wordset_preview_attachment_dedupe_keys(
+                $first_attachment_id,
+                (string) wp_get_attachment_url($first_attachment_id)
+            );
+            $preview = ll_tools_get_wordset_category_preview($wordset_id, $category_id, 2, true);
+        } finally {
+            remove_action('updated_post_meta', $track_image_hash_meta_writes, 10);
+            remove_action('added_post_meta', $track_image_hash_meta_writes, 10);
+        }
+
+        $this->assertIsArray($preview);
+        $this->assertContains('id:' . $first_attachment_id, $dedupe_keys);
+        $this->assertNotEmpty(array_filter($dedupe_keys, static function (string $key): bool {
+            return strpos($key, 'file:') === 0;
+        }));
+        $this->assertEmpty(array_filter($dedupe_keys, static function (string $key): bool {
+            return strpos($key, 'sha1:') === 0 || strpos($key, 'dhash:') === 0;
+        }));
+        $preview_attachment_ids = $this->extractPreviewImageAttachmentIds($preview);
+        sort($preview_attachment_ids, SORT_NUMERIC);
+        $expected_attachment_ids = [$first_attachment_id, $second_attachment_id];
+        sort($expected_attachment_ids, SORT_NUMERIC);
+        $this->assertSame($expected_attachment_ids, $preview_attachment_ids);
+        $this->assertSame(0, $image_hash_meta_writes, 'Interactive preview generation must not create or refresh visual-hash metadata.');
+        $this->assertSame('', get_post_meta($first_attachment_id, $image_hash_meta_key, true));
+        $this->assertSame('', get_post_meta($second_attachment_id, $image_hash_meta_key, true));
+
+        $dedupe_reflection = new ReflectionFunction('ll_tools_get_wordset_preview_attachment_dedupe_keys');
+        $source_lines = file((string) $dedupe_reflection->getFileName());
+        $this->assertIsArray($source_lines);
+        $dedupe_source = implode('', array_slice(
+            $source_lines,
+            $dedupe_reflection->getStartLine() - 1,
+            $dedupe_reflection->getEndLine() - $dedupe_reflection->getStartLine() + 1
+        ));
+        $this->assertStringNotContainsString('hash_file(', $dedupe_source);
+        $this->assertStringNotContainsString('get_attached_file(', $dedupe_source);
+        $this->assertStringNotContainsString('ll_tools_get_attachment_image_hash(', $dedupe_source);
     }
 
     public function test_preview_uses_prompt_card_prompt_images_when_category_has_no_words(): void

@@ -6,15 +6,24 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
     /** @var array<string,mixed> */
     private $getBackup = [];
 
+    /** @var mixed */
+    private $originalIsolationOption;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->getBackup = $_GET;
+        $this->originalIsolationOption = get_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, null);
     }
 
     protected function tearDown(): void
     {
         $_GET = $this->getBackup;
+        if ($this->originalIsolationOption === null) {
+            delete_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION);
+        } else {
+            update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, $this->originalIsolationOption, false);
+        }
         parent::tearDown();
     }
 
@@ -192,6 +201,234 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) $rows[0]['recorder_pagination']['page']);
         $this->assertTrue((bool) $rows[0]['recorder_pagination']['has_prev']);
         $this->assertTrue((bool) $rows[0]['recorder_pagination']['has_next']);
+    }
+
+    public function test_overview_category_source_paginates_the_compact_category_list(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createWordsetWithCategories(6);
+
+        $page = ll_tools_wordset_page_get_recorder_queue_summary_category_page(
+            (int) $fixture['wordset_id'],
+            2,
+            2
+        );
+
+        $this->assertSame(6, (int) $page['total']);
+        $this->assertSame(2, (int) $page['page']);
+        $this->assertSame(2, (int) $page['per_page']);
+        $this->assertSame(3, (int) $page['total_pages']);
+        $this->assertCount(2, $page['categories']);
+        $this->assertSame(
+            array_column(array_slice($fixture['categories'], 2, 2), 'slug'),
+            array_column($page['categories'], 'slug')
+        );
+    }
+
+    public function test_overview_category_source_preserves_content_categories_order_and_uncategorized_without_empty_shells(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+
+        $shared_term = wp_insert_term('Shared Recorder Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($shared_term);
+        $shared_category_id = (int) $shared_term['term_id'];
+        update_term_meta($shared_category_id, 'll_desired_recording_types', ['isolation']);
+        $shared_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Shared Recorder Category Word',
+        ]);
+        wp_set_post_terms($shared_word_id, [$shared_category_id], 'word-category', false);
+        wp_set_post_terms($shared_word_id, [$wordset_id], 'wordset', false);
+
+        $empty_term = wp_insert_term('Empty Owned Recorder Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($empty_term);
+        $empty_category_id = (int) $empty_term['term_id'];
+        ll_tools_set_category_wordset_owner($empty_category_id, $wordset_id, $empty_category_id);
+
+        $uncategorized_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Uncategorized Recorder Word',
+        ]);
+        wp_set_post_terms($uncategorized_word_id, [$wordset_id], 'wordset', false);
+
+        $manual_order = [
+            $shared_category_id,
+            (int) $fixture['categories'][1]['id'],
+            (int) $fixture['categories'][0]['id'],
+            $empty_category_id,
+        ];
+        update_term_meta($wordset_id, 'll_wordset_category_ordering_mode', 'manual');
+        update_term_meta($wordset_id, 'll_wordset_category_manual_order', implode(',', $manual_order));
+
+        $page = ll_tools_wordset_page_get_recorder_queue_summary_category_page($wordset_id, 1, 20);
+        $slugs = array_column($page['categories'], 'slug');
+
+        $this->assertSame(4, (int) $page['total']);
+        $this->assertSame([
+            (string) get_term_field('slug', $shared_category_id, 'word-category'),
+            (string) $fixture['categories'][1]['slug'],
+            (string) $fixture['categories'][0]['slug'],
+            'uncategorized',
+        ], $slugs);
+        $this->assertNotContains((string) get_term_field('slug', $empty_category_id, 'word-category'), $slugs);
+    }
+
+    public function test_overview_image_scan_uses_only_the_current_candidate_batch_for_reverse_lookup(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category = $fixture['categories'][0];
+        $category_id = (int) $category['id'];
+
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Bounded summary image attachment',
+            'post_mime_type' => 'image/png',
+        ]);
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Bounded summary candidate image',
+        ]);
+        update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+        wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+
+        $linked_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Bounded summary linked word',
+        ]);
+        update_post_meta($linked_word_id, '_ll_autopicked_image_id', $image_id);
+        wp_set_post_terms($linked_word_id, [$wordset_id], 'wordset', false);
+
+        for ($index = 1; $index <= 30; $index++) {
+            $unrelated_word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Unrelated summary image word %02d', $index),
+            ]);
+            update_post_meta($unrelated_word_id, '_ll_autopicked_image_id', 100000 + $index);
+            wp_set_post_terms($unrelated_word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $legacy_whole_map_queries = [];
+        $query_watcher = static function (WP_Query $query) use (&$legacy_whole_map_queries): void {
+            if (!in_array('words', (array) $query->get('post_type'), true) || (int) $query->get('posts_per_page') !== -1) {
+                return;
+            }
+
+            $meta_query_json = wp_json_encode($query->get('meta_query'));
+            if (
+                is_string($meta_query_json)
+                && strpos($meta_query_json, '_thumbnail_id') !== false
+                && strpos($meta_query_json, '_ll_autopicked_image_id') !== false
+            ) {
+                $legacy_whole_map_queries[] = $query->query_vars;
+            }
+        };
+
+        add_action('pre_get_posts', $query_watcher);
+        try {
+            $scan = ll_tools_wordset_page_advance_recorder_queue_summary_scan(
+                $category,
+                $wordset_id,
+                get_current_user_id(),
+                '',
+                '',
+                [
+                    'phase' => 'images',
+                    'word_offset' => 0,
+                    'image_offset' => 0,
+                    'valid_seen' => 0,
+                    'candidates' => [],
+                ]
+            );
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+        }
+
+        $this->assertSame([], $legacy_whole_map_queries, 'Overview image summaries must not build a whole-wordset reverse image map.');
+        $this->assertTrue((bool) $scan['complete']);
+        $this->assertSame([], $scan['candidates'], 'An image already linked to a word in this wordset must not be queued twice.');
+    }
+
+    public function test_focused_category_page_excludes_a_linked_candidate_image_without_a_whole_wordset_map(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $wordset = wp_insert_term('Focused Candidate Wordset ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Focused Candidate Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Focused Candidate Attachment',
+            'post_mime_type' => 'image/png',
+        ]);
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Focused Candidate Image',
+        ]);
+        update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+        wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Focused Candidate Linked Word',
+        ]);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $image_id);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $legacy_whole_map_queries = [];
+        $query_watcher = static function (WP_Query $query) use (&$legacy_whole_map_queries): void {
+            if (!in_array('words', (array) $query->get('post_type'), true) || (int) $query->get('posts_per_page') !== -1) {
+                return;
+            }
+            $meta_query_json = wp_json_encode($query->get('meta_query'));
+            if (
+                is_string($meta_query_json)
+                && strpos($meta_query_json, '_thumbnail_id') !== false
+                && strpos($meta_query_json, '_ll_autopicked_image_id') !== false
+            ) {
+                $legacy_whole_map_queries[] = $query->query_vars;
+            }
+        };
+
+        add_action('pre_get_posts', $query_watcher);
+        try {
+            $page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
+                $wordset_id,
+                (string) get_term_field('slug', $category_id, 'word-category'),
+                1,
+                5
+            );
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+        }
+
+        $this->assertSame([], $legacy_whole_map_queries);
+        $this->assertSame([], $page['image_ids']);
+        $this->assertSame([], $page['ids']);
     }
 
     public function test_overview_resumes_a_mostly_hidden_category_without_scanning_it_all_at_once(): void

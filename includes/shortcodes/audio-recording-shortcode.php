@@ -2713,6 +2713,253 @@ function ll_tools_recorder_get_referenced_word_image_ids_for_wordset_scope(array
     return $image_ids;
 }
 
+/**
+ * Resolve a bounded set of word-image posts to words in the requested wordsets.
+ *
+ * Candidate-scoped recorder requests must not use the legacy reverse lookup in
+ * ll_get_word_for_image_in_wordset(), because that helper intentionally builds
+ * a reusable map by hydrating every image-backed word in the wordset. Query the
+ * explicit image-post and attachment identifiers instead, returning at most one
+ * word for each identifier in the candidate batch.
+ *
+ * @param int[] $image_post_ids
+ * @param int[] $wordset_ids
+ * @return array<int, int> Map of word_images post ID to words post ID.
+ */
+function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, array $wordset_ids): array {
+    global $wpdb;
+
+    $image_post_ids = array_values(array_unique(array_filter(array_map('intval', $image_post_ids), static function (int $image_id): bool {
+        return $image_id > 0;
+    })));
+    $wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
+    if (empty($image_post_ids)) {
+        return [];
+    }
+
+    if (function_exists('_prime_post_caches')) {
+        _prime_post_caches($image_post_ids, false, true);
+    } else {
+        update_postmeta_cache($image_post_ids);
+    }
+
+    $attachment_id_by_image = [];
+    $origin_id_by_image = [];
+    $isolation_enabled = function_exists('ll_tools_is_wordset_isolation_enabled')
+        && ll_tools_is_wordset_isolation_enabled();
+    $isolation_source_meta_key = defined('LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY')
+        ? (string) LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY
+        : 'll_word_image_isolation_source_id';
+    foreach ($image_post_ids as $image_id) {
+        $image_post = get_post($image_id);
+        if (!($image_post instanceof WP_Post) || $image_post->post_type !== 'word_images' || $image_post->post_status !== 'publish') {
+            continue;
+        }
+
+        $attachment_id = (int) get_post_thumbnail_id($image_id);
+        if ($attachment_id > 0) {
+            $attachment_id_by_image[$image_id] = $attachment_id;
+            $stored_origin_id = $isolation_enabled
+                ? (int) get_post_meta($image_id, $isolation_source_meta_key, true)
+                : 0;
+            $origin_id_by_image[$image_id] = $stored_origin_id > 0 ? $stored_origin_id : $image_id;
+        }
+    }
+    if (empty($attachment_id_by_image)) {
+        return [];
+    }
+
+    $get_word_by_meta_value = static function (
+        string $meta_key,
+        array $lookup_values,
+        bool $exclude_words_with_valid_linked_images = false
+    ) use ($wpdb, $wordset_ids): array {
+        $lookup_values = array_values(array_unique(array_filter(array_map('intval', $lookup_values), static function (int $lookup_value): bool {
+            return $lookup_value > 0;
+        })));
+        if (empty($lookup_values)) {
+            return [];
+        }
+
+        $lookup_placeholders = implode(',', array_fill(0, count($lookup_values), '%s'));
+        $scope_sql = '';
+        $linked_image_exclusion_sql = $exclude_words_with_valid_linked_images
+            ? "
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->postmeta} linked_image_meta
+                    INNER JOIN {$wpdb->posts} linked_image_post
+                        ON linked_image_post.ID = CAST(linked_image_meta.meta_value AS UNSIGNED)
+                       AND linked_image_post.post_type = 'word_images'
+                    INNER JOIN {$wpdb->postmeta} linked_image_thumbnail
+                        ON linked_image_thumbnail.post_id = linked_image_post.ID
+                       AND linked_image_thumbnail.meta_key = '_thumbnail_id'
+                       AND CAST(linked_image_thumbnail.meta_value AS UNSIGNED) > 0
+                    WHERE linked_image_meta.post_id = candidate_word.ID
+                      AND linked_image_meta.meta_key = '_ll_autopicked_image_id'
+                      AND CAST(linked_image_meta.meta_value AS UNSIGNED) > 0
+                )"
+            : '';
+        $prepare_values = array_merge([$meta_key], array_map('strval', $lookup_values));
+        if (!empty($wordset_ids)) {
+            $wordset_placeholders = implode(',', array_fill(0, count($wordset_ids), '%d'));
+            $scope_sql = "
+                AND EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->term_relationships} wordset_relationship
+                    INNER JOIN {$wpdb->term_taxonomy} wordset_taxonomy
+                        ON wordset_taxonomy.term_taxonomy_id = wordset_relationship.term_taxonomy_id
+                       AND wordset_taxonomy.taxonomy = 'wordset'
+                       AND wordset_taxonomy.term_id IN ({$wordset_placeholders})
+                    WHERE wordset_relationship.object_id = candidate_word.ID
+                )";
+            $prepare_values = array_merge($prepare_values, $wordset_ids);
+        }
+        $prepare_values[] = count($lookup_values);
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT CAST(candidate_meta.meta_value AS UNSIGNED) AS lookup_id,
+                    MAX(candidate_word.ID) AS word_id
+             FROM {$wpdb->postmeta} candidate_meta
+             INNER JOIN {$wpdb->posts} candidate_word
+                ON candidate_word.ID = candidate_meta.post_id
+             WHERE candidate_meta.meta_key = %s
+               AND candidate_meta.meta_value IN ({$lookup_placeholders})
+               AND candidate_word.post_type = 'words'
+               AND candidate_word.post_status IN ('publish', 'draft', 'pending')
+               {$linked_image_exclusion_sql}
+               {$scope_sql}
+             GROUP BY CAST(candidate_meta.meta_value AS UNSIGNED)
+             LIMIT %d",
+            $prepare_values
+        ), ARRAY_A);
+
+        $word_by_lookup = [];
+        foreach ((array) $rows as $row) {
+            $lookup_id = (int) ($row['lookup_id'] ?? 0);
+            $word_id = (int) ($row['word_id'] ?? 0);
+            if ($lookup_id > 0 && $word_id > 0) {
+                $word_by_lookup[$lookup_id] = $word_id;
+            }
+        }
+
+        return $word_by_lookup;
+    };
+
+    $get_word_by_linked_attachment = static function (array $attachment_ids) use ($wpdb, $wordset_ids): array {
+        $attachment_ids = array_values(array_unique(array_filter(array_map('intval', $attachment_ids), static function (int $attachment_id): bool {
+            return $attachment_id > 0;
+        })));
+        if (empty($attachment_ids)) {
+            return [];
+        }
+
+        $attachment_placeholders = implode(',', array_fill(0, count($attachment_ids), '%s'));
+        $scope_sql = '';
+        $prepare_values = array_map('strval', $attachment_ids);
+        if (!empty($wordset_ids)) {
+            $wordset_placeholders = implode(',', array_fill(0, count($wordset_ids), '%d'));
+            $scope_sql = "
+                AND EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->term_relationships} wordset_relationship
+                    INNER JOIN {$wpdb->term_taxonomy} wordset_taxonomy
+                        ON wordset_taxonomy.term_taxonomy_id = wordset_relationship.term_taxonomy_id
+                       AND wordset_taxonomy.taxonomy = 'wordset'
+                       AND wordset_taxonomy.term_id IN ({$wordset_placeholders})
+                    WHERE wordset_relationship.object_id = candidate_word.ID
+                )";
+            $prepare_values = array_merge($prepare_values, $wordset_ids);
+        }
+        $prepare_values[] = count($attachment_ids);
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT CAST(linked_thumbnail.meta_value AS UNSIGNED) AS lookup_id,
+                    MAX(candidate_word.ID) AS word_id
+             FROM {$wpdb->postmeta} linked_image_meta
+             INNER JOIN {$wpdb->posts} candidate_word
+                ON candidate_word.ID = linked_image_meta.post_id
+             INNER JOIN {$wpdb->posts} linked_image
+                ON linked_image.ID = CAST(linked_image_meta.meta_value AS UNSIGNED)
+               AND linked_image.post_type = 'word_images'
+             INNER JOIN {$wpdb->postmeta} linked_thumbnail
+                ON linked_thumbnail.post_id = linked_image.ID
+               AND linked_thumbnail.meta_key = '_thumbnail_id'
+               AND linked_thumbnail.meta_value IN ({$attachment_placeholders})
+             WHERE linked_image_meta.meta_key = '_ll_autopicked_image_id'
+               AND candidate_word.post_type = 'words'
+               AND candidate_word.post_status IN ('publish', 'draft', 'pending')
+               {$scope_sql}
+             GROUP BY CAST(linked_thumbnail.meta_value AS UNSIGNED)
+             LIMIT %d",
+            $prepare_values
+        ), ARRAY_A);
+
+        $word_by_attachment = [];
+        foreach ((array) $rows as $row) {
+            $attachment_id = (int) ($row['lookup_id'] ?? 0);
+            $word_id = (int) ($row['word_id'] ?? 0);
+            if ($attachment_id > 0 && $word_id > 0) {
+                $word_by_attachment[$attachment_id] = $word_id;
+            }
+        }
+
+        return $word_by_attachment;
+    };
+
+    $linked_image_lookup_ids = array_values(array_unique(array_merge(
+        array_map('intval', array_keys($attachment_id_by_image)),
+        array_map('intval', array_values($origin_id_by_image))
+    )));
+    $word_by_linked_image = $get_word_by_meta_value('_ll_autopicked_image_id', $linked_image_lookup_ids);
+    $word_by_linked_attachment = $get_word_by_linked_attachment(array_values($attachment_id_by_image));
+    $word_by_attachment = $get_word_by_meta_value(
+        '_thumbnail_id',
+        array_values($attachment_id_by_image),
+        true
+    );
+
+    // The legacy resolver is attachment-based. Once one candidate image (or
+    // its isolation origin) has a directly linked word, every candidate that
+    // shares that attachment must resolve to the same word as well.
+    $word_by_candidate_attachment = $word_by_linked_attachment;
+    foreach ($attachment_id_by_image as $image_id => $attachment_id) {
+        $origin_id = (int) ($origin_id_by_image[$image_id] ?? $image_id);
+        $direct_word_id = (int) (
+            $word_by_linked_image[$image_id]
+            ?? $word_by_linked_image[$origin_id]
+            ?? 0
+        );
+        if ($direct_word_id > 0 && !isset($word_by_candidate_attachment[$attachment_id])) {
+            $word_by_candidate_attachment[$attachment_id] = $direct_word_id;
+        }
+    }
+
+    $word_by_image = [];
+    foreach ($attachment_id_by_image as $image_id => $attachment_id) {
+        $origin_id = (int) ($origin_id_by_image[$image_id] ?? $image_id);
+        $direct_word_id = (int) (
+            $word_by_linked_image[$image_id]
+            ?? $word_by_linked_image[$origin_id]
+            ?? $word_by_candidate_attachment[$attachment_id]
+            ?? 0
+        );
+        if ($direct_word_id > 0) {
+            $word_by_image[$image_id] = $direct_word_id;
+            continue;
+        }
+
+        $fallback_word_id = (int) ($word_by_attachment[$attachment_id] ?? 0);
+        if ($fallback_word_id <= 0) {
+            continue;
+        }
+
+        $word_by_image[$image_id] = $fallback_word_id;
+    }
+
+    return $word_by_image;
+}
+
 function ll_tools_recorder_resolve_accessible_category_context(int $word_id = 0, int $image_id = 0, int $user_id = 0, array $wordset_ids = []): array {
     $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
@@ -4727,6 +4974,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $candidate_image_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($options['candidate_image_ids'] ?? [])), static function (int $image_id): bool {
         return $image_id > 0;
     })));
+    $candidate_scope_is_limited = $candidate_word_ids_limited || !empty($candidate_word_ids) || !empty($candidate_image_ids);
 
     $is_uncategorized_request = ($category_slug === 'uncategorized');
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
@@ -4850,7 +5098,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     // Category-specific fallback:
     // Include image posts referenced by words in this category even when those image posts
     // were not categorized yet (common after category-duplication workflows).
-    if (!$candidate_word_ids_limited && !empty($category_slug) && !$is_uncategorized_request) {
+    if (!$candidate_scope_is_limited && !empty($category_slug) && !$is_uncategorized_request) {
         $word_image_word_query = [
             'post_type'      => 'words',
             'post_status'    => ['publish', 'draft', 'pending', 'private', 'future'],
@@ -4935,13 +5183,18 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $image_word_ids_to_prime = [];
     $image_word_map = [];
     $scoped_image_posts = [];
+    $candidate_image_word_map = $candidate_scope_is_limited
+        ? ll_tools_recorder_get_candidate_image_word_map(array_map('intval', (array) $image_posts), $wordset_term_ids)
+        : [];
     foreach ((array) $image_posts as $img_id) {
         $image_post = get_post((int) $img_id);
         if (!($image_post instanceof WP_Post) || $image_post->post_type !== 'word_images' || $image_post->post_status !== 'publish') {
             continue;
         }
 
-        $resolved_word_id = ll_get_word_for_image_in_wordset((int) $img_id, $wordset_term_ids);
+        $resolved_word_id = $candidate_scope_is_limited
+            ? (int) ($candidate_image_word_map[(int) $img_id] ?? 0)
+            : ll_get_word_for_image_in_wordset((int) $img_id, $wordset_term_ids);
         if (!ll_tools_recorder_word_image_is_allowed_for_wordset_queue((int) $img_id, (int) $resolved_word_id, $wordset_term_ids)) {
             continue;
         }
@@ -5198,7 +5451,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
     }
 
-    $text_words = (!$candidate_word_ids_limited || !empty($candidate_word_ids))
+    $text_words = (!$candidate_scope_is_limited || !empty($candidate_word_ids))
         ? get_posts($word_args)
         : [];
     if (!empty($text_words)) {

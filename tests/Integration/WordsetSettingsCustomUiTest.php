@@ -61,6 +61,164 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_tool=offline-app', $html);
     }
 
+    public function test_settings_hub_skips_full_category_catalog_and_unbounded_card_counts(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $full_category_catalog_calls = 0;
+        $unbounded_card_queries = [];
+        $catalog_filter = static function ($enabled) use (&$full_category_catalog_calls) {
+            $full_category_catalog_calls++;
+            return $enabled;
+        };
+        $post_watcher = static function (WP_Query $query) use (&$unbounded_card_queries): void {
+            $post_types = array_map('strval', (array) $query->get('post_type'));
+            if (
+                (int) $query->get('posts_per_page') === -1
+                && !empty(array_intersect(['words', 'word_images'], $post_types))
+            ) {
+                $unbounded_card_queries[] = $query->query_vars;
+            }
+        };
+
+        add_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
+        add_action('pre_get_posts', $post_watcher);
+        try {
+            $html = ll_tools_render_wordset_page_content($wordset_id);
+        } finally {
+            remove_action('pre_get_posts', $post_watcher);
+            remove_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
+        }
+
+        $this->assertSame(0, $full_category_catalog_calls, 'The settings hub must not build the learner category catalog.');
+        $this->assertSame([], $unbounded_card_queries, 'Settings card labels must not hydrate every word or image.');
+        $this->assertStringContainsString('ll_wordset_tool=editor', $html);
+        $this->assertStringContainsString('ll_wordset_tool=template', $html);
+        $this->assertStringContainsString('ll_wordset_tool=offline-app', $html);
+    }
+
+    public function test_settings_hub_does_not_refresh_an_empty_recommendation_queue_without_a_category_catalog(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $queue_meta = [
+            (string) $wordset_id => [],
+        ];
+        $dismissed_meta = [
+            (string) $wordset_id => ['practice:category:' . (int) $fixture['category_id']],
+        ];
+        update_user_meta($admin_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $queue_meta);
+        update_user_meta($admin_id, LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META, $dismissed_meta);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $recommendation_meta_updates = [];
+        $meta_watcher = static function ($check, $object_id, $meta_key) use ($admin_id, &$recommendation_meta_updates) {
+            if (
+                (int) $object_id === $admin_id
+                && in_array((string) $meta_key, [
+                    LL_TOOLS_USER_RECOMMENDATION_QUEUE_META,
+                    LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META,
+                ], true)
+            ) {
+                $recommendation_meta_updates[] = (string) $meta_key;
+            }
+            return $check;
+        };
+        add_filter('update_user_metadata', $meta_watcher, 10, 3);
+        try {
+            ll_tools_render_wordset_page_content($wordset_id);
+        } finally {
+            remove_filter('update_user_metadata', $meta_watcher, 10);
+        }
+
+        $this->assertSame([], $recommendation_meta_updates);
+        $this->assertSame($queue_meta, get_user_meta($admin_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
+        $this->assertSame($dismissed_meta, get_user_meta($admin_id, LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META, true));
+    }
+
+    public function test_non_study_settings_tools_skip_the_learner_category_catalog(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $full_category_catalog_calls = 0;
+        $catalog_filter = static function ($enabled) use (&$full_category_catalog_calls) {
+            $full_category_catalog_calls++;
+            return $enabled;
+        };
+        add_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
+
+        try {
+            $rendered = [];
+            foreach (['advanced', 'editor', 'import'] as $tool) {
+                $_GET = ['ll_wordset_tool' => $tool];
+                $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, $tool));
+                set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+                set_query_var('ll_wordset_view', 'settings');
+                $rendered[$tool] = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
+            }
+        } finally {
+            remove_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
+        }
+
+        $this->assertSame(0, $full_category_catalog_calls);
+        $this->assertStringContainsString('Save Advanced Settings', $rendered['advanced']);
+        $this->assertStringContainsString('ll-wordset-editor', $rendered['editor']);
+        $this->assertStringContainsString((string) $fixture['category_name'], $rendered['import']);
+    }
+
+    public function test_unauthorized_editor_request_cannot_trigger_the_expensive_category_catalog(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = ['ll_wordset_tool' => 'editor'];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $full_category_catalog_calls = 0;
+        $catalog_filter = static function ($enabled) use (&$full_category_catalog_calls) {
+            $full_category_catalog_calls++;
+            return $enabled;
+        };
+        add_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
+        try {
+            $html = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
+        } finally {
+            remove_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
+        }
+
+        $this->assertSame(0, $full_category_catalog_calls);
+        $this->assertStringNotContainsString('ll-wordset-editor', $html);
+    }
+
     public function test_visibility_tool_skips_unrelated_settings_prework(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();
