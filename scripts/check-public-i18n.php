@@ -205,6 +205,239 @@ function ll_tools_public_i18n_reference_matches_rule(string $reference, array $r
 }
 
 /**
+ * Resolve named PHP functions to their inclusive source line ranges.
+ *
+ * @return array<string, array{0:int,1:int}>
+ */
+function ll_tools_public_i18n_source_function_ranges(string $source_path): array
+{
+    $source = file_get_contents($source_path);
+    if ($source === false) {
+        throw new RuntimeException("Unable to read public i18n source: {$source_path}");
+    }
+
+    $tokens = token_get_all($source);
+    $ranges = [];
+    $token_count = count($tokens);
+
+    for ($index = 0; $index < $token_count; $index++) {
+        $token = $tokens[$index];
+        if (!is_array($token) || $token[0] !== T_FUNCTION) {
+            continue;
+        }
+
+        $function_line = (int) $token[2];
+        $name = '';
+        $open_index = null;
+        $expect_name = true;
+        for ($cursor = $index + 1; $cursor < $token_count; $cursor++) {
+            $candidate = $tokens[$cursor];
+            if (is_array($candidate) && in_array($candidate[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            $is_ampersand = $candidate === '&'
+                || (is_array($candidate) && defined('T_AMPERSAND_NOT_FOLLOWED_BY_VAR_OR_VARARG') && in_array(
+                    $candidate[0],
+                    [T_AMPERSAND_NOT_FOLLOWED_BY_VAR_OR_VARARG, T_AMPERSAND_FOLLOWED_BY_VAR_OR_VARARG],
+                    true
+                ));
+            if ($expect_name && $is_ampersand) {
+                continue;
+            }
+            if ($expect_name && is_array($candidate) && $candidate[0] === T_STRING) {
+                $name = (string) $candidate[1];
+                $expect_name = false;
+                continue;
+            }
+            if ($expect_name) {
+                break;
+            }
+            if ($candidate === '{') {
+                $open_index = $cursor;
+                break;
+            }
+            if ($candidate === ';') {
+                break;
+            }
+        }
+
+        // Anonymous functions and abstract/interface method declarations do not
+        // provide stable source-policy symbols.
+        if ($name === '' || $open_index === null) {
+            continue;
+        }
+        if (isset($ranges[$name])) {
+            throw new RuntimeException("Duplicate named function in public i18n source {$source_path}: {$name}");
+        }
+
+        $depth = 0;
+        $line = $function_line;
+        $end_line = null;
+        for ($cursor = $open_index; $cursor < $token_count; $cursor++) {
+            $candidate = $tokens[$cursor];
+            $candidate_text = is_array($candidate) ? (string) $candidate[1] : (string) $candidate;
+            if (is_array($candidate)) {
+                $line = (int) $candidate[2];
+            }
+
+            if ($candidate === '{') {
+                $depth++;
+            } elseif ($candidate === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    $end_line = $line;
+                    break;
+                }
+            }
+
+            $line += substr_count($candidate_text, "\n");
+        }
+
+        if ($end_line === null) {
+            throw new RuntimeException("Unable to resolve the end of public i18n source function {$name} in {$source_path}");
+        }
+
+        $ranges[$name] = [$function_line, $end_line];
+    }
+
+    return $ranges;
+}
+
+/**
+ * @param string[] $lines
+ */
+function ll_tools_public_i18n_find_unique_anchor_line(
+    array $lines,
+    int $start_line,
+    int $end_line,
+    string $anchor,
+    string $description
+): int {
+    if ($anchor === '') {
+        throw new RuntimeException("Empty public i18n source anchor: {$description}");
+    }
+
+    $matches = [];
+    for ($line = $start_line; $line <= $end_line; $line++) {
+        if (strpos((string) ($lines[$line - 1] ?? ''), $anchor) !== false) {
+            $matches[] = $line;
+        }
+    }
+
+    if (count($matches) !== 1) {
+        throw new RuntimeException(sprintf(
+            'Expected exactly one public i18n source anchor for %s; found %d.',
+            $description,
+            count($matches)
+        ));
+    }
+
+    return $matches[0];
+}
+
+/**
+ * Expand named functions and anchor-bounded regions into concrete line ranges.
+ *
+ * @param array<int, array<string, mixed>> $rules
+ * @return array<int, array<string, mixed>>
+ */
+function ll_tools_public_i18n_expand_source_rules(array $rules, string $root_dir): array
+{
+    $root_dir = rtrim($root_dir, "\\/");
+    $expanded = [];
+
+    foreach ($rules as $rule) {
+        if (!is_array($rule)) {
+            continue;
+        }
+
+        $symbols = $rule['symbols'] ?? [];
+        $regions = $rule['regions'] ?? [];
+        $has_semantic_selectors = (is_array($symbols) && $symbols !== [])
+            || (is_array($regions) && $regions !== []);
+        if (!$has_semantic_selectors) {
+            $expanded[] = $rule;
+            continue;
+        }
+
+        $path = ll_tools_public_i18n_normalize_path((string) ($rule['path'] ?? ''));
+        if ($path === '' || strpbrk($path, '*?[') !== false) {
+            throw new RuntimeException('Semantic public i18n source selectors require one exact source path.');
+        }
+
+        $source_path = $root_dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        if (!is_file($source_path)) {
+            throw new RuntimeException("Public i18n semantic source not found: {$source_path}");
+        }
+
+        $function_ranges = ll_tools_public_i18n_source_function_ranges($source_path);
+        $ranges = is_array($rule['ranges'] ?? null) ? $rule['ranges'] : [];
+        foreach ($symbols as $symbol) {
+            $symbol = (string) $symbol;
+            if (!isset($function_ranges[$symbol])) {
+                throw new RuntimeException("Public i18n source function not found in {$path}: {$symbol}");
+            }
+            $ranges[] = $function_ranges[$symbol];
+        }
+
+        $lines = file($source_path, FILE_IGNORE_NEW_LINES);
+        if ($lines === false) {
+            throw new RuntimeException("Unable to read public i18n source lines: {$source_path}");
+        }
+        foreach ($regions as $region_index => $region) {
+            if (!is_array($region)) {
+                throw new RuntimeException("Invalid public i18n source region in {$path} at index {$region_index}");
+            }
+
+            $symbol = (string) ($region['symbol'] ?? '');
+            if ($symbol !== '' && !isset($function_ranges[$symbol])) {
+                throw new RuntimeException("Public i18n region function not found in {$path}: {$symbol}");
+            }
+
+            [$function_start, $function_end] = $symbol !== ''
+                ? $function_ranges[$symbol]
+                : [1, count($lines)];
+            $name = (string) ($region['name'] ?? "region {$region_index}");
+            $scope_description = $symbol !== '' ? $symbol : '(file)';
+            $start = ll_tools_public_i18n_find_unique_anchor_line(
+                $lines,
+                $function_start,
+                $function_end,
+                (string) ($region['start'] ?? ''),
+                "{$path} {$scope_description} {$name} start"
+            );
+            $end = ll_tools_public_i18n_find_unique_anchor_line(
+                $lines,
+                $function_start,
+                $function_end,
+                (string) ($region['end'] ?? ''),
+                "{$path} {$scope_description} {$name} end"
+            );
+            if ($end < $start) {
+                throw new RuntimeException("Public i18n source region ends before it starts: {$path} {$scope_description} {$name}");
+            }
+            $ranges[] = [$start, $end];
+        }
+
+        $normalized_ranges = [];
+        foreach ($ranges as $range) {
+            if (!is_array($range) || count($range) < 2) {
+                continue;
+            }
+            $normalized_ranges[(int) $range[0] . ':' . (int) $range[1]] = [(int) $range[0], (int) $range[1]];
+        }
+        $normalized_ranges = array_values($normalized_ranges);
+        usort($normalized_ranges, static fn (array $left, array $right): int => $left <=> $right);
+
+        unset($rule['symbols'], $rule['regions']);
+        $rule['ranges'] = $normalized_ranges;
+        $expanded[] = $rule;
+    }
+
+    return $expanded;
+}
+
+/**
  * @return array<string, mixed>
  */
 function ll_tools_public_i18n_load_config(string $root_dir = ''): array
@@ -222,12 +455,14 @@ function ll_tools_public_i18n_load_config(string $root_dir = ''): array
 /**
  * @return array<int, array<string, mixed>>
  */
-function ll_tools_public_i18n_select_public_entries(string $pot_path, array $config): array
+function ll_tools_public_i18n_select_public_entries(string $pot_path, array $config, string $root_dir = ''): array
 {
     $rules = $config['include_sources'] ?? [];
     if (!is_array($rules) || $rules === []) {
         throw new RuntimeException('No public i18n include sources configured.');
     }
+    $root_dir = $root_dir !== '' ? rtrim($root_dir, "\\/") : ll_tools_public_i18n_root_dir();
+    $rules = ll_tools_public_i18n_expand_source_rules($rules, $root_dir);
 
     $entries = ll_tools_public_i18n_parse_po_file($pot_path);
     $selected = [];
@@ -902,7 +1137,7 @@ function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
     $config = ll_tools_public_i18n_load_config($root_dir);
     $pot_path = (string) ($args['pot'] ?: ($root_dir . DIRECTORY_SEPARATOR . ll_tools_public_i18n_normalize_path((string) $config['pot_file'])));
     $manifest_path = (string) ($args['manifest'] ?: ($root_dir . DIRECTORY_SEPARATOR . ll_tools_public_i18n_normalize_path((string) $config['manifest_file'])));
-    $selected_entries = ll_tools_public_i18n_select_public_entries($pot_path, $config);
+    $selected_entries = ll_tools_public_i18n_select_public_entries($pot_path, $config, $root_dir);
 
     if (!empty($args['update_manifest'])) {
         ll_tools_public_i18n_write_manifest(

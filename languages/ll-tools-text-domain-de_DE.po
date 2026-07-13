@@ -27767,3 +27767,7 @@ msgstr "Die ersten %1$d von %2$d importierten Kategorien werden angezeigt."
 #: includes/admin/export-import.php:3646
 msgid "Selecting a category exports that category only, plus word images assigned to it. Choose All categories for a full export."
 msgstr "Wenn du eine Kategorie auswählst, wird nur diese Kategorie exportiert, plus die ihr zugewiesenen Vokabelbilder. Wähle Alle Kategorien für einen vollständigen Export."
+
+#: includes/pages/content-lesson-pages.php:650
+msgid "Text pages"
+msgstr "Textseiten"

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/scripts/check-public-i18n.php';
+require_once dirname(__DIR__, 2) . '/scripts/translate-public-i18n-deepl.php';
 
 final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
 {
@@ -12,7 +13,7 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $pot_path = $root . DIRECTORY_SEPARATOR . ll_tools_public_i18n_normalize_path((string) $config['pot_file']);
         $manifest_path = $root . DIRECTORY_SEPARATOR . ll_tools_public_i18n_normalize_path((string) $config['manifest_file']);
 
-        $selected_entries = ll_tools_public_i18n_select_public_entries($pot_path, $config);
+        $selected_entries = ll_tools_public_i18n_select_public_entries($pot_path, $config, $root);
         $manifest = ll_tools_public_i18n_load_manifest($manifest_path);
         $manifest_entries = is_array($manifest['entries'] ?? null) ? $manifest['entries'] : [];
         $comparison = ll_tools_public_i18n_compare_manifest_entries($manifest_entries, $selected_entries);
@@ -108,12 +109,27 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertContains('Sign in', $msgids);
         $this->assertContains('Search dictionary', $msgids);
         $this->assertContains('Star word', $msgids);
-        $this->assertContains('Recording text', $msgids);
+        $this->assertContains('Loading next recommendation...', $msgids);
 
         $this->assertNotContains('Create manager account', $msgids);
+        $this->assertNotContains('Loading queue categories...', $msgids);
+        $this->assertNotContains('Recording text', $msgids);
         $this->assertNotContains('Internal review note', $msgids);
         $this->assertNotContains('Open in admin', $msgids);
         $this->assertNotContains('Add a media URL in the lesson editor to play this lesson here.', $msgids);
+    }
+
+    public function test_source_policy_does_not_use_numeric_line_ranges(): void
+    {
+        $config = ll_tools_public_i18n_load_config($this->pluginRoot());
+        foreach ((array) ($config['include_sources'] ?? []) as $rule) {
+            $this->assertIsArray($rule);
+            $this->assertArrayNotHasKey(
+                'ranges',
+                $rule,
+                sprintf('Replace numeric ranges for %s with symbols or semantic regions.', (string) ($rule['path'] ?? 'unknown'))
+            );
+        }
     }
 
     public function test_tier2_po_generator_preserves_manifest_fields_and_plural_slots(): void
@@ -198,6 +214,157 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertContains('shortcodes', $types);
         $this->assertContains('html_tags', $types);
         $this->assertContains('newline_count', $types);
+    }
+
+    public function test_semantic_source_selectors_survive_inserted_lines_and_exclude_staff_regions(): void
+    {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'll-public-i18n-' . bin2hex(random_bytes(6));
+        $source_path = $root . DIRECTORY_SEPARATOR . 'includes' . DIRECTORY_SEPARATOR . 'sample.php';
+        $pot_path = $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'sample.pot';
+        mkdir(dirname($source_path), 0777, true);
+        mkdir(dirname($pot_path), 0777, true);
+
+        $source = <<<'PHP'
+<?php
+function staff_queue(): void {
+    __('Recorder queue', 'll-tools-text-domain');
+}
+function render_screen(): void {
+    $staff_before = __('Manager before', 'll-tools-text-domain');
+    $public_start = __('Public start', 'll-tools-text-domain');
+    $public_end = __('Public end', 'll-tools-text-domain');
+    $staff_after = __('Manager after', 'll-tools-text-domain');
+}
+function public_helper(): void {
+    __('Learner helper', 'll-tools-text-domain');
+}
+PHP;
+        $msgids = ['Recorder queue', 'Manager before', 'Public start', 'Public end', 'Manager after', 'Learner helper'];
+        $write_fixture = static function (string $fixture_source) use ($source_path, $pot_path, $msgids): void {
+            file_put_contents($source_path, $fixture_source);
+            $source_lines = preg_split('/\R/', $fixture_source) ?: [];
+            $chunks = ["msgid \"\"\nmsgstr \"\""];
+            foreach ($msgids as $msgid) {
+                $matching_lines = [];
+                foreach ($source_lines as $index => $source_line) {
+                    if (strpos($source_line, "'{$msgid}'") !== false) {
+                        $matching_lines[] = $index + 1;
+                    }
+                }
+                if (count($matching_lines) !== 1) {
+                    throw new RuntimeException("Invalid semantic selector fixture for {$msgid}");
+                }
+                $chunks[] = '#: includes/sample.php:' . $matching_lines[0]
+                    . "\n" . ll_tools_public_i18n_po_line('msgid', $msgid)
+                    . "\nmsgstr \"\"";
+            }
+            file_put_contents($pot_path, implode("\n\n", $chunks) . "\n");
+        };
+        $config = [
+            'include_sources' => [[
+                'path' => 'includes/sample.php',
+                'symbols' => ['public_helper'],
+                'regions' => [[
+                    'name' => 'learner-copy',
+                    'symbol' => 'render_screen',
+                    'start' => '$public_start =',
+                    'end' => '$public_end =',
+                ]],
+            ]],
+        ];
+
+        try {
+            $write_fixture($source);
+            $before = ll_tools_public_i18n_select_public_entries($pot_path, $config, $root);
+
+            $shifted_source = str_replace(
+                "<?php\n",
+                "<?php\n// New source lines above every selected function.\n\n\n",
+                $source
+            );
+            $write_fixture($shifted_source);
+            $after = ll_tools_public_i18n_select_public_entries($pot_path, $config, $root);
+        } finally {
+            @unlink($pot_path);
+            @unlink($source_path);
+            @rmdir(dirname($pot_path));
+            @rmdir(dirname($source_path));
+            @rmdir($root);
+        }
+
+        $selected_before = array_column($before, 'msgid');
+        $selected_after = array_column($after, 'msgid');
+        $this->assertEqualsCanonicalizing(['Learner helper', 'Public start', 'Public end'], $selected_before);
+        $this->assertEqualsCanonicalizing($selected_before, $selected_after);
+        $this->assertNotContains('Recorder queue', $selected_after);
+        $this->assertNotContains('Manager before', $selected_after);
+        $this->assertNotContains('Manager after', $selected_after);
+    }
+
+    public function test_deepl_catalog_append_preserves_existing_content(): void
+    {
+        $po_path = tempnam(sys_get_temp_dir(), 'll-public-i18n-deepl-');
+        $this->assertIsString($po_path);
+
+        $new_public_entry = [
+            'key' => ll_tools_public_i18n_entry_key([
+                'context' => null,
+                'msgid' => 'New public label',
+                'msgid_plural' => null,
+            ]),
+            'context' => '',
+            'msgid' => 'New public label',
+            'msgid_plural' => null,
+            'public_references' => ['includes/public.php:30'],
+        ];
+        $new_public_translations = [
+            $new_public_entry['key'] => ['New public translation'],
+        ];
+        file_put_contents(
+            $po_path,
+            implode("\n", [
+                'msgid ""',
+                'msgstr ""',
+                '"Language: xx_XX\\n"',
+                '"Plural-Forms: nplurals=2; plural=(n != 1);\\n"',
+                '',
+                '# Existing translator comment must remain byte-for-byte.',
+                '#: includes/public.php:10',
+                'msgid "Public label"',
+                'msgstr "Public translation"',
+                '',
+                '#: includes/admin.php:20',
+                '#, php-format',
+                'msgid "Supplemental %s"',
+                'msgstr "Supplemental translation %s"',
+                '',
+            ])
+        );
+
+        try {
+            ll_tools_public_i18n_deepl_append_missing_entries(
+                $po_path,
+                'xx_XX',
+                [$new_public_entry],
+                ['tier2_locales' => ['xx_XX' => []]],
+                $new_public_translations
+            );
+            $written = file_get_contents($po_path);
+            $written_entries = ll_tools_public_i18n_parse_po_file($po_path);
+        } finally {
+            @unlink($po_path);
+        }
+
+        $written_by_msgid = [];
+        foreach ($written_entries as $entry) {
+            $written_by_msgid[(string) ($entry['msgid'] ?? '')] = $entry;
+        }
+        $this->assertIsString($written);
+        $this->assertStringContainsString('# Existing translator comment must remain byte-for-byte.', $written);
+        $this->assertSame('Public translation', $written_by_msgid['Public label']['msgstr'][0]);
+        $this->assertSame('Supplemental translation %s', $written_by_msgid['Supplemental %s']['msgstr'][0]);
+        $this->assertContains('php-format', $written_by_msgid['Supplemental %s']['flags']);
+        $this->assertSame('New public translation', $written_by_msgid['New public label']['msgstr'][0]);
     }
 
     private function pluginRoot(): string

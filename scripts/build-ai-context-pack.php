@@ -407,6 +407,7 @@ function ll_tools_context_pack_definitions(): array
                 'Public dictionary search should avoid broad postmeta contains scans.',
                 'Static cache keys must be deterministic and locale-safe.',
                 'User-facing strings must be translation-ready and discoverable by Loco Translate.',
+                'Tier-2 public source policy must use named symbols or strict semantic regions, not numeric line ranges.',
                 'AI crawler exports must stay bounded and include anonymous public content only.',
             ],
             'sources' => [

@@ -27702,3 +27702,7 @@ msgstr "Ses dosyasının boyutu okunamadı."
 #. ll-tools-maintenance: 2026-07-10 codebase audit
 msgid "The audio file is too large for AssemblyAI transcription."
 msgstr "Ses dosyası AssemblyAI transkripsiyonu için çok büyük."
+
+#: includes/pages/content-lesson-pages.php:650
+msgid "Text pages"
+msgstr "Metin sayfaları"

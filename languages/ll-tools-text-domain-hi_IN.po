@@ -4877,3 +4877,215 @@ msgstr "लाइव शब्द सेट को staging में खीं�
 #: includes/admin/admin-dashboard-menu.php:566
 msgid "Build a one-wordset offline quiz bundle that can be turned into an Android APK."
 msgstr "एक शब्द सेट वाला ऑफलाइन क्विज़ बंडल बनाएं जिसे Android APK में बदला जा सके."
+
+#. ll-tools-public-key: e60da30b4564bfa26d4c4708992e2a56dbf0401e
+#: includes/lib/interlinear.php:1942
+msgid "Reader text"
+msgstr "पाठक पाठ"
+
+#. ll-tools-public-key: b28ae2901f5205d29793831cbb489979942f70c7
+#: includes/lib/interlinear.php:1954
+msgid "Print sources"
+msgstr "मुद्रित स्रोत"
+
+#. ll-tools-public-key: e1607cb90608a3a1bb9dd3c958bb004f36fcbfeb
+#: includes/lib/interlinear.php:2114
+msgid "Source scan"
+msgstr "स्रोत स्कैन"
+
+#. ll-tools-public-key: 50b72895e7e5d0a43443e8d16da42c629f21a0d6
+#: includes/lib/interlinear.php:2136
+msgid "Linguistic edition"
+msgstr "भाषाई संस्करण"
+
+#. ll-tools-public-key: 438a1ae07f6a132228803a0faaf78647c08fc0d6
+#: includes/lib/interlinear.php:2144
+msgid "Line %d"
+msgstr "रेखा %d"
+
+#. ll-tools-public-key: 82f84ecbbf9c47f4ab1963bd7dee1a939ebda517
+#: includes/lib/interlinear.php:2295 includes/lib/interlinear.php:2304
+msgid "Section %1$d of %2$d"
+msgstr "%2$d की धारा %1$d"
+
+#. ll-tools-public-key: 735a61b584f850e67b92e513d87e3aaf66c9249a
+#: includes/lib/interlinear.php:2603
+msgid "Show interlinear"
+msgstr "अंतररेखीय दिखाएँ"
+
+#. ll-tools-public-key: 4a634c289726b7147a7a13a54305b190d58781d3
+#: includes/lib/interlinear.php:2606
+msgid "Hide interlinear"
+msgstr "अंतररेखीय छिपाएँ"
+
+#. ll-tools-public-key: 683624e228f264b32334a0827f9db280a733e145
+#: includes/login-window.php:2160
+msgid "Sign in to continue."
+msgstr "जारी रखने के लिए साइन इन करें।"
+
+#. ll-tools-public-key: c05f4e4f473b36a583f3f4ec18e14d56ca40a0f4
+#: includes/login-window.php:2506
+msgid "Leave this field empty"
+msgstr "इस फ़ील्ड को खाली छोड़ें"
+
+#. ll-tools-public-key: 5d82315910c4ae178a8fc8712d118718161fafe7
+#: includes/login-window.php:2548
+msgid "Need an account?"
+msgstr "खाते की ज़रूरत है?"
+
+#. ll-tools-public-key: 9cbbd57520c438051360dd16a21f7a2d5bf67540
+#: includes/login-window.php:2555
+msgid "Already have an account?"
+msgstr "क्या आपका पहले से ही खाता है?"
+
+#. ll-tools-public-key: 0faf3975ec06a4b7563eae2517eff47ee58275ff
+#: includes/login-window.php:2565
+msgid "Forgot password?"
+msgstr "पासवर्ड भूल गए?"
+
+#. ll-tools-public-key: 0c08949ed7590a4f8b4361c6e9e1d2ab9f521d3b
+#: includes/pages/content-lesson-pages.php:650
+msgid "Text pages"
+msgstr "पाठ पृष्ठ"
+
+#. ll-tools-public-key: f1299d10e3f0ca397ccc8ad1494bae2724f4eec0
+#: includes/pages/content-lesson-pages.php:659
+msgid "Page %1$d of %2$d"
+msgstr "पृष्ठ %1$d, %2$d का"
+
+#. ll-tools-public-key: 31705fa7b08458bf72d14ed30babe877caf80d03
+#: includes/pages/content-lesson-pages.php:737
+msgid "Related Vocab Lessons"
+msgstr "संबंधित शब्दावली पाठ"
+
+#. ll-tools-public-key: 47e439135011d772a0b1818c437387fa46afcc95
+#: includes/pages/content-lesson-pages.php:875
+msgid "Current transcript line"
+msgstr "वर्तमान प्रतिलेख पंक्ति"
+
+#. ll-tools-public-key: 8f8f3b86702d92f5d483503269f4bf9d88fe20d1
+#: includes/pages/content-lesson-pages.php:876
+msgid "Lesson transcript"
+msgstr "पाठ प्रतिलिपि"
+
+#. ll-tools-public-key: 9aa5bb7247ca4eec9c642e70177f5b58ca9b2172
+#: includes/pages/vocab-lesson-pages.php:3740
+msgid "Remove from print"
+msgstr "प्रिंट से हटाएँ"
+
+#. ll-tools-public-key: 68171e7c5e0ebc2921771d5cbda57bb1e0bbbaaf
+#: includes/pages/wordset-pages.php:12423
+msgid "Log in"
+msgstr "लॉग इन"
+
+#. ll-tools-public-key: 08cf16853a880257bf59d45d662eb1499c245435
+#: includes/pages/wordset-pages.php:12427
+msgid "Sign up"
+msgstr "साइन अप करें"
+
+#. ll-tools-public-key: 9dce180e3ef3a61608cb8a060d5c1270c9abf70c
+#: includes/pages/wordset-pages.php:12519
+msgid "Study Settings"
+msgstr "अध्ययन सेटिंग्स"
+
+#. ll-tools-public-key: 4237e631b4748ec7fbeca1bac9690f1654d276de
+#: includes/pages/wordset-pages.php:12567
+msgid "Practice preferences, learning modes, and next activities."
+msgstr "अभ्यास प्राथमिकताएँ, सीखने के तरीके, और अगली गतिविधियाँ।"
+
+#. ll-tools-public-key: 906fc154cea9a7745938d5d3f0662c464f896b39
+#: includes/pages/wordset-pages.php:12740
+msgid "Choose a tool for this word set."
+msgstr "इस शब्द समूह के लिए एक उपकरण चुनें।"
+
+#. ll-tools-public-key: bb7276d2f315d85ecc683ce5ed9e78b65c406964
+#: includes/pages/wordset-pages.php:3132
+msgid "About this word set"
+msgstr "इस शब्द समूह के बारे में"
+
+#. ll-tools-public-key: 49a3addfb4daaac4a3cb27ddc16cfde1e9c46c67
+#: includes/pages/wordset-pages.php:3138
+msgid "Language code"
+msgstr "भाषा कोड"
+
+#. ll-tools-public-key: 486a74661c7eb79fc8b1df192eee82f330774215
+#: includes/shortcodes/flashcard-widget.php:609
+msgid "Loading categories..."
+msgstr "श्रेणियाँ लोड हो रही हैं..."
+
+#. ll-tools-public-key: 777b49cec0c0fded580dc0382067f4051e159310
+#: includes/shortcodes/quiz-pages-shortcodes.php:548 includes/shortcodes/quiz-pages-shortcodes.php:576
+msgid "Invalid request."
+msgstr "अमान्य अनुरोध।"
+
+#. ll-tools-public-key: e3b9b9e78329edcd2cae87adeb360db28ad0c68c
+#: includes/shortcodes/quiz-pages-shortcodes.php:557
+msgid "Something went wrong. Please try again."
+msgstr "कुछ गलत हो गया। कृपया फिर से प्रयास करें।"
+
+#. ll-tools-public-key: 060b627dcb3afd0a0c345fad2f72815e315f6c8e
+#: includes/shortcodes/quiz-pages-shortcodes.php:957
+msgid "Refresh"
+msgstr "ताज़ा करें"
+
+#. ll-tools-public-key: dbc208ad1d4f711a5330ed59025d6bb26d684a44
+#: includes/shortcodes/word-grid-shortcode.php:5151 includes/shortcodes/word-grid-shortcode.php:5617 includes/shortcodes/word-grid-shortcode.php:7630
+msgid "Sentence"
+msgstr "वाक्य"
+
+#. ll-tools-public-key: 2553763c133a7c8d34d66113b55059e1fd454fac
+#: includes/shortcodes/word-grid-shortcode.php:5152 includes/shortcodes/word-grid-shortcode.php:5618 includes/shortcodes/word-grid-shortcode.php:7631
+msgid "In sentence"
+msgstr "वाक्य में"
+
+#. ll-tools-public-key: 246cbe8c3c33b986eb9e64d8235dcf4651d8f996
+#: includes/shortcodes/word-grid-shortcode.php:5666
+msgid "Wordset order"
+msgstr "शब्दसमूह क्रम"
+
+#. ll-tools-public-key: 03d7ae4d72ab1cd6d56cf36ae0b3378fdfb5430f
+#: includes/shortcodes/word-grid-shortcode.php:5668
+msgid "No categories match."
+msgstr "कोई श्रेणी मेल नहीं खाती।"
+
+#. ll-tools-public-key: ce1763a83f4048e1aba066cb555987fc98912bf6
+#: includes/shortcodes/word-grid-shortcode.php:6296
+msgid "%d quizzable word"
+msgid_plural "%d quizzable words"
+msgstr[0] "%d परीक्षा योग्य शब्द"
+msgstr[1] "%d परीक्षा योग्य शब्द"
+
+#. ll-tools-public-key: 9f8cfdc71b4666353aa6e93e29ac7f742be5367f
+#: includes/shortcodes/word-grid-shortcode.php:6804
+msgid "No words found in this category."
+msgstr "इस श्रेणी में कोई शब्द नहीं मिले।"
+
+#. ll-tools-public-key: ae4f3b7a41ea22f4ac705e547c57096f8bf0a834
+#: templates/content-lesson-template.php:143
+msgid "URL:"
+msgstr "यूआरएल:"
+
+#. ll-tools-public-key: e00ac41bbd1aaa56e42a0452a18a7cd73b5305c6
+#: templates/content-lesson-template.php:236
+msgid "Notes"
+msgstr "टिप्पणियाँ"
+
+#. ll-tools-public-key: a23855625ece1c482cc680075e590384cdf25f2c
+#: templates/vocab-lesson-template.php:1367
+msgid "From Main Lessons"
+msgstr "मुख्य पाठों से"
+
+#. ll-tools-public-key: d3d3fd143513555247a1b950ccd6b2f3b7a07b3f
+#: templates/vocab-lesson-template.php:1368
+msgid "Return to the main audio/video lesson that introduced this vocabulary."
+msgstr "उस मुख्य ऑडियो/वीडियो पाठ पर लौटें जिसने इस शब्दावली का परिचय दिया था।"
+
+#. ll-tools-public-key: 4936933588be834897eaabef45d44977e2893b37
+#: templates/vocab-lesson-template.php:1395 templates/vocab-lesson-template.php:385
+msgid "Loading lesson words..."
+msgstr "पाठ के शब्द लोड हो रहे हैं..."
+
+#. ll-tools-public-key: c539d0363d766a076f0cfd80dfe866d3396d6934
+#: templates/vocab-lesson-template.php:386
+msgid "Lesson words loaded."
+msgstr "पाठ शब्द लोड हो गए।"

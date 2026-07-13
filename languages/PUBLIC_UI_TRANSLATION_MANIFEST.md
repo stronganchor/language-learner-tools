@@ -10,7 +10,10 @@ staff-only review/editing controls.
 
 `tier2-public-ui-sources.php` is the maintained source policy. It selects
 public strings from the main POT by source file and, for mixed-purpose files,
-by line range.
+by named PHP function or an anchor-bounded semantic region. Semantic anchors
+must resolve exactly once inside their configured function or file; missing or
+ambiguous anchors fail the checker instead of silently changing coverage when
+source lines move. Numeric source ranges are not used.
 
 The policy includes:
 
@@ -33,6 +36,11 @@ Refresh the manifest after changing the POT or public source policy:
 ```bash
 php scripts/check-public-i18n.php --update-manifest
 ```
+
+Use `symbols` for a whole named PHP function and `regions` for a reviewed part
+of a mixed function or template. Keep region anchors specific to stable code or
+translation keys, and add a focused movement regression when introducing a new
+selector pattern.
 
 Check every configured tier-2 locale:
 
@@ -72,7 +80,8 @@ not yet active tier-2 locales include Chinese Simplified (`zh_CN`), Arabic
 Tier-2 PO files may also include small supplemental source-backed batches added
 by autonomous upkeep. The public UI manifest remains the coverage contract for
 learner-facing strings; supplemental entries only reduce the full-source PO
-backlog for admin/plugin metadata strings.
+backlog for admin/plugin metadata strings. The DeepL refresh script preserves
+those supplemental entries while translating missing manifest entries.
 
 The integration test `PublicUiTranslationManifestTest` keeps the generated
 manifest synchronized with the current POT selection, verifies that Turkish

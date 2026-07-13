@@ -260,6 +260,145 @@ function ll_tools_public_i18n_deepl_translation_complete(array $entry, array $tr
 }
 
 /**
+ * Keep source-backed entries that are intentionally broader than the public
+ * manifest when refreshing an existing locale catalog.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function ll_tools_public_i18n_deepl_supplemental_entries(string $po_path, array $manifest_entries): array
+{
+    if (!is_file($po_path)) {
+        return [];
+    }
+
+    $manifest_keys = [];
+    foreach ($manifest_entries as $entry) {
+        if (is_array($entry)) {
+            $manifest_keys[ll_tools_public_i18n_entry_key($entry)] = true;
+        }
+    }
+
+    $supplemental = [];
+    foreach (ll_tools_public_i18n_parse_po_file($po_path) as $entry) {
+        $msgid = (string) ($entry['msgid'] ?? '');
+        if ($msgid === '') {
+            continue;
+        }
+
+        $key = ll_tools_public_i18n_entry_key($entry);
+        if (isset($manifest_keys[$key])) {
+            continue;
+        }
+
+        $supplemental[] = [
+            'key' => $key,
+            'context' => $entry['context'] === null ? '' : (string) $entry['context'],
+            'msgid' => $msgid,
+            'msgid_plural' => $entry['msgid_plural'] === null ? null : (string) $entry['msgid_plural'],
+            'references' => array_values(array_unique(array_map('strval', (array) ($entry['references'] ?? [])))),
+            'flags' => array_values(array_unique(array_map('strval', (array) ($entry['flags'] ?? [])))),
+        ];
+    }
+
+    return $supplemental;
+}
+
+/**
+ * @param array<string, array<int, string>> $translations
+ */
+function ll_tools_public_i18n_deepl_build_po_entry(
+    array $entry,
+    array $translations,
+    int $plural_count
+): string {
+    $lines = [];
+    $key = (string) ($entry['key'] ?? '');
+    if ($key !== '') {
+        $lines[] = '#. ll-tools-public-key: ' . $key;
+    }
+
+    $references = (array) ($entry['public_references'] ?? ($entry['references'] ?? []));
+    $references = array_values(array_unique(array_filter(array_map('strval', $references))));
+    sort($references, SORT_STRING);
+    if ($references !== []) {
+        $lines[] = '#: ' . implode(' ', $references);
+    }
+
+    $flags = array_values(array_unique(array_filter(array_map('strval', (array) ($entry['flags'] ?? [])))));
+    sort($flags, SORT_STRING);
+    if ($flags !== []) {
+        $lines[] = '#, ' . implode(', ', $flags);
+    }
+
+    $context = (string) ($entry['context'] ?? '');
+    if ($context !== '') {
+        $lines[] = ll_tools_public_i18n_po_line('msgctxt', $context);
+    }
+
+    $lines[] = ll_tools_public_i18n_po_line('msgid', (string) ($entry['msgid'] ?? ''));
+    if (array_key_exists('msgid_plural', $entry) && $entry['msgid_plural'] !== null) {
+        $lines[] = ll_tools_public_i18n_po_line('msgid_plural', (string) $entry['msgid_plural']);
+        for ($index = 0; $index < $plural_count; $index++) {
+            $lines[] = ll_tools_public_i18n_po_line('msgstr[' . $index . ']', (string) ($translations[$key][$index] ?? ''));
+        }
+    } else {
+        $lines[] = ll_tools_public_i18n_po_line('msgstr', (string) ($translations[$key][0] ?? ''));
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Append translated manifest entries that do not exist in the PO without
+ * rewriting existing source-backed entries or translator comments.
+ *
+ * @param array<string, array<int, string>> $translations
+ */
+function ll_tools_public_i18n_deepl_append_missing_entries(
+    string $po_path,
+    string $locale,
+    array $manifest_entries,
+    array $config,
+    array $translations
+): void {
+    $existing_keys = [];
+    foreach (ll_tools_public_i18n_parse_po_file($po_path) as $entry) {
+        if ((string) ($entry['msgid'] ?? '') !== '') {
+            $existing_keys[ll_tools_public_i18n_entry_key($entry)] = true;
+        }
+    }
+
+    $plural_count = ll_tools_public_i18n_plural_count_for_locale($locale, $config);
+    $chunks = [];
+    foreach ($manifest_entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $key = (string) ($entry['key'] ?? '');
+        if ($key === '' || isset($existing_keys[$key])) {
+            continue;
+        }
+        if (!ll_tools_public_i18n_deepl_translation_complete($entry, $translations, $plural_count)) {
+            continue;
+        }
+        $chunks[] = ll_tools_public_i18n_deepl_build_po_entry($entry, $translations, $plural_count);
+    }
+
+    if ($chunks === []) {
+        return;
+    }
+
+    $existing = file_get_contents($po_path);
+    if ($existing === false) {
+        throw new RuntimeException("Unable to read PO file: {$po_path}");
+    }
+    $separator = $existing === '' || str_ends_with($existing, "\n\n") ? '' : (str_ends_with($existing, "\n") ? "\n" : "\n\n");
+    if (file_put_contents($po_path, $separator . implode("\n\n", $chunks) . "\n", FILE_APPEND) === false) {
+        throw new RuntimeException("Unable to append translated PO entries: {$po_path}");
+    }
+}
+
+/**
  * @param array<string, array<int, string>> $translations
  */
 function ll_tools_public_i18n_deepl_write_po(string $po_path, string $locale, array $manifest_entries, array $config, array $translations): void
@@ -271,36 +410,7 @@ function ll_tools_public_i18n_deepl_write_po(string $po_path, string $locale, ar
         if (!is_array($entry)) {
             continue;
         }
-
-        $lines = [];
-        $key = (string) ($entry['key'] ?? '');
-        if ($key !== '') {
-            $lines[] = '#. ll-tools-public-key: ' . $key;
-        }
-
-        $references = (array) ($entry['public_references'] ?? ($entry['references'] ?? []));
-        $references = array_values(array_unique(array_filter(array_map('strval', $references))));
-        sort($references, SORT_STRING);
-        if ($references !== []) {
-            $lines[] = '#: ' . implode(' ', $references);
-        }
-
-        $context = (string) ($entry['context'] ?? '');
-        if ($context !== '') {
-            $lines[] = ll_tools_public_i18n_po_line('msgctxt', $context);
-        }
-
-        $lines[] = ll_tools_public_i18n_po_line('msgid', (string) ($entry['msgid'] ?? ''));
-        if (array_key_exists('msgid_plural', $entry) && $entry['msgid_plural'] !== null) {
-            $lines[] = ll_tools_public_i18n_po_line('msgid_plural', (string) $entry['msgid_plural']);
-            for ($index = 0; $index < $plural_count; $index++) {
-                $lines[] = ll_tools_public_i18n_po_line('msgstr[' . $index . ']', (string) ($translations[$key][$index] ?? ''));
-            }
-        } else {
-            $lines[] = ll_tools_public_i18n_po_line('msgstr', (string) ($translations[$key][0] ?? ''));
-        }
-
-        $chunks[] = implode("\n", $lines);
+        $chunks[] = ll_tools_public_i18n_deepl_build_po_entry($entry, $translations, $plural_count);
     }
 
     if (file_put_contents($po_path, implode("\n\n", $chunks) . "\n") === false) {
@@ -347,7 +457,25 @@ function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
     }
 
     $translations = ll_tools_public_i18n_deepl_existing_translations($po_path);
+    $supplemental_entries = ll_tools_public_i18n_deepl_supplemental_entries($po_path, $manifest_entries);
+    $existing_keys = [];
+    foreach (ll_tools_public_i18n_parse_po_file($po_path) as $existing_entry) {
+        if ((string) ($existing_entry['msgid'] ?? '') !== '') {
+            $existing_keys[ll_tools_public_i18n_entry_key($existing_entry)] = true;
+        }
+    }
     $plural_count = ll_tools_public_i18n_plural_count_for_locale($locale, $config);
+    $has_incomplete_existing_entry = false;
+    foreach ($manifest_entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $key = (string) ($entry['key'] ?? '');
+        if (isset($existing_keys[$key]) && !ll_tools_public_i18n_deepl_translation_complete($entry, $translations, $plural_count)) {
+            $has_incomplete_existing_entry = true;
+            break;
+        }
+    }
     $jobs = [];
     $cache = [];
     foreach ($manifest_entries as $entry) {
@@ -414,7 +542,23 @@ function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
         echo 'Translated ' . min($translated, count($jobs)) . '/' . count($jobs) . " strings\n";
     }
 
-    ll_tools_public_i18n_deepl_write_po($po_path, $locale, $manifest_entries, $config, $translations);
+    if ($has_incomplete_existing_entry) {
+        ll_tools_public_i18n_deepl_write_po(
+            $po_path,
+            $locale,
+            array_merge($manifest_entries, $supplemental_entries),
+            $config,
+            $translations
+        );
+    } else {
+        ll_tools_public_i18n_deepl_append_missing_entries(
+            $po_path,
+            $locale,
+            $manifest_entries,
+            $config,
+            $translations
+        );
+    }
     echo "Wrote {$po_path}\n";
 
     return 0;
