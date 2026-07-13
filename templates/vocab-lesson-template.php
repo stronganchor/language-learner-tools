@@ -598,6 +598,8 @@ if (have_posts()) {
                             $bulk_plurality_default = '';
                             $bulk_verb_tense_default = '';
                             $bulk_verb_mood_default = '';
+                            $bulk_continue_aria = esc_attr__('Continue interrupted bulk change', 'll-tools-text-domain');
+                            $bulk_continue_text = esc_html__('Continue', 'll-tools-text-domain');
                             $bulk_undo_aria = esc_attr__('Undo last bulk change', 'll-tools-text-domain');
                             $bulk_undo_text = esc_html__('Undo', 'll-tools-text-domain');
                             $bulk_panel_title_id = 'll-vocab-lesson-bulk-title-' . $post_id . '-' . $category_id;
@@ -622,12 +624,18 @@ if (have_posts()) {
                                     <div class="ll-vocab-lesson-bulk-section">
                                         <div class="ll-vocab-lesson-bulk-heading-row">
                                             <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Part of Speech', 'll-tools-text-domain'); ?></div>
-                                            <div class="ll-vocab-lesson-bulk-heading-actions">
-                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="pos" data-state="idle" role="status" aria-live="polite" hidden>
+                                                <div class="ll-vocab-lesson-bulk-heading-actions">
+                                                    <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="pos" data-state="idle" role="status" aria-live="polite" hidden>
                                                     <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
-                                                </span>
-                                                <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="pos" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                    </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-control-continue="pos" aria-label="<?php echo $bulk_continue_aria; ?>" title="<?php echo $bulk_continue_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true"><path d="m7 5 7 5-7 5z" fill="currentColor"/></svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_continue_text; ?></span>
+                                                    </button>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="pos" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
                                                     <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
                                                         <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
                                                             <path d="M8 6 4.5 9.5 8 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -665,6 +673,12 @@ if (have_posts()) {
                                                         <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
                                                         <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
                                                     </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-control-continue="gender" aria-label="<?php echo $bulk_continue_aria; ?>" title="<?php echo $bulk_continue_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true"><path d="m7 5 7 5-7 5z" fill="currentColor"/></svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_continue_text; ?></span>
+                                                    </button>
                                                     <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="gender" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
                                                         <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
                                                             <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -714,6 +728,12 @@ if (have_posts()) {
                                                         <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
                                                         <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
                                                     </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-control-continue="plurality" aria-label="<?php echo $bulk_continue_aria; ?>" title="<?php echo $bulk_continue_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true"><path d="m7 5 7 5-7 5z" fill="currentColor"/></svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_continue_text; ?></span>
+                                                    </button>
                                                     <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="plurality" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
                                                         <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
                                                             <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -758,6 +778,12 @@ if (have_posts()) {
                                                         <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
                                                         <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
                                                     </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-control-continue="verb-tense" aria-label="<?php echo $bulk_continue_aria; ?>" title="<?php echo $bulk_continue_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true"><path d="m7 5 7 5-7 5z" fill="currentColor"/></svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_continue_text; ?></span>
+                                                    </button>
                                                     <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="verb-tense" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
                                                         <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
                                                             <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -802,6 +828,12 @@ if (have_posts()) {
                                                         <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
                                                         <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
                                                     </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-control-continue="verb-mood" aria-label="<?php echo $bulk_continue_aria; ?>" title="<?php echo $bulk_continue_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true"><path d="m7 5 7 5-7 5z" fill="currentColor"/></svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_continue_text; ?></span>
+                                                    </button>
                                                     <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="verb-mood" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
                                                         <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
                                                             <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -837,6 +869,32 @@ if (have_posts()) {
                                             </div>
                                         </div>
                                     <?php endif; ?>
+                                    <div class="ll-vocab-lesson-bulk-section ll-vocab-lesson-bulk-recovery" data-ll-bulk-recovery hidden>
+                                        <div class="ll-vocab-lesson-bulk-heading-row">
+                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Interrupted bulk change', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-bulk-heading-actions">
+                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-recovery-status data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                </span>
+                                                <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-recovery-continue aria-label="<?php echo $bulk_continue_aria; ?>" title="<?php echo $bulk_continue_aria; ?>" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true"><path d="m7 5 7 5-7 5z" fill="currentColor"/></svg>
+                                                    </span>
+                                                    <span class="screen-reader-text"><?php echo $bulk_continue_text; ?></span>
+                                                </button>
+                                                <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-recovery-undo aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M8 6 4.5 9.5 8 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            <path d="M5.2 9.5h5.3a4 4 0 1 1 0 8h-1.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                        </svg>
+                                                    </span>
+                                                    <span class="screen-reader-text"><?php echo $bulk_undo_text; ?></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <span class="ll-vocab-lesson-bulk-status" data-ll-bulk-status aria-live="polite"></span>
                                 </div>
                             </div>

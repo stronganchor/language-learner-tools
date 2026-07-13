@@ -27728,3 +27728,92 @@ msgstr "Kelime dersi senkronizasyonu başarısız oldu: %s"
 #: includes/pages/vocab-lesson-pages.php:5827
 msgid "Retry Sync"
 msgstr "Senkronizasyonu Yeniden Dene"
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Another bulk request is already running. Try again shortly."
+msgstr "Başka bir toplu istek zaten çalışıyor. Kısa süre sonra yeniden dene."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "This bulk operation is no longer available."
+msgstr "Bu toplu işlem artık kullanılamıyor."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "This bulk operation cannot be continued."
+msgstr "Bu toplu işleme devam edilemez."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Finish or undo the interrupted bulk operation first."
+msgstr "Önce kesintiye uğrayan toplu işlemi tamamla veya geri al."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Unable to start the bulk operation."
+msgstr "Toplu işlem başlatılamadı."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Unable to save rollback data for this bulk batch."
+msgstr "Bu toplu işlem grubu için geri alma verisi kaydedilemedi."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Unable to save bulk operation progress."
+msgstr "Toplu işlem ilerlemesi kaydedilemedi."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "The changes were applied, but progress could not be saved. Reload to retry or undo."
+msgstr "Değişiklikler uygulandı ancak ilerleme kaydedilemedi. Yeniden denemek veya geri almak için sayfayı yeniden yükle."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Rollback data for this bulk operation is incomplete."
+msgstr "Bu toplu işleme ait geri alma verileri eksik."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "The rollback was applied, but its progress could not be saved. Reload to retry."
+msgstr "Geri alma uygulandı ancak ilerlemesi kaydedilemedi. Yeniden denemek için sayfayı yeniden yükle."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Continuing bulk change..."
+msgstr "Toplu değişikliğe devam ediliyor..."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Bulk change interrupted. Continue or undo it."
+msgstr "Toplu değişiklik kesintiye uğradı. Devam et veya geri al."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Continue interrupted bulk change"
+msgstr "Kesintiye uğrayan toplu değişikliğe devam et"
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+#, php-format
+msgid "Rollback skipped %d words changed after the bulk operation."
+msgstr "%d kelime toplu işlemden sonra değiştirildiği için geri alma sırasında atlandı."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Bulk rollback skipped words changed after the bulk operation."
+msgstr "Toplu geri alma, toplu işlemden sonra değiştirilen kelimeleri atladı."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Invalid category"
+msgstr "Geçersiz kategori"
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Unable to save rollback progress."
+msgstr "Geri alma ilerlemesi kaydedilemedi."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Another bulk request took over this operation. Reload before continuing."
+msgstr "Bu işlemi başka bir toplu istek devraldı. Devam etmeden önce sayfayı yeniden yükle."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Some words could not be updated. Reload to retry or undo."
+msgstr "Bazı kelimeler güncellenemedi. Yeniden denemek veya geri almak için sayfayı yeniden yükle."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "This older bulk rollback is no longer available. Reload before making another change."
+msgstr "Bu eski toplu geri alma işlemi artık kullanılamıyor. Başka bir değişiklik yapmadan önce sayfayı yeniden yükle."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Some words could not be restored. Reload to retry the rollback."
+msgstr "Bazı kelimeler geri yüklenemedi. Geri almayı yeniden denemek için sayfayı yeniden yükle."
+
+#. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
+msgid "Interrupted bulk change"
+msgstr "Kesintiye uğrayan toplu değişiklik"

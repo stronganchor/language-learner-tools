@@ -8,7 +8,6 @@
     const editI18n = cfg.editI18n || {};
     const orderI18n = cfg.orderI18n || {};
     const bulkI18n = cfg.bulkI18n || {};
-    const bulkBatchSize = Math.max(1, Math.min(50, parseInt(cfg.bulkBatchSize, 10) || 25));
     const prereqI18n = cfg.prereqI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
     const internalNotesCfg = (cfg.internalNotes && typeof cfg.internalNotes === 'object') ? cfg.internalNotes : {};
@@ -3356,70 +3355,6 @@
         return ($item.find('[data-ll-word-input="' + fieldName + '"]').val() || '').toString();
     }
 
-    function getWordBulkFieldLabel($item, fieldName, fallbackSelector) {
-        if (!$item || !$item.length || !fieldName) { return ''; }
-        const $input = $item.find('[data-ll-word-input="' + fieldName + '"]').first();
-        const selectedLabel = $input.length
-            ? (($input.find('option:selected').text() || '').toString().trim())
-            : '';
-        if (selectedLabel) {
-            return selectedLabel;
-        }
-        if (!fallbackSelector) {
-            return '';
-        }
-        const $fallback = $item.find(fallbackSelector).first();
-        if (!$fallback.length) {
-            return '';
-        }
-        return (($fallback.attr('aria-label') || $fallback.text() || '').toString().trim());
-    }
-
-    function captureCurrentBulkWordSnapshot($item) {
-        const wordId = parseInt($item && $item.data('word-id'), 10) || 0;
-        if (!wordId) { return null; }
-
-        const posValue = getWordBulkFieldValue($item, 'part_of_speech');
-        const genderValue = getWordBulkFieldValue($item, 'gender');
-        const pluralityValue = getWordBulkFieldValue($item, 'plurality');
-        const verbTenseValue = getWordBulkFieldValue($item, 'verb_tense');
-        const verbMoodValue = getWordBulkFieldValue($item, 'verb_mood');
-        const $genderMeta = $item.find('[data-ll-word-gender]').first();
-
-        return {
-            word_id: wordId,
-            raw: {
-                part_of_speech: posValue,
-                grammatical_gender: genderValue,
-                grammatical_plurality: pluralityValue,
-                verb_tense: verbTenseValue,
-                verb_mood: verbMoodValue
-            },
-            part_of_speech: {
-                slug: posValue,
-                label: getWordBulkFieldLabel($item, 'part_of_speech', '[data-ll-word-pos]')
-            },
-            grammatical_gender: {
-                value: genderValue,
-                label: getWordBulkFieldLabel($item, 'gender', '[data-ll-word-gender]'),
-                role: ($genderMeta.attr('data-ll-gender-role') || '').toString(),
-                style: ($genderMeta.attr('style') || '').toString(),
-                html: genderValue ? ($genderMeta.html() || '').toString() : ''
-            },
-            grammatical_plurality: {
-                value: pluralityValue,
-                label: getWordBulkFieldLabel($item, 'plurality', '[data-ll-word-plurality]')
-            },
-            verb_tense: {
-                value: verbTenseValue,
-                label: getWordBulkFieldLabel($item, 'verb_tense', '[data-ll-word-verb-tense]')
-            },
-            verb_mood: {
-                value: verbMoodValue,
-                label: getWordBulkFieldLabel($item, 'verb_mood', '[data-ll-word-verb-mood]')
-            }
-        };
-    }
 
     function parseJsonArrayAttr($el, attrName) {
         if (!$el || !$el.length) { return []; }
@@ -6681,7 +6616,6 @@
 
                 const $bulkWrap = $item.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page').find('[data-ll-word-grid-bulk]').first();
                 if ($bulkWrap.length) {
-                    clearAllBulkControlUndoSnapshots($bulkWrap);
                     syncBulkControlSelectDefaults($bulkWrap);
                 }
                 if ($grid.attr('data-ll-word-grid-reorderable') === '1') {
@@ -6986,7 +6920,7 @@
             const busy = !!isBusy;
             $wrap.toggleClass('ll-vocab-lesson-bulk--busy', busy);
             $wrap.attr('aria-busy', busy ? 'true' : 'false');
-            $wrap.find('[data-ll-bulk-control-undo]').prop('disabled', busy);
+            $wrap.find('[data-ll-bulk-control-undo], [data-ll-bulk-control-continue]').prop('disabled', busy);
         }
 
         function getBulkControlStatusElement($wrap, controlKey) {
@@ -7010,7 +6944,7 @@
 
             clearBulkControlStatusTimer($wrap, controlKey);
 
-            const nextState = ['saving', 'saved', 'error'].indexOf((statusState || '').toString()) !== -1
+            const nextState = ['saving', 'saved', 'paused', 'error'].indexOf((statusState || '').toString()) !== -1
                 ? statusState.toString()
                 : 'idle';
             const text = (message || '').toString();
@@ -7069,10 +7003,37 @@
                 activeValue: '',
                 queueOrder: [],
                 queueValues: {},
-                undoSnapshots: {}
+                operations: {}
             };
             $wrap.data('llBulkAutoState', state);
             return state;
+        }
+
+        function configureBulkRecoveryControls($wrap, controlKey, operation) {
+            const $recovery = $wrap.find('[data-ll-bulk-recovery]').first();
+            if (!$recovery.length) { return; }
+
+            const key = (controlKey || '').toString();
+            const currentKey = ($recovery.attr('data-ll-bulk-recovery-key') || '').toString();
+            const hasSpecificControl = key && $wrap
+                .find('[data-ll-bulk-control-status="' + key + '"]')
+                .not('[data-ll-bulk-recovery-status]')
+                .length > 0;
+
+            if (!operation || !operation.token || hasSpecificControl) {
+                if (!currentKey || currentKey === key) {
+                    $recovery.attr('hidden', 'hidden').removeAttr('data-ll-bulk-recovery-key');
+                    $recovery.find('[data-ll-bulk-recovery-status]').removeAttr('data-ll-bulk-control-status');
+                    $recovery.find('[data-ll-bulk-recovery-continue]').removeAttr('data-ll-bulk-control-continue');
+                    $recovery.find('[data-ll-bulk-recovery-undo]').removeAttr('data-ll-bulk-control-undo');
+                }
+                return;
+            }
+
+            $recovery.removeAttr('hidden').attr('data-ll-bulk-recovery-key', key);
+            $recovery.find('[data-ll-bulk-recovery-status]').attr('data-ll-bulk-control-status', key);
+            $recovery.find('[data-ll-bulk-recovery-continue]').attr('data-ll-bulk-control-continue', key);
+            $recovery.find('[data-ll-bulk-recovery-undo]').attr('data-ll-bulk-control-undo', key);
         }
 
         function getBulkControlUndoButton($wrap, controlKey) {
@@ -7080,39 +7041,50 @@
             return $wrap.find('[data-ll-bulk-control-undo="' + controlKey + '"]').first();
         }
 
+        function getBulkControlContinueButton($wrap, controlKey) {
+            if (!$wrap || !$wrap.length || !controlKey) { return $(); }
+            return $wrap.find('[data-ll-bulk-control-continue="' + controlKey + '"]').first();
+        }
+
         function setBulkControlsDisabled($wrap, isDisabled) {
             const disabled = !!isDisabled;
-            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-control-undo]')
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-control-undo], [data-ll-bulk-control-continue]')
                 .prop('disabled', disabled);
         }
 
-        function setBulkControlUndoSnapshot($wrap, controlKey, snapshot) {
+        function setBulkControlOperation($wrap, controlKey, operation) {
             const state = getBulkAutoState($wrap);
-            const $button = getBulkControlUndoButton($wrap, controlKey);
-            if (!state || !$button.length || !controlKey) { return; }
+            configureBulkRecoveryControls($wrap, controlKey, operation);
+            const $undoButton = getBulkControlUndoButton($wrap, controlKey);
+            const $continueButton = getBulkControlContinueButton($wrap, controlKey);
+            if (!state || !controlKey) { return; }
 
-            if (!snapshot || !Array.isArray(snapshot.rows) || !snapshot.rows.length) {
-                delete state.undoSnapshots[controlKey];
-                $button.attr('hidden', 'hidden');
+            if (!operation || typeof operation !== 'object' || !operation.token) {
+                delete state.operations[controlKey];
+                $undoButton.attr('hidden', 'hidden');
+                $continueButton.attr('hidden', 'hidden');
                 return;
             }
 
-            state.undoSnapshots[controlKey] = snapshot;
-            $button.removeAttr('hidden');
+            state.operations[controlKey] = operation;
+            $undoButton.attr('hidden', operation.can_undo ? null : 'hidden');
+            $continueButton.attr('hidden', operation.can_continue ? null : 'hidden');
         }
 
-        function clearAllBulkControlUndoSnapshots($wrap, exceptKey) {
+        function clearAllBulkControlOperations($wrap, exceptKey) {
             const state = getBulkAutoState($wrap);
             if (!state) { return; }
 
             const keepKey = (exceptKey || '').toString();
-            Object.keys(state.undoSnapshots || {}).forEach(function (controlKey) {
+            Object.keys(state.operations || {}).forEach(function (controlKey) {
                 if (keepKey && controlKey === keepKey) {
                     return;
                 }
-                delete state.undoSnapshots[controlKey];
+                delete state.operations[controlKey];
                 getBulkControlUndoButton($wrap, controlKey).attr('hidden', 'hidden');
+                getBulkControlContinueButton($wrap, controlKey).attr('hidden', 'hidden');
                 setBulkControlStatus($wrap, controlKey, 'idle', '');
+                configureBulkRecoveryControls($wrap, controlKey, null);
             });
         }
 
@@ -7842,45 +7814,7 @@
             }
         };
 
-        function getBulkControlWordItems(context, controlKey) {
-            const config = bulkControlConfigs[controlKey] || null;
-            if (!context || !context.$grid || !config) { return $(); }
 
-            const $items = context.$grid.find('.word-item');
-            if (!$items.length) {
-                return $items;
-            }
-
-            if (config.scope === 'noun') {
-                return $items.filter(function () {
-                    return getWordBulkFieldValue($(this), 'part_of_speech') === 'noun';
-                });
-            }
-            if (config.scope === 'verb') {
-                return $items.filter(function () {
-                    return getWordBulkFieldValue($(this), 'part_of_speech') === 'verb';
-                });
-            }
-
-            return $items;
-        }
-
-        function collectBulkUndoSnapshot(context, controlKey) {
-            const $items = getBulkControlWordItems(context, controlKey);
-            const rows = [];
-
-            $items.each(function () {
-                const snapshot = captureCurrentBulkWordSnapshot($(this));
-                if (snapshot) {
-                    rows.push(snapshot);
-                }
-            });
-
-            return {
-                controlKey: controlKey,
-                rows: rows
-            };
-        }
 
         function summarizeBulkDefaultValues(values) {
             const list = Array.isArray(values) ? values : [];
@@ -8091,72 +8025,148 @@
             setBulkBusy($wrap, false);
         }
 
-        function persistBulkControlUpdate($wrap, controlKey, value) {
+
+        function setBulkOperationSelectionDisabled($wrap, isDisabled) {
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood]')
+                .prop('disabled', !!isDisabled);
+        }
+
+        function syncBulkOperationUi($wrap, controlKey, operation) {
+            const config = bulkControlConfigs[controlKey] || null;
+            const normalized = operation && typeof operation === 'object' ? operation : null;
+            setBulkControlOperation($wrap, controlKey, normalized);
+            if (!normalized || !config) { return; }
+
+            const $select = getBulkControlSelect($wrap, controlKey);
+            const requestValue = (normalized.request_value || '').toString();
+            if ($select.length && requestValue) {
+                if (!$select.find('option').filter(function () {
+                    return (($(this).val() || '').toString() === requestValue);
+                }).length) {
+                    $select.append($('<option>', {
+                        value: requestValue,
+                        text: requestValue,
+                        'data-ll-bulk-temp-option': '1'
+                    }));
+                }
+                $select.val(requestValue);
+            }
+
+            if (normalized.status === 'running' || normalized.status === 'undoing') {
+                setBulkControlStatus($wrap, controlKey, 'paused', bulkMessages.interrupted || bulkMessages.error);
+            } else if (normalized.status === 'complete') {
+                setBulkControlStatus(
+                    $wrap,
+                    controlKey,
+                    'saved',
+                    config.successTemplate
+                        ? formatBulkMessage(config.successTemplate, parseInt(normalized.updated, 10) || 0)
+                        : bulkMessages.saved
+                );
+            }
+        }
+
+        function loadBulkOperationStatus($wrap, callback) {
+            const context = getBulkContext($wrap);
+            if (!context) {
+                if (typeof callback === 'function') { callback(false); }
+                return;
+            }
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_bulk_status',
+                nonce: editNonce,
+                wordset_id: context.wordsetId,
+                category_id: context.categoryId
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    if (typeof callback === 'function') { callback(false); }
+                    return;
+                }
+                const operations = response.data && response.data.operations && typeof response.data.operations === 'object'
+                    ? response.data.operations
+                    : {};
+                clearAllBulkControlOperations($wrap);
+                Object.keys(operations).forEach(function (controlKey) {
+                    syncBulkOperationUi($wrap, controlKey, operations[controlKey]);
+                });
+                const hasInterrupted = Object.keys(operations).some(function (controlKey) {
+                    const operation = operations[controlKey] || {};
+                    return operation.status === 'running' || operation.status === 'undoing';
+                });
+                setBulkOperationSelectionDisabled($wrap, hasInterrupted);
+                if (typeof callback === 'function') { callback(true); }
+            }).fail(function () {
+                if (typeof callback === 'function') { callback(false); }
+            });
+        }
+
+        function persistBulkControlUpdate($wrap, controlKey, value, options) {
             const state = getBulkAutoState($wrap);
             const config = bulkControlConfigs[controlKey] || null;
             const context = getBulkContext($wrap);
             const requestValue = (value || '').toString();
+            const requestOptions = options && typeof options === 'object' ? options : {};
+            const initialOperationToken = (requestOptions.operationToken || '').toString();
 
-            if (!state || !config || !requestValue) { return; }
-            if (!context) {
-                setBulkControlStatus($wrap, controlKey, 'error', bulkMessages.error);
-                setBulkStatus($wrap, bulkMessages.error, true);
-                flushBulkControlQueue($wrap);
-                return;
-            }
+            if (!state || !config || !requestValue || !context || state.activeKey) { return; }
 
-            const undoSnapshot = collectBulkUndoSnapshot(context, controlKey);
             state.activeKey = controlKey;
             state.activeValue = requestValue;
             setBulkBusy($wrap, true);
+            setBulkOperationSelectionDisabled($wrap, true);
             setBulkStatus($wrap, '', false);
-            setBulkControlStatus($wrap, controlKey, 'saving', bulkMessages.saving);
+            setBulkControlStatus(
+                $wrap,
+                controlKey,
+                'saving',
+                initialOperationToken ? (bulkMessages.continuing || bulkMessages.saving) : bulkMessages.saving
+            );
 
             let updatedTotal = 0;
+            let operationToken = initialOperationToken;
             let finished = false;
+            let firstSuccess = true;
 
             function finishRequest() {
                 if (finished) { return; }
                 finished = true;
                 const currentState = getBulkAutoState($wrap);
-                const $select = getBulkControlSelect($wrap, controlKey);
-                const currentValue = $select.length ? ($select.val() || '').toString() : '';
-
                 if (currentState) {
                     currentState.activeKey = '';
                     currentState.activeValue = '';
-                    if (currentValue) {
-                        if (currentValue !== requestValue) {
-                            queueBulkControlValue(currentState, controlKey, currentValue);
-                        }
-                    } else {
-                        setBulkControlStatus($wrap, controlKey, 'idle', '');
-                    }
                 }
-
+                const hasInterrupted = currentState && Object.keys(currentState.operations || {}).some(function (key) {
+                    const currentOperation = currentState.operations[key] || {};
+                    return currentOperation.status === 'running' || currentOperation.status === 'undoing';
+                });
+                setBulkOperationSelectionDisabled($wrap, !!hasInterrupted);
+                setBulkBusy($wrap, false);
                 flushBulkControlQueue($wrap);
             }
 
             function failRequest(errorMessage) {
                 setBulkControlStatus($wrap, controlKey, 'error', errorMessage || bulkMessages.error);
                 setBulkStatus($wrap, errorMessage || bulkMessages.error, true);
+                loadBulkOperationStatus($wrap);
                 finishRequest();
             }
 
-            function completeRequest() {
-                const hasUndoSnapshot = !!(undoSnapshot && Array.isArray(undoSnapshot.rows) && undoSnapshot.rows.length && updatedTotal > 0);
+            function completeRequest(operation) {
                 updateGridLayouts();
                 syncBulkControlSelectDefaults($wrap);
-                clearAllBulkControlUndoSnapshots($wrap, controlKey);
-                setBulkControlUndoSnapshot($wrap, controlKey, hasUndoSnapshot ? undoSnapshot : null);
+                clearAllBulkControlOperations($wrap, controlKey);
+                syncBulkOperationUi($wrap, controlKey, operation);
                 setBulkStatus($wrap, '', false);
                 setBulkControlStatus(
                     $wrap,
                     controlKey,
                     'saved',
-                    config.successTemplate ? formatBulkMessage(config.successTemplate, updatedTotal) : bulkMessages.saved
+                    config.successTemplate
+                        ? formatBulkMessage(config.successTemplate, parseInt(operation && operation.updated, 10) || updatedTotal)
+                        : bulkMessages.saved
                 );
-                if (!hasUndoSnapshot) {
+                if (!operation || !operation.can_undo) {
                     scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
                 }
                 finishRequest();
@@ -8171,7 +8181,11 @@
                     category_id: context.categoryId,
                     after_id: Math.max(0, parseInt(afterId, 10) || 0)
                 };
-                payload[config.requestField] = requestValue;
+                if (operationToken) {
+                    payload.operation_token = operationToken;
+                } else {
+                    payload[config.requestField] = requestValue;
+                }
 
                 $.post(ajaxUrl, payload).done(function (response) {
                     if (!response || response.success !== true) {
@@ -8185,6 +8199,15 @@
                     }
 
                     const data = response.data || {};
+                    const operation = data.operation && typeof data.operation === 'object' ? data.operation : null;
+                    if (operation && operation.token) {
+                        operationToken = operation.token.toString();
+                        if (firstSuccess) {
+                            clearAllBulkControlOperations($wrap, controlKey);
+                            firstSuccess = false;
+                        }
+                        syncBulkOperationUi($wrap, controlKey, operation);
+                    }
                     const updatedCount = typeof config.applyResponse === 'function'
                         ? (parseInt(config.applyResponse(context, data), 10) || 0)
                         : (Array.isArray(data.word_ids) ? data.word_ids.length : 0);
@@ -8199,8 +8222,7 @@
                         runBatch(nextAfterId);
                         return;
                     }
-
-                    completeRequest();
+                    completeRequest(operation);
                 }).fail(function (jqXHR) {
                     failRequest(readAjaxErrorMessage(jqXHR, bulkMessages.error));
                 });
@@ -8213,9 +8235,8 @@
             const state = getBulkAutoState($wrap);
             const config = bulkControlConfigs[controlKey] || null;
             const context = getBulkContext($wrap);
-            const snapshot = state && state.undoSnapshots ? state.undoSnapshots[controlKey] : null;
-
-            if (!state || !config || !context || !snapshot || !Array.isArray(snapshot.rows) || !snapshot.rows.length || state.activeKey) {
+            const operation = state && state.operations ? state.operations[controlKey] : null;
+            if (!state || !config || !context || !operation || !operation.token || !operation.can_undo || state.activeKey) {
                 return;
             }
 
@@ -8223,28 +8244,12 @@
             state.activeValue = '';
             setBulkControlsDisabled($wrap, true);
             setBulkBusy($wrap, true);
+            setBulkOperationSelectionDisabled($wrap, true);
             setBulkStatus($wrap, '', false);
             setBulkControlStatus($wrap, controlKey, 'saving', bulkMessages.saving);
 
-            const payloadRows = snapshot.rows.map(function (row) {
-                const raw = row && row.raw && typeof row.raw === 'object' ? row.raw : {};
-                return {
-                    word_id: parseInt(row && row.word_id, 10) || 0,
-                    part_of_speech: (raw.part_of_speech || '').toString(),
-                    grammatical_gender: (raw.grammatical_gender || '').toString(),
-                    grammatical_plurality: (raw.grammatical_plurality || '').toString(),
-                    verb_tense: (raw.verb_tense || '').toString(),
-                    verb_mood: (raw.verb_mood || '').toString()
-                };
-            }).filter(function (row) {
-                return row.word_id > 0;
-            });
-
-            const payloadChunks = [];
-            for (let offset = 0; offset < payloadRows.length; offset += bulkBatchSize) {
-                payloadChunks.push(payloadRows.slice(offset, offset + bulkBatchSize));
-            }
             let finished = false;
+            let conflictCount = 0;
 
             function finishUndo() {
                 if (finished) { return; }
@@ -8256,33 +8261,24 @@
                 }
                 setBulkControlsDisabled($wrap, false);
                 setBulkBusy($wrap, false);
+                setBulkOperationSelectionDisabled($wrap, false);
             }
 
             function failUndo(errorMessage) {
                 setBulkControlStatus($wrap, controlKey, 'error', errorMessage || bulkMessages.undoError);
                 setBulkStatus($wrap, errorMessage || bulkMessages.undoError, true);
+                loadBulkOperationStatus($wrap);
                 finishUndo();
             }
 
-            function runUndoChunk(index) {
-                if (index >= payloadChunks.length) {
-                    updateGridLayouts();
-                    syncBulkControlSelectDefaults($wrap);
-                    clearAllBulkControlUndoSnapshots($wrap);
-                    setBulkStatus($wrap, '', false);
-                    setBulkControlStatus($wrap, controlKey, 'saved', bulkMessages.undoSuccess);
-                    scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
-                    finishUndo();
-                    return;
-                }
-
+            function runUndoChunk() {
                 $.post(ajaxUrl, {
                     action: 'll_tools_word_grid_bulk_undo',
                     nonce: editNonce,
                     mode: config.mode,
                     wordset_id: context.wordsetId,
                     category_id: context.categoryId,
-                    snapshot: JSON.stringify(payloadChunks[index])
+                    operation_token: operation.token
                 }).done(function (response) {
                     if (!response || response.success !== true) {
                         const responseMessage = response && typeof response.data === 'string'
@@ -8296,17 +8292,33 @@
 
                     const data = response.data || {};
                     applyBulkUndoWords(context, Array.isArray(data.words) ? data.words : []);
-                    runUndoChunk(index + 1);
+                    conflictCount += Math.max(0, parseInt(data.conflict_count, 10) || 0);
+                    if (data.has_more_undo === true) {
+                        syncBulkOperationUi($wrap, controlKey, data.operation || operation);
+                        runUndoChunk();
+                        return;
+                    }
+
+                    updateGridLayouts();
+                    syncBulkControlSelectDefaults($wrap);
+                    clearAllBulkControlOperations($wrap);
+                    setBulkStatus($wrap, '', false);
+                    setBulkControlStatus(
+                        $wrap,
+                        controlKey,
+                        conflictCount > 0 ? 'paused' : 'saved',
+                        conflictCount > 0
+                            ? formatBulkMessage(bulkMessages.undoConflict || bulkMessages.undoSuccess, conflictCount)
+                            : bulkMessages.undoSuccess
+                    );
+                    scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+                    finishUndo();
                 }).fail(function (jqXHR) {
                     failUndo(readAjaxErrorMessage(jqXHR, bulkMessages.undoError));
                 });
             }
 
-            if (!payloadChunks.length) {
-                failUndo(bulkMessages.undoError);
-                return;
-            }
-            runUndoChunk(0);
+            runUndoChunk();
         }
 
         if ($prereqEditors.length) {
@@ -8317,7 +8329,9 @@
 
         if ($bulkEditors.length) {
             $bulkEditors.each(function () {
-                syncBulkControlSelectDefaults($(this), null, { preserveExistingOnEmpty: true });
+                const $bulkEditor = $(this);
+                syncBulkControlSelectDefaults($bulkEditor, null, { preserveExistingOnEmpty: true });
+                loadBulkOperationStatus($bulkEditor);
             });
         }
 
@@ -8402,6 +8416,21 @@
         }
 
         if ($bulkEditors.length) {
+            $bulkEditors.on('click', '[data-ll-bulk-control-continue]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
+                const $wrap = $btn.closest('[data-ll-word-grid-bulk]');
+                const controlKey = ($btn.attr('data-ll-bulk-control-continue') || '').toString();
+                const state = getBulkAutoState($wrap);
+                const operation = state && state.operations ? state.operations[controlKey] : null;
+                if (!$wrap.length || !controlKey || !operation || !operation.token || !operation.can_continue) { return; }
+                persistBulkControlUpdate($wrap, controlKey, operation.request_value || '', {
+                    operationToken: operation.token
+                });
+            });
+
             $bulkEditors.on('click', '[data-ll-bulk-control-undo]', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -9460,7 +9489,6 @@
                 updateOriginalInputs($item);
                 const $bulkWrap = $item.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page').find('[data-ll-word-grid-bulk]').first();
                 if ($bulkWrap.length) {
-                    clearAllBulkControlUndoSnapshots($bulkWrap);
                     syncBulkControlSelectDefaults($bulkWrap);
                 }
                 setEditStatus($item, '');

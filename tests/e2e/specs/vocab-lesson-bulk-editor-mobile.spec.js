@@ -73,6 +73,9 @@ function buildMinimalWordGridMarkup(options = {}) {
                       <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
                       <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
                     </span>
+                    <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-control-continue="pos" aria-label="Continue interrupted bulk change" hidden>
+                      <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">C</span>
+                    </button>
                     <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="pos" aria-label="Undo last bulk change" hidden>
                       <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">U</span>
                     </button>
@@ -108,6 +111,19 @@ function buildMinimalWordGridMarkup(options = {}) {
                     <option value="Singular" selected>Singular</option>
                     <option value="Plural">Plural</option>
                   </select>
+                </div>
+              </div>
+              <div class="ll-vocab-lesson-bulk-section ll-vocab-lesson-bulk-recovery" data-ll-bulk-recovery hidden>
+                <div class="ll-vocab-lesson-bulk-heading-row">
+                  <div class="ll-vocab-lesson-bulk-heading">Interrupted bulk change</div>
+                  <div class="ll-vocab-lesson-bulk-heading-actions">
+                    <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-recovery-status data-state="idle" role="status" hidden>
+                      <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                      <span data-ll-bulk-control-status-message hidden></span>
+                    </span>
+                    <button type="button" class="ll-vocab-lesson-bulk-control-undo ll-vocab-lesson-bulk-control-continue" data-ll-bulk-recovery-continue hidden>C</button>
+                    <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-recovery-undo hidden>U</button>
+                  </div>
                 </div>
               </div>
               <span class="ll-vocab-lesson-bulk-status" data-ll-bulk-status aria-live="polite"></span>
@@ -215,8 +231,11 @@ function buildWordGridConfig(options = {}) {
     bulkI18n: {
       saving: 'Updating...',
       saved: 'Saved.',
+      continuing: 'Continuing bulk change...',
+      interrupted: 'Bulk change interrupted. Continue or undo it.',
       undoLabel: 'Undo last bulk change',
       undoSuccess: 'Bulk changes undone.',
+      undoConflict: 'Rollback skipped %d words changed after the bulk operation.',
       undoError: 'Unable to undo bulk changes.',
       posSuccess: 'Updated %d words.',
       error: 'Unable to update words.'
@@ -234,28 +253,58 @@ async function mountMobileBulkEditor(page, options = {}) {
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
   }, buildWordGridConfig(options));
-  await page.evaluate((simulateCursorBatches) => {
+  await page.evaluate(({ simulateCursorBatches, interruptedOperation }) => {
     window.llSimulateBulkBatches = !!simulateCursorBatches;
     window.llBulkPostCalls = [];
+    window.llBulkTargetValue = interruptedOperation ? interruptedOperation.request_value : '';
+    window.llBulkDurableOperation = interruptedOperation || null;
+    window.llUndoCallCount = 0;
     jQuery.post = function (_url, data) {
       const payload = JSON.parse(JSON.stringify(data || {}));
-      window.llBulkPostCalls.push(payload);
       const deferred = jQuery.Deferred();
 
-      if (payload.action === 'll_tools_word_grid_bulk_undo') {
-        let undoWordIds = [101, 102];
-        if (window.llSimulateBulkBatches) {
-          try {
-            undoWordIds = JSON.parse(payload.snapshot || '[]').map((row) => parseInt(row.word_id, 10) || 0).filter(Boolean);
-          } catch (_error) {
-            undoWordIds = [];
+      if (payload.action === 'll_tools_word_grid_bulk_status') {
+        const operationKey = window.llBulkDurableOperation
+          ? (window.llBulkDurableOperation.control_key || 'pos')
+          : '';
+        deferred.resolve({
+          success: true,
+          data: {
+            operations: window.llBulkDurableOperation
+              ? { [operationKey]: window.llBulkDurableOperation }
+              : {}
           }
-        }
+        });
+        return deferred.promise();
+      }
+
+      window.llBulkPostCalls.push(payload);
+      if (payload.action === 'll_tools_word_grid_bulk_undo') {
+        window.llUndoCallCount += 1;
+        const hasMoreUndo = window.llSimulateBulkBatches && window.llUndoCallCount === 1;
+        const undoWordIds = window.llSimulateBulkBatches
+          ? (hasMoreUndo ? [102] : [101])
+          : [101, 102];
+        window.llBulkDurableOperation = hasMoreUndo
+          ? {
+              token: 'bulk-token',
+              mode: 'pos',
+              control_key: 'pos',
+              request_value: window.llBulkTargetValue || 'adjective',
+              status: 'undoing',
+              updated: 2,
+              can_continue: false,
+              can_undo: true
+            }
+          : null;
         deferred.resolve({
           success: true,
           data: {
             message: 'Bulk changes undone.',
             word_ids: undoWordIds,
+            has_more_undo: hasMoreUndo,
+            operation: window.llBulkDurableOperation || {},
+            conflict_count: 0,
             words: [
               {
                 word_id: 101,
@@ -282,16 +331,34 @@ async function mountMobileBulkEditor(page, options = {}) {
       const cursorBatch = window.llSimulateBulkBatches;
       const afterId = parseInt(payload.after_id, 10) || 0;
       const batchWordIds = cursorBatch ? (afterId > 0 ? [102] : [101]) : [101, 102];
+      if (payload.part_of_speech) {
+        window.llBulkTargetValue = payload.part_of_speech;
+      }
+      const hasMore = cursorBatch && afterId === 0;
+      window.llBulkDurableOperation = {
+        token: 'bulk-token',
+        mode: 'pos',
+        control_key: 'pos',
+        request_field: 'part_of_speech',
+        request_value: window.llBulkTargetValue || 'adjective',
+        status: hasMore ? 'running' : 'complete',
+        processed: hasMore ? 1 : 2,
+        updated: hasMore ? 1 : 2,
+        can_continue: hasMore,
+        can_undo: true
+      };
 
       deferred.resolve({
         success: true,
         data: {
           word_ids: batchWordIds,
-          has_more: cursorBatch && afterId === 0,
-          next_after_id: cursorBatch && afterId === 0 ? 101 : 102,
+          has_more: hasMore,
+          next_after_id: hasMore ? 101 : 102,
+          operation_token: 'bulk-token',
+          operation: window.llBulkDurableOperation,
           part_of_speech: {
-            slug: payload.part_of_speech || '',
-            label: payload.part_of_speech === 'adjective' ? 'Adjective' : 'Noun'
+            slug: window.llBulkTargetValue || '',
+            label: window.llBulkTargetValue === 'adjective' ? 'Adjective' : 'Noun'
           },
           gender_cleared: true,
           plurality_cleared: true,
@@ -301,7 +368,10 @@ async function mountMobileBulkEditor(page, options = {}) {
       });
       return deferred.promise();
     };
-  }, !!options.simulateCursorBatches);
+  }, {
+    simulateCursorBatches: !!options.simulateCursorBatches,
+    interruptedOperation: options.interruptedOperation || null
+  });
   await page.addScriptTag({ content: wordGridScriptSource });
 }
 
@@ -393,8 +463,72 @@ test('mobile bulk edit continues cursor batches and chunks undo payloads', async
   const calls = await page.evaluate(() => window.llBulkPostCalls);
   expect(calls[0].after_id).toBe(0);
   expect(calls[1].after_id).toBe(101);
-  expect(JSON.parse(calls[2].snapshot)).toHaveLength(1);
-  expect(JSON.parse(calls[3].snapshot)).toHaveLength(1);
+  expect(calls[1].operation_token).toBe('bulk-token');
+  expect(calls[2].operation_token).toBe('bulk-token');
+  expect(calls[3].operation_token).toBe('bulk-token');
+});
+
+test('mobile bulk edit recovers an interrupted operation and continues it after reload', async ({ page }) => {
+  await mountMobileBulkEditor(page, {
+    simulateCursorBatches: true,
+    interruptedOperation: {
+      token: 'bulk-token',
+      mode: 'pos',
+      control_key: 'pos',
+      request_field: 'part_of_speech',
+      request_value: 'adjective',
+      status: 'running',
+      processed: 1,
+      updated: 1,
+      can_continue: true,
+      can_undo: true
+    }
+  });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await expect(page.locator('[data-ll-bulk-control-continue="pos"]')).toBeVisible();
+  await expect(page.locator('[data-ll-bulk-control-undo="pos"]')).toBeVisible();
+  await expect(page.locator('[data-ll-bulk-pos]')).toBeDisabled();
+
+  await page.locator('[data-ll-bulk-control-continue="pos"]').click();
+  await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 2);
+  await expect(page.locator('[data-ll-bulk-control-status="pos"]')).toHaveAttribute('data-state', 'saved');
+  await expect(page.locator('[data-ll-bulk-control-continue="pos"]')).toBeHidden();
+  await expect(page.locator('[data-ll-bulk-control-undo="pos"]')).toBeVisible();
+
+  const calls = await page.evaluate(() => window.llBulkPostCalls);
+  expect(calls[0].operation_token).toBe('bulk-token');
+  expect(calls[0].part_of_speech).toBeUndefined();
+});
+
+test('mobile bulk edit exposes generic undo when an interrupted feature control is unavailable', async ({ page }) => {
+  await mountMobileBulkEditor(page, {
+    interruptedOperation: {
+      token: 'bulk-token',
+      mode: 'gender',
+      control_key: 'gender',
+      request_field: 'grammatical_gender',
+      request_value: 'Feminine',
+      status: 'running',
+      processed: 1,
+      updated: 1,
+      can_continue: false,
+      can_undo: true
+    }
+  });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await expect(page.locator('[data-ll-bulk-recovery]')).toBeVisible();
+  await expect(page.locator('[data-ll-bulk-control-continue="gender"]')).toBeHidden();
+  await expect(page.locator('[data-ll-bulk-control-undo="gender"]')).toBeVisible();
+
+  await page.locator('[data-ll-bulk-control-undo="gender"]').click();
+  await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 1);
+  await expect(page.locator('[data-ll-bulk-recovery]')).toBeHidden();
+
+  const calls = await page.evaluate(() => window.llBulkPostCalls);
+  expect(calls[0].mode).toBe('gender');
+  expect(calls[0].operation_token).toBe('bulk-token');
 });
 
 test('mobile bulk edit neutralizes hostile theme select and button styles', async ({ page }) => {

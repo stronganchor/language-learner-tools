@@ -1560,6 +1560,21 @@ body.ll-vocab-lesson-category-settings-open {
     transform: translate(-50%, -60%) rotate(45deg);
 }
 
+.ll-vocab-lesson-bulk-control-status[data-state="paused"] .ll-vocab-lesson-bulk-control-status-icon {
+    background: #a16207;
+}
+
+.ll-vocab-lesson-bulk-control-status[data-state="paused"] .ll-vocab-lesson-bulk-control-status-icon::before {
+    content: "";
+    position: absolute;
+    width: 5px;
+    height: 8px;
+    border-left: 2px solid #ffffff;
+    border-right: 2px solid #ffffff;
+    top: 5px;
+    left: 6px;
+}
+
 .ll-vocab-lesson-bulk-control-status[data-state="error"] .ll-vocab-lesson-bulk-control-status-icon {
     background: #b91c1c;
 }
@@ -1613,6 +1628,10 @@ body.ll-vocab-lesson-category-settings-open {
     border-color: #aac8be !important;
 }
 
+.ll-vocab-lesson-bulk-panel.ll-tools-settings-panel .ll-vocab-lesson-bulk-control-continue.ll-vocab-lesson-bulk-control-continue {
+    color: #1f6b5c !important;
+}
+
 .ll-vocab-lesson-bulk-panel.ll-tools-settings-panel .ll-vocab-lesson-bulk-control-undo.ll-vocab-lesson-bulk-control-undo:focus-visible {
     outline: 3px solid rgba(31, 107, 92, 0.2) !important;
     outline-offset: 1px !important;
@@ -1635,6 +1654,10 @@ body.ll-vocab-lesson-category-settings-open {
     width: 14px;
     height: 14px;
     display: block;
+}
+
+.ll-vocab-lesson-bulk-recovery[hidden] {
+    display: none !important;
 }
 
 .ll-vocab-lesson-bulk-section--prereq {

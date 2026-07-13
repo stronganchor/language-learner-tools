@@ -259,11 +259,13 @@ function ll_tools_context_pack_definitions(): array
                 'Recorder queue overviews select one recorder and hydrate compact category summaries in bounded batches.',
                 'Recorder queue summaries use durable content, structure, and recording-type epochs; request-local core cache tokens are not durable invalidators.',
                 'Global vocab-lesson settings and cron syncs queue the durable reconciliation job; each continuation must cap cleanup rows and one wordset category cursor.',
+                'Word-grid bulk edits prepare rollback chunks before mutation, revalidate persisted targets, fence state writes by lease, verify mutation/restore readback, and delete expired chunks in bounded scheduled batches.',
             ],
             'sources' => [
                 'includes/pages/wordset-pages.php',
                 'includes/pages/wordset-editor.php',
                 'includes/pages/vocab-lesson-pages.php',
+                'includes/lib/word-grid-bulk-operations.php',
                 'includes/shortcodes/wordset-*.php',
                 'includes/shortcodes/word-grid-shortcode.php',
                 'templates/wordset-page-template.php',
