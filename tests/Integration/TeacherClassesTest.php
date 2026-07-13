@@ -762,6 +762,163 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Select a learner account', $html);
     }
 
+    public function test_admin_classes_page_bounds_class_account_and_student_progress_queries(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $admin_user = self::factory()->user->create_and_get([
+            'role' => 'administrator',
+            'user_email' => 'bounded-classes-admin@example.org',
+            'display_name' => 'Bounded Classes Admin',
+        ]);
+        $this->assertInstanceOf(WP_User::class, $admin_user);
+        $admin_user->add_cap('view_ll_tools');
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'bounded-classes-teacher@example.org',
+            'display_name' => 'Bounded Classes Teacher',
+        ]);
+
+        $class_ids = [];
+        foreach (['Alpha', 'Bravo', 'Charlie', 'Delta'] as $class_name) {
+            $class_id = ll_tools_teacher_class_create(
+                $teacher_id,
+                'Bounded ' . $class_name . ' Class',
+                $this->default_wordset_id
+            );
+            $this->assertIsInt($class_id);
+            $class_ids[] = (int) $class_id;
+        }
+
+        foreach (['Delta', 'Charlie', 'Bravo', 'Alpha'] as $learner_name) {
+            $learner_id = self::factory()->user->create([
+                'role' => 'll_tools_learner',
+                'user_email' => 'bounded-' . strtolower($learner_name) . '@example.org',
+                'display_name' => 'Bounded Learner ' . $learner_name,
+            ]);
+            $this->assertTrue(ll_tools_teacher_class_add_student($class_ids[0], $learner_id));
+        }
+
+        $page_size_filter = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_teacher_classes_admin_class_page_size', $page_size_filter);
+        add_filter('ll_tools_teacher_classes_admin_account_page_size', $page_size_filter);
+        add_filter('ll_tools_teacher_classes_admin_student_page_size', $page_size_filter);
+
+        $class_query_sizes = [];
+        $class_query_orderings = [];
+        $account_query_sizes = [];
+        $progress_query_include_sizes = [];
+        $progress_query_limits = [];
+        $user_query_orderings = [];
+        $post_query_watcher = static function (WP_Query $query) use (&$class_query_sizes, &$class_query_orderings): void {
+            if (!in_array(LL_TOOLS_TEACHER_CLASS_POST_TYPE, (array) $query->get('post_type'), true)) {
+                return;
+            }
+
+            $class_query_sizes[] = (int) $query->get('posts_per_page');
+            $class_query_orderings[] = $query->get('orderby');
+        };
+        $user_query_watcher = static function (WP_User_Query $query) use (&$account_query_sizes, &$progress_query_include_sizes, &$progress_query_limits, &$user_query_orderings): void {
+            $user_query_orderings[] = $query->get('orderby');
+            $include = array_values(array_filter(array_map('intval', (array) $query->get('include'))));
+            if (!empty($include)) {
+                $progress_query_include_sizes[] = count($include);
+                $progress_query_limits[] = (int) $query->get('number');
+                return;
+            }
+
+            $account_query_sizes[] = (int) $query->get('number');
+        };
+        add_action('pre_get_posts', $post_query_watcher);
+        add_action('pre_get_users', $user_query_watcher);
+
+        $original_get = $_GET;
+        $_GET = ['class_id' => (string) $class_ids[0]];
+        wp_set_current_user((int) $admin_user->ID);
+
+        ob_start();
+        try {
+            ll_tools_render_teacher_classes_page();
+            $html = (string) ob_get_clean();
+
+            $_GET['ll_tools_student_page'] = '3';
+            ob_start();
+            ll_tools_render_teacher_classes_page();
+            $clamped_html = (string) ob_get_clean();
+
+            ob_start();
+            $first_class_delete_result = ll_tools_teacher_class_delete($class_ids[2]);
+            $second_class_delete_result = ll_tools_teacher_class_delete($class_ids[3]);
+            $_GET = [
+                'class_id' => (string) $class_ids[0],
+                'll_tools_class_page' => '2',
+            ];
+            ll_tools_render_teacher_classes_page();
+        } finally {
+            $class_clamped_html = (string) ob_get_clean();
+            $_GET = $original_get;
+            remove_action('pre_get_posts', $post_query_watcher);
+            remove_action('pre_get_users', $user_query_watcher);
+            remove_filter('ll_tools_teacher_classes_admin_class_page_size', $page_size_filter);
+            remove_filter('ll_tools_teacher_classes_admin_account_page_size', $page_size_filter);
+            remove_filter('ll_tools_teacher_classes_admin_student_page_size', $page_size_filter);
+        }
+
+        $this->assertNotEmpty($class_query_sizes);
+        $this->assertIsArray($first_class_delete_result);
+        $this->assertIsArray($second_class_delete_result);
+        $this->assertSame([3], array_values(array_unique($class_query_sizes)));
+        foreach ($class_query_orderings as $class_query_ordering) {
+            $this->assertSame(['title' => 'ASC', 'ID' => 'ASC'], $class_query_ordering);
+        }
+        $this->assertGreaterThanOrEqual(2, count($account_query_sizes));
+        foreach ($account_query_sizes as $account_query_size) {
+            $this->assertSame(3, $account_query_size);
+        }
+        $this->assertSame([4, 4, 4], $progress_query_include_sizes);
+        $this->assertSame([2, 2, 2], $progress_query_limits);
+        foreach ($user_query_orderings as $user_query_ordering) {
+            $this->assertSame(['display_name' => 'ASC', 'ID' => 'ASC'], $user_query_ordering);
+        }
+
+        $this->assertStringContainsString('name="ll_tools_class_search"', $html);
+        $this->assertStringContainsString('name="ll_tools_account_search"', $html);
+        $this->assertStringContainsString('ll_tools_class_page=2', $html);
+        $this->assertStringContainsString('ll_tools_account_page=2', $html);
+        $this->assertStringContainsString('ll_tools_student_page=2', $html);
+        $this->assertStringContainsString('Bounded Alpha Class', $html);
+        $this->assertStringContainsString('Bounded Bravo Class', $html);
+        $this->assertStringNotContainsString('Bounded Charlie Class', $html);
+        $this->assertStringNotContainsString('Bounded Delta Class', $html);
+        $this->assertStringContainsString('Bounded Learner Alpha', $html);
+        $this->assertStringContainsString('Bounded Learner Bravo', $html);
+        $this->assertStringNotContainsString('Bounded Learner Charlie', $html);
+        $this->assertStringNotContainsString('Bounded Learner Delta', $html);
+        $this->assertStringContainsString('Page 30d rounds', $html);
+        $this->assertStringContainsString('name="ll_tools_teacher_redirect_to"', $html);
+
+        $clamped_progress_html = strstr($clamped_html, '<h3>Student progress');
+        $this->assertIsString($clamped_progress_html);
+        $this->assertStringContainsString('Bounded Learner Charlie', $clamped_progress_html);
+        $this->assertStringContainsString('Bounded Learner Delta', $clamped_progress_html);
+        $this->assertStringNotContainsString('Bounded Learner Alpha', $clamped_progress_html);
+        $this->assertStringNotContainsString('Bounded Learner Bravo', $clamped_progress_html);
+        $this->assertStringNotContainsString('No learners have joined this class yet.', $clamped_progress_html);
+        $this->assertStringContainsString('ll_tools_student_page=1', $clamped_progress_html);
+
+        $this->assertStringContainsString('Bounded Alpha Class', $class_clamped_html);
+        $this->assertStringContainsString('Bounded Bravo Class', $class_clamped_html);
+        $this->assertStringNotContainsString('No classes exist yet.', $class_clamped_html);
+        $this->assertStringNotContainsString('ll_tools_class_page=2', $class_clamped_html);
+        $this->assertMatchesRegularExpression(
+            '/name="ll_tools_teacher_redirect_to" value="[^"]*class_id=' . $class_ids[0] . '[^"]*"/',
+            $class_clamped_html
+        );
+    }
+
     public function test_teacher_classes_page_hides_manual_assignment_controls_for_non_admin_teachers(): void
     {
         ll_tools_register_or_refresh_teacher_role();

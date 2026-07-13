@@ -484,6 +484,7 @@ function ll_tools_context_pack_definitions(): array
                 'Game launch and study candidate pools should be capped before hydration.',
                 'Offline export can do batch work, but it should be explicit and resumable where possible.',
                 'Progress views should prefer aggregate rows and bounded category lookups.',
+                'Teacher-class admin surfaces must page classes, account options, and learner progress before hydration; assignment search must remain bounded.',
             ],
             'sources' => [
                 'includes/offline-app-sync.php',

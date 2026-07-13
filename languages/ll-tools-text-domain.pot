@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-13T17:35:21+00:00\n"
+"POT-Creation-Date: 2026-07-13T18:43:27+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -218,7 +218,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:383
 #: includes/admin/teacher-classes-page.php:36
 #: includes/admin/teacher-classes-page.php:37
-#: includes/admin/teacher-classes-page.php:538
+#: includes/admin/teacher-classes-page.php:669
 #: includes/pages/wordset-pages.php:11288
 #: includes/pages/wordset-pages.php:11393
 #: includes/pages/wordset-pages.php:12481
@@ -1081,8 +1081,8 @@ msgstr ""
 
 #: includes/admin/audio-processor-admin.php:193
 #: includes/admin/ipa-keyboard-admin.php:500
-#: includes/admin/teacher-classes-page.php:817
-#: includes/admin/teacher-classes-page.php:849
+#: includes/admin/teacher-classes-page.php:1028
+#: includes/admin/teacher-classes-page.php:1061
 #: includes/admin/word-option-rules-admin.php:298
 #: includes/admin/word-option-rules-admin.php:2274
 #: includes/admin/word-option-rules-admin.php:2455
@@ -1099,8 +1099,8 @@ msgstr ""
 #: includes/admin/missing-audio-admin-page.php:657
 #: includes/admin/orphan-media-admin.php:1875
 #: includes/admin/recording-types-admin.php:163
-#: includes/admin/teacher-classes-page.php:643
-#: includes/admin/teacher-classes-page.php:674
+#: includes/admin/teacher-classes-page.php:838
+#: includes/admin/teacher-classes-page.php:873
 #: includes/pages/wordset-pages.php:11448
 #: includes/pages/wordset-pages.php:22737
 #: includes/shortcodes/site-tools-shortcode.php:1312
@@ -1517,6 +1517,8 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:647
 #: includes/admin/ipa-keyboard-admin.php:673
 #: includes/admin/ipa-keyboard-admin.php:696
+#: includes/admin/teacher-classes-page.php:699
+#: includes/admin/teacher-classes-page.php:814
 #: includes/admin/word-option-rules-admin.php:1956
 #: includes/pages/wordset-pages.php:11323
 #: includes/pages/wordset-pages.php:11405
@@ -2504,8 +2506,8 @@ msgstr ""
 #: includes/admin/dictionary-import-admin.php:3010
 #: includes/admin/duplicate-category-words-admin.php:693
 #: includes/admin/offline-app-export.php:743
-#: includes/admin/teacher-classes-page.php:637
-#: includes/admin/teacher-classes-page.php:695
+#: includes/admin/teacher-classes-page.php:832
+#: includes/admin/teacher-classes-page.php:903
 #: includes/admin/uploads/audio-upload-form.php:404
 #: includes/admin/uploads/image-upload-form.php:584
 #: includes/pages/wordset-pages.php:12679
@@ -4050,7 +4052,7 @@ msgstr ""
 #: includes/admin/export-import.php:4180
 #: includes/admin/offline-app-export.php:747
 #: includes/admin/site-sync-admin.php:1958
-#: includes/admin/teacher-classes-page.php:585
+#: includes/admin/teacher-classes-page.php:755
 #: includes/admin/word-option-rules-admin.php:1890
 #: includes/admin/word-option-rules-admin.php:2632
 #: includes/post-types/content-lesson-post-type.php:1491
@@ -4132,7 +4134,7 @@ msgstr ""
 #: includes/admin/export-import.php:4286
 #: includes/admin/export-import.php:4382
 #: includes/admin/ipa-keyboard-admin.php:629
-#: includes/admin/teacher-classes-page.php:568
+#: includes/admin/teacher-classes-page.php:738
 #: includes/admin/word-option-rules-admin.php:1888
 #: includes/pages/wordset-pages.php:11362
 #: includes/post-types/content-lesson-post-type.php:1487
@@ -6160,7 +6162,7 @@ msgid "Optimize Image"
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:1552
-#: includes/admin/teacher-classes-page.php:714
+#: includes/admin/teacher-classes-page.php:922
 msgid "Unavailable"
 msgstr ""
 
@@ -6259,6 +6261,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:468
 #: includes/admin/ipa-keyboard-admin.php:492
 #: includes/admin/site-sync-admin.php:1126
+#: includes/admin/teacher-classes-page.php:497
 #: includes/admin/word-option-rules-admin.php:1980
 #: includes/admin/word-option-rules-admin.php:2584
 #: includes/lib/interlinear.php:1670
@@ -6282,6 +6285,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:469
 #: includes/admin/ipa-keyboard-admin.php:493
 #: includes/admin/site-sync-admin.php:1129
+#: includes/admin/teacher-classes-page.php:502
 #: includes/admin/word-option-rules-admin.php:1987
 #: includes/admin/word-option-rules-admin.php:2594
 #: includes/flashcard-shell.php:195
@@ -10800,102 +10804,147 @@ msgstr ""
 msgid "Untitled class"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:539
+#: includes/admin/teacher-classes-page.php:670
 msgid "Create classes, invite learners, and review progress for students you teach."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:544
+#: includes/admin/teacher-classes-page.php:676
+#: includes/admin/teacher-classes-page.php:692
+#: includes/pages/wordset-pages.php:11319
+msgid "Find account"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:707
+#: includes/pages/wordset-pages.php:11327
+msgid "Account results"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:713
 msgid "Create a class"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:546
+#: includes/admin/teacher-classes-page.php:715
 #: includes/pages/wordset-pages.php:11345
 msgid "Create a word set before creating classes."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:554
+#: includes/admin/teacher-classes-page.php:724
 #: includes/pages/wordset-pages.php:11353
 msgid "Class name"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:563
+#: includes/admin/teacher-classes-page.php:733
 msgid "Use a short label that learners will recognize in invitation emails."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:594
+#: includes/admin/teacher-classes-page.php:764
 msgid "Each class tracks progress for one word set only."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:600
-#: includes/admin/teacher-classes-page.php:639
-#: includes/admin/teacher-classes-page.php:693
+#: includes/admin/teacher-classes-page.php:770
+#: includes/admin/teacher-classes-page.php:834
+#: includes/admin/teacher-classes-page.php:901
 #: includes/pages/wordset-pages.php:11373
 #: includes/privacy.php:274
 #: includes/user-roles/teacher-role.php:36
 msgid "Teacher"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:615
+#: includes/admin/teacher-classes-page.php:785
 msgid "Administrators can create the class for any existing user. The selected user will receive the Teacher role automatically if needed."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:620
+#: includes/admin/teacher-classes-page.php:790
 #: includes/pages/wordset-pages.php:11385
 msgid "Create class"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:627
-msgid "No classes exist yet. Create one to start inviting learners."
-msgstr ""
-
-#: includes/admin/teacher-classes-page.php:632
+#: includes/admin/teacher-classes-page.php:795
 #: includes/pages/wordset-pages.php:11393
 msgid "Your classes"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:636
+#: includes/admin/teacher-classes-page.php:807
+#: includes/pages/wordset-pages.php:11401
+msgid "Find class"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:821
+msgid "No classes match your search."
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:823
+msgid "No classes exist yet. Create one to start inviting learners."
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:831
 #: includes/privacy.php:271
 #: includes/teacher-classes.php:27
 msgid "Class"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:641
-#: includes/admin/teacher-classes-page.php:699
+#: includes/admin/teacher-classes-page.php:836
+#: includes/admin/teacher-classes-page.php:907
 #: includes/pages/wordset-pages.php:11495
 msgid "Students"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:642
-#: includes/admin/teacher-classes-page.php:665
+#: includes/admin/teacher-classes-page.php:837
+#: includes/admin/teacher-classes-page.php:863
 #: includes/pages/wordset-pages.php:11440
 msgid "Open"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:658
-#: includes/admin/teacher-classes-page.php:696
+#: includes/admin/teacher-classes-page.php:856
+#: includes/admin/teacher-classes-page.php:904
 msgid "Not set"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:669
+#: includes/admin/teacher-classes-page.php:867
 #: includes/pages/wordset-pages.php:11442
 #, php-format
 msgid "Delete %s?"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:701
+#: includes/admin/teacher-classes-page.php:888
+#: includes/pages/wordset-pages.php:11458
+msgid "Class results"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:909
+#: includes/pages/wordset-pages.php:11499
+msgid "Page 30d rounds"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:909
 #: includes/pages/wordset-pages.php:11499
 msgid "30d rounds"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:705
+#: includes/admin/teacher-classes-page.php:913
+#: includes/pages/wordset-pages.php:11503
+msgid "Page studied"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:913
 msgid "Studied words"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:707
+#: includes/admin/teacher-classes-page.php:915
+#: includes/pages/wordset-pages.php:11507
+msgid "Page mastered"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:915
 msgid "Mastered words"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:711
+#: includes/admin/teacher-classes-page.php:919
+#: includes/pages/wordset-pages.php:11511
+msgid "Page hard"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:919
 #: includes/pages/wordset-pages.php:20885
 #: includes/pages/wordset-pages.php:21060
 #: includes/pages/wordset-pages.php:22768
@@ -10903,122 +10952,122 @@ msgstr ""
 msgid "Hard words"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:713
+#: includes/admin/teacher-classes-page.php:921
 #: includes/pages/wordset-pages.php:11578
 msgid "Signup link"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:714
+#: includes/admin/teacher-classes-page.php:922
 #: includes/pages/wordset-pages.php:22409
 #: includes/pages/wordset-pages.php:22420
 msgid "Ready"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:721
+#: includes/admin/teacher-classes-page.php:929
 msgid "Assign a teacher"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:722
+#: includes/admin/teacher-classes-page.php:930
 msgid "Choose which user should manage this class. The selected user will receive the Teacher role automatically if needed."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:724
+#: includes/admin/teacher-classes-page.php:932
 msgid "No eligible user accounts are currently available to assign as teachers."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:731
+#: includes/admin/teacher-classes-page.php:940
 msgid "Teacher account"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:741
+#: includes/admin/teacher-classes-page.php:950
 msgid "Assign teacher to class"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:748
+#: includes/admin/teacher-classes-page.php:957
 msgid "Assign an existing learner now"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:749
+#: includes/admin/teacher-classes-page.php:958
 msgid "Administrators can add an existing learner account to this class immediately without waiting for the learner to open an invitation link."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:751
+#: includes/admin/teacher-classes-page.php:960
 #: includes/pages/wordset-pages.php:11524
 msgid "No eligible learner accounts are currently available to assign."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:758
+#: includes/admin/teacher-classes-page.php:968
 #: includes/pages/wordset-pages.php:11533
 msgid "Learner account"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:760
+#: includes/admin/teacher-classes-page.php:970
 #: includes/pages/wordset-pages.php:11535
 msgid "Select a learner account"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:768
+#: includes/admin/teacher-classes-page.php:978
 msgid "This adds the learner to the selected class immediately and updates the learner account membership list."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:769
+#: includes/admin/teacher-classes-page.php:979
 msgid "Assign learner to class"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:775
+#: includes/admin/teacher-classes-page.php:985
 msgid "Invite an existing learner"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:781
+#: includes/admin/teacher-classes-page.php:992
 msgid "Learner email"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:787
+#: includes/admin/teacher-classes-page.php:998
 #: includes/pages/wordset-pages.php:11567
 msgid "learner@example.com"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:790
+#: includes/admin/teacher-classes-page.php:1001
 msgid "This only sends to learner accounts that already exist on the site."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:791
+#: includes/admin/teacher-classes-page.php:1002
 msgid "Send invitation email"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:796
+#: includes/admin/teacher-classes-page.php:1007
 msgid "Learner signup link"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:797
+#: includes/admin/teacher-classes-page.php:1008
 msgid "Share this link with a learner who does not have an account yet. The learner account created from this link will join the class automatically."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:806
+#: includes/admin/teacher-classes-page.php:1017
 #: includes/pages/wordset-pages.php:11603
 msgid "Student progress"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:810
+#: includes/admin/teacher-classes-page.php:1021
 #: includes/admin/user-progress-report.php:829
 #: includes/pages/wordset-pages.php:11616
 #: includes/user-roles/learner-role.php:13
 msgid "Learner"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:811
+#: includes/admin/teacher-classes-page.php:1022
 #: includes/admin/user-progress-report.php:830
 #: includes/login-window.php:2439
 #: includes/pages/wordset-pages.php:11622
 msgid "Email"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:812
+#: includes/admin/teacher-classes-page.php:1023
 #: includes/admin/user-progress-report.php:834
 msgid "30d Rounds"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:813
+#: includes/admin/teacher-classes-page.php:1024
 #: includes/admin/user-progress-report.php:838
 #: includes/admin/user-progress-report.php:999
 #: includes/admin/user-progress-report.php:1030
@@ -11027,7 +11076,7 @@ msgstr ""
 msgid "Studied"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:814
+#: includes/admin/teacher-classes-page.php:1025
 #: includes/admin/user-progress-report.php:839
 #: includes/admin/user-progress-report.php:1001
 #: includes/admin/user-progress-report.php:1031
@@ -11036,7 +11085,7 @@ msgstr ""
 msgid "Mastered"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:815
+#: includes/admin/teacher-classes-page.php:1026
 #: includes/admin/user-progress-report.php:840
 #: includes/admin/user-progress-report.php:1007
 #: includes/pages/wordset-pages.php:11511
@@ -11047,20 +11096,25 @@ msgstr ""
 msgid "Hard"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:816
+#: includes/admin/teacher-classes-page.php:1027
 #: includes/admin/user-progress-report.php:841
 msgid "Last Activity (UTC)"
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:823
+#: includes/admin/teacher-classes-page.php:1034
 #: includes/pages/wordset-pages.php:11607
 msgid "No learners have joined this class yet."
 msgstr ""
 
-#: includes/admin/teacher-classes-page.php:843
+#: includes/admin/teacher-classes-page.php:1054
 #: includes/pages/wordset-pages.php:11684
 #, php-format
 msgid "Remove %s from this class?"
+msgstr ""
+
+#: includes/admin/teacher-classes-page.php:1075
+#: includes/pages/wordset-pages.php:11702
+msgid "Learner progress"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:191
@@ -18352,14 +18406,6 @@ msgstr ""
 msgid "Classes are available to teacher and administrator accounts only."
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11319
-msgid "Find account"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:11327
-msgid "Account results"
-msgstr ""
-
 #. translators: %d: current queue page
 #: includes/pages/wordset-pages.php:11331
 #: includes/pages/wordset-pages.php:11462
@@ -18373,10 +18419,6 @@ msgstr ""
 msgid "New class"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:11401
-msgid "Find class"
-msgstr ""
-
 #: includes/pages/wordset-pages.php:11411
 msgid "Create a class to start inviting learners."
 msgstr ""
@@ -18388,35 +18430,15 @@ msgid_plural "%d students"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-pages.php:11458
-msgid "Class results"
-msgstr ""
-
 #: includes/pages/wordset-pages.php:11475
 msgid "Choose a class to see invites and student progress."
 msgstr ""
 
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:11484
-#: includes/teacher-classes.php:1330
+#: includes/teacher-classes.php:1350
 #, php-format
 msgid "Teacher: %s"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:11499
-msgid "Page 30d rounds"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:11503
-msgid "Page studied"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:11507
-msgid "Page mastered"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:11511
-msgid "Page hard"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11520
@@ -18463,10 +18485,6 @@ msgstr ""
 #: includes/pages/wordset-pages.php:23295
 #: includes/pages/wordset-pages.php:23303
 msgid "Last"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:11702
-msgid "Learner progress"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11878
@@ -26301,110 +26319,110 @@ msgid "Select a valid teacher account."
 msgstr ""
 
 #: includes/teacher-classes.php:378
-#: includes/teacher-classes.php:560
-#: includes/teacher-classes.php:590
-#: includes/teacher-classes.php:683
-#: includes/teacher-classes.php:1020
+#: includes/teacher-classes.php:564
+#: includes/teacher-classes.php:594
+#: includes/teacher-classes.php:687
+#: includes/teacher-classes.php:1040
 msgid "This class no longer exists."
 msgstr ""
 
-#: includes/teacher-classes.php:565
-#: includes/teacher-classes.php:595
+#: includes/teacher-classes.php:569
+#: includes/teacher-classes.php:599
 msgid "Select a valid learner account."
 msgstr ""
 
-#: includes/teacher-classes.php:569
+#: includes/teacher-classes.php:573
 msgid "Only learner accounts can be added to a class manually."
 msgstr ""
 
-#: includes/teacher-classes.php:574
+#: includes/teacher-classes.php:578
 msgid "The learner could not be added to the class."
 msgstr ""
 
-#: includes/teacher-classes.php:707
+#: includes/teacher-classes.php:711
 msgid "The class could not be deleted."
 msgstr ""
 
-#: includes/teacher-classes.php:995
-#: includes/teacher-classes.php:1001
-#: includes/teacher-classes.php:1006
-#: includes/teacher-classes.php:1011
-#: includes/teacher-classes.php:1023
+#: includes/teacher-classes.php:1015
+#: includes/teacher-classes.php:1021
 #: includes/teacher-classes.php:1026
+#: includes/teacher-classes.php:1031
+#: includes/teacher-classes.php:1043
+#: includes/teacher-classes.php:1046
 msgid "This class invitation link is invalid."
 msgstr ""
 
-#: includes/teacher-classes.php:1029
+#: includes/teacher-classes.php:1049
 msgid "This class invitation link has expired."
 msgstr ""
 
-#: includes/teacher-classes.php:1146
+#: includes/teacher-classes.php:1166
 msgid "Please sign in with a valid learner account."
 msgstr ""
 
-#: includes/teacher-classes.php:1151
+#: includes/teacher-classes.php:1171
 msgid "This invitation is only for learner accounts."
 msgstr ""
 
-#: includes/teacher-classes.php:1156
+#: includes/teacher-classes.php:1176
 msgid "Please sign in with the invited learner email address."
 msgstr ""
 
-#: includes/teacher-classes.php:1296
+#: includes/teacher-classes.php:1316
 msgid "Enter the email address of an existing learner account."
 msgstr ""
 
-#: includes/teacher-classes.php:1301
+#: includes/teacher-classes.php:1321
 msgid "The class invitation link could not be generated."
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1314
+#: includes/teacher-classes.php:1334
 #, php-format
 msgid "Invitation to join %s"
 msgstr ""
 
 #. translators: %1$s: site name, %2$s: class name
-#: includes/teacher-classes.php:1321
+#: includes/teacher-classes.php:1341
 #, php-format
 msgid "You have been invited on %1$s to join the class \"%2$s\"."
 msgstr ""
 
-#: includes/teacher-classes.php:1336
+#: includes/teacher-classes.php:1356
 msgid "Open this link and sign in with your learner account to join the class:"
 msgstr ""
 
-#: includes/teacher-classes.php:1355
+#: includes/teacher-classes.php:1375
 msgid "The invitation email could not be sent."
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1400
+#: includes/teacher-classes.php:1420
 #, php-format
 msgid "Create a learner account to join %s."
 msgstr ""
 
-#: includes/teacher-classes.php:1401
-#: includes/teacher-classes.php:1406
+#: includes/teacher-classes.php:1421
 #: includes/teacher-classes.php:1426
-#: includes/teacher-classes.php:1431
+#: includes/teacher-classes.php:1446
+#: includes/teacher-classes.php:1451
 msgid "this class"
-msgstr ""
-
-#. translators: %s: class name
-#: includes/teacher-classes.php:1405
-#, php-format
-msgid "Sign in with the invited learner account to join %s."
 msgstr ""
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1425
 #, php-format
+msgid "Sign in with the invited learner account to join %s."
+msgstr ""
+
+#. translators: %s: class name
+#: includes/teacher-classes.php:1445
+#, php-format
 msgid "You are already a member of %s."
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1430
+#: includes/teacher-classes.php:1450
 #, php-format
 msgid "You joined %s."
 msgstr ""

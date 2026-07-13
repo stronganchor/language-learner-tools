@@ -1,6 +1,6 @@
 # Maintenance Backlog
 
-Updated July 10, 2026 after the weekly maintenance/performance audit and
+Updated July 13, 2026 after the weekly maintenance/performance audit and
 follow-up passes. Recent closed passes include the June 19 public flashcard AJAX
 cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
@@ -23,6 +23,15 @@ growth dimension.
 
 ## Recently Closed
 
+- July 13 legacy Classes admin paging and account search:
+  class queries now use 20-row plus-one pages, administrator account options use
+  shared 25-row plus-one search pages, and selected-class progress hydrates only
+  a globally ordered 25-learner page. Native GET controls preserve state across
+  mutations, reset empty class pages, clamp emptied final learner pages, and
+  distinguish no matches from no classes. Deterministic ID tie-breakers keep
+  duplicate titles/display names stable across offset pages; query-observer and
+  browser regressions prove the bounded shapes, continuation UI, reverse-ID
+  ordering, and filtered delete state.
 - July 10 offline export category lazy loading:
   opening the export tool now loads no per-wordset category maps. A guarded AJAX
   endpoint fetches categories only after a wordset is selected, and loading or
@@ -310,6 +319,13 @@ growth dimension.
 
 ## Follow-Up Notes
 
+- Teacher-class membership remains duplicated in serialized class/user meta.
+  Large classes still deserialize the complete member-ID array for counts and
+  pass it to assignment exclusion before bounded progress hydration. A future
+  normalized membership-table migration should provide indexed counts and
+  keyset progress/assignment queries while preserving a tested dual-write,
+  backfill, and rollback window; do not replace the bounded admin path with a
+  full progress scan to recover class-wide page metrics.
 - Offline app service-worker/install behavior is still a future coverage item
   only if a browser PWA/service-worker runtime is added; the current offline app
   path is a local-first web/APK shell and does not register a service worker.

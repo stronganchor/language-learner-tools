@@ -435,8 +435,10 @@ if (!function_exists('ll_tools_teacher_classes_for_user')) {
         $query_args = [
             'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
             'post_status' => 'publish',
-            'orderby' => 'title',
-            'order' => 'ASC',
+            'orderby' => [
+                'title' => 'ASC',
+                'ID' => 'ASC',
+            ],
             'posts_per_page' => ($number > 0) ? $number : -1,
             'no_found_rows' => true,
             'suppress_filters' => false,
@@ -495,8 +497,10 @@ if (!function_exists('ll_tools_teacher_classes_for_user')) {
 if (!function_exists('ll_tools_teacher_class_get_assignable_teachers')) {
     function ll_tools_teacher_class_get_assignable_teachers(array $args = []): array {
         $query_args = [
-            'orderby' => 'display_name',
-            'order' => 'ASC',
+            'orderby' => [
+                'display_name' => 'ASC',
+                'ID' => 'ASC',
+            ],
             'fields' => 'all_with_meta',
         ];
 
@@ -718,8 +722,10 @@ if (!function_exists('ll_tools_teacher_class_delete')) {
 if (!function_exists('ll_tools_teacher_class_get_assignable_students')) {
     function ll_tools_teacher_class_get_assignable_students(int $class_id = 0, array $args = []): array {
         $query_args = [
-            'orderby' => 'display_name',
-            'order' => 'ASC',
+            'orderby' => [
+                'display_name' => 'ASC',
+                'ID' => 'ASC',
+            ],
             'fields' => 'all_with_meta',
         ];
 
@@ -783,7 +789,7 @@ if (!function_exists('ll_tools_teacher_class_user_option_label')) {
 }
 
 if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
-    function ll_tools_teacher_class_student_progress_rows(array $student_ids, int $wordset_id = 0): array {
+    function ll_tools_teacher_class_student_progress_rows(array $student_ids, int $wordset_id = 0, array $args = []): array {
         $student_ids = array_values(array_filter(array_map('intval', $student_ids), static function (int $user_id): bool {
             return $user_id > 0;
         }));
@@ -791,14 +797,28 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
             return [];
         }
 
-        $users = get_users([
+        $query_args = [
             'include' => $student_ids,
-            'orderby' => 'display_name',
-            'order' => 'ASC',
-        ]);
+            'orderby' => [
+                'display_name' => 'ASC',
+                'ID' => 'ASC',
+            ],
+            'count_total' => false,
+        ];
+        $number = isset($args['number']) ? max(0, min(101, (int) $args['number'])) : 0;
+        if ($number > 0) {
+            $query_args['number'] = $number;
+            $query_args['offset'] = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
+        }
+
+        $users = get_users($query_args);
         if (!is_array($users)) {
             return [];
         }
+
+        $hydrated_student_ids = array_values(array_filter(array_map(static function ($user): int {
+            return ($user instanceof WP_User) ? (int) $user->ID : 0;
+        }, $users)));
 
         $resolved_wordset_id = ll_tools_teacher_class_resolve_wordset_id($wordset_id);
         $resolved_wordset_name = ($resolved_wordset_id > 0 && function_exists('ll_tools_user_progress_report_wordset_name'))
@@ -806,7 +826,7 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
             : '';
 
         $stats = function_exists('ll_tools_user_progress_report_stats_for_users')
-            ? ll_tools_user_progress_report_stats_for_users($student_ids, $resolved_wordset_id)
+            ? ll_tools_user_progress_report_stats_for_users($hydrated_student_ids, $resolved_wordset_id)
             : [];
 
         $rows = [];

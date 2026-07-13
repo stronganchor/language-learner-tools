@@ -172,6 +172,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
 - Legacy Word Images fixer batching, durable cursor readback, and scan-free page rendering.
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
+- Teacher-class integration coverage observes the legacy admin query shapes, proving bounded plus-one class/account pages, deterministic ID tie-breakers, globally ordered bounded learner-progress hydration, empty/stale-page normalization, continuation links, and redirect-state preservation.
 - Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, public flashcard AJAX and vocab lesson grid cache/throttle/build-lock guards, audio credit grid cache batching/stale-lock fallback, image copyright grid privacy/resource guards, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
 
 ## 6) Browser E2E tests (Playwright)
@@ -281,7 +282,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/content-lesson-route-media.spec.js`
   - Verifies a local WordPress-backed content lesson route renders its audio media source, parsed transcript cues, cue JSON payload, notes, localized player data, and related vocab lesson link.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
-  - Verifies frontend teacher-class workflows including teacher-role create/delete, selected-class redirects, signup invite registration, admin assignment of an existing learner, progress-table sorting, and learner removal.
+  - Verifies frontend teacher-class workflows including teacher-role create/delete, selected-class redirects, signup invite registration, admin assignment of an existing learner, progress-table sorting, and learner removal, plus legacy wp-admin class/account search and redirect-state preservation through deletion.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
   - Verifies marking a transcription as reviewed updates the row in place and does not auto-refresh the filtered result list out from under the current admin session.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`

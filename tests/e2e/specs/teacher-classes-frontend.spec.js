@@ -513,6 +513,80 @@ test('teacher can create a frontend class and stays on the new class', async ({ 
   }
 });
 
+test('legacy Classes admin preserves bounded search state across deletion', async ({ page }) => {
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for teacher class E2E tests.');
+
+  let fixtures = null;
+  let classId = '';
+  const className = `E2E Legacy Admin Class ${uniqueSuffix()}`;
+
+  try {
+    fixtures = await createTeacherFixtures(page);
+    const classesPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}&ll_wordset_view=classes`;
+    await loginAsUser(page, fixtures.username, fixtures.password, classesPath);
+
+    const frontendRoot = page.locator('[data-ll-teacher-classes]');
+    const createForm = frontendRoot.locator('form:has(input[name="action"][value="ll_tools_teacher_create_class"])');
+    await createForm.locator('input[name="ll_tools_teacher_class_name"]').fill(className);
+    await Promise.all([
+      page.waitForURL((url) => url.searchParams.has('class_id'), { timeout: 60000 }),
+      createForm.getByRole('button', { name: 'Create class' }).click()
+    ]);
+    classId = new URL(page.url()).searchParams.get('class_id') || '';
+    expect(classId).not.toBe('');
+
+    await page.context().clearCookies();
+    const adminPath = `/wp-admin/admin.php?page=ll-tools-teacher-classes&class_id=${encodeURIComponent(classId)}`;
+    await ensureLoggedIntoAdmin(page, adminPath);
+
+    const classSearch = page.locator('form:has(input[name="ll_tools_class_search"])');
+    await expect(classSearch).toHaveCount(1);
+    await expect(page.locator('form:has(input[name="ll_tools_account_search"])')).toHaveCount(1);
+    await classSearch.locator('input[name="ll_tools_class_search"]').fill(className);
+    await Promise.all([
+      page.waitForURL((url) => url.searchParams.get('ll_tools_class_search') === className, { timeout: 60000 }),
+      classSearch.getByRole('button', { name: 'Search' }).click()
+    ]);
+    await expect(page.locator('table.widefat').filter({ hasText: className })).toBeVisible();
+
+    const accountSearch = page.locator('form:has(input[name="ll_tools_account_search"])');
+    await accountSearch.locator('input[name="ll_tools_account_search"]').fill(fixtures.username);
+    await Promise.all([
+      page.waitForURL((url) => (
+        url.searchParams.get('ll_tools_class_search') === className
+        && url.searchParams.get('ll_tools_account_search') === fixtures.username
+      ), { timeout: 60000 }),
+      accountSearch.getByRole('button', { name: 'Search' }).click()
+    ]);
+
+    const assignTeacherForm = page.locator('form:has(input[name="action"][value="ll_tools_teacher_assign_class_teacher"])');
+    await expect(assignTeacherForm.locator(`option[value="${fixtures.userId}"]`)).toHaveCount(1);
+    const deleteForm = page.locator(`form:has(input[name="action"][value="ll_tools_teacher_delete_class"]):has(input[name="class_id"][value="${classId}"])`);
+    const redirectUrl = new URL(await deleteForm.locator('input[name="ll_tools_teacher_redirect_to"]').inputValue());
+    expect(redirectUrl.searchParams.get('ll_tools_class_search')).toBe(className);
+    expect(redirectUrl.searchParams.get('ll_tools_account_search')).toBe(fixtures.username);
+
+    await Promise.all([
+      page.waitForURL((url) => !url.searchParams.has('class_id') && url.searchParams.has('ll_tools_teacher_notice_type'), { timeout: 60000 }),
+      deleteForm.evaluate((form) => HTMLFormElement.prototype.submit.call(form))
+    ]);
+    classId = '';
+    await expect(page.locator('table.widefat').filter({ hasText: className })).toHaveCount(0);
+    await expect(page.getByText('No classes match your search.', { exact: true })).toBeVisible();
+  } finally {
+    if (fixtures && classId) {
+      await page.context().clearCookies().catch(() => {});
+      const cleanupPath = `/wp-admin/admin.php?page=ll-tools-teacher-classes&class_id=${encodeURIComponent(classId)}&ll_tools_class_search=${encodeURIComponent(className)}`;
+      await ensureLoggedIntoAdmin(page, cleanupPath).catch(() => {});
+      const cleanupForm = page.locator(`form:has(input[name="action"][value="ll_tools_teacher_delete_class"]):has(input[name="class_id"][value="${classId}"])`);
+      if ((await cleanupForm.count()) > 0) {
+        await cleanupForm.evaluate((form) => HTMLFormElement.prototype.submit.call(form)).catch(() => {});
+      }
+    }
+    await deleteTeacherFixtures(page, fixtures);
+  }
+});
+
 test('signup invite feeds class progress sorting and learner removal', async ({ page }) => {
   test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for teacher class E2E tests.');
 

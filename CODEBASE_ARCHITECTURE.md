@@ -430,6 +430,7 @@ vendor/
 - `ll_teacher_class` (hidden CPT)
   - Stores wordset-scoped class records with teacher ownership and learner membership.
   - Managed primarily through the wordset Classes view; invite and manual-assignment helpers live in `includes/teacher-classes.php`.
+  - Both the frontend and legacy wp-admin Classes surfaces page class/account results and hydrate at most one learner-progress page. Keep class/account queries at `page_size + 1`, use `ID ASC` after title/display-name ordering so offset pages are deterministic, preserve the selected teacher outside the current account page, globally order admin progress before applying its bounded `number`/`offset`, reset empty class pages, clamp stale final learner-page requests, and label paged progress metrics as page-scoped rather than rebuilding full-class aggregates during an interactive request.
 
 ## Taxonomies
 - `word-category` (flat; attached to `words` and `word_images`)
@@ -667,6 +668,7 @@ wordset can opt into it.
 - The offline export admin page must lazy-load category options for the selected wordset through its guarded AJAX endpoint; do not rebuild an inline all-wordset category map during initial render.
 - Offline STT accepts at most 15 seconds of 16 kHz mono inference audio. Keep browser blob/duration checks and the Android PCM byte, Java sample, and JNI sample ceilings aligned; the native boundary remains authoritative.
 - Frontend teacher-class `admin-post.php` actions must account for limited-role redirect handling so teachers are not bounced to the site home after valid class actions.
+- Teacher-class admin rendering must page classes, account options, and learner progress before hydration. Membership is still stored as serialized bidirectional ID arrays; replacing that contract requires a staged data migration, not an interactive full-class scan.
 
 # UI color standards (canonical)
 Use one shared status palette across user-facing plugin UI so progress states always mean the same thing.

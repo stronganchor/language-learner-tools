@@ -471,13 +471,72 @@ if (!function_exists('ll_tools_handle_teacher_class_delete_action')) {
 }
 add_action('admin_post_ll_tools_teacher_delete_class', 'll_tools_handle_teacher_class_delete_action');
 
+if (!function_exists('ll_tools_teacher_classes_admin_page_size')) {
+    function ll_tools_teacher_classes_admin_page_size(string $context, int $default, int $hard_cap): int {
+        $context = sanitize_key($context);
+        $size = (int) apply_filters('ll_tools_teacher_classes_admin_' . $context . '_page_size', $default);
+
+        return max(1, min($hard_cap, $size));
+    }
+}
+
+if (!function_exists('ll_tools_teacher_classes_render_admin_pager')) {
+    function ll_tools_teacher_classes_render_admin_pager(string $page_key, int $page, bool $has_more, array $args, string $label): void {
+        $page_key = sanitize_key($page_key);
+        $page = max(1, $page);
+        if ($page_key === '' || ($page <= 1 && !$has_more)) {
+            return;
+        }
+
+        $base_url = ll_tools_get_teacher_classes_page_url($args);
+        ?>
+        <nav class="tablenav" aria-label="<?php echo esc_attr($label); ?>">
+            <div class="tablenav-pages">
+                <?php if ($page > 1) : ?>
+                    <a class="button" href="<?php echo esc_url(add_query_arg($page_key, $page - 1, $base_url)); ?>">
+                        <?php esc_html_e('Previous', 'll-tools-text-domain'); ?>
+                    </a>
+                <?php endif; ?>
+                <?php if ($has_more) : ?>
+                    <a class="button" href="<?php echo esc_url(add_query_arg($page_key, $page + 1, $base_url)); ?>">
+                        <?php esc_html_e('Next', 'll-tools-text-domain'); ?>
+                    </a>
+                <?php endif; ?>
+            </div>
+        </nav>
+        <?php
+    }
+}
+
 if (!function_exists('ll_tools_render_teacher_classes_page')) {
     function ll_tools_render_teacher_classes_page(): void {
         ll_tools_teacher_classes_require_manage_access();
 
+        $current_user_id = get_current_user_id();
+        $class_page = isset($_GET['ll_tools_class_page'])
+            ? max(1, (int) wp_unslash((string) $_GET['ll_tools_class_page']))
+            : 1;
+        $class_search = isset($_GET['ll_tools_class_search'])
+            ? sanitize_text_field(wp_unslash((string) $_GET['ll_tools_class_search']))
+            : '';
+        $class_page_size = ll_tools_teacher_classes_admin_page_size('class', 20, 50);
+        $class_query_args = [
+            'number' => $class_page_size + 1,
+            'offset' => ($class_page - 1) * $class_page_size,
+            'search' => $class_search,
+        ];
         $classes = function_exists('ll_tools_teacher_classes_for_user')
-            ? ll_tools_teacher_classes_for_user(get_current_user_id())
+            ? ll_tools_teacher_classes_for_user($current_user_id, 0, $class_query_args)
             : [];
+        if (empty($classes) && $class_page > 1 && function_exists('ll_tools_teacher_classes_for_user')) {
+            $class_page = 1;
+            $class_query_args['offset'] = 0;
+            $classes = ll_tools_teacher_classes_for_user($current_user_id, 0, $class_query_args);
+        }
+        $classes_have_more = count($classes) > $class_page_size;
+        if ($classes_have_more) {
+            $classes = array_slice($classes, 0, $class_page_size);
+        }
         $available_wordsets = function_exists('ll_tools_teacher_class_get_available_wordsets')
             ? ll_tools_teacher_class_get_available_wordsets()
             : [];
@@ -508,20 +567,70 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
         $student_ids = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_student_ids'))
             ? ll_tools_teacher_class_get_student_ids((int) $selected_class->ID)
             : [];
+        $student_page = isset($_GET['ll_tools_student_page'])
+            ? max(1, (int) wp_unslash((string) $_GET['ll_tools_student_page']))
+            : 1;
+        $student_page_size = ll_tools_teacher_classes_admin_page_size('student', 25, 100);
+        $student_total = count($student_ids);
+        $student_last_page = max(1, (int) ceil($student_total / $student_page_size));
+        $student_page = min($student_page, $student_last_page);
+        $student_progress_has_more = ($student_page * $student_page_size) < $student_total;
         $student_rows = function_exists('ll_tools_teacher_class_student_progress_rows')
-            ? ll_tools_teacher_class_student_progress_rows($student_ids, $selected_class_wordset_id)
+            ? ll_tools_teacher_class_student_progress_rows($student_ids, $selected_class_wordset_id, [
+                'number' => $student_page_size,
+                'offset' => ($student_page - 1) * $student_page_size,
+            ])
             : [];
         $selected_teacher_user = ($selected_class instanceof WP_Post)
             ? get_userdata((int) $selected_class->post_author)
             : null;
         $can_directly_assign_teachers = current_user_can('manage_options');
+        $account_page = isset($_GET['ll_tools_account_page'])
+            ? max(1, (int) wp_unslash((string) $_GET['ll_tools_account_page']))
+            : 1;
+        $account_search = isset($_GET['ll_tools_account_search'])
+            ? sanitize_text_field(wp_unslash((string) $_GET['ll_tools_account_search']))
+            : '';
+        $account_page_size = ll_tools_teacher_classes_admin_page_size('account', 25, 50);
+        $account_query_args = [
+            'number' => $account_page_size + 1,
+            'offset' => ($account_page - 1) * $account_page_size,
+            'search' => $account_search,
+        ];
         $assignable_teachers = $can_directly_assign_teachers && function_exists('ll_tools_teacher_class_get_assignable_teachers')
-            ? ll_tools_teacher_class_get_assignable_teachers()
+            ? ll_tools_teacher_class_get_assignable_teachers($account_query_args)
             : [];
+        $teachers_have_more = count($assignable_teachers) > $account_page_size;
+        if ($teachers_have_more) {
+            $assignable_teachers = array_slice($assignable_teachers, 0, $account_page_size);
+        }
         $can_directly_assign_students = current_user_can('manage_options');
         $assignable_students = ($selected_class instanceof WP_Post && $can_directly_assign_students && function_exists('ll_tools_teacher_class_get_assignable_students'))
-            ? ll_tools_teacher_class_get_assignable_students((int) $selected_class->ID)
+            ? ll_tools_teacher_class_get_assignable_students((int) $selected_class->ID, $account_query_args)
             : [];
+        $students_have_more = count($assignable_students) > $account_page_size;
+        if ($students_have_more) {
+            $assignable_students = array_slice($assignable_students, 0, $account_page_size);
+        }
+
+        if ($can_directly_assign_teachers) {
+            $required_teacher_ids = array_values(array_unique(array_filter([
+                $current_user_id,
+                ($selected_class instanceof WP_Post) ? (int) $selected_class->post_author : 0,
+            ])));
+            $listed_teacher_ids = array_map(static function ($user): int {
+                return ($user instanceof WP_User) ? (int) $user->ID : 0;
+            }, $assignable_teachers);
+            foreach ($required_teacher_ids as $required_teacher_id) {
+                if (in_array($required_teacher_id, $listed_teacher_ids, true)) {
+                    continue;
+                }
+                $required_teacher = get_userdata($required_teacher_id);
+                if ($required_teacher instanceof WP_User && ll_tools_teacher_class_user_can_be_teacher($required_teacher)) {
+                    $assignable_teachers[] = $required_teacher;
+                }
+            }
+        }
 
         $summary = function_exists('ll_tools_teacher_class_progress_summary')
             ? ll_tools_teacher_class_progress_summary($student_rows)
@@ -532,6 +641,28 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 'mastered_words' => 0,
                 'hard_words' => 0,
             ];
+        $summary['students'] = $student_total;
+
+        $base_navigation_args = array_filter([
+            'class_id' => ($selected_class instanceof WP_Post) ? (int) $selected_class->ID : 0,
+            'll_tools_class_page' => ($class_page > 1) ? $class_page : 0,
+            'll_tools_class_search' => $class_search,
+            'll_tools_account_page' => ($account_page > 1) ? $account_page : 0,
+            'll_tools_account_search' => $account_search,
+            'll_tools_student_page' => ($student_page > 1) ? $student_page : 0,
+        ], static function ($value): bool {
+            return $value !== '' && $value !== 0;
+        });
+        $redirect_to = remove_query_arg([
+            'll_tools_teacher_notice_type',
+            'll_tools_teacher_notice_message',
+        ], ll_tools_get_teacher_classes_page_url($base_navigation_args));
+        $class_navigation_args = $base_navigation_args;
+        unset($class_navigation_args['ll_tools_class_page']);
+        $account_navigation_args = $base_navigation_args;
+        unset($account_navigation_args['ll_tools_account_page']);
+        $student_navigation_args = $base_navigation_args;
+        unset($student_navigation_args['ll_tools_student_page']);
 
         ?>
         <div class="wrap">
@@ -540,6 +671,44 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
 
             <?php ll_tools_teacher_classes_render_notice_from_request(); ?>
 
+            <?php if ($can_directly_assign_teachers || $can_directly_assign_students) : ?>
+                <div class="card" style="max-width: 720px;">
+                    <h2><?php esc_html_e('Find account', 'll-tools-text-domain'); ?></h2>
+                    <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>">
+                        <input type="hidden" name="page" value="<?php echo esc_attr(ll_tools_get_teacher_classes_page_slug()); ?>" />
+                        <?php if ($selected_class instanceof WP_Post) : ?>
+                            <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                        <?php endif; ?>
+                        <?php if ($class_page > 1) : ?>
+                            <input type="hidden" name="ll_tools_class_page" value="<?php echo esc_attr((string) $class_page); ?>" />
+                        <?php endif; ?>
+                        <?php if ($class_search !== '') : ?>
+                            <input type="hidden" name="ll_tools_class_search" value="<?php echo esc_attr($class_search); ?>" />
+                        <?php endif; ?>
+                        <?php if ($student_page > 1) : ?>
+                            <input type="hidden" name="ll_tools_student_page" value="<?php echo esc_attr((string) $student_page); ?>" />
+                        <?php endif; ?>
+                        <p>
+                            <label class="screen-reader-text" for="ll-tools-teacher-account-search"><?php esc_html_e('Find account', 'll-tools-text-domain'); ?></label>
+                            <input
+                                type="search"
+                                id="ll-tools-teacher-account-search"
+                                name="ll_tools_account_search"
+                                class="regular-text"
+                                value="<?php echo esc_attr($account_search); ?>" />
+                            <button type="submit" class="button"><?php esc_html_e('Search', 'll-tools-text-domain'); ?></button>
+                        </p>
+                    </form>
+                    <?php ll_tools_teacher_classes_render_admin_pager(
+                        'll_tools_account_page',
+                        $account_page,
+                        $teachers_have_more || $students_have_more,
+                        $account_navigation_args,
+                        __('Account results', 'll-tools-text-domain')
+                    ); ?>
+                </div>
+            <?php endif; ?>
+
             <div class="card" style="max-width: 720px;">
                 <h2><?php esc_html_e('Create a class', 'll-tools-text-domain'); ?></h2>
                 <?php if (empty($available_wordsets)) : ?>
@@ -547,6 +716,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 <?php else : ?>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <input type="hidden" name="action" value="ll_tools_teacher_create_class" />
+                        <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
                         <?php wp_nonce_field('ll_tools_teacher_create_class'); ?>
                         <table class="form-table" role="presentation">
                             <tr>
@@ -622,15 +792,40 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 <?php endif; ?>
             </div>
 
+            <h2><?php esc_html_e('Your classes', 'll-tools-text-domain'); ?></h2>
+            <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" style="margin-bottom: 12px;">
+                <input type="hidden" name="page" value="<?php echo esc_attr(ll_tools_get_teacher_classes_page_slug()); ?>" />
+                <?php if ($selected_class instanceof WP_Post) : ?>
+                    <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                <?php endif; ?>
+                <?php if ($account_page > 1) : ?>
+                    <input type="hidden" name="ll_tools_account_page" value="<?php echo esc_attr((string) $account_page); ?>" />
+                <?php endif; ?>
+                <?php if ($account_search !== '') : ?>
+                    <input type="hidden" name="ll_tools_account_search" value="<?php echo esc_attr($account_search); ?>" />
+                <?php endif; ?>
+                <label class="screen-reader-text" for="ll-tools-teacher-class-search"><?php esc_html_e('Find class', 'll-tools-text-domain'); ?></label>
+                <input
+                    type="search"
+                    id="ll-tools-teacher-class-search"
+                    name="ll_tools_class_search"
+                    class="regular-text"
+                    value="<?php echo esc_attr($class_search); ?>" />
+                <button type="submit" class="button"><?php esc_html_e('Search', 'll-tools-text-domain'); ?></button>
+            </form>
+
             <?php if (empty($classes)) : ?>
                 <div class="card" style="max-width: 720px;">
-                    <p><?php esc_html_e('No classes exist yet. Create one to start inviting learners.', 'll-tools-text-domain'); ?></p>
+                    <p>
+                        <?php if ($class_search !== '') : ?>
+                            <?php esc_html_e('No classes match your search.', 'll-tools-text-domain'); ?>
+                        <?php else : ?>
+                            <?php esc_html_e('No classes exist yet. Create one to start inviting learners.', 'll-tools-text-domain'); ?>
+                        <?php endif; ?>
+                    </p>
                 </div>
-                <?php return; ?>
-            <?php endif; ?>
-
-            <h2><?php esc_html_e('Your classes', 'll-tools-text-domain'); ?></h2>
-            <table class="widefat striped" style="max-width: 980px; margin-bottom: 24px;">
+            <?php else : ?>
+                <table class="widefat striped" style="max-width: 980px; margin-bottom: 12px;">
                 <thead>
                     <tr>
                         <th><?php esc_html_e('Class', 'll-tools-text-domain'); ?></th>
@@ -652,6 +847,9 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         $class_wordset_name = function_exists('ll_tools_teacher_class_get_wordset_name')
                             ? ll_tools_teacher_class_get_wordset_name($class_id)
                             : '';
+                        $class_open_args = $base_navigation_args;
+                        $class_open_args['class_id'] = $class_id;
+                        unset($class_open_args['ll_tools_student_page']);
                         ?>
                         <tr>
                             <td><?php echo esc_html($class_post->post_title); ?></td>
@@ -661,7 +859,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                             <?php endif; ?>
                             <td><?php echo esc_html((string) count(ll_tools_teacher_class_get_student_ids($class_id))); ?></td>
                             <td>
-                                <a class="button button-small" href="<?php echo esc_url(ll_tools_get_teacher_classes_page_url(['class_id' => $class_id])); ?>">
+                                <a class="button button-small" href="<?php echo esc_url(ll_tools_get_teacher_classes_page_url($class_open_args)); ?>">
                                     <?php esc_html_e('Open', 'll-tools-text-domain'); ?>
                                 </a>
                             </td>
@@ -669,6 +867,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Delete %s?', 'll-tools-text-domain'), $class_post->post_title)); ?>');">
                                     <input type="hidden" name="action" value="ll_tools_teacher_delete_class" />
                                     <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $class_id); ?>" />
+                                    <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
                                     <?php wp_nonce_field('ll_tools_teacher_delete_class_' . $class_id); ?>
                                     <button type="submit" class="button button-small">
                                         <?php esc_html_e('Delete', 'll-tools-text-domain'); ?>
@@ -678,7 +877,16 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
-            </table>
+                </table>
+            <?php endif; ?>
+
+            <?php ll_tools_teacher_classes_render_admin_pager(
+                'll_tools_class_page',
+                $class_page,
+                $classes_have_more,
+                $class_navigation_args,
+                __('Class results', 'll-tools-text-domain')
+            ); ?>
 
             <?php if (!($selected_class instanceof WP_Post)) : ?>
                 <?php return; ?>
@@ -698,17 +906,17 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                     <tr>
                         <th><?php esc_html_e('Students', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html((string) $summary['students']); ?></td>
-                        <th><?php esc_html_e('30d rounds', 'll-tools-text-domain'); ?></th>
+                        <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page 30d rounds', 'll-tools-text-domain') : __('30d rounds', 'll-tools-text-domain')); ?></th>
                         <td><?php echo esc_html((string) $summary['rounds_30d']); ?></td>
                     </tr>
                     <tr>
-                        <th><?php esc_html_e('Studied words', 'll-tools-text-domain'); ?></th>
+                        <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page studied', 'll-tools-text-domain') : __('Studied words', 'll-tools-text-domain')); ?></th>
                         <td><?php echo esc_html((string) $summary['studied_words']); ?></td>
-                        <th><?php esc_html_e('Mastered words', 'll-tools-text-domain'); ?></th>
+                        <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page mastered', 'll-tools-text-domain') : __('Mastered words', 'll-tools-text-domain')); ?></th>
                         <td><?php echo esc_html((string) $summary['mastered_words']); ?></td>
                     </tr>
                     <tr>
-                        <th><?php esc_html_e('Hard words', 'll-tools-text-domain'); ?></th>
+                        <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page hard', 'll-tools-text-domain') : __('Hard words', 'll-tools-text-domain')); ?></th>
                         <td><?php echo esc_html((string) $summary['hard_words']); ?></td>
                         <th><?php esc_html_e('Signup link', 'll-tools-text-domain'); ?></th>
                         <td><?php echo $signup_url !== '' ? esc_html__('Ready', 'll-tools-text-domain') : esc_html__('Unavailable', 'll-tools-text-domain'); ?></td>
@@ -726,6 +934,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom: 18px;">
                             <input type="hidden" name="action" value="ll_tools_teacher_assign_class_teacher" />
                             <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                            <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
                             <?php wp_nonce_field('ll_tools_teacher_assign_class_teacher_' . (int) $selected_class->ID); ?>
                             <p>
                                 <label for="ll-tools-teacher-class-teacher-select" class="screen-reader-text"><?php esc_html_e('Teacher account', 'll-tools-text-domain'); ?></label>
@@ -753,6 +962,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom: 18px;">
                             <input type="hidden" name="action" value="ll_tools_teacher_assign_class_student" />
                             <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                            <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
                             <?php wp_nonce_field('ll_tools_teacher_assign_class_student_' . (int) $selected_class->ID); ?>
                             <p>
                                 <label for="ll-tools-teacher-assign-user" class="screen-reader-text"><?php esc_html_e('Learner account', 'll-tools-text-domain'); ?></label>
@@ -776,6 +986,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                     <input type="hidden" name="action" value="ll_tools_teacher_send_class_invite" />
                     <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                    <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
                     <?php wp_nonce_field('ll_tools_teacher_send_class_invite_' . (int) $selected_class->ID); ?>
                     <p>
                         <label for="ll-tools-teacher-invite-email" class="screen-reader-text"><?php esc_html_e('Learner email', 'll-tools-text-domain'); ?></label>
@@ -844,6 +1055,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                         <input type="hidden" name="action" value="ll_tools_teacher_remove_class_student" />
                                         <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
                                         <input type="hidden" name="ll_tools_teacher_remove_user_id" value="<?php echo esc_attr((string) $user->ID); ?>" />
+                                        <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
                                         <?php wp_nonce_field('ll_tools_teacher_remove_class_student_' . (int) $selected_class->ID); ?>
                                         <button type="submit" class="button button-small">
                                             <?php esc_html_e('Remove', 'll-tools-text-domain'); ?>
@@ -855,6 +1067,13 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                     <?php endif; ?>
                 </tbody>
             </table>
+            <?php ll_tools_teacher_classes_render_admin_pager(
+                'll_tools_student_page',
+                $student_page,
+                $student_progress_has_more,
+                $student_navigation_args,
+                __('Learner progress', 'll-tools-text-domain')
+            ); ?>
         </div>
         <?php
     }
