@@ -273,6 +273,113 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Export Offline App', $html);
     }
 
+    public function test_settings_hub_skips_game_availability_scan_while_main_view_evaluates_it(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $game_category_queries = [];
+        $query_watcher = static function (string $query) use (&$game_category_queries): string {
+            if (
+                stripos($query, 'SELECT DISTINCT category_tt.term_id') !== false
+                && stripos($query, 'wordset_rel') !== false
+                && stripos($query, 'category_rel') !== false
+            ) {
+                $game_category_queries[] = $query;
+            }
+
+            return $query;
+        };
+
+        add_filter('query', $query_watcher);
+        try {
+            $_GET = [];
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+            set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+            set_query_var('ll_wordset_view', 'settings');
+            ll_tools_render_wordset_page_content($wordset_id);
+
+            $this->assertSame([], $game_category_queries, 'The settings hub must not scan the wordset just to decide whether the main-page Games link is visible.');
+
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term));
+            set_query_var('ll_wordset_view', null);
+            ll_tools_render_wordset_page_content($wordset_id);
+        } finally {
+            remove_filter('query', $query_watcher);
+        }
+
+        $this->assertNotEmpty($game_category_queries, 'The main wordset view must still evaluate game availability for its Games link.');
+    }
+
+    public function test_game_runtime_localization_is_built_only_for_the_games_view(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+        ll_tools_render_wordset_page_content($wordset_id);
+
+        $scripts = wp_scripts();
+        $this->assertInstanceOf(WP_Scripts::class, $scripts);
+        $settings_data = (string) ($scripts->registered['ll-wordset-pages-js']->extra['data'] ?? '');
+        $this->assertStringNotContainsString('ll_wordset_games_bootstrap', $settings_data);
+        $this->assertStringNotContainsString('gamesLoading', $settings_data);
+
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'games'));
+        set_query_var('ll_wordset_view', 'games');
+        ll_tools_render_wordset_page_content($wordset_id);
+
+        $games_data = (string) ($scripts->registered['ll-wordset-pages-js']->extra['data'] ?? '');
+        $this->assertStringContainsString('ll_wordset_games_bootstrap', $games_data);
+        $this->assertStringContainsString('gamesLoading', $games_data);
+    }
+
+    public function test_settings_hub_does_not_persist_main_view_category_search_payload(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $category_search_payload_queries = [];
+        $query_watcher = static function (string $query) use (&$category_search_payload_queries): string {
+            if (stripos($query, 'category_search_payload') !== false) {
+                $category_search_payload_queries[] = $query;
+            }
+
+            return $query;
+        };
+
+        add_filter('query', $query_watcher);
+        try {
+            $_GET = [];
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+            set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+            set_query_var('ll_wordset_view', 'settings');
+            ll_tools_render_wordset_page_content($wordset_id);
+
+            $this->assertSame([], $category_search_payload_queries, 'The settings hub must not create or inspect the main-view category-search payload.');
+        } finally {
+            remove_filter('query', $query_watcher);
+        }
+    }
+
     public function test_wordset_page_renders_add_category_card_before_category_grid_for_managers(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

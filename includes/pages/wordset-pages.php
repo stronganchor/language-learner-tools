@@ -19802,9 +19802,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ll_tools_get_wordset_page_view_url($wordset_term, 'progress'),
         $subpage_return_url
     );
-    $show_games_link = function_exists('ll_tools_wordset_games_has_enabled_categories')
-        ? ll_tools_wordset_games_has_enabled_categories($wordset_id)
-        : true;
+    $show_games_link = $is_main_view && (
+        !function_exists('ll_tools_wordset_games_has_enabled_categories')
+        || ll_tools_wordset_games_has_enabled_categories($wordset_id)
+    );
     $games_url = ll_tools_wordset_page_with_back_url(
         ll_tools_get_wordset_page_view_url($wordset_term, 'games'),
         $subpage_return_url
@@ -21007,44 +21008,47 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ];
     }
 
-    $category_search_category_ids = [];
-    foreach ($enhanced_categories as $enhanced_category) {
-        if (!is_array($enhanced_category)) {
-            continue;
+    $category_search_token = '';
+    if ($is_main_view) {
+        $category_search_category_ids = [];
+        foreach ($enhanced_categories as $enhanced_category) {
+            if (!is_array($enhanced_category)) {
+                continue;
+            }
+            if (!empty($enhanced_category['is_virtual_category']) && !ll_tools_wordset_page_is_uncategorized_virtual_category($enhanced_category)) {
+                continue;
+            }
+            $category_search_id = (int) ($enhanced_category['id'] ?? 0);
+            if ($category_search_id > 0) {
+                $category_search_category_ids[] = $category_search_id;
+            }
         }
-        if (!empty($enhanced_category['is_virtual_category']) && !ll_tools_wordset_page_is_uncategorized_virtual_category($enhanced_category)) {
-            continue;
+        $category_search_category_ids = array_values(array_unique($category_search_category_ids));
+        sort($category_search_category_ids, SORT_NUMERIC);
+        $category_search_token_hint = '';
+        if (!is_user_logged_in() && !empty($category_search_category_ids)) {
+            $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+                ? max(1, (int) ll_tools_get_category_cache_epoch())
+                : 1;
+            $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+                ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+                : 1;
+            $category_search_token_hint = ll_tools_wordset_page_build_category_search_token([
+                'schema' => 1,
+                'wordset_id' => $wordset_id,
+                'category_ids' => $category_search_category_ids,
+                'category_epoch' => $category_epoch,
+                'wordset_epoch' => $wordset_epoch,
+            ]);
         }
-        $category_search_id = (int) ($enhanced_category['id'] ?? 0);
-        if ($category_search_id > 0) {
-            $category_search_category_ids[] = $category_search_id;
-        }
+        $category_search_token = !empty($category_search_category_ids)
+            ? ll_tools_wordset_page_store_category_search_payload([
+                'wordset_id' => $wordset_id,
+                'category_ids' => $category_search_category_ids,
+                'user_id' => get_current_user_id(),
+            ], 0, $category_search_token_hint)
+            : '';
     }
-    $category_search_category_ids = array_values(array_unique($category_search_category_ids));
-    sort($category_search_category_ids, SORT_NUMERIC);
-    $category_search_token_hint = '';
-    if (!is_user_logged_in() && !empty($category_search_category_ids)) {
-        $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
-            ? max(1, (int) ll_tools_get_category_cache_epoch())
-            : 1;
-        $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
-            ? max(1, (int) ll_tools_get_wordset_cache_epoch())
-            : 1;
-        $category_search_token_hint = ll_tools_wordset_page_build_category_search_token([
-            'schema' => 1,
-            'wordset_id' => $wordset_id,
-            'category_ids' => $category_search_category_ids,
-            'category_epoch' => $category_epoch,
-            'wordset_epoch' => $wordset_epoch,
-        ]);
-    }
-    $category_search_token = !empty($category_search_category_ids)
-        ? ll_tools_wordset_page_store_category_search_payload([
-            'wordset_id' => $wordset_id,
-            'category_ids' => $category_search_category_ids,
-            'user_id' => get_current_user_id(),
-        ], 0, $category_search_token_hint)
-        : '';
     $localized_category_search = $is_main_view ? [
         'enabled' => ($category_search_token !== ''),
         'nonce' => ($category_search_token !== '') ? wp_create_nonce('ll_tools_wordset_page_category_search') : '',
@@ -21157,10 +21161,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ];
     }, $script_categories_source);
 
-    $games_frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
+    $games_frontend_config = ($view === 'games' && function_exists('ll_tools_get_wordset_games_frontend_config'))
         ? ll_tools_get_wordset_games_frontend_config($wordset_id)
         : [];
-    $games_i18n = function_exists('ll_tools_get_wordset_games_i18n_messages')
+    $games_i18n = ($view === 'games' && function_exists('ll_tools_get_wordset_games_i18n_messages'))
         ? ll_tools_get_wordset_games_i18n_messages()
         : [];
     $localized_links = ($view === 'games')
