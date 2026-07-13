@@ -122,6 +122,7 @@ module list.
 - includes/lib/image-animation.php
 - includes/lib/word-option-rules.php
 - includes/lib/image-hash.php
+- includes/lib/image-match-index.php
 - includes/flashcard-shell.php
 - includes/post-types/words-post-type.php
 - includes/post-types/dictionary-entry-post-type.php
@@ -249,6 +250,7 @@ includes/
     dictionary-browser.php    # Dictionary import/search helpers
     dictionary-snapshot.php   # Dictionary export/snapshot helpers
     ll-matching.php           # Audio <-> image matching heuristics
+    image-match-index.php     # Bounded normalized-title candidates for automatic audio/image matching
     media-proxy.php           # Signed image proxy for quizzes
     image-aspect.php          # Image aspect utilities for normalizer/admin tools
     image-animation.php       # Animated-image detection/helpers
@@ -699,7 +701,7 @@ Use one shared status palette across user-facing plugin UI so progress states al
 - Modify quiz UI: `templates/flashcard-widget-template.php`, `css/flashcard/*.css`.
 - Adjust auto quiz pages: `includes/pages/quiz-pages.php`, `templates/quiz-page-template.php`.
 - Edit embed behavior: `includes/pages/embed-page.php`.
-- Tune audio/image matching: `includes/lib/ll-matching.php`, `includes/admin/audio-image-matcher.php`.
+- Tune audio/image matching: `includes/lib/ll-matching.php`, `includes/lib/image-match-index.php`, `includes/admin/audio-image-matcher.php`, `includes/admin/uploads/audio-upload-form.php`.
 - Adjust recording interface: `includes/shortcodes/audio-recording-shortcode.php`, `js/audio-recorder.js`, `css/recording-interface.css`.
 - Change audio processing: `includes/admin/audio-processor-admin.php`, `js/audio-processor.js`, `css/audio-processor.css`.
 - Modify user study state/recommendations: `includes/user-study.php`, `includes/user-progress.php`, `js/wordset-pages.js`.

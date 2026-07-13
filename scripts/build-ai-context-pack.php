@@ -303,6 +303,7 @@ function ll_tools_context_pack_definitions(): array
                 'Initial admin loads should be paged/lazy; validation can be deeper but must be explicit.',
                 'Publishing words may be blocked without published word_audio depending on category config.',
                 'Autosave/editing flows should avoid page refreshes after successful saves when practical.',
+                'Automatic audio/image matching must use the bounded normalized-title index before applying the existing confidence gate; never hydrate every image in a selected category during an upload request.',
             ],
             'sources' => [
                 'includes/shortcodes/audio-recording-shortcode.php',

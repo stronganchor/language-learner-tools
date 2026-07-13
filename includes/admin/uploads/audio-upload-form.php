@@ -1127,6 +1127,9 @@ function ll_display_upload_results($success_matches, $failed_matches, $match_exi
 if (!function_exists('ll_sim_normalize')) {
     /** Lowercase, trim, replace separators with spaces, collapse whitespace */
     function ll_sim_normalize($s) {
+        if (function_exists('ll_tools_image_match_normalize_title')) {
+            return ll_tools_image_match_normalize_title((string) $s);
+        }
         $s = strtolower( wp_strip_all_tags( (string)$s ) );
         // Treat dot/underscore/dash as separators
         $s = preg_replace('/[._\-]+/u', ' ', $s);
@@ -1217,25 +1220,18 @@ if (!function_exists('ll_find_matching_image_conservative')) {
         }
         if (empty($categories)) return null;
 
-        $query_args = [
-            'post_type'      => 'word_images',
-            'posts_per_page' => -1,
-            'tax_query'      => [[
-                'taxonomy' => 'word-category',
-                'field'    => 'term_id',
-                'terms'    => $categories,
-            ]],
-            'orderby' => 'title',
-            'order'   => 'ASC',
-        ];
-        if (!empty($wordset_ids) && function_exists('ll_tools_get_word_image_owner_meta_query')) {
-            $meta_query = ll_tools_get_word_image_owner_meta_query($wordset_ids, true);
-            if (!empty($meta_query)) {
-                $query_args['meta_query'] = $meta_query;
-            }
-        }
-
-        $image_posts = get_posts($query_args);
+        $candidate_ids = function_exists('ll_tools_image_match_index_candidate_ids')
+            ? ll_tools_image_match_index_candidate_ids($audio_norm, $categories, $wordset_ids)
+            : [];
+        $image_posts = $candidate_ids === []
+            ? []
+            : get_posts([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post__in' => $candidate_ids,
+                'posts_per_page' => count($candidate_ids),
+                'orderby' => 'post__in',
+            ]);
         if (empty($image_posts)) return null;
 
         $best   = null;
