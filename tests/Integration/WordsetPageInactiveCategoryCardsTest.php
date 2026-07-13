@@ -240,6 +240,72 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_vocab_lesson_is_preview_only($lesson_id));
     }
 
+    public function test_contention_without_a_category_job_returns_busy_instead_of_false_progress(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordsetId = (int) $fixture['wordset_id'];
+        $lockedCategoryId = (int) $fixture['inactive_category_id'];
+        $requestedCategoryId = (int) $fixture['image_only_category_id'];
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $lease = ll_tools_wordset_page_acquire_category_delete_lock($lockedCategoryId, $wordsetId);
+        $this->assertNotEmpty($lease);
+
+        try {
+            $result = ll_tools_wordset_page_process_inactive_category_action(
+                'delete',
+                $wordsetId,
+                $wordsetId,
+                $requestedCategoryId,
+                wp_create_nonce('ll_wordset_inactive_category_' . $wordsetId . '_' . $requestedCategoryId)
+            );
+        } finally {
+            ll_tools_wordset_page_release_category_delete_lock($lease);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('category_delete_busy', $result->get_error_code());
+        $this->assertSame([], ll_tools_wordset_page_get_category_delete_job($requestedCategoryId, $wordsetId));
+    }
+
+    public function test_inactive_delete_retry_finalizes_a_job_after_the_term_is_missing(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordsetId = (int) $fixture['wordset_id'];
+        $categoryId = (int) $fixture['empty_owned_category_id'];
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $nonce = wp_create_nonce('ll_wordset_inactive_category_' . $wordsetId . '_' . $categoryId);
+        update_term_meta($wordsetId, 'll_wordset_category_delete_jobs', [
+            $categoryId => [
+                'version' => 2,
+                'revision' => 1,
+                'wordset_id' => $wordsetId,
+                'category_id' => $categoryId,
+                'category_name' => 'Empty Owned Staff Category',
+                'status' => 'running',
+                'phase' => 'term',
+                'lesson_total' => 0,
+                'word_total' => 0,
+                'deleted_lesson_count' => 0,
+                'detached_word_count' => 0,
+            ],
+        ]);
+        wp_delete_term($categoryId, 'word-category');
+
+        $result = ll_tools_wordset_page_process_inactive_category_action(
+            'delete',
+            $wordsetId,
+            $wordsetId,
+            $categoryId,
+            $nonce
+        );
+
+        $this->assertIsArray($result);
+        $this->assertSame('deleted', (string) ($result['result'] ?? ''));
+        $job = ll_tools_wordset_page_get_category_delete_job($categoryId, $wordsetId);
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+        $this->assertSame('complete', (string) ($job['phase'] ?? ''));
+    }
+
     public function test_get_preview_action_is_read_only_and_does_not_prepare_words(): void
     {
         $fixture = $this->createWordsetFixture();
@@ -463,6 +529,66 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $wordsets = wp_get_object_terms($word_id, 'wordset', ['fields' => 'ids']);
         $this->assertIsArray($wordsets);
         $this->assertContains($wordset_id, array_map('intval', $wordsets));
+    }
+
+    public function test_inactive_category_delete_keeps_zero_content_card_until_durable_job_completes(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['inactive_category_id'];
+        $word_id = (int) $fixture['inactive_word_id'];
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $batchSize = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+
+        try {
+            $firstResult = ll_tools_wordset_page_process_inactive_category_action(
+                'delete',
+                $wordset_id,
+                $wordset_id,
+                $category_id,
+                wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)
+            );
+
+            $this->assertIsArray($firstResult);
+            $this->assertSame('deleting', (string) ($firstResult['result'] ?? ''));
+            $this->assertSame('running', (string) ($firstResult['deletion_status'] ?? ''));
+            $this->assertSame(1, (int) ($firstResult['detached_word_count'] ?? 0));
+            $this->assertNotFalse(term_exists($category_id, 'word-category'));
+            $this->assertSame('publish', get_post_status($word_id));
+            $wordCategories = wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']);
+            $this->assertIsArray($wordCategories);
+            $this->assertNotContains($category_id, array_map('intval', $wordCategories));
+
+            $pendingCategory = $this->findWordsetPageCategory($wordset_id, $category_id);
+            $this->assertIsArray($pendingCategory, 'A zero-content category must remain visible while its durable deletion job is active.');
+            $this->assertSame('running', (string) ($pendingCategory['deletion_status'] ?? ''));
+            $this->assertFalse((bool) ($pendingCategory['can_hide'] ?? true));
+            $this->assertFalse((bool) ($pendingCategory['can_preview'] ?? true));
+            $this->assertTrue((bool) ($pendingCategory['can_delete'] ?? false));
+
+            $html = ll_tools_wordset_page_render_category_card($pendingCategory, ['is_study_user' => true]);
+            $this->assertStringContainsString('data-ll-wordset-deletion-status="running"', $html);
+            $this->assertStringContainsString('role="status" aria-live="polite"', $html);
+            $this->assertStringContainsString('Continue Deletion:', $html);
+            $this->assertStringContainsString('ll-wordset-card__inactive-action--hide" disabled', $html);
+            $this->assertStringNotContainsString('data-ll-wordset-inactive-preview-trigger', $html);
+
+            $secondResult = ll_tools_wordset_page_process_inactive_category_action(
+                'delete',
+                $wordset_id,
+                $wordset_id,
+                $category_id,
+                wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)
+            );
+            $this->assertIsArray($secondResult);
+            $this->assertSame('deleted', (string) ($secondResult['result'] ?? ''));
+            $this->assertFalse((bool) term_exists($category_id, 'word-category'));
+        } finally {
+            remove_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+        }
     }
 
     private function findWordsetPageCategory(int $wordset_id, int $category_id): ?array

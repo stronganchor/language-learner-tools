@@ -242,6 +242,8 @@ function ll_tools_context_pack_definitions(): array
                 'category shell',
                 'lazy card',
                 'vocab lesson',
+                'inactive category deletion',
+                'category delete job',
                 'word grid',
                 'word editor',
                 'inline edit',
@@ -271,6 +273,7 @@ function ll_tools_context_pack_definitions(): array
                 'Never return has_more with an unusable token: expose continuation_unavailable and stop automatic continuation; browser continuation requests are selected-category-generation scoped so late prior-category responses cannot alter the active queue.',
                 'Recorder summary preview slots require renderable items and remain pending while bounded refill work may still produce useful candidates.',
                 'Global vocab-lesson settings and cron syncs queue the durable reconciliation job; each continuation must cap cleanup rows and one wordset category cursor.',
+                'Interactive category deletion uses one wordset-scoped persisted job, bridges the previous per-category lock namespace with a rollback-expiring marker, transactionally revalidates both lease rows on state writes, saves before mutation, reconciles remaining rows after interruption, and keeps Continue/Retry visible until completion.',
                 'Word-grid bulk edits prepare rollback chunks before mutation, revalidate persisted targets, fence state writes by lease, verify mutation/restore readback, and delete expired chunks in bounded scheduled batches.',
             ],
             'sources' => [

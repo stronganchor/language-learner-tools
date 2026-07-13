@@ -96,6 +96,24 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Delete empty category', $html);
     }
 
+    public function test_category_delete_state_and_busy_notices_remain_actionable_after_redirect(): void
+    {
+        $_GET = [
+            'll_vocab_lesson_category_settings' => 'error',
+            'll_vocab_lesson_category_settings_error' => 'category_delete_state',
+        ];
+        $stateNotice = ll_tools_get_vocab_lesson_category_settings_notice();
+        $this->assertIsArray($stateNotice);
+        $this->assertSame('error', $stateNotice['type']);
+        $this->assertSame('Category deletion progress could not be saved. Please try again.', $stateNotice['message']);
+
+        $_GET['ll_vocab_lesson_category_settings_error'] = 'category_delete_busy';
+        $busyNotice = ll_tools_get_vocab_lesson_category_settings_notice();
+        $this->assertIsArray($busyNotice);
+        $this->assertSame('error', $busyNotice['type']);
+        $this->assertSame('Another category deletion batch is already running for this word set. Please try again shortly.', $busyNotice['message']);
+    }
+
     public function test_wordset_manager_can_save_category_settings_from_lesson_page(): void
     {
         wp_insert_term('Isolation', 'recording_type', ['slug' => 'isolation']);
@@ -243,6 +261,96 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
             $this->assertIsArray($wordsets);
             $this->assertContains((int) $fixture['wordset_id'], array_map('intval', $wordsets));
         }
+    }
+
+    public function test_lesson_page_delete_redirects_to_durable_progress_when_first_batch_deletes_current_lesson(): void
+    {
+        $manager_id = $this->createManagerUser();
+        wp_set_current_user($manager_id);
+        $fixture = $this->createManagedLessonFixture($manager_id);
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $fixture['lesson_id']);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_vocab_lesson_category_settings_action' => 'delete',
+            'll_vocab_lesson_category_settings_lesson_id' => (string) $fixture['lesson_id'],
+            'll_vocab_lesson_category_settings_wordset_id' => (string) $fixture['wordset_id'],
+            'll_vocab_lesson_category_settings_category_id' => (string) $fixture['category_id'],
+            'll_vocab_lesson_category_settings_nonce' => wp_create_nonce('ll_vocab_lesson_category_settings_' . $fixture['lesson_id']),
+        ];
+        $batchSize = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+
+        try {
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_handle_vocab_lesson_category_settings_submit();
+            });
+            $query = [];
+            parse_str((string) wp_parse_url($redirect_url, PHP_URL_QUERY), $query);
+            $this->assertSame('ok', (string) ($query['ll_wordset_inactive_category'] ?? ''));
+            $this->assertSame('deleting', (string) ($query['ll_wordset_inactive_category_result'] ?? ''));
+            $this->assertNull(get_post((int) $fixture['lesson_id']));
+            $this->assertNotFalse(term_exists((int) $fixture['category_id'], 'word-category'));
+
+            $job = ll_tools_wordset_page_get_category_delete_job((int) $fixture['category_id'], (int) $fixture['wordset_id']);
+            $this->assertSame('running', (string) ($job['status'] ?? ''));
+            $this->assertSame(1, (int) ($job['deleted_lesson_count'] ?? 0));
+            for ($attempt = 0; $attempt < 6 && (string) ($job['status'] ?? '') !== 'complete'; $attempt++) {
+                $job = ll_tools_wordset_page_run_category_delete_batch((int) $fixture['category_id'], (int) $fixture['wordset_id']);
+                $this->assertIsArray($job);
+            }
+        } finally {
+            remove_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+        }
+
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+        $this->assertFalse((bool) term_exists((int) $fixture['category_id'], 'word-category'));
+        foreach ([(int) $fixture['word_a_id'], (int) $fixture['word_b_id']] as $word_id) {
+            $this->assertSame('publish', get_post_status($word_id));
+        }
+    }
+
+    public function test_lesson_delete_state_failure_after_mutation_redirects_to_wordset_recovery(): void
+    {
+        $managerId = $this->createManagerUser();
+        wp_set_current_user($managerId);
+        $fixture = $this->createManagedLessonFixture($managerId);
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $fixture['lesson_id']);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_vocab_lesson_category_settings_action' => 'delete',
+            'll_vocab_lesson_category_settings_lesson_id' => (string) $fixture['lesson_id'],
+            'll_vocab_lesson_category_settings_wordset_id' => (string) $fixture['wordset_id'],
+            'll_vocab_lesson_category_settings_category_id' => (string) $fixture['category_id'],
+            'll_vocab_lesson_category_settings_nonce' => wp_create_nonce('ll_vocab_lesson_category_settings_' . $fixture['lesson_id']),
+        ];
+        $stateSaveCount = 0;
+        $failFinalStateSaves = static function ($check, int $objectId, string $metaKey) use ($fixture, &$stateSaveCount) {
+            if ($objectId === (int) $fixture['wordset_id'] && $metaKey === 'll_wordset_category_delete_jobs') {
+                $stateSaveCount++;
+                if ($stateSaveCount >= 4) {
+                    return false;
+                }
+            }
+            return $check;
+        };
+        add_filter('update_term_metadata', $failFinalStateSaves, 10, 3);
+        try {
+            $redirectUrl = $this->captureRedirect(static function (): void {
+                ll_tools_handle_vocab_lesson_category_settings_submit();
+            });
+        } finally {
+            remove_filter('update_term_metadata', $failFinalStateSaves, 10);
+        }
+
+        $query = [];
+        parse_str((string) wp_parse_url($redirectUrl, PHP_URL_QUERY), $query);
+        $this->assertNull(get_post((int) $fixture['lesson_id']));
+        $this->assertSame('error', (string) ($query['ll_wordset_inactive_category'] ?? ''));
+        $this->assertSame('category_delete_state', (string) ($query['ll_wordset_inactive_category_error'] ?? ''));
+        $this->assertSame('Category deletion progress could not be saved. Please try again.', (string) ($query['ll_wordset_inactive_category_message'] ?? ''));
     }
 
     public function test_wordset_manager_can_preserve_title_backed_audio_translation_answers(): void

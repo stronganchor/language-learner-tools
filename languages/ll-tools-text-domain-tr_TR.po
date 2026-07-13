@@ -27817,3 +27817,11 @@ msgstr "Bazı kelimeler geri yüklenemedi. Geri almayı yeniden denemek için sa
 #. ll-tools-maintenance: 2026-07-13 durable word-grid bulk operations
 msgid "Interrupted bulk change"
 msgstr "Kesintiye uğrayan toplu değişiklik"
+
+#. ll-tools-maintenance: 2026-07-13 durable category deletion
+msgid "Category deletion progress could not be saved. Please try again."
+msgstr "Kategori silme ilerlemesi kaydedilemedi. Lütfen tekrar dene."
+
+#. ll-tools-maintenance: 2026-07-13 durable category deletion
+msgid "Another category deletion batch is already running for this word set. Please try again shortly."
+msgstr "Bu kelime seti için başka bir kategori silme işlemi zaten devam ediyor. Lütfen kısa süre sonra tekrar dene."

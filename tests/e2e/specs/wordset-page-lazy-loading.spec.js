@@ -366,6 +366,9 @@ function buildLazyShells(categories) {
     can_delete: !!category.can_delete,
     can_preview: !!category.can_preview,
     delete_reason: category.delete_reason || '',
+    deletion_status: category.deletion_status || '',
+    deletion_progress: category.deletion_progress || { processed: 0, total: 0, percent: 0 },
+    deletion_message: category.deletion_message || '',
     inactive_action_nonce: category.inactive_action_nonce || '',
     inactive_action_url: category.inactive_action_url || '',
     inactive_preview_url: category.inactive_preview_url || '',
@@ -410,6 +413,8 @@ function buildConfig(options = {}) {
     deleteCategoryAria: 'Delete %s',
     categoryManagementAria: 'Category management for %s',
     inactiveDeleteConfirm: 'Delete this category? This cannot be undone.',
+    continueDeletionLabel: 'Continue Deletion',
+    retryDeletionLabel: 'Retry Deletion',
     notPublicLabel: 'Not public',
     modeLearning: 'Learn',
     modePractice: 'Practice',
@@ -496,16 +501,21 @@ async function mountWordsetPage(page, options = {}) {
   };
   const lazyProgressTrackLoading = !!options.lazyProgressTrackLoading;
   const lazyAjaxDelay = Math.max(0, Number.parseInt(options.lazyAjaxDelay, 10) || 40);
+  const inactiveActionResponses = Array.isArray(options.inactiveActionResponses) ? options.inactiveActionResponses : [];
 
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.setContent(buildMarkup(options));
   await page.addScriptTag({ content: jquerySource });
 
-  await page.evaluate(({ config, remainingCards, analyticsResponse, lazyProgressTrackLoading, lazyAjaxDelay }) => {
+  await page.evaluate(({ config, remainingCards, analyticsResponse, lazyProgressTrackLoading, lazyAjaxDelay, inactiveActionResponses }) => {
     window.llWordsetPageData = config;
     window.alert = function () {};
-    window.confirm = function () { return true; };
+    window.__llConfirmCalls = 0;
+    window.confirm = function () {
+      window.__llConfirmCalls++;
+      return true;
+    };
     try {
       window.localStorage.removeItem('llToolsWordsetMainSort:77');
     } catch (_) {}
@@ -565,10 +575,11 @@ async function mountWordsetPage(page, options = {}) {
       const data = normalizeAjaxData((options && options.data) || {});
       if (data.action === 'll_tools_wordset_inactive_category_action') {
         window.__llInactiveActionAjaxCalls.push(data);
+        const configuredResponse = inactiveActionResponses.length ? inactiveActionResponses.shift() : null;
         window.setTimeout(() => {
           deferred.resolve({
             success: true,
-            data: {
+            data: configuredResponse || {
               result: data.ll_wordset_inactive_category_action === 'delete' ? 'deleted' : 'hidden',
               wordset_id: Number.parseInt(data.ll_wordset_inactive_category_wordset_id, 10) || 0,
               category_id: Number.parseInt(data.ll_wordset_inactive_category_id, 10) || 0
@@ -699,7 +710,8 @@ async function mountWordsetPage(page, options = {}) {
     remainingCards,
     analyticsResponse,
     lazyProgressTrackLoading,
-    lazyAjaxDelay
+    lazyAjaxDelay,
+    inactiveActionResponses
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
@@ -1250,4 +1262,63 @@ test('inactive category delete submits by ajax and removes only that card', asyn
   }).toEqual(['delete']);
   await expect(page.locator('.ll-wordset-card[data-cat-id="45"]')).toHaveCount(0);
   expect(page.url()).toBe(initialUrl);
+});
+
+test('inactive category durable delete keeps progress card until a later batch completes', async ({ page }) => {
+  const deletableCategory = Object.assign({}, inactiveCategory, {
+    id: 46,
+    name: 'Durable Draft Category',
+    translation: 'Durable Draft Category',
+    can_delete: true,
+    delete_reason: '',
+    public_note: 'Needs cleanup.',
+    search_text: 'durable draft category'
+  });
+  await mountWordsetPage(page, {
+    categories: [deletableCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    initialCardsMarkup: buildInactiveCardMarkup(deletableCategory),
+    inactiveActionResponses: [
+      {
+        result: 'deleting',
+        wordset_id: 77,
+        category_id: 46,
+        deletion_status: 'running',
+        deletion_progress: { processed: 1, total: 3, percent: 33 },
+        deletion_message: 'Deletion in progress: 1 of 3 linked items processed.',
+        message: 'Deletion in progress: 1 of 3 linked items processed.'
+      },
+      {
+        result: 'deleted',
+        wordset_id: 77,
+        category_id: 46,
+        deletion_status: 'complete'
+      }
+    ],
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 1,
+      remaining: 0
+    }
+  });
+
+  const card = page.locator('.ll-wordset-card--inactive[data-cat-id="46"]');
+  await card.locator('.ll-wordset-card__inactive-action--delete').click();
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute('data-ll-wordset-deletion-status', 'running');
+  await expect(card.locator('.ll-wordset-card__public-note')).toHaveAttribute('role', 'status');
+  await expect(card.locator('.ll-wordset-card__public-note')).toHaveAttribute('aria-live', 'polite');
+  await expect(card.locator('.ll-wordset-card__public-note-text')).toHaveText('Deletion in progress: 1 of 3 linked items processed.');
+  await expect(card.locator('.ll-wordset-card__inactive-action--hide')).toBeDisabled();
+  await expect(card.locator('.ll-wordset-card__inactive-action--delete')).toHaveAttribute('aria-label', 'Continue Deletion: Durable Draft Category');
+  await expect(card.locator('.ll-wordset-card__inactive-action-form[data-ll-wordset-card-confirm]')).toHaveCount(0);
+  await expect(card.locator('[data-ll-wordset-inactive-preview-trigger]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__llConfirmCalls)).toBe(1);
+
+  await card.locator('.ll-wordset-card__inactive-action--delete').click();
+  await expect.poll(async () => page.evaluate(() => window.__llInactiveActionAjaxCalls.length)).toBe(2);
+  await expect(page.locator('.ll-wordset-card[data-cat-id="46"]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__llConfirmCalls)).toBe(1);
 });

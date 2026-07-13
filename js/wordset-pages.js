@@ -1641,6 +1641,15 @@
                 can_delete: normalizeBooleanFlag(cat && cat.can_delete),
                 can_preview: normalizeBooleanFlag(cat && cat.can_preview),
                 delete_reason: String((cat && cat.delete_reason) || ''),
+                deletion_status: String((cat && cat.deletion_status) || ''),
+                deletion_progress: (cat && cat.deletion_progress && typeof cat.deletion_progress === 'object')
+                    ? {
+                        processed: Math.max(0, parseInt(cat.deletion_progress.processed, 10) || 0),
+                        total: Math.max(0, parseInt(cat.deletion_progress.total, 10) || 0),
+                        percent: Math.max(0, Math.min(100, parseInt(cat.deletion_progress.percent, 10) || 0))
+                    }
+                    : { processed: 0, total: 0, percent: 0 },
+                deletion_message: String((cat && cat.deletion_message) || ''),
                 inactive_action_nonce: String((cat && cat.inactive_action_nonce) || ''),
                 inactive_action_url: String((cat && cat.inactive_action_url) || ''),
                 inactive_preview_url: String((cat && cat.inactive_preview_url) || ''),
@@ -1695,6 +1704,15 @@
                 can_delete: normalizeBooleanFlag(source.can_delete),
                 can_preview: normalizeBooleanFlag(source.can_preview),
                 delete_reason: String(source.delete_reason || ''),
+                deletion_status: String(source.deletion_status || ''),
+                deletion_progress: (source.deletion_progress && typeof source.deletion_progress === 'object')
+                    ? {
+                        processed: Math.max(0, parseInt(source.deletion_progress.processed, 10) || 0),
+                        total: Math.max(0, parseInt(source.deletion_progress.total, 10) || 0),
+                        percent: Math.max(0, Math.min(100, parseInt(source.deletion_progress.percent, 10) || 0))
+                    }
+                    : { processed: 0, total: 0, percent: 0 },
+                deletion_message: String(source.deletion_message || ''),
                 inactive_action_nonce: String(source.inactive_action_nonce || ''),
                 inactive_action_url: String(source.inactive_action_url || ''),
                 inactive_preview_url: String(source.inactive_preview_url || ''),
@@ -8123,17 +8141,22 @@
 
         const catName = String(cat.name || cat.translation || '').trim();
         const hideAria = formatTemplate(i18n.hideCategoryAria || '', [catName]);
+        const deletionStatus = String(cat.deletion_status || '').trim();
+        const deletionActive = deletionStatus === 'running' || deletionStatus === 'failed';
+        const deleteAria = deletionActive
+            ? String(deletionStatus === 'failed' ? (i18n.retryDeletionLabel || '') : (i18n.continueDeletionLabel || '')).trim() + ': ' + catName
+            : formatTemplate(i18n.deleteCategoryAria || '', [catName]);
         let html = '  <div class="ll-wordset-card__inactive-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || '', [catName])) + '">';
-        html += buildInactiveCategoryIconActionForm(cat, 'hide', hideAria, buildWordsetHideIconMarkup(), !!cat.can_hide, 'hide', '', '');
+        html += buildInactiveCategoryIconActionForm(cat, 'hide', hideAria, buildWordsetHideIconMarkup(), !deletionActive && !!cat.can_hide, 'hide', '', '');
         html += buildInactiveCategoryIconActionForm(
             cat,
             'delete',
-            formatTemplate(i18n.deleteCategoryAria || '', [catName]),
+            deleteAria,
             buildWordsetTrashIconMarkup(),
             !!cat.can_delete,
             'delete',
             String(cat.delete_reason || ''),
-            i18n.inactiveDeleteConfirm || ''
+            deletionActive ? '' : (i18n.inactiveDeleteConfirm || '')
         );
         html += '  </div>';
 
@@ -8157,14 +8180,16 @@
         const isVirtualCategory = !!cat.is_virtual_category;
         const virtualCategoryType = String(cat.virtual_category_type || '').trim();
         const isPublic = categoryIsPublic(cat);
-        const canPreviewInactive = !isPublic && canRenderInactiveCategoryActions(cat) && !!cat.can_preview;
-        const inactiveDirectLinkAllowed = !isPublic && rawCatUrl !== '' && !!cat.inactive_link_allowed;
+        const deletionStatus = String(cat.deletion_status || '').trim();
+        const deletionActive = deletionStatus === 'running' || deletionStatus === 'failed';
+        const canPreviewInactive = !deletionActive && !isPublic && canRenderInactiveCategoryActions(cat) && !!cat.can_preview;
+        const inactiveDirectLinkAllowed = !deletionActive && !isPublic && rawCatUrl !== '' && !!cat.inactive_link_allowed;
         const inactivePreviewUrl = canPreviewInactive ? String(cat.inactive_preview_url || '').trim() : '';
         const inactiveLinkUrl = inactiveDirectLinkAllowed ? rawCatUrl : inactivePreviewUrl;
         const inactiveLinkHref = inactiveLinkUrl || '#';
         const inactiveLinkUsesPreview = !inactiveDirectLinkAllowed && inactivePreviewUrl !== '';
         const canLinkInactive = !isPublic && inactiveLinkUrl !== '';
-        const publicNote = String(cat.public_note || i18n.categoryNotPublicDefaultNote || '').trim();
+        const publicNote = String((deletionActive ? cat.deletion_message : '') || cat.public_note || i18n.categoryNotPublicDefaultNote || '').trim();
         const publicNoteLabel = String(cat.public_note_label || i18n.notPublicLabel || '').trim();
         const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
         const starredCount = Math.max(0, parseInt(starredLookup[categoryId], 10) || 0);
@@ -8179,9 +8204,12 @@
         const quizModesAria = formatTemplate(i18n.quizModesCategoryAria || '', [catName]);
         const cardModes = getWordsetCategoryCardModes(cat);
 
-        let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + (canPreviewInactive ? ' ll-wordset-card--inactive-previewable' : '') + (isVirtualCategory ? ' ll-wordset-card--virtual' : '') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
+        let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + (canPreviewInactive ? ' ll-wordset-card--inactive-previewable' : '') + (deletionActive ? ' ll-wordset-card--deleting' : '') + (isVirtualCategory ? ' ll-wordset-card--virtual' : '') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
         if (canPreviewInactive) {
             html += ' data-ll-wordset-inactive-preview-card="true"';
+        }
+        if (deletionActive) {
+            html += ' data-ll-wordset-deletion-status="' + escapeHtml(deletionStatus) + '"';
         }
         if (isVirtualCategory) {
             html += ' data-ll-wordset-virtual-category="' + escapeHtml(virtualCategoryType) + '"';
@@ -8247,7 +8275,7 @@
         html += '  </div>';
         html += (isPublic || canLinkInactive) ? '</a>' : '</div>';
         if (!isPublic) {
-            html += '<div class="ll-wordset-card__public-note" role="note">'
+            html += '<div class="ll-wordset-card__public-note" role="' + (deletionActive ? 'status' : 'note') + '"' + (deletionActive ? ' aria-live="polite"' : '') + '>'
                 + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(publicNoteLabel) + '</span>'
                 + '<span class="ll-wordset-card__public-note-text">' + escapeHtml(publicNote) + '</span>'
                 + '</div>';
@@ -8406,6 +8434,53 @@
             return;
         }
 
+        if (action === 'deleting') {
+            let updatedCategory = null;
+            categories = categories.map(function (cat) {
+                if (parseInt(cat && cat.id, 10) !== categoryId) {
+                    return cat;
+                }
+                updatedCategory = Object.assign({}, cat, {
+                    can_hide: false,
+                    can_preview: false,
+                    can_delete: true,
+                    delete_reason: '',
+                    deletion_status: String(data.deletion_status || 'running'),
+                    deletion_progress: (data.deletion_progress && typeof data.deletion_progress === 'object')
+                        ? data.deletion_progress
+                        : { processed: 0, total: 0, percent: 0 },
+                    deletion_message: String(data.deletion_message || data.message || ''),
+                    public_note: String(data.deletion_message || data.message || cat.public_note || '')
+                });
+                return updatedCategory;
+            });
+
+            if (updatedCategory) {
+                const progressLookup = buildCategoryProgressLookupForMainGrid();
+                const starredLookup = buildCategoryStarredLookupForMainGrid();
+                let $mounted = $();
+                $grid.find('.ll-wordset-card[data-cat-id="' + categoryId + '"]').each(function () {
+                    const markup = buildWordsetCategoryCardMarkup(updatedCategory, {
+                        progressLookup: progressLookup,
+                        starredLookup: starredLookup
+                    });
+                    const parsedNodes = $.parseHTML(String(markup || ''), document, true) || [];
+                    const $replacement = $(parsedNodes).filter('.ll-wordset-card[data-cat-id]').first();
+                    if ($replacement.length) {
+                        $(this).replaceWith($replacement);
+                        $mounted = $mounted.add($replacement);
+                    }
+                });
+                finalizeInsertedMainGridCards($mounted);
+                if (isMainCategorySearchActive()) {
+                    renderMainCategorySearch();
+                }
+            } else {
+                setInactiveCategoryActionFormBusy($('.ll-wordset-card[data-cat-id="' + categoryId + '"] .ll-wordset-card__inactive-action-form').first(), false);
+            }
+            return;
+        }
+
         if (action === 'hidden') {
             const ignored = uniqueIntList((goals.ignored_category_ids || []).concat([categoryId]));
             goals.ignored_category_ids = ignored;
@@ -8423,6 +8498,8 @@
                 return id !== categoryId;
             }));
             rebuildCategoryOrderLookup();
+        } else {
+            return;
         }
 
         state.category_ids = uniqueIntList((state.category_ids || []).filter(function (value) {

@@ -262,6 +262,366 @@ final class WordsetCategoryManagerResourceTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_category_delete_lock_is_wordset_scoped_and_fenced(): void
+    {
+        $wordsetId = $this->createWordset('Serialized Category Deletion');
+        $firstCategoryId = $this->createOwnedCategory($wordsetId, 'First Serialized Category');
+        $secondCategoryId = $this->createOwnedCategory($wordsetId, 'Second Serialized Category');
+        $this->assertSame(
+            ll_tools_wordset_page_get_category_delete_lock_key($firstCategoryId, $wordsetId),
+            ll_tools_wordset_page_get_category_delete_lock_key($secondCategoryId, $wordsetId)
+        );
+
+        $lease = ll_tools_wordset_page_acquire_category_delete_lock($firstCategoryId, $wordsetId);
+        $this->assertNotEmpty($lease);
+        $legacyBridgeValue = (string) get_option((string) $lease['legacy_key'], '');
+        $this->assertMatchesRegularExpression('/^[1-9][0-9]*:v2:[A-Za-z0-9-]+$/', $legacyBridgeValue);
+        $this->assertGreaterThan(0, (int) $legacyBridgeValue);
+        $this->assertLessThanOrEqual(time(), (int) $legacyBridgeValue);
+        $this->assertGreaterThan(time() - (5 * MINUTE_IN_SECONDS), (int) $legacyBridgeValue);
+        $otherWordsetId = $this->createWordset('Independent Serialized Category Deletion');
+        $otherWordsetCategoryId = $this->createOwnedCategory($otherWordsetId, 'Independent Serialized Category');
+        $otherWordsetResult = ll_tools_wordset_page_run_category_delete_batch($otherWordsetCategoryId, $otherWordsetId);
+        $this->assertIsArray($otherWordsetResult);
+        $this->assertSame('complete', (string) ($otherWordsetResult['status'] ?? ''));
+        $busyResult = ll_tools_wordset_page_run_category_delete_batch($secondCategoryId, $wordsetId);
+        $this->assertWPError($busyResult);
+        $this->assertSame('category_delete_busy', $busyResult->get_error_code());
+
+        $successorValue = [
+            'token' => 'successor-token',
+            'expires_at' => time() + 5 * MINUTE_IN_SECONDS,
+        ];
+        $this->assertTrue(ll_tools_wordset_page_replace_category_delete_lock_value(
+            (string) $lease['key'],
+            $lease['value'],
+            $successorValue
+        ));
+        ll_tools_wordset_page_release_category_delete_lock($lease);
+        $this->assertSame($successorValue, get_option((string) $lease['key']));
+        delete_option((string) $lease['key']);
+    }
+
+    public function test_category_delete_takes_over_expired_legacy_lock(): void
+    {
+        $wordsetId = $this->createWordset('Expired Category Deletion Lock');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'Expired Lock Category');
+        $lockKey = ll_tools_wordset_page_get_category_delete_legacy_lock_key($categoryId, $wordsetId);
+        $this->assertTrue(add_option($lockKey, time() - (6 * MINUTE_IN_SECONDS), '', false));
+
+        $job = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+
+        $this->assertIsArray($job);
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+        $this->assertFalse((bool) term_exists($categoryId, 'word-category'));
+        $this->assertFalse(get_option($lockKey, false));
+    }
+
+    public function test_category_delete_honors_an_active_previous_version_lock(): void
+    {
+        $wordsetId = $this->createWordset('Active Legacy Category Deletion Lock');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'Active Legacy Lock Category');
+        $lessonId = $this->createLesson($wordsetId, $categoryId);
+        $legacyLockKey = ll_tools_wordset_page_get_category_delete_legacy_lock_key($categoryId, $wordsetId);
+        $this->assertTrue(add_option($legacyLockKey, time(), '', false));
+
+        try {
+            $result = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+        } finally {
+            delete_option($legacyLockKey);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('category_delete_busy', $result->get_error_code());
+        $this->assertInstanceOf(WP_Post::class, get_post($lessonId));
+        $this->assertNotFalse(term_exists($categoryId, 'word-category'));
+        $this->assertSame([], ll_tools_wordset_page_get_category_delete_job($categoryId, $wordsetId));
+    }
+
+    public function test_category_delete_state_writes_lock_and_revalidate_the_lease_transactionally(): void
+    {
+        $wordsetId = $this->createWordset('Transactional Category State');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'Transactional Category');
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $job = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertIsArray($job);
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+        $sql = implode("\n", $queries);
+        $this->assertStringContainsString('START TRANSACTION', $sql);
+        $this->assertStringContainsString('SELECT option_value', $sql);
+        $this->assertStringContainsString('FOR UPDATE', $sql);
+        $this->assertStringContainsString('FORCE INDEX (option_name)', $sql);
+        $this->assertStringContainsString('ORDER BY option_name ASC', $sql);
+        $this->assertStringContainsString('COMMIT', $sql);
+        $transactionStartIndex = null;
+        $globalLockIndex = null;
+        $leaseLockIndex = null;
+        foreach ($queries as $index => $query) {
+            if ($transactionStartIndex === null && trim($query) === 'START TRANSACTION') {
+                $transactionStartIndex = $index;
+                continue;
+            }
+            if ($transactionStartIndex === null || $index <= $transactionStartIndex) {
+                continue;
+            }
+            if ($globalLockIndex === null && strpos($query, 'SELECT option_name, option_value') !== false) {
+                $globalLockIndex = $index;
+            }
+            if ($leaseLockIndex === null && strpos($query, 'SELECT option_value FROM') !== false) {
+                $leaseLockIndex = $index;
+            }
+        }
+        $this->assertIsInt($globalLockIndex);
+        $this->assertIsInt($leaseLockIndex);
+        $this->assertLessThan($leaseLockIndex, $globalLockIndex);
+    }
+
+    public function test_current_wordset_leases_do_not_consume_the_legacy_scan_budget(): void
+    {
+        $wordsetId = $this->createWordset('Separated Wordset Lease Namespace');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'Separated Lease Category');
+        $optionNames = [];
+        for ($index = 0; $index < 101; $index++) {
+            $optionName = 'll_tools_category_delete_wordset_lock_fixture_' . $index;
+            $optionNames[] = $optionName;
+            add_option($optionName, [
+                'token' => 'fixture-' . $index,
+                'expires_at' => time() + 5 * MINUTE_IN_SECONDS,
+            ], '', false);
+        }
+
+        try {
+            $job = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+        } finally {
+            foreach ($optionNames as $optionName) {
+                delete_option($optionName);
+            }
+        }
+
+        $this->assertIsArray($job);
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+    }
+
+    public function test_category_delete_fails_closed_when_a_state_lock_query_fails(): void
+    {
+        global $wpdb;
+
+        $wordsetId = $this->createWordset('Failed State Lock Query');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'Failed State Lock Category');
+        $lessonId = $this->createLesson($wordsetId, $categoryId);
+        $breakTermMetaLock = static function (string $query): string {
+            if (
+                strpos($query, 'SELECT meta_id FROM') !== false
+                && strpos($query, 'll_wordset_category_delete_jobs') !== false
+                && strpos($query, 'FOR UPDATE') !== false
+            ) {
+                return 'SELECT * FROM ll_tools_missing_lock_table';
+            }
+            return $query;
+        };
+
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $breakTermMetaLock);
+        try {
+            $result = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+        } finally {
+            remove_filter('query', $breakTermMetaLock);
+            $wpdb->suppress_errors($previousSuppressErrors);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('category_delete_state', $result->get_error_code());
+        $this->assertInstanceOf(WP_Post::class, get_post($lessonId));
+        $this->assertNotFalse(term_exists($categoryId, 'word-category'));
+        $this->assertSame([], ll_tools_wordset_page_get_category_delete_job($categoryId, $wordsetId));
+    }
+
+    public function test_category_delete_does_not_mutate_when_initial_state_cannot_be_saved(): void
+    {
+        $wordsetId = $this->createWordset('Category State Save Guard');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'State Save Guard Category');
+        $lessonId = $this->createLesson($wordsetId, $categoryId);
+        $failStateSave = static function ($check, int $objectId, string $metaKey) use ($wordsetId) {
+            if ($objectId === $wordsetId && $metaKey === 'll_wordset_category_delete_jobs') {
+                return false;
+            }
+            return $check;
+        };
+
+        add_filter('update_term_metadata', $failStateSave, 10, 3);
+        try {
+            $result = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+        } finally {
+            remove_filter('update_term_metadata', $failStateSave, 10);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('category_delete_state', $result->get_error_code());
+        $this->assertInstanceOf(WP_Post::class, get_post($lessonId));
+        $this->assertNotFalse(term_exists($categoryId, 'word-category'));
+        $this->assertSame([], ll_tools_wordset_page_get_category_delete_job($categoryId, $wordsetId));
+    }
+
+    public function test_category_delete_reconciles_mutation_after_state_save_failure(): void
+    {
+        $wordsetId = $this->createWordset('Category State Reconciliation');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'State Reconciliation Category');
+        $firstLessonId = $this->createLesson($wordsetId, $categoryId);
+        $secondLessonId = $this->createLesson($wordsetId, $categoryId);
+        $stateSaveCount = 0;
+        $failSecondStateSave = static function ($check, int $objectId, string $metaKey) use ($wordsetId, &$stateSaveCount) {
+            if ($objectId === $wordsetId && $metaKey === 'll_wordset_category_delete_jobs') {
+                $stateSaveCount++;
+                if ($stateSaveCount === 2) {
+                    return false;
+                }
+            }
+            return $check;
+        };
+        $batchSize = static function (): int {
+            return 1;
+        };
+
+        add_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+        add_filter('update_term_metadata', $failSecondStateSave, 10, 3);
+        try {
+            $failedResult = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+        } finally {
+            remove_filter('update_term_metadata', $failSecondStateSave, 10);
+        }
+        $this->assertWPError($failedResult);
+        $this->assertSame('category_delete_state', $failedResult->get_error_code());
+        $this->assertNull(get_post($firstLessonId));
+        $this->assertInstanceOf(WP_Post::class, get_post($secondLessonId));
+        $this->assertSame(0, (int) (ll_tools_wordset_page_get_category_delete_job($categoryId, $wordsetId)['deleted_lesson_count'] ?? -1));
+
+        try {
+            $job = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+            $this->assertIsArray($job);
+            $this->assertSame(2, (int) ($job['deleted_lesson_count'] ?? 0));
+            for ($attempt = 0; $attempt < 5 && (string) ($job['status'] ?? '') !== 'complete'; $attempt++) {
+                $job = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+                $this->assertIsArray($job);
+            }
+        } finally {
+            remove_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+        }
+
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+        $this->assertNull(get_post($secondLessonId));
+        $this->assertFalse((bool) term_exists($categoryId, 'word-category'));
+    }
+
+    public function test_category_delete_recovers_when_final_state_save_fails_after_term_deletion(): void
+    {
+        $wordsetId = $this->createWordset('Final Category State Recovery');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'Final State Recovery Category');
+        $stateSaveCount = 0;
+        $failFinalStateSave = static function ($check, int $objectId, string $metaKey) use ($wordsetId, &$stateSaveCount) {
+            if ($objectId === $wordsetId && $metaKey === 'll_wordset_category_delete_jobs') {
+                $stateSaveCount++;
+                if ($stateSaveCount === 4) {
+                    return false;
+                }
+            }
+            return $check;
+        };
+        add_filter('update_term_metadata', $failFinalStateSave, 10, 3);
+        try {
+            $failedResult = ll_tools_wordset_page_run_category_delete_batch($categoryId, $wordsetId);
+        } finally {
+            remove_filter('update_term_metadata', $failFinalStateSave, 10);
+        }
+
+        $this->assertIsArray($failedResult);
+        $this->assertSame('complete', (string) ($failedResult['status'] ?? ''));
+        $this->assertFalse((bool) term_exists($categoryId, 'word-category'));
+        $storedJob = ll_tools_wordset_page_get_category_delete_job($categoryId, $wordsetId);
+        $this->assertSame('complete', (string) ($storedJob['status'] ?? ''));
+        $this->assertSame('complete', (string) ($storedJob['phase'] ?? ''));
+    }
+
+    public function test_category_manager_can_finalize_a_missing_term_job(): void
+    {
+        $wordsetId = $this->createWordset('Missing Term Manager Recovery');
+        $categoryId = $this->createOwnedCategory($wordsetId, 'Missing Term Manager Category');
+        update_term_meta($wordsetId, 'll_wordset_category_delete_jobs', [
+            $categoryId => [
+                'version' => 2,
+                'revision' => 1,
+                'wordset_id' => $wordsetId,
+                'category_id' => $categoryId,
+                'category_name' => 'Missing Term Manager Category',
+                'status' => 'running',
+                'phase' => 'term',
+                'lesson_total' => 0,
+                'word_total' => 0,
+                'deleted_lesson_count' => 0,
+                'detached_word_count' => 0,
+            ],
+        ]);
+        wp_delete_term($categoryId, 'word-category');
+
+        $postBackup = $_POST;
+        $_POST = [
+            'll_wordset_categories_action' => 'delete',
+            'll_wordset_category_id' => (string) $categoryId,
+        ];
+        try {
+            $result = ll_tools_wordset_page_save_categories_settings($wordsetId);
+        } finally {
+            $_POST = $postBackup;
+        }
+
+        $this->assertIsArray($result);
+        $this->assertSame('Category deleted.', (string) ($result['message'] ?? ''));
+        $job = ll_tools_wordset_page_get_category_delete_job($categoryId, $wordsetId);
+        $this->assertSame('complete', (string) ($job['status'] ?? ''));
+        $this->assertSame('complete', (string) ($job['phase'] ?? ''));
+    }
+
+    public function test_interleaved_category_jobs_preserve_the_shared_wordset_job_map(): void
+    {
+        $wordsetId = $this->createWordset('Interleaved Category Jobs');
+        $firstCategoryId = $this->createOwnedCategory($wordsetId, 'Interleaved First Category');
+        $secondCategoryId = $this->createOwnedCategory($wordsetId, 'Interleaved Second Category');
+        $this->createLesson($wordsetId, $firstCategoryId);
+        $this->createLesson($wordsetId, $firstCategoryId);
+        $this->createLesson($wordsetId, $secondCategoryId);
+        $this->createLesson($wordsetId, $secondCategoryId);
+        $batchSize = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+        try {
+            $firstJob = ll_tools_wordset_page_run_category_delete_batch($firstCategoryId, $wordsetId);
+            $this->assertIsArray($firstJob);
+            $this->assertSame('running', (string) ($firstJob['status'] ?? ''));
+            $secondJob = ll_tools_wordset_page_run_category_delete_batch($secondCategoryId, $wordsetId);
+            $this->assertIsArray($secondJob);
+            $this->assertSame('running', (string) ($secondJob['status'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_wordset_page_category_delete_batch_size', $batchSize);
+        }
+
+        $jobs = ll_tools_wordset_page_get_category_delete_jobs($wordsetId);
+        $this->assertArrayHasKey($firstCategoryId, $jobs);
+        $this->assertArrayHasKey($secondCategoryId, $jobs);
+        $this->assertSame(1, (int) ($jobs[$firstCategoryId]['deleted_lesson_count'] ?? 0));
+        $this->assertSame(1, (int) ($jobs[$secondCategoryId]['deleted_lesson_count'] ?? 0));
+    }
+
     private function createWordset(string $name): int
     {
         $created = wp_insert_term($name . ' ' . wp_generate_password(5, false), 'wordset');
