@@ -674,43 +674,33 @@ function ll_tools_site_sync_collect_transcription_record_page(int $wordset_id, b
     ];
 }
 
-function ll_tools_site_sync_collect_wordset_word_ids(int $wordset_id): array {
-    if ($wordset_id <= 0) {
+/**
+ * Collect category IDs used by words in one wordset without hydrating word IDs.
+ *
+ * @return int[]
+ */
+function ll_tools_site_sync_collect_wordset_category_ids(int $wordset_id): array {
+    if ($wordset_id <= 0 || !function_exists('ll_tools_get_word_category_ids_for_wordset_posts')) {
         return [];
     }
 
-    $word_ids = get_posts([
-        'post_type' => 'words',
-        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'orderby' => 'ID',
-        'order' => 'ASC',
-        'no_found_rows' => true,
-        'tax_query' => [
-            [
-                'taxonomy' => 'wordset',
-                'field' => 'term_id',
-                'terms' => [$wordset_id],
-            ],
-        ],
-    ]);
-
-    return array_values(array_filter(array_map('intval', (array) $word_ids), static function (int $word_id): bool {
-        return $word_id > 0;
-    }));
+    return ll_tools_get_word_category_ids_for_wordset_posts(
+        $wordset_id,
+        ['words'],
+        ['publish', 'draft', 'pending', 'private', 'future']
+    );
 }
 
 function ll_tools_site_sync_collect_wordset_category_records(int $wordset_id, bool $ensure_sync_ids = true): array {
-    $word_ids = ll_tools_site_sync_collect_wordset_word_ids($wordset_id);
-    if (empty($word_ids)) {
+    $category_ids = ll_tools_site_sync_collect_wordset_category_ids($wordset_id);
+    if (empty($category_ids)) {
         return [];
     }
 
     $terms = get_terms([
         'taxonomy' => 'word-category',
         'hide_empty' => false,
-        'object_ids' => $word_ids,
+        'include' => $category_ids,
     ]);
     if (is_wp_error($terms) || empty($terms)) {
         return [];

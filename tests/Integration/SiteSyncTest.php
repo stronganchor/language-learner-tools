@@ -3,6 +3,81 @@ declare(strict_types=1);
 
 final class SiteSyncTest extends LL_Tools_TestCase
 {
+    public function test_wordset_category_collection_uses_relationship_query_without_hydrating_words(): void
+    {
+        global $wpdb;
+
+        $wordset_id = $this->ensure_term('wordset', 'Large Category Snapshot', 'large-category-snapshot');
+        $other_wordset_id = $this->ensure_term('wordset', 'Other Category Snapshot', 'other-category-snapshot');
+        $first_category_id = $this->ensure_term('word-category', 'Snapshot Category A', 'snapshot-category-a');
+        $second_category_id = $this->ensure_term('word-category', 'Snapshot Category B', 'snapshot-category-b');
+        $other_category_id = $this->ensure_term('word-category', 'Other Snapshot Category', 'other-snapshot-category');
+
+        $representative_word_ids = [];
+        for ($index = 1; $index <= 200; $index++) {
+            $category_id = $index % 2 === 0 ? $first_category_id : $second_category_id;
+            $word_id = $this->create_word($wordset_id, [$category_id], 'Snapshot Word ' . $index, 'Translation ' . $index);
+            if (!isset($representative_word_ids[$category_id])) {
+                $representative_word_ids[$category_id] = $word_id;
+            }
+        }
+        $other_word_id = $this->create_word($other_wordset_id, [$other_category_id], 'Other Snapshot Word', 'Other translation');
+
+        $expected_ids = [];
+        foreach ($representative_word_ids as $word_id) {
+            $expected_ids = array_merge(
+                $expected_ids,
+                array_map('intval', wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']))
+            );
+        }
+        $expected_ids = array_values(array_unique(array_filter($expected_ids)));
+        $other_effective_category_ids = array_map(
+            'intval',
+            wp_get_object_terms($other_word_id, 'word-category', ['fields' => 'ids'])
+        );
+
+        $word_queries = [];
+        $capture_word_query = static function (WP_Query $query) use (&$word_queries): void {
+            $post_type = $query->get('post_type');
+            if ($post_type === 'words' || (is_array($post_type) && in_array('words', $post_type, true))) {
+                $word_queries[] = $query->query_vars;
+            }
+        };
+        $relationship_queries = [];
+        $capture_relationship_query = static function (string $query) use (&$relationship_queries): string {
+            if (
+                stripos($query, 'tr_ws') !== false
+                && stripos($query, 'tr_cat') !== false
+            ) {
+                $relationship_queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_action('pre_get_posts', $capture_word_query);
+        add_filter('query', $capture_relationship_query);
+
+        try {
+            $category_ids = ll_tools_site_sync_collect_wordset_category_ids($wordset_id);
+        } finally {
+            remove_filter('query', $capture_relationship_query);
+            remove_action('pre_get_posts', $capture_word_query);
+        }
+
+        sort($category_ids, SORT_NUMERIC);
+        sort($expected_ids, SORT_NUMERIC);
+
+        $this->assertSame($expected_ids, $category_ids);
+        $this->assertSame([], array_values(array_intersect($other_effective_category_ids, $category_ids)));
+        $this->assertSame([], $word_queries, 'Category discovery must not issue a WP_Query for every word ID.');
+        $this->assertCount(1, $relationship_queries);
+        $this->assertMatchesRegularExpression(
+            '/SELECT\s+DISTINCT\s+tt_cat\.term_id/i',
+            $relationship_queries[0]
+        );
+        $this->assertStringContainsString((string) $wpdb->term_relationships, $relationship_queries[0]);
+    }
+
     public function test_snapshot_endpoint_exports_transcription_records_with_sync_ids(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
